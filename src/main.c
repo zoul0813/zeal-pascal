@@ -9,6 +9,17 @@ static uint8_t messages=1,insert_mode=1,indent_mode=1;
 static uint8_t saved_mode;
 static uint16_t virtual_column=1,top;
 
+static void file_error(const char *prefix,uint8_t code) {
+    /* Console writes themselves update platform_error. Pass the failed job's
+     * value by value before any diagnostic output can overwrite it. */
+    output(prefix); output_number(code);
+    if(code==22) output(" (no free space or resources)");
+    else if(code==21) output(" (no free entries)");
+}
+static void recovery_notice(void) {
+    if(*output_recovery()) { output("\nTemporary/recovery files remain: "); output(output_recovery()); }
+}
+
 static void invalidate(void) {
     if(!build.valid||build.revision!=work.revision) build_close(&build);
 }
@@ -133,14 +144,13 @@ static uint8_t save_work(void) {
     screen_clear(); output("Saving source "); output(work.path); output("...\n");
     ok=save_source(&work,0);
     if(!ok&&platform_error==15) {
-        output("Existing BAK preserved at "); output(output_recovery());
-        output("/PRIOR.BAK\nReplace BAK with the previous source (Y/N)? ");
+        output("Existing BAK is unchanged.\nReplace BAK with the previous source (Y/N)? ");
         do { c=suffix(key_read()); } while(c!='y'&&c!='n'&&c!=27);
         if(c=='y') ok=save_source(&work,1);
         else return 0;
     }
-    if(ok) { output("Source saved. Recovery copies: "); output(output_recovery()); }
-    else { output("Save failed, native error "); output_number(platform_error); output(". RAM source retained.\nTransaction: "); output(output_recovery()); }
+    if(ok) { output("Source saved."); recovery_notice(); }
+    else { file_error("Save failed, native error ",platform_error); output(". RAM source retained."); recovery_notice(); }
     output("\nPress Escape"); while(key_read()!=27) {}
     return ok;
 }
@@ -169,7 +179,7 @@ static void open_work(void) {
     if(!file_field(name)) return;
     output("\nLoading...\n");
     if(load_source(&work,name,&d)) { build_close(&build); return; }
-    output(d.code?"Source error ":"Native file error "); output_number(d.code?d.code:platform_error);
+    file_error(d.code?"Source error ":"Native file error ",d.code?d.code:platform_error);
     output(". Current buffer retained. Press Escape"); while(key_read()!=27) {}
 }
 static uint8_t compile_work(void) {
@@ -179,11 +189,11 @@ static uint8_t compile_work(void) {
     if(saved_mode) {
         output("Verifying and saving executable/map...\n");
         if(!save_build(&work,&build)) {
-            output("Output failed, native error "); output_number(platform_error);
-            output(". RAM source retained.\nTransaction: "); output(output_recovery());
+            file_error("Output failed, native error ",platform_error);
+            output(". RAM source retained."); recovery_notice();
             build_close(&build); output("\nPress Escape"); while(key_read()!=27) {} return 0;
         }
-        output("Saved "); output(output_path()); output(" and .ZMP\nRecovery copies: "); output(output_recovery());
+        output("Saved "); output(output_path()); output(" and .ZMP"); recovery_notice();
         output(work.dirty?"\nSource remains unsaved. Press Escape":"\nSource is saved. Press Escape"); while(key_read()!=27) {}
     }
     output("Code bytes: "); output_number(build.code_bytes);
@@ -199,7 +209,7 @@ int main(void) {
     if(!source_new(&work,"B:/UNTITLED.PAS")) { output("Not enough source memory\n"); console_close(); return 1; }
     screen_clear(); output("Zeal Pascal - first native increment\nExplanatory error messages (Y/N)? ");
     if(!load_source(&work,work.path,&startup)) {
-        output("\nDefault source unavailable (error "); output_number(startup.code?startup.code:platform_error);
+        file_error("\nDefault source unavailable (error ",startup.code?startup.code:platform_error);
         output("); empty RAM buffer retained.\nExplanatory error messages (Y/N)? ");
     }
     do { c=suffix(key_read()); } while(c!='y'&&c!='n'); messages=c=='y';
@@ -228,7 +238,7 @@ int main(void) {
             if((!build.valid||build.revision!=work.revision)&&!compile_work()) continue;
             screen_clear(); output("Validating and preparing program...\n");
             if(saved_mode) {
-                if(!run_saved(&work,&build,&status)) { output("Saved program failed validation/exec. Native error "); output_number(platform_error); }
+                if(!run_saved(&work,&build,&status)) file_error("Saved program failed validation/exec. Native error ",platform_error);
                 else { output("\nProgram returned, status "); output_number(status); }
                 output(". Press Escape"); while(key_read()!=27) {}
             } else if(!run_build(&work,&build)) { output("Native run failed; source retained. Press Escape"); while(key_read()!=27) {} }

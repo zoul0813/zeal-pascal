@@ -38,6 +38,56 @@ def kernel_symbols():
             re.findall(r'^(\w+)\s+= \$([0-9a-fA-F]+)', KERNEL_MAP.read_text(), re.M)}
 
 
+def blank_eeprom():
+    # ZealFS v2, 256-byte pages/FAT8. Matches the installed formatter's 64 KiB
+    # layout: header/root page 0, FAT page 1, 254 initially free pages.
+    data = bytearray(65536)
+    struct.pack_into('<BBHHB', data, 0, 0x5a, 2, 32, 254, 0)
+    data[7] = 3
+    return bytes(data)
+
+
+def zealfs_files(data):
+    """Read-only independent disk oracle for the native ZealFS v2 fixture."""
+    assert data[:2] == b'Z\x02'
+    page = 256 << data[6]
+    bitmap = struct.unpack_from('<H', data, 2)[0]
+    header = (7 + bitmap + 31) // 32 * 32
+    width = 1 if page == 256 else 2
+    def chain(first):
+        seen = set()
+        while True:
+            assert first not in seen and first * page < len(data)
+            seen.add(first)
+            yield first
+            at = page + first * width
+            first = int.from_bytes(data[at:at + width], 'little')
+            if first == 0:
+                break
+    files = {}
+    directories = set()
+    def directory(first, prefix):
+        assert prefix not in files and first not in directories
+        directories.add(first)
+        files[prefix] = None
+        for number in chain(first):
+            for offset in range(header if number == 0 else 0, page, 32):
+                entry = data[number * page + offset:number * page + offset + 32]
+                if not entry[0] & 128:
+                    continue
+                name = entry[1:17].split(b'\0')[0].decode('ascii')
+                start, size = struct.unpack_from('<HI', entry, 17)
+                path = prefix + name
+                if entry[0] & 1:
+                    directory(start, path + '/')
+                else:
+                    content = b''.join(data[p * page:(p + 1) * page] for p in chain(start))
+                    assert len(content) >= size
+                    files[path] = content[:size]
+    directory(0, '/')
+    return files
+
+
 KEYS = {' ': 'SPACE', '\n': 'ENTER', '.': 'PERIOD', '/': 'SLASH',
         ';': 'SEMICOLON', "'": 'APOSTROPHE', '-': 'MINUS', '=': 'EQUAL',
         ',': 'COMMA', '[': 'LEFT_BRACKET', ']': 'RIGHT_BRACKET', '\b': 'BACKSPACE'}
@@ -59,7 +109,7 @@ def type_text(text, ticks=250000):
     return commands
 
 
-def execute(name, commands, fixtures=None):
+def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None):
     directory = RUN / name
     directory.mkdir(parents=True, exist_ok=False)
     hostfs = directory / 'hostfs'
@@ -71,8 +121,8 @@ def execute(name, commands, fixtures=None):
     for artifact in ('CONSOLE.TXT', 'SLICE.COM', 'SLICE.ZMP'):
         (hostfs / artifact).unlink(missing_ok=True)
     shutil.copyfile(ROM, directory / 'rom.img')
-    (directory / 'tf.img').write_bytes(bytes(1024 * 1024))
-    (directory / 'eeprom.img').write_bytes(bytes(65536))
+    (directory / 'tf.img').write_bytes(tf_image if tf_image is not None else bytes(1024 * 1024))
+    (directory / 'eeprom.img').write_bytes(eeprom_image if eeprom_image is not None else bytes(65536))
     (directory / 'zeal.ini').write_text('')
     (directory / 'commands.txt').write_text('\n'.join(commands) + '\n')
     cmd = [str(EMULATOR), '--console', '--debug', '--rom', str(directory / 'rom.img'),
@@ -137,18 +187,11 @@ def artifact_checks(directory):
         assert previous <= first < last <= code_bytes and file_id == reserved == 0
         assert 0 <= start <= end <= len(source)
         previous = last
-    recovery = directory / 'ZP0000'
-    assert (recovery / 'OLD.COM').read_bytes() == b'old executable'
-    assert (recovery / 'OLD.ZMP').read_bytes() == b'old map'
-    assert (recovery / 'NEW.COM').read_bytes() == binary
-    assert (recovery / 'NEW.ZMP').read_bytes() == mapping
-    first=b'begin\nend.\n';second=b'begin\n{second}\nend.\n'
+    second=b'begin\n{second}\nend.\n'
     third=b'begin\n{third}\n{second}\nend.\n'
     assert (directory / 'EDIT.PAS').read_bytes()==third
     assert (directory / 'EDIT.BAK').read_bytes()==second
-    assert (directory / 'ZP0003/OLD.PAS').read_bytes()==second
-    assert (directory / 'ZP0003/PRIOR.BAK').read_bytes()==first
-    assert (directory / 'ZP0003/NEW.PAS').read_bytes()==third
+    assert not any(p.name.startswith('ZP') for p in directory.iterdir())
     return True
 
 
@@ -256,6 +299,42 @@ def file_workflow_checks():
     ]
 
 
+def full_media_checks():
+    sym = symbols('zpascal')
+    disk = bytearray((RUN / 'core/eeprom.img').read_bytes())
+    # Controlled full-before-transaction fixture. The pinned OS has a separate
+    # stack-unwind defect when a file grows *into* exhaustion; that failing
+    # native probe is retained locally, never counted as a passing check.
+    struct.pack_into('<H', disk, 4, 0)
+    bitmap = struct.unpack_from('<H', disk, 2)[0]
+    disk[7:7 + bitmap] = b'\xff' * bitmap
+    disk = bytes(disk)
+    typed = lambda text: type_text(text, ticks=2000000)
+    commands = ['run 100000000'] + type_text('H:/zpascal.bin\n')
+    commands += ['run 10000000'] + typed('ne{kept}') + control('K') + typed('docq')
+    for key in ('C', 'R'):
+        commands += [f"bp 0x{sym['_save_build']:x}", f'tap {key}', 'run 2000000000',
+                     f"bc 0x{sym['_save_build']:x}", f"bp 0x{sym['_output_number']:x}",
+                     'run 2000000000', 'regs', f"rb 0x{sym['_work']:x} 140",
+                     f"bc 0x{sym['_output_number']:x}", f"bp 0x{sym['_key_read']:x}",
+                     'run 100000000', f"bc 0x{sym['_key_read']:x}", 'tap ESC', 'run 2000000']
+    commands += [f"bp 0x{sym['_output_number']:x}"] + typed('sy')
+    commands += ['regs', f"rb 0x{sym['_work']:x} 140", f"bc 0x{sym['_output_number']:x}"]
+    commands += ['quit']
+    text = execute('full-media', commands, eeprom_image=disk)
+    frames = re.split(r'\[DBG\] PC=', text)[1:]
+    work = sym['_work']
+    expected = b"{kept}begin\nwriteln('MEDIA')\nend.\n"
+    retained = all(memory(f).get(work + 1) == 1 and memory(f).get(work + 2) == len(expected)
+                   for f in frames)
+    return [
+        ('C, R and S report the actual full-volume error after printing the diagnostic prefix',
+         len(frames) == 3 and all(re.search(r'HL=0016\b', f) for f in frames)),
+        ('full-before-transaction C/R/S retain dirty source and do not alter the existing media',
+         len(frames) == 3 and retained and (RUN / 'full-media/eeprom.img').read_bytes() == disk),
+    ]
+
+
 def memory(text):
     result = {}
     for address, values in re.findall(r'\[DBG\] ([0-9a-fA-F]{4}): ((?:[0-9a-fA-F]{2} )+)', text):
@@ -305,7 +384,7 @@ def main():
         commands.append(f"rb 0x{sym['_test_hash']:x} 32")
     commands.append(f"rb 0x{sym['_ram_result']:x} 128")
     commands.append('quit')
-    text = execute('core', commands)
+    text = execute('core', commands, eeprom_image=blank_eeprom())
     mem = memory(text)
     def word(name):
         p = sym[name]
@@ -324,6 +403,20 @@ def main():
     checks.append(('short-string ReadLn, editing, fields, empty line and shell exec',
                    input_output.is_file() and input_output.read_bytes() ==
                    b'Your name: Hello, Ada!\r\nabc/defg\r\n[]\r\n' * 2))
+    media_output = RUN / 'core/hostfs/MEDIA.TXT'
+    disk = (RUN / 'core/eeprom.img').read_bytes()
+    try:
+        media = zealfs_files(disk)
+        media_ok = (media['/UNTITLED.PAS'] == media['/UNTITLED.BAK'] == b"begin\nwriteln('MEDIA')\nend.\n"
+                    and media['/ZP0000/KEEP.PAS'] == b'unrelated recovery'
+                    and not any(path.startswith('/ZP') and not path.startswith('/ZP0000/') for path in media)
+                    and hashlib.sha256(media['/UNTITLED.PAS']).digest() == media['/UNTITLED.ZMP'][104:136])
+        checks.append(('repeated B: source/COM saves release owned staging and preserve unrelated recovery', media_ok))
+    except (AssertionError, KeyError, UnicodeError, struct.error):
+        checks.append(('repeated B: source/COM saves release owned staging and preserve unrelated recovery', False))
+    checks.append(('repeated B: saves preserve the source/BAK and shell-runnable COM/map pair',
+                   struct.unpack_from('<H', disk, 4)[0] > 0 and media_output.is_file()
+                   and media_output.read_bytes() == b'MEDIA\r\n' * 4))
     try:
         checks.append(('native-generated image/map/source identities and format bounds',
                        artifact_checks(RUN / 'core/hostfs')))
@@ -333,6 +426,7 @@ def main():
         print('Native core passed; driving interactive edit/error/repair workflow...', flush=True)
         checks.extend(interactive_checks())
         checks.extend(file_workflow_checks())
+        checks.extend(full_media_checks())
     checks.append(('implementation inputs unchanged during native validation',
                    all(sha(ROOT / name) == digest for name, digest in input_hashes.items())))
     report = {

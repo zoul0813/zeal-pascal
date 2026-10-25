@@ -6,8 +6,12 @@
 extern uint8_t console_scratch[256];
 static char destinations[2][128], transaction[128], member[128];
 static uint16_t serial;
+static uint8_t transaction_owned;
 const char *output_path(void) { return destinations[0]; }
-const char *output_recovery(void) { return transaction; }
+const char *output_recovery(void) {
+    if(transaction_owned) return transaction;
+    return "";
+}
 
 static int8_t open_path(const char *path,uint8_t flags) {
     int8_t fd;
@@ -18,7 +22,7 @@ static int8_t open_path(const char *path,uint8_t flags) {
 }
 static uint8_t finish(int8_t fd,uint8_t ok) {
     uint8_t prior=platform_error,e=close(fd);
-    if(!ok) platform_error=prior;
+    if(!ok) platform_error=prior?prior:ERR_FAILURE;
     else if(e) { platform_error=e; ok=0; }
     return ok;
 }
@@ -35,6 +39,7 @@ static uint8_t write_all(int8_t fd,uint16_t n) {
 static uint8_t paths(const Source *s) {
     uint16_t n=(uint16_t)strlen(s->path),base=0,dot=0,i;
     transaction[0]=0;
+    transaction_owned=0;
     if(n>123||n<4||s->path[1]!=':'||s->path[2]!='/') return 0;
     for(i=0;i<n;++i) { if(s->path[i]=='/') { base=i+1; dot=0; } else if(s->path[i]=='.') dot=i; }
     if(!dot) dot=n;
@@ -49,6 +54,25 @@ static uint8_t paths(const Source *s) {
 static void in_transaction(const char *name) {
     strcpy(member,transaction); strcat(member,"/"); strcat(member,name);
 }
+static void cleanup_success(uint8_t source,uint8_t members) {
+    uint8_t i,e;
+    const char *name;
+    /* The final files have been closed and independently verified. Remove only
+     * this operation's own known members, never old or unrelated ZP folders.
+     * A cleanup failure leaves a visible recovery path but does not turn an
+     * already verified save into failure. No failure path calls this routine. */
+    for(i=0;i<(source?3:4);++i) {
+        if(!(members&(1u<<i))) continue;
+        if(source) name=i==0?"NEW.PAS":i==1?"OLD.PAS":"PRIOR.BAK";
+        else name=i==0?"NEW.COM":i==1?"NEW.ZMP":i==2?"OLD.COM":"OLD.ZMP";
+        in_transaction(name);
+        strcpy((char*)console_scratch,member); e=rm((char*)console_scratch);
+        if(e&&e!=ERR_NO_SUCH_ENTRY) { platform_error=e; return; }
+    }
+    strcpy((char*)console_scratch,transaction); e=rm((char*)console_scratch);
+    if(e) { platform_error=e; return; }
+    transaction_owned=0;
+}
 static uint8_t create_transaction(void) {
     uint16_t base=(uint16_t)strlen(transaction),attempt,value;
     uint8_t j,e;
@@ -59,7 +83,7 @@ static uint8_t create_transaction(void) {
         transaction[base+6]=0;
         strcpy((char*)console_scratch,transaction);
         e=mkdir((char*)console_scratch);
-        if(!e) return 1;
+        if(!e) { transaction_owned=1; return 1; }
         if(e!=ERR_ALREADY_EXIST) { platform_error=e; return 0; }
     }
     platform_error=ERR_ALREADY_EXIST; return 0;
@@ -134,14 +158,15 @@ static uint8_t same_files(const char *a,const char *b) {
     ok=finish(first,ok); return finish(second,ok);
 }
 uint8_t save_build(const Source *s,const Build *b) {
-    uint8_t i,e;
+    uint8_t i,e,members=3; /* NEW.COM / NEW.ZMP, then optional OLD pair */
     zos_stat_t *info=(zos_stat_t*)(console_scratch+128);
     platform_error=0;
     if(!paths(s)) { platform_error=ERR_INVALID_PATH; return 0; }
+    if(!strcmp(s->path,destinations[0])||!strcmp(s->path,destinations[1])) { platform_error=ERR_INVALID_PATH; return 0; }
     if(!build_ready(s,b)) { platform_error=ERR_FAILURE; return 0; }
     if(!create_transaction()) return 0;
     /* Finish both new outputs and every old recovery copy before truncating
-     * either destination. Keep all recovery files on both success and failure. */
+     * either destination. Failed publication retains the recovery files. */
     for(i=0;i<2;++i) {
         in_transaction(i?"NEW.ZMP":"NEW.COM");
         if(!store(i?&b->map_page:b->pages,i?b->map_length:b->length,member)||
@@ -155,17 +180,23 @@ uint8_t save_build(const Source *s,const Build *b) {
         if(!D_ISFILE(info->s_flags)) { platform_error=ERR_NOT_A_FILE; return 0; }
         in_transaction(i?"OLD.ZMP":"OLD.COM");
         if(!copy_file(destinations[i],member)||!same_files(destinations[i],member)) return 0;
+        members|=1u<<(i+2);
     }
     for(i=0;i<2;++i) {
         in_transaction(i?"NEW.ZMP":"NEW.COM");
         if(!copy_file(member,destinations[i])||
            !verify(i?&b->map_page:b->pages,i?b->map_length:b->length,destinations[i])) return 0;
     }
+    cleanup_success(0,members);
     return 1;
 }
 uint8_t run_saved(const Source *s,const Build *b,uint8_t *status) {
     uint8_t e;
-    if(!paths(s)||!build_ready(s,b)||!verify(b->pages,b->length,destinations[0])||
+    platform_error=0;
+    if(!paths(s)) { platform_error=ERR_INVALID_PATH; return 0; }
+    if(!strcmp(s->path,destinations[0])||!strcmp(s->path,destinations[1])) { platform_error=ERR_INVALID_PATH; return 0; }
+    if(!build_ready(s,b)) { platform_error=ERR_FAILURE; return 0; }
+    if(!verify(b->pages,b->length,destinations[0])||
        !verify(&b->map_page,b->map_length,destinations[1])) return 0;
     strcpy((char*)console_scratch,destinations[0]);
     e=exec(EXEC_PRESERVE_PROGRAM,(char*)console_scratch,0,status);
@@ -188,23 +219,28 @@ uint8_t save_source(Source *s,uint8_t replace_backup) {
     uint8_t exists,backup=0,ok=0,error;
     platform_error=0;
     if(!paths(s)) { platform_error=ERR_INVALID_PATH; return 0; }
+    strcpy(destinations[1],destinations[0]);
+    extension=(uint16_t)strlen(destinations[1]);
+    extension-=3;
+    strcpy(destinations[1]+extension,"BAK");
+    if(!strcmp(s->path,destinations[1])) { platform_error=ERR_INVALID_PATH; return 0; }
+    if(!ordinary_file(s->path,&exists)) return 0;
+    if(exists) {
+        if(!ordinary_file(destinations[1],&backup)) return 0;
+        /* Asking for overwrite permission must not allocate staging copies or
+         * fill a small disk with a transaction the user has not authorized. */
+        if(backup&&!replace_backup) { platform_error=ERR_ALREADY_EXIST; return 0; }
+    }
     if(!source_snapshot(s,&snapshot)) return 0;
     if(!create_transaction()) goto cleanup;
     in_transaction("NEW.PAS");
     if(!store(&snapshot.page,snapshot.length,member)||!verify(&snapshot.page,snapshot.length,member)) goto cleanup;
-    if(!ordinary_file(s->path,&exists)) goto cleanup;
     if(exists) {
         in_transaction("OLD.PAS");
         if(!copy_file(s->path,member)||!same_files(s->path,member)) goto cleanup;
-        strcpy(destinations[1],destinations[0]);
-        extension=(uint16_t)strlen(destinations[1]);
-        extension-=3;
-        strcpy(destinations[1]+extension,"BAK");
-        if(!ordinary_file(destinations[1],&backup)) goto cleanup;
         if(backup) {
             in_transaction("PRIOR.BAK");
             if(!copy_file(destinations[1],member)||!same_files(destinations[1],member)) goto cleanup;
-            if(!replace_backup) { platform_error=ERR_ALREADY_EXIST; goto cleanup; }
         }
         in_transaction("OLD.PAS");
         if(!copy_file(member,destinations[1])||!same_files(member,destinations[1])) goto cleanup;
@@ -216,7 +252,7 @@ cleanup:
     error=platform_error;
     if(!page_drop(snapshot.page)) { if(ok) error=platform_error; ok=0; }
     platform_error=error;
-    if(ok) s->dirty=0;
+    if(ok) { s->dirty=0; cleanup_success(1,1u|(exists?2u:0u)|(backup?4u:0u)); }
     return ok;
 }
 static uint8_t canonical_path(const char *name,char *out) {

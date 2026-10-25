@@ -76,6 +76,36 @@ static void execution(const char *text,uint8_t kind,uint8_t code) {
     build_close(&b);
     check(pages_used()==1);
 }
+static void media_tests(void) {
+    uint8_t attempt,status;
+    int8_t capture;
+    test_stage=8;
+    strcpy(s.path,"B:/UNTITLED.PAS");
+    check(load("begin\nwriteln('MEDIA')\nend.\n"));
+    check(mkdir("B:/ZP0000")==0);
+    check(seed("B:/ZP0000/KEEP.PAS","unrelated recovery"));
+    capture=open("H:/MEDIA.TXT",O_WRONLY|O_CREAT|O_TRUNC);
+    check(capture>=0);
+    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
+    for(attempt=0;attempt<3;++attempt) {
+        s.dirty=1;
+        check(save_source(&s,1)&&!s.dirty&&!*output_recovery());
+        check(compile(&s,&b,&d));
+        if(!b.valid) break;
+        check(save_build(&s,&b)&&!*output_recovery());
+        status=255; check(run_saved(&s,&b,&status)&&status==0);
+        if(attempt<2) build_close(&b);
+    }
+    strcpy(s.path,"B:/UNTITLED.COM");
+    check(!save_build(&s,&b)&&platform_error==ERR_INVALID_PATH);
+    strcpy(s.path,"B:/UNTITLED.BAK");
+    check(!save_source(&s,1)&&platform_error==ERR_INVALID_PATH);
+    strcpy(s.path,"B:/UNTITLED.PAS");
+    status=255; check(run_saved(&s,&b,&status)&&status==0);
+    build_close(&b);
+    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
+    check(pages_used()==1);
+}
 int main(void) {
     uint8_t digest[32],expected[32]={
         0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea,0x41,0x41,0x40,0xde,0x5d,0xae,0x22,0x23,
@@ -136,7 +166,7 @@ int main(void) {
     check(source_replace(&s,8,8,(const uint8_t*)"{second}\n",9));
     check(save_source(&s,0)&&!s.dirty);
     check(source_replace(&s,8,8,(const uint8_t*)"{third}\n",8));
-    check(!save_source(&s,0)&&platform_error==15&&s.dirty);
+    check(!save_source(&s,0)&&platform_error==15&&s.dirty&&!*output_recovery());
     check(save_source(&s,1)&&!s.dirty);
     check(load_source(&s,"H:/sub/../EDIT.PAS",&d)&&s.length==28&&!s.dirty);
     check(source_replace(&s,0,0,(const uint8_t*)" ",1));
@@ -152,6 +182,7 @@ int main(void) {
     if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
     execution("program HelloName;\nvar UserName:string[80]; a:string[3]; b:string[4];\nbegin Write('Your name: '); ReadLn(UserName); WriteLn('Hello, ',UserName,'!');\nReadLn(a,b); WriteLn(a,'/',b); ReadLn(UserName); WriteLn('[',UserName,']') end.",1,0);
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
+    media_tests();
     source_close(&s); check(pages_used()==0);
     test_stage=6; test_done=255;
     test_complete(); return 0;
