@@ -126,7 +126,11 @@ def program_launch(target='zpascal'):
             f'bp 0x{ready:x}', 'run 2000000000', f'bc 0x{ready:x}'])
 
 
-def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None):
+def code_banks(target='zpascal'):
+    return len(json.loads((ROOT / f'build/{target}.banks.json').read_text())['bank_bytes'])
+
+
+def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, timeout=180):
     directory = RUN / name
     directory.mkdir(parents=True, exist_ok=False)
     hostfs = directory / 'hostfs'
@@ -154,7 +158,7 @@ def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None):
     # no outputs; do not represent this as a read-only-volume test.
     try:
         result = subprocess.run(cmd, input='\n'.join(commands) + '\n', text=True,
-                                capture_output=True, cwd=directory, timeout=180)
+                                capture_output=True, cwd=directory, timeout=timeout)
     except subprocess.TimeoutExpired as error:
         captured = (error.stdout or b'') + (error.stderr or b'')
         (directory / 'console.txt').write_bytes(captured)
@@ -352,7 +356,7 @@ def bank_lifecycle_checks():
     first, last = (memory(part) for part in parts)
     mappings = lambda part: re.findall(r'\[DBG\] ([0-9a-f]{4}) -> ([0-9a-f]{6})', part)
     return [('quit releases all code banks before SDK exit and restores original program mappings',
-             first.get(sym['_code_owned']) == 4 and last.get(sym['_code_owned']) == 0
+             first.get(sym['_code_owned']) == code_banks() and last.get(sym['_code_owned']) == 0
              and mappings(parts[0]) == mappings(parts[1]))]
 
 
@@ -532,7 +536,7 @@ def default_library_checks():
     observed = memory(text)
     path = bytes(observed.get(work+12+i,0) for i in range(128)).split(b'\0')[0]
     return [('default T:/lib/zpascal.zpl loads without arguments and startup leaves media unchanged',
-             observed.get(sym['_code_owned']) == 4 and path == b'T:/src/pascal/UNTITLED.pas'
+             observed.get(sym['_code_owned']) == code_banks() and path == b'T:/src/pascal/UNTITLED.pas'
              and observed.get(work+1) == observed.get(work+2) == observed.get(work+3) == 0
              and (RUN / 'library-default/tf.img').read_bytes() == installed
              and '/src/' not in files)]
@@ -558,8 +562,8 @@ def main():
         checks.append((target + ' resident code and constants below bank window',
                        all(sym['s__' + area] + sym['l__' + area] <= 0x8000
                            for area in ('HEADER', 'GSINIT', 'GSFINAL', 'INITIALIZER', 'HOME', 'SYSTEM', 'TEXT', 'RODATA'))))
-        checks.append((target + ' four code banks fit their 16 KiB window',
-                       all(0 < sym[f'l__BANK{bank}'] <= 16384 for bank in (1, 2, 3, 4))))
+        checks.append((target + ' code banks fit their 16 KiB window',
+                       all(0 < sym[f'l__BANK{bank}'] <= 16384 for bank in range(1,code_banks(target)+1))))
     boot = symbols('zpbootfail')
     commands = ['run 100000000'] + type_text('H:/zpbootfail.bin\n')
     commands += [f"bp 0x{boot['_boot_complete']:x}", 'run 12000000000', 'regs',
@@ -590,7 +594,7 @@ def main():
         commands += ['run 1000000000']
     # The completion breakpoint is mandatory; this bounded budget includes the
     # additional RAM/COM Case loop and three source-recovery executions.
-    commands += ['run 16000000000', 's', 'regs', 'mmu']
+    commands += ['run 26000000000', 's', 'regs', 'mmu']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage', '_platform_error'):
         commands.append(f"rb 0x{sym[name]:x} 2")
     if '_test_failures' in sym:
@@ -600,7 +604,10 @@ def main():
     commands.append(f"rb 0x{sym['_ram_result']:x} 128")
     commands.append('quit')
     fixtures = {p.name.upper(): p.read_bytes() for p in (ROOT / 'tests/native').glob('*.pas')}
-    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom())
+    # This growing native corpus includes repeated disk publication and RAM/COM
+    # routine execution. Retain both a cycle bound and mandatory completion;
+    # allow its measured workload more wall time than the small UI scenarios.
+    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=360)
     mem = memory(text)
     def word(name):
         p = sym[name]
@@ -639,6 +646,14 @@ def main():
                      'CASE-REFERENCE-EDGES-OK\nCASE-STACK-CLEANUP-OK\n').replace('\n','\r\n').encode() * 2
     checks.append(('Case ordinal selectors, lists/ranges, nesting, Else and repeated stack cleanup in RAM and COM',
                    case_output.is_file() and case_output.read_bytes() == case_expected))
+    routine_output = RUN / 'core/hostfs/ROUTINES.TXT'
+    routine_expected = ('LEXICAL-SCOPE-OK\nVAR-FORWARD-OK\nVALUE-FUNCTION-OK\nEXIT-OK\n'
+                        'VALUE-COPY-ORDER-OK\nARGUMENT-LAYOUT-OK\nVAR-STRING-UNTYPED-OK\n'
+                        'LOCAL-TYPED-CONST-OK\nSCALAR-RESULTS-OK\nRECURSION-OK\nRECURSIVE-LEXICAL-OK\n'
+                        'SIBLING-STATIC-LINK-OK\nRECURSIVE-STRING-COPY-OK\nCALL-STACK-CLEANUP-OK\n'
+                        'LATE-GLOBAL-LAYOUT-OK\n').replace('\n','\r\n').encode() * 2
+    checks.append(('routine scopes, forwards, value/VAR/string arguments, recursive lexical frames and cleanup in RAM and COM',
+                   routine_output.is_file() and routine_output.read_bytes() == routine_expected))
     media_output = RUN / 'core/hostfs/MEDIA.TXT'
     disk = (RUN / 'core/eeprom.img').read_bytes()
     try:

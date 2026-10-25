@@ -6,15 +6,21 @@
  * zero through four code pages. The ROM and allocator stay unchanged. */
 volatile uint8_t boot_done,boot_passed,boot_failed;
 volatile uint8_t boot_case;
+static uint8_t library_header[6];
 void boot_complete(void) { for(;;) { __asm halt __endasm; } }
 static void check(uint8_t ok) { if(ok) ++boot_passed; else ++boot_failed; }
 int main(void) {
-    uint8_t held[32],count,page,status,free_count,wanted;
+    uint8_t held[32],count,page,status,free_count,wanted,banks;
+    uint16_t bytes=6;
     const char *args[]={"H:/zpascal.zpl",0};
     int8_t expected_fd,fd;
     expected_fd=open("H:/zpascal.zpl",O_RDONLY); check(expected_fd>=0);
-    if(expected_fd>=0) check(close(expected_fd)==0);
-    for(boot_case=0;boot_case<5;++boot_case) {
+    banks=0;
+    if(expected_fd>=0) {
+        check(read(expected_fd,library_header,&bytes)==0&&bytes==6);
+        banks=library_header[5]; check(banks>0&&banks<=16); check(close(expected_fd)==0);
+    }
+    for(boot_case=0;boot_case<=banks;++boot_case) {
         count=0;
         while(count<32&&palloc(&page)==0) held[count++]=page;
         wanted=3+boot_case;

@@ -122,6 +122,17 @@ int main(int argc,char **argv) {
     invalid("type t=(red,green); u=(blue,white); begin case red of blue: end end.",46);
     invalid("begin case 1 of 0..true: end end.",46);
     invalid("begin case 1 of 1:;",14);
+    invalid("procedure p; forward; begin end.",73);
+    invalid("procedure p; begin end; procedure p; begin end; begin end.",43);
+    invalid("procedure p(a:integer); begin end; begin p end.",4);
+    invalid("procedure p(a:integer); begin end; begin p(true) end.",44);
+    invalid("procedure p(var a:integer); begin end; begin p(1) end.",44);
+    invalid("var b:byte; procedure p(var a:integer); begin end; begin p(b) end.",44);
+    invalid("procedure p(var a); begin a:=1 end; begin end.",44);
+    invalid("procedure p(var a); begin writeln(a) end; begin end.",44);
+    invalid("procedure p; var hidden:integer; begin end; begin hidden:=1 end.",41);
+    invalid("type text=string[3]; function f:text; begin f:='abc' end; begin end.",48);
+    invalid("type text=string[3]; var s:string[4]; procedure p(var a:text); begin end; begin p(s) end.",44);
     load("const x=-32768; y=x; z=-y; type octet=byte; text=string[3]; var n:octet; s:text; begin n:=257; s:='x'; writeln(x,y,z,n,s) end.");
     check(compile(&s,&b,&d)&&b.globals_bytes==5); build_close(&b);
     load("var b:boolean; n:integer; begin b:=not false; n:=1234; writeln(b,n) end.");
@@ -135,7 +146,7 @@ int main(int argc,char **argv) {
     load("var writeln: integer; begin writeln:=1 end.");
     check(compile(&s,&b,&d)); build_close(&b);
     load("program Slice;\nvar n: integer;\nbegin n:=-32768; writeln('N=',n,',',7 div -3,',',7 mod -3) end.");
-    for(i=0;i<5;++i) {
+    for(i=0;i<6;++i) {
         fail_after=(int)i;
         check(!compile(&s,&b,&d)&&d.code==98); check(pages_used()==1);
     }
@@ -174,6 +185,10 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         check(b.globals_bytes==19); ordered_map(); build_close(&b);
         file=fopen("tests/native/cases.pas","rb"); check(file!=NULL);
+        n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
+        check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
+        ordered_map(); build_close(&b);
+        file=fopen("tests/native/routines.pas","rb"); check(file!=NULL);
         n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);

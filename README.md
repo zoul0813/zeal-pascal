@@ -24,6 +24,7 @@ H:/zpascal.bin H:/zpascal.zpl
 The launcher verifies the complete library before entering any application
 bank. A missing, damaged or mismatched library returns to the shell. The editor,
 compiler, file operations and compiler front end use separate owned RAM banks.
+Routine compilation uses an additional code bank.
 Internal `pascal_runtime.zpl` and `ram_trampoline.zpl` templates remain embedded
 in the launcher and require no separate deployment. Generated Pascal COM
 programs contain their own runtime and need no IDE library.
@@ -110,11 +111,21 @@ Odd, Hi, Lo, Swap and the Integer forms of Abs/Sqr. The compiler currently has
 Exhaustion reports resource error 98. Char arrays and selected-variable forms
 of Addr/SizeOf await aggregate support.
 
+Procedures and scalar functions support named parameters, local declarations,
+lexical nesting/shadowing, forward declarations, Exit and native external
+addresses. Value arguments are evaluated left to right; scalar and string values
+are copied, while Var parameters alias their callers. `$A+` uses static local
+storage; `$A-` gives recursive frames with lexical-parent links. `$V+` checks
+Var-string capacities and `$V-` permits relaxed matching. Untyped Var parameters
+support forwarding and Addr. String function results, nested routine address
+bridges and remaining raw-memory APIs are still in progress.
+
 The [control-flow fixture](tests/native/control.pas),
 [ordinal fixture](tests/native/ordinals.pas), [Case fixture](tests/native/cases.pas)
 and enum boundary fixtures exercise these features in Memory and saved native
-COM execution. Real6, aggregates,
-pointers, routines, Goto and the rest of the dialect remain in progress.
+COM execution. The [routine fixture](tests/native/routines.pas) covers calls,
+recursion and string parameter copies. Real6, aggregates, pointers, string
+results, Goto and the rest of the dialect remain in progress.
 
 ReadLn currently uses Zeal's cooked keyboard line editor and restores raw mode
 before returning. It supports string fields, empty lines and discarding the rest

@@ -36,8 +36,9 @@
 #define RT_CHARCOPY 0x40deu
 #define RT_STRINGCHAR 0x40e1u
 #define RT_TEXTCMP 0x40e4u
+#define RT_PUSHSTRING 0x40e7u
 #define DEFAULT_SOURCE "T:/src/pascal/UNTITLED.pas"
-enum { PAGE_SOURCE=1, PAGE_IMAGE, PAGE_MAP, PAGE_RUN, PAGE_SNAPSHOT };
+enum { PAGE_SOURCE=1, PAGE_IMAGE, PAGE_MAP, PAGE_RUN, PAGE_SNAPSHOT, PAGE_COMPILER };
 
 typedef struct {
     uint8_t page, dirty;

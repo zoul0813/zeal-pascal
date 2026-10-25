@@ -23,24 +23,63 @@ void cc_emit(uint8_t v) FRONTEND {
     if(cc.error->code) return;
     /* Initial runtime has no heap; keep all static/code bytes below C000 so
      * its checked C800 stack floor also dominates static storage + headroom. */
-    if(cc.emitted>=0x8000u) { cc_fail(99); return; }
+    if(cc.emitted>=0xc000u) { cc_fail(99); return; }
     cc_put(cc.emitted++,v);
 }
 static void emit16(uint16_t v) { cc_emit((uint8_t)v); cc_emit((uint8_t)(v>>8)); }
 void cc_op16(uint8_t op,uint16_t value) FRONTEND { cc_emit(op); emit16(value); }
+void cc_relocate(uint16_t operand) FRONTEND {
+    uint16_t p=cc.relocations*2;
+    if(cc.error->code) return;
+    if((uint32_t)p+2+(uint32_t)cc.routine_count*16>PAGE_SIZE) { cc_fail(99); return; }
+    far_set(cc.workspace,p,(uint8_t)operand); far_set(cc.workspace,p+1,(uint8_t)(operand>>8));
+    ++cc.relocations;
+}
+void cc_address(uint8_t op,uint16_t value) FRONTEND {
+    cc_relocate(cc.emitted+1); cc_op16(op,value);
+}
+uint8_t cc_place_code(void) FRONTEND {
+    uint16_t i,at,value,origin=GLOBAL_BASE+cc.image->globals_bytes;
+    uint16_t count=cc.emitted-0x8000u,delta=origin-0xc000u;
+    if((uint32_t)cc.image->globals_bytes+count>PAGE_SIZE) { cc_fail(99); return 0; }
+    for(i=0;i<cc.relocations;++i) {
+        at=far_get(cc.workspace,i*2)|((uint16_t)far_get(cc.workspace,i*2+1)<<8);
+        if(at<0x8000u||at>=cc.emitted-1) { cc_fail(99); return 0; }
+        value=far_get(cc.image->pages[2],at-0x8000u)|((uint16_t)far_get(cc.image->pages[2],at-0x8000u+1)<<8);
+        cc_word(at,value+delta);
+    }
+    /* Temporary code occupies page 2. Its final extent is entirely below
+     * page 2, after all declared globals/static locals, so copying cannot
+     * overwrite bytes that have not yet been read. */
+    for(i=0;i<count;++i) cc_put(origin-0x4000u+i,far_get(cc.image->pages[2],i));
+    cc.image->code_origin=origin; cc.image->code_bytes=count;
+    cc.image->length=origin-0x4000u+count;
+    return 1;
+}
 
-uint16_t cc_forward(uint8_t op) FRONTEND { uint16_t at=cc.emitted+1; cc_op16(op,0); return at; }
+uint16_t cc_forward(uint8_t op) FRONTEND { uint16_t at=cc.emitted+1; cc_address(op,0); return at; }
 void cc_patch(uint16_t at) FRONTEND { if(!cc.error->code) cc_word(at,0x4000u+cc.emitted); }
-void cc_guard(void) FRONTEND {
+uint16_t cc_link(uint8_t opcode,uint16_t head) FRONTEND {
+    uint16_t at=cc.emitted+1; cc_address(opcode,head); return at;
+}
+void cc_patch_chain(uint16_t head,uint16_t value) FRONTEND {
+    uint16_t next;
+    while(head&&!cc.error->code) {
+        next=far_get(cc.image->pages[2],head-0x8000u)|((uint16_t)far_get(cc.image->pages[2],head-0x8000u+1)<<8);
+        cc_word(head,value); head=next;
+    }
+}
+void cc_reserve(uint16_t bytes) FRONTEND {
     /* Alternate registers are restored on both paths. The fixed 64-byte
      * reservation covers every nonrecursive runtime-helper path and syscall. */
     uint16_t pc=cc.emitted-(cc.image->code_origin-0x4000u);
-    cc_emit(0xd9); cc_emit(0x08); cc_op16(0x21,0xffc0); cc_emit(0x39); /* save AF too */
+    cc_emit(0xd9); cc_emit(0x08); cc_op16(0x21,(uint16_t)(0u-64u-bytes)); cc_emit(0x39); /* save AF too */
     cc_emit(0x30); cc_emit(5); /* wrap -> failure */
     cc_emit(0x7c); cc_emit(0xfe); cc_emit(0xc8); cc_emit(0x30); cc_emit(8);
     cc_emit(0x08); cc_emit(0xd9); cc_op16(0x21,pc); cc_op16(0xc3,RT_STACK);
     cc_op16(0x21,pc); cc_op16(0x22,RT_PC); cc_emit(0x08); cc_emit(0xd9);
 }
+void cc_guard(void) FRONTEND { cc_reserve(0); }
 void cc_call(uint16_t address) FRONTEND { cc_guard(); cc_op16(0xcd,address); }
 void cc_next(void) FRONTEND {
     uint8_t c,q,base,value;
@@ -54,10 +93,18 @@ void cc_next(void) FRONTEND {
             q=c; cc.scan+=q=='{' ? 1 : 2;
             if(get(cc.scan)=='$') {
                 cc.token_start=cc.scan; cc.token_end=cc.scan+1; ++cc.scan;
-                if(lower(get(cc.scan))!='r'||(get(cc.scan+1)!='+'&&get(cc.scan+1)!='-')) {
-                    cc_fail(93); cc.token=T_EOF; return;
-                }
-                cc.range_check=get(cc.scan+1)=='+'; cc.scan+=2;
+                do {
+                    c=lower(get(cc.scan)); value=get(cc.scan+1)=='+';
+                    if((c!='r'&&c!='a'&&c!='v')||(get(cc.scan+1)!='+'&&get(cc.scan+1)!='-')) {
+                        cc_fail(93); cc.token=T_EOF; return;
+                    }
+                    if(c=='r') cc.range_check=value;
+                    else if(c=='a') cc.absolute_mode=value;
+                    else cc.var_strict=value;
+                    cc.scan+=2;
+                    if(get(cc.scan)!=',') break;
+                    ++cc.scan;
+                } while(!cc.error->code);
                 while(get(cc.scan)==' '||get(cc.scan)=='\t') ++cc.scan;
                 if(!(q=='{'?get(cc.scan)=='}':get(cc.scan)=='*'&&get(cc.scan+1)==')')) {
                     cc_fail(93); cc.token=T_EOF; return;
@@ -139,22 +186,28 @@ void cc_next(void) FRONTEND {
 void cc_expect(uint16_t t,uint8_t code) FRONTEND { if(cc.token!=t) cc_fail(code); else cc_next(); }
 
 int16_t cc_lookup(void) FRONTEND {
-    uint16_t i; uint8_t j,n=(uint8_t)strlen(cc.name);
-    for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].name_length==n) {
-        for(j=0;j<n;++j) if(cc.name[j]!=lower(get(cc.symbols[i].name_start+j))) break;
-        if(j==n) return (int16_t)i;
+    uint16_t i; uint8_t j,scope=cc.scope,n=(uint8_t)strlen(cc.name);
+    for(;;) {
+        i=cc.symbol_count;
+        while(i--) if(cc.symbols[i].owner==scope&&cc.symbols[i].name_length==n) {
+            for(j=0;j<n;++j) if(cc.name[j]!=lower(get(cc.symbols[i].name_start+j))) break;
+            if(j==n) return (int16_t)i;
+        }
+        if(!scope) break;
+        scope=(uint8_t)cc_rget(scope,R_PARENT);
     }
     return -1;
 }
-static uint16_t add_symbol(uint8_t role) {
+uint16_t cc_new_symbol(uint8_t role) FRONTEND {
     uint16_t id=cc.symbol_count;
+    int16_t old=cc_lookup();
     if(cc.token!=T_ID) cc_fail(53);
-    else if(cc_lookup()>=0) cc_fail(43);
+    else if(old>=0&&cc.symbols[old].owner==cc.scope) cc_fail(43);
     else if(id==SYMBOL_LIMIT) cc_fail(98);
     if(cc.error->code) return 0;
     memset(&cc.symbols[id],0,sizeof(Symbol));
     cc.symbols[id].name_start=cc.token_start; cc.symbols[id].name_length=(uint8_t)strlen(cc.name);
-    cc.symbols[id].role=role; ++cc.symbol_count;
+    cc.symbols[id].role=role; cc.symbols[id].owner=cc.scope; ++cc.symbol_count;
     return id;
 }
 uint8_t cc_new_type(uint8_t family,uint16_t width,int16_t low,int16_t high,uint8_t capacity) FRONTEND {
@@ -164,27 +217,116 @@ uint8_t cc_new_type(uint8_t family,uint16_t width,int16_t low,int16_t high,uint8
     cc.types[id].low=low; cc.types[id].high=high; cc.types[id].capacity=capacity;
     ++cc.type_count; return id;
 }
-uint8_t cc_family(uint8_t type) FRONTEND { return cc.types[type].family; }
+uint8_t cc_family(uint8_t type) FRONTEND { return type<cc.type_count?cc.types[type].family:255; }
 static uint8_t text_type(uint8_t type) { return cc_family(type)==K_CHAR||cc_family(type)==K_STRING; }
 uint8_t cc_compatible(uint8_t left,uint8_t right) FRONTEND {
     return cc_family(left)==cc_family(right)||(text_type(left)&&text_type(right));
 }
 uint8_t cc_variable(int16_t id) FRONTEND {
-    return id>=0&&(cc.symbols[id].role==S_VARIABLE||cc.symbols[id].role==S_TYPED);
+    return id>=0&&(cc.symbols[id].role==S_VARIABLE||cc.symbols[id].role==S_TYPED||
+           cc.symbols[id].role==S_VALUE||cc.symbols[id].role==S_REFERENCE||cc.symbols[id].role==S_RESULT);
+}
+uint16_t cc_rget(uint8_t scope,uint8_t field) FRONTEND {
+    uint16_t at=PAGE_SIZE-(uint16_t)scope*16+field;
+    uint16_t value=far_get(cc.workspace,at);
+    if(field>R_FLAGS) value|=(uint16_t)far_get(cc.workspace,at+1)<<8;
+    return value;
+}
+void cc_rput(uint8_t scope,uint8_t field,uint16_t value) FRONTEND {
+    uint16_t at=PAGE_SIZE-(uint16_t)scope*16+field;
+    far_set(cc.workspace,at,(uint8_t)value);
+    if(field>R_FLAGS) far_set(cc.workspace,at+1,(uint8_t)(value>>8));
+}
+void cc_storage(uint16_t id,uint16_t width) FRONTEND {
+    uint16_t count;
+    if(cc.scope&&(cc_rget(cc.scope,R_FLAGS)&RF_RECURSIVE)) {
+        count=cc_rget(cc.scope,R_LOCALS);
+        if((uint32_t)count+width>0x7ff0u) { cc_fail(99); return; }
+        count+=width; cc_rput(cc.scope,R_LOCALS,count);
+        cc.symbols[id].address=(uint16_t)(0u-6u-count);
+    } else {
+        if((uint32_t)cc.image->globals_bytes+width>=PAGE_SIZE) { cc_fail(99); return; }
+        cc.symbols[id].address=GLOBAL_BASE+cc.image->globals_bytes;
+        cc.image->globals_bytes+=width;
+    }
+}
+void cc_frame(uint8_t scope) FRONTEND {
+    uint8_t current=cc.scope;
+    if(!scope) { cc_op16(0x21,0); return; }
+    cc_guard(); cc_emit(0xdd); cc_emit(0xe5); cc_emit(0xe1); /* HL = IX */
+    while(current!=scope&&!cc.error->code) {
+        if(!current) { cc_fail(44); return; }
+        cc_emit(0x2b); cc_emit(0x2b); cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb);
+        current=(uint8_t)cc_rget(current,R_PARENT);
+    }
+}
+void cc_slot(uint16_t id) FRONTEND {
+    Symbol *s=&cc.symbols[id];
+    if(s->role==S_TYPED) cc_address(0x21,s->address);
+    else if(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE)) {
+        cc_frame(s->owner); cc_op16(0x11,s->address); cc_emit(0x19);
+    } else cc_op16(0x21,s->address);
+}
+void cc_symbol_address(uint16_t id) FRONTEND {
+    cc_slot(id);
+    if(cc.symbols[id].role==S_REFERENCE) { cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb); }
+}
+void cc_destination(uint16_t id) FRONTEND {
+    Symbol *s=&cc.symbols[id];
+    if(s->role==S_REFERENCE||(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE))) {
+        cc_guard(); cc_emit(0xe5); cc_symbol_address(id); cc_emit(0xeb); cc_emit(0xe1);
+    } else if(s->role==S_TYPED) cc_address(0x11,s->address);
+    else cc_op16(0x11,cc.symbols[id].address);
 }
 void cc_load_symbol(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];
-    if(cc_family(s->type)==K_STRING) cc_op16(0x21,s->address);
-    else if(cc.types[s->type].width==1) { cc_op16(0x3a,s->address); cc_emit(0x6f); cc_emit(0x26); cc_emit(0); }
-    else cc_op16(0x2a,s->address);
+    if(s->type==255) { cc_fail(44); return; }
+    if(cc_family(s->type)==K_STRING) cc_symbol_address(id);
+    else if(s->role==S_REFERENCE||(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE))) {
+        cc_symbol_address(id);
+        if(cc.types[s->type].width==1) { cc_emit(0x6e); cc_emit(0x26); cc_emit(0); }
+        else { cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb); }
+    }
+    else if(cc.types[s->type].width==1) {
+        if(s->role==S_TYPED) cc_address(0x3a,s->address); else cc_op16(0x3a,s->address);
+        cc_emit(0x6f); cc_emit(0x26); cc_emit(0);
+    } else if(s->role==S_TYPED) cc_address(0x2a,s->address); else cc_op16(0x2a,s->address);
 }
 void cc_store_symbol(uint16_t id) FRONTEND {
-    if(cc.types[cc.symbols[id].type].width==1) { cc_emit(0x7d); cc_op16(0x32,cc.symbols[id].address); }
-    else cc_op16(0x22,cc.symbols[id].address);
+    Symbol *s=&cc.symbols[id];
+    uint8_t op;
+    if(s->type==255) { cc_fail(44); return; }
+    op=cc.types[s->type].width==1?0x32:0x22;
+    if(s->role==S_REFERENCE||(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE))) {
+        cc_guard(); cc_emit(0xe5); cc_symbol_address(id); cc_emit(0xd1); cc_emit(0x73);
+        if(op==0x22) { cc_emit(0x23); cc_emit(0x72); }
+        return;
+    }
+    if(op==0x32) cc_emit(0x7d);
+    if(cc.symbols[id].role==S_TYPED) cc_address(op,cc.symbols[id].address); else cc_op16(op,cc.symbols[id].address);
 }
 void cc_check_range(uint8_t type) FRONTEND {
+    if(type==255) { cc_fail(44); return; }
     if(!cc.range_check||cc_family(type)==K_STRING) return;
     cc_op16(0x11,(uint16_t)cc.types[type].low); cc_op16(0x01,(uint16_t)cc.types[type].high); cc_call(RT_RANGE);
+}
+void cc_result_symbol(uint16_t routine) FRONTEND {
+    uint16_t i; uint8_t j;
+    Symbol *s=&cc.symbols[routine];
+    for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].owner==cc.scope&&cc.symbols[i].name_length==s->name_length) {
+        for(j=0;j<s->name_length;++j)
+            if(lower(get(cc.symbols[i].name_start+j))!=lower(get(s->name_start+j))) break;
+        if(j==s->name_length) { cc_fail(43); return; }
+    }
+    if(cc.symbol_count==SYMBOL_LIMIT) { cc_fail(98); return; }
+    i=cc.symbol_count++; cc.symbols[i]=*s;
+    cc.symbols[i].owner=cc.scope; cc.symbols[i].role=S_RESULT;
+    cc_storage(i,cc.types[s->type].width);
+}
+void cc_convert(uint8_t target,uint8_t source) FRONTEND {
+    if(target==255||source==255||!cc_compatible(target,source)) { cc_fail(44); return; }
+    if(cc_family(target)==K_CHAR&&cc_family(source)==K_STRING) cc_call(RT_STRINGCHAR);
+    cc_check_range(target);
 }
 /* String constants retain their source location, not a pointer into compiler
  * scratch memory. Re-decode only that literal while preserving parser state. */
@@ -195,12 +337,17 @@ void cc_constant_literal(uint16_t at) FRONTEND {
 }
 void cc_emit_literal(void) FRONTEND {
     uint16_t i,address=0x4000u+cc.emitted+3;
-    cc_op16(0xc3,address+cc.literal_length+1); cc_emit((uint8_t)cc.literal_length);
+    cc_address(0xc3,address+cc.literal_length+1); cc_emit((uint8_t)cc.literal_length);
     for(i=0;i<cc.literal_length;++i) cc_emit(cc.literal[i]);
-    cc_op16(0x21,address);
+    cc_address(0x21,address);
 }
 int16_t cc_predefined_type(void) FRONTEND {
     return cc_is("integer")?K_INTEGER:cc_is("boolean")?K_BOOLEAN:cc_is("char")?K_CHAR:cc_is("byte")?K_BYTE:-1;
+}
+int16_t cc_named_type(void) FRONTEND {
+    int16_t id=cc.token==T_ID?cc_lookup():-1;
+    if(id>=0&&cc.symbols[id].role==S_TYPE) return cc.symbols[id].type;
+    return id<0?cc_predefined_type():-1;
 }
 void cc_constant(uint8_t *type,uint16_t *value) FRONTEND {
     int16_t id;
@@ -237,7 +384,7 @@ static uint8_t parse_type(void) {
     if(cc.token=='(') {
         result=cc_new_type(cc.type_count,1,0,0,0); count=0; cc_next();
         do {
-            member=add_symbol(S_CONSTANT);
+            member=cc_new_symbol(S_CONSTANT);
             cc.symbols[member].type=result; cc.symbols[member].address=count++;
             cc_next(); if(cc.token!=',') break; cc_next();
         } while(!cc.error->code);
@@ -263,14 +410,12 @@ void cc_declarations(void) FRONTEND {
         section=cc_is("var")?S_VARIABLE:cc_is("const")?S_CONSTANT:S_TYPE; cc_next();
         while(cc.token==T_ID&&!cc.error->code) {
             first=cc.symbol_count;
-            id=add_symbol(section==S_VARIABLE?S_VARIABLE:S_PENDING); cc_next();
+            id=cc_new_symbol(section==S_VARIABLE?S_VARIABLE:S_PENDING); cc_next();
             if(section==S_VARIABLE) {
-                while(cc.token==','&&!cc.error->code) { cc_next(); add_symbol(S_VARIABLE); cc_next(); }
+                while(cc.token==','&&!cc.error->code) { cc_next(); cc_new_symbol(S_VARIABLE); cc_next(); }
                 count=cc.symbol_count-first; cc_expect(':',2); type=parse_type();
                 for(i=first;i<first+count&&!cc.error->code;++i) {
-                    if(cc.image->globals_bytes+cc.types[type].width>=0x4000u) { cc_fail(99); break; }
-                    cc.symbols[i].type=type; cc.symbols[i].address=GLOBAL_BASE+cc.image->globals_bytes;
-                    cc.image->globals_bytes+=cc.types[type].width;
+                    cc.symbols[i].type=type; cc_storage(i,cc.types[type].width);
                 }
             } else if(section==S_TYPE) {
                 cc_expect('=',6); type=parse_type(); cc.symbols[id].type=type; cc.symbols[id].role=S_TYPE;
@@ -295,9 +440,9 @@ void cc_declarations(void) FRONTEND {
         }
     }
 }
-void cc_typed_storage(void) FRONTEND {
+void cc_typed_storage(uint16_t first) FRONTEND {
     uint16_t i,j,value,jump=0;
-    for(i=0;i<cc.symbol_count&&!cc.error->code;++i) if(cc.symbols[i].role==S_TYPED) {
+    for(i=first;i<cc.symbol_count&&!cc.error->code;++i) if(cc.symbols[i].role==S_TYPED) {
         if(!jump) jump=cc_forward(0xc3);
         value=cc.symbols[i].address; cc.symbols[i].address=0x4000u+cc.emitted;
         if(cc_family(cc.symbols[i].type)==K_STRING) {

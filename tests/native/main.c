@@ -54,7 +54,7 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
         check(seed("H:/SLICE.COM","old executable")); check(seed("H:/SLICE.ZMP","old map"));
         check(save_build(&s,&b));
     }
-    if(test_stage==7||test_stage==9||test_stage==11||test_stage==13) check(save_build(&s,&b));
+    if(test_stage==7||test_stage==9||test_stage==11||test_stage==13||test_stage==15) check(save_build(&s,&b));
     owned=pages_used();
     test_machine(before);
     check(run_build(&s,&b));
@@ -83,7 +83,7 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
         check(exec(EXEC_PRESERVE_PROGRAM,"H:/NAME.COM",0,&status)==0&&status==0);
         check(pages_used()==owned);
     }
-    if(test_stage==9||test_stage==11||test_stage==13) {
+    if(test_stage==9||test_stage==11||test_stage==13||test_stage==15) {
         uint8_t status=255;
         check(run_saved(&s,&b,&status)&&status==0); check(pages_used()==owned);
     }
@@ -138,6 +138,18 @@ static void case_tests(void) {
     checked_error("begin\ncase 7 div 0 of 1: end end.",2,"case");
     checked_error("begin case 1 of\n1:writeln(7 div 0); else writeln(0) end end.",2,"writeln(7");
     checked_error("begin case 1 of\n2:; else writeln(7 div 0) end end.",2,"writeln(7");
+    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
+}
+static void routine_tests(void) {
+    int8_t capture=open("H:/ROUTINES.TXT",O_WRONLY|O_CREAT|O_TRUNC);
+    check(capture>=0);
+    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
+    test_stage=15; execution_file("H:/ROUTINES.PAS",1,0,0);
+    test_stage=16;
+    checked_error("{$A-} procedure dive; var scratch:string[255]; begin dive end; begin dive end.",0xff,"dive");
+    checked_error("function fail(x:integer):integer; begin fail:=7 div x end; begin writeln(fail(0)) end.",2,"fail:=");
+    checked_error("procedure p(x:byte); begin end; begin {$R+} p(256) end.",0x91,"p(256)");
+    execution("procedure p; begin halt end; begin p end.",4,0);
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
 static void media_tests(void) {
@@ -269,6 +281,7 @@ int app_main(void) {
     control_tests();
     ordinal_tests();
     case_tests();
+    routine_tests();
     source_close(&s); check(pages_used()==code_required);
     code_hash(digest); check(!memcmp(digest,initial_code_hash,32));
     test_stage=6; test_done=255;
