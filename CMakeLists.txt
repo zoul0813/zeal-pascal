@@ -13,7 +13,7 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/runtime_asset.asm CONTENT
 ".area _RODATA\n.globl _runtime_start\n.globl _runtime_end\n.globl _trampoline_start\n.globl _trampoline_end\n_runtime_start:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.zpl\"\n_runtime_end:\n_trampoline_start:\n.incbin \"${CMAKE_BINARY_DIR}/ram_trampoline.zpl\"\n_trampoline_end:\n")
 set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/pascal_runtime.zpl;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
-set(PASCAL_CORE src/source.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_front.c src/compiler_routines.c src/compiler_state.c src/library.c src/platform.c src/output.c src/native.asm
+set(PASCAL_CORE src/source.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_expr.c src/compiler_front.c src/compiler_routines.c src/compiler_state.c src/library.c src/platform.c src/output.c src/native.asm
     ${CMAKE_BINARY_DIR}/runtime_asset.asm)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/sdk_glue.asm CONTENT
     ".globl _fflush_stdout\n.include \"$ENV{ZOS_PATH}/sdk/sdcc/src/zeal8bitos.asm\"\n")
@@ -27,6 +27,8 @@ set_source_files_properties(src/main.c tests/native/main.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 set_source_files_properties(src/compiler.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK2;--constseg;BANK2")
+set_source_files_properties(src/compiler_expr.c PROPERTIES
+    COMPILE_OPTIONS "--codeseg;BANK6;--constseg;BANK6")
 set_source_files_properties(src/compiler_front.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK4;--constseg;BANK4")
 set_source_files_properties(src/compiler_routines.c PROPERTIES
@@ -45,7 +47,7 @@ target_compile_options(zptest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 foreach(target zpascal zptest)
     target_link_options(${target} PRIVATE "SHELL:-b _INITIALIZED=0xc000"
-        "SHELL:-b _BANK1=0x18000" "SHELL:-b _BANK2=0x28000" "SHELL:-b _BANK3=0x38000" "SHELL:-b _BANK4=0x48000" "SHELL:-b _BANK5=0x58000")
+        "SHELL:-b _BANK1=0x18000" "SHELL:-b _BANK2=0x28000" "SHELL:-b _BANK3=0x38000" "SHELL:-b _BANK4=0x48000" "SHELL:-b _BANK5=0x58000" "SHELL:-b _BANK6=0x68000")
     add_custom_target(${target}_bin ALL
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py $<TARGET_FILE:${target}>
         DEPENDS ${target} ${CMAKE_SOURCE_DIR}/tools/package-native.py

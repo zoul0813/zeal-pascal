@@ -20,7 +20,7 @@ void cc_word(uint16_t p,uint16_t v) FRONTEND { cc_put(p,(uint8_t)v); cc_put(p+1,
 
 
 void cc_emit(uint8_t v) FRONTEND {
-    if(cc.error->code) return;
+    if(cc.error->code||cc.suppress) return;
     /* Stage code in the third image page. cc_place_code bounds the completed
      * static/code image below C000, beneath the managed C800 stack floor. */
     if(cc.emitted>=0xc000u) { cc_fail(99); return; }
@@ -30,7 +30,7 @@ static void emit16(uint16_t v) { cc_emit((uint8_t)v); cc_emit((uint8_t)(v>>8)); 
 void cc_op16(uint8_t op,uint16_t value) FRONTEND { cc_emit(op); emit16(value); }
 void cc_relocate(uint16_t operand) FRONTEND {
     uint16_t p=cc.relocations*2;
-    if(cc.error->code) return;
+    if(cc.error->code||cc.suppress) return;
     if((uint32_t)p+2+(uint32_t)cc.routine_count*16>PAGE_SIZE) { cc_fail(99); return; }
     far_set(cc.workspace,p,(uint8_t)operand); far_set(cc.workspace,p+1,(uint8_t)(operand>>8));
     ++cc.relocations;
@@ -58,8 +58,9 @@ uint8_t cc_place_code(void) FRONTEND {
 }
 
 uint16_t cc_forward(uint8_t op) FRONTEND { uint16_t at=cc.emitted+1; cc_address(op,0); return at; }
-void cc_patch(uint16_t at) FRONTEND { if(!cc.error->code) cc_word(at,0x4000u+cc.emitted); }
+void cc_patch(uint16_t at) FRONTEND { if(!cc.error->code&&!cc.suppress) cc_word(at,0x4000u+cc.emitted); }
 uint16_t cc_link(uint8_t opcode,uint16_t head) FRONTEND {
+    if(cc.suppress) return head;
     uint16_t at=cc.emitted+1; cc_address(opcode,head); return at;
 }
 void cc_patch_chain(uint16_t head,uint16_t value) FRONTEND {
@@ -91,6 +92,23 @@ void cc_drop_stack(uint16_t bytes) FRONTEND {
 }
 void cc_release(uint16_t before) FRONTEND {
     cc_drop_stack(cc.temporaries-before); cc.temporaries=before;
+}
+void cc_stack_operand(uint16_t right_bytes) FRONTEND {
+    if(!right_bytes) cc_emit(0xd1);
+    else {
+        cc_emit(0x44); cc_emit(0x4d); cc_op16(0x21,right_bytes); cc_emit(0x39);
+        cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0x60); cc_emit(0x69);
+    }
+}
+void cc_load_indirect(uint8_t type) FRONTEND {
+    if(cc_family(type)==K_STRING) return;
+    if(type==255) { cc_fail(44); return; }
+    if(cc.types[type].width==1) { cc_emit(0x6e); cc_emit(0x26); cc_emit(0); }
+    else { cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb); }
+}
+void cc_store_indirect(uint8_t type) FRONTEND {
+    cc_emit(0x7d); cc_emit(0x12);
+    if(cc.types[type].width==2) { cc_emit(0x13); cc_emit(0x7c); cc_emit(0x12); }
 }
 void cc_call(uint16_t address) FRONTEND { cc_guard(); cc_op16(0xcd,address); }
 void cc_next(void) FRONTEND {
@@ -296,8 +314,7 @@ void cc_load_symbol(uint16_t id) FRONTEND {
     if(cc_family(s->type)==K_STRING) cc_symbol_address(id);
     else if(s->role==S_REFERENCE||(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE))) {
         cc_symbol_address(id);
-        if(cc.types[s->type].width==1) { cc_emit(0x6e); cc_emit(0x26); cc_emit(0); }
-        else { cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb); }
+        cc_load_indirect(s->type);
     }
     else if(cc.types[s->type].width==1) {
         if(s->role==S_TYPED) cc_address(0x3a,s->address); else cc_op16(0x3a,s->address);

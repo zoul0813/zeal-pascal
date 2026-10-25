@@ -197,11 +197,12 @@ uint8_t cc_invoke(uint16_t id) ROUTINES {
             param=first+i; type=cc.symbols[param].type;
             if(cc.symbols[param].role==S_REFERENCE) {
                 actual=cc.token==T_ID?cc_lookup():-1;
+                if(actual>=0&&cc.symbols[actual].role==S_RESULT) { cc_fail(41); break; }
                 if(!cc_variable(actual)||cc.symbols[actual].control) { cc_fail(44); break; }
-                kind=cc.symbols[actual].type;
+                kind=cc_selection((uint16_t)actual);
                 if(type!=255&&type!=kind&&!(cc_family(type)==K_STRING&&cc_family(kind)==K_STRING&&
                    (!cc.var_strict||cc.types[type].capacity==cc.types[kind].capacity))) { cc_fail(44); break; }
-                cc_symbol_address((uint16_t)actual); cc_next(); cc_guard(); cc_emit(0xe5);
+                cc_guard(); cc_emit(0xe5);
             } else {
                 before=cc.temporaries;
                 kind=cc_expression(); cc_convert(type,kind);

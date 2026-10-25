@@ -37,6 +37,11 @@
     jp argument_string          ; 40EA: consume fixed temporary as value argument
     jp hold_string              ; 40ED: snapshot HL into a fixed 256-byte slot
     jp concatenate              ; 40F0: DE left, HL right, A Char flags, BC owned bytes
+    jp check_index              ; 40F3: DE lower, BC upper, HL index; error90
+    jp substring                ; 40F6: HL -> count/position/source words, DE release bytes
+    jp position                 ; 40F9: DE pattern, HL source -> HL first position
+    jp delete_string            ; 40FC: HL destination, BC position, DE count
+    jp insert_string            ; 40FF: HL source, DE destination, BC position, A capacity
 
 ; This prefix is deliberately separate from the C compiler's ABI. Only the
 ; private helper entries above are emitted in this first language increment.
@@ -143,8 +148,8 @@ compare_integer:
     ld c,a
     ld a,b
     cp c
-    jr c,compare_less
-    jr nz,compare_greater
+    jp c,compare_less
+    jp nz,compare_greater
     ld a,e
     cp l
     jr c,compare_less
@@ -159,6 +164,12 @@ compare_greater:
     ld hl,#1
     ret
 check_range:
+    ld a,#0x91
+    jr check_ordinal
+check_index:
+    ld a,#0x90
+check_ordinal:
+    ld (range_error_code),a
     push hl
     push bc
     call compare_integer        ; lower > value is invalid
@@ -176,7 +187,7 @@ check_range:
     pop hl
     ret
 range_error:
-    ld a,#0x91
+    ld a,(range_error_code)
     ld b,#2
     jp call_error
 character_copy:
@@ -243,8 +254,8 @@ compare_string_left:
     jr z,compare_greater
     ld a,(de)
     cp (hl)
-    jr c,compare_less
-    jr nz,compare_greater
+    jp c,compare_less
+    jp nz,compare_greater
     inc de
     inc hl
     dec b
@@ -551,6 +562,7 @@ false_text: .db 5
 true_text: .db 4
     .ascii "TRUE"
 shift_direction: .db 0
+range_error_code: .db 0
 text_left_char: .ds 2
 text_right_char: .ds 2
 
@@ -689,13 +701,14 @@ concatenate:
 concatenate_ready:
     ld hl,(concatenate_return)
     ld (argument_return),hl
+    ld de,(concatenate_drop)
+finish_string:
     ld hl,#0
     add hl,sp
     ld (argument_source),hl
     ld c,(hl)
     ld b,#0
     inc bc
-    ld de,(concatenate_drop)
     add hl,de
     ld sp,hl
     ex de,hl
@@ -706,3 +719,255 @@ concatenate_left: .dw 0
 concatenate_right: .dw 0
 concatenate_return: .dw 0
 concatenate_length: .db 0
+
+; Positions/counts are checked independently of $R. No character storage is
+; accessed by these operations until the argument bounds have been accepted.
+string_bounds:
+    bit 7,d
+    jr nz,string_position_error
+string_position_bound:
+    ld a,b
+    or a
+    jr nz,string_position_error
+    ld a,c
+    or a
+    ret nz
+string_position_error:
+    ld a,#0x11
+    ld b,#2
+    jp call_error
+string_clip:                    ; A remaining, DE nonnegative request -> C clipped
+    ld c,a
+    ld a,d
+    or a
+    ret nz
+    ld a,e
+    cp c
+    ret nc
+    ld c,e
+    ret
+substring:
+    ld (string_drop),de
+    pop bc
+    ld (argument_return),bc
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    inc hl
+    ld (string_count),de
+    ld c,(hl)
+    inc hl
+    ld b,(hl)
+    inc hl
+    ld (string_position),bc
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    ld (string_source),de
+    ld de,(string_count)
+    call string_bounds
+    ld a,d
+    or e
+    jr z,substring_empty
+    ld hl,(string_source)
+    ld a,(hl)
+    cp c
+    jr c,substring_empty
+    sub c
+    inc a
+    call string_clip
+    ld de,(string_position)
+    add hl,de
+    ex de,hl
+    ld hl,#0
+    add hl,sp
+    ld (hl),c
+    inc hl
+    ex de,hl
+    ld b,#0
+    ld a,c
+    or a
+    jr z,substring_ready
+    ldir
+    jr substring_ready
+substring_empty:
+    ld hl,#0
+    add hl,sp
+    ld (hl),#0
+substring_ready:
+    ld de,(string_drop)
+    jp finish_string
+position:
+    ld a,(de)
+    or a
+    jr z,position_none
+    ld (position_length),a
+    ld (position_pattern),de
+    ld c,(hl)
+    cp c
+    jr z,position_equal_length
+    jr nc,position_none
+position_equal_length:
+    ld b,a
+    ld a,c
+    sub b
+    inc a
+    ld (position_remaining),a
+    inc hl
+    ld (position_candidate),hl
+    ld a,#1
+    ld (position_index),a
+position_candidate_loop:
+    ld hl,(position_pattern)
+    inc hl
+    ld de,(position_candidate)
+    ld a,(position_length)
+    ld b,a
+position_compare_loop:
+    ld a,(de)
+    cp (hl)
+    jr nz,position_next
+    inc hl
+    inc de
+    djnz position_compare_loop
+    ld a,(position_index)
+    ld l,a
+    ld h,#0
+    ret
+position_next:
+    ld hl,(position_candidate)
+    inc hl
+    ld (position_candidate),hl
+    ld hl,#position_index
+    inc (hl)
+    ld hl,#position_remaining
+    dec (hl)
+    jr nz,position_candidate_loop
+position_none:
+    ld hl,#0
+    ret
+delete_string:
+    ld (string_position),bc
+    call string_bounds
+    ld a,d
+    or e
+    ret z
+    ld a,(hl)
+    cp c
+    ret c
+    sub c
+    inc a
+    ld (string_remaining),a
+    call string_clip
+    ld a,(hl)
+    sub c
+    ld (hl),a
+    ld de,(string_position)
+    add hl,de
+    ex de,hl
+    ld l,c
+    ld h,#0
+    add hl,de
+    ld a,(string_remaining)
+    sub c
+    ld c,a
+    ld b,#0
+    or a
+    ret z
+    ldir
+    ret
+insert_string:
+    ld (string_capacity),a
+    ld (string_source),hl
+    ld (string_destination),de
+    call string_position_bound
+    ld a,(hl)
+    or a
+    ret z
+    ld hl,(string_destination)
+    ld a,c
+    dec a
+    cp (hl)
+    jr c,insert_prefix
+    ld a,(hl)
+insert_prefix:
+    ld (string_prefix),a
+    ld c,a
+    ld a,(string_capacity)
+    sub c
+    ld c,a                     ; available after prefix
+    ld hl,(string_source)
+    ld a,(hl)
+    cp c
+    jr c,insert_count
+    ld a,c
+insert_count:
+    ld (string_inserted),a
+    ld b,a
+    ld a,c
+    sub b                      ; remaining capacity for the old tail
+    ld c,a
+    ld hl,(string_destination)
+    ld a,(string_prefix)
+    ld b,a
+    ld a,(hl)
+    sub b
+    cp c
+    jr c,insert_tail
+    ld a,c
+insert_tail:
+    ld (string_tail),a
+    add a,b
+    ld c,a
+    ld a,(string_inserted)
+    add a,c
+    ld (hl),a                  ; final bounded length
+    ld a,(string_tail)
+    or a
+    jr z,insert_source
+    ld c,a
+    ld b,#0
+    ld a,(string_prefix)
+    add a,c
+    ld e,a
+    ld d,#0
+    add hl,de                  ; old tail's last retained character
+    push hl
+    ld a,(string_inserted)
+    ld e,a
+    add hl,de
+    ex de,hl
+    pop hl
+    lddr                       ; right shift can overlap
+insert_source:
+    ld a,(string_inserted)
+    or a
+    ret z
+    ld c,a
+    ld b,#0
+    ld hl,(string_destination)
+    ld a,(string_prefix)
+    ld e,a
+    ld d,#0
+    inc de
+    add hl,de
+    ex de,hl
+    ld hl,(string_source)
+    inc hl
+    ldir
+    ret
+string_source: .dw 0
+string_destination: .dw 0
+string_position: .dw 0
+string_count: .dw 0
+string_drop: .dw 0
+string_capacity: .db 0
+string_prefix: .db 0
+string_inserted: .db 0
+string_tail: .db 0
+string_remaining: .db 0
+position_pattern: .dw 0
+position_candidate: .dw 0
+position_length: .db 0
+position_index: .db 0
+position_remaining: .db 0

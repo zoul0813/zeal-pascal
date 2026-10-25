@@ -40,6 +40,11 @@
 #define RT_ARGSTRING 0x40eau
 #define RT_HOLDSTRING 0x40edu
 #define RT_CONCAT 0x40f0u
+#define RT_INDEX 0x40f3u
+#define RT_SUBSTRING 0x40f6u
+#define RT_POS 0x40f9u
+#define RT_DELETE 0x40fcu
+#define RT_INSERT 0x40ffu
 #define DEFAULT_SOURCE "T:/src/pascal/UNTITLED.pas"
 enum { PAGE_SOURCE=1, PAGE_IMAGE, PAGE_MAP, PAGE_RUN, PAGE_SNAPSHOT, PAGE_COMPILER };
 

@@ -24,7 +24,7 @@ H:/zpascal.bin H:/zpascal.zpl
 The launcher verifies the complete library before entering any application
 bank. A missing, damaged or mismatched library returns to the shell. The editor,
 compiler, file operations and compiler front end use separate owned RAM banks.
-Routine compilation uses an additional code bank.
+Routine and expression compilation use additional code banks.
 Internal `pascal_runtime.zpl` and `ram_trampoline.zpl` templates remain embedded
 in the launcher and require no separate deployment. Generated Pascal COM
 programs contain their own runtime and need no IDE library.
@@ -108,8 +108,7 @@ whose length is not one to Char reports runtime error 10.
 Implemented functions include Ord, Chr, Succ, Pred, SizeOf, Addr, UpCase, Length,
 Odd, Hi, Lo, Swap and the Integer forms of Abs/Sqr. The compiler currently has
 512 symbol entries and 64 type descriptors (including five built-in entries).
-Exhaustion reports resource error 98. Char arrays and selected-variable forms
-of Addr/SizeOf await aggregate support.
+Exhaustion reports resource error 98. Char arrays await aggregate support.
 
 Procedures and functions support named parameters, local declarations,
 lexical nesting/shadowing, forward declarations, Exit and native external
@@ -120,23 +119,35 @@ Var-string capacities and `$V-` permits relaxed matching. Untyped Var parameters
 support forwarding and Addr. Functions return scalars or named short-string
 types. String results can be nested, compared, printed, assigned and passed as
 values. Concatenation accepts String/Char operands; a result over 255 bytes
-reports runtime error 10. Length reports the current string length. Nested
-routine address bridges and remaining raw-memory APIs are still in progress.
+reports runtime error 10. Length reports the current string length. String
+selections read or write a Char at indices 0..declared capacity; index 0 holds
+the length byte. With R+,
+invalid indices report error 90. A selected Char can be passed by Var, and
+SizeOf checks its type without evaluating the index expression.
+
+Copy and Delete clip at the current end; Pos returns the first matching position
+or zero, including for an empty pattern. Concat joins String/Char arguments in
+order and reports error 10 above 255 bytes. Insert snapshots its source before
+other arguments and truncates the result to the destination capacity. Copy,
+Delete and Insert require positions 1..255; negative Copy/Delete counts report
+error 11. Nested routine address bridges and remaining raw-memory APIs are
+still in progress.
 
 The [control-flow fixture](tests/native/control.pas),
 [ordinal fixture](tests/native/ordinals.pas), [Case fixture](tests/native/cases.pas)
 and enum boundary fixtures exercise these features in Memory and saved native
 COM execution. The [routine fixture](tests/native/routines.pas) covers calls,
-recursion and string parameter copies. The string result and boundary fixtures
-cover temporary cleanup and 255-byte values. Real6, aggregates, pointers,
+recursion and string parameter copies. The string selection/operation fixtures
+cover index checks, aliasing, byte values and cleanup. The string result and
+boundary fixtures cover temporary cleanup and 255-byte values. Real6, aggregates, pointers,
 Goto and the rest of the dialect remain in progress.
 
 ReadLn currently uses Zeal's cooked keyboard line editor and restores raw mode
 before returning. It supports string fields, empty lines and discarding the rest
 of a line. Numeric input, Turbo console controls (including Ctrl-C), BufLen and
 the exact 127-character editing boundary remain pending. Strings retain at most
-127 input characters in this increment. String indexing and the remaining
-runtime APIs are still pending.
+127 input characters in this increment. The remaining runtime APIs are still
+pending.
 
 The editor remains partial. Native tests cover the implemented slice, ownership,
 error recovery and file safety; full reference replay and physical hardware

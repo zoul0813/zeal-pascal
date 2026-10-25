@@ -62,6 +62,19 @@ int main(int argc,char **argv) {
         check(compile(&s,&b,&d)); build_close(&b);
     }
     invalid("begin writeln(32768) end.",56);
+    invalid("var s:string[3]; begin s[true]:='x' end.",23);
+    invalid("var s:string[3]; begin s[1][1]:='x' end.",7);
+    invalid("var n:integer; begin n[1]:=2 end.",7);
+    invalid("var s:string[3]; begin for s[1]:='a' to 'z' do end.",30);
+    invalid("type t=string[3]; function f:t; begin f[1]:='x' end; begin end.",7);
+    invalid("type t=string[3]; function f:t; begin f:='x' end; begin writeln(f[1]) end.",5);
+    invalid("type t=string[3]; procedure p(var s:t); begin end; function f:t; begin p(f) end; begin end.",41);
+    invalid("begin writeln(concat()) end.",41);
+    invalid("begin writeln(copy(3,1,2)) end.",33);
+    invalid("begin writeln(copy('abc',true,2)) end.",23);
+    invalid("var s:string[3]; begin delete(s[1],1,2) end.",34);
+    invalid("var s:string[3]; begin insert('x',s[1],1) end.",34);
+    invalid("var s:string[3]; begin s[1:='x' end.",9);
     invalid("begin writeln(+32768) end.",56);
     invalid("begin writeln(-32769) end.",56);
     invalid("begin writeln(-(32768)) end.",56);
@@ -219,6 +232,18 @@ int main(int argc,char **argv) {
         n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
+        {
+            const char *fixtures[]={"strindex","strops","strop255"};
+            unsigned fixture;
+            char path[80];
+            for(fixture=0;fixture<3;++fixture) {
+                snprintf(path,sizeof(path),"tests/native/%s.pas",fixtures[fixture]);
+                file=fopen(path,"rb"); check(file!=NULL);
+                n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
+                check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
+                ordered_map(); build_close(&b);
+            }
+        }
         file=fopen("tests/native/stringabi.pas","rb"); check(file!=NULL);
         n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));

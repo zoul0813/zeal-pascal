@@ -594,7 +594,7 @@ def main():
         commands += ['run 1000000000']
     # The completion breakpoint is mandatory; this bounded budget includes the
     # RAM/COM control/routine/string corpora and source-recovery executions.
-    commands += ['run 40000000000', 's', 'regs', 'mmu']
+    commands += ['run 60000000000', 's', 'regs', 'mmu']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage', '_platform_error'):
         commands.append(f"rb 0x{sym[name]:x} 2")
     if '_test_failures' in sym:
@@ -607,7 +607,7 @@ def main():
     # This growing native corpus includes repeated disk publication and RAM/COM
     # routine execution. Retain both a cycle bound and mandatory completion;
     # allow its measured workload more wall time than the small UI scenarios.
-    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=360)
+    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=480)
     mem = memory(text)
     def word(name):
         p = sym[name]
@@ -670,6 +670,18 @@ def main():
         string_expected += lines.replace('\n','\r\n').encode() * 2
     checks.append(('string results, concatenation, snapshots, length, 0/255-byte arguments and repeated cleanup in RAM/COM',
                    string_output.is_file() and string_output.read_bytes() == string_expected))
+    operation_output = RUN / 'core/hostfs/STROPS.TXT'
+    operation_expected = b''
+    for lines in (
+        'SELECT-CHAR-VAR-OK\nSELECT-CAPACITY-ZERO-OK\nSELECT-EVALUATION-ORDER-OK\n'
+        'SELECT-SIZEOF-ADDR-OK\nSELECT-RECURSIVE-LOCAL-OK\nSELECT-TEMPORARY-CLEANUP-OK\n',
+        'COPY-CLIP-EMPTY-OK\nPOS-BOUNDARIES-OK\nSTRING-CHAR-ARGUMENTS-OK\nSTRING-ARGUMENT-ORDER-OK\n'
+        'STRING-ARGUMENT-SNAPSHOT-OK\nDELETE-CLIP-ZERO-OK\nINSERT-CAPACITY-APPEND-OK\nINSERT-SELF-ALIAS-OK\nSTRING-OPERATIONS-CLEANUP-OK\n',
+        'COPY-255-OK\nPOS-255-OK\nSTRING-BINARY-BYTES-OK\nSTRING-ZERO-ONE-OK\nSTRING-255-MUTATION-OK\n',
+    ):
+        operation_expected += lines.replace('\n','\r\n').encode() * 2
+    checks.append(('string selections, Copy/Pos/Concat/Delete/Insert and boundary cleanup in RAM/COM',
+                   operation_output.is_file() and operation_output.read_bytes() == operation_expected))
     abi_image = RUN / 'core/hostfs/STRINGABI.COM'
     abi_code = (ROOT / 'build/stringabi.zpl').read_bytes()
     checks.append(('native external string payload matches independently assembled ABI probe',
