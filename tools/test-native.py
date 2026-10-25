@@ -682,6 +682,20 @@ def main():
         operation_expected += lines.replace('\n','\r\n').encode() * 2
     checks.append(('string selections, Copy/Pos/Concat/Delete/Insert and boundary cleanup in RAM/COM',
                    operation_output.is_file() and operation_output.read_bytes() == operation_expected))
+    array_output = RUN / 'core/hostfs/ARRAYS.TXT'
+    array_expected = b''
+    for lines in (
+        'ARRAY-WHOLE-COPY-OK\nARRAY-SELECT-ORDER-VAR-OK\nARRAY-MULTIDIM-LAYOUT-OK\n'
+        'ARRAY-ORDINAL-INDEX-OK\nARRAY-STRING-SELECTION-OK\nARRAY-MUTABLE-INITIALIZER-OK\n'
+        'ARRAY-SIZEOF-NO-EVAL-OK\nARRAY-SELECT-CLEANUP-OK\n',
+        'ARRAY-VALUE-COPY-TIMING-OK\nARRAY-VAR-LEXICAL-OK\nARRAY-RECURSIVE-COPY-OK\nARRAY-STRING-ABI-CLEANUP-OK\n',
+        'CHARARRAY-INITIALIZERS-OK\nCHARARRAY-TEXT-OPERATORS-OK\nCHARARRAY-STRING-APIS-OK\n'
+        'CHARARRAY-ONE-BYTE-OK\nCHARARRAY-VALUE-PARAMETER-OK\nCHARARRAY-LEFT-SNAPSHOT-OK\n'
+        'CHARARRAY-255-BINARY-OK\nCHARARRAY-TEMPORARY-CLEANUP-OK\n',
+    ):
+        array_expected += lines.replace('\n','\r\n').encode() * 2
+    checks.append(('array layout/selection/initializers, callee value copies and Char-array conversion in RAM/COM',
+                   array_output.is_file() and array_output.read_bytes() == array_expected))
     abi_image = RUN / 'core/hostfs/STRINGABI.COM'
     abi_code = (ROOT / 'build/stringabi.zpl').read_bytes()
     checks.append(('native external string payload matches independently assembled ABI probe',

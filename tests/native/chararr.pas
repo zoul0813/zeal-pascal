@@ -1,0 +1,37 @@
+program CharacterArrays;
+type chars=array[2..4] of char;
+     text=string[3];
+     single=array[1..1] of char;
+     huge=array[1..255] of char;
+const initial:chars='abc'; tuples:chars=('x','y','z');
+      literal='ABC';
+var a,b:chars; one:single; all:huge; s:string[255]; n,seen:integer;
+procedure accept(v:chars);
+begin if v='ABC' then seen:=seen+1; v[2]:='z' end;
+procedure acceptone(v:single; last:integer);
+begin if (v[1]=#255) and (last=123) then seen:=seen+1; v[1]:=#0 end;
+procedure accepttext(v:text);
+begin if v='ABC' then seen:=seen+1; v:='z' end;
+function echo(v:chars):text;
+begin echo:=v end;
+function changed:text;
+begin a:='ZZZ'; changed:='xyz' end;
+begin
+ a:=initial; b:=tuples;
+ if (a='abc') and (b='xyz') and (sizeof(a)=3) and (length(a)=3) then writeln('CHARARRAY-INITIALIZERS-OK');
+ a:=literal; b:=a; s:=a+'Z';
+ if (s='ABCZ') and (b='ABC') and (a<'ABD') then writeln('CHARARRAY-TEXT-OPERATORS-OK');
+ if (copy(a,2,2)='BC') and (pos(a,'xABCy')=2) and (concat(a,b)='ABCABC') then writeln('CHARARRAY-STRING-APIS-OK');
+ one[1]:=#255; seen:=0; acceptone(one,123);
+ if (ord(char(one))=255) and (length(one)=1) and (seen=1) then writeln('CHARARRAY-ONE-BYTE-OK');
+ seen:=0; accept('ABC'); accept(a); accepttext(a);
+ if (seen=3) and (a='ABC') and (echo(a)='ABC') then writeln('CHARARRAY-VALUE-PARAMETER-OK');
+ a:='abc'; s:=a+changed;
+ if (s='abcxyz') and (a='ZZZ') then writeln('CHARARRAY-LEFT-SNAPSHOT-OK');
+ for n:=1 to 255 do all[n]:=chr(n-1);
+ s:=all;
+ if (length(s)=255) and (ord(s[1])=0) and (ord(s[255])=254) then writeln('CHARARRAY-255-BINARY-OK');
+ seen:=0;
+ for n:=1 to 1000 do begin s:=copy(all,254,9); if length(s)=2 then seen:=seen+1 end;
+ if seen=1000 then writeln('CHARARRAY-TEMPORARY-CLEANUP-OK');
+end.

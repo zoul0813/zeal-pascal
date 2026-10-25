@@ -24,7 +24,7 @@ H:/zpascal.bin H:/zpascal.zpl
 The launcher verifies the complete library before entering any application
 bank. A missing, damaged or mismatched library returns to the shell. The editor,
 compiler, file operations and compiler front end use separate owned RAM banks.
-Routine and expression compilation use additional code banks.
+Routine, expression and type compilation use additional code banks.
 Internal `pascal_runtime.zpl` and `ram_trampoline.zpl` templates remain embedded
 in the launcher and require no separate deployment. Generated Pascal COM
 programs contain their own runtime and need no IDE library.
@@ -108,7 +108,17 @@ whose length is not one to Char reports runtime error 10.
 Implemented functions include Ord, Chr, Succ, Pred, SizeOf, Addr, UpCase, Length,
 Odd, Hi, Lo, Swap and the Integer forms of Abs/Sqr. The compiler currently has
 512 symbol entries and 64 type descriptors (including five built-in entries).
-Exhaustion reports resource error 98. Char arrays await aggregate support.
+Exhaustion reports resource error 98. Arrays support ordinal bounds, nested or
+comma-separated dimensions, packed layout, whole-array assignment, typed
+initializers and value/Var parameters. R+ checks each index before access.
+A value parameter passes a source address; the callee makes an independent
+copy before its body runs. Array-valued user functions remain invalid.
+
+An Integer-indexed Char array of at most 255 elements acts as a fixed-length
+string in expressions, comparisons and string APIs. Assigning to a Char array
+requires an exact-length string constant or the same declared array type;
+computed strings and string variables are rejected. Other ordinal-indexed
+Char arrays remain ordinary arrays.
 
 Procedures and functions support named parameters, local declarations,
 lexical nesting/shadowing, forward declarations, Exit and native external
@@ -139,7 +149,7 @@ and enum boundary fixtures exercise these features in Memory and saved native
 COM execution. The [routine fixture](tests/native/routines.pas) covers calls,
 recursion and string parameter copies. The string selection/operation fixtures
 cover index checks, aliasing, byte values and cleanup. The string result and
-boundary fixtures cover temporary cleanup and 255-byte values. Real6, aggregates, pointers,
+boundary fixtures cover temporary cleanup and 255-byte values. Real6, records, sets, pointers,
 Goto and the rest of the dialect remain in progress.
 
 ReadLn currently uses Zeal's cooked keyboard line editor and restores raw mode

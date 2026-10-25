@@ -75,6 +75,23 @@ int main(int argc,char **argv) {
     invalid("var s:string[3]; begin delete(s[1],1,2) end.",34);
     invalid("var s:string[3]; begin insert('x',s[1],1) end.",34);
     invalid("var s:string[3]; begin s[1:='x' end.",9);
+    invalid("var a:array[boolean] of byte; begin a[1]:=0 end.",44);
+    invalid("var a:array[1..3] of byte; begin a[true]:=0 end.",44);
+    invalid("type t=array[1..2] of byte; function f:t; begin end; begin end.",48);
+    invalid("type a=array[1..2] of byte; b=array[1..2] of byte; var x:a; y:b; begin x:=y end.",44);
+    invalid("var a,b:array[1..2] of byte; begin writeln(a=b) end.",62);
+    invalid("var a:array[1..256] of char; begin writeln(length(a)) end.",62);
+    invalid("var a:array[boolean] of char; begin writeln(length(a)) end.",62);
+    invalid("var a:array['a'..'c'] of char; begin writeln(length(a)) end.",62);
+    invalid("var a:array[1..3] of char; s:string[3]; begin a:=s end.",44);
+    invalid("var a:array[1..3] of char; begin a:='ab' end.",60);
+    invalid("var a:array[1..1] of char; begin a:='x' end.",60);
+    invalid("var a:array[1..3] of char; begin a:='abc'+'d' end.",1);
+    invalid("var a:array[1..3] of char; begin a:=('abc') end.",41);
+    invalid("type t=array[integer] of byte; begin end.",98);
+    invalid("type t=array[string[3]] of byte; begin end.",30);
+    invalid("const a:array[1..2] of integer=(1,2,3); begin end.",5);
+    invalid("const a:array[1..3] of byte=(1,256,3); begin end.",44);
     invalid("begin writeln(+32768) end.",56);
     invalid("begin writeln(-32769) end.",56);
     invalid("begin writeln(-(32768)) end.",56);
@@ -233,10 +250,10 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr"};
             unsigned fixture;
             char path[80];
-            for(fixture=0;fixture<3;++fixture) {
+            for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {
                 snprintf(path,sizeof(path),"tests/native/%s.pas",fixtures[fixture]);
                 file=fopen(path,"rb"); check(file!=NULL);
                 n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));

@@ -57,7 +57,7 @@ static void case_statement(uint16_t start,uint16_t code) {
     uint16_t matches,exits=0,miss,skip,lo,hi;
     uint16_t before=cc.temporaries;
     cc_next(); selector=cc_expression();
-    if(cc_family(selector)==K_STRING) cc_fail(41);
+    if(!cc_ordinal(selector)) cc_fail(41);
     cc_release(before);
     cc_keyword("of",15); cc_guard(); cc_emit(0xe5);
     if(cc_is("end")||cc_is("else")) cc_fail(41);
@@ -146,7 +146,7 @@ static void statement(void) {
     } else if(cc_is("for")) {
         cc_next(); id=cc.token==T_ID?cc_lookup():-1;
         if(!cc_variable(id)) cc_fail(24);
-        else if(cc_family(cc.symbols[id].type)==K_STRING) cc_fail(30);
+        else if(!cc_ordinal(cc.symbols[id].type)) cc_fail(30);
         else if(cc.symbols[id].control) cc_fail(44);
         cc_next(); cc_expect(T_ASSIGN,7);
         kind=cc_expression();
@@ -185,7 +185,8 @@ static void statement(void) {
         if(cc.token=='(') {
             cc_next();
             do {
-                kind=cc_family(cc_expression());
+                kind=cc_family(cc_text_value(cc_expression()));
+                if(kind==K_ARRAY) cc_fail(62);
                 if(kind>K_CHAR) cc_fail(44);
                 if(kind==K_CHAR) cc_emit(0x7d);
                 cc_call(kind==K_STRING?RT_STRING:kind==K_BOOLEAN?RT_BOOLEAN:kind==K_CHAR?RT_CHAR:RT_INTEGER);
@@ -226,20 +227,24 @@ static void statement(void) {
         else {
             if(!cc_variable(id)||cc.symbols[id].control) cc_fail(44);
             target=cc.symbols[id].type; cc_next();
-            indexed=cc.symbols[id].role!=S_RESULT&&cc_family(target)==K_STRING&&cc.token=='[';
+            indexed=cc.symbols[id].role!=S_RESULT&&cc.token=='['&&
+                (cc_family(target)==K_STRING||cc_family(target)==K_ARRAY);
             if(indexed) {
-                cc_symbol_address((uint16_t)id); target=cc_index(target);
-                cc_guard(); cc_emit(0xe5);
+                cc_symbol_address((uint16_t)id); target=cc_index(target); cc_guard(); cc_emit(0xe5);
             }
-            cc_expect(T_ASSIGN,7); kind=cc_expression();
+            cc_expect(T_ASSIGN,7);
+            kind=cc_family(target)==K_ARRAY?cc_array_actual(target):cc_expression();
             cc_convert(target,kind);
-            if(indexed) {
-                cc_stack_operand(cc.temporaries-before); cc_store_indirect(target);
-                if(cc.temporaries!=before) cc_drop_stack(2);
-            } else if(cc_family(target)==K_STRING) {
-                cc_destination((uint16_t)id); cc_emit(0x0e); cc_emit(cc.types[cc.symbols[id].type].capacity);
+            if(indexed) cc_stack_operand(cc.temporaries-before);
+            else if(cc_family(target)==K_STRING||cc_family(target)==K_ARRAY) cc_destination((uint16_t)id);
+            if(cc_family(target)==K_STRING) {
+                cc_emit(0x0e); cc_emit(cc.types[target].capacity);
                 cc_call(cc_family(kind)==K_CHAR?RT_CHARCOPY:RT_COPY);
-            } else cc_store_symbol((uint16_t)id);
+            } else if(cc_family(target)==K_ARRAY) {
+                cc_op16(0x01,cc.types[target].width); cc_call(RT_MOVE);
+            } else if(indexed) cc_store_indirect(target);
+            else cc_store_symbol((uint16_t)id);
+            if(indexed&&cc.temporaries!=before) cc_drop_stack(2);
             cc_release(before);
         }
     } else if(cc.token!=';'&&!cc_is("end")&&!cc_is("else")&&!cc_is("until")) cc_fail(54);

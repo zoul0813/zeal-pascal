@@ -42,6 +42,7 @@
     jp position                 ; 40F9: DE pattern, HL source -> HL first position
     jp delete_string            ; 40FC: HL destination, BC position, DE count
     jp insert_string            ; 40FF: HL source, DE destination, BC position, A capacity
+    jp move_bytes               ; 4102: HL source, DE destination, BC bytes; overlap safe
 
 ; This prefix is deliberately separate from the C compiler's ABI. Only the
 ; private helper entries above are emitted in this first language increment.
@@ -971,3 +972,24 @@ position_candidate: .dw 0
 position_length: .db 0
 position_index: .db 0
 position_remaining: .db 0
+
+move_bytes:
+    ld a,b
+    or c
+    ret z
+    push hl
+    or a
+    sbc hl,de
+    pop hl
+    jr nc,move_bytes_forward
+    add hl,bc
+    dec hl
+    ex de,hl
+    add hl,bc
+    dec hl
+    ex de,hl
+    lddr
+    ret
+move_bytes_forward:
+    ldir
+    ret

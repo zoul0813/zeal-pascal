@@ -14,13 +14,15 @@
  * names reference its immutable snapshot; phase banks share only resident data. */
 enum { T_EOF=256,T_ID,T_NUMBER,T_STRING,T_ASSIGN,T_RESERVED,T_NE,T_LE,T_GE,T_RANGE };
 enum { K_INTEGER,K_STRING,K_BOOLEAN,K_CHAR,K_BYTE };
+/* Aggregate families cannot overlap the 5..63 enumeration identity range. */
+enum { K_ARRAY=64 };
 enum { S_VARIABLE,S_CONSTANT,S_TYPE,S_TYPED,S_PENDING,S_VALUE,S_REFERENCE,S_RESULT,S_PROCEDURE,S_FUNCTION };
 enum { R_PARENT=0,R_FLAGS=1,R_SYMBOL=2,R_ENTRY=4,R_CALLS=6,R_PARAMETERS=8,R_COUNT=10,R_LOCALS=12,R_EXITS=14 };
 enum { RF_FORWARD=1,RF_RECURSIVE=2,RF_DEFINED=4,RF_EXTERNAL=8 };
 /* Names reference the immutable canonical source. All 127 bytes remain
  * significant without spending 128 resident bytes per symbol. */
 typedef struct { uint16_t name_start,address; uint8_t name_length,type,role,control,initial_type,owner; } Symbol;
-typedef struct { uint16_t width; int16_t low,high; uint8_t family,capacity; } Type;
+typedef struct { uint16_t width; int16_t low,high; uint8_t family,capacity,element; } Type;
 enum { SYMBOL_LIMIT=512,TYPE_LIMIT=64 };
 typedef struct {
     Symbol symbols[SYMBOL_LIMIT];
@@ -84,6 +86,9 @@ void cc_rput(uint8_t scope,uint8_t field,uint16_t value) FRONTEND;
 void cc_frame(uint8_t scope) FRONTEND;
 void cc_slot(uint16_t id) FRONTEND;
 void cc_convert(uint8_t target,uint8_t source) FRONTEND;
+uint8_t cc_char_array(uint8_t type);
+uint8_t cc_ordinal(uint8_t type);
+uint8_t cc_text_value(uint8_t type) FRONTEND;
 int16_t cc_named_type(void) FRONTEND;
 int16_t cc_predefined_type(void) FRONTEND;
 void cc_declarations(void) FRONTEND;
@@ -95,6 +100,7 @@ void cc_exit(void) ROUTINES;
 uint8_t cc_expression(void) BACKEND;
 uint8_t cc_index(uint8_t type) BACKEND;
 uint8_t cc_selection(uint16_t id) BACKEND;
+uint8_t cc_array_actual(uint8_t type) BACKEND;
 void cc_string_statement(uint8_t insert) BACKEND;
 void cc_statement(void) BACKEND;
 void cc_mapping(uint16_t begin,uint16_t end,uint16_t first,uint16_t last) BACKEND;

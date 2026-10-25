@@ -39,7 +39,10 @@ static void prologue(void) {
             cc_emit(0x0e); cc_emit(cc.types[cc.symbols[id].type].capacity); cc_call(RT_COPY);
         } else {
             cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0x23); cursor_store();
-            cc_emit(0xeb); raw_store(id);
+            cc_emit(0xeb);
+            if(cc.symbols[id].role==S_VALUE&&cc_family(cc.symbols[id].type)==K_ARRAY) {
+                cc_destination(id); cc_op16(0x01,cc.types[cc.symbols[id].type].width); cc_call(RT_MOVE);
+            } else raw_store(id);
         }
     }
     if(cc_rget(cc.scope,R_PARENT)) {
@@ -112,7 +115,7 @@ static void routine(void) {
         parameters(scope);
         if(role==S_FUNCTION) {
             cc_expect(':',2); type=cc_named_type();
-            if(type<0) cc_fail(48);
+            if(type<0||cc_family((uint8_t)type)==K_ARRAY) cc_fail(48);
             else {
                 cc.symbols[id].type=(uint8_t)type;
                 cc_result_symbol(id); cc_next();
@@ -205,7 +208,7 @@ uint8_t cc_invoke(uint16_t id) ROUTINES {
                 cc_guard(); cc_emit(0xe5);
             } else {
                 before=cc.temporaries;
-                kind=cc_expression(); cc_convert(type,kind);
+                kind=cc_family(type)==K_ARRAY?cc_array_actual(type):cc_expression(); cc_convert(type,kind);
                 if(cc_family(type)==K_STRING) {
                     if(cc_family(kind)==K_CHAR) { cc_guard(); cc_emit(0x65); cc_emit(0x2e); cc_emit(1); cc_emit(0xe5); }
                     else if(cc.temporaries!=before) {
@@ -215,7 +218,7 @@ uint8_t cc_invoke(uint16_t id) ROUTINES {
                     else cc_call(RT_PUSHSTRING);
                 } else {
                     cc_release(before);
-                    if(cc.types[type].width==1) { cc_emit(0x26); cc_emit(0); }
+                    if(cc.types[type].width==1&&cc_family(type)!=K_ARRAY) { cc_emit(0x26); cc_emit(0); }
                     cc_guard(); cc_emit(0xe5);
                 }
             }

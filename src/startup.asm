@@ -150,3 +150,5 @@ _code_digest:: .ds 32
 .area _BANK5
 
 .area _BANK6
+
+.area _BANK7

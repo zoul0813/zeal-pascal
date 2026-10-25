@@ -54,7 +54,7 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
         check(seed("H:/SLICE.COM","old executable")); check(seed("H:/SLICE.ZMP","old map"));
         check(save_build(&s,&b));
     }
-    if(test_stage==7||test_stage==9||test_stage==11||test_stage==13||test_stage==15||test_stage==17||test_stage==19) check(save_build(&s,&b));
+    if(test_stage==7||test_stage==9||test_stage==11||test_stage==13||test_stage==15||test_stage==17||test_stage==19||test_stage==21) check(save_build(&s,&b));
     owned=pages_used();
     test_machine(before);
     check(run_build(&s,&b));
@@ -83,7 +83,7 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
         check(exec(EXEC_PRESERVE_PROGRAM,"H:/NAME.COM",0,&status)==0&&status==0);
         check(pages_used()==owned);
     }
-    if(test_stage==9||test_stage==11||test_stage==13||test_stage==15||test_stage==17||test_stage==19) {
+    if(test_stage==9||test_stage==11||test_stage==13||test_stage==15||test_stage==17||test_stage==19||test_stage==21) {
         uint8_t status=255;
         check(run_saved(&s,&b,&status)&&status==0); check(pages_used()==owned);
     }
@@ -197,6 +197,23 @@ static void string_operation_tests(void) {
     checked_error("var s:string[3]; begin s:='abc';\ninsert('',s,256) end.",0x11,"insert");
     checked_error("var s:string[3]; begin s:='abc';\ninsert('x',s,-1) end.",0x11,"insert");
     checked_error("var s:string[255]; begin s:='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-'; s:=s+s;\ns:=concat(s,s) end.",0x10,"s:=concat");
+    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
+}
+static void array_tests(void) {
+    int8_t capture=open("H:/ARRAYS.TXT",O_WRONLY|O_CREAT|O_TRUNC);
+    check(capture>=0);
+    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
+    test_stage=21;
+    execution_file("H:/ARRAYS.PAS",1,0,0);
+    execution_file("H:/ARRAYARG.PAS",1,0,0);
+    execution_file("H:/CHARARR.PAS",1,0,0);
+    test_stage=22;
+    checked_error("var a:array[-2..2] of byte; begin {$R+}\na[-3]:=1 end.",0x90,"a[-3]");
+    checked_error("var a:array[-2..2] of byte; begin {$R+}\nwriteln(a[3]) end.",0x90,"writeln");
+    checked_error("var a:array[boolean,1..2] of byte; begin {$R+}\na[true,3]:=1 end.",0x90,"a[true");
+    checked_error("var a:array[1..2] of byte; begin {$R+}\na[1]:=256 end.",0x91,"a[1]");
+    checked_error("var a:array[1..2] of string[3]; c:char; begin a[1]:='ab';\nc:=a[1] end.",0x10,"c:=a");
+    checked_error("{$A-} procedure dive; var a:array[1..255] of integer; begin dive end; begin dive end.",0xff,"dive");
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
 static void media_tests(void) {
@@ -331,6 +348,7 @@ int app_main(void) {
     routine_tests();
     string_tests();
     string_operation_tests();
+    array_tests();
     source_close(&s); check(pages_used()==code_required);
     code_hash(digest); check(!memcmp(digest,initial_code_hash,32));
     test_stage=6; test_done=255;
