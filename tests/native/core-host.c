@@ -109,6 +109,19 @@ int main(int argc,char **argv) {
     invalid("begin writeln(#256) end.",56);
     invalid("begin writeln(#$100) end.",56);
     invalid("begin writeln($00000) end.",56);
+    invalid("begin case 'text' of end end.",41);
+    invalid("begin case 1 of end end.",41);
+    invalid("begin case 1 of else end end.",41);
+    invalid("begin case 1 end end.",15);
+    invalid("begin case 1 of 1 end end.",3);
+    invalid("begin case 1 of 'a': end end.",46);
+    invalid("begin case 'a' of 1: end end.",46);
+    invalid("begin case true of 1: end end.",46);
+    invalid("begin case 1 of missing: end end.",41);
+    invalid("var n:integer; begin case 1 of n: end end.",41);
+    invalid("type t=(red,green); u=(blue,white); begin case red of blue: end end.",46);
+    invalid("begin case 1 of 0..true: end end.",46);
+    invalid("begin case 1 of 1:;",14);
     load("const x=-32768; y=x; z=-y; type octet=byte; text=string[3]; var n:octet; s:text; begin n:=257; s:='x'; writeln(x,y,z,n,s) end.");
     check(compile(&s,&b,&d)&&b.globals_bytes==5); build_close(&b);
     load("var b:boolean; n:integer; begin b:=not false; n:=1234; writeln(b,n) end.");
@@ -160,6 +173,10 @@ int main(int argc,char **argv) {
         n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         check(b.globals_bytes==19); ordered_map(); build_close(&b);
+        file=fopen("tests/native/cases.pas","rb"); check(file!=NULL);
+        n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
+        check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
+        ordered_map(); build_close(&b);
         for(i=256;i<=257;++i) {
             unsigned member;
             n=(uint16_t)snprintf((char*)text,sizeof(text),"type t=(");
@@ -186,6 +203,18 @@ int main(int argc,char **argv) {
             n=(uint16_t)snprintf((char*)text,sizeof(text),"var\n%s\n,\n%s\n:byte;\nbegin\n%s\n:=1;\n%s\n:=2 end.",left,right,left,right);
             check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
             check(b.globals_bytes==2); build_close(&b);
+        }
+        {
+            unsigned arm;
+            n=(uint16_t)snprintf((char*)text,sizeof(text),"begin\n");
+            for(arm=0;arm<25;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"case 1 of 1:\n");
+            for(arm=0;arm<25;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"end\n");
+            snprintf((char*)text+n,sizeof(text)-n,"end.");
+            invalid((char*)text,98);
+            n=(uint16_t)snprintf((char*)text,sizeof(text),"begin case 1 of\n");
+            for(arm=0;arm<600;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"%u:;\n",arm);
+            snprintf((char*)text+n,sizeof(text)-n,"end end.");
+            invalid((char*)text,99);
         }
     }
     source_close(&s); check(!pages_used());

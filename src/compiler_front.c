@@ -202,7 +202,7 @@ void cc_emit_literal(void) FRONTEND {
 int16_t cc_predefined_type(void) FRONTEND {
     return cc_is("integer")?K_INTEGER:cc_is("boolean")?K_BOOLEAN:cc_is("char")?K_CHAR:cc_is("byte")?K_BYTE:-1;
 }
-static void constant(uint8_t *type,uint16_t *value) {
+void cc_constant(uint8_t *type,uint16_t *value) FRONTEND {
     int16_t id;
     uint8_t sign=0;
     if(cc.token=='+'||cc.token=='-') { sign=cc.token=='-'?2:1; cc_next(); }
@@ -229,7 +229,7 @@ static uint8_t parse_type(void) {
     uint16_t lo,hi,count,member;
     uint8_t base,other,result;
     if(cc_is("string")) {
-        cc_next(); cc_expect('[',8); constant(&base,&lo);
+        cc_next(); cc_expect('[',8); cc_constant(&base,&lo);
         if(cc_family(base)!=K_INTEGER||lo<1||lo>255) cc_fail(49);
         cc_expect(']',9);
         return cc_new_type(K_STRING,lo+1,0,0,(uint8_t)lo);
@@ -248,9 +248,9 @@ static uint8_t parse_type(void) {
     id=cc.token==T_ID?cc_lookup():-1;
     if(id>=0&&cc.symbols[id].role==S_TYPE) { result=cc.symbols[id].type; cc_next(); return result; }
     if(id<0&&(id=cc_predefined_type())>=0) { cc_next(); return (uint8_t)id; }
-    constant(&base,&lo);
+    cc_constant(&base,&lo);
     if(cc_family(base)==K_STRING) cc_fail(51);
-    cc_expect(T_RANGE,41); constant(&other,&hi);
+    cc_expect(T_RANGE,41); cc_constant(&other,&hi);
     if(cc_family(base)!=cc_family(other)) cc_fail(51);
     if((int16_t)lo>(int16_t)hi) cc_fail(52);
     return cc_new_type(cc_family(base),cc_family(base)==K_INTEGER?(lo<=255&&hi<=255?1:2):cc.types[base].width,
@@ -276,7 +276,7 @@ void cc_declarations(void) FRONTEND {
                 cc_expect('=',6); type=parse_type(); cc.symbols[id].type=type; cc.symbols[id].role=S_TYPE;
             } else {
                 if(cc.token==':') {
-                    cc_next(); type=parse_type(); cc_expect('=',6); constant(&initial,&value);
+                    cc_next(); type=parse_type(); cc_expect('=',6); cc_constant(&initial,&value);
                     if(!cc_compatible(type,initial)) cc_fail(44);
                     if(cc_family(type)==K_CHAR&&cc_family(initial)==K_STRING) {
                         cc_constant_literal(value);
@@ -286,7 +286,7 @@ void cc_declarations(void) FRONTEND {
                     if(cc_family(type)!=K_STRING&&((int16_t)value<cc.types[type].low||(int16_t)value>cc.types[type].high)) cc_fail(44);
                     cc.symbols[id].type=type; cc.symbols[id].initial_type=initial; cc.symbols[id].role=S_TYPED;
                 } else {
-                    cc_expect('=',6); constant(&type,&value);
+                    cc_expect('=',6); cc_constant(&type,&value);
                     cc.symbols[id].type=type; cc.symbols[id].role=S_CONSTANT;
                 }
                 cc.symbols[id].address=value;

@@ -588,7 +588,9 @@ def main():
         commands += ['regs', 'mmu', f'rb 0x{mode:x} 1', f'bc 0x{keyboard_ioctl:x}']
         commands += type_text('abcdefghi\n\n', ticks=2000000)
         commands += ['run 1000000000']
-    commands += ['run 12000000000', 's', 'regs', 'mmu']
+    # The completion breakpoint is mandatory; this bounded budget includes the
+    # additional RAM/COM Case loop and three source-recovery executions.
+    commands += ['run 16000000000', 's', 'regs', 'mmu']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage', '_platform_error'):
         commands.append(f"rb 0x{sym[name]:x} 2")
     if '_test_failures' in sym:
@@ -631,6 +633,12 @@ def main():
     ordinal_expected = ordinal_expected * 2 + b'ENUM-256-OK\r\n' * 2 + b'ENUM-257-OK\r\n' * 2
     checks.append(('constants, typed storage, ordinal families/layout/conversions and 256/257 enums in RAM and COM',
                    ordinal_output.is_file() and ordinal_output.read_bytes() == ordinal_expected))
+    case_output = RUN / 'core/hostfs/CASES.TXT'
+    case_expected = ('CASE-SINGLE-MISS-OK\nCASE-LISTS-RANGES-OK\nCASE-SIGNED-LIMITS-OK\n'
+                     'CASE-ORDINAL-FAMILIES-OK\nCASE-ELSE-SEQUENCE-OK\nCASE-NESTED-NEAREST-ELSE-OK\n'
+                     'CASE-REFERENCE-EDGES-OK\nCASE-STACK-CLEANUP-OK\n').replace('\n','\r\n').encode() * 2
+    checks.append(('Case ordinal selectors, lists/ranges, nesting, Else and repeated stack cleanup in RAM and COM',
+                   case_output.is_file() and case_output.read_bytes() == case_expected))
     media_output = RUN / 'core/hostfs/MEDIA.TXT'
     disk = (RUN / 'core/eeprom.img').read_bytes()
     try:

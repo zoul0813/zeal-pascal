@@ -54,7 +54,7 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
         check(seed("H:/SLICE.COM","old executable")); check(seed("H:/SLICE.ZMP","old map"));
         check(save_build(&s,&b));
     }
-    if(test_stage==7||test_stage==9||test_stage==11) check(save_build(&s,&b));
+    if(test_stage==7||test_stage==9||test_stage==11||test_stage==13) check(save_build(&s,&b));
     owned=pages_used();
     test_machine(before);
     check(run_build(&s,&b));
@@ -83,7 +83,7 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
         check(exec(EXEC_PRESERVE_PROGRAM,"H:/NAME.COM",0,&status)==0&&status==0);
         check(pages_used()==owned);
     }
-    if(test_stage==9||test_stage==11) {
+    if(test_stage==9||test_stage==11||test_stage==13) {
         uint8_t status=255;
         check(run_saved(&s,&b,&status)&&status==0); check(pages_used()==owned);
     }
@@ -128,6 +128,17 @@ static void ordinal_tests(void) {
     checked_error("var c:char; s:string[2]; begin s:='ab';\nc:=s end.",0x10,"c:=s");
     checked_error("var c:char; s:string[2]; begin s:='';\nc:=s end.",0x10,"c:=s");
     checked_error("type t=1..3; var i:t; begin\n{$R+} for i:=0 to 3 do end.",0x91,"for i");
+}
+static void case_tests(void) {
+    int8_t capture=open("H:/CASES.TXT",O_WRONLY|O_CREAT|O_TRUNC);
+    check(capture>=0);
+    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
+    test_stage=13; execution_file("H:/CASES.PAS",1,0,0);
+    test_stage=14;
+    checked_error("begin\ncase 7 div 0 of 1: end end.",2,"case");
+    checked_error("begin case 1 of\n1:writeln(7 div 0); else writeln(0) end end.",2,"writeln(7");
+    checked_error("begin case 1 of\n2:; else writeln(7 div 0) end end.",2,"writeln(7");
+    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
 static void media_tests(void) {
     uint8_t attempt,status;
@@ -257,6 +268,7 @@ int app_main(void) {
     media_tests();
     control_tests();
     ordinal_tests();
+    case_tests();
     source_close(&s); check(pages_used()==code_required);
     code_hash(digest); check(!memcmp(digest,initial_code_hash,32));
     test_stage=6; test_done=255;

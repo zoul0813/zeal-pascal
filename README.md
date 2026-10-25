@@ -87,7 +87,9 @@ captures are preserved. This project has not patched ZOS or the emulator.
 Current language support includes Integer, Byte, Char, Boolean and `string[1..255]` globals,
 compound statements, assignments, Integer arithmetic/bitwise/shift expressions,
 eager Boolean logic, ordinal/string comparisons, If/Then/Else, While/Do,
-Repeat/Until and For/To/Downto. For controls support the implemented ordinal families;
+Repeat/Until, For/To/Downto and Case/Of/Else. Case supports ordinal
+selectors, comma lists, inclusive ranges and nested alternatives.
+For controls support the implemented ordinal families;
 the final bound is evaluated once, zero trips retain the old control value and
 normal completion leaves the final bound. Write/Writeln accepts strings,
 Integers, Characters and Booleans; ReadLn currently accepts string targets. Short-string assignment
@@ -109,9 +111,10 @@ Exhaustion reports resource error 98. Char arrays and selected-variable forms
 of Addr/SizeOf await aggregate support.
 
 The [control-flow fixture](tests/native/control.pas),
-[ordinal fixture](tests/native/ordinals.pas) and enum boundary fixtures exercise
-these features in Memory and saved native COM execution. Real6, aggregates,
-pointers, routines, Case/Goto and the rest of the dialect remain in progress.
+[ordinal fixture](tests/native/ordinals.pas), [Case fixture](tests/native/cases.pas)
+and enum boundary fixtures exercise these features in Memory and saved native
+COM execution. Real6, aggregates,
+pointers, routines, Goto and the rest of the dialect remain in progress.
 
 ReadLn currently uses Zeal's cooked keyboard line editor and restores raw mode
 before returning. It supports string fields, empty lines and discarding the rest

@@ -187,6 +187,77 @@ static void convert(uint8_t target,uint8_t source) {
     if(cc_family(target)==K_CHAR&&cc_family(source)==K_STRING) cc_call(RT_STRINGCHAR);
     cc_check_range(target);
 }
+static void statement(void);
+/* Forward operands double as a private patch list until the image is sealed.
+ * Each nested Case owns its own heads; no extra compiler workspace is needed. */
+static void link_jump(uint8_t opcode,uint16_t *head) {
+    uint16_t at=cc.emitted+1;
+    cc_op16(opcode,*head); *head=at;
+}
+static void patch_jumps(uint16_t head) {
+    uint16_t next;
+    while(head&&!cc.error->code) {
+        next=image_get(cc.image,head)|((uint16_t)image_get(cc.image,head+1)<<8);
+        cc_patch(head); head=next;
+    }
+}
+static uint16_t case_constant(uint8_t selector) {
+    uint8_t type;
+    uint16_t value;
+    cc_constant(&type,&value);
+    if(cc_family(type)!=cc_family(selector)) cc_fail(46);
+    return value;
+}
+static void case_compare(uint16_t value) {
+    cc_emit(0xd1); cc_emit(0xd5); /* retain the selector only while dispatching */
+    cc_op16(0x21,value); cc_call(RT_COMPARE);
+}
+static void case_statement(uint16_t start,uint16_t code) {
+    uint8_t selector;
+    uint16_t matches,exits=0,miss,skip,lo,hi;
+    cc_next(); selector=expression();
+    if(cc_family(selector)==K_STRING) cc_fail(41);
+    cc_keyword("of",15); cc_guard(); cc_emit(0xe5);
+    if(cc_is("end")||cc_is("else")) cc_fail(41);
+    mapping(code,pc(),start,cc.token_start);
+    while(!cc.error->code&&!cc_is("end")&&!cc_is("else")&&cc.token!=T_EOF) {
+        start=cc.token_start; code=pc(); matches=0;
+        do {
+            lo=case_constant(selector);
+            if(cc.token==T_RANGE) {
+                cc_next(); hi=case_constant(selector);
+                /* Two signed comparisons cover the entire ordinal domain
+                 * without overflowing a computed high-low range width. */
+                case_compare(lo); cc_emit(0xcb); cc_emit(0x7c);
+                skip=cc_forward(0xc2); /* below low: try the next label */
+                case_compare(hi); cc_emit(0x7d); cc_emit(0xfe); cc_emit(1);
+                link_jump(0xc2,&matches); cc_patch(skip);
+            } else {
+                case_compare(lo); cc_emit(0x7c); cc_emit(0xb5);
+                link_jump(0xca,&matches);
+            }
+            if(cc.token!=',') break;
+            cc_next();
+        } while(!cc.error->code);
+        cc_expect(':',3); miss=cc_forward(0xc3); patch_jumps(matches);
+        cc_emit(0xc1); /* match releases its selector before entering the arm */
+        mapping(code,pc(),start,cc.token_start);
+        statement();
+        code=pc(); link_jump(0xc3,&exits);
+        mapping(code,pc(),start,cc.token_start); cc_patch(miss);
+        if(cc.token==';') cc_next(); else if(!cc_is("end")&&!cc_is("else")) cc_fail(1);
+    }
+    start=cc.token_start; code=pc(); cc_emit(0xc1); /* unmatched selector */
+    mapping(code,pc(),start,cc.token_start);
+    if(cc_is("else")) {
+        cc_next();
+        while(!cc.error->code&&!cc_is("end")&&cc.token!=T_EOF) {
+            statement();
+            if(cc.token==';') cc_next(); else if(!cc_is("end")) cc_fail(1);
+        }
+    }
+    cc_keyword("end",14); patch_jumps(exits);
+}
 static void statement(void) {
     uint16_t start=cc.token_start, code=pc(),branch,other,loop,body,head_end;
     int16_t id;
@@ -200,6 +271,8 @@ static void statement(void) {
         }
         if(cc_is("end")) cc_next(); else cc_fail(14);
         --cc.depth; return;
+    } else if(cc_is("case")) {
+        case_statement(start,code); --cc.depth; return;
     } else if(cc_is("if")) {
         cc_next(); branch=condition(); cc_keyword("then",17);
         mapping(code,pc(),start,cc.token_start);

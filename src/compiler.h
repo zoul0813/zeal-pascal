@@ -53,6 +53,7 @@ void cc_store_symbol(uint16_t id) FRONTEND;
 void cc_check_range(uint8_t type) FRONTEND;
 void cc_constant_literal(uint16_t at) FRONTEND;
 void cc_emit_literal(void) FRONTEND;
+void cc_constant(uint8_t *type,uint16_t *value) FRONTEND;
 int16_t cc_predefined_type(void) FRONTEND;
 void cc_declarations(void) FRONTEND;
 void cc_typed_storage(void) FRONTEND;
