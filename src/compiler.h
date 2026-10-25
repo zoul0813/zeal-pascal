@@ -15,10 +15,10 @@
 enum { T_EOF=256,T_ID,T_NUMBER,T_STRING,T_ASSIGN,T_RESERVED,T_NE,T_LE,T_GE,T_RANGE };
 enum { K_INTEGER,K_STRING,K_BOOLEAN,K_CHAR,K_BYTE };
 /* Aggregate families cannot overlap the 5..63 enumeration identity range. */
-enum { K_ARRAY=64,K_RECORD,K_SET };
+enum { K_ARRAY=64,K_RECORD,K_SET,K_POINTER };
 /* Set expression kinds encode the ordinal family without allocating a type
  * descriptor for every constructor. The empty kind has no fixed base family. */
-enum { K_SET_EXPR=128,K_EMPTY_SET=192 };
+enum { K_SET_EXPR=128,K_EMPTY_SET=192,K_ANY_POINTER,K_NIL };
 enum { S_VARIABLE,S_CONSTANT,S_TYPE,S_TYPED,S_PENDING,S_VALUE,S_REFERENCE,S_RESULT,S_PROCEDURE,S_FUNCTION,S_FIELD,S_VARIANT,S_VLABEL };
 enum { R_PARENT=0,R_FLAGS=1,R_SYMBOL=2,R_ENTRY=4,R_CALLS=6,R_PARAMETERS=8,R_COUNT=10,R_LOCALS=12,R_EXITS=14 };
 enum { RF_FORWARD=1,RF_RECURSIVE=2,RF_DEFINED=4,RF_EXTERNAL=8 };
@@ -71,6 +71,9 @@ void cc_load_indirect(uint8_t type) FRONTEND;
 void cc_store_indirect(uint8_t type) FRONTEND;
 void cc_call(uint16_t address) FRONTEND;
 void cc_next(void) FRONTEND;
+void cc_control_literal(void) FRONTEND;
+uint16_t cc_runtime_size(void);
+uint8_t cc_runtime_get(uint16_t offset);
 void cc_expect(uint16_t t,uint8_t code) FRONTEND;
 int16_t cc_lookup(void) FRONTEND;
 uint8_t cc_new_type(uint8_t family,uint16_t width,int16_t low,int16_t high,uint8_t capacity) FRONTEND;

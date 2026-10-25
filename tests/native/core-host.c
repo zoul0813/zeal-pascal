@@ -61,6 +61,24 @@ int main(int argc,char **argv) {
         check(source_import(&s,embedded,sizeof(embedded)-1,&d));
         check(compile(&s,&b,&d)); build_close(&b);
     }
+    invalid("type p=^missing;begin end.",42);
+    invalid("type p=^later;var later:integer;begin end.",42);
+    invalid("type p=^integer;const x:p=nil;begin end.",61);
+    invalid("const x=nil;begin end.",1);
+    invalid("type p=^integer;var x:p;begin x:=p(0)end.",30);
+    invalid("type p=^integer;var x:p;begin x:=0 end.",44);
+    invalid("type p=^integer;q=^char;var x:p;y:q;begin x:=y end.",44);
+    invalid("type p=^integer;var x:p;begin writeln(x<nil)end.",47);
+    invalid("type p=^integer;var x:p;begin x:=x+1 end.",47);
+    invalid("type p=^integer;function f:p;begin f^:=1 end;begin end.",7);
+    invalid("type p=^integer;function f:p;begin f:=nil end;begin writeln(f^)end.",66);
+    invalid("type p=^integer;q=^char;var x:q;procedure f(var a:p);begin end;begin f(x)end.",44);
+    invalid("begin writeln(succ(nil))end.",31);
+    invalid("begin writeln(pred(nil))end.",31);
+    invalid("begin writeln(succ(ptr(0)))end.",31);
+    invalid("begin writeln(pred(ptr(0)))end.",31);
+    invalid("begin writeln(succ([]))end.",31);
+    invalid("begin writeln(pred([1]))end.",31);
     invalid("begin writeln(32768) end.",56);
     invalid("var s:string[3]; begin s[true]:='x' end.",23);
     invalid("var s:string[3]; begin s[1][1]:='x' end.",7);
@@ -172,7 +190,7 @@ int main(int argc,char **argv) {
     invalid("type a=(red,green); begin writeln(red) end.",44);
     invalid("const n:byte=256; begin end.",44);
     invalid("var n:integer; const x=n; begin end.",41);
-    invalid("begin writeln(ord('ab')) end.",44);
+    invalid("begin writeln(ord([])) end.",31);
     invalid("begin writeln(chr(true)) end.",23);
     invalid("begin writeln(#256) end.",56);
     invalid("begin writeln(#$100) end.",56);
@@ -281,7 +299,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {
@@ -293,7 +311,7 @@ int main(int argc,char **argv) {
             }
         }
         {
-            const char *names[]={"stringabi","setabi"};
+            const char *names[]={"stringabi","setabi","pointers","ptrargs","ordchar"};
             unsigned abi;
             char path[80];
             for(abi=0;abi<2;++abi) {

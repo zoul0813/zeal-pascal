@@ -25,8 +25,9 @@ The launcher verifies the complete library before entering any application
 bank. A missing, damaged or mismatched library returns to the shell. The editor,
 compiler, file operations and compiler front end use separate owned RAM banks.
 Routine, expression and type compilation use additional code banks.
-Internal `pascal_runtime.zpl` and `ram_trampoline.zpl` templates remain embedded
-in the launcher and require no separate deployment. Generated Pascal COM
+The runtime template occupies a verified library bank; the RAM trampoline
+remains in the launcher. Internal `pascal_runtime.zpl` and `ram_trampoline.zpl`
+build products require no separate deployment. Generated Pascal COM
 programs contain their own runtime and need no IDE library.
 
 | Key | Operation |
@@ -106,7 +107,9 @@ Char/string conversions and comparisons are supported; converting a string
 whose length is not one to Char reports runtime error 10.
 
 Implemented functions include Ord, Chr, Succ, Pred, SizeOf, Addr, UpCase, Length,
-Odd, Hi, Lo, Swap and the Integer forms of Abs/Sqr. The compiler currently has
+Odd, Hi, Lo, Swap and the Integer forms of Abs/Sqr. Ord, Succ and Pred accept
+String/Char-array values of exactly one character; other lengths report runtime
+error 10. The compiler currently has
 512 symbol entries and 64 type descriptors (including five built-in entries).
 Exhaustion reports resource error 98. Arrays support ordinal bounds, nested or
 comma-separated dimensions, packed layout, whole-array assignment, typed
@@ -133,6 +136,15 @@ value parameters use full 32-byte snapshots. Var set parameters require the same
 declared type. Runtime constructor bounds use their low eight bits, while
 membership outside 0..255 is false. Typed initializer elements must fit their
 base. Assignment retains whole edge bytes, matching the original behavior.
+
+Typed pointers support forward targets within a declaration group, `nil`,
+assignment, equality/inequality and repeated dereferencing. Selected record,
+array, string and set storage works through pointers, including With, Var,
+Addr and SizeOf. Pointers to the same target type are compatible, including
+Var parameters. Ptr converts an Integer address; Ord returns its address bits.
+Pointer-valued user functions use the scalar result convention; assign their
+result to a pointer variable before dereferencing. Pointer constants and pointer
+type casts remain rejected as in the reference. Heap allocation is still pending.
 
 An Integer-indexed Char array of at most 255 elements acts as a fixed-length
 string in expressions, comparisons and string APIs. Assigning to a Char array
@@ -169,7 +181,7 @@ and enum boundary fixtures exercise these features in Memory and saved native
 COM execution. The [routine fixture](tests/native/routines.pas) covers calls,
 recursion and string parameter copies. The string selection/operation fixtures
 cover index checks, aliasing, byte values and cleanup. The string result and
-boundary fixtures cover temporary cleanup and 255-byte values. Real6, pointers,
+boundary fixtures cover temporary cleanup and 255-byte values. Real6, heap allocation,
 Goto and the rest of the dialect remain in progress.
 
 ReadLn currently uses Zeal's cooked keyboard line editor and restores raw mode

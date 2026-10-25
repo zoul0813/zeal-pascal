@@ -726,6 +726,18 @@ def main():
         set_expected += lines.replace('\n','\r\n').encode() * 2
     checks.append(('sets, compressed storage, constructors/operators, parameter values and cleanup in RAM/COM',
                    set_output.is_file() and set_output.read_bytes() == set_expected))
+    pointer_output = RUN / 'core/hostfs/POINTERS.TXT'
+    pointer_expected = b''
+    for markers in (
+        ('NIL-WIDTH','FORWARD-RECORD','WITH','TARGET-COMPATIBILITY','REPEATED-DEREFERENCE',
+         'STRING-SELECTION','ARRAY-SELECTION','SET-SELECTION','CARET-LITERALS'),
+        ('VALUE-ARGUMENT','VAR-ARGUMENT','UNTYPED-ARGUMENT','FUNCTION-RESULT',
+         'SELECTED-LHS-ONCE','SIZEOF-NO-EVAL','LOCAL-FORWARD','RECURSIVE-FRAME','ARGUMENT-CLEANUP'),
+    ):
+        pointer_expected += ''.join('POINTER-'+marker+'-OK\r\n' for marker in markers).encode() * 2
+    pointer_expected += b'ORDINAL-STRING-CHAR-OK\r\nORDINAL-CHARARRAY-OK\r\nORDINAL-CHAR-TEMPORARY-CLEANUP-OK\r\n' * 2
+    checks.append(('typed pointers, selected addresses, pointer calls and ordinal String conversions in RAM/COM',
+                   pointer_output.is_file() and pointer_output.read_bytes() == pointer_expected))
     set_image = RUN / 'core/hostfs/SETABI.COM'
     set_code = (ROOT / 'build/setabi.zpl').read_bytes()
     checks.append(('native external set payload matches independently assembled 32-byte argument probe',

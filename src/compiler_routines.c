@@ -209,7 +209,7 @@ uint8_t cc_invoke(uint16_t id) ROUTINES {
                 if(actual>=0&&cc.symbols[actual].role==S_RESULT) { cc_fail(41); break; }
                 if(!cc_variable(actual)||cc.symbols[actual].control) { cc_fail(44); break; }
                 kind=cc_selection((uint16_t)actual);
-                if(type!=255&&type!=kind&&!(cc_family(type)==K_STRING&&cc_family(kind)==K_STRING&&
+                if(type!=255&&type!=kind&&!(cc_family(type)==K_POINTER&&cc_compatible(type,kind))&&!(cc_family(type)==K_STRING&&cc_family(kind)==K_STRING&&
                    (!cc.var_strict||cc.types[type].capacity==cc.types[kind].capacity))) { cc_fail(44); break; }
                 cc_guard(); cc_emit(0xe5);
             } else {

@@ -112,6 +112,45 @@ void cc_store_indirect(uint8_t type) FRONTEND {
     if(cc.types[type].width==2) { cc_emit(0x13); cc_emit(0x7c); cc_emit(0x12); }
 }
 void cc_call(uint16_t address) FRONTEND { cc_guard(); cc_op16(0xcd,address); }
+static void literal(void) {
+    uint8_t c,base,value;
+    uint16_t n;
+    uint32_t wide;
+        do {
+            c=get(cc.scan++);
+            if(c=='\'') {
+                for(;;) {
+                    c=get(cc.scan++);
+                    if(cc.scan>cc.input->length||c=='\n') { cc_fail(55); break; }
+                    if(c=='\'') { if(get(cc.scan)!='\'') break; ++cc.scan; }
+                    if(cc.literal_length==255) { cc_fail(55); break; }
+                    cc.literal[cc.literal_length++]=c;
+                }
+            } else {
+                if(c=='^') {
+                    c=get(cc.scan++);
+                    if(cc.scan>cc.input->length||c<'@'||c>'~') { cc_fail(55); break; }
+                    value=c&31;
+                } else {
+                    base=get(cc.scan)=='$'?16:10; if(base==16) ++cc.scan;
+                    n=0; wide=0;
+                    while(digit(get(cc.scan))||(base==16&&lower(get(cc.scan))>='a'&&lower(get(cc.scan))<='f')) {
+                        c=lower(get(cc.scan++)); wide=wide*base+(digit(c)?c-'0':c-'a'+10); ++n;
+                        if((base==16&&n>4)||wide>255) { cc_fail(56); break; }
+                    }
+                    if(!n) cc_fail(56);
+                    value=(uint8_t)wide;
+                }
+                if(cc.literal_length==255) { cc_fail(55); break; }
+                cc.literal[cc.literal_length++]=value;
+            }
+            c=get(cc.scan);
+        } while(!cc.error->code&&(c=='\''||c=='#'||c=='^'));
+    cc.token=T_STRING; cc.token_end=cc.scan;
+}
+void cc_control_literal(void) FRONTEND {
+    cc.scan=cc.token_start; cc.literal_length=0; literal();
+}
 void cc_next(void) FRONTEND {
     uint8_t c,q,base,value;
     uint16_t n=0;
@@ -169,41 +208,11 @@ void cc_next(void) FRONTEND {
         }
         if(!n) cc_fail(56);
         cc.magnitude=(uint16_t)wide; cc.token=T_NUMBER;
-    } else if(c=='\''||c=='#'||c=='^') {
-        do {
-            c=get(cc.scan++);
-            if(c=='\'') {
-                for(;;) {
-                    c=get(cc.scan++);
-                    if(cc.scan>cc.input->length||c=='\n') { cc_fail(55); break; }
-                    if(c=='\'') { if(get(cc.scan)!='\'') break; ++cc.scan; }
-                    if(cc.literal_length==255) { cc_fail(55); break; }
-                    cc.literal[cc.literal_length++]=c;
-                }
-            } else {
-                if(c=='^') {
-                    c=get(cc.scan++);
-                    if(cc.scan>cc.input->length||c<'@'||c>'~') { cc_fail(55); break; }
-                    value=c&31;
-                } else {
-                    base=get(cc.scan)=='$'?16:10; if(base==16) ++cc.scan;
-                    n=0; wide=0;
-                    while(digit(get(cc.scan))||(base==16&&lower(get(cc.scan))>='a'&&lower(get(cc.scan))<='f')) {
-                        c=lower(get(cc.scan++)); wide=wide*base+(digit(c)?c-'0':c-'a'+10); ++n;
-                        if((base==16&&n>4)||wide>255) { cc_fail(56); break; }
-                    }
-                    if(!n) cc_fail(56);
-                    value=(uint8_t)wide;
-                }
-                if(cc.literal_length==255) { cc_fail(55); break; }
-                cc.literal[cc.literal_length++]=value;
-            }
-            c=get(cc.scan);
-        } while(!cc.error->code&&(c=='\''||c=='#'||c=='^'));
-        cc.token=T_STRING;
+    } else if(c=='\''||c=='#') {
+        literal();
     } else {
         ++cc.scan; cc.token=c;
-        if(!strchr(";:.,()+-*/[]=<>",c)) cc_fail(58);
+        if(!strchr(";:.,()+-*/[]=<>^",c)) cc_fail(58);
         if(c==':'&&get(cc.scan)=='=') { ++cc.scan; cc.token=T_ASSIGN; }
         if(c=='<'&&get(cc.scan)=='>') { ++cc.scan; cc.token=T_NE; }
         if(c=='<'&&get(cc.scan)=='=') { ++cc.scan; cc.token=T_LE; }
@@ -301,10 +310,16 @@ uint8_t cc_new_type(uint8_t family,uint16_t width,int16_t low,int16_t high,uint8
 }
 uint8_t cc_family(uint8_t type) FRONTEND {
     if(type>=K_SET_EXPR&&type<=K_EMPTY_SET) return K_SET;
+    if(type==K_ANY_POINTER||type==K_NIL) return K_POINTER;
     return type<cc.type_count?cc.types[type].family:255;
 }
 static uint8_t text_type(uint8_t type) { return cc_family(type)==K_CHAR||cc_family(type)==K_STRING; }
 uint8_t cc_compatible(uint8_t left,uint8_t right) FRONTEND {
+    if(cc_family(left)==K_POINTER||cc_family(right)==K_POINTER) {
+        if(cc_family(left)!=K_POINTER||cc_family(right)!=K_POINTER) return 0;
+        return left==K_ANY_POINTER||right==K_ANY_POINTER||left==K_NIL||right==K_NIL||
+            cc.types[left].element==cc.types[right].element;
+    }
     if(cc_family(left)==K_SET||cc_family(right)==K_SET) {
         if(cc_family(left)!=K_SET||cc_family(right)!=K_SET) return 0;
         return cc_set_base(left)==255||cc_set_base(right)==255||cc_set_base(left)==cc_set_base(right);
@@ -441,7 +456,7 @@ uint8_t cc_text_value(uint8_t type) FRONTEND {
  * scratch memory. Re-decode only that literal while preserving parser state. */
 void cc_constant_literal(uint16_t at) FRONTEND {
     uint16_t saved_scan=cc.scan,saved_token=cc.token,first=cc.token_start,last=cc.token_end;
-    cc.scan=at; cc_next();
+    cc.scan=at; cc_next(); if(cc.token=='^') cc_control_literal();
     cc.scan=saved_scan; cc.token=saved_token; cc.token_start=first; cc.token_end=last;
 }
 void cc_emit_literal(void) FRONTEND {
@@ -462,6 +477,7 @@ void cc_constant(uint8_t *type,uint16_t *value) FRONTEND {
     int16_t id;
     uint8_t sign=0;
     if(cc.token=='+'||cc.token=='-') { sign=cc.token=='-'?2:1; cc_next(); }
+    if(cc.token=='^') cc_control_literal();
     *type=K_INTEGER; *value=0;
     if(cc.token==T_NUMBER) {
         if(!cc.hexadecimal&&cc.magnitude>32767u&&sign!=2) cc_fail(56);

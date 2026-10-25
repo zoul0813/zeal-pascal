@@ -33,6 +33,9 @@ uint8_t cc_index(uint8_t type) BACKEND {
     uint8_t kind,index,array;
     int16_t field;
     while(!cc.error->code) {
+        if(cc_family(type)==K_POINTER&&cc.token=='^') {
+            cc_load_indirect(type); type=cc.types[type].element; cc_next(); continue;
+        }
         if(cc_family(type)==K_RECORD&&cc.token=='.') {
             cc_next(); field=cc.token==T_ID?cc_field_lookup(type):-1;
             if(field<0) { cc_fail(41); return type; }
@@ -94,7 +97,7 @@ uint8_t cc_aggregate_actual(uint8_t type) BACKEND {
     } else cc_fail(41);
     return type;
 }
-enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR,F_LENGTH,F_COPY,F_POS,F_CONCAT };
+enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR,F_LENGTH,F_COPY,F_POS,F_CONCAT,F_PTR };
 static void string_value(void) {
     uint16_t before=cc.temporaries;
     uint8_t kind;
@@ -158,7 +161,7 @@ void cc_string_statement(uint8_t insert) BACKEND {
     cc_expect(')',5); cc_call(insert?RT_INSERT:RT_DELETE); cc_release(before);
 }
 static int16_t predefined_function(void) {
-    static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length","copy","pos","concat"};
+    static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length","copy","pos","concat","ptr"};
     uint8_t i;
     for(i=0;i<sizeof(functions)/sizeof(functions[0]);++i) if(cc_is(functions[i])) return i;
     return -1;
@@ -170,7 +173,7 @@ static uint8_t intrinsic(uint8_t op) {
     uint8_t saved;
     int16_t id;
     cc_next(); cc_expect('(',4);
-    if(op>=F_COPY) return string_function(op);
+    if(op>=F_COPY&&op<=F_CONCAT) return string_function(op);
     if(op==F_SIZEOF||op==F_ADDR) {
         id=cc.token==T_ID?cc_lookup():-1;
         if(op==F_ADDR) {
@@ -193,8 +196,12 @@ static uint8_t intrinsic(uint8_t op) {
         else cc_fail(cc_aggregate(kind)?62:44);
         cc_release(before); return K_INTEGER;
     }
+    if(op==F_PTR) { if(cc_family(kind)!=K_INTEGER) cc_fail(23); return K_ANY_POINTER; }
     if(op==F_ORD||op==F_SUCC||op==F_PRED) {
-        if(!cc_ordinal(kind)) cc_fail(44);
+        if(cc_family(kind)==K_STRING) { cc_call(RT_STRINGCHAR); cc_release(before); kind=K_CHAR; }
+        if(!cc_ordinal(kind)&&!(op==F_ORD&&cc_family(kind)==K_POINTER)) {
+            cc_fail(31); return K_INTEGER;
+        }
         if(op==F_ORD) return K_INTEGER;
         cc_emit(op==F_SUCC?0x23:0x2b); cc_check_range(kind);
         if(cc.types[kind].width==1) { cc_emit(0x26); cc_emit(0); }
@@ -222,7 +229,9 @@ static uint8_t factor(void) {
     uint16_t before;
     uint8_t negative,kind=K_INTEGER;
     if(++cc.depth>24) { cc_fail(98); --cc.depth; return 0; }
-    if(cc.token=='+'||cc.token=='-') {
+    if(cc.token=='^') cc_control_literal();
+    if(cc_is("nil")) { cc_op16(0x21,0); kind=K_NIL; cc_next(); }
+    else if(cc.token=='+'||cc.token=='-') {
         negative=cc.token=='-'; cc_next();
         if(negative&&cc.token==T_NUMBER&&!cc.hexadecimal&&cc.magnitude==32768u) {
             cc_op16(0x21,0x8000); cc_next();
@@ -251,7 +260,8 @@ static uint8_t factor(void) {
             cc_next(); cc_expect('(',4);
             before=cc.temporaries;
             negative=cc_text_value(expression()); cc_expect(')',5);
-            if(!cc_ordinal(kind)) cc_fail(44);
+            if(cc_family(kind)==K_POINTER) cc_fail(30);
+            else if(!cc_ordinal(kind)) cc_fail(44);
             else if(cc_family(kind)==K_CHAR&&cc_family(negative)==K_STRING) cc_call(RT_STRINGCHAR);
             else if(!cc_ordinal(negative)) cc_fail(44);
             cc_check_range(kind);
@@ -267,11 +277,12 @@ static uint8_t factor(void) {
             if(cc_family(kind)==K_STRING) { cc_constant_literal(cc.symbols[id].address); cc_emit_literal(); }
             else cc_op16(0x21,cc.symbols[id].address);
             cc_next();
-        } else if(cc.symbols[id].role==S_FUNCTION||cc.symbols[id].role==S_RESULT) kind=cc_invoke((uint16_t)id);
+        } else if(cc.symbols[id].role==S_FUNCTION||cc.symbols[id].role==S_RESULT) { kind=cc_invoke((uint16_t)id); if(cc.token=='^') cc_fail(66); }
         else if(cc_variable(id)) {
             kind=cc.symbols[id].type; cc_next();
             if(((cc_family(kind)==K_STRING||cc_family(kind)==K_ARRAY)&&cc.token=='[')||
-               (cc_family(kind)==K_RECORD&&cc.token=='.')) {
+               (cc_family(kind)==K_RECORD&&cc.token=='.')||
+               (cc_family(kind)==K_POINTER&&cc.token=='^')) {
                 cc_symbol_address((uint16_t)id); kind=cc_index(kind); cc_load_indirect(kind);
             } else cc_load_symbol((uint16_t)id);
         } else cc_fail(41);
@@ -364,6 +375,7 @@ static uint8_t expression(void) {
     }
     if((cc_aggregate(kind)&&!cc_char_array(kind))||(cc_aggregate(right)&&!cc_char_array(right))) cc_fail(62);
     else if(!cc_compatible(kind,right)) cc_fail(47);
+    if((cc_family(kind)==K_POINTER||cc_family(right)==K_POINTER)&&op!='='&&op!=T_NE) cc_fail(47);
     if(text(kind)||text(right)) {
         cc_emit(0x3e); cc_emit((cc_family(kind)==K_CHAR?1:0)|(cc_family(right)==K_CHAR?2:0)); cc_call(RT_TEXTCMP);
     } else cc_call(RT_COMPARE);

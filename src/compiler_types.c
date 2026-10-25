@@ -89,6 +89,12 @@ static uint8_t parse_type_body(void) {
     int16_t id;
     uint16_t lo,hi,count,member;
     uint8_t base,other,result;
+    if(cc.token=='^') {
+        cc_next();
+        if(cc.token!=T_ID) { cc_fail(42); return K_INTEGER; }
+        result=cc_new_type(K_POINTER,2,(int16_t)cc.token_start,1,cc.scope);
+        cc.types[result].element=255; cc_next(); return result;
+    }
     if(cc_is("packed")) { cc_next(); return parse_type(); }
     if(cc_is("set")) {
         cc_next(); cc_keyword("of",15); base=parse_type();
@@ -208,6 +214,7 @@ static void initializer(uint8_t type,uint8_t emit) {
         }
         return;
     }
+    if(cc_family(type)==K_POINTER) { cc_fail(61); return; }
     cc_constant(&actual,&value);
     if(!cc_compatible(type,actual)) cc_fail(44);
     if(cc_family(type)==K_STRING) {
@@ -228,6 +235,18 @@ static void initializer(uint8_t type,uint8_t emit) {
         if(emit) { cc_emit((uint8_t)value); if(cc.types[type].width==2) cc_emit((uint8_t)(value>>8)); }
     }
 }
+static void resolve_pointers(void) {
+    uint8_t i;
+    uint16_t start=cc.token_start;
+    int16_t target;
+    for(i=5;i<cc.type_count&&!cc.error->code;++i)
+        if(cc.types[i].family==K_POINTER&&cc.types[i].high&&cc.types[i].capacity==cc.scope) {
+            cc.scan=(uint16_t)cc.types[i].low; cc_next(); target=cc_named_type();
+            if(target<0) { cc_fail(42); return; }
+            cc.types[i].element=(uint8_t)target; cc.types[i].high=0;
+        }
+    cc.scan=start; cc_next();
+}
 void cc_declarations(void) FRONTEND {
     uint16_t id,first,count,i,value;
     uint8_t section,type,initial;
@@ -246,7 +265,9 @@ void cc_declarations(void) FRONTEND {
                 cc_expect('=',6); type=parse_type(); cc.symbols[id].type=type; cc.symbols[id].role=S_TYPE;
             } else {
                 if(cc.token==':') {
-                    cc_next(); type=parse_type(); cc_expect('=',6);
+                    cc_next(); type=parse_type();
+                    if(cc_family(type)==K_POINTER) cc_fail(61);
+                    cc_expect('=',6);
                     if(cc_aggregate(type)||cc_family(type)==K_SET) {
                         value=cc.token_start; initializer(type,0); initial=255;
                     } else cc_constant(&initial,&value);
@@ -264,7 +285,7 @@ void cc_declarations(void) FRONTEND {
                     cc.symbols[id].type=type; cc.symbols[id].initial_type=initial; cc.symbols[id].role=S_TYPED;
                 } else {
                     cc_expect('=',6);
-                    if(cc.token=='[') cc_fail(1);
+                    if(cc.token=='['||cc_is("nil")) cc_fail(1);
                     cc_constant(&type,&value);
                     cc.symbols[id].type=type; cc.symbols[id].role=S_CONSTANT;
                 }
@@ -272,6 +293,7 @@ void cc_declarations(void) FRONTEND {
             }
             cc_expect(';',1);
         }
+        if(!cc.error->code) resolve_pointers();
     }
 }
 void cc_typed_storage(uint16_t first) FRONTEND {

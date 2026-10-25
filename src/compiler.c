@@ -256,7 +256,8 @@ static void statement(void) {
             target=cc.symbols[id].type; cc_next();
             indexed=cc.symbols[id].role!=S_RESULT&&((cc.token=='['&&
                 (cc_family(target)==K_STRING||cc_aggregate(target)))||
-                (cc.token=='.'&&cc_family(target)==K_RECORD));
+                (cc.token=='.'&&cc_family(target)==K_RECORD)||
+                (cc.token=='^'&&cc_family(target)==K_POINTER));
             if(indexed) {
                 cc_symbol_address((uint16_t)id); target=cc_index(target); cc_guard(); cc_emit(0xe5);
             }
@@ -320,7 +321,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     cc.workspace=page_new(PAGE_COMPILER);
     if(cc.workspace==255) { d->code=98; goto failed; }
     for(i=0;i<96;++i) map8(i,0);
-    for(i=0;i<(uint16_t)(runtime_end-runtime_start);++i) cc_put(i,runtime_start[i]);
+    for(i=0;i<cc_runtime_size();++i) cc_put(i,cc_runtime_get(i));
     cc.scan=0; cc.symbol_count=0; cc.depth=0; cc.entries=0; cc.range_check=0; cc.type_count=0; cc.relocations=0;
     cc.scope=0; cc.routine_count=0; cc.absolute_mode=1; cc.var_strict=1; cc.nesting=0; cc.suppress=0; cc.with_depth=0; cc.with_limit=4;
     cc.temporaries=0;

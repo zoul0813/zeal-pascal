@@ -38,6 +38,14 @@ static uint8_t seed(const char *path,const char *text) {
     if(write(fd,console_scratch,&n)||n!=expected) { close(fd); return 0; }
     return close(fd)==0;
 }
+/* Publication and saved execution must select the same ordinary corpora. */
+static uint8_t saved_corpus(void) {
+    switch(test_stage) {
+    case 9: case 11: case 13: case 15: case 17: case 19:
+    case 21: case 23: case 25: case 27: return 1;
+    default: return 0;
+    }
+}
 static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) {
     uint8_t owned;
     uint8_t before[7],after[7];
@@ -54,7 +62,7 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
         check(seed("H:/SLICE.COM","old executable")); check(seed("H:/SLICE.ZMP","old map"));
         check(save_build(&s,&b));
     }
-    if(test_stage==7||test_stage==9||test_stage==11||test_stage==13||test_stage==15||test_stage==17||test_stage==19||test_stage==21||test_stage==23||test_stage==25) check(save_build(&s,&b));
+    if(test_stage==7||saved_corpus()) check(save_build(&s,&b));
     owned=pages_used();
     test_machine(before);
     check(run_build(&s,&b));
@@ -83,7 +91,7 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
         check(exec(EXEC_PRESERVE_PROGRAM,"H:/NAME.COM",0,&status)==0&&status==0);
         check(pages_used()==owned);
     }
-    if(test_stage==9||test_stage==11||test_stage==13||test_stage==15||test_stage==17||test_stage==19||test_stage==21||test_stage==23||test_stage==25) {
+    if(saved_corpus()) {
         uint8_t status=255;
         check(run_saved(&s,&b,&status)&&status==0); check(pages_used()==owned);
     }
@@ -252,6 +260,37 @@ static void set_tests(void) {
     checked_error("{$A-}type t=set of byte;procedure tight(v:t);var a:array[1..14000]of byte;begin end;begin tight([])end.",0xff,"tight");
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
+static void invalid_ordinal(const char *text) {
+    uint8_t before[7],after[7],hash[32],now[32];
+    check(load(text)); source_hash(&s,hash);
+    test_machine(before);
+    check(!compile(&s,&b,&d)&&d.code==31);
+    test_machine(after); source_hash(&s,now);
+    check(!memcmp(before,after,7));
+    check(!memcmp(hash,now,32)&&pages_used()==code_required+1);
+}
+static void pointer_tests(void) {
+    int8_t capture=open("H:/POINTERS.TXT",O_WRONLY|O_CREAT|O_TRUNC);
+    check(capture>=0);
+    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
+    test_stage=27;
+    execution_file("H:/POINTERS.PAS",1,0,0);
+    execution_file("H:/PTRARGS.PAS",1,0,0);
+    execution_file("H:/ORDCHAR.PAS",1,0,0);
+    test_stage=28;
+    checked_error("begin\nwriteln(ord('ab'))end.",0x10,"writeln");
+    checked_error("begin\nwriteln(succ(''))end.",0x10,"writeln");
+    checked_error("begin\nwriteln(pred('ab'))end.",0x10,"writeln");
+    invalid_ordinal("begin writeln(succ(nil))end.");
+    invalid_ordinal("begin writeln(pred(nil))end.");
+    invalid_ordinal("begin writeln(succ(ptr(0)))end.");
+    invalid_ordinal("begin writeln(pred(ptr(0)))end.");
+    invalid_ordinal("begin writeln(succ([]))end.");
+    invalid_ordinal("begin writeln(pred([1]))end.");
+    checked_error("type p=^byte;var x:p;b:byte;begin x:=ptr(addr(b));{$R+}\nx^:=256 end.",0x91,"x^:=");
+    checked_error("type a=array[1..2]of byte;p=^a;var x:p;v:a;begin x:=ptr(addr(v));{$R+}\nx^[3]:=0 end.",0x90,"x^[3]");
+    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
+}
 static void media_tests(void) {
     uint8_t attempt,status;
     int8_t capture;
@@ -387,6 +426,7 @@ int app_main(void) {
     array_tests();
     record_tests();
     set_tests();
+    pointer_tests();
     source_close(&s); check(pages_used()==code_required);
     code_hash(digest); check(!memcmp(digest,initial_code_hash,32));
     test_stage=6; test_done=255;
