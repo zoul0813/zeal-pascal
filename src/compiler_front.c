@@ -101,7 +101,7 @@ void cc_stack_operand(uint16_t right_bytes) FRONTEND {
     }
 }
 void cc_load_indirect(uint8_t type) FRONTEND {
-    if(cc_family(type)==K_STRING||cc_family(type)==K_ARRAY) return;
+    if(cc_family(type)==K_STRING||cc_aggregate(type)) return;
     if(type==255) { cc_fail(44); return; }
     if(cc.types[type].width==1) { cc_emit(0x6e); cc_emit(0x26); cc_emit(0); }
     else { cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb); }
@@ -125,12 +125,13 @@ void cc_next(void) FRONTEND {
                 cc.token_start=cc.scan; cc.token_end=cc.scan+1; ++cc.scan;
                 do {
                     c=lower(get(cc.scan)); value=get(cc.scan+1)=='+';
-                    if((c!='r'&&c!='a'&&c!='v')||(get(cc.scan+1)!='+'&&get(cc.scan+1)!='-')) {
+                    if(c=='w'&&digit(get(cc.scan+1))) cc.with_limit=get(cc.scan+1)-'0';
+                    else if((c!='r'&&c!='a'&&c!='v')||(get(cc.scan+1)!='+'&&get(cc.scan+1)!='-')) {
                         cc_fail(93); cc.token=T_EOF; return;
                     }
-                    if(c=='r') cc.range_check=value;
+                    else if(c=='r') cc.range_check=value;
                     else if(c=='a') cc.absolute_mode=value;
-                    else cc.var_strict=value;
+                    else if(c=='v') cc.var_strict=value;
                     cc.scan+=2;
                     if(get(cc.scan)!=',') break;
                     ++cc.scan;
@@ -216,10 +217,14 @@ void cc_next(void) FRONTEND {
 void cc_expect(uint16_t t,uint8_t code) FRONTEND { if(cc.token!=t) cc_fail(code); else cc_next(); }
 
 int16_t cc_lookup(void) FRONTEND {
-    uint16_t i; uint8_t j,scope=cc.scope,n=(uint8_t)strlen(cc.name);
+    uint16_t i; int16_t field; uint8_t j,scope=cc.scope,n=(uint8_t)strlen(cc.name);
+    for(j=cc.with_depth;j;--j) {
+        field=cc_field_lookup(cc.with_types[j-1]);
+        if(field>=0) return field;
+    }
     for(;;) {
         i=cc.symbol_count;
-        while(i--) if(cc.symbols[i].owner==scope&&cc.symbols[i].name_length==n) {
+        while(i--) if(cc.symbols[i].role<S_FIELD&&cc.symbols[i].owner==scope&&cc.symbols[i].name_length==n) {
             for(j=0;j<n;++j) if(cc.name[j]!=lower(get(cc.symbols[i].name_start+j))) break;
             if(j==n) return (int16_t)i;
         }
@@ -227,6 +232,51 @@ int16_t cc_lookup(void) FRONTEND {
         scope=(uint8_t)cc_rget(scope,R_PARENT);
     }
     return -1;
+}
+static int16_t find_field(uint8_t type,uint16_t field) {
+    uint16_t i,variant;
+    uint8_t j,n=(uint8_t)strlen(cc.name);
+    int16_t found;
+    for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].role==S_FIELD&&cc.symbols[i].owner==type) {
+        if(field!=0xffffu) { if(field!=i) continue; }
+        else {
+            if(cc.symbols[i].name_length!=n) continue;
+            for(j=0;j<n;++j) if(cc.name[j]!=lower(get(cc.symbols[i].name_start+j))) break;
+            if(j!=n) continue;
+        }
+        cc.field_offset=cc.symbols[i].address; return (int16_t)i;
+    }
+    if(cc.types[type].low<0) return -1;
+    variant=(uint16_t)cc.types[type].low;
+    for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].role==S_VLABEL&&cc.symbols[i].owner==type) {
+        found=find_field(cc.symbols[i].type,field);
+        if(found>=0) { cc.field_offset+=cc.symbols[variant].address; return found; }
+    }
+    return -1;
+}
+int16_t cc_field_lookup(uint8_t type) FRONTEND { return find_field(type,0xffffu); }
+uint16_t cc_field_path(uint8_t type,uint16_t field) FRONTEND {
+    return find_field(type,field)<0?0xffffu:cc.field_offset;
+}
+static void previous_with(void) {
+    cc_emit(0x23); cc_emit(0x23); cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb);
+}
+void cc_with_address(uint16_t field) FRONTEND {
+    uint8_t i=cc.with_depth,distance=0;
+    uint16_t offset=0xffffu;
+    while(i) { offset=cc_field_path(cc.with_types[--i],field); if(offset!=0xffffu) break; ++distance; }
+    if(offset==0xffffu) { cc_fail(41); return; }
+    cc_guard(); cc_emit(0xfd); cc_emit(0xe5); cc_emit(0xe1); /* HL = current With frame */
+    while(distance--) previous_with();
+    cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb);
+    if(offset) { cc_op16(0x11,offset); cc_emit(0x19); }
+}
+void cc_with_unwind(void) FRONTEND {
+    uint8_t count=cc.with_depth;
+    if(!count) return;
+    cc_guard(); cc_emit(0xfd); cc_emit(0xe5); cc_emit(0xe1);
+    while(count--) previous_with();
+    cc_emit(0xe5); cc_emit(0xfd); cc_emit(0xe1);
 }
 uint16_t cc_new_symbol(uint8_t role) FRONTEND {
     uint16_t id=cc.symbol_count;
@@ -251,13 +301,13 @@ uint8_t cc_new_type(uint8_t family,uint16_t width,int16_t low,int16_t high,uint8
 uint8_t cc_family(uint8_t type) FRONTEND { return type<cc.type_count?cc.types[type].family:255; }
 static uint8_t text_type(uint8_t type) { return cc_family(type)==K_CHAR||cc_family(type)==K_STRING; }
 uint8_t cc_compatible(uint8_t left,uint8_t right) FRONTEND {
-    if(cc_family(left)==K_ARRAY||cc_family(right)==K_ARRAY)
+    if(cc_aggregate(left)||cc_aggregate(right))
         return left==right||((cc_char_array(left)||text_type(left))&&(cc_char_array(right)||text_type(right)));
     return cc_family(left)==cc_family(right)||(text_type(left)&&text_type(right));
 }
 uint8_t cc_variable(int16_t id) FRONTEND {
     return id>=0&&(cc.symbols[id].role==S_VARIABLE||cc.symbols[id].role==S_TYPED||
-           cc.symbols[id].role==S_VALUE||cc.symbols[id].role==S_REFERENCE||cc.symbols[id].role==S_RESULT);
+           cc.symbols[id].role==S_VALUE||cc.symbols[id].role==S_REFERENCE||cc.symbols[id].role==S_RESULT||cc.symbols[id].role==S_FIELD);
 }
 uint16_t cc_rget(uint8_t scope,uint8_t field) FRONTEND {
     uint16_t at=PAGE_SIZE-(uint16_t)scope*16+field;
@@ -301,12 +351,13 @@ void cc_slot(uint16_t id) FRONTEND {
     } else cc_op16(0x21,s->address);
 }
 void cc_symbol_address(uint16_t id) FRONTEND {
+    if(cc.symbols[id].role==S_FIELD) { cc_with_address(id); return; }
     cc_slot(id);
     if(cc.symbols[id].role==S_REFERENCE) { cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb); }
 }
 void cc_destination(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];
-    if(s->role==S_REFERENCE||(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE))) {
+    if(s->role==S_FIELD||s->role==S_REFERENCE||(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE))) {
         cc_guard(); cc_emit(0xe5); cc_symbol_address(id); cc_emit(0xeb); cc_emit(0xe1);
     } else if(s->role==S_TYPED) cc_address(0x11,s->address);
     else cc_op16(0x11,cc.symbols[id].address);
@@ -314,8 +365,8 @@ void cc_destination(uint16_t id) FRONTEND {
 void cc_load_symbol(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];
     if(s->type==255) { cc_fail(44); return; }
-    if(cc_family(s->type)==K_STRING||cc_family(s->type)==K_ARRAY) cc_symbol_address(id);
-    else if(s->role==S_REFERENCE||(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE))) {
+    if(cc_family(s->type)==K_STRING||cc_aggregate(s->type)) cc_symbol_address(id);
+    else if(s->role==S_FIELD||s->role==S_REFERENCE||(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE))) {
         cc_symbol_address(id);
         cc_load_indirect(s->type);
     }
@@ -329,7 +380,7 @@ void cc_store_symbol(uint16_t id) FRONTEND {
     uint8_t op;
     if(s->type==255) { cc_fail(44); return; }
     op=cc.types[s->type].width==1?0x32:0x22;
-    if(s->role==S_REFERENCE||(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE))) {
+    if(s->role==S_FIELD||s->role==S_REFERENCE||(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE))) {
         cc_guard(); cc_emit(0xe5); cc_symbol_address(id); cc_emit(0xd1); cc_emit(0x73);
         if(op==0x22) { cc_emit(0x23); cc_emit(0x72); }
         return;
@@ -345,7 +396,7 @@ void cc_check_range(uint8_t type) FRONTEND {
 void cc_result_symbol(uint16_t routine) FRONTEND {
     uint16_t i; uint8_t j;
     Symbol *s=&cc.symbols[routine];
-    for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].owner==cc.scope&&cc.symbols[i].name_length==s->name_length) {
+    for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].role<S_FIELD&&cc.symbols[i].owner==cc.scope&&cc.symbols[i].name_length==s->name_length) {
         for(j=0;j<s->name_length;++j)
             if(lower(get(cc.symbols[i].name_start+j))!=lower(get(s->name_start+j))) break;
         if(j==s->name_length) { cc_fail(43); return; }
@@ -356,7 +407,7 @@ void cc_result_symbol(uint16_t routine) FRONTEND {
     cc_storage(i,cc.types[s->type].width);
 }
 void cc_convert(uint8_t target,uint8_t source) FRONTEND {
-    if(cc_family(target)==K_ARRAY) { if(target!=source) cc_fail(44); return; }
+    if(cc_aggregate(target)) { if(target!=source) cc_fail(44); return; }
     if(target==255||source==255||!cc_compatible(target,source)) { cc_fail(44); return; }
     source=cc_text_value(source);
     if(cc_family(target)==K_CHAR&&cc_family(source)==K_STRING) cc_call(RT_STRINGCHAR);

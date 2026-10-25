@@ -696,6 +696,21 @@ def main():
         array_expected += lines.replace('\n','\r\n').encode() * 2
     checks.append(('array layout/selection/initializers, callee value copies and Char-array conversion in RAM/COM',
                    array_output.is_file() and array_output.read_bytes() == array_expected))
+    record_output = RUN / 'core/hostfs/RECORDS.TXT'
+    record_expected = b''
+    for lines in (
+        'RECORD-LAYOUT-COPY-VAR-OK\nRECORD-ARRAY-SELECTION-OK\nRECORD-VALUE-ISOLATION-OK\n'
+        'RECORD-MUTABLE-INITIALIZER-OK\nRECORD-PARTIAL-INITIALIZER-OK\nRECORD-SIZEOF-NO-EVAL-OK\nRECORD-ZERO-WIDTH-OK\nRECORD-SELECTION-CLEANUP-OK\n',
+        'VARIANT-MAX-LAYOUT-OK\nVARIANT-TAGGED-COPY-OK\nVARIANT-INITIALIZER-FIELD-CHOICE-OK\n'
+        'VARIANT-FREE-INITIALIZERS-OK\nVARIANT-NESTED-INITIALIZER-OK\nVARIANT-ACCESS-UNSELECTED-OK\n'
+        'VARIANT-REPEATED-LABEL-OK\nVARIANT-WITH-FIELD-OK\n',
+        'WITH-LAST-PRECEDENCE-OK\nWITH-BASE-EVALUATED-ONCE-OK\nWITH-LIST-LEXICAL-LOOKUP-OK\n'
+        'WITH-RECURSIVE-EXIT-RESTORE-OK\nWITH-W9-OK\nWITH-STACK-CLEANUP-OK\n',
+        'ZERO-RECORD-COPY-OK\n',
+    ):
+        record_expected += lines.replace('\n','\r\n').encode() * 2
+    checks.append(('records/variants/With, lexical recursive cleanup and guarded zero-width copies in RAM/COM',
+                   record_output.is_file() and record_output.read_bytes() == record_expected))
     abi_image = RUN / 'core/hostfs/STRINGABI.COM'
     abi_code = (ROOT / 'build/stringabi.zpl').read_bytes()
     checks.append(('native external string payload matches independently assembled ABI probe',

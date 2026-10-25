@@ -1,6 +1,75 @@
 #include "compiler.h"
 
 static uint8_t parse_type(void);
+static uint16_t metadata(uint8_t role,uint8_t owner) {
+    uint16_t id=cc.symbol_count;
+    if(id==SYMBOL_LIMIT) { cc_fail(98); return 0; }
+    memset(&cc.symbols[id],0,sizeof(Symbol));
+    cc.symbols[id].role=role; cc.symbols[id].owner=owner; ++cc.symbol_count;
+    return id;
+}
+static uint16_t new_field(uint8_t type,uint8_t root) {
+    uint16_t id;
+    if(cc.token!=T_ID) { cc_fail(53); return 0; }
+    if(cc_field_lookup(root)>=0) { cc_fail(43); return 0; }
+    id=metadata(S_FIELD,type);
+    cc.symbols[id].name_start=cc.token_start; cc.symbols[id].name_length=(uint8_t)strlen(cc.name);
+    cc.symbols[id].type=255;
+    return id;
+}
+static void extend_record(uint8_t type,uint16_t bytes) {
+    if((uint32_t)cc.types[type].width+bytes>32767u) cc_fail(98);
+    else cc.types[type].width+=bytes;
+}
+static void field_list(uint8_t type,uint8_t root) {
+    uint16_t first,last,i,marker,tag=0xffffu,label,value,saved_start;
+    uint16_t largest=0;
+    uint8_t field_type,actual,child;
+    int16_t named;
+    if(++cc.depth>24) { cc_fail(98); --cc.depth; return; }
+    while(cc.token==T_ID&&!cc.error->code) {
+        first=cc.symbol_count; new_field(type,root); cc_next();
+        while(cc.token==','&&!cc.error->code) { cc_next(); new_field(type,root); cc_next(); }
+        last=cc.symbol_count; cc_expect(':',2); field_type=parse_type();
+        for(i=first;i<last&&!cc.error->code;++i) {
+            cc.symbols[i].type=field_type; cc.symbols[i].address=cc.types[type].width;
+            extend_record(type,cc.types[field_type].width);
+        }
+        if(cc.token!=';') { if(cc.token==T_ID||cc_is("case")) cc_fail(1); break; }
+        cc_next();
+    }
+    if(cc_is("case")&&!cc.error->code) {
+        cc_next(); named=cc_named_type(); saved_start=cc.token_start; cc_next();
+        if(cc.token==':') {
+            cc.scan=saved_start; cc_next(); tag=new_field(type,root); cc_next(); cc_expect(':',2);
+            named=cc_named_type(); cc_next();
+        }
+        if(named<0) cc_fail(tag==0xffffu?2:41);
+        else if(!cc_ordinal((uint8_t)named)) cc_fail(30);
+        field_type=named<0?K_INTEGER:(uint8_t)named;
+        if(tag!=0xffffu) {
+            cc.symbols[tag].type=field_type; cc.symbols[tag].address=cc.types[type].width;
+            extend_record(type,cc.types[field_type].width);
+        }
+        marker=metadata(S_VARIANT,type); cc.symbols[marker].type=field_type;
+        cc.symbols[marker].address=cc.types[type].width; cc.symbols[marker].name_start=tag;
+        cc.types[type].low=(int16_t)marker; cc_keyword("of",15);
+        while(!cc.error->code&&cc.token!=')'&&!cc_is("end")&&cc.token!=T_EOF) {
+            child=cc_new_type(K_RECORD,0,-1,0,0);
+            do {
+                cc_constant(&actual,&value);
+                if(cc_family(actual)!=cc_family(field_type)) cc_fail(44);
+                label=metadata(S_VLABEL,type); cc.symbols[label].type=child; cc.symbols[label].address=value;
+                if(cc.token!=',') break; cc_next();
+            } while(!cc.error->code);
+            cc_expect(':',2); cc_expect('(',4); field_list(child,root); cc_expect(')',5);
+            if(cc.types[child].width>largest) largest=cc.types[child].width;
+            if(cc.token!=';') break; cc_next();
+        }
+        extend_record(type,largest);
+    }
+    --cc.depth;
+}
 static uint8_t array_dimension(void) {
     uint8_t index,array,element;
     uint32_t width;
@@ -22,6 +91,10 @@ static uint8_t parse_type_body(void) {
     uint8_t base,other,result;
     if(cc_is("packed")) { cc_next(); return parse_type(); }
     if(cc_is("array")) { cc_next(); cc_expect('[',8); return array_dimension(); }
+    if(cc_is("record")) {
+        result=cc_new_type(K_RECORD,0,-1,0,0); cc_next(); field_list(result,result);
+        cc_keyword("end",14); return result;
+    }
     if(cc_is("string")) {
         cc_next(); cc_expect('[',8); cc_constant(&base,&lo);
         if(cc_family(base)!=K_INTEGER||lo<1||lo>255) cc_fail(49);
@@ -57,9 +130,38 @@ static uint8_t parse_type(void) {
 }
 /* Validate initializers when declared; replay their immutable source to emit
  * the typed payload after declarations. No initializer pointers escape a bank. */
+static void initializer(uint8_t type,uint8_t emit);
+static void record_initializer(uint8_t type,uint8_t emit) {
+    uint16_t i,bytes=0;
+    int16_t field;
+    uint8_t used=0,child=255;
+    for(i=0;i<cc.symbol_count&&!cc.error->code;++i) if(cc.symbols[i].role==S_FIELD&&cc.symbols[i].owner==type) {
+        if(used&&cc.token==')') break;
+        if(used) cc_expect(';',1);
+        field=cc.token==T_ID?cc_field_lookup(type):-1;
+        if(field<0) cc_fail(41); else if(field!=(int16_t)i) cc_fail(69);
+        cc_next(); cc_expect(':',2); initializer(cc.symbols[i].type,emit);
+        bytes+=cc.types[cc.symbols[i].type].width; used=1;
+    }
+    if(cc.types[type].low>=0) {
+        if(used&&cc.token==';') cc_next();
+        if(cc.token==T_ID) {
+            for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].role==S_VLABEL&&cc.symbols[i].owner==type&&
+                cc_field_lookup(cc.symbols[i].type)>=0) { child=cc.symbols[i].type; break; }
+            if(child==255) cc_fail(41);
+            else { record_initializer(child,emit); bytes+=cc.types[child].width; }
+        }
+    }
+    if(emit) while(bytes<cc.types[type].width&&!cc.error->code) { cc_emit(0); ++bytes; }
+}
 static void initializer(uint8_t type,uint8_t emit) {
     uint16_t value,count,i;
     uint8_t actual,element;
+    if(cc_family(type)==K_RECORD) {
+        cc_expect('(',4);
+        if(!cc.types[type].width) cc_fail(41);
+        record_initializer(type,emit); cc_expect(')',5); return;
+    }
     if(cc_family(type)==K_ARRAY) {
         element=cc.types[type].element;
         count=(uint16_t)((int32_t)cc.types[cc.types[type].capacity].high-
@@ -119,10 +221,10 @@ void cc_declarations(void) FRONTEND {
             } else {
                 if(cc.token==':') {
                     cc_next(); type=parse_type(); cc_expect('=',6);
-                    if(cc_family(type)==K_ARRAY) {
+                    if(cc_aggregate(type)) {
                         value=cc.token_start; initializer(type,0); initial=255;
                     } else cc_constant(&initial,&value);
-                    if(cc_family(type)==K_ARRAY) {
+                    if(cc_aggregate(type)) {
                         cc.symbols[id].type=type; cc.symbols[id].role=S_TYPED;
                         cc.symbols[id].address=value; cc_expect(';',1); continue;
                     }
@@ -146,19 +248,21 @@ void cc_declarations(void) FRONTEND {
 }
 void cc_typed_storage(uint16_t first) FRONTEND {
     uint16_t i,j,value,jump=0,saved_scan,saved_token,start,end;
-    uint8_t range,absolute,strict;
+    uint8_t range,absolute,strict,limit;
     for(i=first;i<cc.symbol_count&&!cc.error->code;++i) if(cc.symbols[i].role==S_TYPED) {
         if(!jump) jump=cc_forward(0xc3);
         value=cc.symbols[i].address; cc.symbols[i].address=0x4000u+cc.emitted;
-        if(cc_family(cc.symbols[i].type)==K_ARRAY) {
+        if(cc_aggregate(cc.symbols[i].type)) {
             saved_scan=cc.scan; saved_token=cc.token; start=cc.token_start; end=cc.token_end;
             range=cc.range_check; absolute=cc.absolute_mode; strict=cc.var_strict;
+            limit=cc.with_limit;
             cc.scan=value; cc_next(); initializer(cc.symbols[i].type,1);
             /* cc_next needs the token's start, not its following scan. Restore
              * by re-lexing that token so name/literal metadata are coherent. */
             cc.scan=start; cc_next();
             cc.scan=saved_scan; cc.token=saved_token; cc.token_start=start; cc.token_end=end;
             cc.range_check=range; cc.absolute_mode=absolute; cc.var_strict=strict;
+            cc.with_limit=limit;
         } else if(cc_family(cc.symbols[i].type)==K_STRING) {
             if(cc_family(cc.symbols[i].initial_type)==K_CHAR) { cc.literal[0]=(uint8_t)value; cc.literal_length=1; }
             else cc_constant_literal(value);

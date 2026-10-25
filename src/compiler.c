@@ -33,6 +33,28 @@ static uint16_t condition(void) {
     return cc_forward(0xca);
 }
 static void statement(void);
+static void with_statement(uint16_t start,uint16_t code) {
+    uint8_t saved=cc.with_depth,type;
+    int16_t id;
+    cc_next();
+    do {
+        if(cc.with_depth>=cc.with_bound||cc.with_depth==9) { cc_fail(97); break; }
+        id=cc.token==T_ID?cc_lookup():-1;
+        if(!cc_variable(id)) { cc_fail(41); break; }
+        type=cc_selection((uint16_t)id);
+        if(cc_family(type)!=K_RECORD) { cc_fail(29); break; }
+        cc_reserve(4); cc_emit(0xfd); cc_emit(0xe5); cc_emit(0xe5);
+        cc_emit(0xfd); cc_op16(0x21,0); cc_emit(0xfd); cc_emit(0x39);
+        cc.with_types[cc.with_depth++]=type;
+        if(cc.token!=',') break; cc_next();
+    } while(!cc.error->code);
+    cc_keyword("do",13); mapping(code,pc(),start,cc.token_start);
+    statement(); code=pc();
+    while(cc.with_depth>saved) {
+        cc_emit(0xe1); cc_emit(0xfd); cc_emit(0xe1); --cc.with_depth;
+    }
+    mapping(code,pc(),start,cc.token_start);
+}
 /* Forward operands double as a private patch list until the image is sealed.
  * Each nested Case owns its own heads; no extra compiler workspace is needed. */
 static void link_jump(uint8_t opcode,uint16_t *head) {
@@ -116,6 +138,8 @@ static void statement(void) {
         --cc.depth; return;
     } else if(cc_is("case")) {
         case_statement(start,code); --cc.depth; return;
+    } else if(cc_is("with")) {
+        with_statement(start,code); --cc.depth; return;
     } else if(cc_is("if")) {
         cc_next(); branch=condition(); cc_keyword("then",17);
         mapping(code,pc(),start,cc.token_start);
@@ -146,6 +170,7 @@ static void statement(void) {
     } else if(cc_is("for")) {
         cc_next(); id=cc.token==T_ID?cc_lookup():-1;
         if(!cc_variable(id)) cc_fail(24);
+        else if(cc.symbols[id].role==S_FIELD) cc_fail(41);
         else if(!cc_ordinal(cc.symbols[id].type)) cc_fail(30);
         else if(cc.symbols[id].control) cc_fail(44);
         cc_next(); cc_expect(T_ASSIGN,7);
@@ -186,7 +211,7 @@ static void statement(void) {
             cc_next();
             do {
                 kind=cc_family(cc_text_value(cc_expression()));
-                if(kind==K_ARRAY) cc_fail(62);
+                if(cc_aggregate(kind)) cc_fail(62);
                 if(kind>K_CHAR) cc_fail(44);
                 if(kind==K_CHAR) cc_emit(0x7d);
                 cc_call(kind==K_STRING?RT_STRING:kind==K_BOOLEAN?RT_BOOLEAN:kind==K_CHAR?RT_CHAR:RT_INTEGER);
@@ -207,10 +232,11 @@ static void statement(void) {
             do {
                 id=cc.token==T_ID?cc_lookup():-1;
                 if(id<0) { cc_fail(41); break; }
-                if(!cc_variable(id)||cc_family(cc.symbols[id].type)!=K_STRING||cc.symbols[id].control) { cc_fail(44); break; }
-                cc_destination((uint16_t)id);
-                cc_emit(0x0e); cc_emit(cc.types[cc.symbols[id].type].capacity); cc_call(RT_READSTRING);
-                cc_next(); if(cc.token!=',') break; cc_next();
+                if(!cc_variable(id)||cc.symbols[id].control) { cc_fail(44); break; }
+                target=cc_selection((uint16_t)id);
+                if(cc_family(target)!=K_STRING) { cc_fail(44); break; }
+                cc_emit(0xeb); cc_emit(0x0e); cc_emit(cc.types[target].capacity); cc_call(RT_READSTRING);
+                if(cc.token!=',') break; cc_next();
             } while(!cc.error->code);
             cc_expect(')',5);
         }
@@ -227,20 +253,21 @@ static void statement(void) {
         else {
             if(!cc_variable(id)||cc.symbols[id].control) cc_fail(44);
             target=cc.symbols[id].type; cc_next();
-            indexed=cc.symbols[id].role!=S_RESULT&&cc.token=='['&&
-                (cc_family(target)==K_STRING||cc_family(target)==K_ARRAY);
+            indexed=cc.symbols[id].role!=S_RESULT&&((cc.token=='['&&
+                (cc_family(target)==K_STRING||cc_aggregate(target)))||
+                (cc.token=='.'&&cc_family(target)==K_RECORD));
             if(indexed) {
                 cc_symbol_address((uint16_t)id); target=cc_index(target); cc_guard(); cc_emit(0xe5);
             }
             cc_expect(T_ASSIGN,7);
-            kind=cc_family(target)==K_ARRAY?cc_array_actual(target):cc_expression();
+            kind=cc_aggregate(target)?cc_aggregate_actual(target):cc_expression();
             cc_convert(target,kind);
             if(indexed) cc_stack_operand(cc.temporaries-before);
-            else if(cc_family(target)==K_STRING||cc_family(target)==K_ARRAY) cc_destination((uint16_t)id);
+            else if(cc_family(target)==K_STRING||cc_aggregate(target)) cc_destination((uint16_t)id);
             if(cc_family(target)==K_STRING) {
                 cc_emit(0x0e); cc_emit(cc.types[target].capacity);
                 cc_call(cc_family(kind)==K_CHAR?RT_CHARCOPY:RT_COPY);
-            } else if(cc_family(target)==K_ARRAY) {
+            } else if(cc_aggregate(target)) {
                 cc_op16(0x01,cc.types[target].width); cc_call(RT_MOVE);
             } else if(indexed) cc_store_indirect(target);
             else cc_store_symbol((uint16_t)id);
@@ -293,7 +320,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     for(i=0;i<96;++i) map8(i,0);
     for(i=0;i<(uint16_t)(runtime_end-runtime_start);++i) cc_put(i,runtime_start[i]);
     cc.scan=0; cc.symbol_count=0; cc.depth=0; cc.entries=0; cc.range_check=0; cc.type_count=0; cc.relocations=0;
-    cc.scope=0; cc.routine_count=0; cc.absolute_mode=1; cc.var_strict=1; cc.nesting=0; cc.suppress=0;
+    cc.scope=0; cc.routine_count=0; cc.absolute_mode=1; cc.var_strict=1; cc.nesting=0; cc.suppress=0; cc.with_depth=0; cc.with_limit=4;
     cc.temporaries=0;
     cc_new_type(K_INTEGER,2,-32768,32767,0);
     cc_new_type(K_STRING,0,0,0,0); /* expression/literal string, not a storage type */

@@ -4,7 +4,15 @@ static uint8_t expression(void);
 uint8_t cc_index(uint8_t type) BACKEND {
     uint16_t before,stride;
     uint8_t kind,index,array;
-    while((cc_family(type)==K_STRING||cc_family(type)==K_ARRAY)&&cc.token=='['&&!cc.error->code) {
+    int16_t field;
+    while(!cc.error->code) {
+        if(cc_family(type)==K_RECORD&&cc.token=='.') {
+            cc_next(); field=cc.token==T_ID?cc_field_lookup(type):-1;
+            if(field<0) { cc_fail(41); return type; }
+            if(cc.field_offset) { cc_op16(0x11,cc.field_offset); cc_emit(0x19); }
+            type=cc.symbols[field].type; cc_next(); continue;
+        }
+        if((cc_family(type)!=K_STRING&&cc_family(type)!=K_ARRAY)||cc.token!='[') break;
         cc_next();
         for(;;) {
             array=cc_family(type)==K_ARRAY;
@@ -40,7 +48,7 @@ uint8_t cc_selection(uint16_t id) BACKEND {
 }
 /* Array values are variable selections or an exact-length string constant
  * for a Char array. They do not acquire general scalar-expression semantics. */
-uint8_t cc_array_actual(uint8_t type) BACKEND {
+uint8_t cc_aggregate_actual(uint8_t type) BACKEND {
     int16_t id=cc.token==T_ID?cc_lookup():-1;
     uint8_t actual;
     uint16_t value;
@@ -155,7 +163,7 @@ static uint8_t intrinsic(uint8_t op) {
     if(op==F_LENGTH) {
         if(cc_family(kind)==K_STRING) { cc_emit(0x6e); cc_emit(0x26); cc_emit(0); }
         else if(cc_family(kind)==K_CHAR) cc_op16(0x21,1);
-        else cc_fail(cc_family(kind)==K_ARRAY?62:44);
+        else cc_fail(cc_aggregate(kind)?62:44);
         cc_release(before); return K_INTEGER;
     }
     if(op==F_ORD||op==F_SUCC||op==F_PRED) {
@@ -234,7 +242,8 @@ static uint8_t factor(void) {
         } else if(cc.symbols[id].role==S_FUNCTION||cc.symbols[id].role==S_RESULT) kind=cc_invoke((uint16_t)id);
         else if(cc_variable(id)) {
             kind=cc.symbols[id].type; cc_next();
-            if((cc_family(kind)==K_STRING||cc_family(kind)==K_ARRAY)&&cc.token=='[') {
+            if(((cc_family(kind)==K_STRING||cc_family(kind)==K_ARRAY)&&cc.token=='[')||
+               (cc_family(kind)==K_RECORD&&cc.token=='.')) {
                 cc_symbol_address((uint16_t)id); kind=cc_index(kind); cc_load_indirect(kind);
             } else cc_load_symbol((uint16_t)id);
         } else cc_fail(41);
@@ -303,7 +312,7 @@ static uint8_t expression(void) {
     hold_left(kind,before);
     cc_next(); cc_guard(); cc_emit(0xe5); right_before=cc.temporaries;
     right=simple_expression(); cc_text_value(right); right_bytes=cc.temporaries-right_before; cc_stack_operand(right_bytes);
-    if((cc_family(kind)==K_ARRAY&&!cc_char_array(kind))||(cc_family(right)==K_ARRAY&&!cc_char_array(right))) cc_fail(62);
+    if((cc_aggregate(kind)&&!cc_char_array(kind))||(cc_aggregate(right)&&!cc_char_array(right))) cc_fail(62);
     else if(!cc_compatible(kind,right)) cc_fail(47);
     if(text(kind)||text(right)) {
         cc_emit(0x3e); cc_emit((cc_family(kind)==K_CHAR?1:0)|(cc_family(right)==K_CHAR?2:0)); cc_call(RT_TEXTCMP);

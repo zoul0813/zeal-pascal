@@ -92,6 +92,24 @@ int main(int argc,char **argv) {
     invalid("type t=array[string[3]] of byte; begin end.",30);
     invalid("const a:array[1..2] of integer=(1,2,3); begin end.",5);
     invalid("const a:array[1..3] of byte=(1,256,3); begin end.",44);
+    invalid("type r=record a:integer end; var x:r; begin x.z:=1 end.",41);
+    invalid("type r=record a,a:integer end; begin end.",43);
+    invalid("type r=record case boolean of false:(n:integer);true:(n:char) end;begin end.",43);
+    invalid("type a=record n:integer end; b=record n:integer end;var x:a;y:b;begin x:=y end.",44);
+    invalid("type r=record n:integer end;function f:r;begin end;begin end.",48);
+    invalid("type r=record n:integer end;var x,y:r;begin writeln(x=y) end.",62);
+    invalid("type r=record a,b:integer end;const x:r=(b:2;a:1);begin end.",69);
+    invalid("type r=record a,b,c:byte end;const x:r=(a:1;c:3);begin end.",69);
+    invalid("type r=record case tag:boolean of false:(n:integer) end;const x:r=(n:1);begin end.",69);
+    invalid("type r=record case missing of 0:(n:integer) end;begin end.",2);
+    invalid("type r=record end;const x:r=();begin end.",41);
+    invalid("var n:integer;begin with n do end.",29);
+    invalid("{$W0}type r=record n:integer end;var x:r;begin with x do end.",97);
+    invalid("{$W1}type r=record n:integer end;var x:r;begin with x,x do end.",97);
+    invalid("type r=record n:integer end;var x:r;begin with x,x,x,x,x do end.",97);
+    invalid("type r=record n:integer end;var x:r;begin {$W9}with x,x,x,x,x do end.",97);
+    invalid("type r=record n:integer end;var x:r;begin with x do for n:=1 to 3 do end.",41);
+    invalid("type r=record n:integer end;var x:r;begin for x.n:=1 to 3 do end.",30);
     invalid("begin writeln(+32768) end.",56);
     invalid("begin writeln(-32769) end.",56);
     invalid("begin writeln(-(32768)) end.",56);
@@ -250,7 +268,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {

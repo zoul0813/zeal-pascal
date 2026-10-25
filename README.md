@@ -112,7 +112,19 @@ Exhaustion reports resource error 98. Arrays support ordinal bounds, nested or
 comma-separated dimensions, packed layout, whole-array assignment, typed
 initializers and value/Var parameters. R+ checks each index before access.
 A value parameter passes a source address; the callee makes an independent
-copy before its body runs. Array-valued user functions remain invalid.
+copy before its body runs. Array- and record-valued user functions remain invalid.
+
+Records support tightly stored fields, nested arrays/records, whole-record
+copies, value/Var parameters and writable typed initializers. Variant alternatives
+share storage sized for the largest alternative; tags remain programmer-managed.
+Initializer fields follow a declaration-order prefix, with omitted trailing bytes
+zero-filled. Empty records occupy zero bytes; zero-width copies leave neighboring
+storage unchanged.
+
+With evaluates record bases once, gives the last record lookup precedence and
+restores its context after normal completion or Exit. W0..W9 selects the per-block
+depth allowance before the statement part (default four). Fields also work with
+Addr, SizeOf, selected Var arguments and string ReadLn.
 
 An Integer-indexed Char array of at most 255 elements acts as a fixed-length
 string in expressions, comparisons and string APIs. Assigning to a Char array
@@ -149,7 +161,7 @@ and enum boundary fixtures exercise these features in Memory and saved native
 COM execution. The [routine fixture](tests/native/routines.pas) covers calls,
 recursion and string parameter copies. The string selection/operation fixtures
 cover index checks, aliasing, byte values and cleanup. The string result and
-boundary fixtures cover temporary cleanup and 255-byte values. Real6, records, sets, pointers,
+boundary fixtures cover temporary cleanup and 255-byte values. Real6, sets, pointers,
 Goto and the rest of the dialect remain in progress.
 
 ReadLn currently uses Zeal's cooked keyboard line editor and restores raw mode

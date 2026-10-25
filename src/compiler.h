@@ -15,8 +15,8 @@
 enum { T_EOF=256,T_ID,T_NUMBER,T_STRING,T_ASSIGN,T_RESERVED,T_NE,T_LE,T_GE,T_RANGE };
 enum { K_INTEGER,K_STRING,K_BOOLEAN,K_CHAR,K_BYTE };
 /* Aggregate families cannot overlap the 5..63 enumeration identity range. */
-enum { K_ARRAY=64 };
-enum { S_VARIABLE,S_CONSTANT,S_TYPE,S_TYPED,S_PENDING,S_VALUE,S_REFERENCE,S_RESULT,S_PROCEDURE,S_FUNCTION };
+enum { K_ARRAY=64,K_RECORD };
+enum { S_VARIABLE,S_CONSTANT,S_TYPE,S_TYPED,S_PENDING,S_VALUE,S_REFERENCE,S_RESULT,S_PROCEDURE,S_FUNCTION,S_FIELD,S_VARIANT,S_VLABEL };
 enum { R_PARENT=0,R_FLAGS=1,R_SYMBOL=2,R_ENTRY=4,R_CALLS=6,R_PARAMETERS=8,R_COUNT=10,R_LOCALS=12,R_EXITS=14 };
 enum { RF_FORWARD=1,RF_RECURSIVE=2,RF_DEFINED=4,RF_EXTERNAL=8 };
 /* Names reference the immutable canonical source. All 127 bytes remain
@@ -39,6 +39,8 @@ typedef struct {
     uint16_t emitted,entries,file_bytes,relocations;
     uint8_t workspace,scope,absolute_mode,var_strict,nesting,suppress;
     uint16_t routine_count,temporaries;
+    uint8_t with_depth,with_limit,with_bound,with_types[9];
+    uint16_t field_offset;
 } Compiler;
 extern Compiler cc;
 
@@ -88,6 +90,11 @@ void cc_slot(uint16_t id) FRONTEND;
 void cc_convert(uint8_t target,uint8_t source) FRONTEND;
 uint8_t cc_char_array(uint8_t type);
 uint8_t cc_ordinal(uint8_t type);
+uint8_t cc_aggregate(uint8_t type);
+int16_t cc_field_lookup(uint8_t type) FRONTEND;
+uint16_t cc_field_path(uint8_t type,uint16_t field) FRONTEND;
+void cc_with_address(uint16_t field) FRONTEND;
+void cc_with_unwind(void) FRONTEND;
 uint8_t cc_text_value(uint8_t type) FRONTEND;
 int16_t cc_named_type(void) FRONTEND;
 int16_t cc_predefined_type(void) FRONTEND;
@@ -100,7 +107,7 @@ void cc_exit(void) ROUTINES;
 uint8_t cc_expression(void) BACKEND;
 uint8_t cc_index(uint8_t type) BACKEND;
 uint8_t cc_selection(uint16_t id) BACKEND;
-uint8_t cc_array_actual(uint8_t type) BACKEND;
+uint8_t cc_aggregate_actual(uint8_t type) BACKEND;
 void cc_string_statement(uint8_t insert) BACKEND;
 void cc_statement(void) BACKEND;
 void cc_mapping(uint16_t begin,uint16_t end,uint16_t first,uint16_t last) BACKEND;

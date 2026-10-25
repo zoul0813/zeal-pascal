@@ -54,7 +54,7 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
         check(seed("H:/SLICE.COM","old executable")); check(seed("H:/SLICE.ZMP","old map"));
         check(save_build(&s,&b));
     }
-    if(test_stage==7||test_stage==9||test_stage==11||test_stage==13||test_stage==15||test_stage==17||test_stage==19||test_stage==21) check(save_build(&s,&b));
+    if(test_stage==7||test_stage==9||test_stage==11||test_stage==13||test_stage==15||test_stage==17||test_stage==19||test_stage==21||test_stage==23) check(save_build(&s,&b));
     owned=pages_used();
     test_machine(before);
     check(run_build(&s,&b));
@@ -83,7 +83,7 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
         check(exec(EXEC_PRESERVE_PROGRAM,"H:/NAME.COM",0,&status)==0&&status==0);
         check(pages_used()==owned);
     }
-    if(test_stage==9||test_stage==11||test_stage==13||test_stage==15||test_stage==17||test_stage==19||test_stage==21) {
+    if(test_stage==9||test_stage==11||test_stage==13||test_stage==15||test_stage==17||test_stage==19||test_stage==21||test_stage==23) {
         uint8_t status=255;
         check(run_saved(&s,&b,&status)&&status==0); check(pages_used()==owned);
     }
@@ -216,6 +216,25 @@ static void array_tests(void) {
     checked_error("{$A-} procedure dive; var a:array[1..255] of integer; begin dive end; begin dive end.",0xff,"dive");
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
+static void record_tests(void) {
+    int8_t capture=open("H:/RECORDS.TXT",O_WRONLY|O_CREAT|O_TRUNC);
+    check(capture>=0);
+    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
+    test_stage=23;
+    execution_file("H:/RECORDS.PAS",1,0,0);
+    execution_file("H:/VARIANTS.PAS",1,0,0);
+    execution_file("H:/WITHREC.PAS",1,0,0);
+    execution_file("H:/ZEROREC.PAS",1,0,0);
+    test_stage=24;
+    checked_error("type r=record b:byte end;var x:r;begin {$R+}\nx.b:=256 end.",0x91,"x.b:=");
+    checked_error("type r=record s:string[3] end;var x:r;begin {$R+}\nx.s[4]:='a' end.",0x90,"x.s[4]");
+    checked_error("type r=record a:array[1..2] of byte end;var x:r;begin {$R+}with x do\na[3]:=0 end.",0x90,"a[3]");
+    checked_error("type r=record n:integer end;var x:r;begin with x do\nn:=7 div 0 end.",2,"n:=7");
+    checked_error("type r=record s:string[3] end;var x:r;c:char;begin x.s:='ab';with x do\nc:=s end.",0x10,"c:=s");
+    checked_error("{$A-}type r=record s:string[255] end;procedure dive;var own:r;begin with own do dive end;begin dive end.",0xff,"dive");
+    execution("type r=record n:integer end;var x:r;procedure p;begin with x do halt end;begin p end.",4,0);
+    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
+}
 static void media_tests(void) {
     uint8_t attempt,status;
     int8_t capture;
@@ -339,7 +358,7 @@ int app_main(void) {
     capture=open("H:/INPUT.TXT",O_WRONLY|O_CREAT|O_TRUNC);
     check(capture>=0);
     if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
-    execution("program HelloName;\nvar UserName:string[80]; a:string[3]; b:string[4];\nbegin Write('Your name: '); ReadLn(UserName); WriteLn('Hello, ',UserName,'!');\nReadLn(a,b); WriteLn(a,'/',b); ReadLn(UserName); WriteLn('[',UserName,']') end.",1,0);
+    execution("program HelloName;\ntype userrec=record UserName:string[80] end;\nvar user:userrec; a:string[3]; b:string[4];\nbegin with user do begin Write('Your name: '); ReadLn(UserName); WriteLn('Hello, ',UserName,'!');\nReadLn(a,b); WriteLn(a,'/',b); ReadLn(user.UserName); WriteLn('[',UserName,']') end end.",1,0);
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
     media_tests();
     control_tests();
@@ -349,6 +368,7 @@ int app_main(void) {
     string_tests();
     string_operation_tests();
     array_tests();
+    record_tests();
     source_close(&s); check(pages_used()==code_required);
     code_hash(digest); check(!memcmp(digest,initial_code_hash,32));
     test_stage=6; test_done=255;
