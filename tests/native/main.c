@@ -1,4 +1,4 @@
-#include "zp.h"
+#include "library.h"
 #include <zos_vfs.h>
 #include <zos_sys.h>
 
@@ -13,8 +13,6 @@ static Source s;
 static Build b;
 static Diagnostic d;
 static uint8_t initial_code_hash[32];
-extern uint8_t code_pages[3];
-extern uint16_t code_sizes[3];
 extern uint8_t console_scratch[256];
 void test_machine(uint8_t *state) NATIVE;
 void test_complete(void);
@@ -26,7 +24,7 @@ static void check(uint8_t ok) {
 static void code_hash(uint8_t *out) {
     Sha256 hash; uint8_t bank; uint16_t i;
     sha_init(&hash);
-    for(bank=0;bank<3;++bank)
+    for(bank=0;bank<code_required;++bank)
         for(i=0;i<code_sizes[bank];++i) sha_byte(&hash,far_get(code_pages[bank],i));
     sha_end(&hash,out);
 }
@@ -90,7 +88,7 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
         check(run_saved(&s,&b,&status)&&status==0); check(pages_used()==owned);
     }
     build_close(&b);
-    check(pages_used()==4);
+    check(pages_used()==code_required+1);
 }
 static void execution(const char *text,uint8_t kind,uint8_t code) {
     check(load(text)); execute_loaded(kind,code,6);
@@ -159,7 +157,7 @@ static void media_tests(void) {
     status=255; check(run_saved(&s,&b,&status)&&status==0);
     build_close(&b);
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
-    check(pages_used()==4);
+    check(pages_used()==code_required+1);
 }
 int app_main(void) {
     uint8_t digest[32],expected[32]={
@@ -169,7 +167,7 @@ int app_main(void) {
     uint8_t line[129]; uint16_t i;
     int8_t capture;
     if(!console_open()) { test_failed=1; test_done=255; for(;;) {} }
-    check(pages_used()==3);
+    check(pages_used()==code_required);
     code_hash(initial_code_hash);
     test_stage=1;
     sha_init(&hash); sha_byte(&hash,'a'); sha_byte(&hash,'b'); sha_byte(&hash,'c'); sha_end(&hash,digest);
@@ -182,9 +180,9 @@ int app_main(void) {
     check(!source_import(&s,line,128,&d)&&d.code==100&&s.length==11);
     check(!source_replace(&s,0,0,line,128)&&s.length==11);
     check(source_replace(&s,5,5,(const uint8_t*)"!",1)&&s.dirty);
-    check(!compile(&s,&b,&d)&&d.code==58&&pages_used()==4);
+    check(!compile(&s,&b,&d)&&d.code==58&&pages_used()==code_required+1);
     check(load("begin writeln(32768) end."));
-    check(!compile(&s,&b,&d)&&d.code==56&&pages_used()==4);
+    check(!compile(&s,&b,&d)&&d.code==56&&pages_used()==code_required+1);
     check(load("begin writeln(-(32768)) end."));
     check(!compile(&s,&b,&d)&&d.code==56);
     test_stage=2;
@@ -248,7 +246,7 @@ int app_main(void) {
         check(save_source_as(&s,s.path,0)&&!memcmp(&s,&before,sizeof(s)));
     }
     check(load_source(&s,"H:/NEWFILE",&d)&&!strcmp(s.path,"H:/NEWFILE.PAS")&&!s.length&&!s.dirty);
-    check(pages_used()==4);
+    check(pages_used()==code_required+1);
     test_stage=7;
     strcpy(s.path,"H:/NAME.PAS");
     capture=open("H:/INPUT.TXT",O_WRONLY|O_CREAT|O_TRUNC);
@@ -259,7 +257,7 @@ int app_main(void) {
     media_tests();
     control_tests();
     ordinal_tests();
-    source_close(&s); check(pages_used()==3);
+    source_close(&s); check(pages_used()==code_required);
     code_hash(digest); check(!memcmp(digest,initial_code_hash,32));
     test_stage=6; test_done=255;
     test_complete(); return 0;

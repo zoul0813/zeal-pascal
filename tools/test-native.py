@@ -21,6 +21,7 @@ EMULATOR = ZEAL / "Zeal-NativeEmulator/build/zeal-native"
 ROM = ZEAL / "zeal-dev-environment/home/Zeal-8-bit-OS/build/os_with_romdisk.img"
 KERNEL_MAP = ROM.with_name('os.map')
 TF_TEMPLATE = ZEAL / 'zeal-dev-environment/home/tf.base.img.gz'
+COREUTILS = ZEAL / 'zeal-dev-environment/home/zeal-coreutils/bin'
 OUT = ROOT / "analysis/native-slice"
 RUN = OUT / datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
 
@@ -117,13 +118,22 @@ def type_text(text, ticks=250000):
     return commands
 
 
+def program_launch(target='zpascal'):
+    ready = symbols(target)['_code_ready']
+    # The child loader is hashing its library after the small resident image
+    # has loaded. Stop at its resident transition before sending IDE input.
+    return (type_text(f'H:/{target}.bin H:/{target}.zpl\n') + ['run 1000000',
+            f'bp 0x{ready:x}', 'run 2000000000', f'bc 0x{ready:x}'])
+
+
 def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None):
     directory = RUN / name
     directory.mkdir(parents=True, exist_ok=False)
     hostfs = directory / 'hostfs'
     hostfs.mkdir(exist_ok=True)
     for target in ('zpascal', 'zptest'):
-        shutil.copyfile(ROOT / f'build/{target}.bin', hostfs / f'{target}.bin')
+        for extension in ('bin', 'zpl'):
+            shutil.copyfile(ROOT / f'build/{target}.{extension}', hostfs / f'{target}.{extension}')
     for filename, data in (fixtures or {}).items():
         (hostfs / filename).write_bytes(data)
     for artifact in ('CONSOLE.TXT', 'SLICE.COM', 'SLICE.ZMP'):
@@ -220,7 +230,7 @@ def interactive_checks():
     typed = lambda text: type_text(text, ticks=2000000)
     commands = ['run 100000000', f'bp 0x{keyboard:x}', 'run 100000000',
                 'regs', 'mmu', f'rb 0x{mode:x} 1', f'rb 0x{user_pages:x} 3', f'bc 0x{keyboard:x}']
-    commands += type_text('H:/zpascal.bin\n')
+    commands += program_launch()
     commands += ['run 10000000'] + typed('ne')
     source = b'begin\nwriteln(7 div 0)\nend.'
     commands += typed(source.decode()) + control('K') + typed('d')
@@ -277,7 +287,7 @@ def interactive_checks():
          and all(first.get(user_pages + i) == last.get(user_pages + i) for i in range(3))),
         ('ZShell raw nonblocking keyboard convention restored', first.get(mode) == last.get(mode) == 4),
         ('read-only installation files; Memory workflow creates no source/output files',
-         sorted(p.name for p in (RUN / 'interactive/hostfs').iterdir()) == ['zpascal.bin', 'zptest.bin']),
+         sorted(p.name for p in (RUN / 'interactive/hostfs').iterdir()) == ['zpascal.bin', 'zpascal.zpl', 'zptest.bin', 'zptest.zpl']),
         ('kernel page unchanged at every interactive checkpoint',
          all(mappings(part) and mappings(part)[0] == ('0000', '000000') for part in parts)),
     ]
@@ -288,7 +298,7 @@ def file_workflow_checks():
     sym = symbols('zpascal')
     typed = lambda text: type_text(text, ticks=2000000)
     source = b'begin\nend.\n'
-    commands = ['run 100000000'] + type_text('H:/zpascal.bin\n')
+    commands = ['run 100000000'] + program_launch()
     commands += ['run 10000000'] + typed('nwH:/OPEN.PAS')
     def probe():
         return ['regs', f"rb 0x{sym['_ide_state']:x} 1", f"rb 0x{sym['_work']:x} 140"]
@@ -331,9 +341,9 @@ def file_workflow_checks():
 def bank_lifecycle_checks():
     sym = symbols('zpascal')
     probe = ['regs', 'mmu', f"rb 0x{sym['_code_owned']:x} 1"]
-    commands = ['run 100000000'] + type_text('H:/zpascal.bin')
-    commands += [f"bp 0x{sym['_main']:x}", 'tap ENTER', 'run 100000000'] + probe
-    commands += [f"bc 0x{sym['_main']:x}", f"bp 0x{sym['_fflush_stdout']:x}", 'run 100000000']
+    commands = ['run 100000000'] + type_text('H:/zpascal.bin H:/zpascal.zpl')
+    commands += ['tap ENTER', 'run 1250000', f"bp 0x{sym['_code_ready']:x}", 'run 2000000000'] + probe
+    commands += [f"bc 0x{sym['_code_ready']:x}", f"bp 0x{sym['_fflush_stdout']:x}", 'run 100000000']
     commands += type_text('nq', ticks=2000000) + probe + ['quit']
     text = execute('bank-lifecycle', commands)
     parts = re.split(r'\[DBG\] PC=', text)[1:]
@@ -342,7 +352,7 @@ def bank_lifecycle_checks():
     first, last = (memory(part) for part in parts)
     mappings = lambda part: re.findall(r'\[DBG\] ([0-9a-f]{4}) -> ([0-9a-f]{6})', part)
     return [('quit releases all code banks before SDK exit and restores original program mappings',
-             first.get(sym['_code_owned']) == 3 and last.get(sym['_code_owned']) == 0
+             first.get(sym['_code_owned']) == 4 and last.get(sym['_code_owned']) == 0
              and mappings(parts[0]) == mappings(parts[1]))]
 
 
@@ -357,7 +367,7 @@ def full_media_checks():
     disk[7:7 + bitmap] = b'\xff' * bitmap
     disk = bytes(disk)
     typed = lambda text: type_text(text, ticks=2000000)
-    commands = ['run 100000000'] + type_text('H:/zpascal.bin\n')
+    commands = ['run 100000000'] + program_launch()
     commands += ['run 10000000'] + typed('nwB:/UNTITLED.PAS\ne{kept}') + control('K') + typed('docq')
     for key in ('C', 'R'):
         commands += [f"bp 0x{sym['_save_build']:x}", f'tap {key}', 'run 2000000000',
@@ -390,7 +400,7 @@ def default_path_checks():
     typed = lambda text: type_text(text, ticks=2000000)
     default = b'T:/src/pascal/UNTITLED.pas'
     def launch():
-        return (['run 100000000'] + type_text('H:/zpascal.bin\n') + ['run 10000000',
+        return (['run 100000000'] + program_launch() + ['run 10000000',
                 f'bp 0x{key:x}', 'tap N', 'run 100000000'])
     def probe():
         return ['regs', f'rb 0x{work:x} 140', f'rb 0x{build:x} 83']
@@ -465,12 +475,77 @@ def memory(text):
     return result
 
 
+def library_failure_checks():
+    sym = symbols('zpascal')
+    good = (ROOT / 'build/zpascal.zpl').read_bytes()
+    cases = [('missing', None, 4), ('magic', b'BAD!' + good[4:], 25),
+             ('truncated', good[:-1], 25), ('trailing', good + b'!', 25),
+             ('payload', good[:-1] + bytes([good[-1] ^ 1]), 25),
+             ('mixed-build', (ROOT / 'build/zptest.zpl').read_bytes(), 25)]
+    for label, at, value in [('version', 4, 2), ('count', 5, 0),
+                             ('header-size', 6, 0), ('reserved', 12, 1)]:
+        data = bytearray(good); data[at] = value
+        cases.append((label, bytes(data), 25))
+    for label, value in [('zero-length', 0), ('large-bank', 16385)]:
+        data = bytearray(good); struct.pack_into('<H', data, 16, value)
+        cases.append((label, bytes(data), 25))
+    data = bytearray(good)
+    first, second = struct.unpack_from('<HH', data, 16)
+    struct.pack_into('<HH', data, 16, first-1, second+1)
+    cases.append(('metadata-digest', bytes(data), 25))
+    checks = []
+    for label, data, error in cases:
+        commands = ['run 100000000'] + type_text('H:/zpascal.bin H:/BAD.ZPL')
+        commands += [f"bp 0x{sym['_fflush_stdout']:x}", 'tap ENTER', 'run 2000000000', 'regs', 'mmu',
+                     f"rb 0x{sym['_code_owned']:x} 2", f"rb 0x{sym['_work']:x} 2", 'quit']
+        text = execute('library-' + label, commands, {'BAD.ZPL': data} if data is not None else {})
+        observed = memory(text)
+        checks.append(('library ' + label + ' rejected before editor entry with code pages released',
+                       observed.get(sym['_code_owned']) == 0 and observed.get(sym['_boot_error']) == error
+                       and observed.get(sym['_work']) == 0
+                       and '[DBG] 4000 -> 090000' in text))
+    return checks
+
+
+def default_library_checks():
+    # Use unchanged standard utilities to prepare disposable installation media.
+    # This is also a real TF write/read check; no host filesystem emulation or
+    # third-party patch supplies the default library to the program.
+    commands = ['run 100000000'] + type_text('H:/mkdir T:/lib\n', ticks=2000000)
+    commands += ['run 100000000'] + type_text('H:/cp H:/zpascal.zpl T:/lib/zpascal.zpl\n', ticks=2000000)
+    commands += ['run 2000000000', 'quit']
+    execute('library-install', commands,
+            {name: (COREUTILS / name).read_bytes() for name in ('mkdir', 'cp')},
+            tf_image=gzip.decompress(TF_TEMPLATE.read_bytes()))
+    installed = (RUN / 'library-install/tf.img').read_bytes()
+    files = zealfs_files(installed)
+    if files.get('/lib/zpascal.zpl') != (ROOT / 'build/zpascal.zpl').read_bytes():
+        return [('standard utility installation of default Pascal library', False)]
+    sym = symbols('zpascal')
+    ready,key,work = sym['_code_ready'],sym['_key_read'],sym['_work']
+    commands = ['run 100000000'] + type_text('H:/zpascal.bin\n')
+    commands += ['run 1000000', f'bp 0x{ready:x}', 'run 2000000000', f'bc 0x{ready:x}',
+                 'run 10000000', f'bp 0x{key:x}', 'tap N', 'run 100000000', 'regs',
+                 f"rb 0x{sym['_code_owned']:x} 1", f'rb 0x{work:x} 140', f'bc 0x{key:x}']
+    commands += type_text('q', ticks=2000000) + ['quit']
+    text = execute('library-default', commands, tf_image=installed)
+    observed = memory(text)
+    path = bytes(observed.get(work+12+i,0) for i in range(128)).split(b'\0')[0]
+    return [('default T:/lib/zpascal.zpl loads without arguments and startup leaves media unchanged',
+             observed.get(sym['_code_owned']) == 4 and path == b'T:/src/pascal/UNTITLED.pas'
+             and observed.get(work+1) == observed.get(work+2) == observed.get(work+3) == 0
+             and (RUN / 'library-default/tf.img').read_bytes() == installed
+             and '/src/' not in files)]
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     inputs = [ROOT / 'CMakeLists.txt', ROOT / 'tools/package-native.py', Path(__file__).resolve()]
     inputs += sorted((ROOT / 'src').glob('*')) + sorted((ROOT / 'tests/native').glob('*'))
     input_hashes = {str(p.relative_to(ROOT)): sha(p) for p in inputs if p.is_file()}
     checks = []
+    checks.extend(library_failure_checks())
+    checks.extend(default_library_checks())
     for target in ('zpascal', 'zptest'):
         sym = symbols(target)
         checks.append((target + ' retained mapping core/control/scratch in page 1',
@@ -483,23 +558,24 @@ def main():
         checks.append((target + ' resident code and constants below bank window',
                        all(sym['s__' + area] + sym['l__' + area] <= 0x8000
                            for area in ('HEADER', 'GSINIT', 'GSFINAL', 'INITIALIZER', 'HOME', 'SYSTEM', 'TEXT', 'RODATA'))))
-        checks.append((target + ' three code banks fit their 16 KiB window',
-                       all(0 < sym[f'l__BANK{bank}'] <= 16384 for bank in (1, 2, 3))))
+        checks.append((target + ' four code banks fit their 16 KiB window',
+                       all(0 < sym[f'l__BANK{bank}'] <= 16384 for bank in (1, 2, 3, 4))))
     boot = symbols('zpbootfail')
     commands = ['run 100000000'] + type_text('H:/zpbootfail.bin\n')
-    commands += [f"bp 0x{boot['_boot_complete']:x}", 'run 2000000000', 'regs',
+    commands += [f"bp 0x{boot['_boot_complete']:x}", 'run 12000000000', 'regs',
                  f"rb 0x{boot['_boot_done']:x} 1", f"rb 0x{boot['_boot_failed']:x} 1", 'quit']
     boot_text = execute('boot-allocation', commands,
-                        {'zpbootfail.bin': (ROOT / 'build/zpbootfail.bin').read_bytes()})
+                        {'zpbootfail.bin': (ROOT / 'build/zpbootfail.bin').read_bytes(),
+                         'BAD.ZPL': b'BAD!' + (ROOT / 'build/zpascal.zpl').read_bytes()[4:]})
     boot_memory = memory(boot_text)
-    checks.append(('startup allocation failures unwind zero/one/two code banks and source-allocation failure releases all three',
+    checks.append(('startup allocation failures release partial/all banks and malformed-library retries close handles',
                    boot_memory.get(boot['_boot_done']) == 255 and boot_memory.get(boot['_boot_failed']) == 0))
     checks.extend(bank_lifecycle_checks())
     sym = symbols('zptest')
     kernel = kernel_symbols()
     cooked, mode = kernel['keyboard_read_cooked'], kernel['kb_mode']
     keyboard_ioctl = kernel['keyboard_ioctl']
-    commands = ['run 100000000'] + type_text('H:/zptest.bin\n')
+    commands = ['run 100000000'] + program_launch('zptest')
     commands += ['run 100000000', f"bp 0x{sym['_test_complete']:x}"]
     # Wait for the actual first cooked read. Observe the restoration ioctl while
     # kernel RAM is mapped: reading kb_mode from user C000 would inspect an
@@ -594,7 +670,7 @@ def main():
         'native_completion_tstates_including_boot':
             int(re.findall(r'cyc=(\d+)', text)[-1]) if re.findall(r'cyc=(\d+)', text) else None,
         'artifacts': {str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p): sha(p)
-                      for p in [EMULATOR, ROM, KERNEL_MAP, TF_TEMPLATE, ROOT / 'build/zpascal.bin', ROOT / 'build/zptest.bin']},
+                      for p in [EMULATOR, ROM, KERNEL_MAP, TF_TEMPLATE, COREUTILS / 'mkdir', COREUTILS / 'cp', ROOT / 'build/zpascal.bin', ROOT / 'build/zpascal.zpl', ROOT / 'build/zptest.bin', ROOT / 'build/zptest.zpl']},
         'checks': [{'check': label, 'passed': ok} for label, ok in checks],
     }
     (RUN / 'report.json').write_text(json.dumps(report, indent=2) + '\n')

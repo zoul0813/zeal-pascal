@@ -12,11 +12,21 @@ python3 tools/test-native-host.py
 python3 tools/test-native.py
 ```
 
-Launch `build/zpascal.bin` from ZShell on the supported video/PS/2 target.
-Internal `pascal_runtime.zpl` and `ram_trampoline.zpl` build assets are embedded
-in the executable and require no separate deployment.
-The editor, compiler and file operations use separate owned RAM banks, also
-embedded in this single executable. No companion bank files are required.
+Deploy the matching `build/zpascal.bin` and `build/zpascal.zpl` from one build.
+Run the BIN from ZShell on the supported video/PS/2 target; its default library
+path is `T:/lib/zpascal.zpl`. Create that installation directory and copy the
+ZPL there with the normal shell utilities. To select another library path:
+
+```text
+H:/zpascal.bin H:/zpascal.zpl
+```
+
+The launcher verifies the complete library before entering any application
+bank. A missing, damaged or mismatched library returns to the shell. The editor,
+compiler, file operations and compiler front end use separate owned RAM banks.
+Internal `pascal_runtime.zpl` and `ram_trampoline.zpl` templates remain embedded
+in the launcher and require no separate deployment. Generated Pascal COM
+programs contain their own runtime and need no IDE library.
 
 | Key | Operation |
 | --- | --- |
@@ -68,13 +78,11 @@ A separate observed Zeal OS defect can corrupt control flow if the disk fills
 while a file is growing. The OS remains unchanged at the user's instruction. Tests distinguish
 an already-full volume from this failing mid-write exhaustion case.
 
-The currently installed native emulator also rejects TF writes with error 1;
-standard `mkdir`/`cp` reproduce this independently of Pascal. The same unchanged
-ZOS ROM, utilities and TF images work on the earlier available emulator build.
-The difference is in the SPI timing/response model, already present in the
-emulator's v1.0.0 source. No OS or emulator patch has been applied. Acceptance
-records distinguish the installed emulator's failed TF checks from the earlier
-build's successful tests.
+The previous native emulator rejected TF writes with error 1, also reproduced
+by standard `mkdir`/`cp`. The user installed an emulator with corrected SPI
+timing; both `/opt/homebrew/bin/zeal-native` and the current development build
+now pass the TF write checks, including `T:/untitled.pas`. Historical failure
+captures are preserved. This project has not patched ZOS or the emulator.
 
 Current language support includes Integer, Byte, Char, Boolean and `string[1..255]` globals,
 compound statements, assignments, Integer arithmetic/bitwise/shift expressions,

@@ -8,15 +8,26 @@
 .globl s__INITIALIZER, l__INITIALIZER, s__INITIALIZED
 .globl _code_sizes, _code_pages, _code_owned, _boot_error
 .globl _code_select, _code_restore, _code_release
-.globl _console_scratch
-.globl _platform_supported
+.globl _code_required, _code_digest
+.globl get_bank, set_bank
 
-; Project-owned startup. Bank payloads temporarily occupy 8000..EFFF in the
-; loaded executable, including future C data. Capture them BEFORE C startup.
-; The application takes no command-line arguments. SDK syscall glue is reused.
+; SDK-compatible command-tail entry; application code loads the library after
+; C data initialization. No payload overlaps the C data or startup stack.
 .area _HEADER
-    call code_load
+    push de
+    push bc
     call init_globals
+    pop hl
+    pop de
+    ld a,h
+    or l
+    jr z,no_arguments
+    push de
+    ld hl,#0
+    add hl,sp
+    ld de,#1
+    ex de,hl
+no_arguments:
     call _main
     push de
     call _code_release
@@ -58,92 +69,6 @@ initialized:
     ret
 .area _INITIALIZER
 .area _HOME
-code_load:
-    xor a
-    ld (_code_owned),a
-    ld (_boot_error),a
-    call _platform_supported
-    or a
-    jr nz,allocate
-    ld a,#3                     ; ERR_NOT_SUPPORTED, before any palloc/MMU write
-    ld (_boot_error),a
-    ret
-allocate:
-    ld a,(_code_owned)
-    ld e,a
-    ld d,#0
-    ld hl,#_code_pages
-    add hl,de
-    call _palloc
-    or a
-    jr nz,allocation_failed
-    ld hl,#_code_owned
-    inc (hl)
-    ld a,(hl)
-    cp #3
-    jr nz,allocate
-    ld hl,#0x8000
-    ld a,(_code_pages)
-    ld bc,(_code_sizes)
-    call copy_bank
-    ld a,(_code_pages+1)
-    ld bc,(_code_sizes+2)
-    call copy_bank
-    ld a,(_code_pages+2)
-    ld bc,(_code_sizes+4)
-    jp copy_bank
-allocation_failed:
-    ld (_boot_error),a
-    jp _code_release
-
-; Stage each chunk in retained page 1 before mapping its destination in page
-; 2. Restore the original page 2 before fetching more payload. Keep the kernel
-; and stack mapped, and leave interrupts untouched: a whole-bank DI/LDIR loses
-; PS/2 input arriving during launch (including the shell Enter release).
-copy_bank:
-    ld (_copy_destination),a
-    ld a,#0x80
-    in a,(0xf2)
-    ld (_copy_original),a
-    ld de,#0x8000
-copy_next:
-    ld a,b
-    or c
-    ret z
-    push bc                     ; remaining
-    push de                     ; destination address
-    ld a,b
-    or a
-    jr nz,full_chunk
-    ld a,c
-    cp #128
-    jr c,chunk_ready
-full_chunk:
-    ld bc,#128
-chunk_ready:
-    push bc
-    ld de,#_console_scratch
-    ldir                        ; source advances in its original mapping
-    pop bc
-    pop de
-    push hl                     ; next source address
-    push bc                     ; chunk length
-    ld hl,#_console_scratch
-    ld a,(_copy_destination)
-    out (0xf2),a
-    ldir
-    ld a,(_copy_original)
-    out (0xf2),a
-    pop bc
-    pop hl
-    ex (sp),hl                  ; HL=remaining, stack=next source
-    or a
-    sbc hl,bc
-    ld b,h
-    ld c,l
-    pop hl
-    jr copy_next
-
 ; Exact physical mapping is the ownership token; no parallel current-bank
 ; variable can become stale across RAM execution or nested resident services.
 _code_select::                 ; A=0 editor, 1 compiler, 2 file services
@@ -181,12 +106,35 @@ _code_release::
 release_failed:
     ld (_boot_error),a           ; retain ownership if pfree did not succeed
     ret
-_code_sizes:: .ds 6            ; packager fills lengths of the three payloads
-_code_pages:: .ds 3
+; The SDK's standard banked-call trampoline calls these callbacks. Logical
+; bank IDs are 1..16; saved tokens are actual RAM pages 32..63. Both callbacks
+; preserve BC/DE/HL. There is no software current-bank state to go stale.
+get_bank::
+    ld a,#0x80
+    in a,(0xf2)
+    ret
+set_bank::
+    cp #32
+    jr nc,map_bank
+    push hl
+    push bc
+    dec a
+    ld c,a
+    ld b,#0
+    ld hl,#_code_pages
+    add hl,bc
+    ld a,(hl)
+    pop bc
+    pop hl
+map_bank:
+    out (0xf2),a
+    ret
+_code_sizes:: .ds 32
+_code_pages:: .ds 16
 _code_owned:: .ds 1
 _boot_error:: .ds 1
-_copy_original: .ds 1
-_copy_destination: .ds 1
+_code_required:: .ds 1          ; packager fills count and exact library SHA-256
+_code_digest:: .ds 32
 .area _SYSTEM
 .area _TEXT
 .area _RODATA
@@ -198,3 +146,4 @@ _copy_destination: .ds 1
 .area _BANK1
 .area _BANK2
 .area _BANK3
+.area _BANK4

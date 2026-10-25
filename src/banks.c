@@ -1,4 +1,4 @@
-#include "zp.h"
+#include "library.h"
 #include <zos_errors.h>
 
 /* All bank transitions have resident callers and stack/data arguments. The
@@ -6,7 +6,6 @@
  * state cross a syscall, far-page access, or Pascal RAM entry. */
 extern uint8_t code_select(uint8_t bank) NATIVE;
 extern void code_restore(uint8_t page) NATIVE;
-extern uint8_t code_owned, boot_error;
 extern int app_main(void);
 uint8_t compiler_compile(const Source *s,Build *b,Diagnostic *d);
 void compiler_build_close(Build *b);
@@ -21,18 +20,26 @@ uint8_t files_load_source(Source *s,const char *name,Diagnostic *d);
 uint8_t files_run_saved(const Source *s,const Build *b,uint8_t *status);
 const char *files_output_path(void);
 const char *files_output_recovery(void);
+static uint8_t capture_path(char *out,const char *name);
 
-int main(void) {
+void code_ready(void) { __asm nop __endasm; }
+int main(int argc,char **argv) {
     uint8_t old;
     int result;
-    if(code_owned!=3) {
-        if(boot_error==ERR_NOT_SUPPORTED) output("Zeal Pascal needs the supported MMU machine at 4000.\n");
-        else {
-            output("Pascal cannot allocate its code banks. Native error ");
-            output_number(boot_error); output("\n");
-        }
-        return 1;
+    char path[128];
+    const char *requested=DEFAULT_LIBRARY;
+    if(argc) requested=argv[0];
+    if(!platform_supported()) {
+        output("Zeal Pascal needs the supported MMU machine at 4000.\n"); return 1;
     }
+    /* Own the command tail before the first syscall/mapping transition. */
+    if(!capture_path(path,requested)) { output("Invalid Pascal library path\n"); return 1; }
+    output("Loading Zeal Pascal...\n");
+    if(!code_load(path)) {
+        output("Missing or invalid Pascal library: "); output(path);
+        output(" (native error "); output_number(boot_error); output(")\n"); return 1;
+    }
+    code_ready();
     old=code_select(0); result=app_main(); code_restore(old);
     return result;
 }

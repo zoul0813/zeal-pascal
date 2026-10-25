@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Package our resident image and tagged SDCC banks as one Zeal executable."""
+"""Package our resident launcher and its exact, verified Zeal Pascal library."""
 import json
+import hashlib
 import re
 import struct
 import sys
@@ -40,7 +41,10 @@ def package(path):
         r'^\s+([0-9A-F]{8})\s+([_\w]+)\s', path.with_suffix('.map').read_text(), re.M)}
     # Every loaded byte belongs to exactly one segment. In particular no C
     # data, library, or constant may silently live in the switchable window.
-    allowed = [(0x4000, 0x8000)] + [(bank << 16 | 0x8000, bank << 16 | 0xc000) for bank in (1, 2, 3)]
+    banks = sorted({at >> 16 for at in memory if at >= 0x10000})
+    if not banks or banks != list(range(1, len(banks) + 1)) or len(banks) > 16:
+        raise ValueError('code banks must be consecutive IDs 1..16')
+    allowed = [(0x4000, 0x8000)] + [(bank << 16 | 0x8000, bank << 16 | 0xc000) for bank in banks]
     if not memory or min(memory) != 0x4000 or any(
             not any(first <= at < last for first, last in allowed) for at in memory):
         raise ValueError('loaded bytes outside resident/code-bank bounds')
@@ -52,9 +56,10 @@ def package(path):
         first, size = symbols['s__' + area], symbols['l__' + area]
         if not 0xc000 <= first <= first + size <= 0xe000:
             raise ValueError(f'{area} violates C data/8 KiB stack boundary')
-    resident = bytearray(memory.get(at, 0) for at in range(0x4000, 0x8000))
+    resident_end = max(at for at in memory if at < 0x8000) + 1
+    resident = bytearray(memory.get(at, 0) for at in range(0x4000, resident_end))
     payloads = []
-    for bank in (1, 2, 3):
+    for bank in banks:
         first = bank << 16 | 0x8000
         size = symbols[f'l__BANK{bank}']
         if symbols[f's__BANK{bank}'] != first or not 0 < size <= 0x4000:
@@ -62,18 +67,25 @@ def package(path):
         if any(first + size <= at < first + 0x4000 for at in memory):
             raise ValueError(f'bank {bank} contains bytes beyond its declared extent')
         payloads.append(bytes(memory.get(first + i, 0) for i in range(size)))
-    descriptor = symbols['_code_sizes'] - 0x4000
-    if not 0 <= descriptor <= len(resident) - 6:
-        raise ValueError('bank descriptor is not resident')
-    struct.pack_into('<3H', resident, descriptor, *(len(data) for data in payloads))
-    binary = resident + b''.join(payloads)
-    # Startup uses the original page-3 stack while capturing payloads; leave
-    # at least 4 KiB unloaded at the top. Afterwards C owns the full 8 KiB.
-    if len(binary) > 0xb000:
-        raise ValueError('embedded banks overlap the initial stack reserve')
-    path.with_suffix('.bin').write_bytes(binary)
-    report = {'resident_bytes': max(at for at in memory if at < 0x8000) + 1 - 0x4000,
-              'bank_bytes': [len(data) for data in payloads], 'executable_bytes': len(binary),
+    header_bytes = 16 + 2 * len(banks)
+    total = header_bytes + sum(map(len, payloads))
+    library = (struct.pack('<4sBBHII', b'ZPL1', 1, len(banks), header_bytes, total, 0)
+               + struct.pack('<' + 'H' * len(banks), *(len(data) for data in payloads))
+               + b''.join(payloads))
+    digest = hashlib.sha256(library).digest()
+    for name, data in (('_code_required', bytes([len(banks)])), ('_code_digest', digest)):
+        at = symbols[name]
+        if not (symbols['s__HOME'] <= at and at + len(data) <= symbols['s__HOME'] + symbols['l__HOME']
+                and at + len(data) <= resident_end):
+            raise ValueError('library identity is not in loaded resident HOME storage')
+        resident[at - 0x4000:at - 0x4000 + len(data)] = data
+    # Validate every extent before replacing either member of the build pair.
+    # A stale/mixed pair is harmless at launch: its whole-library hash fails.
+    path.with_suffix('.zpl').write_bytes(library)
+    path.with_suffix('.bin').write_bytes(resident)
+    report = {'resident_bytes': len(resident), 'bank_bytes': [len(data) for data in payloads],
+              'executable_bytes': len(resident), 'library_bytes': len(library),
+              'library_sha256': digest.hex(),
               'static_end': symbols['s__DATA'] + symbols['l__DATA'],
               'c_stack_reserve': 0x10000 - symbols['s__HEAP']}
     path.with_suffix('.banks.json').write_text(json.dumps(report, indent=2) + '\n')
