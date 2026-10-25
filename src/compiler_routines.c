@@ -32,7 +32,10 @@ static void prologue(void) {
     cc_frame(cc.scope); cc_op16(0x11,4); cc_emit(0x19); cursor_store();
     while(count--&&!cc.error->code) {
         id=first+count; cursor_load();
-        if(cc.symbols[id].role==S_VALUE&&cc_family(cc.symbols[id].type)==K_STRING) {
+        if(cc.symbols[id].role==S_VALUE&&cc_family(cc.symbols[id].type)==K_SET) {
+            cc_guard(); cc_emit(0xe5); cc_op16(0x11,32); cc_emit(0x19); cursor_store();
+            cc_emit(0xe1); cc_destination(id); cc_set_store(cc.symbols[id].type);
+        } else if(cc.symbols[id].role==S_VALUE&&cc_family(cc.symbols[id].type)==K_STRING) {
             cc_guard(); cc_emit(0xe5);
             cc_emit(0x5e); cc_emit(0x16); cc_emit(0); cc_emit(0x13); cc_emit(0x19); cursor_store();
             cc_emit(0xe1); cc_destination(id);
@@ -115,7 +118,7 @@ static void routine(void) {
         parameters(scope);
         if(role==S_FUNCTION) {
             cc_expect(':',2); type=cc_named_type();
-            if(type<0||cc_aggregate((uint8_t)type)) cc_fail(48);
+            if(type<0||cc_aggregate((uint8_t)type)||cc_family((uint8_t)type)==K_SET) cc_fail(48);
             else {
                 cc.symbols[id].type=(uint8_t)type;
                 cc_result_symbol(id); cc_next();
@@ -212,7 +215,10 @@ uint8_t cc_invoke(uint16_t id) ROUTINES {
             } else {
                 before=cc.temporaries;
                 kind=cc_aggregate(type)?cc_aggregate_actual(type):cc_expression(); cc_convert(type,kind);
-                if(cc_family(type)==K_STRING) {
+                if(cc_family(type)==K_SET) {
+                    if(cc.temporaries-before!=32) cc_fail(99);
+                    cc.temporaries=before; /* callee owns the full 32-byte value slot */
+                } else if(cc_family(type)==K_STRING) {
                     if(cc_family(kind)==K_CHAR) { cc_guard(); cc_emit(0x65); cc_emit(0x2e); cc_emit(1); cc_emit(0xe5); }
                     else if(cc.temporaries!=before) {
                         cc_op16(0x01,cc.temporaries-before); cc_call(RT_ARGSTRING);

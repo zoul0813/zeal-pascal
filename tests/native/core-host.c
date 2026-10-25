@@ -110,6 +110,19 @@ int main(int argc,char **argv) {
     invalid("type r=record n:integer end;var x:r;begin {$W9}with x,x,x,x,x do end.",97);
     invalid("type r=record n:integer end;var x:r;begin with x do for n:=1 to 3 do end.",41);
     invalid("type r=record n:integer end;var x:r;begin for x.n:=1 to 3 do end.",30);
+    invalid("type t=set of integer;begin end.",70);
+    invalid("type t=set of -1..3;begin end.",70);
+    invalid("type t=set of 0..256;begin end.",70);
+    invalid("type t=set of byte;function f:t;begin end;begin end.",48);
+    invalid("begin writeln(1 in [1,true])end.",44);
+    invalid("begin writeln([1]=[true])end.",44);
+    invalid("var a,b:set of byte;begin writeln(a<b)end.",47);
+    invalid("type t=set of 3..5;const x:t=[0];begin end.",45);
+    invalid("type t=set of byte;const x:t=[true];begin end.",44);
+    invalid("const x=[1];begin end.",1);
+    invalid("var s:set of byte;begin writeln(s)end.",66);
+    invalid("type r=record n:integer end;var x:r;begin writeln(x)end.",62);
+    invalid("type t=set of 3..5;u=set of 3..5;var x:t;procedure p(var v:u);begin end;begin p(x)end.",44);
     invalid("begin writeln(+32768) end.",56);
     invalid("begin writeln(-32769) end.",56);
     invalid("begin writeln(-(32768)) end.",56);
@@ -268,7 +281,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {
@@ -279,15 +292,24 @@ int main(int argc,char **argv) {
                 ordered_map(); build_close(&b);
             }
         }
-        file=fopen("tests/native/stringabi.pas","rb"); check(file!=NULL);
-        n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
-        check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
-        check(b.globals_bytes==0&&b.code_origin==GLOBAL_BASE);
-        file=fopen("build/stringabi.zpl","rb"); check(file!=NULL);
-        n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
-        check(n==image_get(&b,0x4003));
-        for(i=0;i<n;++i) check(image_get(&b,0x4004+(uint16_t)i)==text[i]);
-        ordered_map(); build_close(&b);
+        {
+            const char *names[]={"stringabi","setabi"};
+            unsigned abi;
+            char path[80];
+            for(abi=0;abi<2;++abi) {
+                snprintf(path,sizeof(path),"tests/native/%s.pas",names[abi]);
+                file=fopen(path,"rb"); check(file!=NULL);
+                n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
+                check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
+                check(b.globals_bytes==0&&b.code_origin==GLOBAL_BASE);
+                snprintf(path,sizeof(path),"build/%s.zpl",names[abi]);
+                file=fopen(path,"rb"); check(file!=NULL);
+                n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
+                check(n==image_get(&b,0x4003));
+                for(i=0;i<n;++i) check(image_get(&b,0x4004+(uint16_t)i)==text[i]);
+                ordered_map(); build_close(&b);
+            }
+        }
         for(i=256;i<=257;++i) {
             unsigned member;
             n=(uint16_t)snprintf((char*)text,sizeof(text),"type t=(");

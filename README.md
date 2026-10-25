@@ -126,6 +126,14 @@ restores its context after normal completion or Exit. W0..W9 selects the per-blo
 depth allowance before the statement part (default four). Fields also work with
 Addr, SizeOf, selected Var arguments and string ReadLn.
 
+Sets support ordinal bases within 0..255, typed initializers, constructors with
+ranges, union/intersection/difference, equality/inequality, subset/superset and
+membership. Variables store only their declared byte range; expressions and
+value parameters use full 32-byte snapshots. Var set parameters require the same
+declared type. Runtime constructor bounds use their low eight bits, while
+membership outside 0..255 is false. Typed initializer elements must fit their
+base. Assignment retains whole edge bytes, matching the original behavior.
+
 An Integer-indexed Char array of at most 255 elements acts as a fixed-length
 string in expressions, comparisons and string APIs. Assigning to a Char array
 requires an exact-length string constant or the same declared array type;
@@ -161,7 +169,7 @@ and enum boundary fixtures exercise these features in Memory and saved native
 COM execution. The [routine fixture](tests/native/routines.pas) covers calls,
 recursion and string parameter copies. The string selection/operation fixtures
 cover index checks, aliasing, byte values and cleanup. The string result and
-boundary fixtures cover temporary cleanup and 255-byte values. Real6, sets, pointers,
+boundary fixtures cover temporary cleanup and 255-byte values. Real6, pointers,
 Goto and the rest of the dialect remain in progress.
 
 ReadLn currently uses Zeal's cooked keyboard line editor and restores raw mode

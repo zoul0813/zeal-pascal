@@ -101,6 +101,7 @@ void cc_stack_operand(uint16_t right_bytes) FRONTEND {
     }
 }
 void cc_load_indirect(uint8_t type) FRONTEND {
+    if(cc_family(type)==K_SET) { cc_set_load(type); return; }
     if(cc_family(type)==K_STRING||cc_aggregate(type)) return;
     if(type==255) { cc_fail(44); return; }
     if(cc.types[type].width==1) { cc_emit(0x6e); cc_emit(0x26); cc_emit(0); }
@@ -298,9 +299,16 @@ uint8_t cc_new_type(uint8_t family,uint16_t width,int16_t low,int16_t high,uint8
     cc.types[id].element=0;
     ++cc.type_count; return id;
 }
-uint8_t cc_family(uint8_t type) FRONTEND { return type<cc.type_count?cc.types[type].family:255; }
+uint8_t cc_family(uint8_t type) FRONTEND {
+    if(type>=K_SET_EXPR&&type<=K_EMPTY_SET) return K_SET;
+    return type<cc.type_count?cc.types[type].family:255;
+}
 static uint8_t text_type(uint8_t type) { return cc_family(type)==K_CHAR||cc_family(type)==K_STRING; }
 uint8_t cc_compatible(uint8_t left,uint8_t right) FRONTEND {
+    if(cc_family(left)==K_SET||cc_family(right)==K_SET) {
+        if(cc_family(left)!=K_SET||cc_family(right)!=K_SET) return 0;
+        return cc_set_base(left)==255||cc_set_base(right)==255||cc_set_base(left)==cc_set_base(right);
+    }
     if(cc_aggregate(left)||cc_aggregate(right))
         return left==right||((cc_char_array(left)||text_type(left))&&(cc_char_array(right)||text_type(right)));
     return cc_family(left)==cc_family(right)||(text_type(left)&&text_type(right));
@@ -365,6 +373,7 @@ void cc_destination(uint16_t id) FRONTEND {
 void cc_load_symbol(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];
     if(s->type==255) { cc_fail(44); return; }
+    if(cc_family(s->type)==K_SET) { cc_symbol_address(id); cc_set_load(s->type); return; }
     if(cc_family(s->type)==K_STRING||cc_aggregate(s->type)) cc_symbol_address(id);
     else if(s->role==S_FIELD||s->role==S_REFERENCE||(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE))) {
         cc_symbol_address(id);
@@ -412,6 +421,15 @@ void cc_convert(uint8_t target,uint8_t source) FRONTEND {
     source=cc_text_value(source);
     if(cc_family(target)==K_CHAR&&cc_family(source)==K_STRING) cc_call(RT_STRINGCHAR);
     cc_check_range(target);
+}
+void cc_set_load(uint8_t type) FRONTEND {
+    cc_temporary(32);
+    cc_emit(0x3e); cc_emit((uint8_t)(cc.types[cc.types[type].element].low>>3));
+    cc_emit(0x0e); cc_emit((uint8_t)cc.types[type].width); cc_call(RT_SETLOAD);
+}
+void cc_set_store(uint8_t type) FRONTEND {
+    cc_emit(0x3e); cc_emit((uint8_t)(cc.types[cc.types[type].element].low>>3));
+    cc_emit(0x0e); cc_emit((uint8_t)cc.types[type].width); cc_call(RT_SETSTORE);
 }
 uint8_t cc_text_value(uint8_t type) FRONTEND {
     if(!cc_char_array(type)) return type;

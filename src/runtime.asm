@@ -43,6 +43,13 @@
     jp delete_string            ; 40FC: HL destination, BC position, DE count
     jp insert_string            ; 40FF: HL source, DE destination, BC position, A capacity
     jp move_bytes               ; 4102: HL source, DE destination, BC bytes; overlap safe
+    jp set_zero                 ; 4105: clear 32 bytes at HL
+    jp set_load                 ; 4108: expand HL packed set into reserved DE slot, A first byte, C width
+    jp set_store                ; 410B: HL full set -> DE packed set, A first byte, C width
+    jp set_add                  ; 410E: HL lower, DE upper, BC full-set address
+    jp set_binary               ; 4111: DE left, HL right, A operation, BC owned bytes
+    jp set_compare              ; 4114: DE left, HL right, A comparison -> Boolean HL
+    jp set_member               ; 4117: DE ordinal, HL full set -> Boolean HL
 
 ; This prefix is deliberately separate from the C compiler's ABI. Only the
 ; private helper entries above are emitted in this first language increment.
@@ -993,3 +1000,205 @@ move_bytes:
 move_bytes_forward:
     ldir
     ret
+
+set_zero:
+    ld b,#32
+set_zero_loop:
+    ld (hl),#0
+    inc hl
+    djnz set_zero_loop
+    ret
+set_load:
+    ld (set_source),hl
+    ld (set_first),a
+    ld a,c
+    ld (set_width),a
+    push de
+    ex de,hl
+    call set_zero
+    pop hl
+    ld a,(set_first)
+    ld e,a
+    ld d,#0
+    add hl,de
+    ex de,hl
+    ld hl,(set_source)
+    ld a,(set_width)
+    ld c,a
+    ld b,#0
+    ldir
+    ld hl,#2
+    add hl,sp
+    ret
+set_store:
+    ld b,#0
+    push de
+    ld e,a
+    ld d,#0
+    add hl,de
+    pop de
+    ldir
+    ret
+set_add:
+    ld (set_destination),bc
+    ld a,e
+    cp l
+    ret c
+    sub l
+    inc a
+    ld b,a                    ; zero denotes all 256 elements
+    ld a,l
+    ld (set_element),a
+set_add_loop:
+    push bc
+    ld a,(set_element)
+    and #7
+    ld c,a
+    ld b,#0
+    ld hl,#set_masks
+    add hl,bc
+    ld c,(hl)
+    ld a,(set_element)
+    srl a
+    srl a
+    srl a
+    ld e,a
+    ld d,#0
+    ld hl,(set_destination)
+    add hl,de
+    ld a,(hl)
+    or c
+    ld (hl),a
+    ld hl,#set_element
+    inc (hl)
+    pop bc
+    djnz set_add_loop
+    ret
+set_binary:
+    ld (set_mode),a
+    ld (set_drop),bc
+    pop bc
+    ld (argument_return),bc
+    ld b,#32
+set_binary_loop:
+    ld a,(set_mode)
+    cp #1
+    jr z,set_intersect
+    cp #2
+    jr z,set_difference
+    ld a,(de)
+    or (hl)
+    jr set_binary_byte
+set_intersect:
+    ld a,(de)
+    and (hl)
+    jr set_binary_byte
+set_difference:
+    ld a,(hl)
+    cpl
+    ld c,a
+    ld a,(de)
+    and c
+set_binary_byte:
+    ld (hl),a
+    inc hl
+    inc de
+    djnz set_binary_loop
+    ld hl,#0
+    add hl,sp
+    ld (argument_source),hl
+    ld de,(set_drop)
+    ld hl,#0xffe0
+    add hl,de
+    add hl,sp
+    ld sp,hl
+    ex de,hl
+    ld hl,(argument_source)
+    ld bc,#32
+    jp move_string_tail
+set_compare:
+    ld (set_mode),a
+    ld b,#32
+    ld c,#0
+set_compare_loop:
+    ld a,(set_mode)
+    cp #2
+    jr z,set_subset
+    cp #3
+    jr z,set_superset
+    ld a,(de)
+    xor (hl)
+    jr set_compare_byte
+set_subset:
+    ld a,(hl)
+    cpl
+    ld (set_byte),a
+    ld a,(de)
+    jr set_compare_mask
+set_superset:
+    ld a,(de)
+    cpl
+    ld (set_byte),a
+    ld a,(hl)
+set_compare_mask:
+    push hl
+    ld hl,#set_byte
+    and (hl)
+    pop hl
+set_compare_byte:
+    or c
+    ld c,a
+    inc hl
+    inc de
+    djnz set_compare_loop
+    ld hl,#0
+    ld a,c
+    or a
+    jr nz,set_compare_result
+    inc hl
+set_compare_result:
+    ld a,(set_mode)
+    cp #1
+    ret nz
+    ld a,l
+    xor #1
+    ld l,a
+    ret
+set_member:
+    ld a,d
+    or a
+    jr nz,set_member_false
+    ld a,e
+    and #7
+    ld c,a
+    ld b,#0
+    push hl
+    ld hl,#set_masks
+    add hl,bc
+    ld c,(hl)
+    pop hl
+    ld a,e
+    srl a
+    srl a
+    srl a
+    ld e,a
+    ld d,#0
+    add hl,de
+    ld a,(hl)
+    and c
+    ld hl,#0
+    ret z
+    inc hl
+    ret
+set_member_false:
+    ld hl,#0
+    ret
+set_source: .dw 0
+set_destination: .dw 0
+set_drop: .dw 0
+set_first: .db 0
+set_width: .db 0
+set_element: .db 0
+set_mode: .db 0
+set_byte: .db 0
+set_masks: .db 1,2,4,8,16,32,64,128

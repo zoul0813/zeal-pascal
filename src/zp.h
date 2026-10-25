@@ -46,6 +46,13 @@
 #define RT_DELETE 0x40fcu
 #define RT_INSERT 0x40ffu
 #define RT_MOVE 0x4102u
+#define RT_SETZERO 0x4105u
+#define RT_SETLOAD 0x4108u
+#define RT_SETSTORE 0x410bu
+#define RT_SETADD 0x410eu
+#define RT_SETBIN 0x4111u
+#define RT_SETCMP 0x4114u
+#define RT_SETMEM 0x4117u
 #define DEFAULT_SOURCE "T:/src/pascal/UNTITLED.pas"
 enum { PAGE_SOURCE=1, PAGE_IMAGE, PAGE_MAP, PAGE_RUN, PAGE_SNAPSHOT, PAGE_COMPILER };
 

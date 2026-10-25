@@ -211,7 +211,8 @@ static void statement(void) {
             cc_next();
             do {
                 kind=cc_family(cc_text_value(cc_expression()));
-                if(cc_aggregate(kind)) cc_fail(62);
+                if(kind==K_ARRAY||kind==K_RECORD) cc_fail(62);
+                else if(kind==K_SET) cc_fail(66);
                 if(kind>K_CHAR) cc_fail(44);
                 if(kind==K_CHAR) cc_emit(0x7d);
                 cc_call(kind==K_STRING?RT_STRING:kind==K_BOOLEAN?RT_BOOLEAN:kind==K_CHAR?RT_CHAR:RT_INTEGER);
@@ -263,13 +264,14 @@ static void statement(void) {
             kind=cc_aggregate(target)?cc_aggregate_actual(target):cc_expression();
             cc_convert(target,kind);
             if(indexed) cc_stack_operand(cc.temporaries-before);
-            else if(cc_family(target)==K_STRING||cc_aggregate(target)) cc_destination((uint16_t)id);
+            else if(cc_family(target)==K_STRING||cc_aggregate(target)||cc_family(target)==K_SET) cc_destination((uint16_t)id);
             if(cc_family(target)==K_STRING) {
                 cc_emit(0x0e); cc_emit(cc.types[target].capacity);
                 cc_call(cc_family(kind)==K_CHAR?RT_CHARCOPY:RT_COPY);
             } else if(cc_aggregate(target)) {
                 cc_op16(0x01,cc.types[target].width); cc_call(RT_MOVE);
-            } else if(indexed) cc_store_indirect(target);
+            } else if(cc_family(target)==K_SET) cc_set_store(target);
+            else if(indexed) cc_store_indirect(target);
             else cc_store_symbol((uint16_t)id);
             if(indexed&&cc.temporaries!=before) cc_drop_stack(2);
             cc_release(before);

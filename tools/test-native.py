@@ -594,7 +594,7 @@ def main():
         commands += ['run 1000000000']
     # The completion breakpoint is mandatory; this bounded budget includes the
     # RAM/COM control/routine/string corpora and source-recovery executions.
-    commands += ['run 60000000000', 's', 'regs', 'mmu']
+    commands += ['run 80000000000', 's', 'regs', 'mmu']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage', '_platform_error'):
         commands.append(f"rb 0x{sym[name]:x} 2")
     if '_test_failures' in sym:
@@ -607,7 +607,7 @@ def main():
     # This growing native corpus includes repeated disk publication and RAM/COM
     # routine execution. Retain both a cycle bound and mandatory completion;
     # allow its measured workload more wall time than the small UI scenarios.
-    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=480)
+    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=600)
     mem = memory(text)
     def word(name):
         p = sym[name]
@@ -711,6 +711,25 @@ def main():
         record_expected += lines.replace('\n','\r\n').encode() * 2
     checks.append(('records/variants/With, lexical recursive cleanup and guarded zero-width copies in RAM/COM',
                    record_output.is_file() and record_output.read_bytes() == record_expected))
+    set_output = RUN / 'core/hostfs/SETS.TXT'
+    set_expected = b''
+    for lines in (
+        'SET-ENUM-MEMBER-OK\nSET-UNION-OK\nSET-INTERSECTION-OK\nSET-DIFFERENCE-OK\n'
+        'SET-RELATIONS-OK\nSET-EMPTY-POLYMORPHIC-OK\nSET-FULL-UNIVERSE-OK\nSET-DUPLICATE-REVERSED-OK\n'
+        'SET-CONSTRUCTOR-LOW-BYTE-OK\nSET-WRAPPED-RANGE-OK\n',
+        'SET-COMPRESSED-LAYOUT-OK\nSET-TYPED-INITIALIZERS-OK\nSET-WHOLE-BYTE-EDGES-OK\n'
+        'SET-CROSS-RANGE-COPY-OK\nSET-SELECTED-STORAGE-OK\nSET-MUTABLE-CONSTANT-OK\n',
+        'SET-VALUE-SNAPSHOT-ORDER-OK\nSET-VAR-PARAMETER-OK\nSET-RECURSIVE-VALUES-OK\n'
+        'SET-MIXED-ABI-CLEANUP-OK\nSET-EXPRESSION-CLEANUP-OK\n',
+        'EXTERNAL-SET-32-BYTE-OK\nEXTERNAL-EMPTY-SET-OK\nEXTERNAL-COMPRESSED-SET-OK\n',
+    ):
+        set_expected += lines.replace('\n','\r\n').encode() * 2
+    checks.append(('sets, compressed storage, constructors/operators, parameter values and cleanup in RAM/COM',
+                   set_output.is_file() and set_output.read_bytes() == set_expected))
+    set_image = RUN / 'core/hostfs/SETABI.COM'
+    set_code = (ROOT / 'build/setabi.zpl').read_bytes()
+    checks.append(('native external set payload matches independently assembled 32-byte argument probe',
+                   set_image.is_file() and set_image.read_bytes()[0x4004:0x4004+len(set_code)] == set_code))
     abi_image = RUN / 'core/hostfs/STRINGABI.COM'
     abi_code = (ROOT / 'build/stringabi.zpl').read_bytes()
     checks.append(('native external string payload matches independently assembled ABI probe',
@@ -754,7 +773,7 @@ def main():
         'native_completion_tstates_including_boot':
             int(re.findall(r'cyc=(\d+)', text)[-1]) if re.findall(r'cyc=(\d+)', text) else None,
         'artifacts': {str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p): sha(p)
-                      for p in [EMULATOR, ROM, KERNEL_MAP, TF_TEMPLATE, COREUTILS / 'mkdir', COREUTILS / 'cp', ROOT / 'build/zpascal.bin', ROOT / 'build/zpascal.zpl', ROOT / 'build/zptest.bin', ROOT / 'build/zptest.zpl', ROOT / 'build/stringabi.zpl']},
+                      for p in [EMULATOR, ROM, KERNEL_MAP, TF_TEMPLATE, COREUTILS / 'mkdir', COREUTILS / 'cp', ROOT / 'build/zpascal.bin', ROOT / 'build/zpascal.zpl', ROOT / 'build/zptest.bin', ROOT / 'build/zptest.zpl', ROOT / 'build/stringabi.zpl', ROOT / 'build/setabi.zpl']},
         'checks': [{'check': label, 'passed': ok} for label, ok in checks],
     }
     (RUN / 'report.json').write_text(json.dumps(report, indent=2) + '\n')

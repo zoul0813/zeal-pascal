@@ -54,7 +54,7 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
         check(seed("H:/SLICE.COM","old executable")); check(seed("H:/SLICE.ZMP","old map"));
         check(save_build(&s,&b));
     }
-    if(test_stage==7||test_stage==9||test_stage==11||test_stage==13||test_stage==15||test_stage==17||test_stage==19||test_stage==21||test_stage==23) check(save_build(&s,&b));
+    if(test_stage==7||test_stage==9||test_stage==11||test_stage==13||test_stage==15||test_stage==17||test_stage==19||test_stage==21||test_stage==23||test_stage==25) check(save_build(&s,&b));
     owned=pages_used();
     test_machine(before);
     check(run_build(&s,&b));
@@ -83,7 +83,7 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
         check(exec(EXEC_PRESERVE_PROGRAM,"H:/NAME.COM",0,&status)==0&&status==0);
         check(pages_used()==owned);
     }
-    if(test_stage==9||test_stage==11||test_stage==13||test_stage==15||test_stage==17||test_stage==19||test_stage==21||test_stage==23) {
+    if(test_stage==9||test_stage==11||test_stage==13||test_stage==15||test_stage==17||test_stage==19||test_stage==21||test_stage==23||test_stage==25) {
         uint8_t status=255;
         check(run_saved(&s,&b,&status)&&status==0); check(pages_used()==owned);
     }
@@ -235,6 +235,23 @@ static void record_tests(void) {
     execution("type r=record n:integer end;var x:r;procedure p;begin with x do halt end;begin p end.",4,0);
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
+static void set_tests(void) {
+    int8_t capture=open("H:/SETS.TXT",O_WRONLY|O_CREAT|O_TRUNC);
+    check(capture>=0);
+    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
+    test_stage=25;
+    execution_file("H:/SETS.PAS",1,0,0);
+    execution_file("H:/SETSHAPE.PAS",1,0,0);
+    execution_file("H:/SETARGS.PAS",1,0,0);
+    execution_file("H:/SETABI.PAS",1,0,0);
+    test_stage=26;
+    checked_error("var s:set of byte;begin\ns:=[1,7 div 0]end.",2,"s:=[");
+    checked_error("var s:set of byte;begin\ns:=[1..7 div 0]end.",2,"s:=[");
+    checked_error("var s:set of byte;begin s:=[1];\nif (7 div 0) in s then end.",2,"if");
+    checked_error("var s:set of byte;b:byte;begin b:=255;{$R+}\ns:=[succ(b)]end.",0x91,"s:=[");
+    checked_error("{$A-}type t=set of byte;procedure tight(v:t);var a:array[1..14000]of byte;begin end;begin tight([])end.",0xff,"tight");
+    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
+}
 static void media_tests(void) {
     uint8_t attempt,status;
     int8_t capture;
@@ -369,6 +386,7 @@ int app_main(void) {
     string_operation_tests();
     array_tests();
     record_tests();
+    set_tests();
     source_close(&s); check(pages_used()==code_required);
     code_hash(digest); check(!memcmp(digest,initial_code_hash,32));
     test_stage=6; test_done=255;

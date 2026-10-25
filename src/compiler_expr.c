@@ -1,6 +1,33 @@
 #include "compiler.h"
 
 static uint8_t expression(void);
+static uint8_t set_constructor(void) {
+    uint8_t base=255,kind,upper;
+    uint16_t before;
+    cc_temporary(32); cc_op16(0x21,0); cc_emit(0x39); cc_call(RT_SETZERO); cc_next();
+    while(cc.token!=']'&&!cc.error->code) {
+        before=cc.temporaries; kind=expression();
+        if(!cc_ordinal(kind)) cc_fail(44);
+        if(base==255) base=cc_family(kind); else if(base!=cc_family(kind)) cc_fail(44);
+        cc_release(before); cc_guard(); cc_emit(0xe5);
+        if(cc.token==T_RANGE) {
+            cc_next(); upper=expression();
+            if(!cc_ordinal(upper)||cc_family(upper)!=base) cc_fail(44);
+            cc_release(before);
+        }
+        cc_emit(0xeb); cc_op16(0x21,2); cc_emit(0x39);
+        cc_emit(0x44); cc_emit(0x4d); cc_emit(0xe1); cc_call(RT_SETADD);
+        if(cc.token!=',') break; cc_next();
+    }
+    cc_expect(']',9); cc_op16(0x21,0); cc_emit(0x39);
+    return base==255?K_EMPTY_SET:K_SET_EXPR+base;
+}
+static uint8_t set_binary(uint8_t left,uint8_t right,uint8_t op,uint16_t before,uint16_t right_bytes) {
+    if(cc_family(right)!=K_SET||!cc_compatible(left,right)) cc_fail(44);
+    cc_op16(0x01,cc.temporaries-before+(right_bytes?2:0)); cc_emit(0x3e); cc_emit(op); cc_call(RT_SETBIN);
+    cc.temporaries=before+32;
+    return cc_set_base(left)==255?right:left;
+}
 uint8_t cc_index(uint8_t type) BACKEND {
     uint16_t before,stride;
     uint8_t kind,index,array;
@@ -215,7 +242,8 @@ static uint8_t factor(void) {
         if(cc.literal_length==1) { cc_op16(0x21,cc.literal[0]); kind=K_CHAR; }
         else { cc_emit_literal(); kind=K_STRING; }
         cc_next();
-    } else if(cc.token=='(') { cc_next(); kind=expression(); cc_expect(')',5); }
+    } else if(cc.token=='[') kind=set_constructor();
+    else if(cc.token=='(') { cc_next(); kind=expression(); cc_expect(')',5); }
     else if(cc.token==T_ID) {
         id=cc_lookup();
         if((id>=0&&cc.symbols[id].role==S_TYPE)||(id<0&&(fn=cc_predefined_type())>=0)) {
@@ -257,10 +285,17 @@ static void bitwise(uint8_t op) {
     cc_emit(0x7c); cc_emit(op==0?0xa2:op==1?0xb2:0xaa); cc_emit(0x67);
 }
 static uint8_t term(void) {
+    uint16_t before=cc.temporaries,right_before,right_bytes;
     uint8_t op,right,base,kind=factor();
     while(!cc.error->code&&(cc.token=='*'||cc_is("div")||cc_is("mod")||cc_is("and")||cc_is("shl")||cc_is("shr"))) {
         op=cc.token=='*'?0:cc_is("div")?1:cc_is("mod")?2:cc_is("and")?3:cc_is("shl")?4:5;
         base=cc_family(kind);
+        if(base==K_SET) {
+            if(op!=0) cc_fail(47);
+            cc_next(); cc_guard(); cc_emit(0xe5); right_before=cc.temporaries;
+            right=factor(); right_bytes=cc.temporaries-right_before; cc_stack_operand(right_bytes);
+            kind=set_binary(kind,right,1,before,right_bytes); continue;
+        }
         if(base!=K_INTEGER&&(op!=3||base!=K_BOOLEAN)) cc_fail(47);
         cc_next(); cc_guard(); cc_emit(0xe5); right=factor(); cc_emit(0xd1);
         if(cc_family(right)!=base) cc_fail(47);
@@ -285,10 +320,12 @@ static uint8_t simple_expression(void) {
     while(!cc.error->code&&(cc.token=='+'||cc.token=='-'||cc_is("or")||cc_is("xor"))) {
         op=cc.token=='+'||cc.token=='-'?cc.token:cc_is("or")?'|':'^';
         base=cc_family(kind);
-        if(op=='+'&&text(kind)) hold_left(kind,before);
+        if(base==K_SET) { if(op!='+'&&op!='-') cc_fail(47); }
+        else if(op=='+'&&text(kind)) hold_left(kind,before);
         else if(base!=K_INTEGER&&((op=='+'||op=='-')||base!=K_BOOLEAN)) cc_fail(47);
         cc_next(); cc_guard(); cc_emit(0xe5); right_before=cc.temporaries;
         right=term(); if(op=='+'&&text(kind)) cc_text_value(right); right_bytes=cc.temporaries-right_before; cc_stack_operand(right_bytes);
+        if(base==K_SET) { kind=set_binary(kind,right,op=='+'?0:2,before,right_bytes); continue; }
         if(op=='+'&&text(kind)) {
             if(!text(right)) cc_fail(47);
             owned=cc.temporaries-before+(right_bytes?2:0);
@@ -307,11 +344,24 @@ static uint8_t simple_expression(void) {
 static uint8_t expression(void) {
     uint16_t before=cc.temporaries,right_before,right_bytes;
     uint8_t kind=simple_expression(),right,jump;
-    uint16_t op=cc.token;
+    uint16_t op=cc_is("in")?'i':cc.token;
+    if(op=='i') {
+        if(!cc_ordinal(kind)) cc_fail(44);
+        cc_next(); cc_guard(); cc_emit(0xe5); right_before=cc.temporaries;
+        right=simple_expression(); right_bytes=cc.temporaries-right_before; cc_stack_operand(right_bytes);
+        if(cc_family(right)!=K_SET||(cc_set_base(right)!=255&&cc_set_base(right)!=cc_family(kind))) cc_fail(44);
+        cc_call(RT_SETMEM); if(right_bytes) cc_drop_stack(2); cc_release(before); return K_BOOLEAN;
+    }
     if(op!='='&&op!=T_NE&&op!='<'&&op!='>'&&op!=T_LE&&op!=T_GE) return kind;
     hold_left(kind,before);
     cc_next(); cc_guard(); cc_emit(0xe5); right_before=cc.temporaries;
     right=simple_expression(); cc_text_value(right); right_bytes=cc.temporaries-right_before; cc_stack_operand(right_bytes);
+    if(cc_family(kind)==K_SET||cc_family(right)==K_SET) {
+        if(!cc_compatible(kind,right)) cc_fail(44);
+        if(op=='<'||op=='>') cc_fail(47);
+        cc_emit(0x3e); cc_emit(op=='='?0:op==T_NE?1:op==T_LE?2:3); cc_call(RT_SETCMP);
+        if(right_bytes) cc_drop_stack(2); cc_release(before); return K_BOOLEAN;
+    }
     if((cc_aggregate(kind)&&!cc_char_array(kind))||(cc_aggregate(right)&&!cc_char_array(right))) cc_fail(62);
     else if(!cc_compatible(kind,right)) cc_fail(47);
     if(text(kind)||text(right)) {

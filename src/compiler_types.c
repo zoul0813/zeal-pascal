@@ -90,6 +90,12 @@ static uint8_t parse_type_body(void) {
     uint16_t lo,hi,count,member;
     uint8_t base,other,result;
     if(cc_is("packed")) { cc_next(); return parse_type(); }
+    if(cc_is("set")) {
+        cc_next(); cc_keyword("of",15); base=parse_type();
+        if(!cc_ordinal(base)||cc.types[base].low<0||cc.types[base].high>255) { cc_fail(70); return 0; }
+        result=cc_new_type(K_SET,(cc.types[base].high>>3)-(cc.types[base].low>>3)+1,0,0,0);
+        cc.types[result].element=base; return result;
+    }
     if(cc_is("array")) { cc_next(); cc_expect('[',8); return array_dimension(); }
     if(cc_is("record")) {
         result=cc_new_type(K_RECORD,0,-1,0,0); cc_next(); field_list(result,result);
@@ -131,6 +137,25 @@ static uint8_t parse_type(void) {
 /* Validate initializers when declared; replay their immutable source to emit
  * the typed payload after declarations. No initializer pointers escape a bank. */
 static void initializer(uint8_t type,uint8_t emit);
+static void set_initializer(uint8_t type,uint8_t emit) {
+    uint8_t bits[32],actual,base=cc.types[type].element;
+    uint16_t low,high,i;
+    memset(bits,0,sizeof(bits)); cc_expect('[',8);
+    while(cc.token!=']'&&!cc.error->code) {
+        cc_constant(&actual,&low);
+        if(cc_family(actual)!=cc_family(base)) cc_fail(44);
+        if(cc.token==T_RANGE) {
+            cc_next(); cc_constant(&actual,&high);
+            if(cc_family(actual)!=cc_family(base)) cc_fail(44);
+        } else high=low;
+        if((int16_t)low<cc.types[base].low||(int16_t)low>cc.types[base].high||
+           (int16_t)high<cc.types[base].low||(int16_t)high>cc.types[base].high) cc_fail(45);
+        for(i=low;i<=high&&!cc.error->code;++i) bits[i>>3]|=(uint8_t)(1u<<(i&7));
+        if(cc.token!=',') break; cc_next();
+    }
+    cc_expect(']',9);
+    if(emit) for(i=0;i<cc.types[type].width;++i) cc_emit(bits[(cc.types[base].low>>3)+i]);
+}
 static void record_initializer(uint8_t type,uint8_t emit) {
     uint16_t i,bytes=0;
     int16_t field;
@@ -157,6 +182,7 @@ static void record_initializer(uint8_t type,uint8_t emit) {
 static void initializer(uint8_t type,uint8_t emit) {
     uint16_t value,count,i;
     uint8_t actual,element;
+    if(cc_family(type)==K_SET) { set_initializer(type,emit); return; }
     if(cc_family(type)==K_RECORD) {
         cc_expect('(',4);
         if(!cc.types[type].width) cc_fail(41);
@@ -221,10 +247,10 @@ void cc_declarations(void) FRONTEND {
             } else {
                 if(cc.token==':') {
                     cc_next(); type=parse_type(); cc_expect('=',6);
-                    if(cc_aggregate(type)) {
+                    if(cc_aggregate(type)||cc_family(type)==K_SET) {
                         value=cc.token_start; initializer(type,0); initial=255;
                     } else cc_constant(&initial,&value);
-                    if(cc_aggregate(type)) {
+                    if(cc_aggregate(type)||cc_family(type)==K_SET) {
                         cc.symbols[id].type=type; cc.symbols[id].role=S_TYPED;
                         cc.symbols[id].address=value; cc_expect(';',1); continue;
                     }
@@ -237,7 +263,9 @@ void cc_declarations(void) FRONTEND {
                     if(cc_family(type)!=K_STRING&&((int16_t)value<cc.types[type].low||(int16_t)value>cc.types[type].high)) cc_fail(44);
                     cc.symbols[id].type=type; cc.symbols[id].initial_type=initial; cc.symbols[id].role=S_TYPED;
                 } else {
-                    cc_expect('=',6); cc_constant(&type,&value);
+                    cc_expect('=',6);
+                    if(cc.token=='[') cc_fail(1);
+                    cc_constant(&type,&value);
                     cc.symbols[id].type=type; cc.symbols[id].role=S_CONSTANT;
                 }
                 cc.symbols[id].address=value;
@@ -252,7 +280,7 @@ void cc_typed_storage(uint16_t first) FRONTEND {
     for(i=first;i<cc.symbol_count&&!cc.error->code;++i) if(cc.symbols[i].role==S_TYPED) {
         if(!jump) jump=cc_forward(0xc3);
         value=cc.symbols[i].address; cc.symbols[i].address=0x4000u+cc.emitted;
-        if(cc_aggregate(cc.symbols[i].type)) {
+        if(cc_aggregate(cc.symbols[i].type)||cc_family(cc.symbols[i].type)==K_SET) {
             saved_scan=cc.scan; saved_token=cc.token; start=cc.token_start; end=cc.token_end;
             range=cc.range_check; absolute=cc.absolute_mode; strict=cc.var_strict;
             limit=cc.with_limit;
