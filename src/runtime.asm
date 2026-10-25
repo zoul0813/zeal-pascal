@@ -50,6 +50,14 @@
     jp set_binary               ; 4111: DE left, HL right, A operation, BC owned bytes
     jp set_compare              ; 4114: DE left, HL right, A comparison -> Boolean HL
     jp set_member               ; 4117: DE ordinal, HL full set -> Boolean HL
+    jp checked_guard            ; 411A: inline reservation and source-PC words
+    jp heap_allocate            ; 411D: HL bytes -> HL pointer
+    jp heap_free                ; 4120: HL pointer, DE original bytes
+    jp heap_release             ; 4123: HL prior Mark frontier
+    jp heap_availability        ; 4126: A=0 total, 1 largest, 2 frontier
+    jp stack_set                ; 4129: HL validated new CPU SP
+heap_frontier: .dw 0            ; 412C: predefined HeapPtr
+recursion_limit: .dw 0          ; 412E: conservative active stack boundary
 
 ; This prefix is deliberately separate from the C compiler's ABI. Only the
 ; private helper entries above are emitted in this first language increment.
@@ -80,6 +88,19 @@ ram:
     ld a,#1
     ld (memory_mode),a
 start:
+    ld hl,(0x401c)
+    bit 0,l
+    jr z,heap_aligned
+    inc hl
+heap_aligned:
+    ld (heap_floor),hl
+    ld (heap_frontier),hl
+    ld hl,#0
+    add hl,sp
+    ld de,#64
+    or a
+    sbc hl,de
+    ld (recursion_limit),hl
     ld hl,(0x4014)
     jp (hl)
 done:
@@ -590,9 +611,7 @@ push_string:
     or a
     sbc hl,de
     jr c,argument_overflow
-    ld a,h
-    cp #0xc8
-    jr c,argument_overflow
+    call check_boundary
     ld hl,#0
     add hl,sp
     or a
@@ -644,9 +663,7 @@ hold_string:
     ld hl,#0xfec0              ; prospective SP minus 256 and emergency 64
     add hl,sp
     jr nc,argument_overflow
-    ld a,h
-    cp #0xc8
-    jr c,argument_overflow
+    call check_boundary
     ld hl,#0xff00
     add hl,sp
     ld sp,hl
@@ -1202,3 +1219,424 @@ set_element: .db 0
 set_mode: .db 0
 set_byte: .db 0
 set_masks: .db 1,2,4,8,16,32,64,128
+
+; Managed stack/heap checks preserve both alternate and index register sets.
+; The CALL return points at two inline words: reservation bytes and source PC.
+checked_guard:
+    push af
+    push bc
+    push de
+    push hl
+    ld hl,#10
+    add hl,sp
+    ld (guard_sp),hl
+    ld hl,#8
+    add hl,sp
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    ex de,hl
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    inc hl
+    ld (guard_bytes),de
+    ld c,(hl)
+    inc hl
+    ld b,(hl)
+    inc hl
+    ld (0x40be),bc
+    ex de,hl
+    ld hl,#8
+    add hl,sp
+    ld (hl),e
+    inc hl
+    ld (hl),d
+    ld hl,(guard_sp)
+    ld de,#64
+    or a
+    sbc hl,de
+    jp c,heap_error
+    ld de,(guard_bytes)
+    or a
+    sbc hl,de
+    jp c,heap_error
+    call check_boundary
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
+; HL is prospective SP minus all requested bytes and emergency headroom.
+; Preserve HL/DE/BC for dynamic String helpers. No callbacks or syscalls occur.
+check_boundary:
+    ld a,h
+    cp #0xc8
+    jp c,heap_error
+    ld (boundary_value),hl
+    push de
+    push bc
+    ld hl,(heap_frontier)
+    ld de,(heap_floor)
+    or a
+    sbc hl,de
+    jp c,heap_error
+    ld hl,(boundary_value)
+    ld de,(heap_frontier)
+    or a
+    sbc hl,de
+    jp c,heap_error
+    add hl,de
+    ld (recursion_limit),hl
+    pop bc
+    pop de
+    ret
+heap_error:
+    ld hl,(0x40be)
+    jp stack_error
+
+; All public heap calls arrive after checked_guard. Its recursion_limit is
+; the actual caller SP minus64, so these helpers never allocate into scratch.
+; Two-byte headers contain an even payload span and a high-bit free flag.
+heap_round:
+    bit 7,h
+    jp nz,heap_error
+    bit 0,l
+    ret z
+    inc hl
+    bit 7,h
+    jp nz,heap_error
+    ret
+
+; Scan one block at HL, after testing HL != frontier. Every header/span is
+; validated before following it. Scratch is image-local and non-reentrant.
+heap_read:
+    ld (heap_at),hl
+    ld de,(heap_floor)
+    or a
+    sbc hl,de
+    jp c,heap_error
+    ld hl,(heap_frontier)
+    ld de,(heap_at)
+    or a
+    sbc hl,de
+    jp c,heap_error
+    ld de,#2
+    or a
+    sbc hl,de
+    jp c,heap_error
+    ld hl,(heap_at)
+    ld c,(hl)
+    inc hl
+    ld a,(hl)
+    and #0x80
+    ld (heap_flag),a
+    ld a,(hl)
+    and #0x7f
+    ld b,a
+    bit 0,c
+    jp nz,heap_error
+    ld (heap_span),bc
+    inc hl
+    add hl,bc
+    jp c,heap_error
+    ld (heap_next),hl
+    ld de,(heap_frontier)
+    or a
+    sbc hl,de
+    jp nc,heap_read_end
+    ret
+heap_read_end:
+    ld a,h
+    or l
+    jp nz,heap_error
+    ret
+
+heap_allocate:
+    call heap_round
+    ld (heap_want),hl
+    ld hl,(heap_floor)
+heap_allocate_scan:
+    ld de,(heap_frontier)
+    or a
+    sbc hl,de
+    jp z,heap_append
+    add hl,de
+    call heap_read
+    ld a,(heap_flag)
+    or a
+    jr z,heap_allocate_next
+    ld hl,(heap_span)
+    ld de,(heap_want)
+    or a
+    sbc hl,de
+    jr c,heap_allocate_next
+    ld a,h
+    or l
+    jr z,heap_allocate_here
+    ; An even remainder >=2 can hold its own header (zero payload is valid).
+    dec hl
+    dec hl
+    ld b,h
+    ld c,l
+    ld hl,(heap_at)
+    inc hl
+    inc hl
+    add hl,de
+    ld (hl),c
+    inc hl
+    ld a,b
+    or #0x80
+    ld (hl),a
+heap_allocate_here:
+    ld hl,(heap_at)
+heap_allocate_commit:
+    ld de,(heap_want)
+    ld (hl),e
+    inc hl
+    ld (hl),d
+    inc hl
+    ret
+heap_allocate_next:
+    ld hl,(heap_next)
+    jr heap_allocate_scan
+heap_append:
+    ld hl,(heap_frontier)
+    ld (heap_at),hl
+    ld de,(heap_want)
+    inc de
+    inc de
+    add hl,de
+    jp c,heap_error
+    ld de,(recursion_limit)
+    or a
+    sbc hl,de
+    jp c,heap_append_ready
+    jp nz,heap_error
+heap_append_ready:
+    add hl,de
+    ld (heap_frontier),hl
+    ld hl,(heap_at)
+    jr heap_allocate_commit
+
+heap_free:
+    ld (heap_target),hl
+    ex de,hl
+    call heap_round
+    ld (heap_want),hl
+    ld hl,(heap_floor)
+heap_free_scan:
+    ld de,(heap_frontier)
+    or a
+    sbc hl,de
+    jp z,heap_error
+    add hl,de
+    call heap_read
+    ld hl,(heap_at)
+    inc hl
+    inc hl
+    ld de,(heap_target)
+    or a
+    sbc hl,de
+    jr z,heap_free_found
+    ld hl,(heap_next)
+    jr heap_free_scan
+heap_free_found:
+    ld a,(heap_flag)
+    or a
+    jp nz,heap_error
+    ld hl,(heap_span)
+    ld de,(heap_want)
+    or a
+    sbc hl,de
+    jp nz,heap_error
+    ld hl,(heap_at)
+    inc hl
+    set 7,(hl)
+    ld hl,#0
+    ld (heap_previous),hl
+    ld hl,(heap_floor)
+heap_coalesce:
+    ld de,(heap_frontier)
+    or a
+    sbc hl,de
+    ret z
+    add hl,de
+    call heap_read
+    ld a,(heap_flag)
+    or a
+    jr nz,heap_coalesce_free
+    ld hl,#0
+    ld (heap_previous),hl
+    jr heap_coalesce_next
+heap_coalesce_free:
+    ld hl,(heap_previous)
+    ld a,h
+    or l
+    jr z,heap_coalesce_first
+    ld c,(hl)
+    inc hl
+    ld a,(hl)
+    and #0x7f
+    ld b,a
+    ld hl,(heap_span)
+    inc hl
+    inc hl
+    add hl,bc
+    ld b,h
+    ld c,l
+    ld hl,(heap_previous)
+    ld (heap_at),hl
+    ld (hl),c
+    inc hl
+    ld a,b
+    or #0x80
+    ld (hl),a
+    jr heap_coalesce_tail
+heap_coalesce_first:
+    ld hl,(heap_at)
+    ld (heap_previous),hl
+heap_coalesce_tail:
+    ld hl,(heap_next)
+    ld de,(heap_frontier)
+    or a
+    sbc hl,de
+    jr nz,heap_coalesce_next
+    ld hl,(heap_at)
+    ld (heap_frontier),hl
+    ret
+heap_coalesce_next:
+    ld hl,(heap_next)
+    jr heap_coalesce
+
+heap_release:
+    ld (heap_target),hl
+    ld hl,(heap_floor)
+heap_release_scan:
+    ld de,(heap_target)
+    or a
+    sbc hl,de
+    jr z,heap_release_ready
+    add hl,de
+    ld de,(heap_frontier)
+    or a
+    sbc hl,de
+    jp z,heap_error
+    add hl,de
+    call heap_read
+    ld hl,(heap_next)
+    jr heap_release_scan
+heap_release_ready:
+    add hl,de
+    ld (heap_frontier),hl
+    ret
+
+heap_availability:
+    ld (heap_mode),a
+    cp #2
+    ld hl,(heap_frontier)
+    ret z
+    ld hl,#0
+    ld (heap_total),hl
+    ld (heap_largest),hl
+    ld hl,(heap_floor)
+heap_availability_scan:
+    ld de,(heap_frontier)
+    or a
+    sbc hl,de
+    jr z,heap_availability_tail
+    add hl,de
+    call heap_read
+    ld a,(heap_flag)
+    or a
+    jr z,heap_availability_next
+    ld hl,(heap_span)
+    call heap_available_add
+heap_availability_next:
+    ld hl,(heap_next)
+    jr heap_availability_scan
+heap_availability_tail:
+    ld hl,(recursion_limit)
+    ld de,(heap_frontier)
+    or a
+    sbc hl,de
+    jp c,heap_error
+    ld de,#2
+    or a
+    sbc hl,de
+    jr c,heap_availability_result
+    res 0,l
+    call heap_available_add
+heap_availability_result:
+    ld a,(heap_mode)
+    or a
+    ld hl,(heap_total)
+    ret z
+    ld hl,(heap_largest)
+    ret
+heap_available_add:
+    push hl
+    ld de,(heap_total)
+    add hl,de
+    ld (heap_total),hl
+    pop hl
+    ld de,(heap_largest)
+    or a
+    sbc hl,de
+    ret c
+    add hl,de
+    ld (heap_largest),hl
+    ret
+
+stack_set:
+    ld a,h
+    cp #0xc8
+    jp c,heap_error
+    ld (heap_target),hl
+    pop bc
+    ld (heap_return),bc
+    ld de,#0xfc00
+    or a
+    sbc hl,de
+    jp c,stack_set_end
+    jp nz,heap_error
+stack_set_end:
+    ld hl,(0x401e)
+    inc hl
+    ld de,(heap_target)
+    or a
+    sbc hl,de
+    jp c,heap_error
+    ld hl,(heap_target)
+    ld de,#64
+    or a
+    sbc hl,de
+    jp c,heap_error
+    ld de,(heap_frontier)
+    or a
+    sbc hl,de
+    jp c,heap_error
+    add hl,de
+    ld (recursion_limit),hl
+    ld hl,(heap_target)
+    ld sp,hl
+    ld bc,(heap_return)
+    push bc
+    ret
+
+guard_sp: .dw 0
+guard_bytes: .dw 0
+boundary_value: .dw 0
+heap_floor: .dw 0
+heap_want: .dw 0
+heap_at: .dw 0
+heap_next: .dw 0
+heap_span: .dw 0
+heap_target: .dw 0
+heap_previous: .dw 0
+heap_total: .dw 0
+heap_largest: .dw 0
+heap_return: .dw 0
+heap_flag: .db 0
+heap_mode: .db 0

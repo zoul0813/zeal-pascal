@@ -1,6 +1,6 @@
 #include "compiler.h"
 
-static uint8_t parse_type(void);
+static uint8_t parse_type(uint8_t allow_forward);
 static uint16_t metadata(uint8_t role,uint8_t owner) {
     uint16_t id=cc.symbol_count;
     if(id==SYMBOL_LIMIT) { cc_fail(98); return 0; }
@@ -30,7 +30,7 @@ static void field_list(uint8_t type,uint8_t root) {
     while(cc.token==T_ID&&!cc.error->code) {
         first=cc.symbol_count; new_field(type,root); cc_next();
         while(cc.token==','&&!cc.error->code) { cc_next(); new_field(type,root); cc_next(); }
-        last=cc.symbol_count; cc_expect(':',2); field_type=parse_type();
+        last=cc.symbol_count; cc_expect(':',2); field_type=parse_type(0);
         for(i=first;i<last&&!cc.error->code;++i) {
             cc.symbols[i].type=field_type; cc.symbols[i].address=cc.types[type].width;
             extend_record(type,cc.types[field_type].width);
@@ -74,30 +74,32 @@ static uint8_t array_dimension(void) {
     uint8_t index,array,element;
     uint32_t width;
     if(++cc.depth>24) { cc_fail(98); --cc.depth; return 0; }
-    index=parse_type();
+    index=parse_type(0);
     if(!cc_ordinal(index)) cc_fail(30);
     array=cc_new_type(K_ARRAY,0,0,0,index);
     if(cc.token==',') { cc_next(); element=array_dimension(); }
-    else { cc_expect(']',9); cc_keyword("of",15); element=parse_type(); }
+    else { cc_expect(']',9); cc_keyword("of",15); element=parse_type(0); }
     if(cc.error->code) { --cc.depth; return array; }
     width=((uint32_t)((int32_t)cc.types[index].high-cc.types[index].low)+1u)*cc.types[element].width;
     if(width>32767u) cc_fail(98);
     cc.types[array].width=(uint16_t)width; cc.types[array].element=element;
     --cc.depth; return array;
 }
-static uint8_t parse_type_body(void) {
+static uint8_t parse_type_body(uint8_t allow_forward) {
     int16_t id;
     uint16_t lo,hi,count,member;
     uint8_t base,other,result;
     if(cc.token=='^') {
         cc_next();
         if(cc.token!=T_ID) { cc_fail(42); return K_INTEGER; }
-        result=cc_new_type(K_POINTER,2,(int16_t)cc.token_start,1,cc.scope);
-        cc.types[result].element=255; cc_next(); return result;
+        id=allow_forward?-1:cc_named_type();
+        if(!allow_forward&&id<0) { cc_fail(42); return K_INTEGER; }
+        result=cc_new_type(K_POINTER,2,(int16_t)cc.token_start,allow_forward,cc.scope);
+        cc.types[result].element=allow_forward?255:(uint8_t)id; cc_next(); return result;
     }
-    if(cc_is("packed")) { cc_next(); return parse_type(); }
+    if(cc_is("packed")) { cc_next(); return parse_type(allow_forward); }
     if(cc_is("set")) {
-        cc_next(); cc_keyword("of",15); base=parse_type();
+        cc_next(); cc_keyword("of",15); base=parse_type(0);
         if(!cc_ordinal(base)||cc.types[base].low<0||cc.types[base].high>255) { cc_fail(70); return 0; }
         result=cc_new_type(K_SET,(cc.types[base].high>>3)-(cc.types[base].low>>3)+1,0,0,0);
         cc.types[result].element=base; return result;
@@ -135,10 +137,10 @@ static uint8_t parse_type_body(void) {
     return cc_new_type(cc_family(base),cc_family(base)==K_INTEGER?(lo<=255&&hi<=255?1:2):cc.types[base].width,
                     (int16_t)lo,(int16_t)hi,0);
 }
-static uint8_t parse_type(void) {
+static uint8_t parse_type(uint8_t allow_forward) {
     uint8_t type;
     if(++cc.depth>24) { cc_fail(98); --cc.depth; return 0; }
-    type=parse_type_body(); --cc.depth; return type;
+    type=parse_type_body(allow_forward); --cc.depth; return type;
 }
 /* Validate initializers when declared; replay their immutable source to emit
  * the typed payload after declarations. No initializer pointers escape a bank. */
@@ -257,15 +259,15 @@ void cc_declarations(void) FRONTEND {
             id=cc_new_symbol(section==S_VARIABLE?S_VARIABLE:S_PENDING); cc_next();
             if(section==S_VARIABLE) {
                 while(cc.token==','&&!cc.error->code) { cc_next(); cc_new_symbol(S_VARIABLE); cc_next(); }
-                count=cc.symbol_count-first; cc_expect(':',2); type=parse_type();
+                count=cc.symbol_count-first; cc_expect(':',2); type=parse_type(0);
                 for(i=first;i<first+count&&!cc.error->code;++i) {
                     cc.symbols[i].type=type; cc_storage(i,cc.types[type].width);
                 }
             } else if(section==S_TYPE) {
-                cc_expect('=',6); type=parse_type(); cc.symbols[id].type=type; cc.symbols[id].role=S_TYPE;
+                cc_expect('=',6); type=parse_type(1); cc.symbols[id].type=type; cc.symbols[id].role=S_TYPE;
             } else {
                 if(cc.token==':') {
-                    cc_next(); type=parse_type();
+                    cc_next(); type=parse_type(0);
                     if(cc_family(type)==K_POINTER) cc_fail(61);
                     cc_expect('=',6);
                     if(cc_aggregate(type)||cc_family(type)==K_SET) {

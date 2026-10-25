@@ -97,7 +97,7 @@ uint8_t cc_aggregate_actual(uint8_t type) BACKEND {
     } else cc_fail(41);
     return type;
 }
-enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR,F_LENGTH,F_COPY,F_POS,F_CONCAT,F_PTR };
+enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR,F_LENGTH,F_COPY,F_POS,F_CONCAT,F_PTR,F_MEMAVAIL,F_MAXAVAIL,F_STACKPTR };
 static void string_value(void) {
     uint16_t before=cc.temporaries;
     uint8_t kind;
@@ -161,7 +161,7 @@ void cc_string_statement(uint8_t insert) BACKEND {
     cc_expect(')',5); cc_call(insert?RT_INSERT:RT_DELETE); cc_release(before);
 }
 static int16_t predefined_function(void) {
-    static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length","copy","pos","concat","ptr"};
+    static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length","copy","pos","concat","ptr","memavail","maxavail","stackptr"};
     uint8_t i;
     for(i=0;i<sizeof(functions)/sizeof(functions[0]);++i) if(cc_is(functions[i])) return i;
     return -1;
@@ -172,7 +172,12 @@ static uint8_t intrinsic(uint8_t op) {
     uint16_t before=cc.temporaries;
     uint8_t saved;
     int16_t id;
-    cc_next(); cc_expect('(',4);
+    cc_next();
+    if(op==F_STACKPTR) { cc_op16(0x21,0); cc_emit(0x39); return K_INTEGER; }
+    if(op==F_MEMAVAIL||op==F_MAXAVAIL) {
+        cc_emit(0x3e); cc_emit(op==F_MAXAVAIL); cc_call(RT_AVAIL); return K_INTEGER;
+    }
+    cc_expect('(',4);
     if(op>=F_COPY&&op<=F_CONCAT) return string_function(op);
     if(op==F_SIZEOF||op==F_ADDR) {
         id=cc.token==T_ID?cc_lookup():-1;
@@ -390,3 +395,46 @@ static uint8_t expression(void) {
     return K_BOOLEAN;
 }
 uint8_t cc_expression(void) BACKEND { return expression(); }
+
+/* Heap pointer destinations are selected exactly once before size evaluation.
+ * The runtime commits a returned pointer only after allocation succeeds. */
+uint8_t cc_heap_statement(void) BACKEND {
+    uint8_t op,type,kind;
+    int16_t id;
+    uint16_t before=cc.temporaries,width=0;
+    if(cc.token!=T_ID||cc_lookup()>=0) return 0;
+    if(cc_is("stackptr")) {
+        cc_next(); cc_expect(T_ASSIGN,7); integer_value(); cc_release(before);
+        cc_call(RT_STACKSET); return 1;
+    }
+    op=cc_is("new")?0:cc_is("getmem")?1:cc_is("mark")?2:
+       cc_is("dispose")?3:cc_is("freemem")?4:cc_is("release")?5:255;
+    if(op==255) return 0;
+    cc_next(); cc_expect('(',4);
+    if(op<=3) {
+        id=cc.token==T_ID?cc_lookup():-1;
+        if(!cc_variable(id)||cc.symbols[id].control||cc.symbols[id].role==S_RESULT) { cc_fail(44); return 1; }
+        type=cc_selection((uint16_t)id);
+        if(cc_family(type)!=K_POINTER) { cc_fail(44); return 1; }
+        width=cc.types[cc.types[type].element].width;
+        if(op==3) { cc_load_indirect(type); cc_op16(0x11,width); }
+        else {
+            push_value();
+            if(op==1) { cc_expect(',',3); integer_value(); cc_release(before); }
+            else cc_op16(0x21,width);
+        }
+    } else {
+        kind=expression();
+        if(cc_family(kind)!=K_POINTER) cc_fail(44);
+        cc_release(before);
+        if(op==4) {
+            push_value(); cc_expect(',',3); integer_value(); cc_release(before);
+            cc_emit(0xeb); cc_emit(0xe1);
+        }
+    }
+    cc_expect(')',5);
+    if(op==2) { cc_emit(0x3e); cc_emit(2); cc_call(RT_AVAIL); }
+    else cc_call(op<=1?RT_ALLOC:op<=4?RT_FREE:RT_RELEASE);
+    if(op<=2) { cc_emit(0xd1); cc_store_indirect(K_INTEGER); }
+    return 1;
+}

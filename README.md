@@ -110,7 +110,8 @@ Implemented functions include Ord, Chr, Succ, Pred, SizeOf, Addr, UpCase, Length
 Odd, Hi, Lo, Swap and the Integer forms of Abs/Sqr. Ord, Succ and Pred accept
 String/Char-array values of exactly one character; other lengths report runtime
 error 10. The compiler currently has
-512 symbol entries and 64 type descriptors (including five built-in entries).
+512 symbol entries (two reserved for HeapPtr/RecurPtr) and 64 type descriptors
+(including five built-in types).
 Exhaustion reports resource error 98. Arrays support ordinal bounds, nested or
 comma-separated dimensions, packed layout, whole-array assignment, typed
 initializers and value/Var parameters. R+ checks each index before access.
@@ -144,7 +145,16 @@ Addr and SizeOf. Pointers to the same target type are compatible, including
 Var parameters. Ptr converts an Integer address; Ord returns its address bits.
 Pointer-valued user functions use the scalar result convention; assign their
 result to a pointer variable before dereferencing. Pointer constants and pointer
-type casts remain rejected as in the reference. Heap allocation is still pending.
+type casts remain rejected as in the reference. New/GetMem allocate owned program memory; Mark/Release reclaims a saved frontier,
+and Dispose/FreeMem returns individual blocks. Use one reclamation regime per
+heap. FreeMem requires the original requested byte count; disposed pointers keep
+their dangling numeric value. MemAvail reports total usable free payload and
+MaxAvail the largest payload, excluding block headers. Native counts depend on
+the current stack and metadata; odd requests round up and zero-width allocations
+still consume a header. HeapPtr and RecurPtr expose the frontier and conservative
+stack boundary. StackPtr reads the CPU stack; assigning a saved value restores it
+within the owned range. Invalid allocation/stack bounds report FF and return to
+source. Direct memory-state manipulation with live frames/allocations is unsafe.
 
 An Integer-indexed Char array of at most 255 elements acts as a fixed-length
 string in expressions, comparisons and string APIs. Assigning to a Char array
@@ -181,7 +191,7 @@ and enum boundary fixtures exercise these features in Memory and saved native
 COM execution. The [routine fixture](tests/native/routines.pas) covers calls,
 recursion and string parameter copies. The string selection/operation fixtures
 cover index checks, aliasing, byte values and cleanup. The string result and
-boundary fixtures cover temporary cleanup and 255-byte values. Real6, heap allocation,
+boundary fixtures cover temporary cleanup and 255-byte values. Real6,
 Goto and the rest of the dialect remain in progress.
 
 ReadLn currently uses Zeal's cooked keyboard line editor and restores raw mode

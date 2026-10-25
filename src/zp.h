@@ -53,6 +53,14 @@
 #define RT_SETBIN 0x4111u
 #define RT_SETCMP 0x4114u
 #define RT_SETMEM 0x4117u
+#define RT_GUARD 0x411au
+#define RT_ALLOC 0x411du
+#define RT_FREE 0x4120u
+#define RT_RELEASE 0x4123u
+#define RT_AVAIL 0x4126u
+#define RT_STACKSET 0x4129u
+#define RT_HEAPPTR 0x412cu
+#define RT_RECURPTR 0x412eu
 #define DEFAULT_SOURCE "T:/src/pascal/UNTITLED.pas"
 enum { PAGE_SOURCE=1, PAGE_IMAGE, PAGE_MAP, PAGE_RUN, PAGE_SNAPSHOT, PAGE_COMPILER };
 

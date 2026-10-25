@@ -71,14 +71,11 @@ void cc_patch_chain(uint16_t head,uint16_t value) FRONTEND {
     }
 }
 void cc_reserve(uint16_t bytes) FRONTEND {
-    /* Alternate registers are restored on both paths. The fixed 64-byte
-     * reservation covers every nonrecursive runtime-helper path and syscall. */
     uint16_t pc=cc.emitted-(cc.image->code_origin-0x4000u);
-    cc_emit(0xd9); cc_emit(0x08); cc_op16(0x21,(uint16_t)(0u-64u-bytes)); cc_emit(0x39); /* save AF too */
-    cc_emit(0x30); cc_emit(5); /* wrap -> failure */
-    cc_emit(0x7c); cc_emit(0xfe); cc_emit(0xc8); cc_emit(0x30); cc_emit(8);
-    cc_emit(0x08); cc_emit(0xd9); cc_op16(0x21,pc); cc_op16(0xc3,RT_STACK);
-    cc_op16(0x21,pc); cc_op16(0x22,RT_PC); cc_emit(0x08); cc_emit(0xd9);
+    /* Runtime consumes inline size/PC words and preserves both register sets. */
+    cc_op16(0xcd,RT_GUARD);
+    cc_emit((uint8_t)bytes); cc_emit((uint8_t)(bytes>>8));
+    cc_emit((uint8_t)pc); cc_emit((uint8_t)(pc>>8));
 }
 void cc_guard(void) FRONTEND { cc_reserve(0); }
 void cc_temporary(uint16_t bytes) FRONTEND {
@@ -234,7 +231,12 @@ int16_t cc_lookup(void) FRONTEND {
     }
     for(;;) {
         i=cc.symbol_count;
-        while(i--) if(cc.symbols[i].role<S_FIELD&&cc.symbols[i].owner==scope&&cc.symbols[i].name_length==n) {
+        while(i--) if(cc.symbols[i].role<S_FIELD&&cc.symbols[i].owner==scope) {
+            if(cc.symbols[i].role==S_SYSTEM) {
+                if(cc_is(cc.symbols[i].address==RT_HEAPPTR?"heapptr":"recurptr")) return (int16_t)i;
+                continue;
+            }
+            if(cc.symbols[i].name_length!=n) continue;
             for(j=0;j<n;++j) if(cc.name[j]!=lower(get(cc.symbols[i].name_start+j))) break;
             if(j==n) return (int16_t)i;
         }
@@ -292,7 +294,7 @@ uint16_t cc_new_symbol(uint8_t role) FRONTEND {
     uint16_t id=cc.symbol_count;
     int16_t old=cc_lookup();
     if(cc.token!=T_ID) cc_fail(53);
-    else if(old>=0&&cc.symbols[old].owner==cc.scope) cc_fail(43);
+    else if(old>=0&&cc.symbols[old].owner==cc.scope&&cc.symbols[old].role!=S_SYSTEM) cc_fail(43);
     else if(id==SYMBOL_LIMIT) cc_fail(98);
     if(cc.error->code) return 0;
     memset(&cc.symbols[id],0,sizeof(Symbol));
@@ -330,7 +332,7 @@ uint8_t cc_compatible(uint8_t left,uint8_t right) FRONTEND {
 }
 uint8_t cc_variable(int16_t id) FRONTEND {
     return id>=0&&(cc.symbols[id].role==S_VARIABLE||cc.symbols[id].role==S_TYPED||
-           cc.symbols[id].role==S_VALUE||cc.symbols[id].role==S_REFERENCE||cc.symbols[id].role==S_RESULT||cc.symbols[id].role==S_FIELD);
+           cc.symbols[id].role==S_VALUE||cc.symbols[id].role==S_REFERENCE||cc.symbols[id].role==S_RESULT||cc.symbols[id].role==S_FIELD||cc.symbols[id].role==S_SYSTEM);
 }
 uint16_t cc_rget(uint8_t scope,uint8_t field) FRONTEND {
     uint16_t at=PAGE_SIZE-(uint16_t)scope*16+field;

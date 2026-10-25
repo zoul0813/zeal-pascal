@@ -67,3 +67,6 @@ add_executable(stringabi tests/native/stringabi.asm)
 zos_add_outputs(stringabi WITH_EXTENSION zpl)
 add_executable(setabi tests/native/setabi.asm)
 zos_add_outputs(setabi WITH_EXTENSION zpl)
+
+add_executable(pointerabi tests/native/pointerabi.asm)
+zos_add_outputs(pointerabi WITH_EXTENSION zpl)

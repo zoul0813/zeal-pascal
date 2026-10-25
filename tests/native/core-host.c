@@ -61,6 +61,19 @@ int main(int argc,char **argv) {
         check(source_import(&s,embedded,sizeof(embedded)-1,&d));
         check(compile(&s,&b,&d)); build_close(&b);
     }
+    invalid("var p:integer;begin new(p)end.",44);
+    invalid("begin new(nil)end.",44);
+    invalid("begin release(0)end.",44);
+    invalid("type p=^integer;var x:p;begin getmem(x,true)end.",23);
+    invalid("begin stackptr:=true end.",23);
+    invalid("begin writeln(addr(stackptr))end.",44);
+    invalid("begin writeln(memavail())end.",5);
+    invalid("type n=record p:^n end;begin end.",42);
+    invalid("type n=record p:^later end;later=integer;begin end.",42);
+    load("var p:^integer;integer:char;begin integer:='A';writeln(sizeof(p^))end.");
+    check(compile(&s,&b,&d)); build_close(&b);
+    load("type n=integer;r=record p:^n end;var x:r;begin x.p:=nil end.");
+    check(compile(&s,&b,&d)); build_close(&b);
     invalid("type p=^missing;begin end.",42);
     invalid("type p=^later;var later:integer;begin end.",42);
     invalid("type p=^integer;const x:p=nil;begin end.",61);
@@ -299,7 +312,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {
@@ -311,10 +324,10 @@ int main(int argc,char **argv) {
             }
         }
         {
-            const char *names[]={"stringabi","setabi","pointers","ptrargs","ordchar"};
+            const char *names[]={"stringabi","setabi","pointerabi"};
             unsigned abi;
             char path[80];
-            for(abi=0;abi<2;++abi) {
+            for(abi=0;abi<sizeof(names)/sizeof(names[0]);++abi) {
                 snprintf(path,sizeof(path),"tests/native/%s.pas",names[abi]);
                 file=fopen(path,"rb"); check(file!=NULL);
                 n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));

@@ -243,6 +243,7 @@ static void statement(void) {
         }
     } else if((cc_is("delete")||cc_is("insert"))&&cc_lookup()<0) {
         cc_string_statement(cc_is("insert"));
+    } else if(cc_heap_statement()) {
     } else if((cc_is("halt")||cc_is("exit"))&&cc_lookup()<0) {
         newline=cc_is("halt"); cc_next();
         if(newline) cc_op16(0xc3,RT_HALT); else cc_exit();
@@ -330,6 +331,12 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     cc_new_type(K_BOOLEAN,1,0,1,0);
     cc_new_type(K_CHAR,1,0,255,0);
     cc_new_type(K_INTEGER,1,0,255,0); /* Byte shares the Integer family */
+    for(i=0;i<2;++i) {
+        memset(&cc.symbols[i],0,sizeof(Symbol));
+        cc.symbols[i].role=S_SYSTEM; cc.symbols[i].type=K_INTEGER;
+        cc.symbols[i].address=i?RT_RECURPTR:RT_HEAPPTR;
+    }
+    cc.symbol_count=2;
     cc.file_bytes=40+(uint16_t)strlen(s->path);
     cc_next();
     if(cc_is("program")) {

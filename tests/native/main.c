@@ -7,6 +7,9 @@
  * debugger console. No emulated syscall or host Pascal interpreter is used. */
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done;
+/* Executed only after completion. Pascal code/static ends below C000, so an
+ * address-only debugger stop here cannot match any generated runtime helper. */
+uint8_t test_stop[3]={0x76,0x18,0xfd};
 volatile uint16_t test_failures[64],test_index;
 volatile uint8_t test_hash[32];
 static Source s;
@@ -42,7 +45,7 @@ static uint8_t seed(const char *path,const char *text) {
 static uint8_t saved_corpus(void) {
     switch(test_stage) {
     case 9: case 11: case 13: case 15: case 17: case 19:
-    case 21: case 23: case 25: case 27: return 1;
+    case 21: case 23: case 25: case 27: case 29: return 1;
     default: return 0;
     }
 }
@@ -291,6 +294,31 @@ static void pointer_tests(void) {
     checked_error("type a=array[1..2]of byte;p=^a;var x:p;v:a;begin x:=ptr(addr(v));{$R+}\nx^[3]:=0 end.",0x90,"x^[3]");
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
+static void heap_tests(void) {
+    int8_t capture=open("H:/HEAP.TXT",O_WRONLY|O_CREAT|O_TRUNC);
+    check(capture>=0);
+    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
+    test_stage=29;
+    execution_file("H:/HEAPMARK.PAS",1,0,0);
+    execution_file("H:/HEAPFREE.PAS",1,0,0);
+    execution_file("H:/POINTERABI.PAS",1,0,0);
+    test_stage=30;
+    checked_error("type p=^integer;var x:p;begin\ngetmem(x,-1)end.",0xff,"getmem");
+    checked_error("type p=^integer;var x:p;begin\nwhile true do getmem(x,1024)end.",0xff,"getmem");
+    checked_error("type p=^integer;var x:p;begin heapptr:=0;\nnew(x)end.",0xff,"new");
+    checked_error("type p=^integer;var x:p;begin x:=nil;\nrelease(x)end.",0xff,"release");
+    checked_error("type p=^integer;var x:p;begin new(x);dispose(x);\ndispose(x)end.",0xff,"dispose(x)end");
+    checked_error("type p=^integer;var x:p;begin getmem(x,10);\nfreemem(x,8)end.",0xff,"freemem");
+    checked_error("{$A-}type p=^integer;var x:p;procedure tight;var a:array[1..512]of byte;begin end;begin getmem(x,maxavail);tight end.",0xff,"tight");
+    checked_error("type p=^integer;var x:p;s:string[255];begin s:='a';getmem(x,maxavail-64);\nwriteln(s+'')end.",0xff,"writeln");
+    checked_error("type p=^integer;text=string[255];var x:p;s:text;\nprocedure accept(v:text);begin end;\nbegin s:='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-';\ns:=s+s;getmem(x,maxavail-64);\naccept(s)end.",0xff,"accept(s)");
+    checked_error("begin\nstackptr:=0 end.",0xff,"stackptr");
+    checked_error("begin\nstackptr:=$C7FF end.",0xff,"stackptr");
+    checked_error("begin\nstackptr:=$FC01 end.",0xff,"stackptr");
+    checked_error("begin\nstackptr:=$FFFF end.",0xff,"stackptr");
+    execution("begin stackptr:=$C800;halt end.",4,0);
+    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
+}
 static void media_tests(void) {
     uint8_t attempt,status;
     int8_t capture;
@@ -427,6 +455,7 @@ int app_main(void) {
     record_tests();
     set_tests();
     pointer_tests();
+    heap_tests();
     source_close(&s); check(pages_used()==code_required);
     code_hash(digest); check(!memcmp(digest,initial_code_hash,32));
     test_stage=6; test_done=255;

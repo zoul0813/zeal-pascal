@@ -576,11 +576,13 @@ def main():
                    boot_memory.get(boot['_boot_done']) == 255 and boot_memory.get(boot['_boot_failed']) == 0))
     checks.extend(bank_lifecycle_checks())
     sym = symbols('zptest')
+    if not 0xc000 <= sym['_test_stop'] <= 0xc7fd:
+        raise RuntimeError('completion stop must be in supervisor data below the managed Pascal stack')
     kernel = kernel_symbols()
     cooked, mode = kernel['keyboard_read_cooked'], kernel['kb_mode']
     keyboard_ioctl = kernel['keyboard_ioctl']
     commands = ['run 100000000'] + program_launch('zptest')
-    commands += ['run 100000000', f"bp 0x{sym['_test_complete']:x}"]
+    commands += ['run 100000000', f"bp 0x{sym['_test_stop']:x}"]
     # Wait for the actual first cooked read. Observe the restoration ioctl while
     # kernel RAM is mapped: reading kb_mode from user C000 would inspect an
     # unrelated user page. The pinned setter takes 12 instructions through RET.
@@ -738,6 +740,25 @@ def main():
     pointer_expected += b'ORDINAL-STRING-CHAR-OK\r\nORDINAL-CHARARRAY-OK\r\nORDINAL-CHAR-TEMPORARY-CLEANUP-OK\r\n' * 2
     checks.append(('typed pointers, selected addresses, pointer calls and ordinal String conversions in RAM/COM',
                    pointer_output.is_file() and pointer_output.read_bytes() == pointer_expected))
+    heap_output = RUN / 'core/hostfs/HEAP.TXT'
+    heap_expected = b''
+    for markers in (
+        ('HEAP-NEW-INTEGER-OK','HEAP-GETMEM-SIZE-OK','HEAP-LINKED-RECORD-OK',
+         'HEAP-SELECTED-TARGET-ONCE-OK','HEAP-RELEASE-FRONTIER-OK',
+         'HEAP-MARK-RELEASE-CLEANUP-OK','HEAP-ZERO-WIDTH-NONNIL-OK',
+         'HEAP-STACKPTR-RESTORE-OK','HEAP-OWNED-BOUNDS-OK'),
+        ('HEAP-DISPOSE-RESTORE-OK','HEAP-FREEMEM-RESTORE-OK','HEAP-FIRST-FIT-SPLIT-OK',
+         'HEAP-COALESCE-NEIGHBORS-OK','HEAP-COALESCE-TAIL-RESTORE-OK',
+         'HEAP-ODD-SIZE-CLEANUP-OK','HEAP-MAXAVAIL-OK'),
+        ('EXTERNAL-POINTER-WORDS-OK','EXTERNAL-POINTER-NIL-OK'),
+    ):
+        heap_expected += ''.join(marker+'\r\n' for marker in markers).encode() * 2
+    checks.append(('heap allocation, reuse, coalescing, Mark/Release, state and pointer ABI in RAM/COM',
+                   heap_output.is_file() and heap_output.read_bytes() == heap_expected))
+    pointer_image = RUN / 'core/hostfs/POINTERABI.COM'
+    pointer_code = (ROOT / 'build/pointerabi.zpl').read_bytes()
+    checks.append(('native external pointer payload matches independently assembled two-word probe',
+                   pointer_image.is_file() and pointer_image.read_bytes()[0x4004:0x4004+len(pointer_code)] == pointer_code))
     set_image = RUN / 'core/hostfs/SETABI.COM'
     set_code = (ROOT / 'build/setabi.zpl').read_bytes()
     checks.append(('native external set payload matches independently assembled 32-byte argument probe',
@@ -785,7 +806,7 @@ def main():
         'native_completion_tstates_including_boot':
             int(re.findall(r'cyc=(\d+)', text)[-1]) if re.findall(r'cyc=(\d+)', text) else None,
         'artifacts': {str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p): sha(p)
-                      for p in [EMULATOR, ROM, KERNEL_MAP, TF_TEMPLATE, COREUTILS / 'mkdir', COREUTILS / 'cp', ROOT / 'build/zpascal.bin', ROOT / 'build/zpascal.zpl', ROOT / 'build/zptest.bin', ROOT / 'build/zptest.zpl', ROOT / 'build/stringabi.zpl', ROOT / 'build/setabi.zpl']},
+                      for p in [EMULATOR, ROM, KERNEL_MAP, TF_TEMPLATE, COREUTILS / 'mkdir', COREUTILS / 'cp', ROOT / 'build/zpascal.bin', ROOT / 'build/zpascal.zpl', ROOT / 'build/zptest.bin', ROOT / 'build/zptest.zpl', ROOT / 'build/stringabi.zpl', ROOT / 'build/setabi.zpl', ROOT / 'build/pointerabi.zpl']},
         'checks': [{'check': label, 'passed': ok} for label, ok in checks],
     }
     (RUN / 'report.json').write_text(json.dumps(report, indent=2) + '\n')

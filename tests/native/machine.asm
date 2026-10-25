@@ -1,12 +1,11 @@
 .module test_machine
 .globl _test_machine
-.globl _test_complete
+.globl _test_complete, _test_stop
 .area _TEXT
-; A resident stop avoids false debugger hits at the same virtual address in
-; another bank. This is a test marker, not a product entry point.
+; The initialized supervisor data-page stop is disjoint from Pascal code.
+; This is a test marker, not a product entry point.
 _test_complete::
-    halt
-    jr _test_complete
+    jp _test_stop
 ; Test-only observation of IFF, exact caller SP and all four MMU mappings.
 ; No page, interrupt state, stack or index register is changed.
 _test_machine::
