@@ -20,9 +20,9 @@ static void map32(uint16_t p,uint32_t v) { uint8_t i; for(i=0;i<4;++i) map8(p+i,
 static uint16_t pc(void) { return cc.emitted-(cc.image->code_origin-0x4000u); }
 
 static uint8_t expression(void);
-enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR };
+enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR,F_LENGTH };
 static int16_t predefined_function(void) {
-    static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr"};
+    static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length"};
     uint8_t i;
     for(i=0;i<sizeof(functions)/sizeof(functions[0]);++i) if(cc_is(functions[i])) return i;
     return -1;
@@ -30,6 +30,7 @@ static int16_t predefined_function(void) {
 static void negate(void) { cc_emit(0x7d); cc_emit(0x2f); cc_emit(0x6f); cc_emit(0x7c); cc_emit(0x2f); cc_emit(0x67); cc_emit(0x23); }
 static uint8_t intrinsic(uint8_t op) {
     uint8_t kind=K_INTEGER;
+    uint16_t before=cc.temporaries;
     int16_t id;
     cc_next(); cc_expect('(',4);
     if(op==F_SIZEOF||op==F_ADDR) {
@@ -44,6 +45,12 @@ static uint8_t intrinsic(uint8_t op) {
     }
     kind=expression(); cc_expect(')',5);
     if(cc.error->code) return K_INTEGER;
+    if(op==F_LENGTH) {
+        if(cc_family(kind)==K_STRING) { cc_emit(0x6e); cc_emit(0x26); cc_emit(0); }
+        else if(cc_family(kind)==K_CHAR) cc_op16(0x21,1);
+        else cc_fail(44);
+        cc_release(before); return K_INTEGER;
+    }
     if(op==F_ORD||op==F_SUCC||op==F_PRED) {
         if(cc_family(kind)==K_STRING) cc_fail(44);
         if(op==F_ORD) return K_INTEGER;
@@ -55,6 +62,7 @@ static uint8_t intrinsic(uint8_t op) {
         if(cc_family(kind)==K_STRING) cc_call(RT_STRINGCHAR); else if(cc_family(kind)!=K_CHAR) cc_fail(44);
         cc_emit(0x7d); cc_emit(0xfe); cc_emit('a'); cc_emit(0x38); cc_emit(7);
         cc_emit(0xfe); cc_emit('z'+1); cc_emit(0x30); cc_emit(3); cc_emit(0xd6); cc_emit(32); cc_emit(0x6f);
+        cc_release(before);
         return K_CHAR;
     }
     if(cc_family(kind)!=K_INTEGER) cc_fail(23);
@@ -69,6 +77,7 @@ static uint8_t intrinsic(uint8_t op) {
 }
 static uint8_t factor(void) {
     int16_t id,fn=-1;
+    uint16_t before;
     uint8_t negative,kind=K_INTEGER;
     if(++cc.depth>24) { cc_fail(98); --cc.depth; return 0; }
     if(cc.token=='+'||cc.token=='-') {
@@ -97,12 +106,14 @@ static uint8_t factor(void) {
         if((id>=0&&cc.symbols[id].role==S_TYPE)||(id<0&&(fn=cc_predefined_type())>=0)) {
             kind=id>=0?cc.symbols[id].type:(uint8_t)fn;
             cc_next(); cc_expect('(',4);
+            before=cc.temporaries;
             negative=expression(); cc_expect(')',5);
             if(cc_family(kind)==K_STRING) cc_fail(44);
             else if(cc_family(kind)==K_CHAR&&cc_family(negative)==K_STRING) cc_call(RT_STRINGCHAR);
             else if(cc_family(negative)==K_STRING) cc_fail(44);
             cc_check_range(kind);
             if(cc.types[kind].width==1) { cc_emit(0x26); cc_emit(0); }
+            cc_release(before);
         } else if(id<0&&(fn=predefined_function())>=0) kind=intrinsic((uint8_t)fn);
         else if(id<0&&(cc_is("true")||cc_is("false"))) {
             cc_op16(0x21,cc_is("true")?1:0); kind=K_BOOLEAN; cc_next();
@@ -140,14 +151,38 @@ static uint8_t term(void) {
     }
     return kind;
 }
+static uint8_t text(uint8_t kind) { return cc_family(kind)==K_STRING||cc_family(kind)==K_CHAR; }
+static void hold_left(uint8_t kind,uint16_t before) {
+    if(cc_family(kind)==K_STRING&&cc.temporaries==before) {
+        cc_call(RT_HOLDSTRING); cc.temporaries+=256;
+    }
+}
+/* Right-hand string results may lie below the saved left operand. Reading
+ * that word must not pop through live result bytes before the operation. */
+static void left_operand(uint16_t right_bytes) {
+    if(!right_bytes) cc_emit(0xd1);
+    else {
+        cc_emit(0x44); cc_emit(0x4d); cc_op16(0x21,right_bytes); cc_emit(0x39);
+        cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0x60); cc_emit(0x69);
+    }
+}
 static uint8_t simple_expression(void) {
-    uint16_t op;
+    uint16_t op,before=cc.temporaries,right_before,right_bytes,owned;
     uint8_t right,base,kind=term();
     while(!cc.error->code&&(cc.token=='+'||cc.token=='-'||cc_is("or")||cc_is("xor"))) {
         op=cc.token=='+'||cc.token=='-'?cc.token:cc_is("or")?'|':'^';
         base=cc_family(kind);
-        if(base!=K_INTEGER&&((op=='+'||op=='-')||base!=K_BOOLEAN)) cc_fail(47);
-        cc_next(); cc_guard(); cc_emit(0xe5); right=term(); cc_emit(0xd1);
+        if(op=='+'&&text(kind)) hold_left(kind,before);
+        else if(base!=K_INTEGER&&((op=='+'||op=='-')||base!=K_BOOLEAN)) cc_fail(47);
+        cc_next(); cc_guard(); cc_emit(0xe5); right_before=cc.temporaries;
+        right=term(); right_bytes=cc.temporaries-right_before; left_operand(right_bytes);
+        if(op=='+'&&text(kind)) {
+            if(!text(right)) cc_fail(47);
+            owned=cc.temporaries-before+(right_bytes?2:0);
+            cc_op16(0x01,owned); cc_emit(0x3e);
+            cc_emit((cc_family(kind)==K_CHAR?1:0)|(cc_family(right)==K_CHAR?2:0)); cc_call(RT_CONCAT);
+            cc.temporaries=before+256; kind=K_STRING; continue;
+        }
         if(cc_family(right)!=base) cc_fail(47);
         if(op=='+') cc_emit(0x19);
         else if(op=='-') { cc_emit(0xeb); cc_emit(0xb7); cc_emit(0xed); cc_emit(0x52); }
@@ -157,14 +192,19 @@ static uint8_t simple_expression(void) {
     return kind;
 }
 static uint8_t expression(void) {
+    uint16_t before=cc.temporaries,right_before,right_bytes;
     uint8_t kind=simple_expression(),right,jump;
     uint16_t op=cc.token;
     if(op!='='&&op!=T_NE&&op!='<'&&op!='>'&&op!=T_LE&&op!=T_GE) return kind;
-    cc_next(); cc_guard(); cc_emit(0xe5); right=simple_expression(); cc_emit(0xd1);
+    hold_left(kind,before);
+    cc_next(); cc_guard(); cc_emit(0xe5); right_before=cc.temporaries;
+    right=simple_expression(); right_bytes=cc.temporaries-right_before; left_operand(right_bytes);
     if(!cc_compatible(kind,right)) cc_fail(47);
     if(cc_family(kind)==K_STRING||cc_family(right)==K_STRING) {
         cc_emit(0x3e); cc_emit((cc_family(kind)==K_CHAR?1:0)|(cc_family(right)==K_CHAR?2:0)); cc_call(RT_TEXTCMP);
     } else cc_call(RT_COMPARE);
+    if(right_bytes) cc_drop_stack(2);
+    cc_release(before);
     /* Three-way comparison returns exactly -1, 0, +1. Normalize every
      * relational expression to a one-byte Boolean, held zero-extended in HL. */
     if(op=='='||op==T_NE) { cc_emit(0x7c); cc_emit(0xb5); jump=op=='='?0x28:0x20; }
@@ -210,8 +250,10 @@ static void case_compare(uint16_t value) {
 static void case_statement(uint16_t start,uint16_t code) {
     uint8_t selector;
     uint16_t matches,exits=0,miss,skip,lo,hi;
+    uint16_t before=cc.temporaries;
     cc_next(); selector=expression();
     if(cc_family(selector)==K_STRING) cc_fail(41);
+    cc_release(before);
     cc_keyword("of",15); cc_guard(); cc_emit(0xe5);
     if(cc_is("end")||cc_is("else")) cc_fail(41);
     mapping(code,pc(),start,cc.token_start);
@@ -257,6 +299,7 @@ static void statement(void) {
     uint16_t start=cc.token_start, code=pc(),branch,other,loop,body,head_end;
     int16_t id;
     uint8_t newline,kind;
+    uint16_t before=cc.temporaries;
     if(++cc.depth>24) { cc_fail(98); --cc.depth; return; }
     if(cc_is("begin")) {
         cc_next();
@@ -301,12 +344,16 @@ static void statement(void) {
         else if(cc_family(cc.symbols[id].type)==K_STRING||cc.symbols[id].control) cc_fail(44);
         cc_next(); cc_expect(T_ASSIGN,7);
         kind=expression();
+        if(cc_family(kind)==K_STRING) cc_fail(44);
         if(id>=0) cc_convert(cc.symbols[id].type,kind);
+        cc_release(before);
         cc_guard(); cc_emit(0xe5); /* initial, not assigned until a nonzero trip */
         newline=cc_is("downto");
         if(!cc_is("to")&&!newline) cc_fail(18); else cc_next();
         kind=expression();
+        if(cc_family(kind)==K_STRING) cc_fail(44);
         if(id>=0) cc_convert(cc.symbols[id].type,kind);
+        cc_release(before);
         cc_emit(0xd1); cc_guard(); cc_emit(0xe5); /* keep final bound across the body */
         cc_call(RT_COMPARE); /* DE initial survives; HL -> signed three-way */
         cc_emit(0x7d); cc_emit(0xfe); cc_emit(newline?255:1); branch=cc_forward(0xca);
@@ -336,6 +383,7 @@ static void statement(void) {
                 if(kind>K_CHAR) cc_fail(44);
                 if(kind==K_CHAR) cc_emit(0x7d);
                 cc_call(kind==K_STRING?RT_STRING:kind==K_BOOLEAN?RT_BOOLEAN:kind==K_CHAR?RT_CHAR:RT_INTEGER);
+                cc_release(before);
                 if(cc.token!=',') break;
                 cc_next();
             } while(!cc.error->code);
@@ -375,6 +423,7 @@ static void statement(void) {
                 cc_destination((uint16_t)id); cc_emit(0x0e); cc_emit(cc.types[cc.symbols[id].type].capacity);
                 cc_call(cc_family(kind)==K_CHAR?RT_CHARCOPY:RT_COPY);
             } else cc_store_symbol((uint16_t)id);
+            cc_release(before);
         }
     } else if(cc.token!=';'&&!cc_is("end")&&!cc_is("else")&&!cc_is("until")) cc_fail(54);
     mapping(code,pc(),start,cc.token_start);
@@ -423,6 +472,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     for(i=0;i<(uint16_t)(runtime_end-runtime_start);++i) cc_put(i,runtime_start[i]);
     cc.scan=0; cc.symbol_count=0; cc.depth=0; cc.entries=0; cc.range_check=0; cc.type_count=0; cc.relocations=0;
     cc.scope=0; cc.routine_count=0; cc.absolute_mode=1; cc.var_strict=1; cc.nesting=0;
+    cc.temporaries=0;
     cc_new_type(K_INTEGER,2,-32768,32767,0);
     cc_new_type(K_STRING,0,0,0,0); /* expression/literal string, not a storage type */
     cc_new_type(K_BOOLEAN,1,0,1,0);

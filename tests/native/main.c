@@ -54,7 +54,7 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
         check(seed("H:/SLICE.COM","old executable")); check(seed("H:/SLICE.ZMP","old map"));
         check(save_build(&s,&b));
     }
-    if(test_stage==7||test_stage==9||test_stage==11||test_stage==13||test_stage==15) check(save_build(&s,&b));
+    if(test_stage==7||test_stage==9||test_stage==11||test_stage==13||test_stage==15||test_stage==17) check(save_build(&s,&b));
     owned=pages_used();
     test_machine(before);
     check(run_build(&s,&b));
@@ -83,7 +83,7 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
         check(exec(EXEC_PRESERVE_PROGRAM,"H:/NAME.COM",0,&status)==0&&status==0);
         check(pages_used()==owned);
     }
-    if(test_stage==9||test_stage==11||test_stage==13||test_stage==15) {
+    if(test_stage==9||test_stage==11||test_stage==13||test_stage==15||test_stage==17) {
         uint8_t status=255;
         check(run_saved(&s,&b,&status)&&status==0); check(pages_used()==owned);
     }
@@ -150,6 +150,30 @@ static void routine_tests(void) {
     checked_error("function fail(x:integer):integer; begin fail:=7 div x end; begin writeln(fail(0)) end.",2,"fail:=");
     checked_error("procedure p(x:byte); begin end; begin {$R+} p(256) end.",0x91,"p(256)");
     execution("procedure p; begin halt end; begin p end.",4,0);
+    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
+}
+static void string_tests(void) {
+    char tight[512];
+    uint16_t n;
+    uint8_t i;
+    int8_t capture=open("H:/SRESULT.TXT",O_WRONLY|O_CREAT|O_TRUNC);
+    check(capture>=0);
+    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
+    test_stage=17;
+    execution_file("H:/STRINGFN.PAS",1,0,0);
+    execution_file("H:/STRLIFE.PAS",1,0,0);
+    execution_file("H:/STRBOUND.PAS",1,0,0);
+    execution_file("H:/STRINGABI.PAS",1,0,0);
+    test_stage=18;
+    checked_error("type text=string[3]; var c:char; function bad:text; begin bad:='ab' end; begin\nc:=bad end.",0x10,"c:=bad");
+    checked_error("var s:string[255]; t:string[1]; begin\ns:='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-';\ns:=s+s;\nt:=s+s end.",0x10,"t:=s+s");
+    strcpy(tight,"{$A-} type big=string[255]; function value:big; begin value:='' end; procedure tight; var\n");
+    for(i=0;i<51;++i) {
+        n=(uint16_t)strlen(tight); tight[n++]='p'; tight[n++]='a'+i/26;
+        tight[n++]='a'+i%26; tight[n++]=i<50?',':':'; tight[n++]='\n'; tight[n]=0;
+    }
+    strcat(tight,"big; begin writeln(value) end; begin tight end.");
+    checked_error(tight,0xff,"writeln(value)");
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
 static void media_tests(void) {
@@ -282,6 +306,7 @@ int app_main(void) {
     ordinal_tests();
     case_tests();
     routine_tests();
+    string_tests();
     source_close(&s); check(pages_used()==code_required);
     code_hash(digest); check(!memcmp(digest,initial_code_hash,32));
     test_stage=6; test_done=255;

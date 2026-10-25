@@ -1,0 +1,40 @@
+program StringFunctions;
+type text=string[12]; short=string[3];
+var s:text; seen,n:integer; c:char;
+function echo(v:text):text;
+begin echo:=v end;
+function empty:text;
+begin empty:='' end;
+function tiny:short;
+begin tiny:='abcdef' end;
+function one:text;
+begin one:='q' end;
+function ending:text;
+begin ending:='s' end;
+function early(x:integer):text;
+begin early:='first'; if x=0 then exit; early:='last' end;
+procedure accept(a:integer; v:short; b:integer);
+begin if (a=123) and (b=456) and (v='abc') then seen:=seen+1 end;
+procedure character_value(v:char; x:integer);
+begin if (v='q') and (x=123) then seen:=seen+1 end;
+begin
+ s:=echo('abcdef');
+ if (s='abcdef') and (echo(echo(echo('abc')))='abc') then writeln('STRING-RETURN-NESTED-OK');
+ if (length(empty)=0) and (empty='') and (length(tiny)=3) and (tiny='abc') then writeln('STRING-RETURN-LENGTH-OK');
+ if (early(0)='first') and (early(1)='last') then writeln('STRING-EXIT-OK');
+ c:=one;
+ if (c='q') and (upcase(one)='Q') and (ord(char(one))+1=114) then writeln('STRING-CHAR-CONSUMERS-OK');
+ n:=0;
+ for c:=char(one) to char(ending) do n:=n+1;
+ if (n=3) and (c='s') then writeln('STRING-FOR-BOUND-CLEANUP-OK');
+ seen:=0;
+ accept(123,echo('abcdefgh'),456); character_value(one,123);
+ if seen=2 then writeln('RESULT-AS-ARGUMENT-OK');
+ seen:=0;
+ for n:=1 to 1000 do begin
+   accept(123,echo(echo('abcdefgh')),456);
+   if (echo('a')+echo('b')='ab') and (length(tiny)=3) then seen:=seen+1;
+ end;
+ if seen=2000 then writeln('STRING-TEMPORARY-CLEANUP-OK');
+ writeln('RETURN=',echo('abc'),'/',tiny);
+end.

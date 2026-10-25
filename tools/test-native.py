@@ -593,8 +593,8 @@ def main():
         commands += type_text('abcdefghi\n\n', ticks=2000000)
         commands += ['run 1000000000']
     # The completion breakpoint is mandatory; this bounded budget includes the
-    # additional RAM/COM Case loop and three source-recovery executions.
-    commands += ['run 26000000000', 's', 'regs', 'mmu']
+    # RAM/COM control/routine/string corpora and source-recovery executions.
+    commands += ['run 40000000000', 's', 'regs', 'mmu']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage', '_platform_error'):
         commands.append(f"rb 0x{sym[name]:x} 2")
     if '_test_failures' in sym:
@@ -654,6 +654,26 @@ def main():
                         'LATE-GLOBAL-LAYOUT-OK\n').replace('\n','\r\n').encode() * 2
     checks.append(('routine scopes, forwards, value/VAR/string arguments, recursive lexical frames and cleanup in RAM and COM',
                    routine_output.is_file() and routine_output.read_bytes() == routine_expected))
+    string_output = RUN / 'core/hostfs/SRESULT.TXT'
+    string_expected = b''
+    for lines in (
+        'STRING-RETURN-NESTED-OK\nSTRING-RETURN-LENGTH-OK\nSTRING-EXIT-OK\n'
+        'STRING-CHAR-CONSUMERS-OK\nSTRING-FOR-BOUND-CLEANUP-OK\nRESULT-AS-ARGUMENT-OK\n'
+        'STRING-TEMPORARY-CLEANUP-OK\nRETURN=abc/abc\n',
+        'STATIC-RESULT-COPY-OK\nRECURSIVE-STRING-RESULT-OK\nSTRING-COMPARE-SNAPSHOT-OK\n'
+        'STRING-CONCAT-SNAPSHOT-OK\nCONCAT-CHAR-EMPTY-OK\nCONCAT-ORDER-OK\n',
+        'STRING-255-RESULT-OK\nSTRING-255-NESTED-OK\nSTRING-RESULT-TRUNCATE-OK\n'
+        'STRING-255-ARGUMENT-CLEANUP-OK\nSTRING-ZERO-RESULT-OK\n',
+        'EXTERNAL-STRING-ABI-OK\nEXTERNAL-ZERO-ARGUMENT-OK\nEXTERNAL-ONE-ARGUMENT-OK\n'
+        'EXTERNAL-255-ARGUMENT-OK\n',
+    ):
+        string_expected += lines.replace('\n','\r\n').encode() * 2
+    checks.append(('string results, concatenation, snapshots, length, 0/255-byte arguments and repeated cleanup in RAM/COM',
+                   string_output.is_file() and string_output.read_bytes() == string_expected))
+    abi_image = RUN / 'core/hostfs/STRINGABI.COM'
+    abi_code = (ROOT / 'build/stringabi.zpl').read_bytes()
+    checks.append(('native external string payload matches independently assembled ABI probe',
+                   abi_image.is_file() and abi_image.read_bytes()[0x4004:0x4004+len(abi_code)] == abi_code))
     media_output = RUN / 'core/hostfs/MEDIA.TXT'
     disk = (RUN / 'core/eeprom.img').read_bytes()
     try:
@@ -693,7 +713,7 @@ def main():
         'native_completion_tstates_including_boot':
             int(re.findall(r'cyc=(\d+)', text)[-1]) if re.findall(r'cyc=(\d+)', text) else None,
         'artifacts': {str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p): sha(p)
-                      for p in [EMULATOR, ROM, KERNEL_MAP, TF_TEMPLATE, COREUTILS / 'mkdir', COREUTILS / 'cp', ROOT / 'build/zpascal.bin', ROOT / 'build/zpascal.zpl', ROOT / 'build/zptest.bin', ROOT / 'build/zptest.zpl']},
+                      for p in [EMULATOR, ROM, KERNEL_MAP, TF_TEMPLATE, COREUTILS / 'mkdir', COREUTILS / 'cp', ROOT / 'build/zpascal.bin', ROOT / 'build/zpascal.zpl', ROOT / 'build/zptest.bin', ROOT / 'build/zptest.zpl', ROOT / 'build/stringabi.zpl']},
         'checks': [{'check': label, 'passed': ok} for label, ok in checks],
     }
     (RUN / 'report.json').write_text(json.dumps(report, indent=2) + '\n')

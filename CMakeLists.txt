@@ -58,3 +58,6 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/test_sdk_startup.asm CONTENT
 add_executable(zpbootfail ${CMAKE_BINARY_DIR}/test_sdk_startup.asm tests/native/startup-fail.c)
 target_compile_options(zpbootfail PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 zos_add_outputs(zpbootfail)
+# Independent test-only native procedure bytes; not deployed with the product.
+add_executable(stringabi tests/native/stringabi.asm)
+zos_add_outputs(stringabi WITH_EXTENSION zpl)

@@ -34,6 +34,9 @@
     jp string_character         ; 40E1: HL short string -> zero-extended Char
     jp compare_text             ; 40E4: DE left, HL right, A Char operand flags
     jp push_string              ; 40E7: push current length+1 value argument
+    jp argument_string          ; 40EA: consume fixed temporary as value argument
+    jp hold_string              ; 40ED: snapshot HL into a fixed 256-byte slot
+    jp concatenate              ; 40F0: DE left, HL right, A Char flags, BC owned bytes
 
 ; This prefix is deliberately separate from the C compiler's ABI. Only the
 ; private helper entries above are emitted in this first language increment.
@@ -196,6 +199,9 @@ character_length_error:
     ld b,#2
     jp call_error
 compare_text:
+    call prepare_text
+    jp compare_string
+prepare_text:
     ld c,a
     bit 0,c
     jr z,text_right
@@ -209,13 +215,14 @@ compare_text:
     dec de
 text_right:
     bit 1,c
-    jr z,compare_string
+    ret z
     ld b,l
     ld hl,#text_right_char
     ld (hl),#1
     inc hl
     ld (hl),b
     dec hl
+    ret
 compare_string:
     ld a,(de)
     ld b,a
@@ -576,10 +583,126 @@ push_string:
     ex de,hl
     ld hl,(argument_source)
     ldir
-    ld hl,(argument_return)
-    jp (hl)
+    jp string_return
 argument_overflow:
     ld hl,(0x40be)
     jp stack_error
 argument_return: .dw 0
 argument_source: .dw 0
+
+; A function/concatenation owns a fixed maximum-size result slot. A value
+; actual must occupy only its current length+1 bytes, without leaving padding
+; between earlier actuals and this one. BC is the fixed slot's owned size.
+argument_string:
+    ld (argument_source),hl
+    pop de
+    ld (argument_return),de
+    ld e,(hl)
+    ld d,#0
+    inc de
+    ld h,b
+    ld l,c
+    or a
+    sbc hl,de
+    jp c,character_length_error
+    ld hl,#0
+    add hl,sp
+    add hl,bc
+    or a
+    sbc hl,de
+    ld sp,hl
+    ex de,hl
+    ld b,h
+    ld c,l
+    ld hl,(argument_source)
+    jr move_string_tail
+
+hold_string:
+    ld (argument_source),hl
+    pop bc
+    ld (argument_return),bc
+    ld hl,#0xfec0              ; prospective SP minus 256 and emergency 64
+    add hl,sp
+    jr nc,argument_overflow
+    ld a,h
+    cp #0xc8
+    jr c,argument_overflow
+    ld hl,#0xff00
+    add hl,sp
+    ld sp,hl
+    ex de,hl
+    ld hl,(argument_source)
+    ld c,(hl)
+    ld b,#0
+    inc bc
+    ldir
+string_return:
+    ld hl,#0
+    add hl,sp
+    ld de,(argument_return)
+    push de                    ; guarded emergency space, below result bytes
+    ret
+
+; Moving upward can overlap. No push/call may overwrite the source after
+; changing SP and before LDDR completes. BC is always length+1, never zero.
+move_string_tail:
+    add hl,bc
+    dec hl
+    ex de,hl
+    add hl,bc
+    dec hl
+    ex de,hl
+    lddr
+    jr string_return
+
+concatenate:
+    ld (concatenate_drop),bc
+    call prepare_text
+    ld (concatenate_left),de
+    ld (concatenate_right),hl
+    pop hl
+    ld (concatenate_return),hl
+    ld hl,(concatenate_left)
+    call hold_string
+    ld a,(hl)
+    ld (concatenate_length),a
+    ld de,(concatenate_right)
+    ld a,(de)
+    ld c,a
+    ld b,#0
+    ld a,(concatenate_length)
+    add a,c
+    jp c,character_length_error
+    ld (hl),a
+    ld a,(concatenate_length)
+    ld e,a
+    ld d,#0
+    inc de
+    add hl,de
+    ex de,hl
+    ld hl,(concatenate_right)
+    inc hl
+    ld a,c
+    or a
+    jr z,concatenate_ready
+    ldir
+concatenate_ready:
+    ld hl,(concatenate_return)
+    ld (argument_return),hl
+    ld hl,#0
+    add hl,sp
+    ld (argument_source),hl
+    ld c,(hl)
+    ld b,#0
+    inc bc
+    ld de,(concatenate_drop)
+    add hl,de
+    ld sp,hl
+    ex de,hl
+    ld hl,(argument_source)
+    jr move_string_tail
+concatenate_drop: .dw 0
+concatenate_left: .dw 0
+concatenate_right: .dw 0
+concatenate_return: .dw 0
+concatenate_length: .db 0

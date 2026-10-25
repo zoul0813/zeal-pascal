@@ -36,7 +36,7 @@ typedef struct {
     char name[128];
     uint16_t emitted,entries,file_bytes,relocations;
     uint8_t workspace,scope,absolute_mode,var_strict,nesting;
-    uint16_t routine_count;
+    uint16_t routine_count,temporaries;
 } Compiler;
 extern Compiler cc;
 
@@ -56,6 +56,9 @@ uint16_t cc_link(uint8_t opcode,uint16_t head) FRONTEND;
 void cc_patch_chain(uint16_t head,uint16_t value) FRONTEND;
 void cc_guard(void) FRONTEND;
 void cc_reserve(uint16_t bytes) FRONTEND;
+void cc_temporary(uint16_t bytes) FRONTEND;
+void cc_drop_stack(uint16_t bytes) FRONTEND;
+void cc_release(uint16_t before) FRONTEND;
 void cc_call(uint16_t address) FRONTEND;
 void cc_next(void) FRONTEND;
 void cc_expect(uint16_t t,uint8_t code) FRONTEND;

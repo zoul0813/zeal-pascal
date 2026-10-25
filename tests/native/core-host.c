@@ -1,6 +1,6 @@
 /* Host structural/failure tests for the exact C front end used on Zeal.
  * These are deliberately not counted as native execution tests. */
-#include "zp.h"
+#include "compiler.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,7 +24,14 @@ void far_set(uint8_t p,uint16_t at,uint8_t v) { assert(p<64&&owned[p]&&at<PAGE_S
 static Source s;
 static Build b;
 static Diagnostic d;
-static void checked(int value,unsigned line) { ++checks; if(!value) { fprintf(stderr,"check %u, line %u, diagnostic %u\n",checks,line,d.code); abort(); } }
+static void checked(int value,unsigned line) {
+    ++checks;
+    if(!value) {
+        fprintf(stderr,"check %u, line %u, diagnostic %u at %u, emitted=%u static=%u temporaries=%u\n",
+                checks,line,d.code,d.start,cc.emitted,b.globals_bytes,cc.temporaries);
+        abort();
+    }
+}
 #define check(value) checked((value),__LINE__)
 static void load(const char *text) { check(source_import(&s,(const uint8_t*)text,(uint16_t)strlen(text),&d)); }
 static void invalid(const char *text,uint8_t code) {
@@ -131,8 +138,16 @@ int main(int argc,char **argv) {
     invalid("procedure p(var a); begin a:=1 end; begin end.",44);
     invalid("procedure p(var a); begin writeln(a) end; begin end.",44);
     invalid("procedure p; var hidden:integer; begin end; begin hidden:=1 end.",41);
-    invalid("type text=string[3]; function f:text; begin f:='abc' end; begin end.",48);
+    invalid("begin writeln(length(1)) end.",44);
+    invalid("type text=string[3]; function f:text; begin f:='a' end; begin writeln(f-1) end.",47);
+    invalid("type text=string[3]; function f:text; begin f:='a' end; begin writeln(1+f) end.",47);
+    invalid("type text=string[3]; function f:text; begin f:='a' end; begin writeln(f+true) end.",47);
+    invalid("type text=string[3]; function f:text; begin f:='a' end; begin if f then end.",20);
+    invalid("type text=string[3]; var c:char; function f:text; begin f:='a' end; begin for c:=f to 'z' do end.",44);
+    invalid("type text=string[3]; var c:char; function f:text; begin f:='a' end; begin for c:='a' to f do end.",44);
     invalid("type text=string[3]; var s:string[4]; procedure p(var a:text); begin end; begin p(s) end.",44);
+    load("type text=string[3]; function f:text; begin f:='abc' end; begin writeln(f) end.");
+    check(compile(&s,&b,&d)); ordered_map(); build_close(&b);
     load("const x=-32768; y=x; z=-y; type octet=byte; text=string[3]; var n:octet; s:text; begin n:=257; s:='x'; writeln(x,y,z,n,s) end.");
     check(compile(&s,&b,&d)&&b.globals_bytes==5); build_close(&b);
     load("var b:boolean; n:integer; begin b:=not false; n:=1234; writeln(b,n) end.");
@@ -192,6 +207,27 @@ int main(int argc,char **argv) {
         n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
+        file=fopen("tests/native/stringfn.pas","rb"); check(file!=NULL);
+        n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
+        check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
+        ordered_map(); build_close(&b);
+        file=fopen("tests/native/strlife.pas","rb"); check(file!=NULL);
+        n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
+        check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
+        ordered_map(); build_close(&b);
+        file=fopen("tests/native/strbound.pas","rb"); check(file!=NULL);
+        n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
+        check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
+        ordered_map(); build_close(&b);
+        file=fopen("tests/native/stringabi.pas","rb"); check(file!=NULL);
+        n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
+        check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
+        check(b.globals_bytes==0&&b.code_origin==GLOBAL_BASE);
+        file=fopen("build/stringabi.zpl","rb"); check(file!=NULL);
+        n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
+        check(n==image_get(&b,0x4003));
+        for(i=0;i<n;++i) check(image_get(&b,0x4004+(uint16_t)i)==text[i]);
+        ordered_map(); build_close(&b);
         for(i=256;i<=257;++i) {
             unsigned member;
             n=(uint16_t)snprintf((char*)text,sizeof(text),"type t=(");
@@ -230,6 +266,15 @@ int main(int argc,char **argv) {
             for(arm=0;arm<600;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"%u:;\n",arm);
             snprintf((char*)text+n,sizeof(text)-n,"end end.");
             invalid((char*)text,99);
+            n=0;
+            for(arm=0;arm<256;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"procedure p%u; forward;\n",arm);
+            snprintf((char*)text+n,sizeof(text)-n,"begin end.");
+            invalid((char*)text,98);
+            n=0;
+            for(arm=0;arm<25;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"procedure p%u;\n",arm);
+            for(arm=0;arm<25;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"begin end;\n");
+            snprintf((char*)text+n,sizeof(text)-n,"begin end.");
+            invalid((char*)text,98);
         }
     }
     source_close(&s); check(!pages_used());

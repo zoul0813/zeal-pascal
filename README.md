@@ -105,34 +105,38 @@ identity. `$R+` enables ordinal bounds checks and `$R-` disables them.
 Char/string conversions and comparisons are supported; converting a string
 whose length is not one to Char reports runtime error 10.
 
-Implemented functions include Ord, Chr, Succ, Pred, SizeOf, Addr, UpCase,
+Implemented functions include Ord, Chr, Succ, Pred, SizeOf, Addr, UpCase, Length,
 Odd, Hi, Lo, Swap and the Integer forms of Abs/Sqr. The compiler currently has
 512 symbol entries and 64 type descriptors (including five built-in entries).
 Exhaustion reports resource error 98. Char arrays and selected-variable forms
 of Addr/SizeOf await aggregate support.
 
-Procedures and scalar functions support named parameters, local declarations,
+Procedures and functions support named parameters, local declarations,
 lexical nesting/shadowing, forward declarations, Exit and native external
 addresses. Value arguments are evaluated left to right; scalar and string values
 are copied, while Var parameters alias their callers. `$A+` uses static local
 storage; `$A-` gives recursive frames with lexical-parent links. `$V+` checks
 Var-string capacities and `$V-` permits relaxed matching. Untyped Var parameters
-support forwarding and Addr. String function results, nested routine address
-bridges and remaining raw-memory APIs are still in progress.
+support forwarding and Addr. Functions return scalars or named short-string
+types. String results can be nested, compared, printed, assigned and passed as
+values. Concatenation accepts String/Char operands; a result over 255 bytes
+reports runtime error 10. Length reports the current string length. Nested
+routine address bridges and remaining raw-memory APIs are still in progress.
 
 The [control-flow fixture](tests/native/control.pas),
 [ordinal fixture](tests/native/ordinals.pas), [Case fixture](tests/native/cases.pas)
 and enum boundary fixtures exercise these features in Memory and saved native
 COM execution. The [routine fixture](tests/native/routines.pas) covers calls,
-recursion and string parameter copies. Real6, aggregates, pointers, string
-results, Goto and the rest of the dialect remain in progress.
+recursion and string parameter copies. The string result and boundary fixtures
+cover temporary cleanup and 255-byte values. Real6, aggregates, pointers,
+Goto and the rest of the dialect remain in progress.
 
 ReadLn currently uses Zeal's cooked keyboard line editor and restores raw mode
 before returning. It supports string fields, empty lines and discarding the rest
 of a line. Numeric input, Turbo console controls (including Ctrl-C), BufLen and
 the exact 127-character editing boundary remain pending. Strings retain at most
-127 input characters in this increment. String concatenation/indexing and the
-remaining dialect are also pending.
+127 input characters in this increment. String indexing and the remaining
+runtime APIs are still pending.
 
 The editor remains partial. Native tests cover the implemented slice, ownership,
 error recovery and file safety; full reference replay and physical hardware

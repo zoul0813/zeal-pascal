@@ -3,7 +3,7 @@
 #include <zos_vfs.h>
 
 /* Exhaust real palloc capacity in the parent; leave three loader pages and
- * zero through four code pages. The ROM and allocator stay unchanged. */
+ * zero through the library's full code-page count. The ROM stays unchanged. */
 volatile uint8_t boot_done,boot_passed,boot_failed;
 volatile uint8_t boot_case;
 static uint8_t library_header[6];

@@ -54,6 +54,11 @@ static void epilogue(void) {
     if(cc.symbols[routine].role==S_FUNCTION) {
         for(i=0;i<cc.symbol_count;++i)
             if(cc.symbols[i].owner==cc.scope&&cc.symbols[i].role==S_RESULT) { cc_load_symbol(i); break; }
+        if(cc_family(cc.symbols[routine].type)==K_STRING) {
+            cc_guard(); cc_emit(0xe5); cursor_load(); cc_emit(0xeb); cc_emit(0xe1);
+            cc_emit(0x0e); cc_emit(cc.types[cc.symbols[routine].type].capacity); cc_call(RT_COPY);
+            cursor_load(); /* caller-owned fixed result slot, returned in HL */
+        }
     }
     cc_emit(0x44); cc_emit(0x4d); /* BC retains the scalar result */
     indexed(0x5e,2); indexed(0x56,3); /* original return word */
@@ -110,7 +115,6 @@ static void routine(void) {
             if(type<0) cc_fail(48);
             else {
                 cc.symbols[id].type=(uint8_t)type;
-                if(cc_family((uint8_t)type)==K_STRING) cc_fail(48); /* result temporaries are a later increment */
                 cc_result_symbol(id); cc_next();
             }
         }
@@ -153,6 +157,7 @@ void cc_block(void) ROUTINES {
         prologue(); cc_mapping(code,cc.emitted-0x8000u,start,cc.token_start);
     }
     if(!cc_is("begin")) cc_fail(12); else cc_statement();
+    if(!cc.error->code&&cc.temporaries) cc_fail(99); /* no temporary escapes a statement/block */
     if(scope) {
         cc_patch_chain(cc_rget(scope,R_EXITS),0x4000u+cc.emitted);
         code=cc.emitted-0x8000u; start=cc.token_start;
@@ -177,11 +182,13 @@ void cc_routine_address(uint16_t id) ROUTINES {
 }
 uint8_t cc_invoke(uint16_t id) ROUTINES {
     uint8_t scope=cc.symbols[id].role==S_RESULT?cc.symbols[id].owner:cc.symbols[id].initial_type;
-    uint16_t i,param,first=cc_rget(scope,R_PARAMETERS),count=cc_rget(scope,R_COUNT);
+    uint16_t i,param,before,first=cc_rget(scope,R_PARAMETERS),count=cc_rget(scope,R_COUNT);
     uint16_t routine_id=cc_rget(scope,R_SYMBOL);
     int16_t actual;
     uint8_t type,kind,role=cc.symbols[routine_id].role;
     cc_next();
+    if(role==S_FUNCTION&&cc_family(cc.symbols[routine_id].type)==K_STRING)
+        cc_temporary(cc.types[cc.symbols[routine_id].type].width);
     if(cc_rget(scope,R_PARENT)) { cc_frame((uint8_t)cc_rget(scope,R_PARENT)); cc_guard(); cc_emit(0xe5); }
     if(count||cc.token=='(') {
         cc_expect('(',4);
@@ -196,11 +203,17 @@ uint8_t cc_invoke(uint16_t id) ROUTINES {
                    (!cc.var_strict||cc.types[type].capacity==cc.types[kind].capacity))) { cc_fail(44); break; }
                 cc_symbol_address((uint16_t)actual); cc_next(); cc_guard(); cc_emit(0xe5);
             } else {
+                before=cc.temporaries;
                 kind=cc_expression(); cc_convert(type,kind);
                 if(cc_family(type)==K_STRING) {
                     if(cc_family(kind)==K_CHAR) { cc_guard(); cc_emit(0x65); cc_emit(0x2e); cc_emit(1); cc_emit(0xe5); }
+                    else if(cc.temporaries!=before) {
+                        cc_op16(0x01,cc.temporaries-before); cc_call(RT_ARGSTRING);
+                        cc.temporaries=before;
+                    }
                     else cc_call(RT_PUSHSTRING);
                 } else {
+                    cc_release(before);
                     if(cc.types[type].width==1) { cc_emit(0x26); cc_emit(0); }
                     cc_guard(); cc_emit(0xe5);
                 }
@@ -209,5 +222,8 @@ uint8_t cc_invoke(uint16_t id) ROUTINES {
         cc_expect(')',5);
     }
     cc_guard(); entry_reference(0xcd,scope);
+    if(role==S_FUNCTION&&cc_family(cc.symbols[routine_id].type)==K_STRING) {
+        cc_op16(0x21,0); cc_emit(0x39); /* ABI result slot, independent of callee HL */
+    }
     return role==S_FUNCTION?cc.symbols[routine_id].type:255;
 }

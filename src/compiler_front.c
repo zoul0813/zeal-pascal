@@ -21,8 +21,8 @@ void cc_word(uint16_t p,uint16_t v) FRONTEND { cc_put(p,(uint8_t)v); cc_put(p+1,
 
 void cc_emit(uint8_t v) FRONTEND {
     if(cc.error->code) return;
-    /* Initial runtime has no heap; keep all static/code bytes below C000 so
-     * its checked C800 stack floor also dominates static storage + headroom. */
+    /* Stage code in the third image page. cc_place_code bounds the completed
+     * static/code image below C000, beneath the managed C800 stack floor. */
     if(cc.emitted>=0xc000u) { cc_fail(99); return; }
     cc_put(cc.emitted++,v);
 }
@@ -80,6 +80,18 @@ void cc_reserve(uint16_t bytes) FRONTEND {
     cc_op16(0x21,pc); cc_op16(0x22,RT_PC); cc_emit(0x08); cc_emit(0xd9);
 }
 void cc_guard(void) FRONTEND { cc_reserve(0); }
+void cc_temporary(uint16_t bytes) FRONTEND {
+    cc_reserve(bytes); cc_emit(0xeb); cc_op16(0x21,(uint16_t)(0u-bytes));
+    cc_emit(0x39); cc_emit(0xf9); cc_emit(0xeb); /* preserve HL; DE = new SP */
+    cc.temporaries+=bytes;
+}
+void cc_drop_stack(uint16_t bytes) FRONTEND {
+    if(!bytes) return;
+    cc_emit(0xeb); cc_op16(0x21,bytes); cc_emit(0x39); cc_emit(0xf9); cc_emit(0xeb);
+}
+void cc_release(uint16_t before) FRONTEND {
+    cc_drop_stack(cc.temporaries-before); cc.temporaries=before;
+}
 void cc_call(uint16_t address) FRONTEND { cc_guard(); cc_op16(0xcd,address); }
 void cc_next(void) FRONTEND {
     uint8_t c,q,base,value;
