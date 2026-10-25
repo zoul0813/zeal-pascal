@@ -43,6 +43,7 @@ static void execution(const char *text,uint8_t kind,uint8_t code) {
         check(seed("H:/SLICE.COM","old executable")); check(seed("H:/SLICE.ZMP","old map"));
         check(save_build(&s,&b));
     }
+    if(test_stage==7) check(save_build(&s,&b));
     owned=pages_used();
     if(test_stage==3) { __asm di __endasm; }
     test_machine(before);
@@ -65,6 +66,11 @@ static void execution(const char *text,uint8_t kind,uint8_t code) {
         check(exec(EXEC_PRESERVE_PROGRAM,"H:/SLICE.COM",0,&status)==0&&status==0);
         check(pages_used()==owned);
         status=255; check(run_saved(&s,&b,&status)&&status==0);
+        check(pages_used()==owned);
+    }
+    if(test_stage==7) {
+        uint8_t status=255;
+        check(exec(EXEC_PRESERVE_PROGRAM,"H:/NAME.COM",0,&status)==0&&status==0);
         check(pages_used()==owned);
     }
     build_close(&b);
@@ -103,6 +109,7 @@ int main(void) {
     execution("begin\nhalt; writeln('UNREACHABLE') end.",4,0);
     test_stage=4;
     execution("begin\nwriteln(7 div 0); writeln('UNREACHABLE') end.",3,2);
+    execution("var a:string[3]; b:string[8]; n:integer;\nbegin a:='abcdef'; b:=a; b:=b; n:=42; writeln(a,'/',b,'/',n); a:=''; writeln('[',a,']') end.",1,0);
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
     test_stage=5;
     /* Exhaust actual OS allocations to fail each compiler allocation stage.
@@ -138,6 +145,13 @@ int main(void) {
     check(!load_source(&s,"H:/BAD.PAS",&d)&&d.code==100&&s.length==29&&s.dirty);
     check(load_source(&s,"H:/NEWFILE",&d)&&!strcmp(s.path,"H:/NEWFILE.PAS")&&!s.length&&!s.dirty);
     check(pages_used()==1);
+    test_stage=7;
+    strcpy(s.path,"H:/NAME.PAS");
+    capture=open("H:/INPUT.TXT",O_WRONLY|O_CREAT|O_TRUNC);
+    check(capture>=0);
+    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
+    execution("program HelloName;\nvar UserName:string[80]; a:string[3]; b:string[4];\nbegin Write('Your name: '); ReadLn(UserName); WriteLn('Hello, ',UserName,'!');\nReadLn(a,b); WriteLn(a,'/',b); ReadLn(UserName); WriteLn('[',UserName,']') end.",1,0);
+    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
     source_close(&s); check(pages_used()==0);
     test_stage=6; test_done=255;
     test_complete(); return 0;

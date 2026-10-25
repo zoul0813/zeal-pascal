@@ -208,7 +208,7 @@ int main(void) {
         output(saved_mode?"Zeal Pascal - native Com-file\nWork: ":"Zeal Pascal - Memory\nWork: "); output(work.path);
         output(work.dirty?" *\n":"\n"); output_number(work.length); output(" source bytes; ");
         output_number(pages_used()); output(" owned pages\nW Open  E Edit  S Save  C Compile  R Run  O Options  Q Quit\n");
-        output("Initial slice: Integer, Write/Writeln, Halt/Exit.\n");
+        output("Initial slice: Integer, String, Write/Writeln, ReadLn, Halt/Exit.\n");
         c=suffix(key_read());
         if(c=='e') edit(0);
         else if(c=='w') open_work();

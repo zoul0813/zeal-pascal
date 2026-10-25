@@ -20,6 +20,10 @@
     jp multiply
     jp stack_error
     .dw 0                       ; private checked helper call-site PC, 40BE
+    jp string_output            ; 40C0: HL -> short string
+    jp string_copy              ; 40C3: HL source, DE destination, C capacity
+    jp read_line                ; 40C6: fresh default console line
+    jp read_string              ; 40C9: DE destination, C capacity
 
 ; This prefix is deliberately separate from the C compiler's ABI. Only the
 ; private helper entries above are emitted in this first language increment.
@@ -89,6 +93,120 @@ io_error:
     ld a,#0xf0
     ld b,#3
     jp call_error
+
+string_output:
+    ld b,(hl)
+    inc hl
+    ld a,b
+    or a
+    ret z
+string_output_loop:
+    ld a,(hl)
+    push hl
+    push bc
+    call character
+    pop bc
+    pop hl
+    inc hl
+    djnz string_output_loop
+    ret
+
+string_copy:
+    ld a,(hl)
+    inc hl
+    cp c
+    jr c,string_copy_length
+    ld a,c
+string_copy_length:
+    ld (de),a
+    inc de
+    ld c,a
+    ld b,#0
+    or a
+    ret z                       ; never LDIR with BC=0
+    ldir                        ; self-assignment is safe, too
+    ret
+
+; Use the native driver's supported cooked line editor for this increment.
+; Read a whole physical line before copying fields, so a short destination
+; does not leave the line tail to satisfy the next ReadLn. Full Turbo console
+; controls/BufLen and the exact 127-key editing boundary remain a later gate.
+read_line:
+    ld h,#1
+    ld l,#7
+    ld c,#0
+    ld de,#1                    ; blocking cooked
+    rst 8
+    or a
+    jp nz,io_error
+    ld de,#line_buffer
+    ld bc,#255
+    ld h,#1
+    ld l,#0
+    rst 8
+    push af
+    push bc
+    ld a,(memory_mode)
+    or a
+    ld de,#0                    ; parent IDE: blocking raw
+    jr nz,read_restore
+    ld e,#4                     ; ZShell: nonblocking raw
+read_restore:
+    ld h,#1
+    ld l,#7
+    ld c,#0
+    rst 8
+    pop bc
+    pop de                      ; D = read error, E = saved flags
+    or d
+    jp nz,io_error
+    ld a,b
+    or a
+    jp nz,io_error
+    ld hl,#line_buffer
+    ld (line_next),hl
+    ld b,c
+    ld c,#0
+    ld a,b
+    or a
+    jr z,read_line_ready
+read_line_length:
+    ld a,(hl)
+    cp #10
+    jr z,read_line_ready
+    cp #13
+    jr z,read_line_ready
+    cp #26
+    jr z,read_line_ready
+    ld a,c
+    cp #127
+    jr z,read_line_ready
+    inc c
+    inc hl
+    djnz read_line_length
+read_line_ready:
+    ld a,c
+    ld (line_remaining),a
+    ret
+read_string:
+    ld hl,(line_next)
+    ld a,(line_remaining)
+    cp c
+    jr c,read_string_length
+    ld a,c
+read_string_length:
+    ld (de),a
+    inc de
+    ld c,a
+    ld b,#0
+    or a
+    ret z
+    ld a,(line_remaining)
+    sub c
+    ld (line_remaining),a
+    ldir
+    ld (line_next),hl
+    ret
 divide:
     ld a,#0
     jr divmod
@@ -252,3 +370,6 @@ want_remainder: .db 0
 digits: .ds 6
 tail_length: .db 0
 tail: .ds 127
+line_next: .dw 0
+line_remaining: .db 0
+line_buffer: .ds 255

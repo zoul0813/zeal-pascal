@@ -23,6 +23,10 @@
 #define RT_MUL 0x40b8u
 #define RT_STACK 0x40bbu
 #define RT_PC 0x40beu
+#define RT_STRING 0x40c0u
+#define RT_COPY 0x40c3u
+#define RT_READLINE 0x40c6u
+#define RT_READSTRING 0x40c9u
 enum { PAGE_SOURCE=1, PAGE_IMAGE, PAGE_MAP, PAGE_RUN, PAGE_SNAPSHOT };
 
 typedef struct {

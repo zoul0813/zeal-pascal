@@ -40,8 +40,9 @@ def kernel_symbols():
 
 KEYS = {' ': 'SPACE', '\n': 'ENTER', '.': 'PERIOD', '/': 'SLASH',
         ';': 'SEMICOLON', "'": 'APOSTROPHE', '-': 'MINUS', '=': 'EQUAL',
-        ',': 'COMMA', '[': 'LEFT_BRACKET', ']': 'RIGHT_BRACKET'}
-SHIFTED = {':': 'SEMICOLON', '(': '9', ')': '0', '+': 'EQUAL', '*': '8', '_': 'MINUS'}
+        ',': 'COMMA', '[': 'LEFT_BRACKET', ']': 'RIGHT_BRACKET', '\b': 'BACKSPACE'}
+SHIFTED = {':': 'SEMICOLON', '(': '9', ')': '0', '+': 'EQUAL', '*': '8', '_': 'MINUS',
+           '{': 'LEFT_BRACKET', '}': 'RIGHT_BRACKET'}
 
 
 def type_text(text, ticks=250000):
@@ -58,13 +59,15 @@ def type_text(text, ticks=250000):
     return commands
 
 
-def execute(name, commands):
+def execute(name, commands, fixtures=None):
     directory = RUN / name
     directory.mkdir(parents=True, exist_ok=False)
     hostfs = directory / 'hostfs'
     hostfs.mkdir(exist_ok=True)
     for target in ('zpascal', 'zptest'):
         shutil.copyfile(ROOT / f'build/{target}.bin', hostfs / f'{target}.bin')
+    for filename, data in (fixtures or {}).items():
+        (hostfs / filename).write_bytes(data)
     for artifact in ('CONSOLE.TXT', 'SLICE.COM', 'SLICE.ZMP'):
         (hostfs / artifact).unlink(missing_ok=True)
     shutil.copyfile(ROM, directory / 'rom.img')
@@ -81,8 +84,13 @@ def execute(name, commands):
     # The emulator requires an R/W HostFS root even when only reading files.
     # Keep installation files read-only and assert that Memory mode creates
     # no outputs; do not represent this as a read-only-volume test.
-    result = subprocess.run(cmd, input='\n'.join(commands) + '\n', text=True,
-                            capture_output=True, cwd=directory, timeout=180)
+    try:
+        result = subprocess.run(cmd, input='\n'.join(commands) + '\n', text=True,
+                                capture_output=True, cwd=directory, timeout=180)
+    except subprocess.TimeoutExpired as error:
+        captured = (error.stdout or b'') + (error.stderr or b'')
+        (directory / 'console.txt').write_bytes(captured)
+        raise RuntimeError(f'{name}: emulator timed out; see retained capture') from error
     (directory / 'console.txt').write_text(result.stdout + result.stderr)
     if result.returncode:
         raise RuntimeError(f'{name}: emulator exit {result.returncode}')
@@ -219,6 +227,35 @@ def interactive_checks():
     return checks
 
 
+def file_workflow_checks():
+    sym = symbols('zpascal')
+    typed = lambda text: type_text(text, ticks=2000000)
+    source = b'begin\nend.\n'
+    commands = ['run 100000000'] + type_text('H:/zpascal.bin\n')
+    commands += ['run 10000000'] + typed('nwH:/OPEN.PAS\n')
+    def probe():
+        return ['regs', f"rb 0x{sym['_ide_state']:x} 1", f"rb 0x{sym['_work']:x} 140"]
+    commands += [f"bp 0x{sym['_key_read']:x}", 'run 100000000'] + probe()
+    commands += [f"bc 0x{sym['_key_read']:x}"] + typed('e{saved}') + control('K') + typed('ds')
+    commands += [f"bp 0x{sym['_key_read']:x}", 'run 100000000'] + probe()
+    commands += [f"bc 0x{sym['_key_read']:x}", 'tap ESC', 'run 2000000'] + typed('q') + ['quit']
+    text = execute('files', commands, {'OPEN.PAS': source})
+    frames = [memory(part) for part in re.split(r'\[DBG\] PC=', text)[1:]]
+    if len(frames) != 2:
+        return [('interactive file checkpoint count', False)]
+    work = sym['_work']
+    path = lambda frame: bytes(frame.get(work + 12 + i, 0) for i in range(128)).split(b'\0')[0]
+    return [
+        ('W opens named source into the editor work buffer',
+         path(frames[0]) == b'H:/OPEN.PAS' and frames[0].get(work + 1) == 0
+         and frames[0].get(work + 2) == len(source)),
+        ('S saves editor text, clears dirty and preserves original BAK',
+         frames[1].get(work + 1) == 0
+         and (RUN / 'files/hostfs/OPEN.PAS').read_bytes() == b'{saved}' + source
+         and (RUN / 'files/hostfs/OPEN.BAK').read_bytes() == source),
+    ]
+
+
 def memory(text):
     result = {}
     for address, values in re.findall(r'\[DBG\] ([0-9a-fA-F]{4}): ((?:[0-9a-fA-F]{2} )+)', text):
@@ -243,8 +280,23 @@ def main():
         checks.append((target + ' raw executable within OS load limit',
                        0 < (ROOT / f'build/{target}.bin').stat().st_size < 49152))
     sym = symbols('zptest')
+    kernel = kernel_symbols()
+    cooked, mode = kernel['keyboard_read_cooked'], kernel['kb_mode']
+    keyboard_ioctl = kernel['keyboard_ioctl']
     commands = ['run 100000000'] + type_text('H:/zptest.bin\n')
-    commands += ['run 100000000', f"bp 0x{sym['_test_complete']:x}", 'run 12000000000', 's', 'regs', 'mmu']
+    commands += ['run 100000000', f"bp 0x{sym['_test_complete']:x}"]
+    # Wait for the actual first cooked read. Observe the restoration ioctl while
+    # kernel RAM is mapped: reading kb_mode from user C000 would inspect an
+    # unrelated user page. The pinned setter takes 12 instructions through RET.
+    commands += [f'bp 0x{cooked:x}', 'run 12000000000', f'bc 0x{cooked:x}']
+    for _ in range(2):
+        commands += [f'bp 0x{keyboard_ioctl:x}']
+        commands += type_text('Adx\ba\n', ticks=2000000)
+        commands += ['s'] * 12
+        commands += ['regs', 'mmu', f'rb 0x{mode:x} 1', f'bc 0x{keyboard_ioctl:x}']
+        commands += type_text('abcdefghi\n\n', ticks=2000000)
+        commands += ['run 1000000000']
+    commands += ['run 12000000000', 's', 'regs', 'mmu']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage', '_platform_error'):
         commands.append(f"rb 0x{sym[name]:x} 2")
     if '_test_failures' in sym:
@@ -260,9 +312,18 @@ def main():
         return mem.get(p, 0) | (mem.get(p + 1, 0) << 8)
     checks.append(('native test completion marker', mem.get(sym['_test_done']) == 255))
     checks.append(('native assertions', word('_test_failed') == 0 and word('_test_passed') >= 40))
+    frames = re.split(r'\[DBG\] PC=', text)[1:]
+    checks.append(('ReadLn restores blocking raw in RAM and nonblocking raw in shell exec',
+                   len(frames) == 3 and memory(frames[0]).get(mode) == 0
+                   and memory(frames[1]).get(mode) == 4
+                   and all('[DBG] c000 -> 088000' in frame for frame in frames[:2])))
     output = RUN / 'core/hostfs/CONSOLE.TXT'
     checks.append(('generated Z80 output, signed DIV/MOD and CRLF', output.is_file()
-                   and output.read_bytes() == b'N=-32768,-2,-1\r\n' * 3))
+                   and output.read_bytes() == b'N=-32768,-2,-1\r\n' * 3 + b'abc/abc/42\r\n[]\r\n'))
+    input_output = RUN / 'core/hostfs/INPUT.TXT'
+    checks.append(('short-string ReadLn, editing, fields, empty line and shell exec',
+                   input_output.is_file() and input_output.read_bytes() ==
+                   b'Your name: Hello, Ada!\r\nabc/defg\r\n[]\r\n' * 2))
     try:
         checks.append(('native-generated image/map/source identities and format bounds',
                        artifact_checks(RUN / 'core/hostfs')))
@@ -271,6 +332,7 @@ def main():
     if mem.get(sym['_test_done']) == 255 and word('_test_failed') == 0:
         print('Native core passed; driving interactive edit/error/repair workflow...', flush=True)
         checks.extend(interactive_checks())
+        checks.extend(file_workflow_checks())
     checks.append(('implementation inputs unchanged during native validation',
                    all(sha(ROOT / name) == digest for name, digest in input_hashes.items())))
     report = {

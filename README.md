@@ -41,11 +41,18 @@ Executable/map publication likewise retains verified recovery copies. The OS
 has no atomic rename/fsync guarantee; recovery directories are intentionally
 kept. No save failure discards the RAM source or silently reports success.
 
-Current language support includes Integer globals, compound statements,
-assignments, signed Integer expressions, literal/Integer Write/Writeln and
-Halt/Exit. String variables, console ReadLn and the remaining dialect are the
-next functional increments. Memory execution preserves IDE pages and source;
-checked errors return to their source statement after Escape.
+Current language support includes Integer and `string[1..255]` globals, compound
+statements, assignments, signed Integer expressions, string/Integer
+Write/Writeln, string-target ReadLn and Halt/Exit. Short-string assignment
+truncates to the destination capacity. Memory execution preserves IDE pages and
+source; checked errors return to their source statement after Escape.
+
+ReadLn currently uses Zeal's cooked keyboard line editor and restores raw mode
+before returning. It supports string fields, empty lines and discarding the rest
+of a line. Numeric input, Turbo console controls (including Ctrl-C), BufLen and
+the exact 127-character editing boundary remain pending. Strings retain at most
+127 input characters in this increment. String concatenation/indexing and the
+remaining dialect are also pending.
 
 The editor remains partial. Native tests cover the implemented slice, ownership,
 error recovery and file safety; full reference replay and physical hardware
