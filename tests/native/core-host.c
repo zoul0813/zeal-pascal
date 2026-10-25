@@ -92,6 +92,25 @@ int main(int argc,char **argv) {
     invalid("var i:integer; begin for i:=1 to 3 do i:=2 end.",44);
     invalid("var i:integer; begin for i:=1 to 3 do for i:=1 to 2 do end.",44);
     invalid("var i:integer; begin for i:=true to false do end.",44);
+    invalid("const x=1+2; begin end.",1);
+    invalid("const x=x; begin end.",41);
+    invalid("const x=1; begin x:=2 end.",44);
+    invalid("type t=integer; begin t:=2 end.",44);
+    invalid("type t=5..1; begin end.",52);
+    invalid("type t=1..true; begin end.",51);
+    invalid("type t='ab'..'cd'; begin end.",51);
+    invalid("type a=(red,green); b=(blue,yellow); var x:a; begin x:=blue end.",44);
+    invalid("type a=(red,green); b=(blue,yellow); begin writeln(red=blue) end.",47);
+    invalid("type a=(red,green); begin writeln(red) end.",44);
+    invalid("const n:byte=256; begin end.",44);
+    invalid("var n:integer; const x=n; begin end.",41);
+    invalid("begin writeln(ord('ab')) end.",44);
+    invalid("begin writeln(chr(true)) end.",23);
+    invalid("begin writeln(#256) end.",56);
+    invalid("begin writeln(#$100) end.",56);
+    invalid("begin writeln($00000) end.",56);
+    load("const x=-32768; y=x; z=-y; type octet=byte; text=string[3]; var n:octet; s:text; begin n:=257; s:='x'; writeln(x,y,z,n,s) end.");
+    check(compile(&s,&b,&d)&&b.globals_bytes==5); build_close(&b);
     load("var b:boolean; n:integer; begin b:=not false; n:=1234; writeln(b,n) end.");
     check(compile(&s,&b,&d)&&b.globals_bytes==3); ordered_map(); build_close(&b);
     load("var i,n:integer; begin if true then if false then n:=1 else n:=2;\n"
@@ -137,6 +156,37 @@ int main(int argc,char **argv) {
         n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         check(b.globals_bytes==29); ordered_map(); build_close(&b);
+        file=fopen("tests/native/ordinals.pas","rb"); check(file!=NULL);
+        n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
+        check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
+        check(b.globals_bytes==19); ordered_map(); build_close(&b);
+        for(i=256;i<=257;++i) {
+            unsigned member;
+            n=(uint16_t)snprintf((char*)text,sizeof(text),"type t=(");
+            for(member=0;member<i;++member) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"v%u%s%s",member,member+1<i?",":"",member%10==9?"\n":"");
+            n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"); var x:t; begin x:=v%u; writeln(ord(x),sizeof(t)) end.",i-1);
+            check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
+            check(b.globals_bytes==(i==256?1:2)); build_close(&b);
+        }
+        {
+            unsigned member;
+            n=(uint16_t)snprintf((char*)text,sizeof(text),"type t=(");
+            for(member=0;member<513;++member) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"v%u%s%s",member,member<512?",":"",member%10==9?"\n":"");
+            snprintf((char*)text+n,sizeof(text)-n,"); begin end.");
+            invalid((char*)text,98);
+            n=(uint16_t)snprintf((char*)text,sizeof(text),"type\n");
+            for(member=0;member<60;++member) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"t%u=string[1];\n",member);
+            snprintf((char*)text+n,sizeof(text)-n,"begin end.");
+            invalid((char*)text,98);
+        }
+        {
+            char left[128],right[128];
+            memset(left,'a',126); left[126]='x'; left[127]=0;
+            memcpy(right,left,128); right[126]='y';
+            n=(uint16_t)snprintf((char*)text,sizeof(text),"var\n%s\n,\n%s\n:byte;\nbegin\n%s\n:=1;\n%s\n:=2 end.",left,right,left,right);
+            check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
+            check(b.globals_bytes==2); build_close(&b);
+        }
     }
     source_close(&s); check(!pages_used());
     printf("PASS: %u host front-end, identity and allocation-failure checks\n",checks);

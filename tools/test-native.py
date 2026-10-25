@@ -485,7 +485,7 @@ def main():
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage', '_platform_error'):
         commands.append(f"rb 0x{sym[name]:x} 2")
     if '_test_failures' in sym:
-        commands.append(f"rb 0x{sym['_test_failures']:x} 64")
+        commands.append(f"rb 0x{sym['_test_failures']:x} 128")
     if '_test_hash' in sym:
         commands.append(f"rb 0x{sym['_test_hash']:x} 32")
     commands.append(f"rb 0x{sym['_ram_result']:x} 128")
@@ -517,6 +517,13 @@ def main():
                         'SHIFTS-OK\nSTR-COMPARE-OK\n').replace('\n','\r\n').encode() * 2
     checks.append(('Boolean layout/eager logic, signed/string comparisons, bitwise/shift and control flow in RAM and COM',
                    control_output.is_file() and control_output.read_bytes() == control_expected))
+    ordinal_output = RUN / 'core/hostfs/ORDINAL.TXT'
+    ordinal_expected = ('BYTE-OK\nCONST-LIMITS-OK\nCONST-STRINGS-OK\nCHAR-STRING-OK\nCHAR-LITERALS-OK\n'
+                        'ENUM-CAST-OK\nENUM-FOR-OK\nBYTE-CHAR-FOR-OK\nORDINAL-FUNCTIONS-OK\n'
+                        'INTEGER-FUNCTIONS-OK\nTYPE-LAYOUT-OK\nTYPED-CONST-OK\nCHECKED-BOUNDS-OK\n').replace('\n','\r\n').encode()
+    ordinal_expected = ordinal_expected * 2 + b'ENUM-256-OK\r\n' * 2 + b'ENUM-257-OK\r\n' * 2
+    checks.append(('constants, typed storage, ordinal families/layout/conversions and 256/257 enums in RAM and COM',
+                   ordinal_output.is_file() and ordinal_output.read_bytes() == ordinal_expected))
     media_output = RUN / 'core/hostfs/MEDIA.TXT'
     disk = (RUN / 'core/eeprom.img').read_bytes()
     try:

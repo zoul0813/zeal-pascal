@@ -29,6 +29,10 @@
     jp boolean_output           ; 40D2: HL normalized Boolean
     jp shift_left               ; 40D5: DE value, HL count
     jp shift_right              ; 40D8: DE value, HL count
+    jp check_range              ; 40DB: DE lower, BC upper, HL ordinal
+    jp character_copy           ; 40DE: L Char, DE short-string destination
+    jp string_character         ; 40E1: HL short string -> zero-extended Char
+    jp compare_text             ; 40E4: DE left, HL right, A Char operand flags
 
 ; This prefix is deliberately separate from the C compiler's ABI. Only the
 ; private helper entries above are emitted in this first language increment.
@@ -150,6 +154,67 @@ compare_less:
 compare_greater:
     ld hl,#1
     ret
+check_range:
+    push hl
+    push bc
+    call compare_integer        ; lower > value is invalid
+    ld a,l
+    cp #1
+    jr z,range_error
+    pop de
+    pop hl
+    push hl
+    ex de,hl
+    call compare_integer        ; value > upper is invalid
+    ld a,l
+    cp #1
+    jr z,range_error
+    pop hl
+    ret
+range_error:
+    ld a,#0x91
+    ld b,#2
+    jp call_error
+character_copy:
+    ld a,#1
+    ld (de),a
+    inc de
+    ld a,l
+    ld (de),a
+    ret
+string_character:
+    ld a,(hl)
+    cp #1
+    jr nz,character_length_error
+    inc hl
+    ld l,(hl)
+    ld h,#0
+    ret
+character_length_error:
+    ld a,#0x10
+    ld b,#2
+    jp call_error
+compare_text:
+    ld c,a
+    bit 0,c
+    jr z,text_right
+    ld b,e
+    ld de,#text_left_char
+    ld a,#1
+    ld (de),a
+    inc de
+    ld a,b
+    ld (de),a
+    dec de
+text_right:
+    bit 1,c
+    jr z,compare_string
+    ld b,l
+    ld hl,#text_right_char
+    ld (hl),#1
+    inc hl
+    ld (hl),b
+    dec hl
 compare_string:
     ld a,(de)
     ld b,a
@@ -478,3 +543,5 @@ false_text: .db 5
 true_text: .db 4
     .ascii "TRUE"
 shift_direction: .db 0
+text_left_char: .ds 2
+text_right_char: .ds 2

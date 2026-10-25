@@ -68,19 +68,34 @@ emulator's v1.0.0 source. No OS or emulator patch has been applied. Acceptance
 records distinguish the installed emulator's failed TF checks from the earlier
 build's successful tests.
 
-Current language support includes Integer, Boolean and `string[1..255]` globals,
+Current language support includes Integer, Byte, Char, Boolean and `string[1..255]` globals,
 compound statements, assignments, Integer arithmetic/bitwise/shift expressions,
 eager Boolean logic, ordinal/string comparisons, If/Then/Else, While/Do,
-Repeat/Until and For/To/Downto. For controls currently support Integer/Boolean;
+Repeat/Until and For/To/Downto. For controls support the implemented ordinal families;
 the final bound is evaluated once, zero trips retain the old control value and
 normal completion leaves the final bound. Write/Writeln accepts strings,
-Integers and Booleans; ReadLn currently accepts string targets. Short-string assignment
+Integers, Characters and Booleans; ReadLn currently accepts string targets. Short-string assignment
 truncates to the destination capacity. Memory execution preserves IDE pages and
 source; checked errors return to their source statement after Escape.
 
-The [native control-flow fixture](tests/native/control.pas) exercises these
-features in both Memory and saved native COM execution. Remaining declarations,
-types, routines, Case/Goto and the rest of the dialect are still in progress.
+Declarations may repeat in any order. Ordinary constants alias literal/constant
+values; scalar and string typed constants are initialized writable storage.
+Named types, aliases, enumerations and ordinal subranges are supported. Byte
+and Integer share arithmetic compatibility; distinct enums retain their type
+identity. `$R+` enables ordinal bounds checks and `$R-` disables them.
+Char/string conversions and comparisons are supported; converting a string
+whose length is not one to Char reports runtime error 10.
+
+Implemented functions include Ord, Chr, Succ, Pred, SizeOf, Addr, UpCase,
+Odd, Hi, Lo, Swap and the Integer forms of Abs/Sqr. The compiler currently has
+512 symbol entries and 64 type descriptors (including five built-in entries).
+Exhaustion reports resource error 98. Char arrays and selected-variable forms
+of Addr/SizeOf await aggregate support.
+
+The [control-flow fixture](tests/native/control.pas),
+[ordinal fixture](tests/native/ordinals.pas) and enum boundary fixtures exercise
+these features in Memory and saved native COM execution. Real6, aggregates,
+pointers, routines, Case/Goto and the rest of the dialect remain in progress.
 
 ReadLn currently uses Zeal's cooked keyboard line editor and restores raw mode
 before returning. It supports string fields, empty lines and discarding the rest
