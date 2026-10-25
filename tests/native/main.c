@@ -1,0 +1,144 @@
+#include "zp.h"
+#include <zos_vfs.h>
+#include <zos_sys.h>
+
+/* Test executable runs on the unmodified pinned kernel/emulator. The headless
+ * driver reads this bounded result block through the emulator's supported
+ * debugger console. No emulated syscall or host Pascal interpreter is used. */
+volatile uint16_t test_passed,test_failed,test_stage;
+volatile uint8_t test_done;
+volatile uint8_t test_failures[64],test_index;
+volatile uint8_t test_hash[32];
+static Source s;
+static Build b;
+static Diagnostic d;
+extern uint8_t console_scratch[256];
+void test_machine(uint8_t *state) NATIVE;
+void test_complete(void) { for(;;) { __asm halt __endasm; } }
+static void check(uint8_t ok) {
+    ++test_index;
+    if(ok) ++test_passed;
+    else { if(test_failed<64) test_failures[test_failed]=test_index; ++test_failed; }
+}
+static uint8_t load(const char *text) { return source_import(&s,(const uint8_t*)text,(uint16_t)strlen(text),&d); }
+static uint8_t seed(const char *path,const char *text) {
+    int8_t fd;
+    uint16_t n=(uint16_t)strlen(text),expected=n;
+    strcpy((char*)console_scratch,path); fd=open((char*)console_scratch,O_WRONLY|O_CREAT|O_TRUNC);
+    if(fd<0) return 0;
+    strcpy((char*)console_scratch,text);
+    if(write(fd,console_scratch,&n)||n!=expected) { close(fd); return 0; }
+    return close(fd)==0;
+}
+static void execution(const char *text,uint8_t kind,uint8_t code) {
+    uint8_t owned;
+    uint8_t before[7],after[7];
+    uint16_t pc,position;
+    uint32_t revision;
+    check(load(text));
+    s.dirty=1; revision=s.revision;
+    check(compile(&s,&b,&d));
+    if(!b.valid) return;
+    if(test_stage==2) {
+        check(seed("H:/SLICE.COM","old executable")); check(seed("H:/SLICE.ZMP","old map"));
+        check(save_build(&s,&b));
+    }
+    owned=pages_used();
+    if(test_stage==3) { __asm di __endasm; }
+    test_machine(before);
+    check(run_build(&s,&b));
+    test_machine(after);
+    if(test_stage==3) { __asm ei __endasm; }
+    check(!memcmp(before,after,7));
+    check(!memcmp(before+3,ram_result+8,4));
+    check(before[0]==ram_result[15]);
+    check(ram_result[26]==kind&&ram_result[28]==code);
+    check(s.dirty&&s.revision==revision&&pages_used()==owned);
+    if(kind==3) {
+        pc=ram_result[30]|((uint16_t)ram_result[31]<<8);
+        check(build_locate(&s,&b,pc,&position));
+        check(position==6); /* begin\n -> first statement at canonical byte 6 */
+    }
+    check(build_check(&s,&b)); /* writable run pages cannot mutate cached image */
+    if(test_stage==2) {
+        uint8_t status=255;
+        check(exec(EXEC_PRESERVE_PROGRAM,"H:/SLICE.COM",0,&status)==0&&status==0);
+        check(pages_used()==owned);
+        status=255; check(run_saved(&s,&b,&status)&&status==0);
+        check(pages_used()==owned);
+    }
+    build_close(&b);
+    check(pages_used()==1);
+}
+int main(void) {
+    uint8_t digest[32],expected[32]={
+        0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea,0x41,0x41,0x40,0xde,0x5d,0xae,0x22,0x23,
+        0xb0,0x03,0x61,0xa3,0x96,0x17,0x7a,0x9c,0xb4,0x10,0xff,0x61,0xf2,0x00,0x15,0xad};
+    Sha256 hash;
+    uint8_t line[129]; uint16_t i;
+    int8_t capture;
+    if(!console_open()) { test_failed=1; test_done=255; for(;;) {} }
+    test_stage=1;
+    sha_init(&hash); sha_byte(&hash,'a'); sha_byte(&hash,'b'); sha_byte(&hash,'c'); sha_end(&hash,digest);
+    for(i=0;i<32;++i) test_hash[i]=digest[i];
+    check(!memcmp(digest,expected,32));
+    check(source_new(&s,"H:/SLICE.PAS"));
+    check(load("begin  \r\nend. \r\n\032padding"));
+    check(s.length==11&&far_get(s.page,5)=='\n'&&far_get(s.page,10)=='\n');
+    for(i=0;i<128;++i) line[i]=' ';
+    check(!source_import(&s,line,128,&d)&&d.code==100&&s.length==11);
+    check(!source_replace(&s,0,0,line,128)&&s.length==11);
+    check(source_replace(&s,5,5,(const uint8_t*)"!",1)&&s.dirty);
+    check(!compile(&s,&b,&d)&&d.code==58&&pages_used()==1);
+    check(load("begin writeln(32768) end."));
+    check(!compile(&s,&b,&d)&&d.code==56&&pages_used()==1);
+    check(load("begin writeln(-(32768)) end."));
+    check(!compile(&s,&b,&d)&&d.code==56);
+    test_stage=2;
+    capture=open("H:/CONSOLE.TXT",O_WRONLY|O_CREAT|O_TRUNC);
+    check(capture>=0);
+    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
+    execution("var n: integer;\nbegin n:=-32768; writeln('N=',n,',',7 div -3,',',7 mod -3) end.",1,0);
+    test_stage=3;
+    execution("begin\nhalt; writeln('UNREACHABLE') end.",4,0);
+    test_stage=4;
+    execution("begin\nwriteln(7 div 0); writeln('UNREACHABLE') end.",3,2);
+    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
+    test_stage=5;
+    /* Exhaust actual OS allocations to fail each compiler allocation stage.
+     * Every failed attempt must retain the old source and its owner ledger. */
+    {
+        uint8_t held[32],count=0,p,available;
+        while((p=page_new(PAGE_RUN))!=255) held[count++]=p;
+        for(available=0;available<5;++available) {
+            uint8_t owned=pages_used();
+            check(!compile(&s,&b,&d)&&d.code==98);
+            check(pages_used()==owned&&s.dirty);
+            if(count) page_drop(held[--count]);
+        }
+        while(count) page_drop(held[--count]);
+    }
+    check(key_decode(0x98)==0); check(key_decode('k')==11);
+    check(key_decode(0xfe)==0); check(key_decode(0x98)==0); check(key_decode('k')=='k');
+    check(key_decode(0x96)==0); check(key_decode('a')=='A');
+    key_decode(0xfe); key_decode(0x96); check(key_decode('a')=='a');
+    strcpy(s.path,"H:/EDIT.PAS");
+    check(load("begin\nend.\n"));
+    check(source_replace(&s,5,5,(const uint8_t*)"  ",2));
+    check(save_source(&s,0)&&!s.dirty);
+    check(source_replace(&s,8,8,(const uint8_t*)"{second}\n",9));
+    check(save_source(&s,0)&&!s.dirty);
+    check(source_replace(&s,8,8,(const uint8_t*)"{third}\n",8));
+    check(!save_source(&s,0)&&platform_error==15&&s.dirty);
+    check(save_source(&s,1)&&!s.dirty);
+    check(load_source(&s,"H:/sub/../EDIT.PAS",&d)&&s.length==28&&!s.dirty);
+    check(source_replace(&s,0,0,(const uint8_t*)" ",1));
+    check(!load_source(&s,"H:/missing/never.pas",&d)&&s.length==29&&s.dirty);
+    check(seed("H:/BAD.PAS","                                                                                                                                "));
+    check(!load_source(&s,"H:/BAD.PAS",&d)&&d.code==100&&s.length==29&&s.dirty);
+    check(load_source(&s,"H:/NEWFILE",&d)&&!strcmp(s.path,"H:/NEWFILE.PAS")&&!s.length&&!s.dirty);
+    check(pages_used()==1);
+    source_close(&s); check(pages_used()==0);
+    test_stage=6; test_done=255;
+    test_complete(); return 0;
+}

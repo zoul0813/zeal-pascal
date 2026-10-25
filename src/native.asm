@@ -1,0 +1,142 @@
+.module native
+.globl _far_get, _far_set, _ram_enter
+.globl _ram_result, _ram_pages, _ram_entry
+.globl _console_scratch
+.globl _page_versions
+
+; Retained low-memory core. The link-map acceptance test checks the entire
+; area (including control data) remains in page 1. C may otherwise use page 2.
+.area _HOME
+_far_get::                       ; A=owned physical page, DE=bounded offset
+    ld c,a
+    ld a,#0x80
+    in a,(0xf2)
+    ld b,a
+    ld a,c
+    out (0xf2),a
+    set 7,d
+    ld a,(de)
+    ld c,a
+    ld a,b
+    out (0xf2),a
+    ld a,c
+    ret
+_far_set::                       ; A=page, DE=offset, byte on stack
+    ld c,a
+    pop hl
+    dec sp
+    ex (sp),hl                   ; H=value; return word remains at SP
+    ; Every store to a far page changes its version, even identical writes.
+    ; Keep these counters in retained page 1 with the mapping core.
+    push hl
+    push de
+    ld l,c
+    ld h,#0
+    add hl,hl
+    add hl,hl
+    ld de,#_page_versions
+    add hl,de
+    inc (hl)
+    jr nz,version_done
+    inc hl
+    inc (hl)
+    jr nz,version_done
+    inc hl
+    inc (hl)
+    jr nz,version_done
+    inc hl
+    inc (hl)
+version_done:
+    pop de
+    pop hl
+    ld a,#0x80
+    in a,(0xf2)
+    ld b,a
+    ld a,c
+    out (0xf2),a
+    set 7,d
+    ld a,h
+    ld (de),a
+    ld a,b
+    out (0xf2),a
+    ret
+
+_ram_enter::
+    push ix
+    push iy
+    exx
+    push bc
+    push de
+    push hl
+    exx
+    ex af,af'
+    push af
+    ex af,af'
+    ld (_parent_sp),sp
+    ld a,i
+    di
+    ld a,#0
+    jp po,iff_saved
+    inc a
+iff_saved:
+    ld (_parent_iff),a
+    ld (_ram_result+15),a
+    ld hl,(_parent_sp)
+    ld (_ram_result+16),hl
+    ld hl,#return_core
+    ld (_ram_result+18),hl
+    ld hl,#_ram_result
+    ld (_ram_result+20),hl
+    xor a
+    in a,(0xf0)
+    ld (_ram_result+8),a
+    ld a,#0x40
+    in a,(0xf1)
+    ld (_ram_result+9),a
+    ld a,#0x80
+    in a,(0xf2)
+    ld (_ram_result+10),a
+    ld a,#0xc0
+    in a,(0xf3)
+    ld (_parent_page3),a
+    ld (_ram_result+11),a
+    ld a,(_ram_pages+2)
+    out (0xf3),a
+    ld sp,#0xfc00               ; no stack access between OUT and LD SP
+    ld hl,#_ram_result
+    ld de,#0xfc00
+    ld bc,#128
+    ldir
+    jp 0xfd00
+return_core:
+    di
+    ld hl,#0xfc00
+    ld de,#_ram_result
+    ld bc,#128
+    ldir
+    ld a,(_parent_page3)
+    out (0xf3),a
+    ld sp,(_parent_sp)          ; no stack access until backing is restored
+    ex af,af'
+    pop af
+    ex af,af'
+    exx
+    pop hl
+    pop de
+    pop bc
+    exx
+    pop iy
+    pop ix
+    ld a,(_parent_iff)
+    or a
+    ret z
+    ei
+    ret
+_parent_sp: .ds 2
+_parent_iff: .ds 1
+_parent_page3: .ds 1
+_ram_entry:: .ds 2
+_ram_pages:: .ds 3
+_ram_result:: .ds 128
+_console_scratch:: .ds 256
+_page_versions:: .ds 256

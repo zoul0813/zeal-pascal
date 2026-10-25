@@ -1,0 +1,13 @@
+# Track the native product and its build/tests only. Research stays local.
+/*
+!/.gitignore
+!/CMakeLists.txt
+!/README.md
+!/src/
+!/tests/
+/tests/*
+!/tests/native/
+!/tools/
+/tools/*
+!/tools/test-native.py
+!/tools/test-native-host.py
