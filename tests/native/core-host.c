@@ -30,6 +30,16 @@ static void load(const char *text) { check(source_import(&s,(const uint8_t*)text
 static void invalid(const char *text,uint8_t code) {
     load(text); check(!compile(&s,&b,&d)&&d.code==code); check(pages_used()==1);
 }
+static uint16_t map_word(uint16_t at) { return far_get(b.map_page,at)|((uint16_t)far_get(b.map_page,at+1)<<8); }
+static void ordered_map(void) {
+    uint16_t at=96+map_word(84),last=0,begin,end;
+    for(;at<b.map_length;at+=16) {
+        begin=map_word(at); end=map_word(at+2);
+        check(begin>=last&&begin<end&&end<=b.code_bytes);
+        check(map_word(at+8)<=map_word(at+12)&&map_word(at+12)<=s.length);
+        last=end;
+    }
+}
 int main(int argc,char **argv) {
     unsigned i;
     uint16_t position;
@@ -62,10 +72,31 @@ int main(int argc,char **argv) {
     invalid("var s:string[80; begin end.",9);
     invalid("var s:string[8]; begin s:=42 end.",44);
     invalid("var n:integer; begin n:='text' end.",44);
-    invalid("var s:string[8]; begin writeln(s*2) end.",44);
-    invalid("var s:string[8]; begin writeln(-s) end.",44);
+    invalid("var s:string[8]; begin writeln(s*2) end.",47);
+    invalid("var s:string[8]; begin writeln(-s) end.",47);
     invalid("var n:integer; begin readln(n) end.",44);
     invalid("begin readln(missing) end.",41);
+    invalid("begin if 1 then end.",20);
+    invalid("begin while 'a' do end.",20);
+    invalid("begin repeat until 1 end.",20);
+    invalid("begin if true writeln(1) end.",17);
+    invalid("begin while true writeln(1) end.",13);
+    invalid("begin if true then writeln(1); else writeln(2) end.",1);
+    invalid("var b:boolean; begin b:=1 end.",44);
+    invalid("begin writeln(true+false) end.",47);
+    invalid("begin writeln(1 and true) end.",47);
+    invalid("begin writeln(not 'x') end.",47);
+    invalid("begin writeln(1='x') end.",47);
+    invalid("var i:integer; begin for i:=1 do end.",18);
+    invalid("var i:integer; begin for i:=1 to 3 i:=2 end.",13);
+    invalid("var i:integer; begin for i:=1 to 3 do i:=2 end.",44);
+    invalid("var i:integer; begin for i:=1 to 3 do for i:=1 to 2 do end.",44);
+    invalid("var i:integer; begin for i:=true to false do end.",44);
+    load("var b:boolean; n:integer; begin b:=not false; n:=1234; writeln(b,n) end.");
+    check(compile(&s,&b,&d)&&b.globals_bytes==3); ordered_map(); build_close(&b);
+    load("var i,n:integer; begin if true then if false then n:=1 else n:=2;\n"
+         "for i:=1 to 3 do begin while false do n:=9; repeat n:=n-1 until n=0 end end.");
+    check(compile(&s,&b,&d)); ordered_map(); build_close(&b);
     load("var a,b:string[80]; n:integer; c:string[255]; begin a:='Hello'; b:=a; c:=''; writeln(b,n,c); readln(a) end.");
     check(compile(&s,&b,&d)); check(b.globals_bytes==420&&b.code_origin==GLOBAL_BASE+420);
     build_close(&b);
@@ -98,7 +129,16 @@ int main(int argc,char **argv) {
     check(source_replace(&s,5,5,(const uint8_t*)"   ",3));
     check(compile(&s,&b,&d));
     check(build_locate(&s,&b,0,&position)&&position==9);
-    build_close(&b); source_close(&s); check(!pages_used());
+    build_close(&b);
+    {
+        static uint8_t text[SOURCE_LIMIT];
+        uint16_t n;
+        file=fopen("tests/native/control.pas","rb"); check(file!=NULL);
+        n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
+        check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
+        check(b.globals_bytes==29); ordered_map(); build_close(&b);
+    }
+    source_close(&s); check(!pages_used());
     printf("PASS: %u host front-end, identity and allocation-failure checks\n",checks);
     return 0;
 }

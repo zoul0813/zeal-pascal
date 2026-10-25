@@ -24,6 +24,11 @@
     jp string_copy              ; 40C3: HL source, DE destination, C capacity
     jp read_line                ; 40C6: fresh default console line
     jp read_string              ; 40C9: DE destination, C capacity
+    jp compare_integer          ; 40CC: DE left, HL right; -1/0/+1, DE preserved
+    jp compare_string           ; 40CF: DE left, HL right short-string pointers
+    jp boolean_output           ; 40D2: HL normalized Boolean
+    jp shift_left               ; 40D5: DE value, HL count
+    jp shift_right              ; 40D8: DE value, HL count
 
 ; This prefix is deliberately separate from the C compiler's ABI. Only the
 ; private helper entries above are emitted in this first language increment.
@@ -109,6 +114,101 @@ string_output_loop:
     pop hl
     inc hl
     djnz string_output_loop
+    ret
+
+boolean_output:
+    ld a,h
+    or l
+    ld hl,#false_text
+    jp z,string_output
+    ld hl,#true_text
+    jp string_output
+
+; Bias each signed high byte before the unsigned lexicographic comparison.
+; No subtract-and-sign shortcut: -32768 versus +32767 must not overflow.
+compare_integer:
+    ld a,d
+    xor #0x80
+    ld b,a
+    ld a,h
+    xor #0x80
+    ld c,a
+    ld a,b
+    cp c
+    jr c,compare_less
+    jr nz,compare_greater
+    ld a,e
+    cp l
+    jr c,compare_less
+    jr nz,compare_greater
+compare_equal:
+    ld hl,#0
+    ret
+compare_less:
+    ld hl,#0xffff
+    ret
+compare_greater:
+    ld hl,#1
+    ret
+compare_string:
+    ld a,(de)
+    ld b,a
+    ld c,(hl)
+    inc de
+    inc hl
+compare_string_loop:
+    ld a,b
+    or a
+    jr nz,compare_string_left
+    ld a,c
+    or a
+    jr z,compare_equal
+    jr compare_less
+compare_string_left:
+    ld a,c
+    or a
+    jr z,compare_greater
+    ld a,(de)
+    cp (hl)
+    jr c,compare_less
+    jr nz,compare_greater
+    inc de
+    inc hl
+    dec b
+    dec c
+    jr compare_string_loop
+
+shift_left:
+    ld a,#0
+    jr shift_start
+shift_right:
+    ld a,#1
+shift_start:
+    ld (shift_direction),a
+    ld a,h
+    or a
+    jr nz,shift_zero
+    ld a,l
+    cp #16
+    jr nc,shift_zero
+    ld b,a
+    ex de,hl
+    or a
+    ret z
+    ld a,(shift_direction)
+    or a
+    jr nz,shift_right_loop
+shift_left_loop:
+    add hl,hl
+    djnz shift_left_loop
+    ret
+shift_right_loop:
+    srl h
+    rr l
+    djnz shift_right_loop
+    ret
+shift_zero:
+    ld hl,#0
     ret
 
 string_copy:
@@ -373,3 +473,8 @@ tail: .ds 127
 line_next: .dw 0
 line_remaining: .db 0
 line_buffer: .ds 255
+false_text: .db 5
+    .ascii "FALSE"
+true_text: .db 4
+    .ascii "TRUE"
+shift_direction: .db 0

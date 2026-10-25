@@ -2,9 +2,9 @@
 
 /* One synchronous compiler owns this workspace. No source mutation or second
  * compile can run until it returns. Capacities fail with original 98/99. */
-enum { T_EOF=256,T_ID,T_NUMBER,T_STRING,T_ASSIGN,T_RESERVED };
-/* capacity zero denotes Integer; otherwise this is an N+1 short string. */
-typedef struct { char name[128]; uint16_t address; uint8_t capacity; } Symbol;
+enum { T_EOF=256,T_ID,T_NUMBER,T_STRING,T_ASSIGN,T_RESERVED,T_NE,T_LE,T_GE };
+enum { K_INTEGER,K_STRING,K_BOOLEAN };
+typedef struct { char name[128]; uint16_t address; uint8_t kind,capacity,control; } Symbol;
 static Symbol symbols[32];
 static uint8_t symbol_count, depth;
 static const Source *input;
@@ -43,6 +43,9 @@ static void emit(uint8_t v) {
 }
 static void emit16(uint16_t v) { emit((uint8_t)v); emit((uint8_t)(v>>8)); }
 static void op16(uint8_t op,uint16_t value) { emit(op); emit16(value); }
+static uint16_t pc(void) { return emitted-(image->code_origin-0x4000u); }
+static uint16_t forward(uint8_t op) { uint16_t at=emitted+1; op16(op,0); return at; }
+static void patch(uint16_t at) { if(!error->code) word(at,0x4000u+emitted); }
 static void guard(void) {
     /* Alternate registers are restored on both paths. The fixed 64-byte
      * reservation covers every nonrecursive runtime-helper path and syscall. */
@@ -106,20 +109,34 @@ static void next(void) {
         ++scan; token=c;
         if(!strchr(";:.,()+-*/[]=<>",c)) fail(58);
         if(c==':'&&get(scan)=='=') { ++scan; token=T_ASSIGN; }
+        if(c=='<'&&get(scan)=='>') { ++scan; token=T_NE; }
+        if(c=='<'&&get(scan)=='=') { ++scan; token=T_LE; }
+        if(c=='>'&&get(scan)=='=') { ++scan; token=T_GE; }
     }
     token_end=scan;
 }
 static uint8_t is(const char *s) { return (token==T_ID||token==T_RESERVED)&&!strcmp(name,s); }
 static void expect(uint16_t t,uint8_t code) { if(token!=t) fail(code); else next(); }
+static void keyword(const char *s,uint8_t code) { if(!is(s)) fail(code); else next(); }
 static int8_t lookup(void) {
     uint8_t i;
     for(i=0;i<symbol_count;++i) if(!strcmp(name,symbols[i].name)) return (int8_t)i;
     return -1;
 }
+static void load_symbol(uint8_t id) {
+    Symbol *s=&symbols[id];
+    if(s->kind==K_STRING) op16(0x21,s->address);
+    else if(s->kind==K_BOOLEAN) { op16(0x3a,s->address); emit(0x6f); emit(0x26); emit(0); }
+    else op16(0x2a,s->address);
+}
+static void store_symbol(uint8_t id) {
+    if(symbols[id].kind==K_BOOLEAN) { emit(0x7d); op16(0x32,symbols[id].address); }
+    else op16(0x22,symbols[id].address);
+}
 static uint8_t expression(void);
 static uint8_t factor(void) {
     int8_t id;
-    uint8_t negative,kind=0;
+    uint8_t negative,kind=K_INTEGER;
     uint16_t i,address;
     if(++depth>24) { fail(98); --depth; return 0; }
     if(token=='+'||token=='-') {
@@ -127,9 +144,14 @@ static uint8_t factor(void) {
         if(negative&&token==T_NUMBER&&!hexadecimal&&magnitude==32768u) {
             op16(0x21,0x8000); next();
         } else {
-            if(factor()) fail(44);
+            if(factor()!=K_INTEGER) fail(47);
             if(negative) { emit(0x7d); emit(0x2f); emit(0x6f); emit(0x7c); emit(0x2f); emit(0x67); emit(0x23); }
         }
+    } else if(is("not")) {
+        next(); kind=factor();
+        if(kind==K_BOOLEAN) { emit(0x7d); emit(0xee); emit(1); emit(0x6f); }
+        else if(kind==K_INTEGER) { emit(0x7d); emit(0x2f); emit(0x6f); emit(0x7c); emit(0x2f); emit(0x67); }
+        else fail(47);
     } else if(token==T_NUMBER) {
         if(!hexadecimal&&magnitude>32767u) fail(56);
         op16(0x21,magnitude); next();
@@ -139,38 +161,65 @@ static uint8_t factor(void) {
         op16(0xc3,address+literal_length+1);
         emit((uint8_t)literal_length);
         for(i=0;i<literal_length;++i) emit(literal[i]);
-        op16(0x21,address); kind=1; next();
+        op16(0x21,address); kind=K_STRING; next();
     } else if(token=='(') { next(); kind=expression(); expect(')',5); }
     else if(token==T_ID) {
         id=lookup();
-        if(id<0) fail(41);
+        if(id<0&&(is("true")||is("false"))) {
+            op16(0x21,is("true")?1:0); kind=K_BOOLEAN; next();
+        } else if(id<0) fail(41);
         else {
-            kind=symbols[id].capacity!=0;
-            op16(kind?0x21:0x2a,symbols[id].address); next();
+            kind=symbols[id].kind; load_symbol((uint8_t)id); next();
         }
     } else fail(54);
     --depth;
     return kind;
 }
+static void bitwise(uint8_t op) {
+    /* DE left, HL right. Boolean operands are already normalized to 0/1. */
+    emit(0x7d); emit(op==0?0xa3:op==1?0xb3:0xab); emit(0x6f);
+    emit(0x7c); emit(op==0?0xa2:op==1?0xb2:0xaa); emit(0x67);
+}
 static uint8_t term(void) {
-    uint8_t op,kind=factor();
-    while(!error->code&&(token=='*'||is("div")||is("mod"))) {
-        op=token=='*'?0:is("div")?1:2;
-        if(kind) fail(44);
-        next(); guard(); emit(0xe5); if(factor()) fail(44); emit(0xd1);
-        call(op==0?RT_MUL:op==1?RT_DIV:RT_MOD);
+    uint8_t op,right,kind=factor();
+    while(!error->code&&(token=='*'||is("div")||is("mod")||is("and")||is("shl")||is("shr"))) {
+        op=token=='*'?0:is("div")?1:is("mod")?2:is("and")?3:is("shl")?4:5;
+        if(kind==K_STRING||(op!=3&&kind!=K_INTEGER)) fail(47);
+        next(); guard(); emit(0xe5); right=factor(); emit(0xd1);
+        if(right!=kind) fail(47);
+        if(op==3) bitwise(0);
+        else call(op==0?RT_MUL:op==1?RT_DIV:op==2?RT_MOD:op==4?RT_SHL:RT_SHR);
+    }
+    return kind;
+}
+static uint8_t simple_expression(void) {
+    uint16_t op;
+    uint8_t right,kind=term();
+    while(!error->code&&(token=='+'||token=='-'||is("or")||is("xor"))) {
+        op=token=='+'||token=='-'?token:is("or")?'|':'^';
+        if(kind==K_STRING||((op=='+'||op=='-')&&kind!=K_INTEGER)) fail(47);
+        next(); guard(); emit(0xe5); right=term(); emit(0xd1);
+        if(right!=kind) fail(47);
+        if(op=='+') emit(0x19);
+        else if(op=='-') { emit(0xeb); emit(0xb7); emit(0xed); emit(0x52); }
+        else bitwise(op=='|'?1:2);
     }
     return kind;
 }
 static uint8_t expression(void) {
-    uint8_t op,kind=term();
-    while(!error->code&&(token=='+'||token=='-')) {
-        if(kind) fail(44);
-        op=(uint8_t)token; next(); guard(); emit(0xe5); if(term()) fail(44); emit(0xd1);
-        if(op=='+') emit(0x19);
-        else { emit(0xeb); emit(0xb7); emit(0xed); emit(0x52); }
-    }
-    return kind;
+    uint8_t kind=simple_expression(),right,jump;
+    uint16_t op=token;
+    if(op!='='&&op!=T_NE&&op!='<'&&op!='>'&&op!=T_LE&&op!=T_GE) return kind;
+    next(); guard(); emit(0xe5); right=simple_expression(); emit(0xd1);
+    if(kind!=right) fail(47);
+    call(kind==K_STRING?RT_STRCMP:RT_COMPARE);
+    /* Three-way comparison returns exactly -1, 0, +1. Normalize every
+     * relational expression to a one-byte Boolean, held zero-extended in HL. */
+    if(op=='='||op==T_NE) { emit(0x7c); emit(0xb5); jump=op=='='?0x28:0x20; }
+    else if(op=='<'||op==T_GE) { emit(0xcb); emit(0x7c); jump=op=='<'?0x20:0x28; }
+    else { emit(0x7d); emit(0xfe); emit(1); jump=op=='>'?0x28:0x20; }
+    op16(0x11,1); emit(jump); emit(3); op16(0x11,0); emit(0xeb);
+    return K_BOOLEAN;
 }
 static void mapping(uint16_t begin,uint16_t end,uint16_t first,uint16_t last) {
     uint16_t offset=96+file_bytes+entries*16;
@@ -179,8 +228,13 @@ static void mapping(uint16_t begin,uint16_t end,uint16_t first,uint16_t last) {
     map16(offset,begin); map16(offset+2,end); map16(offset+4,0); map16(offset+6,0);
     map32(offset+8,first); map32(offset+12,last); ++entries;
 }
+static uint16_t condition(void) {
+    if(expression()!=K_BOOLEAN) fail(20);
+    emit(0x7c); emit(0xb5); /* A = H | L; false has Z set */
+    return forward(0xca);
+}
 static void statement(void) {
-    uint16_t start=token_start, code=emitted-(image->code_origin-0x4000u);
+    uint16_t start=token_start, code=pc(),branch,other,loop,body,head_end;
     int8_t id;
     uint8_t newline,kind;
     if(++depth>24) { fail(98); --depth; return; }
@@ -192,12 +246,71 @@ static void statement(void) {
         }
         if(is("end")) next(); else fail(14);
         --depth; return;
+    } else if(is("if")) {
+        next(); branch=condition(); keyword("then",17);
+        mapping(code,pc(),start,token_start);
+        statement();
+        if(is("else")) {
+            code=pc(); other=forward(0xc3);
+            mapping(code,pc(),start,token_start);
+            patch(branch); next(); statement(); patch(other);
+        } else patch(branch);
+        --depth; return;
+    } else if(is("while")) {
+        loop=emitted; next(); branch=condition(); keyword("do",13);
+        head_end=token_start; mapping(code,pc(),start,head_end);
+        statement(); code=pc(); op16(0xc3,0x4000u+loop); patch(branch);
+        mapping(code,pc(),start,head_end);
+        --depth; return;
+    } else if(is("repeat")) {
+        loop=emitted; next();
+        while(!error->code&&!is("until")&&token!=T_EOF) {
+            statement();
+            if(token==';') next(); else if(!is("until")) fail(1);
+        }
+        start=token_start; code=pc(); keyword("until",41);
+        branch=condition();
+        if(!error->code) word(branch,0x4000u+loop);
+        mapping(code,pc(),start,token_start);
+        --depth; return;
+    } else if(is("for")) {
+        next(); id=token==T_ID?lookup():-1;
+        if(id<0) fail(24);
+        else if(symbols[id].kind==K_STRING||symbols[id].control) fail(44);
+        next(); expect(T_ASSIGN,7);
+        kind=expression();
+        if(id>=0&&kind!=symbols[id].kind) fail(44);
+        guard(); emit(0xe5); /* initial, not assigned until a nonzero trip */
+        newline=is("downto");
+        if(!is("to")&&!newline) fail(18); else next();
+        kind=expression();
+        if(id>=0&&kind!=symbols[id].kind) fail(44);
+        emit(0xd1); guard(); emit(0xe5); /* keep final bound across the body */
+        call(RT_COMPARE); /* DE initial survives; HL -> signed three-way */
+        emit(0x7d); emit(0xfe); emit(newline?255:1); branch=forward(0xca);
+        emit(0xeb); if(id>=0) store_symbol((uint8_t)id);
+        keyword("do",13); head_end=token_start;
+        mapping(code,pc(),start,head_end);
+        body=emitted;
+        if(id>=0) symbols[id].control=1;
+        statement();
+        if(id>=0) symbols[id].control=0;
+        code=pc();
+        if(id>=0) load_symbol((uint8_t)id);
+        emit(0xd1); guard(); emit(0xd5); emit(0xeb); call(RT_COMPARE);
+        emit(0x7c); emit(0xb5); other=forward(0xca);
+        if(id>=0) load_symbol((uint8_t)id);
+        emit(newline?0x2b:0x23); if(id>=0) store_symbol((uint8_t)id);
+        op16(0xc3,0x4000u+body);
+        patch(branch); patch(other); emit(0xc1); /* exactly one owned bound word */
+        mapping(code,pc(),start,head_end);
+        --depth; return;
     } else if((is("write")||is("writeln"))&&lookup()<0) {
         newline=is("writeln"); next();
         if(token=='(') {
             next();
             do {
-                kind=expression(); call(kind?RT_STRING:RT_INTEGER);
+                kind=expression(); call(kind==K_STRING?RT_STRING:kind==K_BOOLEAN?RT_BOOLEAN:RT_INTEGER);
                 if(token!=',') break;
                 next();
             } while(!error->code);
@@ -214,7 +327,7 @@ static void statement(void) {
             do {
                 id=token==T_ID?lookup():-1;
                 if(id<0) { fail(41); break; }
-                if(!symbols[id].capacity) { fail(44); break; }
+                if(symbols[id].kind!=K_STRING||symbols[id].control) { fail(44); break; }
                 op16(0x11,symbols[id].address);
                 emit(0x0e); emit(symbols[id].capacity); call(RT_READSTRING);
                 next(); if(token!=',') break; next();
@@ -226,14 +339,15 @@ static void statement(void) {
         id=lookup();
         if(id<0) fail(41);
         else {
+            if(symbols[id].control) fail(44);
             next(); expect(T_ASSIGN,7); kind=expression();
-            if(kind!=(symbols[id].capacity!=0)) fail(44);
-            if(kind) {
+            if(kind!=symbols[id].kind) fail(44);
+            if(kind==K_STRING) {
                 op16(0x11,symbols[id].address); emit(0x0e); emit(symbols[id].capacity); call(RT_COPY);
-            } else op16(0x22,symbols[id].address);
+            } else store_symbol((uint8_t)id);
         }
-    } else if(token!=';'&&!is("end")) fail(54);
-    mapping(code,emitted-(image->code_origin-0x4000u),start,token_start);
+    } else if(token!=';'&&!is("end")&&!is("else")&&!is("until")) fail(54);
+    mapping(code,pc(),start,token_start);
     --depth;
 }
 void build_close(Build *b) {
@@ -256,7 +370,7 @@ static void hash_map(const Build *b,uint8_t out[32]) {
 }
 uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     uint16_t i,j,vars[32], count;
-    uint8_t digest[32],capacity;
+    uint8_t digest[32],capacity,kind;
     Sha256 hash;
     image=b; error=d;
     memset(d,0,sizeof(*d));
@@ -294,9 +408,11 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
                 next(); if(token!=',') break; next();
             } while(!d->code);
             expect(':',2);
-            capacity=0;
+            capacity=0; kind=K_INTEGER;
             if(is("integer")) next();
+            else if(is("boolean")) { kind=K_BOOLEAN; next(); }
             else if(is("string")) {
+                kind=K_STRING;
                 next(); expect('[',8);
                 if(token!=T_NUMBER||magnitude<1||magnitude>255) fail(49);
                 else { capacity=(uint8_t)magnitude; next(); }
@@ -305,7 +421,9 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
             for(i=0;i<count;++i) {
                 symbols[vars[i]].address=GLOBAL_BASE+b->globals_bytes;
                 symbols[vars[i]].capacity=capacity;
-                b->globals_bytes+=capacity?(uint16_t)capacity+1:2;
+                symbols[vars[i]].kind=kind;
+                symbols[vars[i]].control=0;
+                b->globals_bytes+=kind==K_STRING?(uint16_t)capacity+1:kind==K_BOOLEAN?1:2;
             }
             expect(';',1);
         }

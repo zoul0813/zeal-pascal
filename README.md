@@ -55,11 +55,19 @@ A separate observed Zeal OS defect can corrupt control flow if the disk fills
 while a file is growing. Its kernel fix is pending approval. Tests distinguish
 an already-full volume from this failing mid-write exhaustion case.
 
-Current language support includes Integer and `string[1..255]` globals, compound
-statements, assignments, signed Integer expressions, string/Integer
-Write/Writeln, string-target ReadLn and Halt/Exit. Short-string assignment
+Current language support includes Integer, Boolean and `string[1..255]` globals,
+compound statements, assignments, Integer arithmetic/bitwise/shift expressions,
+eager Boolean logic, ordinal/string comparisons, If/Then/Else, While/Do,
+Repeat/Until and For/To/Downto. For controls currently support Integer/Boolean;
+the final bound is evaluated once, zero trips retain the old control value and
+normal completion leaves the final bound. Write/Writeln accepts strings,
+Integers and Booleans; ReadLn currently accepts string targets. Short-string assignment
 truncates to the destination capacity. Memory execution preserves IDE pages and
 source; checked errors return to their source statement after Escape.
+
+The [native control-flow fixture](tests/native/control.pas) exercises these
+features in both Memory and saved native COM execution. Remaining declarations,
+types, routines, Case/Goto and the rest of the dialect are still in progress.
 
 ReadLn currently uses Zeal's cooked keyboard line editor and restores raw mode
 before returning. It supports string fields, empty lines and discarding the rest

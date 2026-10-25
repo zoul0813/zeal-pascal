@@ -30,12 +30,11 @@ static uint8_t seed(const char *path,const char *text) {
     if(write(fd,console_scratch,&n)||n!=expected) { close(fd); return 0; }
     return close(fd)==0;
 }
-static void execution(const char *text,uint8_t kind,uint8_t code) {
+static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) {
     uint8_t owned;
     uint8_t before[7],after[7];
     uint16_t pc,position;
     uint32_t revision;
-    check(load(text));
     s.dirty=1; revision=s.revision;
     check(compile(&s,&b,&d));
     if(!b.valid) return;
@@ -43,7 +42,7 @@ static void execution(const char *text,uint8_t kind,uint8_t code) {
         check(seed("H:/SLICE.COM","old executable")); check(seed("H:/SLICE.ZMP","old map"));
         check(save_build(&s,&b));
     }
-    if(test_stage==7) check(save_build(&s,&b));
+    if(test_stage==7||test_stage==9) check(save_build(&s,&b));
     owned=pages_used();
     if(test_stage==3) { __asm di __endasm; }
     test_machine(before);
@@ -58,7 +57,7 @@ static void execution(const char *text,uint8_t kind,uint8_t code) {
     if(kind==3) {
         pc=ram_result[30]|((uint16_t)ram_result[31]<<8);
         check(build_locate(&s,&b,pc,&position));
-        check(position==6); /* begin\n -> first statement at canonical byte 6 */
+        check(position==expected_position);
     }
     check(build_check(&s,&b)); /* writable run pages cannot mutate cached image */
     if(test_stage==2) {
@@ -73,8 +72,29 @@ static void execution(const char *text,uint8_t kind,uint8_t code) {
         check(exec(EXEC_PRESERVE_PROGRAM,"H:/NAME.COM",0,&status)==0&&status==0);
         check(pages_used()==owned);
     }
+    if(test_stage==9) {
+        uint8_t status=255;
+        check(run_saved(&s,&b,&status)&&status==0); check(pages_used()==owned);
+    }
     build_close(&b);
     check(pages_used()==1);
+}
+static void execution(const char *text,uint8_t kind,uint8_t code) {
+    check(load(text)); execute_loaded(kind,code,6);
+}
+static void execution_file(const char *path,uint8_t kind,uint8_t code,uint16_t expected_position) {
+    check(load_source(&s,path,&d)); execute_loaded(kind,code,expected_position);
+}
+static void control_tests(void) {
+    int8_t capture=open("H:/CONTROL.TXT",O_WRONLY|O_CREAT|O_TRUNC);
+    check(capture>=0);
+    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
+    test_stage=9; execution_file("H:/CONTROL.PAS",1,0,0);
+    test_stage=10;
+    execution_file("H:/EAGERAND.PAS",3,2,6);
+    execution_file("H:/EAGEROR.PAS",3,2,6);
+    execution_file("H:/NESTED.PAS",3,2,34);
+    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
 static void media_tests(void) {
     uint8_t attempt,status;
@@ -183,6 +203,7 @@ int main(void) {
     execution("program HelloName;\nvar UserName:string[80]; a:string[3]; b:string[4];\nbegin Write('Your name: '); ReadLn(UserName); WriteLn('Hello, ',UserName,'!');\nReadLn(a,b); WriteLn(a,'/',b); ReadLn(UserName); WriteLn('[',UserName,']') end.",1,0);
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
     media_tests();
+    control_tests();
     source_close(&s); check(pages_used()==0);
     test_stage=6; test_done=255;
     test_complete(); return 0;

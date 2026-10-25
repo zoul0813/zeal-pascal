@@ -220,13 +220,17 @@ def interactive_checks():
                 f"rb 0x{sym['_ram_result']:x} 128"]
     commands += [f"bp 0x{sym['_key_read']:x}", 'tap R', 'run 2000000000'] + probe()
     commands += [f"bc 0x{sym['_key_read']:x}"]
-    commands += ['tap ESC', 'run 2000000'] + probe()
+    commands += [f"bp 0x{sym['_key_read']:x}", 'tap ESC', 'run 100000000'] + probe()
+    commands += [f"bc 0x{sym['_key_read']:x}"]
     # At the faulting statement: EOL, left twice, delete zero, insert three.
     commands += control('Q') + typed('d') + control('S') + control('S') + control('G')
     commands += typed('3') + control('K') + typed('d')
     commands += [f"bp 0x{sym['_key_read']:x}", 'tap R', 'run 2000000000'] + probe()
+    # Stay at user-side read entries. A timed sample inside a syscall would
+    # inspect the kernel's C000 page once IDE globals have grown into page 3.
+    commands += ['tap ESC', 'run 100000000', 'tap Q', 'run 100000000',
+                 'tap ESC', 'run 100000000'] + probe()
     commands += [f"bc 0x{sym['_key_read']:x}"]
-    commands += ['tap ESC', 'run 2000000'] + typed('q') + ['tap ESC', 'run 2000000'] + probe()
     commands += typed('qn') + ['run 10000000', f'bp 0x{keyboard:x}', 'run 100000000',
                                'regs', 'mmu', f'rb 0x{mode:x} 1', f'rb 0x{user_pages:x} 3', 'quit']
     text = execute('interactive', commands)
@@ -275,12 +279,12 @@ def file_workflow_checks():
     typed = lambda text: type_text(text, ticks=2000000)
     source = b'begin\nend.\n'
     commands = ['run 100000000'] + type_text('H:/zpascal.bin\n')
-    commands += ['run 10000000'] + typed('nwH:/OPEN.PAS\n')
+    commands += ['run 10000000'] + typed('nwH:/OPEN.PAS')
     def probe():
         return ['regs', f"rb 0x{sym['_ide_state']:x} 1", f"rb 0x{sym['_work']:x} 140"]
-    commands += [f"bp 0x{sym['_key_read']:x}", 'run 100000000'] + probe()
-    commands += [f"bc 0x{sym['_key_read']:x}"] + typed('e{saved}') + control('K') + typed('ds')
-    commands += [f"bp 0x{sym['_key_read']:x}", 'run 100000000'] + probe()
+    commands += [f"bp 0x{sym['_key_read']:x}", 'tap ENTER', 'run 100000000'] + probe()
+    commands += [f"bc 0x{sym['_key_read']:x}"] + typed('e{saved}') + control('K') + typed('d')
+    commands += [f"bp 0x{sym['_key_read']:x}", 'tap S', 'run 100000000'] + probe()
     commands += [f"bc 0x{sym['_key_read']:x}", 'tap ESC', 'run 2000000'] + typed('q') + ['quit']
     text = execute('files', commands, {'OPEN.PAS': source})
     frames = [memory(part) for part in re.split(r'\[DBG\] PC=', text)[1:]]
@@ -384,7 +388,8 @@ def main():
         commands.append(f"rb 0x{sym['_test_hash']:x} 32")
     commands.append(f"rb 0x{sym['_ram_result']:x} 128")
     commands.append('quit')
-    text = execute('core', commands, eeprom_image=blank_eeprom())
+    fixtures = {p.name.upper(): p.read_bytes() for p in (ROOT / 'tests/native').glob('*.pas')}
+    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom())
     mem = memory(text)
     def word(name):
         p = sym[name]
@@ -403,6 +408,13 @@ def main():
     checks.append(('short-string ReadLn, editing, fields, empty line and shell exec',
                    input_output.is_file() and input_output.read_bytes() ==
                    b'Your name: Hello, Ada!\r\nabc/defg\r\n[]\r\n' * 2))
+    control_output = RUN / 'core/hostfs/CONTROL.TXT'
+    control_expected = ('BOOL-LAYOUT-OK\nTRUE,FALSE\nNEAREST-ELSE-OK\nFOR-UP-OK\nFOR-DOWN-OK\n'
+                        'FOR-ZERO-TRIP-OK\nFOR-ZERO-DOWN-OK\nFOR-BOUND-ONCE-OK\nNESTED-FOR-OK\nFOR-LIMITS-OK\n'
+                        'FOR-SIGNED-OK\nFOR-BOOLEAN-OK\nWHILE-REPEAT-OK\nCOMPARE-OK\nBITWISE-OK\n'
+                        'SHIFTS-OK\nSTR-COMPARE-OK\n').replace('\n','\r\n').encode() * 2
+    checks.append(('Boolean layout/eager logic, signed/string comparisons, bitwise/shift and control flow in RAM and COM',
+                   control_output.is_file() and control_output.read_bytes() == control_expected))
     media_output = RUN / 'core/hostfs/MEDIA.TXT'
     disk = (RUN / 'core/eeprom.img').read_bytes()
     try:
