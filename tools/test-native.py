@@ -5,6 +5,7 @@ Only the supported headless console/debugger and disposable media are used.
 This is emulator acceptance, not hardware conformance or a Pascal interpreter.
 """
 import hashlib
+import gzip
 from datetime import datetime, timezone
 import json
 import re
@@ -19,6 +20,7 @@ ZEAL = ROOT.parent
 EMULATOR = ZEAL / "Zeal-NativeEmulator/build/zeal-native"
 ROM = ZEAL / "zeal-dev-environment/home/Zeal-8-bit-OS/build/os_with_romdisk.img"
 KERNEL_MAP = ROM.with_name('os.map')
+TF_TEMPLATE = ZEAL / 'zeal-dev-environment/home/tf.base.img.gz'
 OUT = ROOT / "analysis/native-slice"
 RUN = OUT / datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
 
@@ -49,6 +51,12 @@ def blank_eeprom():
 
 def zealfs_files(data):
     """Read-only independent disk oracle for the native ZealFS v2 fixture."""
+    if data[:2] != b'Z\x02':
+        assert data[510:512] == b'\x55\xaa'
+        partitions = [446 + i * 16 for i in range(4) if data[450 + i * 16] == 0x5a]
+        assert len(partitions) == 1
+        start, sectors = struct.unpack_from('<II', data, partitions[0] + 8)
+        data = data[start * 512:(start + sectors) * 512]
     assert data[:2] == b'Z\x02'
     page = 256 << data[6]
     bitmap = struct.unpack_from('<H', data, 2)[0]
@@ -315,7 +323,7 @@ def full_media_checks():
     disk = bytes(disk)
     typed = lambda text: type_text(text, ticks=2000000)
     commands = ['run 100000000'] + type_text('H:/zpascal.bin\n')
-    commands += ['run 10000000'] + typed('ne{kept}') + control('K') + typed('docq')
+    commands += ['run 10000000'] + typed('nwB:/UNTITLED.PAS\ne{kept}') + control('K') + typed('docq')
     for key in ('C', 'R'):
         commands += [f"bp 0x{sym['_save_build']:x}", f'tap {key}', 'run 2000000000',
                      f"bc 0x{sym['_save_build']:x}", f"bp 0x{sym['_output_number']:x}",
@@ -337,6 +345,67 @@ def full_media_checks():
         ('full-before-transaction C/R/S retain dirty source and do not alter the existing media',
          len(frames) == 3 and retained and (RUN / 'full-media/eeprom.img').read_bytes() == disk),
     ]
+
+
+def default_path_checks():
+    sym = symbols('zpascal')
+    work, build = sym['_work'], sym['_build']
+    key = sym['_key_read']
+    template = gzip.decompress(TF_TEMPLATE.read_bytes())
+    typed = lambda text: type_text(text, ticks=2000000)
+    default = b'T:/src/pascal/UNTITLED.pas'
+    def launch():
+        return (['run 100000000'] + type_text('H:/zpascal.bin\n') + ['run 10000000',
+                f'bp 0x{key:x}', 'tap N', 'run 100000000'])
+    def probe():
+        return ['regs', f'rb 0x{work:x} 140', f'rb 0x{build:x} 83']
+    def frames(text):
+        return [memory(part) for part in text.split('[DBG] PC=')[1:]]
+    def path(frame):
+        return bytes(frame.get(work + 12 + i, 0) for i in range(128)).split(b'\0')[0]
+    def source_size(frame):
+        return frame.get(work + 2, 0) | frame.get(work + 3, 0) << 8
+    commands = launch() + probe() + [f'bc 0x{key:x}'] + typed('wT:/work/deep/hello.pas')
+    commands += [f'bp 0x{key:x}', 'tap ENTER', 'run 100000000'] + probe()
+    commands += [f'bc 0x{key:x}'] + typed('q') + ['quit']
+    missing = execute('paths-missing', commands, tf_image=template)
+    observed = frames(missing)
+    checks = [('startup and W select missing TF paths without creating directories',
+               len(observed) == 2 and path(observed[0]) == default and source_size(observed[0]) == 0
+               and path(observed[1]) == b'T:/work/deep/hello.pas' and source_size(observed[1]) == 0
+               and (RUN / 'paths-missing/tf.img').read_bytes() == template)]
+    text = b'begin\nend.'
+    commands = launch() + [f'bc 0x{key:x}'] + typed('e' + text.decode()) + control('K') + typed('d')
+    commands += [f'bp 0x{key:x}', 'tap S', 'run 100000000'] + probe()
+    commands += [f'bc 0x{key:x}', 'tap ESC', 'run 2000000'] + typed('q') + ['quit']
+    saved = execute('paths-save', commands, tf_image=template)
+    observed = frames(saved)
+    saved_image = (RUN / 'paths-save/tf.img').read_bytes()
+    files = zealfs_files(saved_image)
+    checks.append(('S creates the default parent directories and saves the exact requested filename',
+                   len(observed) == 1 and path(observed[0]) == default and observed[0].get(work + 1) == 0
+                   and files.get('/src/pascal/UNTITLED.pas') == text
+                   and not any('/ZP' in name for name in files)))
+    commands = launch() + ['tap C', 'run 2000000000'] + probe() + [f'bc 0x{key:x}'] + typed('q') + ['quit']
+    opened = execute('paths-reopen', commands, tf_image=saved_image)
+    observed = frames(opened)
+    checks.append(('startup reopens the saved default source and Memory compilation leaves the disk unchanged',
+                   len(observed) == 1 and source_size(observed[0]) == len(text)
+                   and observed[0].get(build + 4) == 1
+                   and bytes(observed[0].get(build + 51 + i, 0) for i in range(32)) == hashlib.sha256(text).digest()
+                   and (RUN / 'paths-reopen/tf.img').read_bytes() == saved_image))
+    commands = launch() + [f'bc 0x{key:x}'] + typed('wT:/work/deep/hello.pas\ne' + text.decode())
+    commands += control('K') + typed('docq') + [f'bp 0x{key:x}', 'tap C', 'run 2000000000'] + probe()
+    commands += [f'bc 0x{key:x}', 'tap ESC', 'run 2000000'] + typed('qn') + ['quit']
+    compiled = execute('paths-com', commands, tf_image=template)
+    observed = frames(compiled)
+    files = zealfs_files((RUN / 'paths-com/tf.img').read_bytes())
+    checks.append(('COM publication creates entered parent directories without saving source or creating the default path',
+                   len(observed) == 1 and observed[0].get(build + 4) == 1 and observed[0].get(work + 1) == 1
+                   and '/work/deep/hello.COM' in files and '/work/deep/hello.ZMP' in files
+                   and '/work/deep/hello.pas' not in files and '/src/' not in files
+                   and not any('/ZP' in name for name in files)))
+    return checks
 
 
 def memory(text):
@@ -439,6 +508,7 @@ def main():
         checks.extend(interactive_checks())
         checks.extend(file_workflow_checks())
         checks.extend(full_media_checks())
+        checks.extend(default_path_checks())
     checks.append(('implementation inputs unchanged during native validation',
                    all(sha(ROOT / name) == digest for name, digest in input_hashes.items())))
     report = {
@@ -453,7 +523,7 @@ def main():
         'native_completion_tstates_including_boot':
             int(re.findall(r'cyc=(\d+)', text)[-1]) if re.findall(r'cyc=(\d+)', text) else None,
         'artifacts': {str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p): sha(p)
-                      for p in [EMULATOR, ROM, KERNEL_MAP, ROOT / 'build/zpascal.bin', ROOT / 'build/zptest.bin']},
+                      for p in [EMULATOR, ROM, KERNEL_MAP, TF_TEMPLATE, ROOT / 'build/zpascal.bin', ROOT / 'build/zptest.bin']},
         'checks': [{'check': label, 'passed': ok} for label, ok in checks],
     }
     (RUN / 'report.json').write_text(json.dumps(report, indent=2) + '\n')

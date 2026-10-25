@@ -190,7 +190,8 @@ int main(void) {
     check(save_source(&s,1)&&!s.dirty);
     check(load_source(&s,"H:/sub/../EDIT.PAS",&d)&&s.length==28&&!s.dirty);
     check(source_replace(&s,0,0,(const uint8_t*)" ",1));
-    check(!load_source(&s,"H:/missing/never.pas",&d)&&s.length==29&&s.dirty);
+    check(seed("H:/BLOCK","existing file"));
+    check(!load_source(&s,"H:/BLOCK/never.pas",&d)&&platform_error==ERR_NOT_A_DIR&&s.length==29&&s.dirty);
     check(seed("H:/BAD.PAS","                                                                                                                                "));
     check(!load_source(&s,"H:/BAD.PAS",&d)&&d.code==100&&s.length==29&&s.dirty);
     check(load_source(&s,"H:/NEWFILE",&d)&&!strcmp(s.path,"H:/NEWFILE.PAS")&&!s.length&&!s.dirty);

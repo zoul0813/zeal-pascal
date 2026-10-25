@@ -206,7 +206,7 @@ int main(void) {
     Diagnostic startup;
     memset(&build,0,sizeof(build)); memset(build.pages,255,3); build.map_page=255;
     if(!console_open()) { output("Zeal Pascal needs the supported MMU machine and 80x24 PS/2 console.\n"); return 1; }
-    if(!source_new(&work,"B:/UNTITLED.PAS")) { output("Not enough source memory\n"); console_close(); return 1; }
+    if(!source_new(&work,DEFAULT_SOURCE)) { output("Not enough source memory\n"); console_close(); return 1; }
     screen_clear(); output("Zeal Pascal - first native increment\nExplanatory error messages (Y/N)? ");
     if(!load_source(&work,work.path,&startup)) {
         file_error("\nDefault source unavailable (error ",startup.code?startup.code:platform_error);

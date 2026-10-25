@@ -32,6 +32,7 @@
 #define RT_BOOLEAN 0x40d2u
 #define RT_SHL 0x40d5u
 #define RT_SHR 0x40d8u
+#define DEFAULT_SOURCE "T:/src/pascal/UNTITLED.pas"
 enum { PAGE_SOURCE=1, PAGE_IMAGE, PAGE_MAP, PAGE_RUN, PAGE_SNAPSHOT };
 
 typedef struct {

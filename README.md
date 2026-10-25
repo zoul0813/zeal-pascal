@@ -26,13 +26,16 @@ in the executable and require no separate deployment.
 | O | Select M Memory or C native Com-file; Q returns |
 | Q | Quit, resolving unsaved source with save/discard/cancel |
 
-Startup opens `B:/UNTITLED.PAS` when available. A missing file on an available
-drive starts empty. Unavailable/invalid media reports failure and keeps the RAM
-buffer. W accepts native absolute or relative paths and preserves the previous
-buffer when loading fails.
+Startup opens `T:/src/pascal/UNTITLED.pas` when available. Missing source or
+parent directories start an empty RAM buffer silently. W accepts native absolute
+or relative paths, including a new filename under missing parents. Loading
+creates no directories. S and native COM publication create missing parents
+recursively when saving. A parent that is an existing file is an error; failed
+loads/saves retain the previous RAM buffer.
 
-In Com-file mode, compiling `B:/UNTITLED.PAS` writes `B:/UNTITLED.COM` and
-`B:/UNTITLED.ZMP`. Run `B:/UNTITLED.COM` from ZShell. These are native Zeal Z80
+In Com-file mode, compiling the default source writes
+`T:/src/pascal/UNTITLED.COM` and `T:/src/pascal/UNTITLED.ZMP`.
+Run `T:/src/pascal/UNTITLED.COM` from ZShell. These are native Zeal Z80
 executables. Source must be saved separately with S.
 
 Source saves retain the previous source as BAK. Replacing an existing BAK
@@ -52,8 +55,16 @@ saves; those existing folders may still occupy space. Memory mode needs no disk
 space: O, M, Q returns to the menu, then R compiles/runs from RAM.
 
 A separate observed Zeal OS defect can corrupt control flow if the disk fills
-while a file is growing. Its kernel fix is pending approval. Tests distinguish
+while a file is growing. The OS remains unchanged at the user's instruction. Tests distinguish
 an already-full volume from this failing mid-write exhaustion case.
+
+The currently installed native emulator also rejects TF writes with error 1;
+standard `mkdir`/`cp` reproduce this independently of Pascal. The same unchanged
+ZOS ROM, utilities and TF images work on the earlier available emulator build.
+The difference is in the SPI timing/response model, already present in the
+emulator's v1.0.0 source. No OS or emulator patch has been applied. Acceptance
+records distinguish the installed emulator's failed TF checks from the earlier
+build's successful tests.
 
 Current language support includes Integer, Boolean and `string[1..255]` globals,
 compound statements, assignments, Integer arithmetic/bitwise/shift expressions,

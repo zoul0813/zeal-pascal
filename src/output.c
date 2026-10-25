@@ -20,6 +20,29 @@ static int8_t open_path(const char *path,uint8_t flags) {
     if(fd<0) platform_error=(uint8_t)-fd;
     return fd;
 }
+static uint8_t stat_path(const char *path) {
+    strcpy((char*)console_scratch,path);
+    return stat((char*)console_scratch,(zos_stat_t*)(console_scratch+128));
+}
+static uint8_t parent_dirs(const char *path,uint8_t create) {
+    uint16_t i;
+    uint8_t e;
+    strcpy(member,path);
+    for(i=3;member[i];++i) if(member[i]=='/') {
+        member[i]=0;
+        e=stat_path(member);
+        if(e==ERR_NO_SUCH_ENTRY&&create) {
+            strcpy((char*)console_scratch,member); e=mkdir((char*)console_scratch);
+            if(!e) { member[i]='/'; continue; }
+            if(e==ERR_ALREADY_EXIST) e=stat_path(member);
+        }
+        member[i]='/';
+        if(e==ERR_NO_SUCH_ENTRY&&!create) return 1;
+        if(!e&&!D_ISDIR(((zos_stat_t*)(console_scratch+128))->s_flags)) e=ERR_NOT_A_DIR;
+        if(e) { platform_error=e; return 0; }
+    }
+    return 1;
+}
 static uint8_t finish(int8_t fd,uint8_t ok) {
     uint8_t prior=platform_error,e=close(fd);
     if(!ok) platform_error=prior?prior:ERR_FAILURE;
@@ -164,6 +187,7 @@ uint8_t save_build(const Source *s,const Build *b) {
     if(!paths(s)) { platform_error=ERR_INVALID_PATH; return 0; }
     if(!strcmp(s->path,destinations[0])||!strcmp(s->path,destinations[1])) { platform_error=ERR_INVALID_PATH; return 0; }
     if(!build_ready(s,b)) { platform_error=ERR_FAILURE; return 0; }
+    if(!parent_dirs(transaction,1)) return 0;
     if(!create_transaction()) return 0;
     /* Finish both new outputs and every old recovery copy before truncating
      * either destination. Failed publication retains the recovery files. */
@@ -173,8 +197,7 @@ uint8_t save_build(const Source *s,const Build *b) {
            !verify(i?&b->map_page:b->pages,i?b->map_length:b->length,member)) return 0;
     }
     for(i=0;i<2;++i) {
-        strcpy((char*)console_scratch,destinations[i]);
-        e=stat((char*)console_scratch,info);
+        e=stat_path(destinations[i]);
         if(e==ERR_NO_SUCH_ENTRY) continue;
         if(e) { platform_error=e; return 0; }
         if(!D_ISFILE(info->s_flags)) { platform_error=ERR_NOT_A_FILE; return 0; }
@@ -205,8 +228,7 @@ uint8_t run_saved(const Source *s,const Build *b,uint8_t *status) {
 }
 static uint8_t ordinary_file(const char *path,uint8_t *exists) {
     uint8_t e;
-    strcpy((char*)console_scratch,path);
-    e=stat((char*)console_scratch,(zos_stat_t*)(console_scratch+128));
+    e=stat_path(path);
     *exists=e!=ERR_NO_SUCH_ENTRY;
     if(e==ERR_NO_SUCH_ENTRY) return 1;
     if(e) { platform_error=e; return 0; }
@@ -232,6 +254,7 @@ uint8_t save_source(Source *s,uint8_t replace_backup) {
         if(backup&&!replace_backup) { platform_error=ERR_ALREADY_EXIST; return 0; }
     }
     if(!source_snapshot(s,&snapshot)) return 0;
+    if(!parent_dirs(transaction,1)) goto cleanup;
     if(!create_transaction()) goto cleanup;
     in_transaction("NEW.PAS");
     if(!store(&snapshot.page,snapshot.length,member)||!verify(&snapshot.page,snapshot.length,member)) goto cleanup;
@@ -310,14 +333,9 @@ uint8_t load_source(Source *s,const char *name,Diagnostic *d) {
     int8_t fd;
     memset(d,0,sizeof(*d)); platform_error=0;
     if(!canonical_path(name,destinations[0])) { if(!platform_error) platform_error=ERR_INVALID_PATH; return 0; }
+    if(!parent_dirs(destinations[0],0)) return 0;
     if(!ordinary_file(destinations[0],&exists)) return 0;
     if(!exists) {
-        strcpy(member,destinations[0]);
-        i=(uint16_t)strlen(member); while(i&&member[i-1]!='/') --i;
-        member[i]=0; strcpy((char*)console_scratch,member);
-        fd=opendir((char*)console_scratch);
-        if(fd<0) { platform_error=(uint8_t)-fd; return 0; }
-        if(!finish(fd,1)) return 0;
         if(!import_begin(&in,destinations[0],d)) return 0;
         return import_finish(&in,s,d);
     }
