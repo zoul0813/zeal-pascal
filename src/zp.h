@@ -105,6 +105,7 @@ uint8_t build_locate(const Source *s, const Build *b, uint16_t pc, uint16_t *pos
 uint8_t run_build(const Source *s, const Build *b);
 uint8_t save_build(const Source *s,const Build *b);
 uint8_t save_source(Source *s,uint8_t replace_backup);
+uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup);
 uint8_t load_source(Source *s,const char *path,Diagnostic *d);
 uint8_t run_saved(const Source *s,const Build *b,uint8_t *status);
 const char *output_path(void);

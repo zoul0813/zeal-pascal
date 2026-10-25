@@ -139,21 +139,22 @@ static void diagnostic(uint8_t kind,uint16_t code,uint16_t position,uint16_t pc)
     while(key_read()!=27) {}
     work.cursor=position; edit(1);
 }
-static uint8_t save_work(void) {
+static uint8_t save_work_as(const char *name) {
     uint8_t ok,c;
-    screen_clear(); output("Saving source "); output(work.path); output("...\n");
-    ok=save_source(&work,0);
+    screen_clear(); output("Saving source "); output(name?name:work.path); output("...\n");
+    ok=name?save_source_as(&work,name,0):save_source(&work,0);
     if(!ok&&platform_error==15) {
         output("Existing BAK is unchanged.\nReplace BAK with the previous source (Y/N)? ");
         do { c=suffix(key_read()); } while(c!='y'&&c!='n'&&c!=27);
-        if(c=='y') ok=save_source(&work,1);
+        if(c=='y') ok=name?save_source_as(&work,name,1):save_source(&work,1);
         else return 0;
     }
-    if(ok) { output("Source saved."); recovery_notice(); }
+    if(ok) { output("Source saved: "); output(work.path); recovery_notice(); }
     else { file_error("Save failed, native error ",platform_error); output(". RAM source retained."); recovery_notice(); }
     output("\nPress Escape"); while(key_read()!=27) {}
     return ok;
 }
+static uint8_t save_work(void) { return save_work_as(0); }
 static uint8_t file_field(char *text) {
     uint8_t c,n=0; char one[2]={0,0};
     text[0]=0;
@@ -181,6 +182,12 @@ static void open_work(void) {
     if(load_source(&work,name,&d)) { build_close(&build); return; }
     file_error(d.code?"Source error ":"Native file error ",d.code?d.code:platform_error);
     output(". Current buffer retained. Press Escape"); while(key_read()!=27) {}
+}
+static void save_as_work(void) {
+    char name[128];
+    screen_clear(); output("Save source as (for example T:/untitled.pas): ");
+    if(!file_field(name)) return;
+    if(save_work_as(name)) invalidate();
 }
 static uint8_t compile_work(void) {
     Diagnostic d;
@@ -217,12 +224,13 @@ int app_main(void) {
         ide_state=1; screen_clear();
         output(saved_mode?"Zeal Pascal - native Com-file\nWork: ":"Zeal Pascal - Memory\nWork: "); output(work.path);
         output(work.dirty?" *\n":"\n"); output_number(work.length); output(" source bytes; ");
-        output_number(pages_used()); output(" owned pages\nW Open  E Edit  S Save  C Compile  R Run  O Options  Q Quit\n");
+        output_number(pages_used()); output(" owned pages\nW Open  E Edit  S Save  A Save as  C Compile  R Run  O Options  Q Quit\n");
         output("Initial slice: Integer, String, Write/Writeln, ReadLn, Halt/Exit.\n");
         c=suffix(key_read());
         if(c=='e') edit(0);
         else if(c=='w') open_work();
         else if(c=='s') save_work();
+        else if(c=='a') save_as_work();
         else if(c=='c') compile_work();
         else if(c=='o') {
             screen_clear(); output("Compiler options\nM Memory  C native Com-file  Q Return\n");

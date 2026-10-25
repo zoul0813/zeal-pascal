@@ -16,6 +16,7 @@ uint8_t compiler_build_locate(const Source *s,const Build *b,uint16_t pc,uint16_
 uint8_t compiler_image_get(const Build *b,uint16_t offset);
 uint8_t files_save_build(const Source *s,const Build *b);
 uint8_t files_save_source(Source *s,uint8_t replace_backup);
+uint8_t files_save_source_as(Source *s,const char *name,uint8_t replace_backup);
 uint8_t files_load_source(Source *s,const char *name,Diagnostic *d);
 uint8_t files_run_saved(const Source *s,const Build *b,uint8_t *status);
 const char *files_output_path(void);
@@ -66,12 +67,21 @@ uint8_t save_source(Source *s,uint8_t replace_backup) {
     uint8_t old=code_select(2),ok=files_save_source(s,replace_backup);
     code_restore(old); return ok;
 }
+static uint8_t capture_path(char *out,const char *name) {
+    if(strlen(name)>127) { platform_error=ERR_INVALID_PATH; return 0; }
+    strcpy(out,name); return 1;
+}
+uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup) {
+    char path[128]; uint8_t old,ok;
+    if(!capture_path(path,name)) return 0;
+    old=code_select(2); ok=files_save_source_as(s,path,replace_backup);
+    code_restore(old); return ok;
+}
 uint8_t load_source(Source *s,const char *name,Diagnostic *d) {
     /* A caller may pass a literal in its own bank. Capture it before mapping
      * the file bank. Other bank APIs accept only resident objects or scalars. */
     char path[128]; uint8_t old,ok;
-    if(strlen(name)>127) { memset(d,0,sizeof(*d)); platform_error=ERR_INVALID_PATH; return 0; }
-    strcpy(path,name);
+    if(!capture_path(path,name)) { memset(d,0,sizeof(*d)); return 0; }
     old=code_select(2); ok=files_load_source(s,path,d);
     code_restore(old); return ok;
 }

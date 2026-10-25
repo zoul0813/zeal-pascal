@@ -199,6 +199,8 @@ def artifact_checks(directory):
     third=b'begin\n{third}\n{second}\nend.\n'
     assert (directory / 'EDIT.PAS').read_bytes()==third
     assert (directory / 'EDIT.BAK').read_bytes()==second
+    assert (directory / 'RENAMED.PAS').read_bytes()==b' '+third
+    assert (directory / 'RENAMED.BAK').read_bytes()==b' '+third
     assert not any(p.name.startswith('ZP') for p in directory.iterdir())
     return True
 
@@ -293,10 +295,15 @@ def file_workflow_checks():
     commands += [f"bp 0x{sym['_key_read']:x}", 'tap ENTER', 'run 100000000'] + probe()
     commands += [f"bc 0x{sym['_key_read']:x}"] + typed('e{saved}') + control('K') + typed('d')
     commands += [f"bp 0x{sym['_key_read']:x}", 'tap S', 'run 100000000'] + probe()
+    commands += [f"bc 0x{sym['_key_read']:x}", 'tap ESC', 'run 2000000']
+    commands += typed('e{unsaved}') + control('K') + typed('daH:/cancel/path')
+    commands += [f"bp 0x{sym['_key_read']:x}", 'tap ESC', 'run 100000000'] + probe()
+    commands += [f"bc 0x{sym['_key_read']:x}"] + typed('aH:/COPY.PAS')
+    commands += [f"bp 0x{sym['_key_read']:x}", 'tap ENTER', 'run 100000000'] + probe()
     commands += [f"bc 0x{sym['_key_read']:x}", 'tap ESC', 'run 2000000'] + typed('q') + ['quit']
     text = execute('files', commands, {'OPEN.PAS': source})
     frames = [memory(part) for part in re.split(r'\[DBG\] PC=', text)[1:]]
-    if len(frames) != 2:
+    if len(frames) != 4:
         return [('interactive file checkpoint count', False)]
     work = sym['_work']
     path = lambda frame: bytes(frame.get(work + 12 + i, 0) for i in range(128)).split(b'\0')[0]
@@ -308,6 +315,16 @@ def file_workflow_checks():
          frames[1].get(work + 1) == 0
          and (RUN / 'files/hostfs/OPEN.PAS').read_bytes() == b'{saved}' + source
          and (RUN / 'files/hostfs/OPEN.BAK').read_bytes() == source),
+        ('Save-as cancellation retains unsaved source and original filename without creating parents',
+         path(frames[2]) == b'H:/OPEN.PAS' and frames[2].get(work + 1) == 1
+         and frames[2].get(work + 2) == len(source)+16
+         and not (RUN / 'files/hostfs/cancel').exists()),
+        ('Save as publishes current RAM source under a new name and retains the original file',
+         path(frames[3]) == b'H:/COPY.PAS' and frames[3].get(work + 1) == 0
+         and frames[3].get(work) == frames[2].get(work)
+         and frames[3].get(work + 4) == frames[2].get(work + 4)
+         and (RUN / 'files/hostfs/COPY.PAS').read_bytes() == b'{unsaved}{saved}'+source
+         and (RUN / 'files/hostfs/OPEN.PAS').read_bytes() == b'{saved}'+source),
     ]
 
 
@@ -423,6 +440,20 @@ def default_path_checks():
                    and '/work/deep/hello.COM' in files and '/work/deep/hello.ZMP' in files
                    and '/work/deep/hello.pas' not in files and '/src/' not in files
                    and not any('/ZP' in name for name in files)))
+    commands = launch() + [f'bc 0x{key:x}'] + typed('e' + text.decode())
+    commands += control('K') + typed('daT:/untitled.pas')
+    commands += [f'bp 0x{key:x}', 'tap ENTER', 'run 100000000'] + probe()
+    commands += [f'bc 0x{key:x}', 'tap ESC', 'run 2000000'] + typed('qn') + ['quit']
+    root = execute('paths-root-save-as', commands, tf_image=template)
+    observed = frames(root)
+    files = zealfs_files((RUN / 'paths-root-save-as/tf.img').read_bytes())
+    root_ok = (len(observed) == 1 and files.get('/untitled.pas') == text
+               and path(observed[0]) == b'T:/untitled.pas' and observed[0].get(work + 1) == 0)
+    checks.append(('A Save as saves current source to T:/untitled.pas without creating default parents',
+                   root_ok and '/src/' not in files))
+    checks.append(('Save-as identity follows verified success or retains the old path and dirty RAM source on failure',
+                   len(observed) == 1 and source_size(observed[0]) == len(text)
+                   and (root_ok or (path(observed[0]) == default and observed[0].get(work + 1) == 1))))
     return checks
 
 

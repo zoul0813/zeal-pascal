@@ -23,6 +23,7 @@ embedded in this single executable. No companion bank files are required.
 | W | Open/select a work file by name; default extension PAS |
 | E | Edit; Ctrl-K,D returns to the menu with text retained in RAM |
 | S | Save source through verified temporary/recovery copies |
+| A | Save current source under another filename; Escape cancels |
 | C | Compile in the selected output mode |
 | R | Run the current build, compiling first when needed |
 | O | Select M Memory or C native Com-file; Q returns |
@@ -34,6 +35,13 @@ or relative paths, including a new filename under missing parents. Loading
 creates no directories. S and native COM publication create missing parents
 recursively when saving. A parent that is an existing file is an error; failed
 loads/saves retain the previous RAM buffer.
+
+To change the filename after editing, press Ctrl-K,D to return to the menu,
+then A, enter a path such as `T:/untitled.pas`, and press Enter. Save as keeps
+the current text and cursor. A verified successful save adopts the new path;
+failure or cancellation retains the old path and RAM contents. W opens a file
+and should not be used to rename unsaved source. Changing the source path
+invalidates an existing build so its source map cannot retain the old filename.
 
 In Com-file mode, compiling the default source writes
 `T:/src/pascal/UNTITLED.COM` and `T:/src/pascal/UNTITLED.ZMP`.

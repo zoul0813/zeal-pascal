@@ -1,6 +1,7 @@
 #ifdef __SDCC
 #define save_build files_save_build
 #define save_source files_save_source
+#define save_source_as files_save_source_as
 #define load_source files_load_source
 #define run_saved files_run_saved
 #define output_path files_output_path
@@ -334,6 +335,17 @@ static uint8_t canonical_path(const char *name,char *out) {
         strcpy(out+w,".PAS");
     }
     return 1;
+}
+uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup) {
+    Source candidate;
+    memcpy(&candidate,s,sizeof(candidate));
+    platform_error=0;
+    if(!canonical_path(name,candidate.path)) { if(!platform_error) platform_error=ERR_INVALID_PATH; return 0; }
+    /* Publish from the same RAM page. Adopt the new identity only after the
+     * ordinary verified save succeeds; failure leaves the entire Source intact. */
+    if(!save_source(&candidate,replace_backup)) return 0;
+    if(strcmp(s->path,candidate.path)) { strcpy(s->path,candidate.path); ++s->revision; }
+    s->dirty=0; return 1;
 }
 uint8_t load_source(Source *s,const char *name,Diagnostic *d) {
     SourceImport in;

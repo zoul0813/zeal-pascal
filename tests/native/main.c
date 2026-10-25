@@ -231,6 +231,22 @@ int app_main(void) {
     check(!load_source(&s,"H:/BLOCK/never.pas",&d)&&platform_error==ERR_NOT_A_DIR&&s.length==29&&s.dirty);
     check(seed("H:/BAD.PAS","                                                                                                                                "));
     check(!load_source(&s,"H:/BAD.PAS",&d)&&d.code==100&&s.length==29&&s.dirty);
+    {
+        Source before;
+        uint8_t old_hash[32],new_hash[32];
+        memcpy(&before,&s,sizeof(s));
+        source_hash(&s,old_hash);
+        check(compile(&s,&b,&d));
+        check(!save_source_as(&s,"H:/BLOCK/denied.pas",0)&&platform_error==ERR_NOT_A_DIR);
+        check(!memcmp(&s,&before,sizeof(s))&&build_ready(&s,&b));
+        check(save_source_as(&s,"h:/./RENAMED",0));
+        check(!strcmp(s.path,"H:/RENAMED.PAS")&&!s.dirty&&s.revision==before.revision+1);
+        check(s.page==before.page&&s.length==before.length&&s.cursor==before.cursor&&s.previous==before.previous);
+        source_hash(&s,new_hash); check(!memcmp(old_hash,new_hash,32)&&!build_ready(&s,&b));
+        build_close(&b);
+        memcpy(&before,&s,sizeof(s));
+        check(save_source_as(&s,s.path,0)&&!memcmp(&s,&before,sizeof(s)));
+    }
     check(load_source(&s,"H:/NEWFILE",&d)&&!strcmp(s.path,"H:/NEWFILE.PAS")&&!s.length&&!s.dirty);
     check(pages_used()==4);
     test_stage=7;
