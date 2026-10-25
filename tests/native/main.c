@@ -12,13 +12,23 @@ volatile uint8_t test_hash[32];
 static Source s;
 static Build b;
 static Diagnostic d;
+static uint8_t initial_code_hash[32];
+extern uint8_t code_pages[3];
+extern uint16_t code_sizes[3];
 extern uint8_t console_scratch[256];
 void test_machine(uint8_t *state) NATIVE;
-void test_complete(void) { for(;;) { __asm halt __endasm; } }
+void test_complete(void);
 static void check(uint8_t ok) {
     ++test_index;
     if(ok) ++test_passed;
     else { if(test_failed<64) test_failures[test_failed]=test_index; ++test_failed; }
+}
+static void code_hash(uint8_t *out) {
+    Sha256 hash; uint8_t bank; uint16_t i;
+    sha_init(&hash);
+    for(bank=0;bank<3;++bank)
+        for(i=0;i<code_sizes[bank];++i) sha_byte(&hash,far_get(code_pages[bank],i));
+    sha_end(&hash,out);
 }
 static uint8_t load(const char *text) { return source_import(&s,(const uint8_t*)text,(uint16_t)strlen(text),&d); }
 static uint8_t seed(const char *path,const char *text) {
@@ -36,15 +46,18 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
     uint16_t pc,position;
     uint32_t revision;
     s.dirty=1; revision=s.revision;
+    if(test_stage==3) { __asm di __endasm; }
+    test_machine(before);
     check(compile(&s,&b,&d));
-    if(!b.valid) return;
+    test_machine(after);
+    check(!memcmp(before,after,7)); /* compiler bank, stack and IFF restored */
+    if(!b.valid) { if(test_stage==3) { __asm ei __endasm; } return; }
     if(test_stage==2) {
         check(seed("H:/SLICE.COM","old executable")); check(seed("H:/SLICE.ZMP","old map"));
         check(save_build(&s,&b));
     }
     if(test_stage==7||test_stage==9) check(save_build(&s,&b));
     owned=pages_used();
-    if(test_stage==3) { __asm di __endasm; }
     test_machine(before);
     check(run_build(&s,&b));
     test_machine(after);
@@ -77,7 +90,7 @@ static void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position)
         check(run_saved(&s,&b,&status)&&status==0); check(pages_used()==owned);
     }
     build_close(&b);
-    check(pages_used()==1);
+    check(pages_used()==4);
 }
 static void execution(const char *text,uint8_t kind,uint8_t code) {
     check(load(text)); execute_loaded(kind,code,6);
@@ -124,9 +137,9 @@ static void media_tests(void) {
     status=255; check(run_saved(&s,&b,&status)&&status==0);
     build_close(&b);
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
-    check(pages_used()==1);
+    check(pages_used()==4);
 }
-int main(void) {
+int app_main(void) {
     uint8_t digest[32],expected[32]={
         0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea,0x41,0x41,0x40,0xde,0x5d,0xae,0x22,0x23,
         0xb0,0x03,0x61,0xa3,0x96,0x17,0x7a,0x9c,0xb4,0x10,0xff,0x61,0xf2,0x00,0x15,0xad};
@@ -134,6 +147,8 @@ int main(void) {
     uint8_t line[129]; uint16_t i;
     int8_t capture;
     if(!console_open()) { test_failed=1; test_done=255; for(;;) {} }
+    check(pages_used()==3);
+    code_hash(initial_code_hash);
     test_stage=1;
     sha_init(&hash); sha_byte(&hash,'a'); sha_byte(&hash,'b'); sha_byte(&hash,'c'); sha_end(&hash,digest);
     for(i=0;i<32;++i) test_hash[i]=digest[i];
@@ -145,9 +160,9 @@ int main(void) {
     check(!source_import(&s,line,128,&d)&&d.code==100&&s.length==11);
     check(!source_replace(&s,0,0,line,128)&&s.length==11);
     check(source_replace(&s,5,5,(const uint8_t*)"!",1)&&s.dirty);
-    check(!compile(&s,&b,&d)&&d.code==58&&pages_used()==1);
+    check(!compile(&s,&b,&d)&&d.code==58&&pages_used()==4);
     check(load("begin writeln(32768) end."));
-    check(!compile(&s,&b,&d)&&d.code==56&&pages_used()==1);
+    check(!compile(&s,&b,&d)&&d.code==56&&pages_used()==4);
     check(load("begin writeln(-(32768)) end."));
     check(!compile(&s,&b,&d)&&d.code==56);
     test_stage=2;
@@ -195,7 +210,7 @@ int main(void) {
     check(seed("H:/BAD.PAS","                                                                                                                                "));
     check(!load_source(&s,"H:/BAD.PAS",&d)&&d.code==100&&s.length==29&&s.dirty);
     check(load_source(&s,"H:/NEWFILE",&d)&&!strcmp(s.path,"H:/NEWFILE.PAS")&&!s.length&&!s.dirty);
-    check(pages_used()==1);
+    check(pages_used()==4);
     test_stage=7;
     strcpy(s.path,"H:/NAME.PAS");
     capture=open("H:/INPUT.TXT",O_WRONLY|O_CREAT|O_TRUNC);
@@ -205,7 +220,8 @@ int main(void) {
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
     media_tests();
     control_tests();
-    source_close(&s); check(pages_used()==0);
+    source_close(&s); check(pages_used()==3);
+    code_hash(digest); check(!memcmp(digest,initial_code_hash,32));
     test_stage=6; test_done=255;
     test_complete(); return 0;
 }

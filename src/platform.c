@@ -26,16 +26,21 @@ uint8_t page_drop(uint8_t p) {
     memset(&ledger[p],0,sizeof(ledger[p])); return 1;
 }
 uint8_t pages_used(void) {
-    uint8_t i,n=0;
+    extern uint8_t code_owned;
+    uint8_t i,n=code_owned; /* Bootstrap owns immutable code pages separately. */
     for(i=32;i<64;++i) if(ledger[i].role) ++n;
     return n;
 }
 void page_initialized(uint8_t p,uint16_t extent) {
     if(p>=32&&p<64&&ledger[p].role&&extent<=PAGE_SIZE) ledger[p].initialized=extent;
 }
-uint8_t console_open(void) {
+uint8_t platform_supported(void) {
     const zos_config_t *config=kernel_config();
-    if(config->c_target!=TARGET_ZEAL8BIT||!config->c_mmu||config->c_prog_addr!=(void*)0x4000) return 0;
+    /* Pure resident check: startup can call it before C global initialization. */
+    return config->c_target==TARGET_ZEAL8BIT&&config->c_mmu&&config->c_prog_addr==(void*)0x4000;
+}
+uint8_t console_open(void) {
+    if(!platform_supported()) return 0;
     memset((void*)page_versions,0,sizeof(page_versions));
     platform_error=ioctl(DEV_STDOUT,CMD_GET_AREA,console_scratch);
     if(platform_error) return 0;

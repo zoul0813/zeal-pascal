@@ -108,6 +108,7 @@ const char *output_recovery(void);
 uint8_t image_get(const Build *b, uint16_t offset);
 
 uint8_t console_open(void);
+uint8_t platform_supported(void);
 void console_close(void);
 uint8_t key_read(void);
 uint8_t key_decode(uint8_t raw);

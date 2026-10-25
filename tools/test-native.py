@@ -311,6 +311,24 @@ def file_workflow_checks():
     ]
 
 
+def bank_lifecycle_checks():
+    sym = symbols('zpascal')
+    probe = ['regs', 'mmu', f"rb 0x{sym['_code_owned']:x} 1"]
+    commands = ['run 100000000'] + type_text('H:/zpascal.bin')
+    commands += [f"bp 0x{sym['_main']:x}", 'tap ENTER', 'run 100000000'] + probe
+    commands += [f"bc 0x{sym['_main']:x}", f"bp 0x{sym['_fflush_stdout']:x}", 'run 100000000']
+    commands += type_text('nq', ticks=2000000) + probe + ['quit']
+    text = execute('bank-lifecycle', commands)
+    parts = re.split(r'\[DBG\] PC=', text)[1:]
+    if len(parts) != 2:
+        return [('code-bank lifecycle checkpoints', False)]
+    first, last = (memory(part) for part in parts)
+    mappings = lambda part: re.findall(r'\[DBG\] ([0-9a-f]{4}) -> ([0-9a-f]{6})', part)
+    return [('quit releases all code banks before SDK exit and restores original program mappings',
+             first.get(sym['_code_owned']) == 3 and last.get(sym['_code_owned']) == 0
+             and mappings(parts[0]) == mappings(parts[1]))]
+
+
 def full_media_checks():
     sym = symbols('zpascal')
     disk = bytearray((RUN / 'core/eeprom.img').read_bytes())
@@ -418,7 +436,7 @@ def memory(text):
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    inputs = [ROOT / 'CMakeLists.txt', Path(__file__).resolve()]
+    inputs = [ROOT / 'CMakeLists.txt', ROOT / 'tools/package-native.py', Path(__file__).resolve()]
     inputs += sorted((ROOT / 'src').glob('*')) + sorted((ROOT / 'tests/native').glob('*'))
     input_hashes = {str(p.relative_to(ROOT)): sha(p) for p in inputs if p.is_file()}
     checks = []
@@ -431,6 +449,21 @@ def main():
                        sym['s__DATA'] + sym['l__DATA'] <= 0xe000))
         checks.append((target + ' raw executable within OS load limit',
                        0 < (ROOT / f'build/{target}.bin').stat().st_size < 49152))
+        checks.append((target + ' resident code and constants below bank window',
+                       all(sym['s__' + area] + sym['l__' + area] <= 0x8000
+                           for area in ('HEADER', 'GSINIT', 'GSFINAL', 'INITIALIZER', 'HOME', 'SYSTEM', 'TEXT', 'RODATA'))))
+        checks.append((target + ' three code banks fit their 16 KiB window',
+                       all(0 < sym[f'l__BANK{bank}'] <= 16384 for bank in (1, 2, 3))))
+    boot = symbols('zpbootfail')
+    commands = ['run 100000000'] + type_text('H:/zpbootfail.bin\n')
+    commands += [f"bp 0x{boot['_boot_complete']:x}", 'run 2000000000', 'regs',
+                 f"rb 0x{boot['_boot_done']:x} 1", f"rb 0x{boot['_boot_failed']:x} 1", 'quit']
+    boot_text = execute('boot-allocation', commands,
+                        {'zpbootfail.bin': (ROOT / 'build/zpbootfail.bin').read_bytes()})
+    boot_memory = memory(boot_text)
+    checks.append(('startup allocation failures unwind zero/one/two code banks and source-allocation failure releases all three',
+                   boot_memory.get(boot['_boot_done']) == 255 and boot_memory.get(boot['_boot_failed']) == 0))
+    checks.extend(bank_lifecycle_checks())
     sym = symbols('zptest')
     kernel = kernel_symbols()
     cooked, mode = kernel['keyboard_read_cooked'], kernel['kb_mode']

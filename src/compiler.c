@@ -1,3 +1,11 @@
+#ifdef __SDCC
+#define compile compiler_compile
+#define build_close compiler_build_close
+#define build_check compiler_build_check
+#define build_ready compiler_build_ready
+#define build_locate compiler_build_locate
+#define image_get compiler_image_get
+#endif
 #include "zp.h"
 
 /* One synchronous compiler owns this workspace. No source mutation or second

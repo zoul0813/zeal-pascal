@@ -1,6 +1,12 @@
 .module test_machine
 .globl _test_machine
+.globl _test_complete
 .area _TEXT
+; A resident stop avoids false debugger hits at the same virtual address in
+; another bank. This is a test marker, not a product entry point.
+_test_complete::
+    halt
+    jr _test_complete
 ; Test-only observation of IFF, exact caller SP and all four MMU mappings.
 ; No page, interrupt state, stack or index register is changed.
 _test_machine::

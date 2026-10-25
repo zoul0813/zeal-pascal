@@ -15,6 +15,8 @@ python3 tools/test-native.py
 Launch `build/zpascal.bin` from ZShell on the supported video/PS/2 target.
 Internal `pascal_runtime.zpl` and `ram_trampoline.zpl` build assets are embedded
 in the executable and require no separate deployment.
+The editor, compiler and file operations use separate owned RAM banks, also
+embedded in this single executable. No companion bank files are required.
 
 | Key | Operation |
 | --- | --- |

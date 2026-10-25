@@ -200,7 +200,7 @@ static uint8_t compile_work(void) {
     output(" Data bytes: "); output_number(build.globals_bytes); output("\n");
     return 1;
 }
-int main(void) {
+int app_main(void) {
     uint8_t c,status;
     uint16_t pc,position;
     Diagnostic startup;

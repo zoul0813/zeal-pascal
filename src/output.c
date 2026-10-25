@@ -1,3 +1,11 @@
+#ifdef __SDCC
+#define save_build files_save_build
+#define save_source files_save_source
+#define load_source files_load_source
+#define run_saved files_run_saved
+#define output_path files_output_path
+#define output_recovery files_output_recovery
+#endif
 #include "zp.h"
 #include <zos_vfs.h>
 #include <zos_errors.h>
@@ -7,10 +15,11 @@ extern uint8_t console_scratch[256];
 static char destinations[2][128], transaction[128], member[128];
 static uint16_t serial;
 static uint8_t transaction_owned;
+static char no_recovery[1]; /* Returned pointers must survive a code-bank switch. */
 const char *output_path(void) { return destinations[0]; }
 const char *output_recovery(void) {
     if(transaction_owned) return transaction;
-    return "";
+    return no_recovery;
 }
 
 static int8_t open_path(const char *path,uint8_t flags) {
