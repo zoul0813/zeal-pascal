@@ -12,6 +12,7 @@ python3 tools/test-native-host.py --sanitize
 python3 tools/test-native.py
 python3 tools/test-input.py
 python3 tools/test-math.py
+python3 tools/test-output.py
 python3 tools/test-real.py --host --sanitize --native
 python3 tools/test-real.py --trig --sanitize --native
 ```
@@ -34,9 +35,12 @@ python3 tools/package-tf.py
 
 Select `build/tf.img` as the emulator's TF card, then run
 `T:/bin/zpascal.bin`. The image contains `T:/lib/zpascal.zpl` and is checked by
-starting the IDE without a library-path argument. This creates a separate card
-from the development environment's base image. Run the packaging command again
+starting the IDE without a library-path argument. Initial creation uses the
+development environment's base image; later refreshes retain the card's other
+files and verify their contents. Run the packaging command again
 after rebuilding; it does not modify your existing system TF image.
+An existing project `build/tf.img` is preserved under `build/recovery/` before
+replacement, including any source files saved on that card.
 
 The launcher verifies the complete library before entering any application
 bank. A missing, damaged or mismatched library returns to the shell. The editor,
@@ -46,6 +50,9 @@ The runtime template occupies a verified library bank; the RAM trampoline
 remains in the launcher. Internal `pascal_runtime.zpl` and `ram_trampoline.zpl`
 build products require no separate deployment. Generated Pascal COM
 programs contain their own runtime and need no IDE library.
+
+Startup is currently slow: allow roughly 2½ minutes at the target's normal
+speed for library loading and verification before the IDE prompt appears.
 
 | Key | Operation |
 | --- | --- |
@@ -84,6 +91,9 @@ final files are closed and verified, the operation removes its own transaction
 files. Failed saves keep recovery copies and identify their directory. Existing
 unrelated recovery folders are never removed automatically. The OS has no atomic
 rename/fsync guarantee. No save failure discards the RAM source or reports success.
+Verified replacements remove and recreate the destination using normal file
+operations. This avoids the pinned HostFS truncate/write return-value problem
+without changing the OS or emulator; recovery copies remain until verification.
 
 On the pinned machine, B: is a 64 KiB EEPROM volume; T: is the TF card. COM
 output currently occupies about 50 KiB in total while replacing a small existing
@@ -265,7 +275,14 @@ and flushes results below the minimum positive Real to zero. Both return Real
 and accept Integer or Real arguments. Sin/Cos use radian arguments with full
 Real6-range argument reduction; ArcTan returns the principal radian angle.
 Their private calculations retain enough precision for the specified accuracy
-and correctly handle the minimum-magnitude input. Random/Randomize remain pending.
+and correctly handle the minimum-magnitude input.
+
+Random without arguments returns Real in [0,1). Random(N) returns Integer in
+[0,N) for a positive Integer bound; zero/negative bounds report runtime91 even
+with R-. Randomize mixes a varying native timer seed into the generator.
+Each program activation starts with its own generator state. No particular
+sequence or cryptographic quality is promised. The helper is linked into the
+program, with no extra runtime library to install.
 
 Labels may be identifiers or decimal digit names. Numeric labels retain their
 exact spelling, so 01 and 1 are different names; their digits are not limited to

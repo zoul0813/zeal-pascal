@@ -190,6 +190,29 @@ static uint8_t same_files(const char *a,const char *b) {
     if(!ok&&!platform_error) platform_error=ERR_FAILURE;
     ok=finish(first,ok); return finish(second,ok);
 }
+/* Every old_name is a closed, verified recovery member. Recheck before removing
+ * the destination, then create it afresh: the pinned HostFS reports stale size
+ * on truncate, and the OS can return a size byte as an error for in-file writes.
+ * Do not reinterpret that error as success. Failed copies retain all recovery
+ * members; this is deliberately no more atomic than the previous copy/truncate. */
+static uint8_t publish_file(const char *new_name,const char *old_name,const char *destination) {
+    uint8_t e=stat_path(destination);
+    if(e!=ERR_NO_SUCH_ENTRY) {
+        if(e) { platform_error=e; return 0; }
+        /* ERR_ALREADY_EXIST is reserved by source saving for BAK approval. An
+         * unexpected destination must fail without offering that permission. */
+        if(!old_name) { platform_error=ERR_FAILURE; return 0; }
+        if(!D_ISFILE(((zos_stat_t*)(console_scratch+128))->s_flags)) {
+            platform_error=ERR_NOT_A_FILE; return 0;
+        }
+        in_transaction(old_name);
+        if(!same_files(destination,member)) return 0;
+        strcpy((char*)console_scratch,destination); e=rm((char*)console_scratch);
+        if(e) { platform_error=e; return 0; }
+    }
+    in_transaction(new_name);
+    return copy_file(member,destination);
+}
 uint8_t save_build(const Source *s,const Build *b) {
     uint8_t i,e,members=3; /* NEW.COM / NEW.ZMP, then optional OLD pair */
     zos_stat_t *info=(zos_stat_t*)(console_scratch+128);
@@ -216,8 +239,8 @@ uint8_t save_build(const Source *s,const Build *b) {
         members|=1u<<(i+2);
     }
     for(i=0;i<2;++i) {
-        in_transaction(i?"NEW.ZMP":"NEW.COM");
-        if(!copy_file(member,destinations[i])||
+        if(!publish_file(i?"NEW.ZMP":"NEW.COM",
+                         members&(1u<<(i+2))?(i?"OLD.ZMP":"OLD.COM"):0,destinations[i])||
            !verify(i?&b->map_page:b->pages,i?b->map_length:b->length,destinations[i])) return 0;
     }
     cleanup_success(0,members);
@@ -275,11 +298,11 @@ uint8_t save_source(Source *s,uint8_t replace_backup) {
             in_transaction("PRIOR.BAK");
             if(!copy_file(destinations[1],member)||!same_files(destinations[1],member)) goto cleanup;
         }
-        in_transaction("OLD.PAS");
-        if(!copy_file(member,destinations[1])||!same_files(member,destinations[1])) goto cleanup;
+        if(!publish_file("OLD.PAS",backup?"PRIOR.BAK":0,destinations[1])||
+           !same_files(member,destinations[1])) goto cleanup;
     }
-    in_transaction("NEW.PAS");
-    if(!copy_file(member,s->path)||!verify(&snapshot.page,snapshot.length,s->path)) goto cleanup;
+    if(!publish_file("NEW.PAS",exists?"OLD.PAS":0,s->path)||
+       !verify(&snapshot.page,snapshot.length,s->path)) goto cleanup;
     ok=1;
 cleanup:
     error=platform_error;
