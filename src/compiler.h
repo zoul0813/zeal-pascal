@@ -1,6 +1,7 @@
 #ifndef ZP_COMPILER_H
 #define ZP_COMPILER_H
 #include "zp.h"
+#include "real.h"
 #ifdef __SDCC
 #define FRONTEND __banked
 #define ROUTINES __banked
@@ -12,9 +13,9 @@
 #endif
 /* One synchronous compiler owns this workspace until it returns. Source
  * names reference its immutable snapshot; phase banks share only resident data. */
-enum { T_EOF=256,T_ID,T_NUMBER,T_STRING,T_ASSIGN,T_RESERVED,T_NE,T_LE,T_GE,T_RANGE };
-enum { K_INTEGER,K_STRING,K_BOOLEAN,K_CHAR,K_BYTE };
-/* Aggregate families cannot overlap the 5..63 enumeration identity range. */
+enum { T_EOF=256,T_ID,T_NUMBER,T_STRING,T_ASSIGN,T_RESERVED,T_NE,T_LE,T_GE,T_RANGE,T_REAL };
+enum { K_INTEGER,K_STRING,K_BOOLEAN,K_CHAR,K_BYTE,K_REAL };
+/* Aggregate families cannot overlap the 6..63 enumeration identity range. */
 enum { K_ARRAY=64,K_RECORD,K_SET,K_POINTER };
 /* Set expression kinds encode the ordinal family without allocating a type
  * descriptor for every constructor. The empty kind has no fixed base family. */
@@ -96,6 +97,7 @@ void cc_slot(uint16_t id) FRONTEND;
 void cc_convert(uint8_t target,uint8_t source) FRONTEND;
 uint8_t cc_char_array(uint8_t type);
 uint8_t cc_ordinal(uint8_t type);
+uint8_t cc_numeric(uint8_t type);
 uint8_t cc_aggregate(uint8_t type);
 uint8_t cc_set_base(uint8_t type);
 void cc_set_load(uint8_t type) FRONTEND;
@@ -126,4 +128,11 @@ uint8_t cc_reference(uint8_t code) BACKEND;
 void cc_mapping(uint16_t begin,uint16_t end,uint16_t first,uint16_t last) BACKEND;
 uint8_t cc_is(const char *s);
 void cc_keyword(const char *s,uint8_t code);
+#define REAL_PI 0x7fffu
+void cc_real_literal(uint16_t reference) FRONTEND;
+void cc_real_constant(uint8_t type,uint16_t value) FRONTEND;
+void cc_real_emit(uint16_t reference) FRONTEND;
+void cc_real_hold(void) FRONTEND;
+void cc_real_unary(uint8_t op,uint8_t type,uint16_t before) FRONTEND;
+void cc_real_binary(uint8_t op,uint8_t left,uint8_t right,uint16_t before,uint16_t right_bytes) FRONTEND;
 #endif

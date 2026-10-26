@@ -32,7 +32,10 @@ static void prologue(void) {
     cc_frame(cc.scope); cc_op16(0x11,4); cc_emit(0x19); cursor_store();
     while(count--&&!cc.error->code) {
         id=first+count; cursor_load();
-        if(cc.symbols[id].role==S_VALUE&&cc_family(cc.symbols[id].type)==K_SET) {
+        if(cc.symbols[id].role==S_VALUE&&cc_family(cc.symbols[id].type)==K_REAL) {
+            cc_guard(); cc_emit(0xe5); cc_op16(0x11,6); cc_emit(0x19); cursor_store();
+            cc_emit(0xe1); cc_destination(id); cc_op16(0x01,6); cc_call(RT_MOVE);
+        } else if(cc.symbols[id].role==S_VALUE&&cc_family(cc.symbols[id].type)==K_SET) {
             cc_guard(); cc_emit(0xe5); cc_op16(0x11,32); cc_emit(0x19); cursor_store();
             cc_emit(0xe1); cc_destination(id); cc_set_store(cc.symbols[id].type);
         } else if(cc.symbols[id].role==S_VALUE&&cc_family(cc.symbols[id].type)==K_STRING) {
@@ -64,6 +67,8 @@ static void epilogue(void) {
             cc_guard(); cc_emit(0xe5); cursor_load(); cc_emit(0xeb); cc_emit(0xe1);
             cc_emit(0x0e); cc_emit(cc.types[cc.symbols[routine].type].capacity); cc_call(RT_COPY);
             cursor_load(); /* caller-owned fixed result slot, returned in HL */
+        } else if(cc_family(cc.symbols[routine].type)==K_REAL) {
+            cc_op16(0x11,RT_REAL_BUFFER); cc_op16(0x01,6); cc_call(RT_MOVE);
         }
     }
     cc_emit(0x44); cc_emit(0x4d); /* BC retains the scalar result */
@@ -71,7 +76,13 @@ static void epilogue(void) {
     cursor_load(); cc_emit(0xf9); /* caller's SP before arguments/link */
     indexed(0x6e,0); indexed(0x66,1);
     cc_emit(0xe5); cc_emit(0xdd); cc_emit(0xe1); /* restore saved IX */
-    cc_emit(0x60); cc_emit(0x69); cc_emit(0xd5); cc_emit(0xc9);
+    cc_emit(0x60); cc_emit(0x69); cc_emit(0xd5);
+    if(cc.symbols[routine].role==S_FUNCTION&&cc_family(cc.symbols[routine].type)==K_REAL) {
+        cc_op16(0x2a,RT_REAL_BUFFER);
+        cc_emit(0xed); cc_op16(0x5b,RT_REAL_BUFFER+2);
+        cc_emit(0xed); cc_op16(0x4b,RT_REAL_BUFFER+4);
+    }
+    cc_emit(0xc9);
 }
 static void parameters(uint8_t scope) {
     uint16_t first,count,i;
@@ -213,7 +224,10 @@ uint8_t cc_invoke(uint16_t id) ROUTINES {
             } else {
                 before=cc.temporaries;
                 kind=cc_aggregate(type)?cc_aggregate_actual(type):cc_expression(); cc_convert(type,kind);
-                if(cc_family(type)==K_SET) {
+                if(cc_family(type)==K_REAL) {
+                    if(cc.temporaries-before!=6) cc_fail(99);
+                    cc.temporaries=before; /* six bytes in public native storage order */
+                } else if(cc_family(type)==K_SET) {
                     if(cc.temporaries-before!=32) cc_fail(99);
                     cc.temporaries=before; /* callee owns the full 32-byte value slot */
                 } else if(cc_family(type)==K_STRING) {
@@ -235,6 +249,9 @@ uint8_t cc_invoke(uint16_t id) ROUTINES {
     cc_guard(); entry_reference(0xcd,scope);
     if(role==S_FUNCTION&&cc_family(cc.symbols[routine_id].type)==K_STRING) {
         cc_op16(0x21,0); cc_emit(0x39); /* ABI result slot, independent of callee HL */
+    } else if(role==S_FUNCTION&&cc_family(cc.symbols[routine_id].type)==K_REAL) {
+        cc_reserve(6); cc_emit(0xc5); cc_emit(0xd5); cc_emit(0xe5);
+        cc.temporaries+=6; cc_op16(0x21,0); cc_emit(0x39);
     }
     return role==S_FUNCTION?cc.symbols[routine_id].type:255;
 }

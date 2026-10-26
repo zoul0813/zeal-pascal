@@ -35,10 +35,37 @@ def read_hex(path):
     return memory
 
 
+def read_symbols(path):
+    return {name: int(value, 16) for value, name in re.findall(
+        r'^\s+([0-9A-F]{8})\s+([_\w]+)\s', path.with_suffix('.map').read_text(), re.M)}
+
+
+def validate_runtime(path):
+    memory=read_hex(path)
+    symbols=read_symbols(path)
+    if not memory or min(memory)!=0x4000 or max(memory)>=0x8000:
+        raise ValueError('runtime code/constants exceed their owned prefix')
+    for area,first,last in (('REAL_ADAPTER',0x4d00,0x5200),('REAL',0x5200,0x7000),
+                            ('TEXT',0x7000,0x7400),('CODE',0x7400,0x7e00),
+                            ('REAL_DATA',0x7e00,0x8000)):
+        at,size=symbols.get('s__'+area,first),symbols.get('l__'+area,0)
+        if size and not first<=at<=at+size<=last:
+            raise ValueError('runtime '+area+' exceeds its bounded extent')
+    if not 0x5200<=symbols['_zr_eval']<0x7000 or symbols['real_buffer']!=0x4136:
+        raise ValueError('runtime Real helper ABI is misplaced')
+    payload=bytes(memory.get(at,0)for at in range(0x4000,max(memory)+1))
+    if path.with_suffix('.zpl').read_bytes()!=payload:
+        raise ValueError('runtime binary differs from its checked link image')
+    report={'passed':True,'runtime_bytes':len(payload),'real_code_bytes':symbols['l__REAL'],
+            'real_data_bytes':symbols['l__REAL_DATA'],
+            'sha256':hashlib.sha256(payload).hexdigest()}
+    path.with_suffix('.runtime.json').write_text(json.dumps(report,indent=2)+'\n')
+    print('runtime:',report)
+
+
 def package(path):
     memory = read_hex(path)
-    symbols = {name: int(value, 16) for value, name in re.findall(
-        r'^\s+([0-9A-F]{8})\s+([_\w]+)\s', path.with_suffix('.map').read_text(), re.M)}
+    symbols = read_symbols(path)
     # Every loaded byte belongs to exactly one segment. In particular no C
     # data, library, or constant may silently live in the switchable window.
     banks = sorted({at >> 16 for at in memory if at >= 0x10000})
@@ -94,4 +121,5 @@ def package(path):
 
 
 if __name__ == '__main__':
-    package(Path(sys.argv[1]))
+    if sys.argv[1]=='--runtime':validate_runtime(Path(sys.argv[2]))
+    else:package(Path(sys.argv[1]))

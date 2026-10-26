@@ -115,7 +115,7 @@ uint8_t cc_aggregate_actual(uint8_t type) BACKEND {
     } else cc_fail(41);
     return type;
 }
-enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR,F_LENGTH,F_COPY,F_POS,F_CONCAT,F_PTR,F_MEMAVAIL,F_MAXAVAIL,F_STACKPTR };
+enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR,F_LENGTH,F_COPY,F_POS,F_CONCAT,F_PTR,F_MEMAVAIL,F_MAXAVAIL,F_STACKPTR,F_TRUNC,F_ROUND,F_INT,F_FRAC };
 static void string_value(void) {
     uint16_t before=cc.temporaries;
     uint8_t kind;
@@ -179,7 +179,7 @@ void cc_string_statement(uint8_t insert) BACKEND {
     cc_expect(')',5); cc_call(insert?RT_INSERT:RT_DELETE); cc_release(before);
 }
 static int16_t predefined_function(void) {
-    static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length","copy","pos","concat","ptr","memavail","maxavail","stackptr"};
+    static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length","copy","pos","concat","ptr","memavail","maxavail","stackptr","trunc","round","int","frac"};
     uint8_t i;
     for(i=0;i<sizeof(functions)/sizeof(functions[0]);++i) if(cc_is(functions[i])) return i;
     return -1;
@@ -242,6 +242,10 @@ static uint8_t intrinsic(uint8_t op) {
         cc_release(before);
         return K_CHAR;
     }
+    if(op>=F_TRUNC||((op==F_ABS||op==F_SQR)&&cc_family(kind)==K_REAL)) {
+        cc_real_unary(op==F_TRUNC?ZR_TRUNC:op==F_ROUND?ZR_ROUND:op==F_INT?ZR_INT:op==F_FRAC?ZR_FRAC:op==F_ABS?ZR_ABS:ZR_SQR,kind,before);
+        return op==F_TRUNC||op==F_ROUND?K_INTEGER:K_REAL;
+    }
     if(cc_family(kind)!=K_INTEGER) cc_fail(23);
     if(op==F_CHR) { cc_check_range(K_CHAR); cc_emit(0x26); cc_emit(0); return K_CHAR; }
     if(op==F_ABS) { cc_emit(0xcb); cc_emit(0x7c); cc_emit(0x28); cc_emit(7); negate(); }
@@ -254,7 +258,7 @@ static uint8_t intrinsic(uint8_t op) {
 }
 static uint8_t factor(void) {
     int16_t id,fn=-1;
-    uint16_t before;
+    uint16_t before,value_before=cc.temporaries;
     uint8_t negative,kind=K_INTEGER;
     if(++cc.depth>24) { cc_fail(98); --cc.depth; return 0; }
     if(cc.token=='^') cc_control_literal();
@@ -264,8 +268,10 @@ static uint8_t factor(void) {
         if(negative&&cc.token==T_NUMBER&&!cc.hexadecimal&&!cc.number_overflow&&cc.magnitude==32768u) {
             cc_op16(0x21,0x8000); cc_next();
         } else {
-            if(cc_family(factor())!=K_INTEGER) cc_fail(47);
-            if(negative) negate();
+            kind=factor();
+            if(!cc_numeric(kind)) cc_fail(47);
+            if(cc_family(kind)==K_REAL) { if(negative) cc_real_unary(ZR_NEGATE,kind,value_before); }
+            else { kind=K_INTEGER; if(negative) negate(); }
         }
     } else if(cc_is("not")) {
         cc_next(); kind=factor();
@@ -275,6 +281,8 @@ static uint8_t factor(void) {
     } else if(cc.token==T_NUMBER) {
         if(cc.number_overflow||(!cc.hexadecimal&&cc.magnitude>32767u)) cc_fail(56);
         cc_op16(0x21,cc.magnitude); cc_next();
+    } else if(cc.token==T_REAL) {
+        cc_real_emit(cc.token_start); kind=K_REAL; cc_next();
     } else if(cc.token==T_STRING) {
         if(cc.literal_length==1) { cc_op16(0x21,cc.literal[0]); kind=K_CHAR; }
         else { cc_emit_literal(); kind=K_STRING; }
@@ -288,10 +296,10 @@ static uint8_t factor(void) {
             cc_next(); cc_expect('(',4);
             before=cc.temporaries;
             negative=cc_text_value(expression()); cc_expect(')',5);
-            if(cc_family(kind)==K_POINTER) cc_fail(30);
+            if(cc_family(kind)==K_POINTER||cc_family(kind)==K_REAL) cc_fail(30);
             else if(!cc_ordinal(kind)) cc_fail(44);
             else if(cc_family(kind)==K_CHAR&&cc_family(negative)==K_STRING) cc_call(RT_STRINGCHAR);
-            else if(!cc_ordinal(negative)) cc_fail(44);
+            else if(!cc_ordinal(negative)) cc_fail(cc_family(negative)==K_REAL?31:44);
             cc_check_range(kind);
             if(cc.types[kind].width==1) { cc_emit(0x26); cc_emit(0); }
             cc_release(before);
@@ -303,10 +311,12 @@ static uint8_t factor(void) {
         else if(id<0&&(cc_is("true")||cc_is("false"))) {
             cc_op16(0x21,cc_is("true")?1:0); kind=K_BOOLEAN; cc_next();
         } else if(id<0&&cc_is("maxint")) { cc_op16(0x21,32767); cc_next();
+        } else if(id<0&&cc_is("pi")) { cc_real_emit(REAL_PI); kind=K_REAL; cc_next();
         } else if(id<0) cc_fail(41);
         else if(cc.symbols[id].role==S_CONSTANT) {
             kind=cc.symbols[id].type;
             if(cc_family(kind)==K_STRING) { cc_constant_literal(cc.symbols[id].address); cc_emit_literal(); }
+            else if(cc_family(kind)==K_REAL) cc_real_emit(cc.symbols[id].address);
             else cc_op16(0x21,cc.symbols[id].address);
             cc_next();
         } else if(cc.symbols[id].role==S_FUNCTION||cc.symbols[id].role==S_RESULT) { kind=cc_invoke((uint16_t)id); if(cc.token=='^') cc_fail(66); }
@@ -319,6 +329,7 @@ static uint8_t factor(void) {
             } else cc_load_symbol((uint16_t)id);
         } else cc_fail(41);
     } else cc_fail(54);
+    if(cc_family(kind)==K_REAL&&cc.temporaries==value_before) cc_real_hold();
     --cc.depth;
     return kind;
 }
@@ -330,8 +341,8 @@ static void bitwise(uint8_t op) {
 static uint8_t term(void) {
     uint16_t before=cc.temporaries,right_before,right_bytes;
     uint8_t op,right,base,kind=factor();
-    while(!cc.error->code&&(cc.token=='*'||cc_is("div")||cc_is("mod")||cc_is("and")||cc_is("shl")||cc_is("shr"))) {
-        op=cc.token=='*'?0:cc_is("div")?1:cc_is("mod")?2:cc_is("and")?3:cc_is("shl")?4:5;
+    while(!cc.error->code&&(cc.token=='*'||cc.token=='/'||cc_is("div")||cc_is("mod")||cc_is("and")||cc_is("shl")||cc_is("shr"))) {
+        op=cc.token=='*'?0:cc_is("div")?1:cc_is("mod")?2:cc_is("and")?3:cc_is("shl")?4:cc_is("shr")?5:6;
         base=cc_family(kind);
         if(base==K_SET) {
             if(op!=0) cc_fail(47);
@@ -339,8 +350,13 @@ static uint8_t term(void) {
             right=factor(); right_bytes=cc.temporaries-right_before; cc_stack_operand(right_bytes);
             kind=set_binary(kind,right,1,before,right_bytes); continue;
         }
-        if(base!=K_INTEGER&&(op!=3||base!=K_BOOLEAN)) cc_fail(47);
-        cc_next(); cc_guard(); cc_emit(0xe5); right=factor(); cc_emit(0xd1);
+        if(op==0||op==6) { if(!cc_numeric(kind)) cc_fail(47); }
+        else if(base!=K_INTEGER&&(op!=3||base!=K_BOOLEAN)) cc_fail(47);
+        cc_next(); cc_guard(); cc_emit(0xe5); right_before=cc.temporaries;
+        right=factor(); right_bytes=cc.temporaries-right_before; cc_stack_operand(right_bytes);
+        if(op==6||(op==0&&(base==K_REAL||cc_family(right)==K_REAL))) {
+            cc_real_binary(op==6?ZR_DIV:ZR_MUL,kind,right,before,right_bytes); kind=K_REAL; continue;
+        }
         if(cc_family(right)!=base) cc_fail(47);
         if(op==3) bitwise(0);
         else cc_call(op==0?RT_MUL:op==1?RT_DIV:op==2?RT_MOD:op==4?RT_SHL:RT_SHR);
@@ -365,10 +381,13 @@ static uint8_t simple_expression(void) {
         base=cc_family(kind);
         if(base==K_SET) { if(op!='+'&&op!='-') cc_fail(47); }
         else if(op=='+'&&text(kind)) hold_left(kind,before);
-        else if(base!=K_INTEGER&&((op=='+'||op=='-')||base!=K_BOOLEAN)) cc_fail(47);
+        else if((op=='+'||op=='-')?!cc_numeric(kind):(base!=K_INTEGER&&base!=K_BOOLEAN)) cc_fail(47);
         cc_next(); cc_guard(); cc_emit(0xe5); right_before=cc.temporaries;
         right=term(); if(op=='+'&&text(kind)) cc_text_value(right); right_bytes=cc.temporaries-right_before; cc_stack_operand(right_bytes);
         if(base==K_SET) { kind=set_binary(kind,right,op=='+'?0:2,before,right_bytes); continue; }
+        if((op=='+'||op=='-')&&(base==K_REAL||cc_family(right)==K_REAL)) {
+            cc_real_binary(op=='+'?ZR_ADD:ZR_SUB,kind,right,before,right_bytes); kind=K_REAL; continue;
+        }
         if(op=='+'&&text(kind)) {
             if(!text(right)) cc_fail(47);
             owned=cc.temporaries-before+(right_bytes?2:0);
@@ -405,6 +424,9 @@ static uint8_t expression(void) {
         cc_emit(0x3e); cc_emit(op=='='?0:op==T_NE?1:op==T_LE?2:3); cc_call(RT_SETCMP);
         if(right_bytes) cc_drop_stack(2); cc_release(before); return K_BOOLEAN;
     }
+    if(cc_family(kind)==K_REAL||cc_family(right)==K_REAL) {
+        cc_real_binary(ZR_COMPARE,kind,right,before,right_bytes);
+    } else {
     if((cc_aggregate(kind)&&!cc_char_array(kind))||(cc_aggregate(right)&&!cc_char_array(right))) cc_fail(62);
     else if(!cc_compatible(kind,right)) cc_fail(47);
     if((cc_family(kind)==K_POINTER||cc_family(right)==K_POINTER)&&op!='='&&op!=T_NE) cc_fail(47);
@@ -413,6 +435,7 @@ static uint8_t expression(void) {
     } else cc_call(RT_COMPARE);
     if(right_bytes) cc_drop_stack(2);
     cc_release(before);
+    }
     /* Three-way comparison returns exactly -1, 0, +1. Normalize every
      * relational expression to a one-byte Boolean, held zero-extended in HL. */
     if(op=='='||op==T_NE) { cc_emit(0x7c); cc_emit(0xb5); jump=op=='='?0x28:0x20; }

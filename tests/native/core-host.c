@@ -61,6 +61,23 @@ int main(int argc,char **argv) {
         check(source_import(&s,embedded,sizeof(embedded)-1,&d));
         check(compile(&s,&b,&d)); build_close(&b);
     }
+    invalid("var r:real;begin r:=true end.",44);
+    invalid("var n:integer;begin n:=1/2 end.",44);
+    invalid("var r:real;begin r:=1e38 end.",57);
+    invalid("var r:real;begin r:=1e-39 end.",57);
+    invalid("var r:real;begin r:=1e end.",57);
+    invalid("var r:real;begin r:=1e001 end.",1);
+    invalid("var r:real;begin r:=1.0e38 end.",57);
+    invalid("type t=1.0..2.0;begin end.",57);
+    invalid("begin writeln(real(1))end.",30);
+    invalid("begin writeln(integer(1.5))end.",31);
+    invalid("begin writeln(ord(1.0))end.",31);
+    invalid("begin writeln(succ(1.0))end.",31);
+    invalid("begin writeln(1.0 div 2)end.",47);
+    invalid("begin writeln(1.0 and 2)end.",47);
+    invalid("var r:real;begin for r:=1 to 2 do end.",30);
+    invalid("type a=array[real]of byte;begin end.",30);
+    invalid("type a=set of real;begin end.",30);
     invalid("begin goto missing end.",40);
     invalid("label l;begin goto l end.",40);
     invalid("label l,l;begin end.",43);
@@ -354,7 +371,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {
@@ -363,6 +380,7 @@ int main(int argc,char **argv) {
                 n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
                 check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
                 if(!strcmp(fixtures[fixture],"absolute")) check(b.globals_bytes==8);
+                if(!strcmp(fixtures[fixture],"realabi")) check(b.globals_bytes==0);
                 ordered_map(); build_close(&b);
             }
         }

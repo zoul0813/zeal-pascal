@@ -87,7 +87,7 @@ timing; both `/opt/homebrew/bin/zeal-native` and the current development build
 now pass the TF write checks, including `T:/untitled.pas`. Historical failure
 captures are preserved. This project has not patched ZOS or the emulator.
 
-Current language support includes Integer, Byte, Char, Boolean and `string[1..255]` globals,
+Current language support includes Integer, Byte, Char, Boolean, Real and `string[1..255]`,
 compound statements, assignments, Integer arithmetic/bitwise/shift expressions,
 eager Boolean logic, ordinal/string comparisons, If/Then/Else, While/Do,
 Repeat/Until, For/To/Downto, Case/Of/Else and same-block Goto labels. Case supports ordinal
@@ -108,11 +108,11 @@ Char/string conversions and comparisons are supported; converting a string
 whose length is not one to Char reports runtime error 10.
 
 Implemented functions include Ord, Chr, Succ, Pred, SizeOf, Addr, UpCase, Length,
-Odd, Hi, Lo, Swap and the Integer forms of Abs/Sqr. Ord, Succ and Pred accept
+Odd, Hi, Lo, Swap, Abs, Sqr, Int, Frac, Trunc and Round. Ord, Succ and Pred accept
 String/Char-array values of exactly one character; other lengths report runtime
 error 10. The compiler currently has
 512 symbol entries (two reserved for HeapPtr/RecurPtr) and 64 type descriptors
-(including five built-in types).
+(including six built-in types).
 Exhaustion reports resource error 98. Arrays support ordinal bounds, nested or
 comma-separated dimensions, packed layout, whole-array assignment, typed
 initializers and value/Var parameters. R+ checks each index before access.
@@ -210,10 +210,14 @@ and enum boundary fixtures exercise these features in Memory and saved native
 COM execution. The [routine fixture](tests/native/routines.pas) covers calls,
 recursion and string parameter copies. The string selection/operation fixtures
 cover index checks, aliasing, byte values and cleanup. The string result and
-boundary fixtures cover temporary cleanup and 255-byte values. Real6
-and the rest of the dialect remain in progress. A shared Real6 arithmetic and
-decimal parser component passes separate host/native checks; integration into
-Pascal declarations, generated operations and I/O is still pending.
+boundary fixtures cover temporary cleanup and 255-byte values. The Real fixtures
+cover six-byte storage, decimal literals, constants/Pi, initializers, Integer
+promotion, arithmetic/comparisons, selected storage, value/Var arguments and
+lexical/recursive functions. Real function results use the native BCDEHL register
+convention, checked against an independently assembled external routine. Arithmetic
+uses the recovered Real6 rules, including truncation and canonical underflow.
+Real formatted output, numeric input, Str/Val and the remaining mathematical
+functions are still pending; Write/Writeln does not yet accept Real values.
 
 Labels may be identifiers or decimal digit names. Numeric labels retain their
 exact spelling, so 01 and 1 are different names; their digits are not limited to

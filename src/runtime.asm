@@ -1,4 +1,5 @@
 .module runtime
+.globl real_dispatch,real_buffer,call_error
 .area _HEADER (ABS)
 .org 0x4000
     jp 0x40a0
@@ -59,6 +60,8 @@
 heap_frontier: .dw 0            ; 412C: predefined HeapPtr
 recursion_limit: .dw 0          ; 412E: conservative active stack boundary
     jp fill_bytes               ; 4130: HL destination, BC count, A byte
+    jp real_dispatch            ; 4133: DE left, HL right, A op/Integer flags
+real_buffer: .ds 6              ; 4136: transient helper/return bytes, copied by caller
 
 ; This prefix is deliberately separate from the C compiler's ABI. Only the
 ; private helper entries above are emitted in this first language increment.

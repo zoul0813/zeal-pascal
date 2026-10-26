@@ -784,6 +784,24 @@ def main():
     label_expected = ''.join(marker+'\r\n' for marker in label_markers).encode() * 2
     checks.append(('labels/Goto, lexical and recursive scopes, For/With stack ownership in RAM/COM',
                    label_output.is_file() and label_output.read_bytes() == label_expected))
+    real_output = RUN / 'core/hostfs/REALS.TXT'
+    real_markers = ('REAL-LAYOUT-OK','REAL-CONSTANTS-OK','REAL-INITIALIZERS-OK',
+                    'REAL-THIRD-BITS-OK','REAL-CANCELLATION-BITS-OK','REAL-MINIMUM-OK',
+                    'REAL-CANONICAL-UNDERFLOW-OK','REAL-MIXED-ARITHMETIC-OK',
+                    'REAL-PRIMITIVE-FUNCTIONS-OK','REAL-LEFT-SNAPSHOT-OK',
+                    'REAL-VALUE-VAR-ARGUMENTS-OK','REAL-INTEGER-ARGUMENT-PROMOTION-OK',
+                    'REAL-SELECTED-STORAGE-OK','REAL-WITH-PRESERVED-OK',
+                    'REAL-RECURSIVE-RESULT-OK','REAL-LEXICAL-FRAME-OK')
+    real_abi_markers = ('EXTERNAL-REAL-ARGUMENT-RESULT-OK',
+                        'EXTERNAL-REAL-INTEGER-PROMOTION-OK','EXTERNAL-REAL-REPEATED-STACK-OK')
+    real_expected = ''.join(marker+'\r\n'for marker in real_markers).encode()*2
+    real_expected += ''.join(marker+'\r\n'for marker in real_abi_markers).encode()*2
+    checks.append(('Real6 storage/constants/arithmetic, snapshots, recursive frames and public ABI in RAM/COM',
+                   real_output.is_file() and real_output.read_bytes()==real_expected))
+    real_image = RUN / 'core/hostfs/REALABI.COM'
+    real_code = (ROOT/'build/realabi.zpl').read_bytes()
+    checks.append(('native external six-byte Real arguments and BCDEHL result match independent assembly',
+                   real_image.is_file() and real_image.read_bytes()[0x4004:0x4004+len(real_code)]==real_code))
     pointer_image = RUN / 'core/hostfs/POINTERABI.COM'
     pointer_code = (ROOT / 'build/pointerabi.zpl').read_bytes()
     checks.append(('native external pointer payload matches independently assembled two-word probe',
@@ -835,7 +853,7 @@ def main():
         'native_completion_tstates_including_boot':
             int(re.findall(r'cyc=(\d+)', text)[-1]) if re.findall(r'cyc=(\d+)', text) else None,
         'artifacts': {str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p): sha(p)
-                      for p in [EMULATOR, ROM, KERNEL_MAP, TF_TEMPLATE, COREUTILS / 'mkdir', COREUTILS / 'cp', ROOT / 'build/zpascal.bin', ROOT / 'build/zpascal.zpl', ROOT / 'build/zptest.bin', ROOT / 'build/zptest.zpl', ROOT / 'build/stringabi.zpl', ROOT / 'build/setabi.zpl', ROOT / 'build/pointerabi.zpl']},
+                      for p in [EMULATOR, ROM, KERNEL_MAP, TF_TEMPLATE, COREUTILS / 'mkdir', COREUTILS / 'cp', ROOT / 'build/zpascal.bin', ROOT / 'build/zpascal.zpl', ROOT / 'build/zptest.bin', ROOT / 'build/zptest.zpl', ROOT / 'build/stringabi.zpl', ROOT / 'build/setabi.zpl', ROOT / 'build/pointerabi.zpl', ROOT / 'build/realabi.zpl']},
         'checks': [{'check': label, 'passed': ok} for label, ok in checks],
     }
     (RUN / 'report.json').write_text(json.dumps(report, indent=2) + '\n')

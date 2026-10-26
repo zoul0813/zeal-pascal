@@ -100,7 +100,8 @@ static uint8_t parse_type_body(uint8_t allow_forward) {
     if(cc_is("packed")) { cc_next(); return parse_type(allow_forward); }
     if(cc_is("set")) {
         cc_next(); cc_keyword("of",15); base=parse_type(0);
-        if(!cc_ordinal(base)||cc.types[base].low<0||cc.types[base].high>255) { cc_fail(70); return 0; }
+        if(!cc_ordinal(base)) { cc_fail(30); return 0; }
+        if(cc.types[base].low<0||cc.types[base].high>255) { cc_fail(70); return 0; }
         result=cc_new_type(K_SET,(cc.types[base].high>>3)-(cc.types[base].low>>3)+1,0,0,0);
         cc.types[result].element=base; return result;
     }
@@ -131,6 +132,7 @@ static uint8_t parse_type_body(uint8_t allow_forward) {
     if(id<0&&(id=cc_predefined_type())>=0) { cc_next(); return (uint8_t)id; }
     cc_constant(&base,&lo);
     if(cc_family(base)==K_STRING) cc_fail(51);
+    else if(!cc_ordinal(base)) cc_fail(30);
     cc_expect(T_RANGE,41); cc_constant(&other,&hi);
     if(cc_family(base)!=cc_family(other)) cc_fail(51);
     if((int16_t)lo>(int16_t)hi) cc_fail(52);
@@ -219,7 +221,10 @@ static void initializer(uint8_t type,uint8_t emit) {
     if(cc_family(type)==K_POINTER) { cc_fail(61); return; }
     cc_constant(&actual,&value);
     if(!cc_compatible(type,actual)) cc_fail(44);
-    if(cc_family(type)==K_STRING) {
+    if(cc_family(type)==K_REAL) {
+        cc_real_constant(actual,value);
+        if(emit) for(i=0;i<6;++i) cc_emit(zr_result[i]);
+    } else if(cc_family(type)==K_STRING) {
         if(cc_family(actual)==K_CHAR) { cc.literal[0]=(uint8_t)value; cc.literal_length=1; }
         else cc_constant_literal(value);
         if(cc.literal_length>cc.types[type].capacity) cc.literal_length=cc.types[type].capacity;
@@ -302,7 +307,7 @@ void cc_declarations(void) FRONTEND {
                         if(cc.literal_length!=1) cc_fail(50);
                         value=cc.literal[0]; initial=K_CHAR;
                     }
-                    if(cc_family(type)!=K_STRING&&((int16_t)value<cc.types[type].low||(int16_t)value>cc.types[type].high)) cc_fail(44);
+                    if(cc_ordinal(type)&&((int16_t)value<cc.types[type].low||(int16_t)value>cc.types[type].high)) cc_fail(44);
                     cc.symbols[id].type=type; cc.symbols[id].initial_type=initial; cc.symbols[id].role=S_TYPED;
                 } else {
                     cc_expect('=',6);
@@ -334,6 +339,9 @@ void cc_typed_storage(uint16_t first) FRONTEND {
             cc.scan=saved_scan; cc.token=saved_token; cc.token_start=start; cc.token_end=end;
             cc.range_check=range; cc.absolute_mode=absolute; cc.var_strict=strict;
             cc.with_limit=limit;
+        } else if(cc_family(cc.symbols[i].type)==K_REAL) {
+            cc_real_constant(cc.symbols[i].initial_type,value);
+            for(j=0;j<6;++j) cc_emit(zr_result[j]);
         } else if(cc_family(cc.symbols[i].type)==K_STRING) {
             if(cc_family(cc.symbols[i].initial_type)==K_CHAR) { cc.literal[0]=(uint8_t)value; cc.literal_length=1; }
             else cc_constant_literal(value);

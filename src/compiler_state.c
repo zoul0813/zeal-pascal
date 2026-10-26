@@ -8,7 +8,10 @@ uint8_t cc_char_array(uint8_t type) {
         cc.types[cc.types[type].capacity].family==K_INTEGER&&cc.types[type].width<=255;
 }
 uint8_t cc_ordinal(uint8_t type) {
-    return type<cc.type_count&&cc.types[type].family<K_ARRAY&&cc.types[type].family!=K_STRING;
+    return type<cc.type_count&&cc.types[type].family<K_ARRAY&&cc.types[type].family!=K_STRING&&cc.types[type].family!=K_REAL;
+}
+uint8_t cc_numeric(uint8_t type) {
+    return type<cc.type_count&&(cc.types[type].family==K_INTEGER||cc.types[type].family==K_REAL);
 }
 uint8_t cc_aggregate(uint8_t type) {
     return type<cc.type_count&&(cc.types[type].family==K_ARRAY||cc.types[type].family==K_RECORD);

@@ -45,7 +45,7 @@ static uint8_t seed(const char *path,const char *text) {
 static uint8_t saved_corpus(void) {
     switch(test_stage) {
     case 9: case 11: case 13: case 15: case 17: case 19:
-    case 21: case 23: case 25: case 27: case 29: case 31: case 33: return 1;
+    case 21: case 23: case 25: case 27: case 29: case 31: case 33: case 35: return 1;
     default: return 0;
     }
 }
@@ -352,6 +352,24 @@ static void label_tests(void) {
     checked_error("label l;var r:record n:integer end;begin with r do goto l;l:\nwriteln(7 div 0)end.",2,"writeln");
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
+static void real_tests(void) {
+    int8_t capture=open("H:/REALS.TXT",O_WRONLY|O_CREAT|O_TRUNC);
+    check(capture>=0);
+    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
+    test_stage=35;
+    execution_file("H:/REALS.PAS",1,0,0);
+    execution_file("H:/REALABI.PAS",1,0,0);
+    test_stage=36;
+    checked_error("var r:real;begin\nr:=1/0 end.",2,"r:=");
+    checked_error("var r:real;begin\nr:=1.0/0.0 end.",2,"r:=");
+    checked_error("var r:real;begin\nr:=1.0e37*20 end.",1,"r:=");
+    checked_error("var r:real;begin\nr:=sqr(1.0e37)end.",1,"r:=");
+    checked_error("begin\nwriteln(round(32767.5))end.",0x92,"writeln");
+    checked_error("begin {$R-}\nwriteln(trunc(40000.0))end.",0x92,"writeln");
+    checked_error("begin {$R+}\nwriteln(trunc(-40000.0))end.",0x92,"writeln");
+    checked_error("var r:real;begin heapptr:=stackptr-128;\nr:=1.0+2.0 end.",0xff,"r:=1.0");
+    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
+}
 static void media_tests(void) {
     uint8_t attempt,status;
     int8_t capture;
@@ -491,6 +509,7 @@ int app_main(void) {
     heap_tests();
     memory_tests();
     label_tests();
+    real_tests();
     source_close(&s); check(pages_used()==code_required);
     code_hash(digest); check(!memcmp(digest,initial_code_hash,32));
     test_stage=6; test_done=255;

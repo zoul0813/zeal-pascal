@@ -99,7 +99,7 @@ void cc_stack_operand(uint16_t right_bytes) FRONTEND {
 }
 void cc_load_indirect(uint8_t type) FRONTEND {
     if(cc_family(type)==K_SET) { cc_set_load(type); return; }
-    if(cc_family(type)==K_STRING||cc_aggregate(type)) return;
+    if(cc_family(type)==K_STRING||cc_family(type)==K_REAL||cc_aggregate(type)) return;
     if(type==255) { cc_fail(44); return; }
     if(cc.types[type].width==1) { cc_emit(0x6e); cc_emit(0x26); cc_emit(0); }
     else { cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb); }
@@ -211,6 +211,20 @@ void cc_next(void) FRONTEND {
         if(!n) cc_fail(56);
         cc.name[n<127?n:127]=0;
         cc.magnitude=(uint16_t)wide; cc.token=T_NUMBER;
+        if(base==10&&((get(cc.scan)=='.'&&get(cc.scan+1)!='.')||lower(get(cc.scan))=='e')) {
+            if(get(cc.scan)=='.') {
+                ++cc.scan; while(digit(get(cc.scan))) ++cc.scan;
+            }
+            if(lower(get(cc.scan))=='e') {
+                ++cc.scan;
+                if(get(cc.scan)=='+'||get(cc.scan)=='-') ++cc.scan;
+                if(!digit(get(cc.scan))) cc_fail(57);
+                if(digit(get(cc.scan))) ++cc.scan;
+                if(digit(get(cc.scan))) ++cc.scan;
+            }
+            if(get(cc.scan)=='.') cc_fail(57);
+            cc.token=T_REAL;
+        }
     } else if(c=='\''||c=='#') {
         literal();
     } else {
@@ -323,6 +337,7 @@ uint8_t cc_family(uint8_t type) FRONTEND {
 }
 static uint8_t text_type(uint8_t type) { return cc_family(type)==K_CHAR||cc_family(type)==K_STRING; }
 uint8_t cc_compatible(uint8_t left,uint8_t right) FRONTEND {
+    if(cc_family(left)==K_REAL&&cc_family(right)==K_INTEGER) return 1;
     if(cc_family(left)==K_POINTER||cc_family(right)==K_POINTER) {
         if(cc_family(left)!=K_POINTER||cc_family(right)!=K_POINTER) return 0;
         return left==K_ANY_POINTER||right==K_ANY_POINTER||left==K_NIL||right==K_NIL||
@@ -404,7 +419,7 @@ void cc_load_symbol(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];
     if(s->type==255) { cc_fail(44); return; }
     if(cc_family(s->type)==K_SET) { cc_symbol_address(id); cc_set_load(s->type); return; }
-    if(cc_family(s->type)==K_STRING||cc_aggregate(s->type)) cc_symbol_address(id);
+    if(cc_family(s->type)==K_STRING||cc_family(s->type)==K_REAL||cc_aggregate(s->type)) cc_symbol_address(id);
     else if(indirect_symbol(s)) {
         cc_symbol_address(id);
         cc_load_indirect(s->type);
@@ -449,6 +464,7 @@ void cc_convert(uint8_t target,uint8_t source) FRONTEND {
     if(cc_aggregate(target)) { if(target!=source) cc_fail(44); return; }
     if(target==255||source==255||!cc_compatible(target,source)) { cc_fail(44); return; }
     source=cc_text_value(source);
+    if(cc_family(target)==K_REAL&&cc_family(source)==K_INTEGER) cc_real_unary(ZR_FROM_INT,source,cc.temporaries);
     if(cc_family(target)==K_CHAR&&cc_family(source)==K_STRING) cc_call(RT_STRINGCHAR);
     cc_check_range(target);
 }
@@ -481,7 +497,7 @@ void cc_emit_literal(void) FRONTEND {
     cc_address(0x21,address);
 }
 int16_t cc_predefined_type(void) FRONTEND {
-    return cc_is("integer")?K_INTEGER:cc_is("boolean")?K_BOOLEAN:cc_is("char")?K_CHAR:cc_is("byte")?K_BYTE:-1;
+    return cc_is("integer")?K_INTEGER:cc_is("boolean")?K_BOOLEAN:cc_is("char")?K_CHAR:cc_is("byte")?K_BYTE:cc_is("real")?K_REAL:-1;
 }
 int16_t cc_named_type(void) FRONTEND {
     int16_t id=cc.token==T_ID?cc_lookup():-1;
@@ -497,6 +513,8 @@ void cc_constant(uint8_t *type,uint16_t *value) FRONTEND {
     if(cc.token==T_NUMBER) {
         if(cc.number_overflow||(!cc.hexadecimal&&cc.magnitude>32767u&&sign!=2)) cc_fail(56);
         *value=cc.magnitude;
+    } else if(cc.token==T_REAL) {
+        *type=K_REAL; *value=cc.token_start; cc_real_literal(*value);
     } else if(cc.token==T_STRING&&!sign) {
         *type=cc.literal_length==1?K_CHAR:K_STRING;
         *value=cc.literal_length==1?cc.literal[0]:cc.token_start;
@@ -505,9 +523,10 @@ void cc_constant(uint8_t *type,uint16_t *value) FRONTEND {
         if(id>=0&&cc.symbols[id].role==S_CONSTANT) { *type=cc.symbols[id].type; *value=cc.symbols[id].address; }
         else if(id<0&&(cc_is("true")||cc_is("false"))) { *type=K_BOOLEAN; *value=cc_is("true"); }
         else if(id<0&&cc_is("maxint")) *value=32767;
+        else if(id<0&&cc_is("pi")) { *type=K_REAL; *value=REAL_PI; }
         else cc_fail(41);
     } else cc_fail(25);
-    if(sign&&cc_family(*type)!=K_INTEGER) cc_fail(25);
-    if(sign==2) *value=(uint16_t)(0u-*value);
+    if(sign&&!cc_numeric(*type)) cc_fail(25);
+    if(sign==2) *value=cc_family(*type)==K_REAL?*value^0x8000u:(uint16_t)(0u-*value);
     cc_next();
 }

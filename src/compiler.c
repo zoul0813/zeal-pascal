@@ -350,11 +350,11 @@ static void statement(void) {
             kind=cc_aggregate(target)?cc_aggregate_actual(target):cc_expression();
             cc_convert(target,kind);
             if(indexed) cc_stack_operand(cc.temporaries-before);
-            else if(cc_family(target)==K_STRING||cc_aggregate(target)||cc_family(target)==K_SET) cc_destination((uint16_t)id);
+            else if(cc_family(target)==K_STRING||cc_family(target)==K_REAL||cc_aggregate(target)||cc_family(target)==K_SET) cc_destination((uint16_t)id);
             if(cc_family(target)==K_STRING) {
                 cc_emit(0x0e); cc_emit(cc.types[target].capacity);
                 cc_call(cc_family(kind)==K_CHAR?RT_CHARCOPY:RT_COPY);
-            } else if(cc_aggregate(target)) {
+            } else if(cc_aggregate(target)||cc_family(target)==K_REAL) {
                 cc_op16(0x01,cc.types[target].width); cc_call(RT_MOVE);
             } else if(cc_family(target)==K_SET) cc_set_store(target);
             else if(indexed) cc_store_indirect(target);
@@ -415,6 +415,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     cc_new_type(K_BOOLEAN,1,0,1,0);
     cc_new_type(K_CHAR,1,0,255,0);
     cc_new_type(K_INTEGER,1,0,255,0); /* Byte shares the Integer family */
+    cc_new_type(K_REAL,6,0,0,0);
     for(i=0;i<2;++i) {
         memset(&cc.symbols[i],0,sizeof(Symbol));
         cc.symbols[i].role=S_SYSTEM; cc.symbols[i].type=K_INTEGER;

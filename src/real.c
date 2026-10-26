@@ -198,10 +198,27 @@ static void times_ten(const uint8_t *value) {
     zr_b[0]=132; zr_b[5]=32; /* 10 */
     evaluate(ZR_MUL);
 }
+static uint8_t decimal_scale_value(int16_t scale,uint16_t position) {
+    uint16_t magnitude;
+    uint8_t extra;
+    if(scale< -38||scale>37) { decimal_error(position); return 0; }
+    magnitude=(uint16_t)(scale<0?-scale:scale);
+    copy(decimal_scale,powers[magnitude/4],6);
+    extra=(uint8_t)(magnitude%4);
+    while(extra--) {
+        times_ten(decimal_scale);
+        if(zr_error) { decimal_error(position); return 0; }
+        copy(decimal_scale,zr_result,6);
+    }
+    copy(zr_a,decimal_value,6); copy(zr_b,decimal_scale,6);
+    evaluate(scale<0?ZR_DIV:ZR_MUL);
+    if(zr_error) { decimal_error(position); return 0; }
+    copy(decimal_value,zr_result,6); return 1;
+}
 static void decimal(void) {
     uint16_t p=0,count=0,exponent=0;
     int16_t scale=0;
-    uint8_t negative=0,negative_exponent=0,c,extra;
+    uint8_t negative=0,negative_exponent=0,c;
     clear(decimal_value,6);
     if(p<zr_length&&(zr_text[p]=='+'||zr_text[p]=='-')) negative=zr_text[p++]=='-';
     if(p==zr_length||!digit(zr_text[p])) { decimal_error(p); return; }
@@ -219,29 +236,19 @@ static void decimal(void) {
         if(count) --scale;
         ++p;
     }
+    /* The fractional scale is applied before reading a separate exponent.
+     * Keeping these two truncated operations distinct is observable. */
+    if(!decimal_scale_value(scale,p)) return;
     if(p<zr_length&&(zr_text[p]=='E'||zr_text[p]=='e')) {
         ++p;
         if(p<zr_length&&(zr_text[p]=='+'||zr_text[p]=='-')) negative_exponent=zr_text[p++]=='-';
         if(p==zr_length||!digit(zr_text[p])) { decimal_error(p); return; }
-        while(p<zr_length&&digit(zr_text[p])) {
-            if(exponent>255) { decimal_error(p); return; }
-            exponent=exponent*10+zr_text[p++]-'0';
-        }
-        if(exponent>255) { decimal_error(p); return; }
-        scale+=negative_exponent?-(int16_t)exponent:(int16_t)exponent;
+        exponent=zr_text[p++]-'0';
+        if(p<zr_length&&digit(zr_text[p])) exponent=exponent*10+zr_text[p++]-'0';
+        if(!decimal_scale_value(negative_exponent?-(int16_t)exponent:(int16_t)exponent,p)) return;
     }
-    if(p!=zr_length||scale< -38||scale>37) { decimal_error(p); return; }
-    exponent=(uint16_t)(scale<0?-scale:scale);
-    copy(decimal_scale,powers[exponent/4],6);
-    extra=(uint8_t)(exponent%4);
-    while(extra--) {
-        times_ten(decimal_scale);
-        if(zr_error) { decimal_error(p); return; }
-        copy(decimal_scale,zr_result,6);
-    }
-    copy(zr_a,decimal_value,6); copy(zr_b,decimal_scale,6);
-    evaluate(scale<0?ZR_DIV:ZR_MUL);
-    if(zr_error) { decimal_error(p); return; }
+    if(p!=zr_length) { decimal_error(p); return; }
+    copy(zr_result,decimal_value,6);
     if(negative&&zr_result[0]) zr_result[5]^=128;
     zr_integer=0;
 }
