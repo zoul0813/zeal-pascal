@@ -320,6 +320,7 @@ static void statement(void) {
             if(indexed) {
                 cc_symbol_address((uint16_t)id); target=cc_index(target); cc_guard(); cc_emit(0xe5);
             }
+            if(cc_family(target)==K_FILE) cc_fail(54);
             cc_expect(T_ASSIGN,7);
             kind=cc_aggregate(target)?cc_aggregate_actual(target):cc_expression();
             cc_convert(target,kind);
@@ -385,6 +386,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     cc.scope=0; cc.routine_count=0; cc.absolute_mode=1; cc.var_strict=1; cc.nesting=0; cc.suppress=0; cc.with_depth=0; cc.with_limit=4;
     cc.temporaries=0; cc.for_depth=0; cc.input_fresh=1; cc.io_check=1;
     cc.random_entry=0; cc.random_state=0;
+    cc.text_type=255;
     cc_new_type(K_INTEGER,2,-32768,32767,0);
     cc_new_type(K_STRING,0,0,0,0); /* expression/literal string, not a storage type */
     cc_new_type(K_BOOLEAN,1,0,1,0);

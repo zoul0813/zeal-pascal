@@ -104,6 +104,7 @@ static void parameters(uint8_t scope) {
             if(type<0) cc_fail(41); else cc_next();
         }
         for(i=first;i<first+count&&!cc.error->code;++i) {
+            if(role==S_VALUE&&type>=0&&cc_family((uint8_t)type)==K_FILE) cc_fail(67);
             cc.symbols[i].type=(uint8_t)type;
             cc_storage(i,role==S_REFERENCE?2:cc.types[type].width);
         }
@@ -129,7 +130,8 @@ static void routine(void) {
         parameters(scope);
         if(role==S_FUNCTION) {
             cc_expect(':',2); type=cc_named_type();
-            if(type<0||cc_aggregate((uint8_t)type)||cc_family((uint8_t)type)==K_SET) cc_fail(48);
+            if(type>=0&&cc_family((uint8_t)type)==K_FILE) cc_fail(67);
+            else if(type<0||cc_aggregate((uint8_t)type)||cc_family((uint8_t)type)==K_SET) cc_fail(48);
             else {
                 cc.symbols[id].type=(uint8_t)type;
                 cc_result_symbol(id); cc_next();
@@ -218,7 +220,7 @@ uint8_t cc_invoke(uint16_t id) ROUTINES {
             param=first+i; type=cc.symbols[param].type;
             if(cc.symbols[param].role==S_REFERENCE) {
                 kind=cc_reference(44);
-                if(type!=255&&type!=kind&&!(cc_family(type)==K_POINTER&&cc_compatible(type,kind))&&!(cc_family(type)==K_STRING&&cc_family(kind)==K_STRING&&
+                if(type!=255&&type!=kind&&!((cc_family(type)==K_POINTER||cc_family(type)==K_FILE)&&cc_compatible(type,kind))&&!(cc_family(type)==K_STRING&&cc_family(kind)==K_STRING&&
                    (!cc.var_strict||cc.types[type].capacity==cc.types[kind].capacity))) { cc_fail(44); break; }
                 cc_guard(); cc_emit(0xe5);
             } else {

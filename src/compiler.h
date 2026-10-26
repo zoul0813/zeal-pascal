@@ -16,7 +16,8 @@
 enum { T_EOF=256,T_ID,T_NUMBER,T_STRING,T_ASSIGN,T_RESERVED,T_NE,T_LE,T_GE,T_RANGE,T_REAL };
 enum { K_INTEGER,K_STRING,K_BOOLEAN,K_CHAR,K_BYTE,K_REAL };
 /* Aggregate families cannot overlap the 6..63 enumeration identity range. */
-enum { K_ARRAY=64,K_RECORD,K_SET,K_POINTER };
+enum { K_ARRAY=64,K_RECORD,K_SET,K_POINTER,K_FILE };
+enum { FILE_TEXT,FILE_TYPED,FILE_UNTYPED };
 /* Set expression kinds encode the ordinal family without allocating a type
  * descriptor for every constructor. The empty kind has no fixed base family. */
 enum { K_SET_EXPR=128,K_EMPTY_SET=192,K_ANY_POINTER,K_NIL };
@@ -46,6 +47,7 @@ typedef struct {
     uint8_t with_depth,with_limit,with_bound,with_types[9],for_depth,input_fresh,io_check;
     uint16_t field_offset;
     uint16_t random_entry,random_state;
+    uint8_t text_type;
 } Compiler;
 extern Compiler cc;
 

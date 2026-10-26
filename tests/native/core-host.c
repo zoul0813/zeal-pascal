@@ -35,7 +35,10 @@ static void checked(int value,unsigned line) {
 #define check(value) checked((value),__LINE__)
 static void load(const char *text) { check(source_import(&s,(const uint8_t*)text,(uint16_t)strlen(text),&d)); }
 static void invalid(const char *text,uint8_t code) {
-    load(text); check(!compile(&s,&b,&d)&&d.code==code); check(pages_used()==1);
+    uint8_t ok;
+    load(text); ok=compile(&s,&b,&d);
+    if(ok||d.code!=code) fprintf(stderr,"expected diagnostic %u: %s\n",code,text);
+    check(!ok&&d.code==code); check(pages_used()==1);
 }
 static uint16_t map_word(uint16_t at) { return far_get(b.map_page,at)|((uint16_t)far_get(b.map_page,at+1)<<8); }
 static void ordered_map(void) {
@@ -70,6 +73,28 @@ int main(int argc,char **argv) {
         check(compile(&s,&b,&d)); build_close(&b);
     }
     invalid("var r:real;begin r:=true end.",44);
+    invalid("var f,g:text;\nbegin f:=g end.",54);
+    invalid("var f:text;\nbegin f:=1 end.",54);
+    invalid("var f:text;\nbegin writeln(f)end.",54);
+    invalid("type f=file;\nprocedure p(a:f);\nbegin end;\nbegin end.",67);
+    invalid("function f:text;\nbegin end;\nbegin end.",67);
+    invalid("type a=file;\nf=file of a;\nbegin end.",68);
+    invalid("const f:text='X';\nbegin end.",61);
+    invalid("type r=record f:text end;\nconst a:r=(f:'X');\nbegin end.",61);
+    invalid("type a=file of integer;\nb=file of real;\nvar f:b;\nprocedure p(var g:a);\nbegin end;\nbegin p(f)end.",44);
+    invalid("type a=file of integer;\nb=file of byte;\nvar f:b;\nprocedure p(var g:a);\nbegin end;\nbegin p(f)end.",44);
+    invalid("type a=file of integer;\nb=file;\nvar f:b;\nprocedure p(var g:a);\nbegin end;\nbegin p(f)end.",44);
+    invalid("type b=file;\nvar f:text;\nprocedure p(var g:b);\nbegin end;\nbegin p(f)end.",44);
+    invalid("type a=file of integer;\nc=array[1..2]of byte;\nb=file of c;\nvar f:b;\nprocedure p(var g:a);\nbegin end;\nbegin p(f)end.",44);
+    invalid("type a=file of string[10];\nb=file of string[10];\nvar f:b;\nprocedure p(var g:a);\nbegin end;\nbegin p(f)end.",44);
+    load("type plain=file;\nints=file of integer;\nother=file of integer;\nz=record end;\nzero=file of z;\nvar a:text;\nb:plain;\nc:ints;\nd:other;\ne:zero;\nprocedure p(var f:ints);\nbegin end;\nbegin p(d);\nwriteln(sizeof(text),sizeof(a),sizeof(b),sizeof(c),sizeof(e))end.");
+    check(compile(&s,&b,&d)); check(b.globals_bytes==82);
+    check(cc.text_type!=255&&cc.types[cc.text_type].family==K_FILE&&cc.types[cc.text_type].width==16);
+    check(cc.types[cc.text_type].capacity==FILE_TEXT); build_close(&b);
+    load("type r=record f:text end;\nar=array[1..2]of r;\nff=file of ar;\nvar a,b:r;\nc:ar;\nprocedure p(x:ar);\nbegin end;\nbegin a:=b;\np(c);\nwriteln(sizeof(ff))end.");
+    check(compile(&s,&b,&d)); check(b.globals_bytes==96); build_close(&b);
+    load("type text=integer;\nvar n:text;\nbegin n:=7;\nwriteln(n)end.");
+    check(compile(&s,&b,&d)); check(cc.text_type==255); build_close(&b);
     invalid("var n:integer;begin n:=1/2 end.",44);
     invalid("var r:real;begin r:=1e38 end.",57);
     invalid("var r:real;begin r:=1e-39 end.",57);
@@ -445,7 +470,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {

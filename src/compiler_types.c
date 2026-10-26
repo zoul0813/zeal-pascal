@@ -110,6 +110,16 @@ static uint8_t parse_type_body(uint8_t allow_forward) {
         result=cc_new_type(K_RECORD,0,-1,0,0); cc_next(); field_list(result,result);
         cc_keyword("end",14); return result;
     }
+    if(cc_is("file")) {
+        cc_next(); base=255;
+        if(cc_is("of")) {
+            cc_next(); base=parse_type(0);
+            if(cc_family(base)==K_FILE) cc_fail(68);
+        }
+        result=cc_new_type(K_FILE,16,0,0,base==255?FILE_UNTYPED:FILE_TYPED);
+        cc.types[result].element=base;
+        return result;
+    }
     if(cc_is("string")) {
         cc_next(); cc_expect('[',8); cc_constant(&base,&lo);
         if(cc_family(base)!=K_INTEGER||lo<1||lo>255) cc_fail(49);
@@ -218,7 +228,7 @@ static void initializer(uint8_t type,uint8_t emit) {
         }
         return;
     }
-    if(cc_family(type)==K_POINTER) { cc_fail(61); return; }
+    if(cc_family(type)==K_POINTER||cc_family(type)==K_FILE) { cc_fail(61); return; }
     cc_constant(&actual,&value);
     if(!cc_compatible(type,actual)) cc_fail(44);
     if(cc_family(type)==K_REAL) {
@@ -292,7 +302,7 @@ void cc_declarations(void) FRONTEND {
             } else {
                 if(cc.token==':') {
                     cc_next(); type=parse_type(0);
-                    if(cc_family(type)==K_POINTER) cc_fail(61);
+                    if(cc_family(type)==K_POINTER||cc_family(type)==K_FILE) cc_fail(61);
                     cc_expect('=',6);
                     if(cc_aggregate(type)||cc_family(type)==K_SET) {
                         value=cc.token_start; initializer(type,0); initial=255;

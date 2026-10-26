@@ -110,6 +110,7 @@ void cc_stack_operand(uint16_t right_bytes) FRONTEND {
     }
 }
 void cc_load_indirect(uint8_t type) FRONTEND {
+    if(cc_family(type)==K_FILE) { cc_fail(54); return; }
     if(cc_family(type)==K_SET) { cc_set_load(type); return; }
     if(cc_family(type)==K_STRING||cc_family(type)==K_REAL||cc_aggregate(type)) return;
     if(type==255) { cc_fail(44); return; }
@@ -352,6 +353,10 @@ uint8_t cc_family(uint8_t type) FRONTEND {
 }
 static uint8_t text_type(uint8_t type) { return cc_family(type)==K_CHAR||cc_family(type)==K_STRING; }
 uint8_t cc_compatible(uint8_t left,uint8_t right) FRONTEND {
+    if(cc_family(left)==K_FILE||cc_family(right)==K_FILE)
+        return cc_family(left)==K_FILE&&cc_family(right)==K_FILE&&
+            cc.types[left].capacity==cc.types[right].capacity&&
+            (cc.types[left].capacity!=FILE_TYPED||cc.types[left].element==cc.types[right].element);
     if(cc_family(left)==K_REAL&&cc_family(right)==K_INTEGER) return 1;
     if(cc_family(left)==K_POINTER||cc_family(right)==K_POINTER) {
         if(cc_family(left)!=K_POINTER||cc_family(right)!=K_POINTER) return 0;
@@ -433,6 +438,7 @@ void cc_destination(uint16_t id) FRONTEND {
 void cc_load_symbol(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];
     if(s->type==255) { cc_fail(44); return; }
+    if(cc_family(s->type)==K_FILE) { cc_fail(54); return; }
     if(cc_family(s->type)==K_SET) { cc_symbol_address(id); cc_set_load(s->type); return; }
     if(cc_family(s->type)==K_STRING||cc_family(s->type)==K_REAL||cc_aggregate(s->type)) cc_symbol_address(id);
     else if(indirect_symbol(s)) {
@@ -512,6 +518,15 @@ void cc_emit_literal(void) FRONTEND {
     cc_address(0x21,address);
 }
 int16_t cc_predefined_type(void) FRONTEND {
+    if(cc_is("text")) {
+        /* Text is predefined but lazy, preserving the existing type capacity
+         * and enum identities for programs which do not use Pascal files. */
+        if(cc.text_type==255) {
+            cc.text_type=cc_new_type(K_FILE,16,0,0,FILE_TEXT);
+            cc.types[cc.text_type].element=255;
+        }
+        return cc.text_type;
+    }
     return cc_is("integer")?K_INTEGER:cc_is("boolean")?K_BOOLEAN:cc_is("char")?K_CHAR:cc_is("byte")?K_BYTE:cc_is("real")?K_REAL:-1;
 }
 int16_t cc_named_type(void) FRONTEND {
