@@ -7,7 +7,7 @@
 #define EDITOR_CALL
 #endif
 
-enum { EDITOR_OK,EDITOR_DONE,EDITOR_REJECT,EDITOR_ABORT };
+enum { EDITOR_OK,EDITOR_DONE,EDITOR_REJECT,EDITOR_ABORT,EDITOR_READ_BLOCK,EDITOR_WRITE_BLOCK };
 /* All positions are source offsets; column additionally preserves virtual
  * space. The state stays resident while editor code uses its own MMU bank. */
 typedef struct {
@@ -16,10 +16,13 @@ typedef struct {
     uint8_t page,width,height,initialized,insert,indent,prefix,quote;
     uint8_t undo_valid,undo_length;
     uint8_t undo[128];
+    uint16_t block_begin,block_end;
+    uint8_t block_marks,block_visible;
 } Editor;
 extern Editor editor;
 
 void editor_forget(void) EDITOR_CALL;
 void editor_begin(Source *source,uint8_t at_error,uint8_t width,uint8_t height) EDITOR_CALL;
 uint8_t editor_key(uint8_t key) EDITOR_CALL;
+uint8_t editor_insert_block(const Source *block) EDITOR_CALL;
 #endif

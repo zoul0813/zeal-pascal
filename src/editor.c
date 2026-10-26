@@ -41,6 +41,7 @@ static void view(void) {
 void editor_forget(void) EDITOR_CALL {
     editor.source=0; editor.undo_valid=0; editor.prefix=editor.quote=0;
     editor.top=editor.left=0; editor.column=1;
+    editor.block_begin=editor.block_end=editor.block_marks=0; editor.block_visible=1;
 }
 void editor_begin(Source *source,uint8_t at_error,uint8_t width,uint8_t height) EDITOR_CALL {
     if(!editor.initialized) { editor.insert=editor.indent=editor.initialized=1; }
@@ -55,9 +56,14 @@ void editor_begin(Source *source,uint8_t at_error,uint8_t width,uint8_t height) 
     if(editor.undo_valid&&editor.undo_start!=start(source->cursor)) editor.undo_valid=0;
     editor.top=start(source->cursor); editor.left=0; view();
 }
+static void rebase(uint16_t a,uint16_t z,uint16_t n) {
+    if(editor.block_marks&1) editor.block_begin=source_rebase(editor.block_begin,a,z,n,1);
+    if(editor.block_marks&2) editor.block_end=source_rebase(editor.block_end,a,z,n,0);
+    editor.top=source_rebase(editor.top,a,z,n,0);
+}
 static uint8_t replace(uint16_t a,uint16_t z,const uint8_t *text,uint16_t n,uint8_t remember) {
     uint8_t before[128],length=0,save,structural=0;
-    uint16_t line=start(editor.source->cursor),p,zline=end(line),old_top=editor.top;
+    uint16_t line=start(editor.source->cursor),p,zline=end(line);
     for(p=a;p<z&&!structural;++p) structural=byte(p)=='\n';
     for(p=0;p<n&&!structural;++p) structural=text[p]=='\n';
     save=remember&&!editor.undo_valid&&!structural;
@@ -68,7 +74,82 @@ static uint8_t replace(uint16_t a,uint16_t z,const uint8_t *text,uint16_t n,uint
         memcpy(editor.undo,before,length); editor.undo_length=length;
         editor.undo_start=line; editor.undo_valid=1;
     }
-    editor.top=start(source_rebase(old_top,a,z,n,0));
+    rebase(a,z,n);
+    return EDITOR_OK;
+}
+static uint8_t usable_block(void) {
+    return editor.block_visible&&editor.block_marks==3&&editor.block_begin<editor.block_end
+        &&editor.block_end<=editor.source->length;
+}
+/* Copy and read share snapshot insertion, virtual-space materialization,
+ * before-line ownership and marker/cursor adoption. Text is copied, not moved
+ * out of the input page; the caller still owns an external block after return. */
+static uint8_t copy_block(const Source *block,uint16_t a,uint16_t z) {
+    Source *s=editor.source;
+    uint8_t before[128],length=0,structural=0,save;
+    uint16_t p=s->cursor,line=start(p),i,spaces=editor.column-1-(p-line),n=z-a;
+    if(!n) {
+        editor.block_begin=editor.block_end=p;
+        editor.block_marks=3; editor.block_visible=1; return EDITOR_OK;
+    }
+    for(i=a;i<z&&!structural;++i) structural=far_get(block->page,i)=='\n';
+    save=!editor.undo_valid&&!structural;
+    if(save) for(i=line;i<end(line);++i) before[length++]=byte(i);
+    if(!source_insert_from(s,p,block,a,z,spaces)) return EDITOR_REJECT;
+    editor.page=s->page;
+    rebase(p,p,n+spaces);
+    if(structural) editor.undo_valid=0;
+    else if(save) {
+        memcpy(editor.undo,before,length); editor.undo_length=length;
+        editor.undo_start=line; editor.undo_valid=1;
+    }
+    editor.block_begin=p+spaces; editor.block_end=p+spaces+n;
+    editor.block_marks=3; editor.block_visible=1;
+    s->cursor=editor.block_begin; sync();
+    return EDITOR_OK;
+}
+uint8_t editor_insert_block(const Source *block) EDITOR_CALL {
+    uint8_t result=copy_block(block,0,block->length);
+    view(); return result;
+}
+static uint8_t block_command(uint8_t c) {
+    Source *s=editor.source;
+    uint16_t p=s->cursor,a=editor.block_begin,z=editor.block_end,d,spaces,n;
+    if(c=='b'||c=='k') {
+        if(c=='b') { editor.block_begin=p; editor.block_marks|=1; }
+        else { editor.block_end=p; editor.block_marks|=2; }
+        editor.block_visible=1;
+    } else if(c=='h') editor.block_visible=!editor.block_visible;
+    else if(c=='t') {
+        if(p==s->length&&p) --p;
+        while(p&&delimiter(byte(p))) --p;
+        if(p<s->length&&!delimiter(byte(p))) {
+            a=p; while(a&&!delimiter(byte(a-1))) --a;
+            z=p; while(z<s->length&&!delimiter(byte(z))) ++z;
+            editor.block_begin=a; editor.block_end=z;
+            editor.block_marks=3; editor.block_visible=1;
+        }
+    } else if(c=='r') return EDITOR_READ_BLOCK;
+    else if(usable_block()) {
+        if(c=='w') return EDITOR_WRITE_BLOCK;
+        if(c=='c') return copy_block(s,a,z);
+        if(c=='v') {
+            n=z-a; spaces=editor.column-1-(p-start(p));
+            if((p>=a&&p<z)||(p==z&&!spaces)) return EDITOR_OK;
+            if(!source_move(s,a,z,p,spaces)) return EDITOR_REJECT;
+            editor.page=s->page;
+            /* The view follows the same deletion/insertion boundaries as the
+             * remembered position. Explicit selection adoption follows it. */
+            d=p>=z?p-n:p;
+            rebase(a,z,0); rebase(d,d,n+spaces);
+            editor.block_begin=d+spaces; editor.block_end=d+spaces+n;
+            s->cursor=editor.block_begin; sync(); editor.undo_valid=0;
+        } else if(c=='y') {
+            d=source_rebase(p,a,z,0,0);
+            if(replace(a,z,0,0,0)!=EDITOR_OK) return EDITOR_REJECT;
+            s->cursor=d; sync(); editor.undo_valid=0;
+        }
+    }
     return EDITOR_OK;
 }
 static uint8_t insert(uint8_t c,uint8_t literal) {
@@ -189,6 +270,8 @@ static uint8_t quick(uint8_t c) {
     else if(c=='r') { s->cursor=0; sync(); }
     else if(c=='c') { s->cursor=s->length; sync(); }
     else if(c=='p') { s->cursor=s->previous>s->length?s->length:s->previous; sync(); }
+    else if(c=='b'&&(editor.block_marks&1)) { s->cursor=editor.block_begin; sync(); }
+    else if(c=='k'&&(editor.block_marks&2)) { s->cursor=editor.block_end; sync(); }
     else if(c=='e'||c=='x') column_at(c=='e'?editor.top:advance(editor.top,editor.height-3,1));
     else if(c=='i') editor.indent=!editor.indent;
     else if(c=='y') return replace(p,end(p),0,0,1);
@@ -215,6 +298,7 @@ uint8_t editor_key(uint8_t c) EDITOR_CALL {
         if(c>=1&&c<=26) c+='a'-1;
         else if(c>='A'&&c<='Z') c+=32;
         if(prefix==11&&c=='d') { editor.source->previous=editor.source->cursor; return EDITOR_DONE; }
+        if(prefix==11) result=block_command(c);
         if(prefix==17) result=quick(c);
     } else if(c==11||c==17) editor.prefix=c;
     else result=command(c);

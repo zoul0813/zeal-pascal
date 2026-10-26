@@ -7,6 +7,11 @@
 #else
 #define NATIVE
 #endif
+#ifdef __SDCC
+#define SOURCE_BLOCK_CALL __banked
+#else
+#define SOURCE_BLOCK_CALL
+#endif
 
 #define PAGE_SIZE 16384u
 #define SOURCE_LIMIT 16383u
@@ -123,6 +128,8 @@ uint8_t source_new(Source *s, const char *path);
 void source_close(Source *s);
 uint8_t source_replace(Source *s, uint16_t first, uint16_t last,
                        const uint8_t *text, uint16_t length);
+uint8_t source_insert_from(Source *s,uint16_t at,const Source *from,uint16_t first,uint16_t last,uint16_t spaces) SOURCE_BLOCK_CALL;
+uint8_t source_move(Source *s,uint16_t first,uint16_t last,uint16_t at,uint16_t spaces) SOURCE_BLOCK_CALL;
 uint8_t source_import(Source *s, const uint8_t *bytes, uint16_t length, Diagnostic *d);
 uint8_t import_begin(SourceImport *in,const char *path,Diagnostic *d);
 uint8_t import_byte(SourceImport *in,uint8_t value,Diagnostic *d);
@@ -145,6 +152,8 @@ uint8_t save_build(const Source *s,const Build *b);
 uint8_t save_source(Source *s,uint8_t replace_backup);
 uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup);
 uint8_t load_source(Source *s,const char *path,Diagnostic *d);
+uint8_t read_block(Source *block,const char *path,Diagnostic *d);
+uint8_t save_block(const Source *s,uint16_t first,uint16_t last,const char *path,uint8_t replace);
 uint8_t run_saved(const Source *s,const Build *b,uint8_t *status);
 const char *output_path(void);
 const char *output_recovery(void);
@@ -157,6 +166,7 @@ uint8_t key_read(void);
 uint8_t key_decode(uint8_t raw);
 void screen_clear(void);
 void screen_at(uint8_t x, uint8_t y);
+void screen_mark(uint8_t highlighted);
 void output(const char *text);
 void output_number(uint16_t n);
 void output_hex(uint16_t n,uint8_t digits);

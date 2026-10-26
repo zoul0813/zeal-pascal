@@ -1,4 +1,5 @@
 #include "zp.h"
+#include "source_internal.h"
 
 static uint8_t new_source(Source *s, const char *path,uint8_t role) {
     if(strlen(path)>127) return 0;
@@ -38,9 +39,7 @@ uint8_t source_replace(Source *s, uint16_t a, uint16_t z,
     for (i=0; i<size; ++i) {
         c = i<a ? far_get(s->page,i) : i<a+n ? text[i-a] :
             far_get(s->page,i-n+z-a);
-        if (c == 26 || c == '\r') return 0;
-        if (c == '\n') line=0;
-        else if (++line > 127) return 0;
+        if(!line_byte(c,&line)) return 0;
     }
     if (n > z-a) {
         i=s->length;

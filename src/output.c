@@ -3,6 +3,8 @@
 #define save_source files_save_source
 #define save_source_as files_save_source_as
 #define load_source files_load_source
+#define read_block files_read_block
+#define save_block files_save_block
 #define run_saved files_run_saved
 #define output_path files_output_path
 #define output_recovery files_output_recovery
@@ -114,29 +116,39 @@ static uint8_t create_transaction(void) {
         transaction[base]='Z'; transaction[base+1]='P';
         for(j=0;j<4;++j) transaction[base+2+j]="0123456789ABCDEF"[(value>>(12-j*4))&15];
         transaction[base+6]=0;
+        /* Drivers need not use ERR_ALREADY_EXIST for mkdir collisions. Never
+         * claim an occupied name, and keep unrelated recovery entries intact. */
+        e=stat_path(transaction);
+        if(!e) continue;
+        if(e!=ERR_NO_SUCH_ENTRY) { platform_error=e; return 0; }
         strcpy((char*)console_scratch,transaction);
         e=mkdir((char*)console_scratch);
         if(!e) { transaction_owned=1; return 1; }
-        if(e!=ERR_ALREADY_EXIST) { platform_error=e; return 0; }
+        /* An external HostFS writer may have occupied it since the stat. A
+         * failed mkdir plus an existing entry is a collision, never ownership. */
+        if(e!=ERR_ALREADY_EXIST&&stat_path(transaction)) { platform_error=e; return 0; }
     }
-    platform_error=ERR_ALREADY_EXIST; return 0;
+    platform_error=ERR_NO_MORE_ENTRIES; return 0;
 }
 static uint8_t stream_byte(const uint8_t *pages,uint16_t p) {
     return far_get(pages[p/PAGE_SIZE],p%PAGE_SIZE);
 }
-static uint8_t store(const uint8_t *pages,uint16_t total,const char *path) {
+static uint8_t store_range(const uint8_t *pages,uint16_t first,uint16_t total,const char *path) {
     uint16_t p=0,n,i;
     int8_t fd=open_path(path,O_WRONLY|O_CREAT|O_TRUNC);
     uint8_t ok=1;
     if(fd<0) return 0;
     while(p<total&&ok) {
         n=total-p; if(n>128) n=128;
-        for(i=0;i<n;++i) console_scratch[i]=stream_byte(pages,p+i);
+        for(i=0;i<n;++i) console_scratch[i]=stream_byte(pages,first+p+i);
         ok=write_all(fd,n); p+=n;
     }
     return finish(fd,ok);
 }
-static uint8_t verify(const uint8_t *pages,uint16_t total,const char *path) {
+static uint8_t store(const uint8_t *pages,uint16_t total,const char *path) {
+    return store_range(pages,0,total,path);
+}
+static uint8_t verify_range(const uint8_t *pages,uint16_t first,uint16_t total,const char *path) {
     uint16_t p=0,n,i,requested;
     int8_t fd=open_path(path,O_RDONLY);
     uint8_t ok=1;
@@ -146,12 +158,15 @@ static uint8_t verify(const uint8_t *pages,uint16_t total,const char *path) {
         platform_error=read(fd,console_scratch,&n);
         if(platform_error) { ok=0; break; }
         if(!n||n>requested) { ok=0; break; }
-        for(i=0;i<n;++i) if(console_scratch[i]!=stream_byte(pages,p+i)) ok=0;
+        for(i=0;i<n;++i) if(console_scratch[i]!=stream_byte(pages,first+p+i)) ok=0;
         p+=n;
     }
     if(ok) { n=1; platform_error=read(fd,console_scratch,&n); if(platform_error||n) ok=0; }
     if(!ok&&!platform_error) platform_error=ERR_FAILURE;
     return finish(fd,ok);
+}
+static uint8_t verify(const uint8_t *pages,uint16_t total,const char *path) {
+    return verify_range(pages,0,total,path);
 }
 static uint8_t copy_file(const char *from,const char *to) {
     int8_t input=open_path(from,O_RDONLY),out;
@@ -370,7 +385,7 @@ uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup) {
     if(strcmp(s->path,candidate.path)) { strcpy(s->path,candidate.path); ++s->revision; }
     s->dirty=0; return 1;
 }
-uint8_t load_source(Source *s,const char *name,Diagnostic *d) {
+static uint8_t read_source(Source *s,const char *name,Diagnostic *d,uint8_t required) {
     SourceImport in;
     uint8_t exists,error,ok=1;
     uint16_t n,i;
@@ -380,6 +395,7 @@ uint8_t load_source(Source *s,const char *name,Diagnostic *d) {
     if(!parent_dirs(destinations[0],0)) return 0;
     if(!ordinary_file(destinations[0],&exists)) return 0;
     if(!exists) {
+        if(required) { platform_error=ERR_NO_SUCH_ENTRY; return 0; }
         if(!import_begin(&in,destinations[0],d)) return 0;
         return import_finish(&in,s,d);
     }
@@ -395,4 +411,43 @@ uint8_t load_source(Source *s,const char *name,Diagnostic *d) {
     ok=finish(fd,ok);
     if(!ok) { error=platform_error; page_drop(in.staged.page); platform_error=error; return 0; }
     return import_finish(&in,s,d);
+}
+uint8_t load_source(Source *s,const char *name,Diagnostic *d) {
+    return read_source(s,name,d,0);
+}
+uint8_t read_block(Source *block,const char *name,Diagnostic *d) {
+    uint8_t error;
+    memset(d,0,sizeof(*d)); platform_error=0;
+    if(!source_new(block,"")) { d->code=98; return 0; }
+    if(read_source(block,name,d,1)) return 1;
+    error=platform_error; source_close(block); platform_error=error; return 0;
+}
+uint8_t save_block(const Source *s,uint16_t a,uint16_t z,const char *name,uint8_t replace) {
+    uint8_t exists;
+    uint16_t base;
+    platform_error=0; transaction_owned=0; transaction[0]=0;
+    if(a>=z||z>s->length) { platform_error=ERR_INVALID_PARAMETER; return 0; }
+    if(!canonical_path(name,destinations[0])) {
+        if(!platform_error) platform_error=ERR_INVALID_PATH;
+        return 0;
+    }
+    base=(uint16_t)strlen(destinations[0]);
+    while(base>3&&destinations[0][base-1]!='/') --base;
+    if(base>121) { platform_error=ERR_INVALID_PATH; return 0; }
+    memcpy(transaction,destinations[0],base); transaction[base]=0;
+    if(!ordinary_file(destinations[0],&exists)) return 0;
+    if(exists&&!replace) { platform_error=ERR_ALREADY_EXIST; return 0; }
+    if(!parent_dirs(transaction,1)||!create_transaction()) return 0;
+    in_transaction("NEW.PAS");
+    /* Block output is an exact byte slice, not a canonicalized source save.
+     * The editor is suspended throughout this synchronous publication. */
+    if(!store_range(&s->page,a,z-a,member)||!verify_range(&s->page,a,z-a,member)) return 0;
+    if(exists) {
+        in_transaction("OLD.PAS");
+        if(!copy_file(destinations[0],member)||!same_files(destinations[0],member)) return 0;
+    }
+    if(!publish_file("NEW.PAS",exists?"OLD.PAS":0,destinations[0])||
+       !verify_range(&s->page,a,z-a,destinations[0])) return 0;
+    cleanup_success(1,exists?3:1);
+    return 1;
 }

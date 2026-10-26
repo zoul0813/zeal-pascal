@@ -326,8 +326,22 @@ stops from the preceding line; Ctrl-Q,I toggles auto-indent. Ctrl-Q,L restores
 the current line's before-edit text until the cursor leaves it; this is a
 single-line restore, not general undo. Ctrl-P quotes a control byte, Ctrl-U
 interrupts with Escape acknowledgment, and Ctrl-Q,P restores the previous edit
-position. Block commands, search/replace and control/block highlighting remain
-pending, as does the complete physical-control input matrix.
+position. Ctrl-K,B and Ctrl-K,K set block begin/end; Ctrl-Q,B and Ctrl-Q,K jump
+to them, including hidden or single markers. Ctrl-K,T marks a word; Ctrl-K,H
+hides/shows it. Ctrl-K,C copies, Ctrl-K,V moves, and Ctrl-K,Y deletes the visible
+selection. Copy/move/read leave the cursor at the new block's start. Moves into
+their own selection do nothing. Block edits stage and validate the complete
+result before changing the original buffer.
+
+Ctrl-K,R reads a block from a named source file; missing files report an error.
+Ctrl-K,W writes the exact selected bytes to a named file, defaulting an absent
+extension to PAS. Existing files require overwrite confirmation; N returns to
+filename input, and Ctrl-U interrupts with Escape acknowledgment. Block writes
+keep the open source's filename, cursor, markers and dirty state. Parents are
+created only when writing. Hidden, empty, inverted or incomplete selections
+disable copy/move/delete/write. Blocks and literal controls are highlighted;
+quoted controls display their capital-letter equivalents and retain their bytes.
+Search/replace and the complete physical-control input matrix remain pending.
 
 The editor remains partial. Native tests cover the implemented slice, ownership,
 error recovery and file safety; full reference replay and physical hardware

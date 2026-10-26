@@ -62,6 +62,10 @@ void console_close(void) {
     }
 }
 void screen_clear(void) { platform_error=ioctl(DEV_STDOUT,CMD_CLEAR_SCREEN,0); }
+void screen_mark(uint8_t highlighted) {
+    platform_error=ioctl(DEV_STDOUT,CMD_SET_COLORS,
+        highlighted?TEXT_COLOR(TEXT_COLOR_BLACK,TEXT_COLOR_WHITE):TEXT_COLOR(TEXT_COLOR_WHITE,TEXT_COLOR_BLACK));
+}
 void screen_at(uint8_t x,uint8_t y) {
     platform_error=ioctl(DEV_STDOUT,CMD_SET_CURSOR_XY,(void*)(((uint16_t)x<<8)|y));
 }

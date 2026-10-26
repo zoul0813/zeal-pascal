@@ -17,6 +17,8 @@ uint8_t files_save_build(const Source *s,const Build *b);
 uint8_t files_save_source(Source *s,uint8_t replace_backup);
 uint8_t files_save_source_as(Source *s,const char *name,uint8_t replace_backup);
 uint8_t files_load_source(Source *s,const char *name,Diagnostic *d);
+uint8_t files_read_block(Source *block,const char *name,Diagnostic *d);
+uint8_t files_save_block(const Source *s,uint16_t first,uint16_t last,const char *name,uint8_t replace);
 uint8_t files_run_saved(const Source *s,const Build *b,uint8_t *status);
 const char *files_output_path(void);
 const char *files_output_recovery(void);
@@ -94,6 +96,18 @@ uint8_t load_source(Source *s,const char *name,Diagnostic *d) {
 }
 uint8_t run_saved(const Source *s,const Build *b,uint8_t *status) {
     uint8_t old=code_select(2),ok=files_run_saved(s,b,status);
+    code_restore(old); return ok;
+}
+uint8_t read_block(Source *block,const char *name,Diagnostic *d) {
+    char path[128]; uint8_t old,ok;
+    if(!capture_path(path,name)) { memset(d,0,sizeof(*d)); return 0; }
+    old=code_select(2); ok=files_read_block(block,path,d);
+    code_restore(old); return ok;
+}
+uint8_t save_block(const Source *s,uint16_t first,uint16_t last,const char *name,uint8_t replace) {
+    char path[128]; uint8_t old,ok;
+    if(!capture_path(path,name)) return 0;
+    old=code_select(2); ok=files_save_block(s,first,last,path,replace);
     code_restore(old); return ok;
 }
 const char *output_path(void) {

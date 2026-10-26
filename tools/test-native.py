@@ -147,7 +147,9 @@ def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, tim
         for extension in ('bin', 'zpl'):
             shutil.copyfile(ROOT / f'build/{target}.{extension}', hostfs / f'{target}.{extension}')
     for filename, data in (fixtures or {}).items():
-        (hostfs / filename).write_bytes(data)
+        path = hostfs / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
     for artifact in ('CONSOLE.TXT', 'SLICE.COM', 'SLICE.ZMP'):
         (hostfs / artifact).unlink(missing_ok=True)
     shutil.copyfile(ROM, directory / 'rom.img')

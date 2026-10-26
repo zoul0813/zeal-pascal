@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Editor model and real PS/2/IDE acceptance on the unmodified Zeal emulator."""
 import hashlib
+import gzip
 import importlib.util
 import json
 import re
@@ -29,16 +30,19 @@ def component():
         'native shared editor cases complete': memory.get(sym['_test_done']) == 255
             and word('_test_stage') == 6,
         'native editing, capacity, viewport and MMU/SP/IFF preservation':
-            word('_test_passed') == 1184 and word('_test_failed') == 0,
+            word('_test_passed') == 3456 and word('_test_failed') == 0,
     }, {'passed': word('_test_passed'), 'failed': word('_test_failed')}
 
 
 class IDE:
     """Queue a key only after the preceding redraw reaches the real reader."""
-    def __init__(self, filename):
+    def __init__(self, filename, setup=()):
         self.sym = n.symbols('zpascal')
         self.reader = self.sym['_key_read']
-        self.commands = ['run 100000000'] + n.program_launch() + ['run 10000000']
+        self.commands = ['run 100000000']
+        for command in setup:
+            self.commands += n.type_text(command+'\n',ticks=2000000)+['run 200000000']
+        self.commands += n.program_launch() + ['run 10000000']
         self.commands += n.type_text('nwH:/'+filename+'\n', ticks=2000000)
         self.commands += ['run 100000000', f'bp 0x{self.reader:x}', 'tap E', 'run 1000000000']
         self.frames = []
@@ -60,35 +64,45 @@ class IDE:
         self.key('Q', ctrl=True)
         self.key(name)
 
+    def block(self, name):
+        self.key('K', ctrl=True)
+        self.key(name)
+
+    def text(self, value):
+        for char in value:
+            self.key(n.SHIFTED.get(char, n.KEYS.get(char, char.upper())),
+                     shift=char in n.SHIFTED or char.isupper())
+
     def state(self, label):
         self.frames.append((label, 'state'))
         self.commands += ['regs', 'mmu']
-        for symbol, size in (('_work', 140), ('_editor', 148), ('_ide_state', 1),
+        for symbol, size in (('_work', 140), ('_editor', 154), ('_ide_state', 1),
                              ('_build', 83), ('_ram_result', 128)):
             self.commands += [f'rb 0x{self.sym[symbol]:x} {size}']
 
-    def screen(self, label):
+    def screen(self, label, source_rows=39):
         # The supported kernel clear maps character VRAM before erasing it.
         # Inspect that previous completed screen; no debugger writes or patches.
         clear = n.kernel_symbols()['_video_vram_set']
         self.commands += [f'bc 0x{self.reader:x}', f'bp 0x{clear:x}', 's']
         self.commands += n.control('Q')[:-1] + ['run 1000000000', 'regs', 'mmu']
-        for offset in range(0, 3200, 256):
-            self.commands += [f'rb 0x{0x4000+offset:x} {min(256, 3200-offset)}']
+        for base in (0x4000, 0x5000):
+            for offset in range(0, 3200, 256):
+                self.commands += [f'rb 0x{base+offset:x} {min(256, 3200-offset)}']
         self.frames.append((label, 'screen'))
         cursor = n.kernel_symbols()['_video_ioctl_set_cursor_xy']
         self.commands += [f'bc 0x{clear:x}', f'bp 0x{cursor:x}', 's', 'run 1000000000']
-        # Tall fixtures draw39 rows, then set the actual source cursor once.
-        for _ in range(39):
+        # Each displayed source row, then the actual source cursor once.
+        for _ in range(source_rows):
             self.commands += ['s', 'run 1000000000']
         self.commands += ['regs']
         self.frames.append((label+' cursor', 'cursor'))
         self.commands += [f'bc 0x{cursor:x}', f'bp 0x{self.reader:x}', 's', 'run 1000000000']
         self.key('SLASH', shift=True)  # Unknown Q,? clears the probe's prefix.
 
-    def finish(self, name, fixtures):
+    def finish(self, name, fixtures, tf_image=None):
         self.commands += ['quit']
-        raw = n.execute(name, self.commands, fixtures, timeout=240)
+        raw = n.execute(name, self.commands, fixtures, tf_image=tf_image, timeout=240)
         parts = re.split(r'\[DBG\] PC=', raw)[1:]
         if len(parts) != len(self.frames):
             raise RuntimeError(f'{name}: expected {len(self.frames)} debugger checkpoints, got {len(parts)}')
@@ -101,6 +115,10 @@ class IDE:
                 # The console clears character cells to zero (a blank glyph).
                 result[label] = [bytes(m[0x4000+y*80+x] or 32 for x in range(80))
                                  for y in range(40)]
+                if not all(0x5000+i in m for i in range(3200)):
+                    raise RuntimeError(f'{name}: incomplete attribute VRAM checkpoint {label}')
+                result[label+' attributes'] = [bytes(m[0x5000+y*80+x] for x in range(80))
+                                               for y in range(40)]
             elif kind == 'cursor':
                 match = re.search(r'BC=[0-9a-f]+ DE=([0-9a-f]+)', part)
                 result[label] = int(match[1], 16) if match else None
@@ -178,7 +196,7 @@ def horizontal_checks():
             frames['wide screen cursor'] == 0x4f01 and frames['home screen cursor'] == 1,
         'overlong physical Backspace join rejects without source or cursor changes':
             all(before.get(s+i) == rejected.get(s+i) for i in range(140))
-            and all(before.get(e+i) == rejected.get(e+i) for i in range(148))
+            and all(before.get(e+i) == rejected.get(e+i) for i in range(154))
             and frames['after acknowledgment'].get(ide.sym['_ide_state']) == 2,
     }
 
@@ -250,9 +268,170 @@ def source_error_checks():
     }
 
 
+def block_checks():
+    original = b'alpha beta\ngamma delta\n  indented\nlast\n'
+    ide = IDE('BLOCKS.PAS')
+    ide.block('T'); ide.state('marked'); ide.screen('selected', source_rows=5)
+    ide.block('H'); ide.screen('hidden', source_rows=5)
+    ide.quick('K'); ide.state('hidden end'); ide.quick('B'); ide.key('DOWN')
+    ide.block('H'); ide.block('C'); ide.state('copied'); ide.screen('copy', source_rows=5)
+    ide.block('H'); ide.block('Y'); ide.state('hidden delete')
+    ide.block('H'); ide.block('Y'); ide.state('deleted')
+    ide.quick('R'); ide.block('B')
+    for _ in range(3):
+        ide.key('RIGHT')
+    ide.block('K'); ide.key('DOWN'); ide.quick('S'); ide.block('V'); ide.state('moved')
+    ide.block('D'); ide.key('S'); ide.key('ESC'); ide.state('saved')
+    ide.key('W'); ide.text('H:/OTHER.PAS\n'); ide.state('opened')
+    f = ide.finish('editor-blocks', {'BLOCKS.PAS': original, 'OTHER.PAS': b'other\n'})
+    s, e = ide.sym['_work'], ide.sym['_editor']
+    selection = lambda label,a,z: word(f[label],e+148)==a and word(f[label],e+150)==z
+    host = n.RUN/'editor-blocks/hostfs'
+    return {
+        'mark-word sets actual half-open selection without dirtying source':
+            selection('marked',0,5) and f['marked'].get(s+1)==0,
+        'actual block highlight and hidden-block display':
+            f['selected attributes'][1][:6] == bytes([0xf0]*5+[0x0f])
+            and f['hidden attributes'][1][:6] == bytes([0x0f]*6),
+        'hidden block still permits end jump': word(f['hidden end'],s+4)==5,
+        'actual copied selection, text, cursor and highlighting': selection('copied',11,16)
+            and word(f['copied'],s+4)==11 and f['copy'][2].startswith(b'alphagamma delta')
+            and f['copy attributes'][2][:6]==bytes([0xf0]*5+[0x0f]),
+        'hidden delete is a no-op; visible deletion collapses selection':
+            word(f['hidden delete'],s+2)==len(original)+5 and selection('deleted',11,11)
+            and word(f['deleted'],s+2)==len(original),
+        'actual original-compatible block move retains cursor at new start':
+            selection('moved',8,11) and word(f['moved'],s+4)==8,
+        'block-edited PAS and source backup are exact':
+            (host/'BLOCKS.PAS').read_bytes()==b'ha beta\nalpgamma delta\n  indented\nlast\n'
+            and (host/'BLOCKS.BAK').read_bytes()==original and f['saved'].get(s+1)==0,
+        'successful work-file replacement forgets block markers': f['opened'].get(e+152)==0,
+    }
+
+
+def block_file_checks():
+    original = b'alpha beta\ngamma delta\n  indented\nlast\n'
+    ide = IDE('BFILE.PAS', setup=('H:/mkdir H:/ZP0000', 'H:/cp H:/KEEP.PAS H:/ZP0000/KEEP.PAS'))
+    ide.block('T'); ide.state('before write')
+    ide.block('W'); ide.text('H:/NEW\n'); ide.state('new write')
+    ide.block('W'); ide.text('H:/SNIP\n'); ide.key('N')
+    ide.key('U',ctrl=True); ide.key('ESC'); ide.state('canceled overwrite')
+    ide.block('W'); ide.text('H:/SNIP\n'); ide.key('Y'); ide.state('overwritten')
+    ide.block('W'); ide.text('H:/new/sub/OUT\n'); ide.state('nested write')
+    ide.block('W'); ide.text('A:/NEW.PAS\n'); ide.state('write error'); ide.key('ESC')
+    ide.block('R'); ide.text('H:/INPUT\n'); ide.state('read')
+    ide.block('R'); ide.text('H:/missing/NO\n'); ide.state('missing'); ide.key('ESC')
+    ide.block('R'); ide.text('H:/BAD\n'); ide.state('bad line'); ide.key('ESC')
+    ide.block('D'); ide.key('S'); ide.key('ESC')
+    fixtures = {'BFILE.PAS':original,'SNIP.PAS':b'XX\n','INPUT.PAS':b'XX\r\n',
+                'BAD.PAS':b'x'*128,'KEEP.PAS':b'unrelated recovery'}
+    fixtures.update({name:(n.COREUTILS/name).read_bytes() for name in ('mkdir','cp')})
+    f = ide.finish('editor-block-files', fixtures)
+    host=n.RUN/'editor-block-files/hostfs'
+    s,e=ide.sym['_work'],ide.sym['_editor']
+    same=lambda a,b: all(f[a].get(s+i)==f[b].get(s+i)for i in range(140))
+    return {
+        'new block write uses PAS default extension and exact selected bytes':
+            (host/'NEW.PAS').read_bytes()==b'alpha' and same('before write','new write'),
+        'overwrite N then Ctrl-U preserves source and returns to editor':
+            same('before write','canceled overwrite') and f['canceled overwrite'].get(ide.sym['_ide_state'])==2,
+        'confirmed block overwrite and nested save preserve open Source state':
+            (host/'SNIP.PAS').read_bytes()==b'alpha' and (host/'new/sub/OUT.PAS').read_bytes()==b'alpha'
+            and same('before write','overwritten') and same('before write','nested write'),
+        'read-only block write failure retains Source and selection':
+            same('before write','write error') and word(f['write error'],e+148)==0
+            and word(f['write error'],e+150)==5,
+        'block read canonicalizes input, marks insertion and retains cursor at start':
+            word(f['read'],s+4)==0 and word(f['read'],e+148)==0 and word(f['read'],e+150)==3
+            and word(f['read'],s+2)==len(original)+3,
+        'missing/malformed block reads retain all source state and create no parents':
+            same('read','missing') and same('read','bad line') and not (host/'missing').exists()
+            and all(f['read'].get(e+i)==f['missing'].get(e+i)==f['bad line'].get(e+i) for i in range(154)),
+        'block read followed by save produces exact source and backup':
+            (host/'BFILE.PAS').read_bytes()==b'XX\n'+original and (host/'BFILE.BAK').read_bytes()==original,
+        'block transactions clean only their completed recovery members':
+            (host/'ZP0000/KEEP.PAS').read_bytes()==b'unrelated recovery'
+            and not any(p.name.startswith('ZP') and p!=host/'ZP0000' for p in host.rglob('*')),
+    }
+
+
+def block_cancel_checks():
+    source=b'alpha beta\n'
+    ide=IDE('CANCEL.PAS')
+    ide.block('T'); ide.state('before')
+    ide.block('W'); ide.text('H:/SNIP\n'); ide.key('N')
+    ide.key('U',ctrl=True); ide.key('ESC'); ide.state('canceled')
+    f=ide.finish('editor-block-cancel',{'CANCEL.PAS':source,'SNIP.PAS':b'old block\r\n'})
+    s=ide.sym['_work'];host=n.RUN/'editor-block-cancel/hostfs'
+    return {'block overwrite N and prompt Abort preserve original disk files':
+            (host/'SNIP.PAS').read_bytes()==b'old block\r\n' and (host/'CANCEL.PAS').read_bytes()==source
+            and all(f['before'].get(s+i)==f['canceled'].get(s+i)for i in range(140))
+            and not any(p.name.startswith('ZP')for p in host.iterdir())}
+
+
+def control_block_checks():
+    source=b'a \t\x00\x01z\n'
+    ide=IDE('BYTES.PAS')
+    ide.block('B'); ide.quick('C'); ide.block('K'); ide.block('H')
+    ide.screen('controls',source_rows=2)
+    ide.block('H'); ide.block('W'); ide.text('H:/CTRL\n'); ide.state('written')
+    f=ide.finish('editor-block-bytes',{'BYTES.PAS':source})
+    s=ide.sym['_work'];host=n.RUN/'editor-block-bytes/hostfs'
+    return {'literal control bytes display highlighted capital equivalents':
+            f['controls'][1].startswith(b'a I@Az')
+            and f['controls attributes'][1][:6]==bytes([15,15,240,240,240,15]),
+            'block output preserves spaces, TAB, NUL, control-A and LF exactly':
+            (host/'CTRL.PAS').read_bytes()==source and (host/'BYTES.PAS').read_bytes()==source
+            and f['written'].get(s+1)==0}
+
+
+def tf_block_checks():
+    original=b'alpha beta\n'
+    base=gzip.decompress(n.TF_TEMPLATE.read_bytes())
+    ide=IDE('TFBLOCK.PAS')
+    ide.block('T'); ide.block('W'); ide.text('T:/src/pascal/SNIP\n')
+    ide.block('R'); ide.text('T:/src/pascal/SNIP\n'); ide.state('read')
+    ide.block('B'); ide.quick('D'); ide.block('K'); ide.state('before rewrite')
+    ide.block('W'); ide.text('T:/src/pascal/SNIP\n'); ide.key('Y'); ide.state('rewritten')
+    ide.block('D'); ide.key('S'); ide.key('ESC')
+    f=ide.finish('editor-block-tf',{'TFBLOCK.PAS':original},tf_image=base)
+    host=n.RUN/'editor-block-tf/hostfs';s=ide.sym['_work']
+    files=n.zealfs_files((n.RUN/'editor-block-tf/tf.img').read_bytes())
+    return {'actual TF block read/write/replacement preserves exact bytes':
+            files.get('/src/pascal/SNIP.PAS')==b'alphaalpha beta'
+            and (host/'TFBLOCK.PAS').read_bytes()==b'alphaalpha beta\n'
+            and (host/'TFBLOCK.BAK').read_bytes()==original,
+            'TF block save creates parents and preserves preexisting card files':
+            '/src/'in files and '/src/pascal/'in files
+            and all(p in files and files[p]==data for p,data in n.zealfs_files(base).items()),
+            'TF block replacement does not mutate the edited Source':
+            all(f['before rewrite'].get(s+i)==f['rewritten'].get(s+i)for i in range(140))}
+
+
+def transaction_namespace_checks():
+    ide=IDE('SPACE.PAS')
+    ide.block('T'); ide.state('before')
+    ide.block('W'); ide.text('H:/OUT')
+    restore=ide.sym['_code_restore'];error=ide.sym['_platform_error']
+    ide.commands += [f'bp 0x{restore:x}']
+    ide.key('ENTER'); ide.state('allocator result'); ide.commands += [f'rb 0x{error:x} 1']
+    ide.commands += [f'bc 0x{restore:x}', 's', 'run 1000000000']
+    ide.key('ESC'); ide.state('recovered')
+    fixtures={'SPACE.PAS':b'alpha beta\n'}
+    fixtures.update({f'ZP{i:04X}/KEEP.PAS':i.to_bytes(2,'little')for i in range(256)})
+    f=ide.finish('editor-block-full-namespace',fixtures)
+    host=n.RUN/'editor-block-full-namespace/hostfs'
+    s=ide.sym['_work']
+    return {'occupied transaction namespace fails without overwrite approval or data changes':
+            f['allocator result'].get(error)==21 and not (host/'OUT.PAS').exists()
+            and all(f['before'].get(s+i)==f['recovered'].get(s+i)for i in range(140))
+            and all((host/f'ZP{i:04X}/KEEP.PAS').read_bytes()==i.to_bytes(2,'little')for i in range(256))}
+
+
 def main():
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(), ROOT/'tools/test-native.py',
-              ROOT/'tools/package-native.py', n.EMULATOR, n.ROM]
+              ROOT/'tools/package-native.py', n.EMULATOR, n.ROM, n.KERNEL_MAP, n.TF_TEMPLATE,
+              n.COREUTILS/'mkdir', n.COREUTILS/'cp']
     inputs += sorted((ROOT/'src').glob('*')) + sorted((ROOT/'tests/native').glob('*'))
     inputs += [ROOT/f'build/{target}.{ext}' for target in ('zedittest', 'zpascal')
                for ext in ('bin', 'zpl', 'map', 'banks.json')]
@@ -262,9 +441,15 @@ def main():
     checks.update(horizontal_checks())
     checks.update(editing_checks())
     checks.update(source_error_checks())
+    checks.update(block_checks())
+    checks.update(block_file_checks())
+    checks.update(block_cancel_checks())
+    checks.update(control_block_checks())
+    checks.update(tf_block_checks())
+    checks.update(transaction_namespace_checks())
     checks['source/build/emulator inputs unchanged'] = all(
         n.sha(Path(p)) == digest for p, digest in hashes.items())
-    report = {'scope': 'Bounded editor foundation; blocks/search/full keyboard/hardware remain open',
+    report = {'scope': 'Editor foundation and block editing/I/O; search/full keyboard/hardware remain open',
               'passed': all(checks.values()), 'capture_directory': str(n.RUN.relative_to(ROOT)),
               'native_assertions': assertions, 'input_sha256': hashes, 'checks': checks}
     (n.RUN/'editor-report.json').write_text(json.dumps(report, indent=2)+'\n')

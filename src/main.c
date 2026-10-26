@@ -7,6 +7,7 @@ Build build;
 uint8_t ide_state; /* 1 menu, 2 editor, 3 error acknowledgment */
 static uint8_t messages=1;
 static uint8_t saved_mode;
+static void block_io(uint8_t kind);
 
 static void file_error(const char *prefix,uint8_t code) {
     /* Console writes themselves update platform_error. Pass the failed job's
@@ -27,12 +28,9 @@ static uint8_t digits(uint16_t value) {
     while(value>=10) { value/=10; ++count; }
     return count;
 }
-static void redraw(void) {
-    uint16_t line,col,p=editor.top,n,used,path,available;
-    uint8_t row,c;
+static void draw_status(uint16_t line) {
+    uint16_t n,used,path,available;
     char text[129];
-    source_location(&work,work.cursor,&line,&col);
-    screen_clear();
     output("Line "); output_number(line); output(" Col "); output_number(editor.column);
     output(editor.insert?" Insert ":" Overwrite "); output(editor.indent?"Indent ":" ");
     used=10+digits(line)+digits(editor.column)+(editor.insert?8:11)+(editor.indent?7:1);
@@ -44,18 +42,44 @@ static void redraw(void) {
     } else path=0;
     while(work.path[path]&&n<available&&n<128) text[n++]=work.path[path++];
     text[n]=0; output(text); if(work.dirty) output(" *");
-    for(row=1;row<screen_height;++row) {
-        n=col=0;
-        while(p<work.length&&far_get(work.page,p)!='\n') {
-            c=far_get(work.page,p++);
-            if(col++>=editor.left&&n<screen_width&&n<128) text[n++]=c<32?c+64:c==127?'?':(char)c;
+}
+static uint16_t draw_line(uint16_t p,uint8_t row,uint8_t selected) {
+    char text[129];
+    uint8_t n=0,col=0,shown=0,c,style=0,mark;
+    screen_at(0,row);
+    while(p<work.length) {
+        c=far_get(work.page,p);
+        if(c=='\n') break;
+        mark=c<32||c==127||(selected&&p>=editor.block_begin&&p<editor.block_end);
+        ++p;
+        if(col>=editor.left&&shown<screen_width&&shown<128) {
+            if(mark!=style) {
+                text[n]=0; output(text); n=0; screen_mark(mark); style=mark;
+            }
+            if(c<32) c+=64;
+            else if(c==127) c='?';
+            /* Keep byte selection and indexing separate: the pinned SDCC
+             * miscompiles a combined conditional/postincrement in this loop. */
+            text[n]=(char)c; ++n; ++shown;
         }
-        text[n]=0; screen_at(0,row); output(text);
+        ++col;
+    }
+    text[n]=0; output(text); if(style) screen_mark(0);
+    return p;
+}
+static void redraw(void) {
+    uint16_t line,col,p=editor.top,top_line;
+    uint8_t row,selected;
+    source_location(&work,work.cursor,&line,&col);
+    screen_mark(0); screen_clear(); draw_status(line);
+    selected=editor.block_visible&&editor.block_marks==3&&editor.block_begin<editor.block_end;
+    for(row=1;row<screen_height;++row) {
+        p=draw_line(p,row,selected);
         if(p==work.length) break;
         ++p;
     }
-    source_location(&work,editor.top,&n,&col);
-    screen_at((uint8_t)(editor.column-1-editor.left),(uint8_t)(line-n+1));
+    source_location(&work,editor.top,&top_line,&col);
+    screen_at((uint8_t)(editor.column-1-editor.left),(uint8_t)(line-top_line+1));
 }
 static uint8_t suffix(uint8_t c) { return c>=1&&c<=26?c+'a'-1:c>='A'&&c<='Z'?c+32:c; }
 static void edit(uint8_t at_error) {
@@ -65,6 +89,7 @@ static void edit(uint8_t at_error) {
     for(;;) {
         redraw(); revision=work.revision;
         result=editor_key(key_read());
+        if(result==EDITOR_READ_BLOCK||result==EDITOR_WRITE_BLOCK) block_io(result);
         if(work.revision!=revision) invalidate();
         if(result==EDITOR_DONE) return;
         if(result==EDITOR_REJECT||result==EDITOR_ABORT) {
@@ -109,13 +134,54 @@ static uint8_t file_field(char *text) {
     text[0]=0;
     for(;;) {
         c=key_read();
-        if(c==27||c==21) return 0;
+        if(c==27||c==21) return c==21?2:0;
         if(c=='\n') return n!=0;
         if(c==127&&n) { text[--n]=0; output("\b \b"); }
         else if(c>=32&&c<127) {
             if(n==127) { output("\nFilename exceeds 127 bytes. Press Escape"); while(key_read()!=27) {} return 0; }
             text[n++]=c; text[n]=0; one[0]=c; output(one);
         }
+    }
+}
+static void block_io(uint8_t kind) {
+    char name[128],blank[129];
+    Source block;
+    Diagnostic d;
+    uint8_t field,c,ok,result,error;
+    memset(blank,' ',screen_width<128?screen_width:128); blank[screen_width<128?screen_width:128]=0;
+    for(;;) {
+        screen_at(0,0); output(blank); screen_at(0,0);
+        output(kind==EDITOR_READ_BLOCK?"Read block from file: ":"Write block to file: ");
+        field=file_field(name);
+        if(field!=1) {
+            if(field==2) {
+                output("\n*** INTERRUPTED. Press Escape"); while(key_read()!=27) {}
+            }
+            return;
+        }
+        if(kind==EDITOR_WRITE_BLOCK) {
+            ok=save_block(&work,editor.block_begin,editor.block_end,name,0);
+            if(!ok&&platform_error==15) {
+                output("\nOverwrite old file (Y/N), Escape cancels: ");
+                do { c=suffix(key_read()); } while(c!='y'&&c!='n'&&c!=27&&c!=21);
+                if(c==21) { output("\n*** INTERRUPTED. Press Escape"); while(key_read()!=27) {} return; }
+                if(c==27) return;
+                if(c=='n') continue;
+                ok=save_block(&work,editor.block_begin,editor.block_end,name,1);
+            }
+            if(ok) return;
+        } else {
+            if(read_block(&block,name,&d)) {
+                result=editor_insert_block(&block); source_close(&block);
+                if(result==EDITOR_OK) return;
+                output("\nBlock insertion rejected: line or source capacity. Press Escape");
+                while(key_read()!=27) {} return;
+            }
+        }
+        error=platform_error; output("\n");
+        if(kind==EDITOR_READ_BLOCK&&d.code) file_error("Block source error ",d.code);
+        else file_error("Block file error ",error);
+        recovery_notice(); output(". Press Escape"); while(key_read()!=27) {} return;
     }
 }
 static void open_work(void) {
@@ -126,7 +192,7 @@ static void open_work(void) {
         if(c==27||(c=='y'&&!save_work())) return;
     }
     screen_clear(); output("Open work file (for example B:/HELLO.PAS): ");
-    if(!file_field(name)) return;
+    if(file_field(name)!=1) return;
     output("\nLoading...\n");
     if(load_source(&work,name,&d)) { build_close(&build); editor_forget(); return; }
     file_error(d.code?"Source error ":"Native file error ",d.code?d.code:platform_error);
@@ -135,7 +201,7 @@ static void open_work(void) {
 static void save_as_work(void) {
     char name[128];
     screen_clear(); output("Save source as (for example T:/untitled.pas): ");
-    if(!file_field(name)) return;
+    if(file_field(name)!=1) return;
     if(save_work_as(name)) invalidate();
 }
 static uint8_t compile_work(void) {
