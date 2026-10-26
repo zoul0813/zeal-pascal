@@ -4,6 +4,7 @@
 .globl val_field
 .globl read_line,read_string,input_begin,input_value,input_end,memory_mode,io_error
 .globl buflen,cbreak,user_break
+.globl runtime_prefix_end
 .globl character,neg_hl,false_text,true_text
 .area _HEADER (ABS)
 .org 0x4000
@@ -1594,3 +1595,4 @@ fill_bytes_loop:
     or c
     jr nz,fill_bytes_loop
     ret
+runtime_prefix_end::

@@ -7,18 +7,18 @@ project(zeal_pascal C ASM)
 set(CMAKE_ASM_LINK_EXECUTABLE "<CMAKE_LINKER> <LINK_FLAGS> <TARGET> <OBJECTS>")
 add_library(real_runtime OBJECT src/real.c src/transcendental.c)
 target_compile_definitions(real_runtime PRIVATE ZP_REAL_RUNTIME)
-target_compile_options(real_runtime PRIVATE --std-c99 "SHELL:--codeseg REAL"
+target_compile_options(real_runtime PRIVATE --std-c99 --opt-code-size "SHELL:--codeseg REAL"
     "SHELL:--constseg REAL" "SHELL:--dataseg REAL_DATA")
 add_library(real_compiler OBJECT src/real.c src/transcendental.c)
-target_compile_options(real_compiler PRIVATE --std-c99 "SHELL:--codeseg BANK9" "SHELL:--constseg BANK9")
+target_compile_options(real_compiler PRIVATE --std-c99 --opt-code-size "SHELL:--codeseg BANK9" "SHELL:--constseg BANK9")
 add_library(key_runtime OBJECT src/keys.c)
 target_compile_options(key_runtime PRIVATE --std-c99 "SHELL:--codeseg CODE"
     "SHELL:--constseg CODE" "SHELL:--dataseg REAL_DATA")
 add_executable(pascal_runtime src/runtime.asm src/real_adapter.asm src/format.asm src/input.asm $<TARGET_OBJECTS:real_runtime> $<TARGET_OBJECTS:key_runtime>)
 set_target_properties(pascal_runtime PROPERTIES LINKER_LANGUAGE ASM)
-target_link_options(pascal_runtime PRIVATE "SHELL:-b _REAL_ADAPTER=0x4d00"
-    "SHELL:-b _REAL=0x4e40" "SHELL:-b _REAL_DATA=0x7e00"
-    "SHELL:-b _TEXT=0x4c00" "SHELL:-b _CODE=0x7400")
+target_link_options(pascal_runtime PRIVATE "SHELL:-b _REAL_ADAPTER=0x4bf0"
+    "SHELL:-b _REAL=0x4d10" "SHELL:-b _REAL_DATA=0x7e00"
+    "SHELL:-b _TEXT=0x4b50" "SHELL:-b _CODE=0x77a0")
 zos_add_outputs(pascal_runtime WITH_EXTENSION zpl)
 add_custom_command(TARGET pascal_runtime_bin POST_BUILD
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --runtime
@@ -134,8 +134,23 @@ set_property(SOURCE tests/native/real-core.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_BINARY_DIR}/real_vectors.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 target_include_directories(zrealtest PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_definitions(zrealtest PRIVATE ZP_REAL_RUNTIME)
-target_compile_options(zrealtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+target_compile_options(zrealtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
 # Component-only tables use the third page below E000; data and the bounded
 # completion marker start at E000, leaving at least4 KiB for the C stack.
 target_link_options(zrealtest PRIVATE "SHELL:-b _INITIALIZED=0xe000")
 zos_add_outputs(zrealtest)
+# Separate tables keep all existing component vectors while adding full-range
+# trigonometric cases within an ordinary native executable's memory limit.
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/trig_vectors.h
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/test-real.py
+        --generate-trig-vectors ${CMAKE_BINARY_DIR}/trig_vectors.h
+    DEPENDS ${CMAKE_SOURCE_DIR}/tools/test-real.py VERBATIM)
+add_executable(ztrigtest ${CMAKE_BINARY_DIR}/test_sdk_startup.asm src/real.c src/transcendental.c
+    tests/native/real-core.c tests/native/machine.asm ${CMAKE_BINARY_DIR}/trig_vectors.h)
+set_property(SOURCE tests/native/real-core.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_BINARY_DIR}/trig_vectors.h)
+target_include_directories(ztrigtest PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_definitions(ztrigtest PRIVATE ZP_REAL_RUNTIME ZP_TRIG_TEST)
+target_compile_options(ztrigtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+target_link_options(ztrigtest PRIVATE "SHELL:-b _INITIALIZED=0xe000")
+zos_add_outputs(ztrigtest)

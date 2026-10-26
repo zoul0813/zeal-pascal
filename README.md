@@ -13,6 +13,7 @@ python3 tools/test-native.py
 python3 tools/test-input.py
 python3 tools/test-math.py
 python3 tools/test-real.py --host --sanitize --native
+python3 tools/test-real.py --trig --sanitize --native
 ```
 
 Deploy the matching `build/zpascal.bin` and `build/zpascal.zpl` from one build.
@@ -261,8 +262,10 @@ return to their source statement in Memory mode. Ln and Exp use wider private
 intermediates while ordinary Real arithmetic retains its dialect behavior.
 Ln requires a positive argument (runtime04 otherwise); Exp reports overflow01
 and flushes results below the minimum positive Real to zero. Both return Real
-and accept Integer or Real arguments. Sin/Cos/ArcTan and Random/Randomize
-remain pending.
+and accept Integer or Real arguments. Sin/Cos use radian arguments with full
+Real6-range argument reduction; ArcTan returns the principal radian angle.
+Their private calculations retain enough precision for the specified accuracy
+and correctly handle the minimum-magnitude input. Random/Randomize remain pending.
 
 Labels may be identifiers or decimal digit names. Numeric labels retain their
 exact spelling, so 01 and 1 are different names; their digits are not limited to

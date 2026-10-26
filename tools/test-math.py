@@ -56,7 +56,7 @@ def main():
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}
     assert 0xc000 <= sym['_test_stop'] <= 0xc7fd
     commands = ['run 100000000'] + n.program_launch(target)
-    commands += [f"bp 0x{sym['_test_stop']:x}", 'run 20000000000', 's', 'regs', 'mmu']
+    commands += [f"bp 0x{sym['_test_stop']:x}", 'run 40000000000', 's', 'regs', 'mmu']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage'):
         commands += [f'rb 0x{sym[name]:x} 2']
     commands += [f"rb 0x{sym['_test_failures']:x} 128", 'quit']
@@ -64,7 +64,7 @@ def main():
                 for ext in ('bin', 'zpl')}
     fixtures.update({p.name.upper(): p.read_bytes() for p in
                      (ROOT/'tests/native').glob('*.pas')})
-    raw = n.execute('math-component', commands, fixtures, timeout=240)
+    raw = n.execute('math-component', commands, fixtures, timeout=360)
     memory = n.memory(raw)
     def word(name):
         p = sym[name]
@@ -73,15 +73,16 @@ def main():
     checks = {
         'actual native completion': memory.get(sym['_test_done']) == 255,
         'RAM/COM ownership, ABI, dirty-source and exact checked-error locations':
-            word('_test_failed') == 0 and word('_test_passed') >= 236,
+            word('_test_failed') == 0 and word('_test_passed') >= 303,
         'Sqrt all exponent scalings, numeric promotion, nested calls, stack and shadows in RAM/COM':
             output.is_file() and output.read_bytes() ==
-            b'SQRT-ALL-OK\r\n'*2 + b'SQRT-SHADOW-OK\r\n'*2 + b'LOGEXP-ALL-OK\r\n'*2,
+            b'SQRT-ALL-OK\r\n'*2 + b'SQRT-SHADOW-OK\r\n'*2 + b'LOGEXP-ALL-OK\r\n'*2 +
+            b'TRIG-ALL-OK\r\n'*2 + b'TRIG-SHADOW-OK\r\n'*2,
     }
     checks.update(sqrt_source_checks())
     checks['source/build/emulator inputs unchanged'] = all(
         n.sha(Path(p)) == digest for p, digest in hashes.items())
-    report = {'scope': 'Focused Sqrt/Ln/Exp generated-code acceptance in Memory and saved COM; not full math/language/hardware conformance',
+    report = {'scope': 'Focused arithmetic/transcendental generated-code acceptance in Memory and saved COM; not full language/runtime/hardware conformance',
               'passed': all(checks.values()), 'capture_directory': str(n.RUN.relative_to(ROOT)),
               'native_assertions_passed': word('_test_passed'),
               'native_assertions_failed': word('_test_failed'),

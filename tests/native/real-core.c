@@ -18,7 +18,11 @@ typedef struct {
 } ValVector;
 typedef struct {uint8_t value[5],odd[5],even[5];} SqrtScaleVector;
 typedef struct {uint8_t op,value[6],low[6],high[6],error;} WideVector;
+#ifdef ZP_TRIG_TEST
+#include "trig_vectors.h"
+#else
 #include "real_vectors.h"
+#endif
 volatile uint16_t test_passed,test_failed;
 volatile uint8_t test_done;
 uint8_t test_stop[3]={0x76,0x18,0xfd};
@@ -82,6 +86,23 @@ static void run_engine(void) {
 static void run_engine(void) { zr_eval(); }
 #endif
 int main(void) {
+#ifdef ZP_TRIG_TEST
+    uint16_t i;
+    for(i=0;i<sizeof(trig_vectors)/sizeof(trig_vectors[0]);++i) {
+        const WideVector *v=trig_vectors+i;
+        zr_op=v->op;memcpy(zr_a,v->value,6);
+#ifdef __SDCC
+        if(i&1) { __asm di __endasm; }
+#endif
+        run_engine();
+#ifdef __SDCC
+        if(i&1) { __asm ei __endasm; }
+#endif
+        check(!zr_error);
+        check(real_order(v->low,zr_result)<=0&&real_order(zr_result,v->high)<=0);
+        if(!zr_result[0]) check(!memcmp(zr_result,"\0\0\0\0\0\0",6));
+    }
+#else
     uint16_t i,exponent;
     const RealVector *v;
     const DecimalVector *d;
@@ -168,6 +189,7 @@ int main(void) {
             if(!zr_result[0]) check(!memcmp(zr_result,"\0\0\0\0\0\0",6));
         }
     }
+#endif
 #ifdef __SDCC
     test_done=255; test_complete(); return 0;
 #else

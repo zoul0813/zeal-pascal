@@ -45,13 +45,15 @@ def validate_runtime(path):
     symbols=read_symbols(path)
     if not memory or min(memory)!=0x4000 or max(memory)>=0x8000:
         raise ValueError('runtime code/constants exceed their owned prefix')
-    for area,first,last in (('REAL_ADAPTER',0x4d00,0x4e40),('REAL',0x4e40,0x7400),
-                            ('TEXT',0x4c00,0x4d00),('CODE',0x7400,0x7e00),
+    if not 0x40a0<=symbols['runtime_prefix_end']<=0x4b50:
+        raise ValueError('runtime assembly prefix overlaps SDK helper text')
+    for area,first,last in (('REAL_ADAPTER',0x4bf0,0x4d10),('REAL',0x4d10,0x77a0),
+                            ('TEXT',0x4b50,0x4bf0),('CODE',0x77a0,0x7e00),
                             ('REAL_DATA',0x7e00,0x8000)):
         at,size=symbols.get('s__'+area,first),symbols.get('l__'+area,0)
         if size and not first<=at<=at+size<=last:
             raise ValueError('runtime '+area+' exceeds its bounded extent')
-    if not 0x4e40<=symbols['_zr_eval']<0x7400 or symbols['real_buffer']!=0x4136:
+    if not 0x4d10<=symbols['_zr_eval']<0x77a0 or symbols['real_buffer']!=0x4136:
         raise ValueError('runtime Real helper ABI is misplaced')
     for entry,name in ((0x4133,'real_dispatch'),(0x413c,'format_field'),
                        (0x413f,'field_output'),(0x4142,'str_copy'),(0x4145,'val_field'),
@@ -59,7 +61,7 @@ def validate_runtime(path):
         if (memory.get(entry)!=0xc3 or memory.get(entry+1)!=symbols[name]&255
                 or memory.get(entry+2)!=symbols[name]>>8):
             raise ValueError('runtime helper jump is misplaced: '+name)
-    if not all(0x7400<=symbols[name]<0x7e00
+    if not all(0x77a0<=symbols[name]<0x7e00
                for name in ('format_field','field_output','str_copy','integer_prepare','val_field',
                             'read_line','read_string','input_begin','input_value','input_end')):
         raise ValueError('runtime field helpers exceed their owned extent')
