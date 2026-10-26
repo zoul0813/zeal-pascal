@@ -22,6 +22,12 @@ int app_main(void) {
     test_stage=39;
     execution_file("H:/READINPUT.PAS",1,0,0);
     execution_file("H:/ENDCHAR.PAS",1,0,0);
+    execution_file("H:/CONSOLE.PAS",1,0,0);
+    execution_file("H:/INPUTEOF.PAS",1,0,0);
+    check(load_source(&s,"H:/BUFLENBAD.PAS",&d));
+    execute_loaded(3,0x91,67);
+    check(load_source(&s,"H:/BREAKINPUT.PAS",&d));
+    execute_loaded(5,0,45);
     if(capture>=0) {check(swap(capture,DEV_STDOUT)==0);check(close(capture)==0);}
     source_close(&s);check(pages_used()==code_required);
     test_stage=6;test_done=255;test_complete();return 0;

@@ -89,7 +89,8 @@ void cc_val(void) FRONTEND {
 void cc_read(uint8_t newline) FRONTEND {
     uint16_t before=cc.temporaries;
     uint8_t fresh=cc.input_fresh,type,kind;
-    cc_next();cc_emit(0x3e);cc_emit(fresh|((cc.token!='('&&!newline)?2:0));cc_call(RT_INPUT_BEGIN);
+    cc_next();cc_emit(0x3e);cc_emit(fresh|((cc.token!='('&&!newline)?2:0));
+    cc_reserve(64);cc_op16(0xcd,RT_INPUT_BEGIN);
     if(cc.token=='(') {
         cc_next();
         do {
@@ -99,11 +100,11 @@ void cc_read(uint8_t newline) FRONTEND {
             cc_emit(0x06);cc_emit(kind==K_INTEGER&&cc.types[type].width==1?K_BYTE:kind);
             cc_emit(0x0e);cc_emit(cc.types[type].capacity);
             if(kind==K_INTEGER||kind==K_REAL) {cc_reserve(256);cc_op16(0xcd,RT_INPUT_VALUE);}
-            else cc_call(RT_INPUT_VALUE);
+            else {cc_reserve(64);cc_op16(0xcd,RT_INPUT_VALUE);}
             if(cc.token!=',') break;
             cc_next();
         } while(!cc.error->code);
         cc_expect(')',5);
     }
-    if(newline) cc_call(RT_INPUT_END);
+    if(newline) {cc_reserve(64);cc_op16(0xcd,RT_INPUT_END);}
 }

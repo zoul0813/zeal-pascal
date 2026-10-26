@@ -388,12 +388,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     cc_new_type(K_CHAR,1,0,255,0);
     cc_new_type(K_INTEGER,1,0,255,0); /* Byte shares the Integer family */
     cc_new_type(K_REAL,6,0,0,0);
-    for(i=0;i<2;++i) {
-        memset(&cc.symbols[i],0,sizeof(Symbol));
-        cc.symbols[i].role=S_SYSTEM; cc.symbols[i].type=K_INTEGER;
-        cc.symbols[i].address=i?RT_RECURPTR:RT_HEAPPTR;
-    }
-    cc.symbol_count=2;
+    cc_system_init();
     cc.file_bytes=40+(uint16_t)strlen(s->path);
     cc_next();
     if(cc_is("program")) {

@@ -1,4 +1,5 @@
 #include "zp.h"
+#include "keys.h"
 #include <zos_sys.h>
 #include <zos_vfs.h>
 #include <zos_video.h>
@@ -8,7 +9,6 @@ extern uint8_t console_scratch[256];
 static struct { uint8_t role; uint16_t initialized; uint32_t lifetime; } ledger[64];
 static uint32_t next_lifetime;
 static uint8_t active, old_x,old_y;
-static uint8_t control,shift,caps,released;
 uint8_t screen_width,screen_height,platform_error;
 
 uint8_t page_new(uint8_t role) {
@@ -94,40 +94,21 @@ void output_hex(uint16_t n,uint8_t digits) {
     output(text);
 }
 uint8_t key_decode(uint8_t c) {
-    uint8_t mask;
-    if(c==KB_RELEASED) { released=1; return 0; }
-    mask=c==KB_LEFT_CTRL||c==KB_LEFT_SHIFT?1:2;
-    if(c==KB_LEFT_CTRL||c==KB_RIGHT_CTRL) {
-        if(released) control&=~mask; else control|=mask;
-    } else if(c==KB_LEFT_SHIFT||c==KB_RIGHT_SHIFT) {
-        if(released) shift&=~mask; else shift|=mask;
-    } else if(c==KB_CAPS_LOCK&&!released) caps=!caps;
-    else if(!released) {
-        if(c>=32&&c<127) {
-            if(control&&c>='a'&&c<='z') return c-'a'+1;
-            if(c>='a'&&c<='z') { if((shift!=0)^caps) c-=32; }
-            else if(shift) {
-                const char *plain="`1234567890-=[]\\;',./";
-                const char *upper="~!@#$%^&*()_+{}|:\"<>?";
-                const char *p=strchr(plain,c);
-                if(p) c=upper[p-plain];
-            }
-            return c;
-        }
-        if(c=='\b') return 127;
-        if(c=='\n'||c=='\t') return c;
-        if(c==KB_ESC) return 27;
-        if(c==KB_LEFT_ARROW) return 19;
-        if(c==KB_RIGHT_ARROW) return 4;
-        if(c==KB_UP_ARROW) return 5;
-        if(c==KB_DOWN_ARROW) return 24;
-        if(c==KB_DELETE) return 7;
-        /* Internal events for existing prefixed operations. */
-        if(c==KB_HOME) return 0x80;
-        if(c==KB_END) return 0x81;
-        if(c==KB_INSERT) return 22;
-    }
-    released=0; return 0;
+    uint8_t raw=c;
+    c=key_event(c);
+    if(!c) return 0;
+    if(raw=='\b') return 127;
+    if(c<127) return c;
+    if(c==KB_ESC) return 27;
+    if(c==KB_LEFT_ARROW) return 19;
+    if(c==KB_RIGHT_ARROW) return 4;
+    if(c==KB_UP_ARROW) return 5;
+    if(c==KB_DOWN_ARROW) return 24;
+    if(c==KB_DELETE) return 7;
+    if(c==KB_HOME) return 0x80;
+    if(c==KB_END) return 0x81;
+    if(c==KB_INSERT) return 22;
+    return 0;
 }
 uint8_t key_read(void) {
     uint16_t n;
@@ -171,14 +152,15 @@ uint8_t run_build(const Source *s,const Build *b) {
      * completion record to this build before the editor consumes its PC. */
     ok=!memcmp(ram_result,"ZRAM",4)&&ram_result[4]==1&&ram_result[5]==2&&
        ram_result[6]==128&&ram_result[7]==0&&!memcmp(ram_result+44,b->id,32)&&
-       (ram_result[26]==1||ram_result[26]==3||ram_result[26]==4||ram_result[26]==6);
+       (ram_result[26]==1||ram_result[26]==3||ram_result[26]==4||ram_result[26]==5||ram_result[26]==6);
     for(i=0;i<3;++i) if(ram_result[12+i]!=child[i]) ok=0;
     if(ram_result[15]>1||ram_result[22]||ram_result[23]||ram_result[24]||ram_result[25]||
-       ram_result[29]||ram_result[32]||(ram_result[33]&~2)||
+       ram_result[29]||(ram_result[32]!=(ram_result[26]==5?1:0))||(ram_result[33]&~2)||
        ram_result[34]!=255||ram_result[35]!=255) ok=0;
     if((ram_result[26]==1||ram_result[26]==4)&&
        (ram_result[27]||ram_result[28]||ram_result[33])) ok=0;
     if(ram_result[26]==3&&((ram_result[27]!=2&&ram_result[27]!=3)||ram_result[33]!=2)) ok=0;
+    if(ram_result[26]==5&&(ram_result[27]||ram_result[28]||ram_result[33]!=2)) ok=0;
     if(ram_result[26]==6&&ram_result[27]!=4) ok=0;
     for(i=36;i<44;++i) if(ram_result[i]) ok=0;
     for(i=76;i<114;++i) if(ram_result[i]) ok=0;

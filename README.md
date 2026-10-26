@@ -127,7 +127,7 @@ Implemented functions include Ord, Chr, Succ, Pred, SizeOf, Addr, UpCase, Length
 Odd, Hi, Lo, Swap, Abs, Sqr, Int, Frac, Trunc and Round. Ord, Succ and Pred accept
 String/Char-array values of exactly one character; other lengths report runtime
 error 10. The compiler currently has
-512 symbol entries (two reserved for HeapPtr/RecurPtr) and 64 type descriptors
+512 symbol entries (four reserved for HeapPtr/RecurPtr/BufLen/CBreak) and 64 type descriptors
 (including six built-in types).
 Exhaustion reports resource error 98. Arrays support ordinal bounds, nested or
 comma-separated dimensions, packed layout, whole-array assignment, typed
@@ -262,8 +262,8 @@ block. Jumps may leave For/With scopes while releasing their owned stack state;
 entering a deeper For reports 71. An unused label need not have a definition.
 Transfers into an unevaluated With base retain the original undefined behavior.
 
-Console Read/ReadLn uses Zeal's cooked keyboard editor and restores raw mode
-before returning. Numeric fields skip leading whitespace and consume at most
+Console Read/ReadLn uses a bounded line editor over Zeal's raw keyboard API
+and restores the IDE or shell keyboard mode before returning. Numeric fields skip leading whitespace and consume at most
 30 characters, leaving the delimiter and any following characters for later
 fields. Invalid numbers report I/O error 10 and return to source; numeric fields
 already at line end retain their values. Byte stores truncate and input does
@@ -272,10 +272,17 @@ later fields can refill the buffer. `$B+` (default) selects a fresh console line
 call; `$B-` retains its unread tail between calls. Bare `Read;` fills the buffer
 without consuming a value, and ReadLn discards the remaining line.
 
-Turbo console controls (including Ctrl-C), BufLen, complete end-marker behavior
-and the exact 127-character editing boundary remain pending. Strings retain at
-most 127 input characters in this increment. Explicit Pascal files/devices and
-`$I-`/IOResult also remain pending.
+BufLen defaults to127, limits the next physical input line to0..127 characters,
+then resets to127. Larger values report runtime91 before reading. Excess input
+is ignored; Backspace/DEL, Ctrl-H and Delete make room for replacement text.
+Escape/Ctrl-X clear the line. Ctrl-D recalls one previous-line character and
+Ctrl-R recalls the remaining previous line, preserving any typed prefix.
+CBreak defaults toTrue: Ctrl-C terminates the program and Escape returns to the
+input statement in the unsaved source. With CBreak=False, Ctrl-C is ignored.
+Ctrl-Z ends console input. Echo uses the video console separately from Pascal
+Output, so redirected program output does not collect typed input.
+Unbuffered KeyPressed/Kbd, explicit Pascal files/devices and `$I-`/IOResult
+remain pending.
 
 The editor remains partial. Native tests cover the implemented slice, ownership,
 error recovery and file safety; full reference replay and physical hardware

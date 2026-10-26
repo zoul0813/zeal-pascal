@@ -5,6 +5,18 @@ static const char *const reserved[] = {
     "external","file","for","forward","function","goto","if","in","inline","label","mod",
     "nil","not","of","or","overlay","packed","procedure","program","record","repeat","set",
     "shl","shr","string","then","to","type","until","var","while","with","xor"};
+static const struct {const char *name;uint16_t address;uint8_t type;} system_variables[]={
+    {"heapptr",RT_HEAPPTR,K_INTEGER},{"recurptr",RT_RECURPTR,K_INTEGER},
+    {"buflen",RT_BUFLEN,K_BYTE},{"cbreak",RT_CBREAK,K_BOOLEAN}};
+
+void cc_system_init(void) FRONTEND {
+    uint8_t i;
+    for(i=0;i<sizeof(system_variables)/sizeof(system_variables[0]);++i) {
+        Symbol *s=&cc.symbols[cc.symbol_count++];
+        memset(s,0,sizeof(*s));s->role=S_SYSTEM;
+        s->type=system_variables[i].type;s->address=system_variables[i].address;
+    }
+}
 
 static uint8_t get(uint16_t p) { return p<cc.input->length ? far_get(cc.input->page,p) : 0; }
 static uint8_t lower(uint8_t c) { return c>='A'&&c<='Z' ? c+32 : c; }
@@ -254,7 +266,8 @@ int16_t cc_lookup(void) FRONTEND {
         i=cc.symbol_count;
         while(i--) if(cc.symbols[i].role<S_FIELD&&cc.symbols[i].owner==scope) {
             if(cc.symbols[i].role==S_SYSTEM) {
-                if(cc_is(cc.symbols[i].address==RT_HEAPPTR?"heapptr":"recurptr")) return (int16_t)i;
+                for(j=0;j<sizeof(system_variables)/sizeof(system_variables[0]);++j)
+                    if(cc.symbols[i].address==system_variables[j].address&&cc_is(system_variables[j].name)) return (int16_t)i;
                 continue;
             }
             if(cc.symbols[i].name_length!=n) continue;

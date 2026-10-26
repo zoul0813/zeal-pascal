@@ -129,8 +129,8 @@ static void diagnostic(uint8_t kind,uint16_t code,uint16_t position,uint16_t pc)
     uint16_t line,col;
     ide_state=3;
     screen_clear();
-    output(kind==1?"Compiler error ":kind==2?"Runtime error ":"I/O error ");
-    if(kind==1) output_number(code); else output_hex(code,2);
+    output(kind==0?"User break":kind==1?"Compiler error ":kind==2?"Runtime error ":"I/O error ");
+    if(kind==1) output_number(code); else if(kind) output_hex(code,2);
     if(kind!=1) { output(" PC="); output_hex(pc,4); }
     source_location(&work,position,&line,&col);
     output("\n"); output(work.path); output(" Line "); output_number(line); output(" Col "); output_number(col);
@@ -253,9 +253,9 @@ int app_main(void) {
             else if(ram_result[26]==6) {
                 output("Native platform failure "); output_number(ram_result[28]);
                 output(". Source retained. Press Escape"); while(key_read()!=27) {}
-            } else if(ram_result[26]==3) {
+            } else if(ram_result[26]==3||ram_result[26]==5) {
                 pc=ram_result[30]|((uint16_t)ram_result[31]<<8);
-                if(build_locate(&work,&build,pc,&position)) diagnostic(ram_result[27],ram_result[28],position,pc);
+                if(build_locate(&work,&build,pc,&position)) diagnostic(ram_result[26]==5?0:ram_result[27],ram_result[28],position,pc);
                 else { output("Source lookup failed. Press Escape"); while(key_read()!=27) {} }
             } else { output("\nProgram returned. Press Escape"); while(key_read()!=27) {} }
         } else if(c=='q') {

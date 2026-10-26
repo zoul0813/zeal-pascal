@@ -77,6 +77,7 @@ uint16_t cc_runtime_size(void);
 uint8_t cc_runtime_get(uint16_t offset);
 void cc_expect(uint16_t t,uint8_t code) FRONTEND;
 int16_t cc_lookup(void) FRONTEND;
+void cc_system_init(void) FRONTEND;
 uint8_t cc_new_type(uint8_t family,uint16_t width,int16_t low,int16_t high,uint8_t capacity) FRONTEND;
 uint8_t cc_family(uint8_t type) FRONTEND;
 uint8_t cc_compatible(uint8_t left,uint8_t right) FRONTEND;

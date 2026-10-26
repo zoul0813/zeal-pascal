@@ -3,6 +3,7 @@
 .globl format_field,field_output,str_copy,integer_prepare
 .globl val_field
 .globl read_line,read_string,input_begin,input_value,input_end,memory_mode,io_error
+.globl buflen,cbreak,user_break
 .globl character,neg_hl,false_text,true_text
 .area _HEADER (ABS)
 .org 0x4000
@@ -73,6 +74,8 @@ real_buffer: .ds 6              ; 4136: transient helper/return bytes, copied by
     jp input_begin              ; 4148: A fresh/default Input policy; no device read
     jp input_value              ; 414B: HL destination, B scalar kind, C String capacity
     jp input_end                ; 414E: ReadLn discards through current line end
+buflen: .db 127                 ; 4151: next physical console line's byte limit
+cbreak: .db 1                   ; 4152: buffered Ctrl-C checking enabled
 
 ; This prefix is deliberately separate from the C compiler's ABI. Only the
 ; private helper entries above are emitted in this first language increment.
@@ -131,6 +134,30 @@ finish:
     jp 0xfd80
 os_exit:
     ld h,#0
+    ld l,#15
+    rst 8
+
+; Input owns and releases its console resources before this nonlocal return.
+user_break:
+    ld a,(memory_mode)
+    or a
+    jr z,normal_break
+    ld hl,(0x40be)
+    ld sp,#0xfc00
+    ld (0xfc1e),hl
+    ld a,#5
+    ld (0xfc1a),a
+    xor a
+    ld (0xfc1b),a
+    ld (0xfc1c),a
+    ld (0xfc1d),a
+    inc a
+    ld (0xfc20),a
+    ld a,#2
+    ld (0xfc21),a
+    jp 0xfd80
+normal_break:
+    ld h,#1
     ld l,#15
     rst 8
 

@@ -104,7 +104,7 @@ SHIFTED = {':': 'SEMICOLON', '(': '9', ')': '0', '+': 'EQUAL', '*': '8', '_': 'M
            '{': 'LEFT_BRACKET', '}': 'RIGHT_BRACKET'}
 
 # One guarded READINPUT.PAS execution. The final Enter is queued without
-# advancing, so the next pass can stop at its first cooked-read entry.
+# advancing, so the next pass can stop at its first raw-read entry.
 READ_INPUT_LINES = ['-32768 1.25 Ztail', '300 99 32767', '.5', '-1.25 7',
                     '.125', '42', '11 22 tail', 'abc99 discarded', '5', '6',
                     'next', '31 88', '32', 'done', '', '0'*30+'1 X',
@@ -304,6 +304,47 @@ def interactive_checks():
          all(mappings(part) and mappings(part)[0] == ('0000', '000000') for part in parts)),
     ]
     return checks
+
+
+def user_break_checks():
+    """Exercise the actual IDE acknowledgment and dirty-source recovery."""
+    sym, kernel = symbols('zpascal'), kernel_symbols()
+    typed = lambda text: type_text(text, ticks=2000000)
+    source = b'var s:string[8];\nbegin\nreadln(s)\nend.'
+    reader, setter = kernel['keyboard_read_raw'], kernel['keyboard_ioctl']
+    work, build, result = sym['_work'], sym['_build'], sym['_ram_result']
+    def probe():
+        return ['regs', 'mmu', f"rb 0x{sym['_ide_state']:x} 1",
+                f'rb 0x{work:x} 12', f'rb 0x{build:x} 83', f'rb 0x{result:x} 128']
+    commands = ['run 100000000'] + program_launch() + ['run 10000000']
+    commands += typed('ne') + typed(source.decode()) + control('K') + typed('d')
+    commands += [f'bp 0x{reader:x}', 'tap R', 'run 4000000000', f'bc 0x{reader:x}',
+                 f'bp 0x{setter:x}', 'press CTRL', 'tap C', 'release CTRL', 'run 100000000']
+    commands += ['s'] * 12
+    commands += ['regs', 'mmu', f"rb 0x{kernel['kb_mode']:x} 1", f'bc 0x{setter:x}',
+                 f"bp 0x{sym['_key_read']:x}", 'run 1000000000'] + probe()
+    commands += [f"bc 0x{sym['_key_read']:x}", f"bp 0x{sym['_key_read']:x}",
+                 'tap ESC', 'run 100000000'] + probe()
+    commands += [f"bc 0x{sym['_key_read']:x}"] + control('K') + typed('dqn') + ['quit']
+    raw = execute('user-break', commands)
+    parts = re.split(r'\[DBG\] PC=', raw)[1:]
+    if len(parts) != 3:
+        return [('user-break IDE checkpoint count', False)]
+    mode, diagnostic, editor = [memory(part) for part in parts]
+    word = lambda frame, at: frame.get(at, 0) | frame.get(at+1, 0) << 8
+    return [
+        ('Ctrl-C restores blocking raw keyboard mode before returning to IDE',
+         mode.get(kernel['kb_mode']) == 0 and '[DBG] c000 -> 088000' in parts[0]),
+        ('Ctrl-C returns a valid user-break result and opens the source diagnostic',
+         diagnostic.get(sym['_ide_state']) == 3 and diagnostic.get(result+26) == 5
+         and diagnostic.get(result+32) == 1 and diagnostic.get(result+33) == 2),
+        ('user-break retains the exact dirty source and bound snapshot',
+         diagnostic.get(work+1) == 1 and word(diagnostic, work+2) == len(source)
+         and bytes(diagnostic.get(build+51+i, 0) for i in range(32)) == hashlib.sha256(source).digest()),
+        ('Escape after Ctrl-C enters the dirty source at its ReadLn statement',
+         editor.get(sym['_ide_state']) == 2 and editor.get(work+1) == 1
+         and word(editor, work+4) == source.index(b'readln')),
+    ]
 
 
 def file_workflow_checks():
@@ -587,14 +628,14 @@ def main():
     if not 0xc000 <= sym['_test_stop'] <= 0xc7fd:
         raise RuntimeError('completion stop must be in supervisor data below the managed Pascal stack')
     kernel = kernel_symbols()
-    cooked, mode = kernel['keyboard_read_cooked'], kernel['kb_mode']
+    reader, mode = kernel['keyboard_read_raw'], kernel['kb_mode']
     keyboard_ioctl = kernel['keyboard_ioctl']
     commands = ['run 100000000'] + program_launch('zptest')
     commands += ['run 100000000', f"bp 0x{sym['_test_stop']:x}"]
-    # Wait for the actual first cooked read. Observe the restoration ioctl while
+    # Wait for the actual first raw read. Observe the restoration ioctl while
     # kernel RAM is mapped: reading kb_mode from user C000 would inspect an
     # unrelated user page. The pinned setter takes 12 instructions through RET.
-    commands += [f'bp 0x{cooked:x}', 'run 12000000000', f'bc 0x{cooked:x}']
+    commands += [f'bp 0x{reader:x}', 'run 12000000000', f'bc 0x{reader:x}']
     for _ in range(2):
         commands += [f'bp 0x{keyboard_ioctl:x}']
         commands += type_text('Adx\ba\n', ticks=2000000)
@@ -603,13 +644,13 @@ def main():
         commands += type_text('abcdefghi\n\n', ticks=2000000)
         commands += ['run 1000000000']
     for _ in range(2):
-        commands += [f'bp 0x{cooked:x}', 'run 120000000000', f'bc 0x{cooked:x}']
+        commands += [f'bp 0x{reader:x}', 'run 120000000000', f'bc 0x{reader:x}']
         for at, line in enumerate(READ_INPUT_LINES):
             commands += type_text(line, ticks=2000000) + ['tap ENTER']
             if at+1 < len(READ_INPUT_LINES):
                 commands += ['run 100000000']
     # Invalid numeric input must report I/O10 and return to its ReadLn source.
-    commands += [f'bp 0x{cooked:x}', 'run 120000000000', f'bc 0x{cooked:x}']
+    commands += [f'bp 0x{reader:x}', 'run 120000000000', f'bc 0x{reader:x}']
     commands += type_text('12x', ticks=2000000) + ['tap ENTER']
     # The completion breakpoint is mandatory; this bounded budget includes the
     # RAM/COM control/routine/string corpora and source-recovery executions.
@@ -881,6 +922,7 @@ def main():
     if mem.get(sym['_test_done']) == 255 and word('_test_failed') == 0:
         print('Native core passed; driving interactive edit/error/repair workflow...', flush=True)
         checks.extend(interactive_checks())
+        checks.extend(user_break_checks())
         checks.extend(file_workflow_checks())
         checks.extend(full_media_checks())
         checks.extend(default_path_checks())

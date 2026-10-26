@@ -3,6 +3,7 @@
 .globl _zr_eval,_zr_op,_zr_error,_zr_integer,_zr_a,_zr_b,_zr_result
 .globl format_real,_zr_width,_zr_places,_zr_formatted
 .globl val_dispatch,_zr_text,_zr_length,_zr_code,_zr_assign
+.globl c_save,c_restore
 .area _REAL_DATA
 real_left: .ds 2
 real_right: .ds 2
@@ -38,16 +39,7 @@ real_dispatch::
     ld (real_right),hl
     ld (real_flags),a
 real_save:
-    push ix
-    push iy
-    ex af,af'
-    push af
-    ex af,af'
-    exx
-    push bc
-    push de
-    push hl
-    exx
+    call c_save
     ld a,(real_flags)
     and #63
     cp #15
@@ -105,16 +97,7 @@ real_evaluate:
     ldir
     ld hl,(_zr_integer)
     ld (real_right),hl
-    exx
-    pop hl
-    pop de
-    pop bc
-    exx
-    ex af,af'
-    pop af
-    ex af,af'
-    pop iy
-    pop ix
+    call c_restore
     ld a,(real_status)
     or a
     jr z,real_success
@@ -152,3 +135,33 @@ real_val_reply:
     ld de,(_zr_code)
     ld a,(_zr_assign)
     ret
+
+; Shared synchronous C boundary. IX/IY and alternate registers belong to
+; Pascal frames. Primary HL is a continuation scratch; callers retain any
+; C result they need before c_restore (key decoding returns A).
+c_save::
+    pop hl
+    push ix
+    push iy
+    ex af,af'
+    push af
+    ex af,af'
+    exx
+    push bc
+    push de
+    push hl
+    exx
+    jp (hl)
+c_restore::
+    pop hl
+    exx
+    pop hl
+    pop de
+    pop bc
+    exx
+    ex af,af'
+    pop af
+    ex af,af'
+    pop iy
+    pop ix
+    jp (hl)
