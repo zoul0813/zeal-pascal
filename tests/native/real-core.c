@@ -17,6 +17,7 @@ typedef struct {
     int16_t value;uint8_t out[6];
 } ValVector;
 typedef struct {uint8_t value[5],odd[5],even[5];} SqrtScaleVector;
+typedef struct {uint8_t op,value[6],low[6],high[6],error;} WideVector;
 #include "real_vectors.h"
 volatile uint16_t test_passed,test_failed;
 volatile uint8_t test_done;
@@ -27,6 +28,18 @@ extern void test_machine(uint8_t *state) NATIVE;
 extern void test_complete(void);
 #endif
 static void check(uint8_t ok) { if(ok) ++test_passed; else ++test_failed; }
+static int8_t real_order(const uint8_t *a,const uint8_t *b) {
+    uint8_t negative_a=a[0]&&(a[5]&128),negative_b=b[0]&&(b[5]&128),i;
+    int8_t order=0;
+    if(negative_a!=negative_b) return negative_a?-1:1;
+    if(a[0]!=b[0]) order=a[0]<b[0]?-1:1;
+    else if(a[0]) {
+        i=6;while(--i) if((a[i]&(i==5?127:255))!=(b[i]&(i==5?127:255))) {
+            order=(a[i]&(i==5?127:255))<(b[i]&(i==5?127:255))?-1:1;break;
+        }
+    }
+    return negative_a?-order:order;
+}
 #ifdef __SDCC
 /* Same observation call depth on both sides of the actual C engine. The
  * canary lies beyond a conservative 256-byte helper reservation. */
@@ -138,6 +151,22 @@ int main(void) {
 #endif
         check(!zr_error&&zr_code==v->code&&zr_assign==v->assigned);
         if(v->assigned) check(v->op==ZR_VAL_INTEGER?zr_integer==v->value:!memcmp(zr_result,v->out,6));
+    }
+    for(i=0;i<sizeof(wide_vectors)/sizeof(wide_vectors[0]);++i) {
+        const WideVector *v=wide_vectors+i;
+        zr_op=v->op;memcpy(zr_a,v->value,6);
+#ifdef __SDCC
+        if(i&1) { __asm di __endasm; }
+#endif
+        run_engine();
+#ifdef __SDCC
+        if(i&1) { __asm ei __endasm; }
+#endif
+        check(zr_error==v->error);
+        if(!v->error) {
+            check(real_order(v->low,zr_result)<=0&&real_order(zr_result,v->high)<=0);
+            if(!zr_result[0]) check(!memcmp(zr_result,"\0\0\0\0\0\0",6));
+        }
     }
 #ifdef __SDCC
     test_done=255; test_complete(); return 0;

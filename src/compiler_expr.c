@@ -115,7 +115,7 @@ uint8_t cc_aggregate_actual(uint8_t type) BACKEND {
     } else cc_fail(41);
     return type;
 }
-enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR,F_LENGTH,F_COPY,F_POS,F_CONCAT,F_PTR,F_MEMAVAIL,F_MAXAVAIL,F_STACKPTR,F_TRUNC,F_ROUND,F_INT,F_FRAC,F_SQRT };
+enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR,F_LENGTH,F_COPY,F_POS,F_CONCAT,F_PTR,F_MEMAVAIL,F_MAXAVAIL,F_STACKPTR,F_TRUNC,F_ROUND,F_INT,F_FRAC,F_SQRT,F_LN,F_EXP };
 static void string_value(void) {
     uint16_t before=cc.temporaries;
     uint8_t kind;
@@ -180,7 +180,7 @@ void cc_string_statement(uint8_t insert) BACKEND {
     cc_expect(')',5); cc_call(insert?RT_INSERT:RT_DELETE); cc_release(before);
 }
 static int16_t predefined_function(void) {
-    static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length","copy","pos","concat","ptr","memavail","maxavail","stackptr","trunc","round","int","frac","sqrt"};
+    static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length","copy","pos","concat","ptr","memavail","maxavail","stackptr","trunc","round","int","frac","sqrt","ln","exp"};
     uint8_t i;
     for(i=0;i<sizeof(functions)/sizeof(functions[0]);++i) if(cc_is(functions[i])) return i;
     return -1;
@@ -244,7 +244,7 @@ static uint8_t intrinsic(uint8_t op) {
         return K_CHAR;
     }
     if(op>=F_TRUNC||((op==F_ABS||op==F_SQR)&&cc_family(kind)==K_REAL)) {
-        cc_real_unary(op==F_TRUNC?ZR_TRUNC:op==F_ROUND?ZR_ROUND:op==F_INT?ZR_INT:op==F_FRAC?ZR_FRAC:op==F_SQRT?ZR_SQRT:op==F_ABS?ZR_ABS:ZR_SQR,kind,before);
+        cc_real_unary(op==F_TRUNC?ZR_TRUNC:op==F_ROUND?ZR_ROUND:op==F_INT?ZR_INT:op==F_FRAC?ZR_FRAC:op==F_SQRT?ZR_SQRT:op==F_LN?ZR_LN:op==F_EXP?ZR_EXP:op==F_ABS?ZR_ABS:ZR_SQR,kind,before);
         return op==F_TRUNC||op==F_ROUND?K_INTEGER:K_REAL;
     }
     if(cc_family(kind)!=K_INTEGER) cc_fail(23);

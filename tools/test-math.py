@@ -73,15 +73,15 @@ def main():
     checks = {
         'actual native completion': memory.get(sym['_test_done']) == 255,
         'RAM/COM ownership, ABI, dirty-source and exact checked-error locations':
-            word('_test_failed') == 0 and word('_test_passed') >= 99,
+            word('_test_failed') == 0 and word('_test_passed') >= 236,
         'Sqrt all exponent scalings, numeric promotion, nested calls, stack and shadows in RAM/COM':
             output.is_file() and output.read_bytes() ==
-            b'SQRT-ALL-OK\r\n'*2 + b'SQRT-SHADOW-OK\r\n'*2,
+            b'SQRT-ALL-OK\r\n'*2 + b'SQRT-SHADOW-OK\r\n'*2 + b'LOGEXP-ALL-OK\r\n'*2,
     }
     checks.update(sqrt_source_checks())
     checks['source/build/emulator inputs unchanged'] = all(
         n.sha(Path(p)) == digest for p, digest in hashes.items())
-    report = {'scope': 'Focused Sqrt generated-code acceptance in Memory and saved COM; not full math/language/hardware conformance',
+    report = {'scope': 'Focused Sqrt/Ln/Exp generated-code acceptance in Memory and saved COM; not full math/language/hardware conformance',
               'passed': all(checks.values()), 'capture_directory': str(n.RUN.relative_to(ROOT)),
               'native_assertions_passed': word('_test_passed'),
               'native_assertions_failed': word('_test_failed'),

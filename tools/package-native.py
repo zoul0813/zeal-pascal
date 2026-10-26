@@ -45,13 +45,13 @@ def validate_runtime(path):
     symbols=read_symbols(path)
     if not memory or min(memory)!=0x4000 or max(memory)>=0x8000:
         raise ValueError('runtime code/constants exceed their owned prefix')
-    for area,first,last in (('REAL_ADAPTER',0x4d00,0x5200),('REAL',0x5200,0x7000),
-                            ('TEXT',0x7000,0x7400),('CODE',0x7400,0x7e00),
+    for area,first,last in (('REAL_ADAPTER',0x4d00,0x4e40),('REAL',0x4e40,0x7400),
+                            ('TEXT',0x4c00,0x4d00),('CODE',0x7400,0x7e00),
                             ('REAL_DATA',0x7e00,0x8000)):
         at,size=symbols.get('s__'+area,first),symbols.get('l__'+area,0)
         if size and not first<=at<=at+size<=last:
             raise ValueError('runtime '+area+' exceeds its bounded extent')
-    if not 0x5200<=symbols['_zr_eval']<0x7000 or symbols['real_buffer']!=0x4136:
+    if not 0x4e40<=symbols['_zr_eval']<0x7400 or symbols['real_buffer']!=0x4136:
         raise ValueError('runtime Real helper ABI is misplaced')
     for entry,name in ((0x4133,'real_dispatch'),(0x413c,'format_field'),
                        (0x413f,'field_output'),(0x4142,'str_copy'),(0x4145,'val_field'),

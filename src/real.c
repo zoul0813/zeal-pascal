@@ -402,5 +402,6 @@ void zr_eval(void) REAL_API {
     if(zr_op==ZR_DECIMAL) decimal(0);
     else if(zr_op==ZR_FORMAT) format_value();
     else if(zr_op==ZR_VAL_INTEGER||zr_op==ZR_VAL_REAL) val();
+    else if(zr_op==ZR_LN||zr_op==ZR_EXP) zr_transcendental();
     else evaluate(zr_op);
 }

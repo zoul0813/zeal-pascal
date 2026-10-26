@@ -257,8 +257,12 @@ and correctly accepts -32768; it does not silently accept a truncated prefix.
 Sqrt accepts Integer or Real and returns Real. Positive square roots use an
 exact integer algorithm with an error below one final Real6 step throughout
 the input range. Zero returns zero; negative inputs report runtime03 and
-return to their source statement in Memory mode. Sin/Cos/ArcTan/Ln/Exp and
-Random/Randomize remain pending.
+return to their source statement in Memory mode. Ln and Exp use wider private
+intermediates while ordinary Real arithmetic retains its dialect behavior.
+Ln requires a positive argument (runtime04 otherwise); Exp reports overflow01
+and flushes results below the minimum positive Real to zero. Both return Real
+and accept Integer or Real arguments. Sin/Cos/ArcTan and Random/Randomize
+remain pending.
 
 Labels may be identifiers or decimal digit names. Numeric labels retain their
 exact spelling, so 01 and 1 are different names; their digits are not limited to
