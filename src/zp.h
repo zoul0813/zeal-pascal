@@ -68,6 +68,9 @@
 #define RT_FIELD 0x413fu
 #define RT_STR 0x4142u
 #define RT_VAL 0x4145u
+#define RT_INPUT_BEGIN 0x4148u
+#define RT_INPUT_VALUE 0x414bu
+#define RT_INPUT_END 0x414eu
 #define DEFAULT_SOURCE "T:/src/pascal/UNTITLED.pas"
 enum { PAGE_SOURCE=1, PAGE_IMAGE, PAGE_MAP, PAGE_RUN, PAGE_SNAPSHOT, PAGE_COMPILER };
 

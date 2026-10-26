@@ -103,6 +103,13 @@ KEYS = {' ': 'SPACE', '\n': 'ENTER', '.': 'PERIOD', '/': 'SLASH',
 SHIFTED = {':': 'SEMICOLON', '(': '9', ')': '0', '+': 'EQUAL', '*': '8', '_': 'MINUS',
            '{': 'LEFT_BRACKET', '}': 'RIGHT_BRACKET'}
 
+# One guarded READINPUT.PAS execution. The final Enter is queued without
+# advancing, so the next pass can stop at its first cooked-read entry.
+READ_INPUT_LINES = ['-32768 1.25 Ztail', '300 99 32767', '.5', '-1.25 7',
+                    '.125', '42', '11 22 tail', 'abc99 discarded', '5', '6',
+                    'next', '31 88', '32', 'done', '', '0'*30+'1 X',
+                    '12 .25', '12 .25', 'abc', '11 22', '33', '44', '55 66', 'done']
+
 
 def type_text(text, ticks=250000):
     commands = []
@@ -594,6 +601,15 @@ def main():
         commands += ['regs', 'mmu', f'rb 0x{mode:x} 1', f'bc 0x{keyboard_ioctl:x}']
         commands += type_text('abcdefghi\n\n', ticks=2000000)
         commands += ['run 1000000000']
+    for _ in range(2):
+        commands += [f'bp 0x{cooked:x}', 'run 120000000000', f'bc 0x{cooked:x}']
+        for at, line in enumerate(READ_INPUT_LINES):
+            commands += type_text(line, ticks=2000000) + ['tap ENTER']
+            if at+1 < len(READ_INPUT_LINES):
+                commands += ['run 100000000']
+    # Invalid numeric input must report I/O10 and return to its ReadLn source.
+    commands += [f'bp 0x{cooked:x}', 'run 120000000000', f'bc 0x{cooked:x}']
+    commands += type_text('12x', ticks=2000000) + ['tap ENTER']
     # The completion breakpoint is mandatory; this bounded budget includes the
     # RAM/COM control/routine/string corpora and source-recovery executions.
     commands += ['run 120000000000', 's', 'regs', 'mmu']
@@ -628,6 +644,10 @@ def main():
     checks.append(('short-string ReadLn, editing, fields, empty line and shell exec',
                    input_output.is_file() and input_output.read_bytes() ==
                    b'Your name: Hello, Ada!\r\nabc/defg\r\n[]\r\n' * 2))
+    numeric_input_output = RUN / 'core/hostfs/READ.TXT'
+    checks.append(('numeric/Char/String input, selected targets, B+/B- buffering and checked conversion errors in RAM/COM',
+                   numeric_input_output.is_file() and numeric_input_output.read_bytes()==
+                   b'INDEX>READ-ALL-OK\r\n'*2))
     control_output = RUN / 'core/hostfs/CONTROL.TXT'
     control_expected = ('BOOL-LAYOUT-OK\nTRUE,FALSE\nNEAREST-ELSE-OK\nFOR-UP-OK\nFOR-DOWN-OK\n'
                         'FOR-ZERO-TRIP-OK\nFOR-ZERO-DOWN-OK\nFOR-BOUND-ONCE-OK\nNESTED-FOR-OK\nFOR-LIMITS-OK\n'

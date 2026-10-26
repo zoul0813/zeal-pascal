@@ -54,12 +54,14 @@ def validate_runtime(path):
     if not 0x5200<=symbols['_zr_eval']<0x7000 or symbols['real_buffer']!=0x4136:
         raise ValueError('runtime Real helper ABI is misplaced')
     for entry,name in ((0x4133,'real_dispatch'),(0x413c,'format_field'),
-                       (0x413f,'field_output'),(0x4142,'str_copy'),(0x4145,'val_field')):
+                       (0x413f,'field_output'),(0x4142,'str_copy'),(0x4145,'val_field'),
+                       (0x4148,'input_begin'),(0x414b,'input_value'),(0x414e,'input_end')):
         if (memory.get(entry)!=0xc3 or memory.get(entry+1)!=symbols[name]&255
                 or memory.get(entry+2)!=symbols[name]>>8):
             raise ValueError('runtime helper jump is misplaced: '+name)
     if not all(0x7400<=symbols[name]<0x7e00
-               for name in ('format_field','field_output','str_copy','integer_prepare','val_field')):
+               for name in ('format_field','field_output','str_copy','integer_prepare','val_field',
+                            'read_line','read_string','input_begin','input_value','input_end')):
         raise ValueError('runtime field helpers exceed their owned extent')
     payload=bytes(memory.get(at,0)for at in range(0x4000,max(memory)+1))
     if path.with_suffix('.zpl').read_bytes()!=payload:

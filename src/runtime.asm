@@ -2,6 +2,7 @@
 .globl real_dispatch,real_buffer,call_error
 .globl format_field,field_output,str_copy,integer_prepare
 .globl val_field
+.globl read_line,read_string,input_begin,input_value,input_end,memory_mode,io_error
 .globl character,neg_hl,false_text,true_text
 .area _HEADER (ABS)
 .org 0x4000
@@ -69,6 +70,9 @@ real_buffer: .ds 6              ; 4136: transient helper/return bytes, copied by
     jp field_output             ; 413F: HL owned body, DE signed minimum field width
     jp str_copy                 ; 4142: HL body, DE destination, BC width, A capacity
     jp val_field                ; 4145: HL Code/number/source record, A Val operation
+    jp input_begin              ; 4148: A fresh/default Input policy; no device read
+    jp input_value              ; 414B: HL destination, B scalar kind, C String capacity
+    jp input_end                ; 414E: ReadLn discards through current line end
 
 ; This prefix is deliberately separate from the C compiler's ABI. Only the
 ; private helper entries above are emitted in this first language increment.
@@ -355,86 +359,6 @@ string_copy_length:
     ldir                        ; self-assignment is safe, too
     ret
 
-; Use the native driver's supported cooked line editor for this increment.
-; Read a whole physical line before copying fields, so a short destination
-; does not leave the line tail to satisfy the next ReadLn. Full Turbo console
-; controls/BufLen and the exact 127-key editing boundary remain a later gate.
-read_line:
-    ld h,#1
-    ld l,#7
-    ld c,#0
-    ld de,#1                    ; blocking cooked
-    rst 8
-    or a
-    jp nz,io_error
-    ld de,#line_buffer
-    ld bc,#255
-    ld h,#1
-    ld l,#0
-    rst 8
-    push af
-    push bc
-    ld a,(memory_mode)
-    or a
-    ld de,#0                    ; parent IDE: blocking raw
-    jr nz,read_restore
-    ld e,#4                     ; ZShell: nonblocking raw
-read_restore:
-    ld h,#1
-    ld l,#7
-    ld c,#0
-    rst 8
-    pop bc
-    pop de                      ; D = read error, E = saved flags
-    or d
-    jp nz,io_error
-    ld a,b
-    or a
-    jp nz,io_error
-    ld hl,#line_buffer
-    ld (line_next),hl
-    ld b,c
-    ld c,#0
-    ld a,b
-    or a
-    jr z,read_line_ready
-read_line_length:
-    ld a,(hl)
-    cp #10
-    jr z,read_line_ready
-    cp #13
-    jr z,read_line_ready
-    cp #26
-    jr z,read_line_ready
-    ld a,c
-    cp #127
-    jr z,read_line_ready
-    inc c
-    inc hl
-    djnz read_line_length
-read_line_ready:
-    ld a,c
-    ld (line_remaining),a
-    ret
-read_string:
-    ld hl,(line_next)
-    ld a,(line_remaining)
-    cp c
-    jr c,read_string_length
-    ld a,c
-read_string_length:
-    ld (de),a
-    inc de
-    ld c,a
-    ld b,#0
-    or a
-    ret z
-    ld a,(line_remaining)
-    sub c
-    ld (line_remaining),a
-    ldir
-    ld (line_next),hl
-    ret
 divide:
     ld a,#0
     jr divmod
@@ -574,9 +498,6 @@ negative: .db 0
 want_remainder: .db 0
 tail_length: .db 0
 tail: .ds 127
-line_next: .dw 0
-line_remaining: .db 0
-line_buffer: .ds 255
 false_text: .db 5
     .ascii "FALSE"
 true_text: .db 4

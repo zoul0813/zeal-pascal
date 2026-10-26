@@ -43,7 +43,7 @@ typedef struct {
     uint16_t emitted,entries,file_bytes,relocations;
     uint8_t workspace,scope,absolute_mode,var_strict,nesting,suppress;
     uint16_t routine_count,temporaries;
-    uint8_t with_depth,with_limit,with_bound,with_types[9],for_depth;
+    uint8_t with_depth,with_limit,with_bound,with_types[9],for_depth,input_fresh;
     uint16_t field_offset;
 } Compiler;
 extern Compiler cc;
@@ -139,4 +139,5 @@ void cc_real_binary(uint8_t op,uint8_t left,uint8_t right,uint16_t before,uint16
 void cc_write(uint8_t newline) FRONTEND;
 void cc_str(void) FRONTEND;
 void cc_val(void) FRONTEND;
+void cc_read(uint8_t newline) FRONTEND;
 #endif

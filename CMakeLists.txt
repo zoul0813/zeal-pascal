@@ -11,7 +11,7 @@ target_compile_options(real_runtime PRIVATE --std-c99 "SHELL:--codeseg REAL"
     "SHELL:--constseg REAL" "SHELL:--dataseg REAL_DATA")
 add_library(real_compiler OBJECT src/real.c)
 target_compile_options(real_compiler PRIVATE --std-c99 "SHELL:--codeseg BANK9" "SHELL:--constseg BANK9")
-add_executable(pascal_runtime src/runtime.asm src/real_adapter.asm src/format.asm $<TARGET_OBJECTS:real_runtime>)
+add_executable(pascal_runtime src/runtime.asm src/real_adapter.asm src/format.asm src/input.asm $<TARGET_OBJECTS:real_runtime>)
 set_target_properties(pascal_runtime PROPERTIES LINKER_LANGUAGE ASM)
 target_link_options(pascal_runtime PRIVATE "SHELL:-b _REAL_ADAPTER=0x4d00"
     "SHELL:-b _REAL=0x5200" "SHELL:-b _REAL_DATA=0x7e00"
@@ -43,6 +43,10 @@ set_property(SOURCE src/library.c src/banks.c tests/native/main.c APPEND PROPERT
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/library.h)
 set_property(SOURCE src/banks.c src/main.c tests/native/main.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/zp.h)
+set_property(SOURCE tests/native/harness.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h)
+set_property(SOURCE tests/native/main.c tests/native/harness.c APPEND PROPERTY
+    OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/sdk_glue.asm CONTENT
     ".globl _fflush_stdout\n.include \"$ENV{ZOS_PATH}/sdk/sdcc/src/zeal8bitos.asm\"\n")
 list(APPEND PASCAL_CORE ${CMAKE_BINARY_DIR}/sdk_glue.asm)
@@ -73,7 +77,7 @@ set(CMAKE_C_LINK_EXECUTABLE "<CMAKE_LINKER> <LINK_FLAGS> <LINK_LIBRARIES> <TARGE
 add_executable(zpascal src/startup.asm src/banks.c src/main.c $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
 target_include_directories(zpascal PRIVATE src)
 target_compile_options(zpascal PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
-add_executable(zptest src/startup.asm src/banks.c tests/native/main.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
+add_executable(zptest src/startup.asm src/banks.c tests/native/main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
 target_include_directories(zptest PRIVATE src)
 target_compile_options(zptest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)

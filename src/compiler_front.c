@@ -163,12 +163,13 @@ void cc_next(void) FRONTEND {
                 do {
                     c=lower(get(cc.scan)); value=get(cc.scan+1)=='+';
                     if(c=='w'&&digit(get(cc.scan+1))) cc.with_limit=get(cc.scan+1)-'0';
-                    else if((c!='r'&&c!='a'&&c!='v')||(get(cc.scan+1)!='+'&&get(cc.scan+1)!='-')) {
+                    else if((c!='r'&&c!='a'&&c!='v'&&c!='b')||(get(cc.scan+1)!='+'&&get(cc.scan+1)!='-')) {
                         cc_fail(93); cc.token=T_EOF; return;
                     }
                     else if(c=='r') cc.range_check=value;
                     else if(c=='a') cc.absolute_mode=value;
                     else if(c=='v') cc.var_strict=value;
+                    else if(c=='b') cc.input_fresh=value;
                     cc.scan+=2;
                     if(get(cc.scan)!=',') break;
                     ++cc.scan;

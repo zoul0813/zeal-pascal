@@ -95,8 +95,9 @@ selectors, comma lists, inclusive ranges and nested alternatives.
 For controls support the implemented ordinal families;
 the final bound is evaluated once, zero trips retain the old control value and
 normal completion leaves the final bound. Write/Writeln accepts strings,
-Integers, Characters, Booleans and Reals, including formatted fields; ReadLn
-currently accepts string targets. Short-string assignment
+Integers, Characters, Booleans and Reals, including formatted fields. Read/ReadLn
+accept Integer, Byte, Integer-subrange, Real, Char and String targets, including
+selected fields, array elements, pointers and Var parameters. Short-string assignment
 truncates to the destination capacity. Memory execution preserves IDE pages and
 source; checked errors return to their source statement after Escape.
 
@@ -238,7 +239,7 @@ Integer-family types, including wide subranges. The native implementation parses
 the complete string (up to 255 bytes), treats embedded NUL as invalid input,
 and correctly accepts -32768; it does not silently accept a truncated prefix.
 
-Numeric input and the remaining mathematical functions are still pending.
+The remaining mathematical functions are still pending.
 
 Labels may be identifiers or decimal digit names. Numeric labels retain their
 exact spelling, so 01 and 1 are different names; their digits are not limited to
@@ -247,12 +248,19 @@ block. Jumps may leave For/With scopes while releasing their owned stack state;
 entering a deeper For reports 71. An unused label need not have a definition.
 Transfers into an unevaluated With base retain the original undefined behavior.
 
-ReadLn currently uses Zeal's cooked keyboard line editor and restores raw mode
-before returning. It supports string fields, empty lines and discarding the rest
-of a line. Numeric input, Turbo console controls (including Ctrl-C), BufLen and
-the exact 127-character editing boundary remain pending. Strings retain at most
-127 input characters in this increment. The remaining runtime APIs are still
-pending.
+Console Read/ReadLn uses Zeal's cooked keyboard editor and restores raw mode
+before returning. Numeric fields skip leading whitespace and consume at most
+30 characters, leaving the delimiter and any following characters for later
+fields. Invalid numbers report I/O error 10 and return to source; numeric fields
+already at line end retain their values. Byte stores truncate and input does
+not add subrange checks. `$B+` (default) selects a fresh console line for each
+call; `$B-` retains its unread tail between calls. Bare `Read;` fills the buffer
+without consuming a value, and ReadLn discards the remaining line.
+
+Turbo console controls (including Ctrl-C), BufLen, complete end-marker behavior
+and the exact 127-character editing boundary remain pending. Strings retain at
+most 127 input characters in this increment. Explicit Pascal files/devices and
+`$I-`/IOResult also remain pending.
 
 The editor remains partial. Native tests cover the implemented slice, ownership,
 error recovery and file safety; full reference replay and physical hardware
