@@ -71,3 +71,18 @@ void cc_str(void) FRONTEND {
     cc_emit(0x3e);cc_emit(cc.types[target].capacity);cc_call(RT_STR);
     cc_release(before);
 }
+void cc_val(void) FRONTEND {
+    uint16_t before=cc.temporaries,argument_before;
+    uint8_t type,code_type;
+    cc_next();cc_expect('(',4);cc_string_value();push_word();cc_expect(',',3);
+    argument_before=cc.temporaries;type=cc_reference(41);
+    if(cc_family(type)!=K_REAL&&
+       (cc_family(type)!=K_INTEGER||cc.types[type].width!=2)) cc_fail(27);
+    cc_release(argument_before);push_word();cc_expect(',',3);
+    argument_before=cc.temporaries;code_type=cc_reference(41);
+    if(cc_family(code_type)!=K_INTEGER||cc.types[code_type].width!=2) cc_fail(24);
+    cc_release(argument_before);push_word();cc_expect(')',5);
+    cc_op16(0x21,0);cc_emit(0x39);cc_emit(0x3e);
+    cc_emit(cc_family(type)==K_REAL?ZR_VAL_REAL:ZR_VAL_INTEGER);
+    cc_reserve(256);cc_op16(0xcd,RT_VAL);cc_release(before);
+}

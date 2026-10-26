@@ -377,11 +377,13 @@ static void format_tests(void) {
     test_stage=37;
     execution_file("H:/FORMATOUT.PAS",1,0,0);
     execution_file("H:/STRFORMAT.PAS",1,0,0);
+    execution_file("H:/VALPARSE.PAS",1,0,0);
     test_stage=38;
     checked_error("begin\nwriteln(1.25:(7 div 0):2)end.",2,"writeln");
     checked_error("var s:string[8];begin\nstr(1.25:8:round(40000.0),s)end.",0x92,"str(");
     checked_error("var a:array[1..2]of string[8];begin\nstr(1.25:8:2,a[7 div 0])end.",2,"str(");
     checked_error("begin heapptr:=stackptr-80;\nwriteln(1.25)end.",0xff,"writeln");
+    checked_error("var i,c:integer;begin heapptr:=stackptr-80;\nval('1',i,c)end.",0xff,"val(");
     input=open("H:/FORMATOUT.PAS",O_RDONLY);check(input>=0);
     if(input>=0) {
         check(swap(input,DEV_STDOUT)==0);

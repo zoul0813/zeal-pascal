@@ -230,7 +230,15 @@ WriteLn(price:10:2);
 Str(count:6, text);
 ```
 
-Val, numeric input and the remaining mathematical functions are still pending.
+Val converts String/Char/compatible Char-array input into Integer or Real and
+sets an Integer Code: zero on success, otherwise the one-based error position.
+Selected destinations and Var parameters are supported. Empty input succeeds
+without changing the value. Integer destinations and Code accept two-byte
+Integer-family types, including wide subranges. The native implementation parses
+the complete string (up to 255 bytes), treats embedded NUL as invalid input,
+and correctly accepts -32768; it does not silently accept a truncated prefix.
+
+Numeric input and the remaining mathematical functions are still pending.
 
 Labels may be identifiers or decimal digit names. Numeric labels retain their
 exact spelling, so 01 and 1 are different names; their digits are not limited to

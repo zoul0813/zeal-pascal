@@ -120,6 +120,7 @@ uint8_t cc_index(uint8_t type) BACKEND;
 uint8_t cc_selection(uint16_t id) BACKEND;
 uint8_t cc_aggregate_actual(uint8_t type) BACKEND;
 void cc_string_statement(uint8_t insert) BACKEND;
+void cc_string_value(void) BACKEND;
 void cc_statement(void) BACKEND;
 void cc_labels(void) BACKEND;
 void cc_labels_finish(void) BACKEND;
@@ -137,4 +138,5 @@ void cc_real_unary(uint8_t op,uint8_t type,uint16_t before) FRONTEND;
 void cc_real_binary(uint8_t op,uint8_t left,uint8_t right,uint16_t before,uint16_t right_bytes) FRONTEND;
 void cc_write(uint8_t newline) FRONTEND;
 void cc_str(void) FRONTEND;
+void cc_val(void) FRONTEND;
 #endif

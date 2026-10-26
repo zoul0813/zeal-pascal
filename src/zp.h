@@ -67,6 +67,7 @@
 #define RT_FORMAT 0x413cu
 #define RT_FIELD 0x413fu
 #define RT_STR 0x4142u
+#define RT_VAL 0x4145u
 #define DEFAULT_SOURCE "T:/src/pascal/UNTITLED.pas"
 enum { PAGE_SOURCE=1, PAGE_IMAGE, PAGE_MAP, PAGE_RUN, PAGE_SNAPSHOT, PAGE_COMPILER };
 

@@ -293,6 +293,8 @@ static void statement(void) {
         cc_write(cc_is("writeln"));
     } else if(cc_is("str")&&cc_lookup()<0) {
         cc_str();
+    } else if(cc_is("val")&&cc_lookup()<0) {
+        cc_val();
     } else if(cc_is("readln")&&cc_lookup()<0) {
         cc_next(); cc_call(RT_READLINE);
         if(cc.token=='(') {

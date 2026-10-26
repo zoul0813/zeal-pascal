@@ -609,7 +609,7 @@ def main():
     # This growing native corpus includes repeated disk publication and RAM/COM
     # routine execution. Retain both a cycle bound and mandatory completion;
     # allow its measured workload more wall time than the small UI scenarios.
-    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=900)
+    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=1050)
     mem = memory(text)
     def word(name):
         p = sym[name]
@@ -825,7 +825,7 @@ def main():
         + b'FORMAT-OUTPUT-DONE\r\n')
     checks.append(('formatted scalar/Real output, nested calls and snapshots plus Str destinations/truncation in RAM/COM',
                    formats_output.is_file() and formats_output.read_bytes()==
-                   formats_expected*2+b'STR-FORMAT-ALL-OK\r\n'*2))
+                   formats_expected*2+b'STR-FORMAT-ALL-OK\r\n'*2+b'VAL-ALL-OK\r\n'*2))
     pointer_image = RUN / 'core/hostfs/POINTERABI.COM'
     pointer_code = (ROOT / 'build/pointerabi.zpl').read_bytes()
     checks.append(('native external pointer payload matches independently assembled two-word probe',

@@ -7,6 +7,8 @@ uint8_t zr_op,zr_error,zr_a[6],zr_b[6],zr_result[6];
 int16_t zr_integer;
 const uint8_t *zr_text;
 uint16_t zr_length;
+uint16_t zr_code;
+uint8_t zr_assign;
 int16_t zr_width,zr_places;
 uint8_t zr_formatted[66];
 static uint8_t a[6],b[6],work[10],negative_a,negative_b;
@@ -220,13 +222,17 @@ static uint8_t decimal_scale_value(int16_t scale,uint16_t position) {
     if(zr_error) { decimal_error(position); return 0; }
     copy(decimal_value,zr_result,6); return 1;
 }
-static void decimal(void) {
+static void decimal(uint8_t runtime) {
     uint16_t p=0,count=0,exponent=0;
     int16_t scale=0;
     uint8_t negative=0,negative_exponent=0,c;
     clear(decimal_value,6);
-    if(p<zr_length&&(zr_text[p]=='+'||zr_text[p]=='-')) negative=zr_text[p++]=='-';
-    if(p==zr_length||!digit(zr_text[p])) { decimal_error(p); return; }
+    if(p<zr_length&&(zr_text[p]=='-'||(!runtime&&zr_text[p]=='+')))
+        negative=zr_text[p++]=='-';
+    if(runtime) {
+        if(p<zr_length&&!digit(zr_text[p])&&zr_text[p]!='.'&&zr_text[p]!='e'&&zr_text[p]!='E')
+            { decimal_error(p); return; }
+    } else if(p==zr_length||!digit(zr_text[p])) { decimal_error(p); return; }
     while(p<zr_length) {
         c=zr_text[p];
         if(c=='.'&&!count) { count=1; ++p; continue; }
@@ -256,6 +262,33 @@ static void decimal(void) {
     copy(zr_result,decimal_value,6);
     if(negative&&zr_result[0]) zr_result[5]^=128;
     zr_integer=0;
+}
+static void val_integer(void) {
+    uint16_t p=0,magnitude=0;
+    uint8_t negative=0,hexadecimal=0,c,d;
+    if(zr_text[p]=='-') {negative=1;++p;}
+    if(p<zr_length&&zr_text[p]=='$') {hexadecimal=1;++p;}
+    for(;p<zr_length;++p) {
+        c=zr_text[p];
+        d=digit(c)?c-'0':c>='A'&&c<='F'?c-'A'+10:
+            c>='a'&&c<='f'?c-'a'+10:255;
+        if((hexadecimal&&(d>=16||magnitude>4095))||
+           (!hexadecimal&&(d>=10||magnitude>6553||(magnitude==6553&&d>5)))) {
+            zr_code=p+1;return;
+        }
+        magnitude=magnitude*(hexadecimal?16:10)+d;
+    }
+    if(!hexadecimal&&magnitude>(negative?32768u:32767u)) {zr_code=p+1;return;}
+    zr_integer=negative?(int16_t)(0u-magnitude):(int16_t)magnitude;
+    zr_assign=1;
+}
+static void val(void) {
+    zr_error=0;zr_code=0;zr_assign=0;zr_integer=0;clear(zr_result,6);
+    if(!zr_length) return;
+    if(zr_op==ZR_VAL_INTEGER) {val_integer();return;}
+    decimal(1);
+    if(zr_error) {zr_code=(uint16_t)zr_integer;zr_error=0;return;}
+    zr_assign=1;
 }
 /* Normalize through Real6 arithmetic before extracting decimal digits. The
  * resulting scale/rounding differs observably from formatting the raw exact
@@ -336,6 +369,8 @@ static void format_value(void) {
     }
 }
 void zr_eval(void) REAL_API {
-    if(zr_op==ZR_DECIMAL) decimal();
-    else if(zr_op==ZR_FORMAT) format_value();else evaluate(zr_op);
+    if(zr_op==ZR_DECIMAL) decimal(0);
+    else if(zr_op==ZR_FORMAT) format_value();
+    else if(zr_op==ZR_VAL_INTEGER||zr_op==ZR_VAL_REAL) val();
+    else evaluate(zr_op);
 }

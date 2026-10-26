@@ -1,0 +1,75 @@
+program ValueParsing;
+type text=string[255];wide=-2..2;number=integer;
+     item=record r:real;c:integer;guard:byte end;
+     ints=array[1..2]of integer;reals=array[1..2]of real;rp=^real;
+var source,long:text;i,c,j,saved,scratch,innercode:integer;w,codewide:wide;
+    ia,codes:ints;ra:reals;rec:item;p:rp;chars:array[1..2]of char;
+const typed:number=777;
+{$A-}
+procedure check(ok:boolean);
+begin if not ok then halt end;
+procedure integercase(s:text;wanted,error:integer);
+var n,code:integer;
+begin n:=777;code:=999;val(s,n,code);check(code=error);
+ if error=0 then if s='' then check(n=777)else check(n=wanted)
+end;
+procedure realcase(s:text;wanted:real;error:integer);
+var n:real;code:integer;
+begin n:=777;code:=999;val(s,n,code);check(code=error);
+ if error=0 then if s='' then check(n=777)else check(n=wanted)
+end;
+function valueindex:integer;
+begin source:='99';val('8',scratch,innercode);valueindex:=2 end;
+function codeindex:integer;
+begin source:='bad';val('9',scratch,innercode);codeindex:=1 end;
+procedure forwarded(s:text;var n:real;var code:integer);
+begin val(s,n,code)end;
+begin
+ integercase('',777,0);integercase('0',0,0);integercase('-1',-1,0);
+ integercase('32767',32767,0);integercase('-32768',-32768,0);
+ integercase('32768',0,6);integercase('-32769',0,7);
+ integercase('65535',0,6);integercase('65536',0,5);
+ integercase('$FFFF',-1,0);integercase('$8000',-32768,0);
+ integercase('$10000',0,6);integercase('-$FFFF',1,0);
+ integercase('$ff',255,0);integercase('-$ff',-255,0);
+ integercase('$',0,0);integercase('-$',0,0);integercase('-',0,0);
+ integercase('+1',0,1);integercase(' 1',0,1);integercase('1 ',0,2);
+ integercase('1x',0,2);integercase('1.0',0,2);integercase('1e2',0,2);
+ realcase('',777,0);realcase('1',1,0);realcase('-1',-1,0);
+ realcase('.1',0.1,0);realcase('1.',1,0);realcase('1e2',100,0);
+ realcase('1E+2',100,0);realcase('1e-2',0.01,0);
+ realcase('1e+00',1,0);realcase('1e-00',1,0);
+ realcase('.',0,0);realcase('-.',0,0);realcase('e2',0,0);
+ realcase('-e2',0,0);realcase('.e2',0,0);realcase('-',0,0);
+ realcase('+1',0,1);realcase('$FFFF',0,1);realcase('-$ff',0,2);
+ realcase('1e',0,3);realcase('1e+',0,4);realcase('1e-',0,4);
+ realcase('1e001',0,5);realcase('1e+001',0,6);
+ realcase('1.0e38',0,7);realcase('1e-39',0,6);
+ realcase('0.1e-38',0,0);realcase('0.3e-38',0.3e-38,0);
+ integercase(#0,0,1);realcase(#0,0,1);
+ integercase('1'#0'x',0,2);realcase('1'#0'x',0,2);
+ long:='';for j:=1 to 254 do long:=long+'0';long:=long+'1';
+ integercase(long,1,0);realcase(long,1,0);
+ long[255]:='x';integercase(long,0,255);realcase(long,0,255);
+ long:='';for j:=1 to 250 do long:=long+'0';long:=long+'32768';
+ integercase(long,0,256);realcase(long,32768.0,0);
+ long:='-';for j:=1 to 249 do long:=long+'0';long:=long+'32768';
+ integercase(long,-32768,0);realcase(long,-32768.0,0);
+ source:='42';val(source,ia[valueindex],codes[codeindex]);
+ check((ia[2]=42)and(codes[1]=0)and(scratch=9)and(source='bad'));
+ source:='0.25';val(source,ra[valueindex],codes[codeindex]);
+ check((ra[2]=0.25)and(codes[1]=0));
+ rec.guard:=99;with rec do begin val('-1.25',r,c);
+  check((r=-1.25)and(c=0)and(guard=99))end;
+ p:=ptr(addr(rec.r));val('.5',p^,rec.c);check((rec.r=0.5)and(rec.c=0));
+ forwarded('1.5',rec.r,rec.c);check((rec.r=1.5)and(rec.c=0));
+ chars:='12';val(chars,i,c);check((i=12)and(c=0));
+ val('7',i,c);check((i=7)and(c=0));
+ val('2',typed,c);check((typed=2)and(c=0));
+ {$R+}val('32767',w,c);check((w=32767)and(c=0));
+ val('12x',i,codewide);check(codewide=3);{$R-}
+ saved:=stackptr;
+ for j:=1 to 20 do begin val('123',i,c);val('1.25',rec.r,c)end;
+ check((stackptr=saved)and(i=123)and(rec.r=1.25));
+ writeln('VAL-ALL-OK');
+end.

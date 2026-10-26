@@ -1,9 +1,56 @@
 .module format
 .globl format_field,field_output,str_copy,integer_prepare
 .globl format_real,character,neg_hl,false_text,true_text
+.globl val_field,val_dispatch
 .area _REAL_DATA
 field_text: .ds 8
 .area _CODE
+; HL Code/number/source words, A Val mode. Parsing is synchronous; destination
+; pointers survive the C boundary on this invocation's stack. Commit the value
+; only on success, then Code. Empty input leaves the value untouched.
+val_field::
+    ld c,(hl)
+    inc hl
+    ld b,(hl)
+    inc hl
+    push bc
+    ld c,(hl)
+    inc hl
+    ld b,(hl)
+    inc hl
+    push bc
+    ld c,(hl)
+    inc hl
+    ld b,(hl)
+    ld h,b
+    ld l,c
+    call val_dispatch
+    pop bc
+    inc a                       ; test assignment without losing kind carry
+    dec a
+    jr z,val_code
+    jr c,val_integer_result
+    push de
+    ld d,b
+    ld e,c
+    ld bc,#6
+    ldir
+    pop de
+    jr val_code
+val_integer_result:
+    ld a,l
+    ld (bc),a
+    inc bc
+    ld a,h
+    ld (bc),a
+val_code:
+    pop bc
+    ld a,e
+    ld (bc),a
+    inc bc
+    ld a,d
+    ld (bc),a
+    ret
 ; Pure field preparation. HL points to places,width,value words; A is the
 ; compiler's scalar family. No callback/syscall occurs before the caller copies
 ; the returned short string into its invocation-owned temporary.

@@ -1,6 +1,7 @@
 .module runtime
 .globl real_dispatch,real_buffer,call_error
 .globl format_field,field_output,str_copy,integer_prepare
+.globl val_field
 .globl character,neg_hl,false_text,true_text
 .area _HEADER (ABS)
 .org 0x4000
@@ -67,6 +68,7 @@ real_buffer: .ds 6              ; 4136: transient helper/return bytes, copied by
     jp format_field             ; 413C: HL field record, A family -> short-string body
     jp field_output             ; 413F: HL owned body, DE signed minimum field width
     jp str_copy                 ; 4142: HL body, DE destination, BC width, A capacity
+    jp val_field                ; 4145: HL Code/number/source record, A Val operation
 
 ; This prefix is deliberately separate from the C compiler's ABI. Only the
 ; private helper entries above are emitted in this first language increment.

@@ -128,6 +128,7 @@ static void string_value(void) {
     else if(cc.temporaries==before) { cc_call(RT_HOLDSTRING); cc.temporaries+=256; }
 }
 static void integer_value(void) { if(cc_family(expression())!=K_INTEGER) cc_fail(23); }
+void cc_string_value(void) BACKEND { string_value(); }
 static void push_value(void) { cc_guard(); cc_emit(0xe5); }
 static uint8_t string_function(uint8_t op) {
     uint16_t before=cc.temporaries,right_before,right_bytes,owned;

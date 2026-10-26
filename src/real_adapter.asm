@@ -2,12 +2,25 @@
 .globl real_dispatch,real_buffer,call_error
 .globl _zr_eval,_zr_op,_zr_error,_zr_integer,_zr_a,_zr_b,_zr_result
 .globl format_real,_zr_width,_zr_places,_zr_formatted
+.globl val_dispatch,_zr_text,_zr_length,_zr_code,_zr_assign
 .area _REAL_DATA
 real_left: .ds 2
 real_right: .ds 2
 real_flags: .ds 1
 real_status: .ds 1
 .area _REAL_ADAPTER
+; HL owned short string, A Val mode. Reply: A assignment flag, DE Code,
+; HL Integer or six-byte result pointer, carry set for Integer. Code failures
+; do not enter the fatal arithmetic path. The caller retains both destinations.
+val_dispatch::
+    ld (real_flags),a
+    ld a,(hl)
+    ld (_zr_length),a
+    xor a
+    ld (_zr_length+1),a
+    inc hl
+    ld (_zr_text),hl
+    jr real_save
 ; Pure formatting uses the same preserved-register C boundary as arithmetic.
 ; HL is a six-byte value, BC width and DE places. No callback occurs here.
 format_real::
@@ -24,6 +37,7 @@ real_dispatch::
     ld (real_left),de
     ld (real_right),hl
     ld (real_flags),a
+real_save:
     push ix
     push iy
     ex af,af'
@@ -35,7 +49,11 @@ real_dispatch::
     push hl
     exx
     ld a,(real_flags)
-    and #15
+    and #63
+    cp #15
+    jr z,real_evaluate
+    cp #16
+    jr z,real_evaluate
     cp #5                       ; Integer -> Real needs no pointer operands
     jr z,real_from_integer
     ld a,(real_flags)
@@ -76,7 +94,7 @@ real_from_integer:
     ld (_zr_integer),hl
 real_evaluate:
     ld a,(real_flags)
-    and #15
+    and #63
     ld (_zr_op),a
     call _zr_eval
     ld a,(_zr_error)
@@ -104,7 +122,11 @@ real_evaluate:
     jp call_error
 real_success:
     ld a,(real_flags)
-    and #15
+    and #63
+    cp #15
+    jr z,real_val
+    cp #16
+    jr z,real_val
     cp #14
     jr z,real_formatted
     cp #4
@@ -120,4 +142,13 @@ real_formatted:
     ret
 real_scalar:
     ld hl,(real_right)
+    ret
+real_val:
+    cp #16
+    ld hl,#real_buffer
+    jr nc,real_val_reply
+    ld hl,(real_right)
+real_val_reply:
+    ld de,(_zr_code)
+    ld a,(_zr_assign)
     ret
