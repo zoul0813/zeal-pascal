@@ -7,9 +7,13 @@ uint8_t zr_op,zr_error,zr_a[6],zr_b[6],zr_result[6];
 int16_t zr_integer;
 const uint8_t *zr_text;
 uint16_t zr_length;
+int16_t zr_width,zr_places;
+uint8_t zr_formatted[66];
 static uint8_t a[6],b[6],work[10],negative_a,negative_b;
 static int16_t exponent_a,exponent_b;
 static uint8_t decimal_value[6],decimal_scale[6];
+static uint8_t format_digits[12];
+static int16_t format_exponent;
 /* Exact 10^(4*k), rounded to the nearest Real6. Mathematical constants, not
  * compiler-folded floating expressions. Scaling then uses truncated arithmetic. */
 static const uint8_t powers[10][6]={
@@ -198,18 +202,19 @@ static void times_ten(const uint8_t *value) {
     zr_b[0]=132; zr_b[5]=32; /* 10 */
     evaluate(ZR_MUL);
 }
-static uint8_t decimal_scale_value(int16_t scale,uint16_t position) {
-    uint16_t magnitude;
+static void build_scale(uint8_t magnitude) {
     uint8_t extra;
-    if(scale< -38||scale>37) { decimal_error(position); return 0; }
-    magnitude=(uint16_t)(scale<0?-scale:scale);
     copy(decimal_scale,powers[magnitude/4],6);
     extra=(uint8_t)(magnitude%4);
     while(extra--) {
         times_ten(decimal_scale);
-        if(zr_error) { decimal_error(position); return 0; }
         copy(decimal_scale,zr_result,6);
     }
+}
+static uint8_t decimal_scale_value(int16_t scale,uint16_t position) {
+    if(scale< -38||scale>37) { decimal_error(position); return 0; }
+    build_scale((uint8_t)(scale<0?-scale:scale));
+    if(zr_error) { decimal_error(position); return 0; }
     copy(zr_a,decimal_value,6); copy(zr_b,decimal_scale,6);
     evaluate(scale<0?ZR_DIV:ZR_MUL);
     if(zr_error) { decimal_error(position); return 0; }
@@ -252,6 +257,85 @@ static void decimal(void) {
     if(negative&&zr_result[0]) zr_result[5]^=128;
     zr_integer=0;
 }
+/* Normalize through Real6 arithmetic before extracting decimal digits. The
+ * resulting scale/rounding differs observably from formatting the raw exact
+ * binary rational. Magnitudes now lie in[1,10), so six bytes hold every
+ * fractional times-ten product without losing bits. */
+static void formatted_digits(void) {
+    uint8_t i,j,shift,at,bits;
+    uint16_t v,carry;
+    int16_t estimate;
+    clear(format_digits,12);format_exponent=0;
+    if(!decimal_value[0]) return;
+    estimate=((int16_t)decimal_value[0]-128)*77+5;
+    format_exponent=estimate>=0?estimate/256:-((255-estimate)/256);
+    if(format_exponent< -38) format_exponent=-38;
+    build_scale((uint8_t)(format_exponent<0?-format_exponent:format_exponent));
+    copy(zr_a,decimal_value,6);zr_a[5]&=127;
+    copy(zr_b,decimal_scale,6);
+    evaluate(format_exponent<0?ZR_MUL:ZR_DIV);
+    if(zr_result[0]<129) {
+        copy(decimal_value,zr_result,6);times_ten(decimal_value);
+        --format_exponent;
+    }
+    clear(a,6);copy(a,zr_result+1,5);a[4]|=128;
+    shift=168-zr_result[0];at=shift>>3;bits=shift&7;
+    for(i=0;i<12;++i) {
+        format_digits[i]=(uint8_t)((a[at]>>bits)|((uint16_t)a[at+1]<<(8-bits)));
+        a[at]&=(uint8_t)((1u<<bits)-1u);
+        for(j=at+1;j<6;++j) a[j]=0;
+        carry=0;
+        for(j=0;j<6;++j) {v=(uint16_t)a[j]*10+carry;a[j]=(uint8_t)v;carry=v>>8;}
+    }
+}
+static void round_formatted(int16_t keep) {
+    int16_t i;
+    if(keep>11) keep=11;
+    if(keep<=0) {
+        i=keep==0&&format_digits[0]>=5;
+        clear(format_digits,12);
+        if(i) {format_digits[0]=1;++format_exponent;}else format_exponent=0;
+        return;
+    }
+    if(format_digits[keep]>=5) {
+        i=keep;
+        while(i&&format_digits[i-1]==9) format_digits[--i]=0;
+        if(i) ++format_digits[i-1];else {format_digits[0]=1;++format_exponent;}
+    }
+    for(i=keep;i<12;++i) format_digits[i]=0;
+}
+static void append_formatted(uint8_t c) {zr_formatted[++zr_formatted[0]]=c;}
+static uint8_t formatted_digit(int16_t at) {return at<0||at>=11?0:format_digits[at];}
+static void format_value(void) {
+    uint8_t negative,sign_column,n,i;
+    int16_t position;
+    copy(decimal_value,zr_a,6);zr_error=0;zr_formatted[0]=0;
+    sign_column=(decimal_value[5]&128)!=0;
+    negative=decimal_value[0]&&sign_column;
+    formatted_digits();
+    if(zr_places>=0&&zr_places<=24) {
+        round_formatted(format_exponent+zr_places+1);
+        if(negative) append_formatted('-');
+        if(format_exponent<0) append_formatted('0');
+        else for(position=0;position<=format_exponent;++position)
+            append_formatted('0'+formatted_digit(position));
+        if(zr_places) append_formatted('.');
+        for(position=1;position<=zr_places;++position)
+            append_formatted('0'+formatted_digit(format_exponent+position));
+    } else {
+        if(zr_width<=7+sign_column) n=1;
+        else if(zr_width>=16+sign_column) n=10;
+        else n=(uint8_t)(zr_width-6-sign_column);
+        round_formatted(n+1);
+        if(negative) append_formatted('-');
+        append_formatted('0'+format_digits[0]);append_formatted('.');
+        for(i=1;i<=n;++i) append_formatted('0'+format_digits[i]);
+        append_formatted('E');append_formatted(format_exponent<0?'-':'+');
+        position=format_exponent<0?-format_exponent:format_exponent;
+        append_formatted('0'+position/10);append_formatted('0'+position%10);
+    }
+}
 void zr_eval(void) REAL_API {
-    if(zr_op==ZR_DECIMAL) decimal(); else evaluate(zr_op);
+    if(zr_op==ZR_DECIMAL) decimal();
+    else if(zr_op==ZR_FORMAT) format_value();else evaluate(zr_op);
 }

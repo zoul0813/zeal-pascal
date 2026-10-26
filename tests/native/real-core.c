@@ -11,6 +11,7 @@ typedef struct {
     int16_t input,value;
 } RealVector;
 typedef struct { const char *text; uint8_t out[6],error; } DecimalVector;
+typedef struct { uint8_t value[6];int16_t width,places;const char *text; } FormatVector;
 #include "real_vectors.h"
 volatile uint16_t test_passed,test_failed;
 volatile uint8_t test_done;
@@ -88,6 +89,20 @@ int main(void) {
         run_engine();
         check(zr_error==d->error);
         if(!d->error) { check(!memcmp(zr_result,d->out,6)); check(zr_integer==0); }
+    }
+    for(i=0;i<sizeof(format_vectors)/sizeof(format_vectors[0]);++i) {
+        const FormatVector *f=format_vectors+i;
+        memcpy(zr_a,f->value,6);zr_width=f->width;zr_places=f->places;zr_op=ZR_FORMAT;
+#ifdef __SDCC
+        if(i&1) { __asm di __endasm; }
+#endif
+        run_engine();
+#ifdef __SDCC
+        if(i&1) { __asm ei __endasm; }
+#endif
+        check(!zr_error&&zr_formatted[0]<=65);
+        check(zr_formatted[0]==strlen(f->text));
+        check(!memcmp(zr_formatted+1,f->text,strlen(f->text)));
     }
 #ifdef __SDCC
     test_done=255; test_complete(); return 0;

@@ -218,6 +218,8 @@ convention, checked against an independently assembled external routine. Arithme
 uses the recovered Real6 rules, including truncation and canonical underflow.
 Real formatted output, numeric input, Str/Val and the remaining mathematical
 functions are still pending; Write/Writeln does not yet accept Real values.
+The shared formatting engine passes separate direct tests on Zeal; connecting
+it to Pascal output and Str is the next increment.
 
 Labels may be identifiers or decimal digit names. Numeric labels retain their
 exact spelling, so 01 and 1 are different names; their digits are not limited to
