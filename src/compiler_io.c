@@ -59,7 +59,7 @@ void cc_str(void) FRONTEND {
     uint16_t before=cc.temporaries,body_before,offset;
     uint8_t target;
     cc_next();cc_expect('(',4);offset=field(1);cc_expect(',',3);
-    body_before=cc.temporaries;target=cc_reference(34);
+    body_before=cc.temporaries;target=cc_reference(41);
     if(cc_family(target)!=K_STRING) cc_fail(34);
     cc_release(body_before);cc_expect(')',5);
     /* Keep the selected destination while loading width and body from their

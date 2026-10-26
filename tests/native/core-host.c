@@ -89,7 +89,7 @@ int main(int argc,char **argv) {
     invalid("var s:string[80];begin str('xx',s)end.",26);
     invalid("var s:string[80];begin str(1:5:2,s)end.",3);
     invalid("var c:char;begin str(1,c)end.",34);
-    invalid("begin str(1,'x')end.",34);
+    invalid("begin str(1,'x')end.",41);
     invalid("type t=(a,b);begin writeln(1:a)end.",23);
     invalid("begin goto missing end.",40);
     invalid("label l;begin goto l end.",40);
