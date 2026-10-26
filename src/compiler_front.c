@@ -184,7 +184,7 @@ void cc_next(void) FRONTEND {
         }
         break;
     }
-    cc.token_start=cc.scan; cc.token_end=cc.scan+1; cc.hexadecimal=0; cc.literal_length=0;
+    cc.token_start=cc.scan; cc.token_end=cc.scan+1; cc.hexadecimal=0; cc.number_overflow=0; cc.literal_length=0;
     if(cc.scan==cc.input->length) { cc.token=T_EOF; cc.token_end=cc.scan; return; }
     if(letter(c)) {
         while(letter(get(cc.scan))||digit(get(cc.scan))) {
@@ -200,10 +200,16 @@ void cc_next(void) FRONTEND {
         wide=0; n=0;
         while(digit(get(cc.scan))||(base==16&&lower(get(cc.scan))>='a'&&lower(get(cc.scan))<='f')) {
             c=lower(get(cc.scan++)); value=digit(c)?c-'0':c-'a'+10;
-            wide=wide*base+value; ++n;
-            if((base==16&&n>4)||wide>(base==16?65535UL:32768UL)) { cc_fail(56); break; }
+            if(n<127) cc.name[n]=(char)c;
+            ++n;
+            if(!cc.number_overflow) {
+                wide=wide*base+value;
+                if(wide>(base==16?65535UL:32768UL)) cc.number_overflow=1;
+            }
+            if(base==16&&n>4) { cc_fail(56); break; }
         }
         if(!n) cc_fail(56);
+        cc.name[n<127?n:127]=0;
         cc.magnitude=(uint16_t)wide; cc.token=T_NUMBER;
     } else if(c=='\''||c=='#') {
         literal();
@@ -489,7 +495,7 @@ void cc_constant(uint8_t *type,uint16_t *value) FRONTEND {
     if(cc.token=='^') cc_control_literal();
     *type=K_INTEGER; *value=0;
     if(cc.token==T_NUMBER) {
-        if(!cc.hexadecimal&&cc.magnitude>32767u&&sign!=2) cc_fail(56);
+        if(cc.number_overflow||(!cc.hexadecimal&&cc.magnitude>32767u&&sign!=2)) cc_fail(56);
         *value=cc.magnitude;
     } else if(cc.token==T_STRING&&!sign) {
         *type=cc.literal_length==1?K_CHAR:K_STRING;

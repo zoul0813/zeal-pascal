@@ -774,6 +774,16 @@ def main():
         memory_expected += ''.join(marker+'\r\n' for marker in markers).encode() * 2
     checks.append(('absolute aliases, block operations, addressable Mem and native Port identity in RAM/COM',
                    memory_output.is_file() and memory_output.read_bytes() == memory_expected))
+    label_output = RUN / 'core/hostfs/LABELS.TXT'
+    label_markers = ('LABEL-FORWARD-BACKWARD-OK','LABEL-NUMERIC-TEXT-OK',
+                     'LABEL-FOR-LEAVE-STACK-OK','LABEL-FOR-STAY-OK',
+                     'LABEL-NESTED-FOR-STACK-OK','LABEL-WITH-LEAVE-STACK-OK',
+                     'LABEL-WITH-STAY-OK','LABEL-FIELD-VALUE-OK',
+                     'LABEL-NESTED-WITH-STACK-OK','LABEL-CASE-LEAVE-STACK-OK',
+                     'LABEL-LEXICAL-SHADOW-OK') + ('LABEL-RECURSIVE-OK',) * 3
+    label_expected = ''.join(marker+'\r\n' for marker in label_markers).encode() * 2
+    checks.append(('labels/Goto, lexical and recursive scopes, For/With stack ownership in RAM/COM',
+                   label_output.is_file() and label_output.read_bytes() == label_expected))
     pointer_image = RUN / 'core/hostfs/POINTERABI.COM'
     pointer_code = (ROOT / 'build/pointerabi.zpl').read_bytes()
     checks.append(('native external pointer payload matches independently assembled two-word probe',

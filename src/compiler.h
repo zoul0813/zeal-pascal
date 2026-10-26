@@ -19,7 +19,7 @@ enum { K_ARRAY=64,K_RECORD,K_SET,K_POINTER };
 /* Set expression kinds encode the ordinal family without allocating a type
  * descriptor for every constructor. The empty kind has no fixed base family. */
 enum { K_SET_EXPR=128,K_EMPTY_SET=192,K_ANY_POINTER,K_NIL };
-enum { S_VARIABLE,S_CONSTANT,S_TYPE,S_TYPED,S_PENDING,S_VALUE,S_REFERENCE,S_RESULT,S_PROCEDURE,S_FUNCTION,S_SYSTEM,S_ADDRESS,S_ALIAS,S_FIELD,S_VARIANT,S_VLABEL };
+enum { S_VARIABLE,S_CONSTANT,S_TYPE,S_TYPED,S_PENDING,S_VALUE,S_REFERENCE,S_RESULT,S_PROCEDURE,S_FUNCTION,S_SYSTEM,S_ADDRESS,S_ALIAS,S_LABEL,S_FIELD,S_VARIANT,S_VLABEL };
 enum { R_PARENT=0,R_FLAGS=1,R_SYMBOL=2,R_ENTRY=4,R_CALLS=6,R_PARAMETERS=8,R_COUNT=10,R_LOCALS=12,R_EXITS=14 };
 enum { RF_FORWARD=1,RF_RECURSIVE=2,RF_DEFINED=4,RF_EXTERNAL=8 };
 /* Names reference the immutable canonical source. All 127 bytes remain
@@ -37,12 +37,12 @@ typedef struct {
     Build *image;
     Diagnostic *error;
     uint16_t scan,token,token_start,token_end,magnitude,literal_length;
-    uint8_t literal[256],hexadecimal;
+    uint8_t literal[256],hexadecimal,number_overflow;
     char name[128];
     uint16_t emitted,entries,file_bytes,relocations;
     uint8_t workspace,scope,absolute_mode,var_strict,nesting,suppress;
     uint16_t routine_count,temporaries;
-    uint8_t with_depth,with_limit,with_bound,with_types[9];
+    uint8_t with_depth,with_limit,with_bound,with_types[9],for_depth;
     uint16_t field_offset;
 } Compiler;
 extern Compiler cc;
@@ -119,6 +119,8 @@ uint8_t cc_selection(uint16_t id) BACKEND;
 uint8_t cc_aggregate_actual(uint8_t type) BACKEND;
 void cc_string_statement(uint8_t insert) BACKEND;
 void cc_statement(void) BACKEND;
+void cc_labels(void) BACKEND;
+void cc_labels_finish(void) BACKEND;
 uint8_t cc_runtime_statement(void) BACKEND;
 uint8_t cc_reference(uint8_t code) BACKEND;
 void cc_mapping(uint16_t begin,uint16_t end,uint16_t first,uint16_t last) BACKEND;

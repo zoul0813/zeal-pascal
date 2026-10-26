@@ -89,7 +89,7 @@ captures are preserved. This project has not patched ZOS or the emulator.
 Current language support includes Integer, Byte, Char, Boolean and `string[1..255]` globals,
 compound statements, assignments, Integer arithmetic/bitwise/shift expressions,
 eager Boolean logic, ordinal/string comparisons, If/Then/Else, While/Do,
-Repeat/Until, For/To/Downto and Case/Of/Else. Case supports ordinal
+Repeat/Until, For/To/Downto, Case/Of/Else and same-block Goto labels. Case supports ordinal
 selectors, comma lists, inclusive ranges and nested alternatives.
 For controls support the implemented ordinal families;
 the final bound is evaluated once, zero trips retain the old control value and
@@ -209,8 +209,15 @@ and enum boundary fixtures exercise these features in Memory and saved native
 COM execution. The [routine fixture](tests/native/routines.pas) covers calls,
 recursion and string parameter copies. The string selection/operation fixtures
 cover index checks, aliasing, byte values and cleanup. The string result and
-boundary fixtures cover temporary cleanup and 255-byte values. Real6,
-Goto and the rest of the dialect remain in progress.
+boundary fixtures cover temporary cleanup and 255-byte values. Real6
+and the rest of the dialect remain in progress.
+
+Labels may be identifiers or decimal digit names. Numeric labels retain their
+exact spelling, so 01 and 1 are different names; their digits are not limited to
+Integer values. Forward and backward Goto transfers stay within the current routine
+block. Jumps may leave For/With scopes while releasing their owned stack state;
+entering a deeper For reports 71. An unused label need not have a definition.
+Transfers into an unevaluated With base retain the original undefined behavior.
 
 ReadLn currently uses Zeal's cooked keyboard line editor and restores raw mode
 before returning. It supports string fields, empty lines and discarding the rest

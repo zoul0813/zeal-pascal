@@ -261,7 +261,7 @@ static uint8_t factor(void) {
     if(cc_is("nil")) { cc_op16(0x21,0); kind=K_NIL; cc_next(); }
     else if(cc.token=='+'||cc.token=='-') {
         negative=cc.token=='-'; cc_next();
-        if(negative&&cc.token==T_NUMBER&&!cc.hexadecimal&&cc.magnitude==32768u) {
+        if(negative&&cc.token==T_NUMBER&&!cc.hexadecimal&&!cc.number_overflow&&cc.magnitude==32768u) {
             cc_op16(0x21,0x8000); cc_next();
         } else {
             if(cc_family(factor())!=K_INTEGER) cc_fail(47);
@@ -273,7 +273,7 @@ static uint8_t factor(void) {
         else if(cc_family(kind)==K_INTEGER) { cc_emit(0x7d); cc_emit(0x2f); cc_emit(0x6f); cc_emit(0x7c); cc_emit(0x2f); cc_emit(0x67); kind=K_INTEGER; }
         else cc_fail(47);
     } else if(cc.token==T_NUMBER) {
-        if(!cc.hexadecimal&&cc.magnitude>32767u) cc_fail(56);
+        if(cc.number_overflow||(!cc.hexadecimal&&cc.magnitude>32767u)) cc_fail(56);
         cc_op16(0x21,cc.magnitude); cc_next();
     } else if(cc.token==T_STRING) {
         if(cc.literal_length==1) { cc_op16(0x21,cc.literal[0]); kind=K_CHAR; }

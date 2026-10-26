@@ -33,6 +33,80 @@ static uint16_t condition(void) {
     return cc_forward(0xca);
 }
 static void statement(void);
+/* Labels share the lexical namespace, but With fields never capture a Goto.
+ * Numeric names use their source spelling, rather than an Integer value. */
+static int16_t label_lookup(void) {
+    uint8_t saved=cc.with_depth;
+    int16_t id;
+    if(cc.token!=T_ID&&(cc.token!=T_NUMBER||cc.hexadecimal)) return -1;
+    cc.with_depth=0; id=cc_lookup(); cc.with_depth=saved;
+    return id;
+}
+void cc_labels(void) BACKEND {
+    uint16_t token;
+    cc_next();
+    do {
+        if(cc.token!=T_ID&&(cc.token!=T_NUMBER||cc.hexadecimal)) { cc_fail(cc.hexadecimal?58:53); return; }
+        token=cc.token; cc.token=T_ID; cc_new_symbol(S_LABEL); cc.token=token;
+        cc_next();
+        if(cc.token!=',') break;
+        cc_next();
+    } while(!cc.error->code);
+    cc_expect(';',1);
+}
+void cc_labels_finish(void) BACKEND {
+    uint16_t i;
+    for(i=0;i<cc.symbol_count&&!cc.error->code;++i)
+        if(cc.symbols[i].role==S_LABEL&&cc.symbols[i].owner==cc.scope&&
+           !cc.symbols[i].initial_type&&cc.symbols[i].address) cc_fail(40);
+}
+static uint16_t label_word(uint16_t at) {
+    return far_get(cc.image->pages[2],at-0x8000u)|
+        ((uint16_t)far_get(cc.image->pages[2],at-0x8000u+1)<<8);
+}
+/* A pending jump keeps its source For/With depths in immediate operands.
+ * The JP operand links the pending records until the label is defined.
+ * All JP destinations use the ordinary code relocation ledger. */
+static void label_patch(uint16_t id,uint16_t at) {
+    Symbol *s=&cc.symbols[id];
+    uint16_t loops=label_word(at-5);
+    uint8_t with=far_get(cc.image->pages[2],at-0x8000u-25);
+    if(loops<s->type) { cc_fail(71); return; }
+    cc_put(at-25,with>s->control?with-s->control:0);
+    cc_word(at-5,(uint16_t)((loops-s->type)*2+(int16_t)(with-s->control)*4));
+    cc_word(at,s->address);
+}
+static void label_define(uint16_t id) {
+    Symbol *s=&cc.symbols[id];
+    uint16_t head=s->address,next;
+    if(s->owner!=cc.scope) { cc_fail(72); return; }
+    if(s->initial_type) { cc_fail(43); return; }
+    s->initial_type=1; s->address=0x4000u+cc.emitted;
+    s->type=cc.for_depth; s->control=cc.with_depth;
+    while(head&&!cc.error->code) {
+        next=label_word(head); label_patch(id,head); head=next;
+    }
+    cc_next(); cc_expect(':',2);
+}
+static void goto_statement(void) {
+    int16_t id;
+    uint16_t at;
+    cc_next(); id=label_lookup();
+    if(id<0||cc.symbols[id].role!=S_LABEL) { cc_fail(40); return; }
+    if(cc.symbols[id].owner!=cc.scope) { cc_fail(72); return; }
+    cc_guard();
+    cc_emit(0x06); cc_emit(cc.with_depth); /* B = With frames to leave */
+    cc_emit(0x78); cc_emit(0xb7); cc_emit(0x28); cc_emit(14);
+    cc_emit(0xfd); cc_emit(0xe5); cc_emit(0xe1); /* HL = current With frame */
+    cc_emit(0x23); cc_emit(0x23); cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb);
+    cc_emit(0x10); cc_emit(248); /* follow saved IY links */
+    cc_emit(0xe5); cc_emit(0xfd); cc_emit(0xe1);
+    cc_op16(0x21,cc.for_depth); cc_emit(0x39); cc_emit(0xf9);
+    at=cc_link(0xc3,cc.symbols[id].initial_type?0:cc.symbols[id].address);
+    if(cc.symbols[id].initial_type) label_patch((uint16_t)id,at);
+    else cc.symbols[id].address=at;
+    cc_next();
+}
 static void with_statement(uint16_t start,uint16_t code) {
     uint8_t saved=cc.with_depth,type;
     int16_t id;
@@ -128,6 +202,14 @@ static void statement(void) {
     uint8_t newline,kind,target,indexed;
     uint16_t before=cc.temporaries;
     if(++cc.depth>24) { cc_fail(98); --cc.depth; return; }
+    id=cc.token==T_ID?cc_lookup():-1;
+    if(cc.token==T_NUMBER||(id>=0&&cc.symbols[id].role==S_LABEL)) {
+        id=label_lookup();
+        if(id<0||cc.symbols[id].role!=S_LABEL) cc_fail(41);
+        else label_define((uint16_t)id);
+        if(cc.error->code) { --cc.depth; return; }
+        start=cc.token_start;
+    }
     if(cc_is("begin")) {
         cc_next();
         while(!cc.error->code&&!cc_is("end")&&cc.token!=T_EOF) {
@@ -193,7 +275,7 @@ static void statement(void) {
         mapping(code,pc(),start,head_end);
         body=cc.emitted;
         if(id>=0) cc.symbols[id].control=1;
-        statement();
+        ++cc.for_depth; statement(); --cc.for_depth;
         if(id>=0) cc.symbols[id].control=0;
         code=pc();
         if(id>=0) cc_load_symbol((uint16_t)id);
@@ -205,6 +287,8 @@ static void statement(void) {
         cc_patch(branch); cc_patch(other); cc_emit(0xc1); /* exactly one owned bound word */
         mapping(code,pc(),start,head_end);
         --cc.depth; return;
+    } else if(cc_is("goto")) {
+        goto_statement();
     } else if((cc_is("write")||cc_is("writeln"))&&cc_lookup()<0) {
         newline=cc_is("writeln"); cc_next();
         if(cc.token=='(') {
@@ -325,7 +409,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     for(i=0;i<cc_runtime_size();++i) cc_put(i,cc_runtime_get(i));
     cc.scan=0; cc.symbol_count=0; cc.depth=0; cc.entries=0; cc.range_check=0; cc.type_count=0; cc.relocations=0;
     cc.scope=0; cc.routine_count=0; cc.absolute_mode=1; cc.var_strict=1; cc.nesting=0; cc.suppress=0; cc.with_depth=0; cc.with_limit=4;
-    cc.temporaries=0;
+    cc.temporaries=0; cc.for_depth=0;
     cc_new_type(K_INTEGER,2,-32768,32767,0);
     cc_new_type(K_STRING,0,0,0,0); /* expression/literal string, not a storage type */
     cc_new_type(K_BOOLEAN,1,0,1,0);

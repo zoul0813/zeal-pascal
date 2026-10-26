@@ -145,7 +145,8 @@ void cc_block(void) ROUTINES {
     uint8_t scope=cc.scope,saved_bound=cc.with_bound;
     if(++cc.nesting>24) { cc_fail(98); --cc.nesting; return; }
     while(!cc.error->code) {
-        if(cc_is("var")||cc_is("const")||cc_is("type")) {
+        if(cc_is("label")) cc_labels();
+        else if(cc_is("var")||cc_is("const")||cc_is("type")) {
             first=cc.symbol_count; cc_declarations(); cc_typed_storage(first);
         } else if(cc_is("procedure")||cc_is("function")) {
             if(!jump) jump=cc_forward(0xc3);
@@ -164,6 +165,7 @@ void cc_block(void) ROUTINES {
     }
     cc.with_bound=cc.with_limit;
     if(!cc_is("begin")) cc_fail(12); else cc_statement();
+    cc_labels_finish();
     cc.with_bound=saved_bound;
     if(!cc.error->code&&cc.temporaries) cc_fail(99); /* no temporary escapes a statement/block */
     if(scope) {

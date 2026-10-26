@@ -61,6 +61,25 @@ int main(int argc,char **argv) {
         check(source_import(&s,embedded,sizeof(embedded)-1,&d));
         check(compile(&s,&b,&d)); build_close(&b);
     }
+    invalid("begin goto missing end.",40);
+    invalid("label l;begin goto l end.",40);
+    invalid("label l,l;begin end.",43);
+    invalid("label l;begin l:;l:end.",43);
+    invalid("label l;var l:integer;begin end.",43);
+    invalid("begin missing:end.",41);
+    invalid("label l;var r:record l:integer end;begin with r do begin l:l:=1 end end.",7);
+    invalid("label l;procedure p;begin goto l end;begin l:end.",72);
+    invalid("label l;procedure p;begin l:end;begin l:end.",72);
+    invalid("label l;var i:integer;begin goto l;for i:=1 to 1 do l:halt end.",71);
+    invalid("label l;var i:integer;begin if false then for i:=1 to 1 do l:halt;goto l end.",71);
+    invalid("label 000;begin goto 0;000:end.",40);
+    invalid("label $1;begin end.",58);
+    invalid("label 1;begin goto $1;1:end.",40);
+    invalid("label 1;begin $1:end.",41);
+    invalid("begin writeln(12345678901234567890)end.",56);
+    invalid("const x=-12345678901234567890;begin end.",56);
+    load("label unused,01,1;begin goto 01;01:goto 1;1:end.");
+    check(compile(&s,&b,&d)); ordered_map(); build_close(&b);
     invalid("var a,b:byte absolute $8000;begin end.",75);
     invalid("var b:byte absolute 'A';begin end.",22);
     invalid("var b:byte absolute true;begin end.",22);
@@ -335,7 +354,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {

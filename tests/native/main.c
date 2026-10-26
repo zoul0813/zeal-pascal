@@ -45,7 +45,7 @@ static uint8_t seed(const char *path,const char *text) {
 static uint8_t saved_corpus(void) {
     switch(test_stage) {
     case 9: case 11: case 13: case 15: case 17: case 19:
-    case 21: case 23: case 25: case 27: case 29: case 31: return 1;
+    case 21: case 23: case 25: case 27: case 29: case 31: case 33: return 1;
     default: return 0;
     }
 }
@@ -340,6 +340,18 @@ static void memory_tests(void) {
     checked_error("var a:array[1..2]of byte;begin {$R+}\nmove(a[3],a[1],0)end.",0x90,"move");
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
+static void label_tests(void) {
+    int8_t capture=open("H:/LABELS.TXT",O_WRONLY|O_CREAT|O_TRUNC);
+    check(capture>=0);
+    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
+    test_stage=33;
+    execution_file("H:/GOTOS.PAS",1,0,0);
+    test_stage=34;
+    checked_error("label l;begin goto l;l:\nwriteln(7 div 0)end.",2,"writeln");
+    checked_error("label l;var i:integer;begin for i:=1 to 3 do goto l;l:\nwriteln(7 div 0)end.",2,"writeln");
+    checked_error("label l;var r:record n:integer end;begin with r do goto l;l:\nwriteln(7 div 0)end.",2,"writeln");
+    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
+}
 static void media_tests(void) {
     uint8_t attempt,status;
     int8_t capture;
@@ -478,6 +490,7 @@ int app_main(void) {
     pointer_tests();
     heap_tests();
     memory_tests();
+    label_tests();
     source_close(&s); check(pages_used()==code_required);
     code_hash(digest); check(!memcmp(digest,initial_code_hash,32));
     test_stage=6; test_done=255;
