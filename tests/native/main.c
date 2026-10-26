@@ -45,7 +45,7 @@ static uint8_t seed(const char *path,const char *text) {
 static uint8_t saved_corpus(void) {
     switch(test_stage) {
     case 9: case 11: case 13: case 15: case 17: case 19:
-    case 21: case 23: case 25: case 27: case 29: return 1;
+    case 21: case 23: case 25: case 27: case 29: case 31: return 1;
     default: return 0;
     }
 }
@@ -319,6 +319,27 @@ static void heap_tests(void) {
     execution("begin stackptr:=$C800;halt end.",4,0);
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
+static void memory_tests(void) {
+    int8_t capture=open("H:/MEMORY.TXT",O_WRONLY|O_CREAT|O_TRUNC);
+    check(capture>=0);
+    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
+    test_stage=31;
+    execution_file("H:/ABSOLUTE.PAS",1,0,0);
+    execution_file("H:/ABSFRAME.PAS",1,0,0);
+    execution_file("H:/RAWMEMORY.PAS",1,0,0);
+    execution_file("H:/NATIVEIO.PAS",1,0,0);
+    test_stage=32;
+    checked_error("var n:integer;b:byte absolute n;begin {$R+}\nb:=256 end.",0x91,"b:=");
+    checked_error("var n:integer;b:array[0..1]of byte absolute n;begin {$R+}\nb[2]:=0 end.",0x90,"b[2]");
+    checked_error("var n:integer;begin {$R+}\nmem[addr(n)]:=256 end.",0x91,"mem[");
+    checked_error("var n:integer;begin\nmem[7 div 0]:=1 end.",2,"mem[");
+    checked_error("var a,b:byte;begin\nmove(a,b,7 div 0)end.",2,"move");
+    checked_error("var a:byte;begin\nfillchar(a,7 div 0,0)end.",2,"fillchar");
+    checked_error("var a:byte;begin\nfillchar(a,1,'ab')end.",0x10,"fillchar");
+    checked_error("var a:byte;begin\nfillchar(a,0,'')end.",0x10,"fillchar");
+    checked_error("var a:array[1..2]of byte;begin {$R+}\nmove(a[3],a[1],0)end.",0x90,"move");
+    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
+}
 static void media_tests(void) {
     uint8_t attempt,status;
     int8_t capture;
@@ -456,6 +477,7 @@ int app_main(void) {
     set_tests();
     pointer_tests();
     heap_tests();
+    memory_tests();
     source_close(&s); check(pages_used()==code_required);
     code_hash(digest); check(!memcmp(digest,initial_code_hash,32));
     test_stage=6; test_done=255;

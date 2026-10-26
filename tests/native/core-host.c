@@ -61,6 +61,29 @@ int main(int argc,char **argv) {
         check(source_import(&s,embedded,sizeof(embedded)-1,&d));
         check(compile(&s,&b,&d)); build_close(&b);
     }
+    invalid("var a,b:byte absolute $8000;begin end.",75);
+    invalid("var b:byte absolute 'A';begin end.",22);
+    invalid("var b:byte absolute true;begin end.",22);
+    invalid("var b:byte absolute missing;begin end.",41);
+    invalid("var b:byte absolute b;begin end.",41);
+    invalid("var a:array[1..2]of byte;b:byte absolute a[2];begin end.",1);
+    invalid("var n:integer;b:byte absolute n+1;begin end.",1);
+    invalid("var n:integer;b:byte absolute addr(n);begin end.",41);
+    invalid("function f:byte;var b:byte absolute f;begin end;begin end.",41);
+    invalid("var n:integer;begin mem['A']:=0 end.",23);
+    invalid("var n:integer;begin mem[addr(n)]:='A' end.",44);
+    invalid("var n:integer;begin mem[addr(n)]:=true end.",44);
+    invalid("begin port['A']:=0 end.",23);
+    invalid("begin port[0]:='A' end.",23);
+    invalid("begin writeln(addr(port[0]))end.",41);
+    invalid("begin writeln(sizeof(port[0]))end.",41);
+    invalid("begin writeln(sizeof(mem))end.",8);
+    invalid("procedure p(var b:byte);begin end;begin p(port[0])end.",41);
+    invalid("var a:byte;begin fillchar(a,1,ptr(0))end.",31);
+    invalid("var a:byte;begin fillchar(a,'A',0)end.",23);
+    invalid("var a,b:byte;begin move(a,b,true)end.",23);
+    invalid("var a:byte;begin move('AB',a,1)end.",41);
+    invalid("function f:byte;begin fillchar(f,1,0)end;begin end.",41);
     invalid("var p:integer;begin new(p)end.",44);
     invalid("begin new(nil)end.",44);
     invalid("begin release(0)end.",44);
@@ -312,7 +335,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {
@@ -320,6 +343,7 @@ int main(int argc,char **argv) {
                 file=fopen(path,"rb"); check(file!=NULL);
                 n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
                 check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
+                if(!strcmp(fixtures[fixture],"absolute")) check(b.globals_bytes==8);
                 ordered_map(); build_close(&b);
             }
         }

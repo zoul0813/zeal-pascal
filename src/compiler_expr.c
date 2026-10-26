@@ -76,6 +76,24 @@ uint8_t cc_selection(uint16_t id) BACKEND {
     cc_symbol_address(id); cc_next();
     return cc.symbols[id].role==S_RESULT?type:cc_index(type);
 }
+/* Mem is addressable byte storage; Port is an I/O operation, never a Var. */
+static uint8_t raw_kind(void) {
+    return cc_is("mem")?1:cc_is("port")?2:0;
+}
+static void raw_index(void) {
+    uint16_t before=cc.temporaries;
+    cc_next(); cc_expect('[',8);
+    if(cc_family(expression())!=K_INTEGER) cc_fail(23);
+    cc_release(before); cc_expect(']',9);
+}
+uint8_t cc_reference(uint8_t code) BACKEND {
+    int16_t id=cc.token==T_ID?cc_lookup():-1;
+    if(id<0&&cc_is("mem")) { raw_index(); return K_BYTE; }
+    if((id<0&&cc_is("port"))||(id>=0&&cc.symbols[id].role==S_RESULT)) { cc_fail(41); return K_INTEGER; }
+    if(!cc_variable(id)) { cc_fail(code); return K_INTEGER; }
+    if(cc.symbols[id].control) { cc_fail(44); return K_INTEGER; }
+    return cc_selection((uint16_t)id);
+}
 /* Array values are variable selections or an exact-length string constant
  * for a Char array. They do not acquire general scalar-expression semantics. */
 uint8_t cc_aggregate_actual(uint8_t type) BACKEND {
@@ -181,7 +199,12 @@ static uint8_t intrinsic(uint8_t op) {
     if(op>=F_COPY&&op<=F_CONCAT) return string_function(op);
     if(op==F_SIZEOF||op==F_ADDR) {
         id=cc.token==T_ID?cc_lookup():-1;
-        if(op==F_ADDR) {
+        if(id<0&&cc_is("port")) { cc_fail(41); return K_INTEGER; }
+        if(id<0&&cc_is("mem")) {
+            saved=cc.suppress; if(op==F_SIZEOF) ++cc.suppress;
+            raw_index(); cc.suppress=saved; cc.temporaries=before;
+            if(op==F_SIZEOF) cc_op16(0x21,1);
+        } else if(op==F_ADDR) {
             if(id>=0&&(cc.symbols[id].role==S_PROCEDURE||cc.symbols[id].role==S_FUNCTION||cc.symbols[id].role==S_RESULT)) {
                 cc_routine_address((uint16_t)id); cc_next();
             } else if(!cc_variable(id)) cc_fail(44); else cc_selection((uint16_t)id);
@@ -272,6 +295,10 @@ static uint8_t factor(void) {
             cc_check_range(kind);
             if(cc.types[kind].width==1) { cc_emit(0x26); cc_emit(0); }
             cc_release(before);
+        } else if(id<0&&raw_kind()) {
+            negative=raw_kind(); raw_index(); kind=K_BYTE;
+            if(negative==1) cc_load_indirect(K_BYTE);
+            else { cc_emit(0x4d); cc_emit(0x44); cc_emit(0xed); cc_emit(0x68); cc_emit(0x26); cc_emit(0); }
         } else if(id<0&&(fn=predefined_function())>=0) kind=intrinsic((uint8_t)fn);
         else if(id<0&&(cc_is("true")||cc_is("false"))) {
             cc_op16(0x21,cc_is("true")?1:0); kind=K_BOOLEAN; cc_next();
@@ -398,11 +425,38 @@ uint8_t cc_expression(void) BACKEND { return expression(); }
 
 /* Heap pointer destinations are selected exactly once before size evaluation.
  * The runtime commits a returned pointer only after allocation succeeds. */
-uint8_t cc_heap_statement(void) BACKEND {
+static void block_statement(uint8_t fill) {
+    uint16_t before=cc.temporaries;
+    uint8_t kind;
+    cc_next(); cc_expect('(',4); cc_reference(41); push_value(); cc_expect(',',3);
+    if(!fill) { cc_reference(41); push_value(); cc_expect(',',3); }
+    integer_value(); cc_release(before);
+    if(fill) {
+        push_value(); cc_expect(',',3); kind=cc_text_value(expression());
+        if(cc_family(kind)==K_STRING) { cc_call(RT_STRINGCHAR); kind=K_CHAR; }
+        if(!cc_ordinal(kind)) cc_fail(31);
+        cc_release(before); cc_emit(0x7d); cc_emit(0xc1); cc_emit(0xe1);
+    } else { cc_emit(0x44); cc_emit(0x4d); cc_emit(0xd1); cc_emit(0xe1); }
+    cc_expect(')',5); cc_call(fill?RT_FILL:RT_MOVE);
+}
+static void raw_store(uint8_t port) {
+    uint16_t before=cc.temporaries;
+    uint8_t kind;
+    raw_index(); push_value(); cc_expect(T_ASSIGN,7);
+    kind=expression();
+    if(port) { if(cc_family(kind)!=K_INTEGER) cc_fail(23); }
+    else cc_convert(K_BYTE,kind);
+    cc_release(before); cc_emit(0xd1);
+    if(port) { cc_emit(0x4b); cc_emit(0x42); cc_emit(0x7d); cc_emit(0xed); cc_emit(0x79); }
+    else { cc_emit(0x7d); cc_emit(0x12); }
+}
+uint8_t cc_runtime_statement(void) BACKEND {
     uint8_t op,type,kind;
     int16_t id;
     uint16_t before=cc.temporaries,width=0;
     if(cc.token!=T_ID||cc_lookup()>=0) return 0;
+    if(raw_kind()) { raw_store(raw_kind()==2); return 1; }
+    if(cc_is("move")||cc_is("fillchar")) { block_statement(cc_is("fillchar")); return 1; }
     if(cc_is("stackptr")) {
         cc_next(); cc_expect(T_ASSIGN,7); integer_value(); cc_release(before);
         cc_call(RT_STACKSET); return 1;

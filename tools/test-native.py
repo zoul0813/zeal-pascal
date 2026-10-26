@@ -596,7 +596,7 @@ def main():
         commands += ['run 1000000000']
     # The completion breakpoint is mandatory; this bounded budget includes the
     # RAM/COM control/routine/string corpora and source-recovery executions.
-    commands += ['run 80000000000', 's', 'regs', 'mmu']
+    commands += ['run 100000000000', 's', 'regs', 'mmu']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage', '_platform_error'):
         commands.append(f"rb 0x{sym[name]:x} 2")
     if '_test_failures' in sym:
@@ -609,7 +609,7 @@ def main():
     # This growing native corpus includes repeated disk publication and RAM/COM
     # routine execution. Retain both a cycle bound and mandatory completion;
     # allow its measured workload more wall time than the small UI scenarios.
-    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=600)
+    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=750)
     mem = memory(text)
     def word(name):
         p = sym[name]
@@ -755,6 +755,25 @@ def main():
         heap_expected += ''.join(marker+'\r\n' for marker in markers).encode() * 2
     checks.append(('heap allocation, reuse, coalescing, Mark/Release, state and pointer ABI in RAM/COM',
                    heap_output.is_file() and heap_output.read_bytes() == heap_expected))
+    memory_output = RUN / 'core/hostfs/MEMORY.TXT'
+    memory_expected = b''
+    for markers in (
+        ('ABSOLUTE-LITTLE-ENDIAN-OK','ABSOLUTE-RECORD-VIEW-OK','ABSOLUTE-ALIAS-CHAIN-OK',
+         'ABSOLUTE-NO-EXTRA-STORAGE-OK','ABSOLUTE-TYPED-CONSTANT-OK',
+         'ABSOLUTE-STRING-LENGTH-OK','ABSOLUTE-LOGICAL-ADDRESS-OK'),
+        ('ABSOLUTE-UNTYPED-VAR-OK','ABSOLUTE-RECURSIVE-FRAMES-OK',
+         'ABSOLUTE-LEXICAL-FRAMES-OK','ABSOLUTE-VALUE-PARAMETER-OK',
+         'ABSOLUTE-VAR-PARAMETER-OK','ABSOLUTE-REPEATED-FRAMES-OK'),
+        ('MOVE-OVERLAP-UP-OK','MOVE-OVERLAP-DOWN-OK','MOVE-SELF-OK','MEMORY-ZERO-COUNT-OK',
+         'MOVE-ARGUMENT-ORDER-ONCE-OK','FILL-SELECTED-ONCE-OK','FILL-LOW-BYTE-RPLUS-OK',
+         'FILL-NEGATIVE-BYTE-OK','FILL-ORDINAL-VALUES-OK','FILL-STRING-CHAR-OK',
+         'MEM-LITTLE-ENDIAN-OK','MEM-ADDRESSABLE-VAR-OK','MEM-SIZEOF-NO-EVALUATION-OK',
+         'MEMORY-REPEATED-CLEANUP-OK'),
+        ('NATIVE-ABSOLUTE-GLOBAL-OK','NATIVE-PORT-ADDRESS-DATA-IDENTITY-OK','MEMORY-PREDEFINED-SHADOW-OK'),
+    ):
+        memory_expected += ''.join(marker+'\r\n' for marker in markers).encode() * 2
+    checks.append(('absolute aliases, block operations, addressable Mem and native Port identity in RAM/COM',
+                   memory_output.is_file() and memory_output.read_bytes() == memory_expected))
     pointer_image = RUN / 'core/hostfs/POINTERABI.COM'
     pointer_code = (ROOT / 'build/pointerabi.zpl').read_bytes()
     checks.append(('native external pointer payload matches independently assembled two-word probe',

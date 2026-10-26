@@ -156,6 +156,24 @@ stack boundary. StackPtr reads the CPU stack; assigning a saved value restores i
 within the owned range. Invalid allocation/stack bounds report FF and return to
 source. Direct memory-state manipulation with live frames/allocations is unsafe.
 
+Absolute variables provide a typed view of an Integer logical address or another
+variable/parameter's first byte. They allocate no storage, including in recursive
+frames, and can refer to writable typed constants or other aliases. Numeric
+addresses are native Zeal addresses. A declaration cannot alias its unfinished
+self without an older lexical target.
+
+Move copies raw selected storage safely in either overlap direction. FillChar
+sets raw bytes from an ordinal's low byte, independently of R, or a String value
+of exactly one character. Counts are Integer byte counts; zero copies perform no
+payload access after evaluating their arguments. Mem[index] is addressable Byte
+storage, usable with Var, Addr, SizeOf and the block operations. Mem assignments
+apply Byte/R+ checks. Port[index] is an I/O operation rather than addressable
+storage: its Integer index supplies the full16-bit Z80 I/O address and writes
+use the Integer value's low byte. Upper address bits matter for Zeal MMU reads;
+for example, $80F2 selects the page2 mapping. Port data is8-bit. These raw APIs
+do not translate CP/M addresses or provide protection from arbitrary memory or
+hardware access.
+
 An Integer-indexed Char array of at most 255 elements acts as a fixed-length
 string in expressions, comparisons and string APIs. Assigning to a Char array
 requires an exact-length string constant or the same declared array type;

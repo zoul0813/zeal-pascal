@@ -1,0 +1,35 @@
+program RawMemory;
+type tones=(red,green);chars=array[1..8]of char;
+var a:chars;b:array[1..8]of byte;i,n,count:integer;s:string[2];
+function tick:integer;begin count:=count+1;tick:=1 end;
+function sourceindex:integer;begin count:=count*10+1;sourceindex:=1 end;
+function destindex:integer;begin count:=count*10+2;destindex:=2 end;
+function lengthvalue:integer;begin count:=count*10+3;lengthvalue:=3 end;
+procedure bytevar(var v:byte);begin v:=77 end;
+procedure raw(var v);begin fillchar(v,1,81)end;
+begin
+ a:='ABCDEFGH';move(a[1],a[2],5);
+ if a='AABCDEGH'then writeln('MOVE-OVERLAP-UP-OK');
+ a:='ABCDEFGH';move(a[2],a[1],5);
+ if a='BCDEFFGH'then writeln('MOVE-OVERLAP-DOWN-OK');
+ move(a,a,sizeof(a));if a='BCDEFFGH'then writeln('MOVE-SELF-OK');
+ move(a[1],a[2],0);fillchar(a,0,255);
+ if a='BCDEFFGH'then writeln('MEMORY-ZERO-COUNT-OK');
+ count:=0;move(a[sourceindex],a[destindex],lengthvalue);
+ if(count=123)and(a='BBCDFFGH')then writeln('MOVE-ARGUMENT-ORDER-ONCE-OK');
+ count:=0;fillchar(b[tick],3,'Z');
+ if(count=1)and(b[1]=90)and(b[3]=90)then writeln('FILL-SELECTED-ONCE-OK');
+ {$R+}fillchar(b,8,256);if(b[1]=0)and(b[8]=0)then writeln('FILL-LOW-BYTE-RPLUS-OK');
+ fillchar(b,8,-1);if(b[1]=255)and(b[8]=255)then writeln('FILL-NEGATIVE-BYTE-OK');
+ fillchar(b,8,true);fillchar(b[2],1,green);
+ if(b[1]=1)and(b[2]=1)then writeln('FILL-ORDINAL-VALUES-OK');
+ s:='A';fillchar(b,8,s);if b[1]=65 then writeln('FILL-STRING-CHAR-OK');
+ n:=$1234;
+ if(mem[addr(n)]=$34)and(mem[addr(n)+1]=$12)then writeln('MEM-LITTLE-ENDIAN-OK');
+ mem[addr(n)]:=77;bytevar(mem[addr(n)]);raw(mem[addr(n)]);
+ if(n=$1251)and(addr(mem[addr(n)])=addr(n))then writeln('MEM-ADDRESSABLE-VAR-OK');
+ count:=0;i:=sizeof(mem[tick]);
+ if(i=1)and(count=0)then writeln('MEM-SIZEOF-NO-EVALUATION-OK');
+ count:=0;for i:=1 to 100 do begin fillchar(b,8,0);move(a,b,8);count:=count+1 end;
+ if(count=100)and(b[1]=66)then writeln('MEMORY-REPEATED-CLEANUP-OK');
+end.

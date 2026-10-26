@@ -58,6 +58,7 @@
     jp stack_set                ; 4129: HL validated new CPU SP
 heap_frontier: .dw 0            ; 412C: predefined HeapPtr
 recursion_limit: .dw 0          ; 412E: conservative active stack boundary
+    jp fill_bytes               ; 4130: HL destination, BC count, A byte
 
 ; This prefix is deliberately separate from the C compiler's ABI. Only the
 ; private helper entries above are emitted in this first language increment.
@@ -1640,3 +1641,18 @@ heap_largest: .dw 0
 heap_return: .dw 0
 heap_flag: .db 0
 heap_mode: .db 0
+
+; Zero count never becomes a 65536-byte write. Caller owns the raw span.
+fill_bytes:
+    ld d,a
+    ld a,b
+    or c
+    ret z
+fill_bytes_loop:
+    ld (hl),d
+    inc hl
+    dec bc
+    ld a,b
+    or c
+    jr nz,fill_bytes_loop
+    ret

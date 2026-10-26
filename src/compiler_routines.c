@@ -193,7 +193,6 @@ uint8_t cc_invoke(uint16_t id) ROUTINES {
     uint8_t scope=cc.symbols[id].role==S_RESULT?cc.symbols[id].owner:cc.symbols[id].initial_type;
     uint16_t i,param,before,first=cc_rget(scope,R_PARAMETERS),count=cc_rget(scope,R_COUNT);
     uint16_t routine_id=cc_rget(scope,R_SYMBOL);
-    int16_t actual;
     uint8_t type,kind,role=cc.symbols[routine_id].role;
     cc_next();
     if(role==S_FUNCTION&&cc_family(cc.symbols[routine_id].type)==K_STRING)
@@ -205,10 +204,7 @@ uint8_t cc_invoke(uint16_t id) ROUTINES {
             if(i) cc_expect(',',3);
             param=first+i; type=cc.symbols[param].type;
             if(cc.symbols[param].role==S_REFERENCE) {
-                actual=cc.token==T_ID?cc_lookup():-1;
-                if(actual>=0&&cc.symbols[actual].role==S_RESULT) { cc_fail(41); break; }
-                if(!cc_variable(actual)||cc.symbols[actual].control) { cc_fail(44); break; }
-                kind=cc_selection((uint16_t)actual);
+                kind=cc_reference(44);
                 if(type!=255&&type!=kind&&!(cc_family(type)==K_POINTER&&cc_compatible(type,kind))&&!(cc_family(type)==K_STRING&&cc_family(kind)==K_STRING&&
                    (!cc.var_strict||cc.types[type].capacity==cc.types[kind].capacity))) { cc_fail(44); break; }
                 cc_guard(); cc_emit(0xe5);

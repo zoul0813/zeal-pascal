@@ -332,7 +332,8 @@ uint8_t cc_compatible(uint8_t left,uint8_t right) FRONTEND {
 }
 uint8_t cc_variable(int16_t id) FRONTEND {
     return id>=0&&(cc.symbols[id].role==S_VARIABLE||cc.symbols[id].role==S_TYPED||
-           cc.symbols[id].role==S_VALUE||cc.symbols[id].role==S_REFERENCE||cc.symbols[id].role==S_RESULT||cc.symbols[id].role==S_FIELD||cc.symbols[id].role==S_SYSTEM);
+           cc.symbols[id].role==S_VALUE||cc.symbols[id].role==S_REFERENCE||cc.symbols[id].role==S_RESULT||cc.symbols[id].role==S_FIELD||cc.symbols[id].role==S_SYSTEM||
+           cc.symbols[id].role==S_ADDRESS||cc.symbols[id].role==S_ALIAS);
 }
 uint16_t cc_rget(uint8_t scope,uint8_t field) FRONTEND {
     uint16_t at=PAGE_SIZE-(uint16_t)scope*16+field;
@@ -370,7 +371,9 @@ void cc_frame(uint8_t scope) FRONTEND {
 }
 void cc_slot(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];
-    if(s->role==S_TYPED) cc_address(0x21,s->address);
+    if(s->role==S_ALIAS) cc_symbol_address(s->address);
+    else if(s->role==S_ADDRESS) cc_op16(0x21,s->address);
+    else if(s->role==S_TYPED) cc_address(0x21,s->address);
     else if(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE)) {
         cc_frame(s->owner); cc_op16(0x11,s->address); cc_emit(0x19);
     } else cc_op16(0x21,s->address);
@@ -380,9 +383,13 @@ void cc_symbol_address(uint16_t id) FRONTEND {
     cc_slot(id);
     if(cc.symbols[id].role==S_REFERENCE) { cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb); }
 }
+static uint8_t indirect_symbol(const Symbol *s) {
+    return s->role==S_ALIAS||s->role==S_FIELD||s->role==S_REFERENCE||
+        (s->role!=S_ADDRESS&&s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE));
+}
 void cc_destination(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];
-    if(s->role==S_FIELD||s->role==S_REFERENCE||(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE))) {
+    if(indirect_symbol(s)) {
         cc_guard(); cc_emit(0xe5); cc_symbol_address(id); cc_emit(0xeb); cc_emit(0xe1);
     } else if(s->role==S_TYPED) cc_address(0x11,s->address);
     else cc_op16(0x11,cc.symbols[id].address);
@@ -392,7 +399,7 @@ void cc_load_symbol(uint16_t id) FRONTEND {
     if(s->type==255) { cc_fail(44); return; }
     if(cc_family(s->type)==K_SET) { cc_symbol_address(id); cc_set_load(s->type); return; }
     if(cc_family(s->type)==K_STRING||cc_aggregate(s->type)) cc_symbol_address(id);
-    else if(s->role==S_FIELD||s->role==S_REFERENCE||(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE))) {
+    else if(indirect_symbol(s)) {
         cc_symbol_address(id);
         cc_load_indirect(s->type);
     }
@@ -406,7 +413,7 @@ void cc_store_symbol(uint16_t id) FRONTEND {
     uint8_t op;
     if(s->type==255) { cc_fail(44); return; }
     op=cc.types[s->type].width==1?0x32:0x22;
-    if(s->role==S_FIELD||s->role==S_REFERENCE||(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE))) {
+    if(indirect_symbol(s)) {
         cc_guard(); cc_emit(0xe5); cc_symbol_address(id); cc_emit(0xd1); cc_emit(0x73);
         if(op==0x22) { cc_emit(0x23); cc_emit(0x72); }
         return;

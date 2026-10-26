@@ -250,7 +250,8 @@ static void resolve_pointers(void) {
     cc.scan=start; cc_next();
 }
 void cc_declarations(void) FRONTEND {
-    uint16_t id,first,count,i,value;
+    uint16_t id,first,count,i,value,total;
+    int16_t alias;
     uint8_t section,type,initial;
     while((cc_is("var")||cc_is("const")||cc_is("type"))&&!cc.error->code) {
         section=cc_is("var")?S_VARIABLE:cc_is("const")?S_CONSTANT:S_TYPE; cc_next();
@@ -260,7 +261,25 @@ void cc_declarations(void) FRONTEND {
             if(section==S_VARIABLE) {
                 while(cc.token==','&&!cc.error->code) { cc_next(); cc_new_symbol(S_VARIABLE); cc_next(); }
                 count=cc.symbol_count-first; cc_expect(':',2); type=parse_type(0);
-                for(i=first;i<first+count&&!cc.error->code;++i) {
+                if(cc_is("absolute")) {
+                    if(count!=1) cc_fail(75);
+                    cc_next(); total=cc.symbol_count;
+                    /* A declaration cannot bind its own unfinished symbol.
+                     * Older lexical declarations remain visible while parsing. */
+                    cc.symbol_count=first;
+                    alias=cc.token==T_ID?cc_lookup():-1;
+                    if(cc_variable(alias)&&cc.symbols[alias].role!=S_RESULT) {
+                        while(cc.symbols[alias].role==S_ALIAS) alias=(int16_t)cc.symbols[alias].address;
+                        value=(uint16_t)alias; initial=S_ALIAS; cc_next();
+                    } else {
+                        cc_constant(&initial,&value);
+                        if(cc_family(initial)!=K_INTEGER) cc_fail(22);
+                        initial=S_ADDRESS;
+                    }
+                    cc.symbol_count=total;
+                    cc.symbols[first].type=type; cc.symbols[first].role=initial;
+                    cc.symbols[first].address=value;
+                } else for(i=first;i<first+count&&!cc.error->code;++i) {
                     cc.symbols[i].type=type; cc_storage(i,cc.types[type].width);
                 }
             } else if(section==S_TYPE) {

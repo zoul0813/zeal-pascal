@@ -243,7 +243,7 @@ static void statement(void) {
         }
     } else if((cc_is("delete")||cc_is("insert"))&&cc_lookup()<0) {
         cc_string_statement(cc_is("insert"));
-    } else if(cc_heap_statement()) {
+    } else if(cc_runtime_statement()) {
     } else if((cc_is("halt")||cc_is("exit"))&&cc_lookup()<0) {
         newline=cc_is("halt"); cc_next();
         if(newline) cc_op16(0xc3,RT_HALT); else cc_exit();
