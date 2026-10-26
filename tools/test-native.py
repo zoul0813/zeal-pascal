@@ -103,8 +103,9 @@ KEYS = {' ': 'SPACE', '\n': 'ENTER', '.': 'PERIOD', '/': 'SLASH',
 SHIFTED = {':': 'SEMICOLON', '(': '9', ')': '0', '+': 'EQUAL', '*': '8', '_': 'MINUS',
            '{': 'LEFT_BRACKET', '}': 'RIGHT_BRACKET'}
 
-# One guarded READINPUT.PAS execution. The final Enter is queued without
-# advancing, so the next pass can stop at its first raw-read entry.
+# One guarded READINPUT.PAS execution. Hold the final Enter through the
+# program handoff; release it at the next reader. Transition-time input is
+# a separate acceptance boundary, not established by these ready-reader cases.
 READ_INPUT_LINES = ['-32768 1.25 Ztail', '300 99 32767', '.5', '-1.25 7',
                     '.125', '42', '11 22 tail', 'abc99 discarded', '5', '6',
                     'next', '31 88', '32', 'done', '', '0'*30+'1 X',
@@ -645,14 +646,21 @@ def main():
         commands += ['regs', 'mmu', f'rb 0x{mode:x} 1', f'bc 0x{keyboard_ioctl:x}']
         commands += type_text('abcdefghi\n\n', ticks=2000000)
         commands += ['run 1000000000']
+    enter_held = False
     for _ in range(2):
         commands += [f'bp 0x{reader:x}', 'run 120000000000', f'bc 0x{reader:x}']
+        if enter_held:
+            commands += ['release ENTER', 'run 2000000']
         for at, line in enumerate(READ_INPUT_LINES):
-            commands += type_text(line, ticks=2000000) + ['tap ENTER']
+            commands += type_text(line, ticks=2000000)
             if at+1 < len(READ_INPUT_LINES):
-                commands += ['run 100000000']
+                commands += ['tap ENTER', 'run 100000000']
+            else:
+                commands += ['press ENTER']
+                enter_held = True
     # Invalid numeric input must report I/O10 and return to its ReadLn source.
     commands += [f'bp 0x{reader:x}', 'run 120000000000', f'bc 0x{reader:x}']
+    commands += ['release ENTER', 'run 2000000']
     commands += type_text('12x', ticks=2000000) + ['tap ENTER']
     # The completion breakpoint is mandatory; this bounded budget includes the
     # RAM/COM control/routine/string corpora and source-recovery executions.

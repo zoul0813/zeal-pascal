@@ -42,12 +42,23 @@ def main():
                n.END_CHAR_INPUT_LINES, n.END_CHAR_INPUT_LINES)]
     passes += [console_lines, console_lines, [ctrl('Z')], [ctrl('Z')],
                [ctrl('C')], [ctrl('C')]]
+    # Keep the final Enter held across RAM return/COM loading. Deliver its
+    # release only at the next reader, outside the interrupt-masked mapping
+    # transition. This gate qualifies ready-reader input, not transition timing.
+    enter_held = False
     for pass_index, lines in enumerate(passes):
         commands += [f'bp 0x{reader:x}', 'run 12000000000', f'bc 0x{reader:x}']
+        if enter_held:
+            commands += ['release ENTER', 'run 2000000']
+            enter_held = False
         for at, line in enumerate(lines):
             commands += line
             if pass_index < len(passes)-4:
-                commands += ['tap ENTER']
+                if at+1 == len(lines):
+                    commands += ['press ENTER']
+                    enter_held = True
+                else:
+                    commands += ['tap ENTER']
             if at+1 < len(lines):
                 commands += ['run 100000000']
     commands += ['run 12000000000', 's', 'regs', 'mmu']

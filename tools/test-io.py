@@ -70,13 +70,21 @@ def main():
     commands += [f"bp 0x{sym['_test_stop']:x}"]
     lines = ['7 bad 42', 'bad 42', '99', 'bad 42', 'bad', 'bad', 'bad', 'bad', 'bad 77', 'bad', 'bad 1.25', 'bad', 'bad']
     passes = [lines, lines] + [['bad']]*8
+    enter_held = False
     for pass_lines in passes:
         commands += [f'bp 0x{reader:x}', 'run 60000000000', f'bc 0x{reader:x}']
+        if enter_held:
+            commands += ['release ENTER', 'run 2000000']
         for at, line in enumerate(pass_lines):
-            commands += n.type_text(line, ticks=2000000) + ['tap ENTER']
+            commands += n.type_text(line, ticks=2000000)
             if at+1 < len(pass_lines):
-                commands += ['run 100000000']
-    commands += ['run 60000000000', 's', 'regs', 'mmu']
+                commands += ['tap ENTER', 'run 100000000']
+            else:
+                commands += ['press ENTER']
+                enter_held = True
+    # Final pass also hands off to non-input programs; release only at the
+    # supervisor completion stop, beyond any program mapping transitions.
+    commands += ['run 60000000000', 'release ENTER', 's', 'regs', 'mmu']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage'):
         commands += [f'rb 0x{sym[name]:x} 2']
     commands += [f"rb 0x{sym['_test_failures']:x} 128", 'quit']
