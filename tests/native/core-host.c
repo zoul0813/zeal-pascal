@@ -80,6 +80,16 @@ int main(int argc,char **argv) {
     invalid("begin writeln(sin(true))end.",23);
     invalid("begin writeln(cos('x'))end.",23);
     invalid("begin writeln(arctan('xx'))end.",23);
+    invalid("begin writeln(random())end.",41);
+    invalid("begin writeln(random(1.5))end.",23);
+    invalid("begin writeln(random(true))end.",23);
+    invalid("begin writeln(random('A'))end.",23);
+    invalid("type t=(a,b);begin writeln(random(a))end.",23);
+    invalid("begin writeln(random(1,2))end.",5);
+    invalid("begin randomize()end.",1);
+    load("var a:array[0..1]of integer;begin writeln(sizeof(a[random(2)]))end.");
+    check(compile(&s,&b,&d)); check(!cc.random_entry&&!cc.random_state);
+    build_close(&b);
     invalid("begin writeln(succ(1.0))end.",31);
     invalid("begin writeln(1.0 div 2)end.",47);
     invalid("begin writeln(1.0 and 2)end.",47);
@@ -407,7 +417,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {

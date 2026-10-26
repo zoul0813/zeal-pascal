@@ -86,12 +86,15 @@ void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) {
     check(pages_used()==code_required+1);
 }
 void execution(const char *text,uint8_t kind,uint8_t code) {
-    check(load(text)); execute_loaded(kind,code,6);
+    uint8_t ok=load(text);
+    check(ok); if(ok) execute_loaded(kind,code,6);
 }
 void execution_file(const char *path,uint8_t kind,uint8_t code,uint16_t expected_position) {
-    check(load_source(&s,path,&d)); execute_loaded(kind,code,expected_position);
+    uint8_t ok=load_source(&s,path,&d);
+    check(ok); if(ok) execute_loaded(kind,code,expected_position);
 }
 void checked_error(const char *text,uint8_t code,const char *where) {
     uint16_t position=(uint16_t)(strstr(text,where)-text);
-    check(load(text)); execute_loaded(3,code,position);
+    uint8_t ok=load(text);
+    check(ok); if(ok) execute_loaded(3,code,position);
 }

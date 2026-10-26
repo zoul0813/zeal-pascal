@@ -299,6 +299,8 @@ static void statement(void) {
         cc_read(cc_is("readln"));
     } else if((cc_is("delete")||cc_is("insert"))&&cc_lookup()<0) {
         cc_string_statement(cc_is("insert"));
+    } else if(cc_is("randomize")&&cc_lookup()<0) {
+        cc_next(); cc_randomize();
     } else if(cc_runtime_statement()) {
     } else if((cc_is("halt")||cc_is("exit"))&&cc_lookup()<0) {
         newline=cc_is("halt"); cc_next();
@@ -382,6 +384,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     cc.scan=0; cc.symbol_count=0; cc.depth=0; cc.entries=0; cc.range_check=0; cc.type_count=0; cc.relocations=0;
     cc.scope=0; cc.routine_count=0; cc.absolute_mode=1; cc.var_strict=1; cc.nesting=0; cc.suppress=0; cc.with_depth=0; cc.with_limit=4;
     cc.temporaries=0; cc.for_depth=0; cc.input_fresh=1;
+    cc.random_entry=0; cc.random_state=0;
     cc_new_type(K_INTEGER,2,-32768,32767,0);
     cc_new_type(K_STRING,0,0,0,0); /* expression/literal string, not a storage type */
     cc_new_type(K_BOOLEAN,1,0,1,0);

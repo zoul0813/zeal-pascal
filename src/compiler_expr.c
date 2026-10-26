@@ -115,7 +115,7 @@ uint8_t cc_aggregate_actual(uint8_t type) BACKEND {
     } else cc_fail(41);
     return type;
 }
-enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR,F_LENGTH,F_COPY,F_POS,F_CONCAT,F_PTR,F_MEMAVAIL,F_MAXAVAIL,F_STACKPTR,F_TRUNC,F_ROUND,F_INT,F_FRAC,F_SQRT,F_LN,F_EXP,F_SIN,F_COS,F_ARCTAN };
+enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR,F_LENGTH,F_COPY,F_POS,F_CONCAT,F_PTR,F_MEMAVAIL,F_MAXAVAIL,F_STACKPTR,F_TRUNC,F_ROUND,F_INT,F_FRAC,F_SQRT,F_LN,F_EXP,F_SIN,F_COS,F_ARCTAN,F_RANDOM };
 static void string_value(void) {
     uint16_t before=cc.temporaries;
     uint8_t kind;
@@ -180,7 +180,7 @@ void cc_string_statement(uint8_t insert) BACKEND {
     cc_expect(')',5); cc_call(insert?RT_INSERT:RT_DELETE); cc_release(before);
 }
 static int16_t predefined_function(void) {
-    static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length","copy","pos","concat","ptr","memavail","maxavail","stackptr","trunc","round","int","frac","sqrt","ln","exp","sin","cos","arctan"};
+    static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length","copy","pos","concat","ptr","memavail","maxavail","stackptr","trunc","round","int","frac","sqrt","ln","exp","sin","cos","arctan","random"};
     uint8_t i;
     for(i=0;i<sizeof(functions)/sizeof(functions[0]);++i) if(cc_is(functions[i])) return i;
     return -1;
@@ -192,11 +192,15 @@ static uint8_t intrinsic(uint8_t op) {
     uint8_t saved;
     int16_t id;
     cc_next();
+    if(op==F_RANDOM&&cc.token!='(') { cc_random(0); return K_REAL; }
     if(op==F_STACKPTR) { cc_op16(0x21,0); cc_emit(0x39); return K_INTEGER; }
     if(op==F_MEMAVAIL||op==F_MAXAVAIL) {
         cc_emit(0x3e); cc_emit(op==F_MAXAVAIL); cc_call(RT_AVAIL); return K_INTEGER;
     }
     cc_expect('(',4);
+    if(op==F_RANDOM&&(cc.token==')'||cc.token==','||cc.token==T_EOF)) {
+        cc_fail(41); return K_INTEGER;
+    }
     if(op>=F_COPY&&op<=F_CONCAT) return string_function(op);
     if(op==F_SIZEOF||op==F_ADDR) {
         id=cc.token==T_ID?cc_lookup():-1;
@@ -219,6 +223,10 @@ static uint8_t intrinsic(uint8_t op) {
     }
     kind=cc_text_value(expression()); cc_expect(')',5);
     if(cc.error->code) return K_INTEGER;
+    if(op==F_RANDOM) {
+        if(cc_family(kind)!=K_INTEGER) cc_fail(23);
+        cc_release(before); cc_random(1); return K_INTEGER;
+    }
     if(op==F_LENGTH) {
         if(cc_family(kind)==K_STRING) { cc_emit(0x6e); cc_emit(0x26); cc_emit(0); }
         else if(cc_family(kind)==K_CHAR) cc_op16(0x21,1);

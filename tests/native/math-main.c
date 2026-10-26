@@ -22,6 +22,11 @@ int app_main(void) {
     execution_file("H:/LOGEXP.PAS",1,0,0);
     execution_file("H:/TRIG.PAS",1,0,0);
     execution_file("H:/TRIGSHADOW.PAS",1,0,0);
+    execution_file("H:/RANDOM.PAS",1,0,0);
+    execution_file("H:/RANDSHADOW.PAS",1,0,0);
+    execution_file("H:/RANDOMSEED.PAS",1,0,0);
+    execution_file("H:/RANDBAD.PAS",3,0x91,13);
+    execution_file("H:/RANDGUARD.PAS",3,0xff,41);
     execution_file("H:/LOGBAD.PAS",3,4,33);
     execution_file("H:/EXPBAD.PAS",3,1,36);
     test_stage=36;
@@ -40,6 +45,13 @@ int app_main(void) {
     checked_error("var r:real;begin heapptr:=stackptr-128;\nr:=sin(1)end.",0xff,"r:=sin");
     checked_error("var r:real;begin heapptr:=stackptr-128;\nr:=cos(1)end.",0xff,"r:=cos");
     checked_error("var r:real;begin heapptr:=stackptr-128;\nr:=arctan(1)end.",0xff,"r:=arctan");
+    checked_error("begin {$R-}\nwriteln(random(0))end.",0x91,"writeln");
+    checked_error("begin {$R-}\nwriteln(random(-1))end.",0x91,"writeln");
+    checked_error("var n:integer;begin n:=-32768;\nwriteln(random(n))end.",0x91,"writeln");
+    checked_error("function bound:integer;begin bound:=0 end;begin\nwriteln(random(bound))end.",0x91,"writeln");
+    checked_error("var n:integer;begin heapptr:=stackptr-72;\nn:=random(1)end.",0xff,"n:=random");
+    checked_error("var r:real;begin heapptr:=stackptr-72;\nr:=random end.",0xff,"r:=random");
+    checked_error("begin heapptr:=stackptr-72;\nrandomize end.",0xff,"randomize");
     if(capture>=0) {check(swap(capture,DEV_STDOUT)==0);check(close(capture)==0);}
     source_close(&s);check(pages_used()==code_required);
     test_stage=6;test_done=255;test_complete();return 0;

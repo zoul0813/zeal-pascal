@@ -45,6 +45,7 @@ typedef struct {
     uint16_t routine_count,temporaries;
     uint8_t with_depth,with_limit,with_bound,with_types[9],for_depth,input_fresh;
     uint16_t field_offset;
+    uint16_t random_entry,random_state;
 } Compiler;
 extern Compiler cc;
 
@@ -141,4 +142,6 @@ void cc_write(uint8_t newline) FRONTEND;
 void cc_str(void) FRONTEND;
 void cc_val(void) FRONTEND;
 void cc_read(uint8_t newline) FRONTEND;
+void cc_random(uint8_t bounded) FRONTEND;
+void cc_randomize(void) FRONTEND;
 #endif
