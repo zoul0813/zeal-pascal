@@ -11,4 +11,5 @@
 /tools/*
 !/tools/test-native.py
 !/tools/test-native-host.py
+!/tools/test-real.py
 !/tools/package-native.py

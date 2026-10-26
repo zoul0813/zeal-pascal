@@ -15,6 +15,20 @@ set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/pascal_runtime.zpl;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
 set(PASCAL_CORE src/source.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_expr.c src/compiler_types.c src/compiler_front.c src/compiler_routines.c src/compiler_state.c src/compiler_asset.c src/library.c src/platform.c src/output.c src/native.asm
     ${CMAKE_BINARY_DIR}/runtime_asset.asm)
+# This SDK disables compiler depfiles. Keep shared ABI/header changes from
+# leaving stale objects in another compiler bank during incremental ZDE builds.
+foreach(source IN LISTS PASCAL_CORE)
+    if(source MATCHES "\\.c$")
+        set_property(SOURCE ${source} APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/zp.h)
+    endif()
+    if(source MATCHES "src/compiler.*\\.c$")
+        set_property(SOURCE ${source} APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h)
+    endif()
+endforeach()
+set_property(SOURCE src/library.c src/banks.c tests/native/main.c APPEND PROPERTY
+    OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/library.h)
+set_property(SOURCE src/banks.c src/main.c tests/native/main.c APPEND PROPERTY
+    OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/zp.h)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/sdk_glue.asm CONTENT
     ".globl _fflush_stdout\n.include \"$ENV{ZOS_PATH}/sdk/sdcc/src/zeal8bitos.asm\"\n")
 list(APPEND PASCAL_CORE ${CMAKE_BINARY_DIR}/sdk_glue.asm)
@@ -70,3 +84,20 @@ zos_add_outputs(setabi WITH_EXTENSION zpl)
 
 add_executable(pointerabi tests/native/pointerabi.asm)
 zos_add_outputs(pointerabi WITH_EXTENSION zpl)
+
+# The Real6 component is checked independently before compiler integration.
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/real_vectors.h
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/test-real.py
+        --generate-vectors ${CMAKE_BINARY_DIR}/real_vectors.h
+    DEPENDS ${CMAKE_SOURCE_DIR}/tools/test-real.py VERBATIM)
+add_executable(zrealtest ${CMAKE_BINARY_DIR}/test_sdk_startup.asm src/real.c
+    tests/native/real-core.c tests/native/machine.asm ${CMAKE_BINARY_DIR}/real_vectors.h)
+set_property(SOURCE src/real.c tests/native/real-core.c APPEND PROPERTY
+    OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/real.h)
+set_property(SOURCE tests/native/real-core.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_BINARY_DIR}/real_vectors.h ${CMAKE_SOURCE_DIR}/src/zp.h)
+target_include_directories(zrealtest PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_definitions(zrealtest PRIVATE ZP_REAL_RUNTIME)
+target_compile_options(zrealtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+target_link_options(zrealtest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
+zos_add_outputs(zrealtest)

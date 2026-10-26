@@ -10,6 +10,7 @@ Build using the existing Zeal development environment:
 zde cmake
 python3 tools/test-native-host.py
 python3 tools/test-native.py
+python3 tools/test-real.py --host --sanitize --native
 ```
 
 Deploy the matching `build/zpascal.bin` and `build/zpascal.zpl` from one build.
@@ -210,7 +211,9 @@ COM execution. The [routine fixture](tests/native/routines.pas) covers calls,
 recursion and string parameter copies. The string selection/operation fixtures
 cover index checks, aliasing, byte values and cleanup. The string result and
 boundary fixtures cover temporary cleanup and 255-byte values. Real6
-and the rest of the dialect remain in progress.
+and the rest of the dialect remain in progress. A shared Real6 arithmetic and
+decimal parser component passes separate host/native checks; integration into
+Pascal declarations, generated operations and I/O is still pending.
 
 Labels may be identifiers or decimal digit names. Numeric labels retain their
 exact spelling, so 01 and 1 are different names; their digits are not limited to
