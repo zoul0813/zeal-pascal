@@ -95,7 +95,8 @@ selectors, comma lists, inclusive ranges and nested alternatives.
 For controls support the implemented ordinal families;
 the final bound is evaluated once, zero trips retain the old control value and
 normal completion leaves the final bound. Write/Writeln accepts strings,
-Integers, Characters and Booleans; ReadLn currently accepts string targets. Short-string assignment
+Integers, Characters, Booleans and Reals, including formatted fields; ReadLn
+currently accepts string targets. Short-string assignment
 truncates to the destination capacity. Memory execution preserves IDE pages and
 source; checked errors return to their source statement after Escape.
 
@@ -201,7 +202,7 @@ or zero, including for an empty pattern. Concat joins String/Char arguments in
 order and reports error 10 above 255 bytes. Insert snapshots its source before
 other arguments and truncates the result to the destination capacity. Copy,
 Delete and Insert require positions 1..255; negative Copy/Delete counts report
-error 11. Nested routine address bridges and remaining raw-memory APIs are
+error 11. Nested routine address bridges and remaining runtime APIs are
 still in progress.
 
 The [control-flow fixture](tests/native/control.pas),
@@ -216,10 +217,20 @@ promotion, arithmetic/comparisons, selected storage, value/Var arguments and
 lexical/recursive functions. Real function results use the native BCDEHL register
 convention, checked against an independently assembled external routine. Arithmetic
 uses the recovered Real6 rules, including truncation and canonical underflow.
-Real formatted output, numeric input, Str/Val and the remaining mathematical
-functions are still pending; Write/Writeln does not yet accept Real values.
-The shared formatting engine passes separate direct tests on Zeal; connecting
-it to Pascal output and Str is the next increment.
+Real output defaults to an 18-character scientific field. `value:width` selects
+a minimum field width; negative widths add no padding and widths above255 use255.
+For Real values, `value:width:decimals` selects fixed point for0..24 decimals;
+other decimal counts select scientific notation. Fields retain their values
+before evaluating width/precision functions, and nested output remains in order.
+Str uses the same Integer/Real formatting and copies the prefix that fits its
+String destination, including selected fields and Var parameters. For example:
+
+```pascal
+WriteLn(price:10:2);
+Str(count:6, text);
+```
+
+Val, numeric input and the remaining mathematical functions are still pending.
 
 Labels may be identifiers or decimal digit names. Numeric labels retain their
 exact spelling, so 01 and 1 are different names; their digits are not limited to

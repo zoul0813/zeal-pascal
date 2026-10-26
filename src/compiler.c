@@ -290,26 +290,9 @@ static void statement(void) {
     } else if(cc_is("goto")) {
         goto_statement();
     } else if((cc_is("write")||cc_is("writeln"))&&cc_lookup()<0) {
-        newline=cc_is("writeln"); cc_next();
-        if(cc.token=='(') {
-            cc_next();
-            do {
-                kind=cc_family(cc_text_value(cc_expression()));
-                if(kind==K_ARRAY||kind==K_RECORD) cc_fail(62);
-                else if(kind==K_SET) cc_fail(66);
-                if(kind>K_CHAR) cc_fail(44);
-                if(kind==K_CHAR) cc_emit(0x7d);
-                cc_call(kind==K_STRING?RT_STRING:kind==K_BOOLEAN?RT_BOOLEAN:kind==K_CHAR?RT_CHAR:RT_INTEGER);
-                cc_release(before);
-                if(cc.token!=',') break;
-                cc_next();
-            } while(!cc.error->code);
-            cc_expect(')',5);
-        } else if(!newline) cc_fail(4);
-        if(newline) {
-            cc_emit(0x3e); cc_emit(13); cc_call(RT_CHAR);
-            cc_emit(0x3e); cc_emit(10); cc_call(RT_CHAR);
-        }
+        cc_write(cc_is("writeln"));
+    } else if(cc_is("str")&&cc_lookup()<0) {
+        cc_str();
     } else if(cc_is("readln")&&cc_lookup()<0) {
         cc_next(); cc_call(RT_READLINE);
         if(cc.token=='(') {

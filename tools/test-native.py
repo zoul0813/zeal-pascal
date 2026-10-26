@@ -596,7 +596,7 @@ def main():
         commands += ['run 1000000000']
     # The completion breakpoint is mandatory; this bounded budget includes the
     # RAM/COM control/routine/string corpora and source-recovery executions.
-    commands += ['run 100000000000', 's', 'regs', 'mmu']
+    commands += ['run 120000000000', 's', 'regs', 'mmu']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage', '_platform_error'):
         commands.append(f"rb 0x{sym[name]:x} 2")
     if '_test_failures' in sym:
@@ -609,7 +609,7 @@ def main():
     # This growing native corpus includes repeated disk publication and RAM/COM
     # routine execution. Retain both a cycle bound and mandatory completion;
     # allow its measured workload more wall time than the small UI scenarios.
-    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=750)
+    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=900)
     mem = memory(text)
     def word(name):
         p = sym[name]
@@ -802,6 +802,30 @@ def main():
     real_code = (ROOT/'build/realabi.zpl').read_bytes()
     checks.append(('native external six-byte Real arguments and BCDEHL result match independent assembly',
                    real_image.is_file() and real_image.read_bytes()[0x4004:0x4004+len(real_code)]==real_code))
+    formats_output = RUN / 'core/hostfs/FORMATS.TXT'
+    formats_expected = (
+        b'DEFAULT[0,-32768,32767,TRUE,FALSE,X,text]\r\n'
+        b'WIDTH[   -123,12,   TRUE,FALSE,  X,  text]\r\n'
+        b'SIGNED[7,7,7]\r\n'
+        b'REALDEFAULT[  1.2500000000E+00, -1.2500000000E+00,  0.0000000000E+00]\r\n'
+        b'SCIENTIFIC[1.3E+00,1.250E+00,-1.25E+00]\r\n'
+        b'FIXED[    1.25,1,-0.00,0.3]\r\n'
+        b'ROUND[0.1,2.67,10.0]\r\n'
+        b'PRECISION[1.250000000000000000000000,1.3E+00,1.3E+00]\r\n'
+        b'STRING-VALUE[     old]\r\n'
+        b'REAL-VALUE[    1.25]\r\n'
+        b'INTEGER-VALUE[       7]\r\n'
+        b'BOOLEAN-VALUE[   FALSE]\r\n'
+        b'CHAR-VALUE[       A]\r\n'
+        b'OUTER[INNER;    1.25];3.5\r\n'
+        b'RAW[  \x00 \xff]\r\n'
+        b'EMPTY[     ]\r\n'
+        + b'CLAMP-INT[' + b' '*254 + b'7]\r\n'
+        + b'CLAMP-REAL[' + b' '*239 + b'1.2500000000E+00]\r\n'
+        + b'FORMAT-OUTPUT-DONE\r\n')
+    checks.append(('formatted scalar/Real output, nested calls and snapshots plus Str destinations/truncation in RAM/COM',
+                   formats_output.is_file() and formats_output.read_bytes()==
+                   formats_expected*2+b'STR-FORMAT-ALL-OK\r\n'*2))
     pointer_image = RUN / 'core/hostfs/POINTERABI.COM'
     pointer_code = (ROOT / 'build/pointerabi.zpl').read_bytes()
     checks.append(('native external pointer payload matches independently assembled two-word probe',

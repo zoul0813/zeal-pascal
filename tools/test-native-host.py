@@ -12,7 +12,7 @@ runtime = (ROOT / 'build/pascal_runtime.zpl').read_bytes()
     ','.join(str(x) for x in runtime) + '};\n' +
     '__asm__(".globl _runtime_end\\n_runtime_end = _runtime_start + ' + str(len(runtime)) + '");\n')
 subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-Isrc',
-                'src/source.c', 'src/sha256.c', 'src/compiler.c', 'src/compiler_expr.c', 'src/compiler_types.c', 'src/compiler_front.c', 'src/compiler_routines.c', 'src/compiler_real.c', 'src/real.c', 'src/compiler_state.c', 'src/compiler_asset.c',
+                'src/source.c', 'src/sha256.c', 'src/compiler.c', 'src/compiler_expr.c', 'src/compiler_types.c', 'src/compiler_front.c', 'src/compiler_routines.c', 'src/compiler_real.c', 'src/compiler_io.c', 'src/real.c', 'src/compiler_state.c', 'src/compiler_asset.c',
                 'tests/native/core-host.c', str(OUT / 'asset.c'), '-o', str(OUT / 'core')], cwd=ROOT, check=True)
 subprocess.run([str(OUT / 'core'), str(OUT / 'image.bin')], cwd=ROOT, check=True)
 # Progress is mutable; the independently reviewed functional body is not.

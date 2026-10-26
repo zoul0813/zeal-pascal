@@ -1,5 +1,7 @@
 .module runtime
 .globl real_dispatch,real_buffer,call_error
+.globl format_field,field_output,str_copy,integer_prepare
+.globl character,neg_hl,false_text,true_text
 .area _HEADER (ABS)
 .org 0x4000
     jp 0x40a0
@@ -62,6 +64,9 @@ recursion_limit: .dw 0          ; 412E: conservative active stack boundary
     jp fill_bytes               ; 4130: HL destination, BC count, A byte
     jp real_dispatch            ; 4133: DE left, HL right, A op/Integer flags
 real_buffer: .ds 6              ; 4136: transient helper/return bytes, copied by caller
+    jp format_field             ; 413C: HL field record, A family -> short-string body
+    jp field_output             ; 413F: HL owned body, DE signed minimum field width
+    jp str_copy                 ; 4142: HL body, DE destination, BC width, A capacity
 
 ; This prefix is deliberately separate from the C compiler's ABI. Only the
 ; private helper entries above are emitted in this first language increment.
@@ -127,11 +132,15 @@ os_exit:
 ; The compiler checks that complete budget before pushing/calling them.
 character:
     ld (io_byte),a
+    ld hl,(0x40be)
+    push hl                     ; restore this invocation's source PC after I/O
     ld de,#io_byte
     ld bc,#1
     ld h,#0
     ld l,#1
     rst 8
+    pop hl
+    ld (0x40be),hl
     or a
     jr nz,io_error
     ld a,b
@@ -500,48 +509,25 @@ mul_skip:
     ret
 
 integer:
-    bit 7,h
-    jr z,positive
-    call neg_hl
-    push hl
-    ld a,#45
-    call character
-    pop hl
-positive:
-    ld de,#digits+5
-    xor a
-    ld (de),a
-decimal_loop:
-    push de
-    ld de,#10
-    ld bc,#0
-decimal_sub:
-    or a
-    sbc hl,de
-    jr c,decimal_ready
+    call integer_prepare
+    push ix
+    ld ix,#0
+    add ix,sp
+    ex de,hl
+    ld hl,#-8
+    add hl,sp
+    ld sp,hl
+    ex de,hl
+    ld c,(hl)
+    ld b,#0
     inc bc
-    jr decimal_sub
-decimal_ready:
-    add hl,de
-    ld a,l
-    add a,#48
-    pop de
-    dec de
-    ld (de),a
-    ld h,b
-    ld l,c
-    ld a,h
-    or l
-    jr nz,decimal_loop
-decimal_print:
-    ld a,(de)
-    or a
-    ret z
-    push de
-    call character
-    pop de
-    inc de
-    jr decimal_print
+    ldir
+    ld hl,#0
+    add hl,sp
+    call string_output
+    ld sp,ix
+    pop ix
+    ret
 
 call_error:                     ; preserve user call site, never resume
     ld (error_code),a
@@ -584,7 +570,6 @@ error_namespace: .db 0
 io_byte: .db 0
 negative: .db 0
 want_remainder: .db 0
-digits: .ds 6
 tail_length: .db 0
 tail: .ds 127
 line_next: .dw 0

@@ -78,6 +78,19 @@ int main(int argc,char **argv) {
     invalid("var r:real;begin for r:=1 to 2 do end.",30);
     invalid("type a=array[real]of byte;begin end.",30);
     invalid("type a=set of real;begin end.",30);
+    invalid("begin writeln(1:5:2)end.",5);
+    invalid("begin writeln('x':5:2)end.",5);
+    invalid("begin writeln(true:5:2)end.",5);
+    invalid("begin writeln('xx':5:2)end.",5);
+    invalid("begin writeln(1:true)end.",23);
+    invalid("begin writeln(1.0:5:true)end.",23);
+    invalid("var s:string[80];begin str(true,s)end.",26);
+    invalid("var s:string[80];begin str('x',s)end.",26);
+    invalid("var s:string[80];begin str('xx',s)end.",26);
+    invalid("var s:string[80];begin str(1:5:2,s)end.",3);
+    invalid("var c:char;begin str(1,c)end.",34);
+    invalid("begin str(1,'x')end.",34);
+    invalid("type t=(a,b);begin writeln(1:a)end.",23);
     invalid("begin goto missing end.",40);
     invalid("label l;begin goto l end.",40);
     invalid("label l,l;begin end.",43);
@@ -371,7 +384,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {

@@ -135,4 +135,6 @@ void cc_real_emit(uint16_t reference) FRONTEND;
 void cc_real_hold(void) FRONTEND;
 void cc_real_unary(uint8_t op,uint8_t type,uint16_t before) FRONTEND;
 void cc_real_binary(uint8_t op,uint8_t left,uint8_t right,uint16_t before,uint16_t right_bytes) FRONTEND;
+void cc_write(uint8_t newline) FRONTEND;
+void cc_str(void) FRONTEND;
 #endif

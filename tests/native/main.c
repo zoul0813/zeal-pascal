@@ -45,7 +45,7 @@ static uint8_t seed(const char *path,const char *text) {
 static uint8_t saved_corpus(void) {
     switch(test_stage) {
     case 9: case 11: case 13: case 15: case 17: case 19:
-    case 21: case 23: case 25: case 27: case 29: case 31: case 33: case 35: return 1;
+    case 21: case 23: case 25: case 27: case 29: case 31: case 33: case 35: case 37: return 1;
     default: return 0;
     }
 }
@@ -370,6 +370,26 @@ static void real_tests(void) {
     checked_error("var r:real;begin heapptr:=stackptr-128;\nr:=1.0+2.0 end.",0xff,"r:=1.0");
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
+static void format_tests(void) {
+    int8_t capture=open("H:/FORMATS.TXT",O_WRONLY|O_CREAT|O_TRUNC),input;
+    check(capture>=0);
+    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
+    test_stage=37;
+    execution_file("H:/FORMATOUT.PAS",1,0,0);
+    execution_file("H:/STRFORMAT.PAS",1,0,0);
+    test_stage=38;
+    checked_error("begin\nwriteln(1.25:(7 div 0):2)end.",2,"writeln");
+    checked_error("var s:string[8];begin\nstr(1.25:8:round(40000.0),s)end.",0x92,"str(");
+    checked_error("var a:array[1..2]of string[8];begin\nstr(1.25:8:2,a[7 div 0])end.",2,"str(");
+    checked_error("begin heapptr:=stackptr-80;\nwriteln(1.25)end.",0xff,"writeln");
+    input=open("H:/FORMATOUT.PAS",O_RDONLY);check(input>=0);
+    if(input>=0) {
+        check(swap(input,DEV_STDOUT)==0);
+        checked_error("begin\nwriteln(1.25:10:2)end.",0xf0,"writeln");
+        check(swap(input,DEV_STDOUT)==0);check(close(input)==0);
+    }
+    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
+}
 static void media_tests(void) {
     uint8_t attempt,status;
     int8_t capture;
@@ -510,6 +530,7 @@ int app_main(void) {
     memory_tests();
     label_tests();
     real_tests();
+    format_tests();
     source_close(&s); check(pages_used()==code_required);
     code_hash(digest); check(!memcmp(digest,initial_code_hash,32));
     test_stage=6; test_done=255;

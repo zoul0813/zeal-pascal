@@ -1,12 +1,22 @@
 .module real_adapter
 .globl real_dispatch,real_buffer,call_error
 .globl _zr_eval,_zr_op,_zr_error,_zr_integer,_zr_a,_zr_b,_zr_result
+.globl format_real,_zr_width,_zr_places,_zr_formatted
 .area _REAL_DATA
 real_left: .ds 2
 real_right: .ds 2
 real_flags: .ds 1
 real_status: .ds 1
 .area _REAL_ADAPTER
+; Pure formatting uses the same preserved-register C boundary as arithmetic.
+; HL is a six-byte value, BC width and DE places. No callback occurs here.
+format_real::
+    ld (_zr_width),bc
+    ld (_zr_places),de
+    ld d,h
+    ld e,l
+    ld a,#14
+    jp real_dispatch
 ; Private generated-code interface. Bits6/7 mark Integer words rather than
 ; Real pointers. Real results are copied immediately out of C scratch storage.
 ; The caller reserves256 plus the normal64-byte helper/emergency budget.
@@ -95,6 +105,8 @@ real_evaluate:
 real_success:
     ld a,(real_flags)
     and #15
+    cp #14
+    jr z,real_formatted
     cp #4
     jr z,real_scalar
     cp #6
@@ -102,6 +114,9 @@ real_success:
     cp #7
     jr z,real_scalar
     ld hl,#real_buffer
+    ret
+real_formatted:
+    ld hl,#_zr_formatted
     ret
 real_scalar:
     ld hl,(real_right)
