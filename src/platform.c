@@ -108,6 +108,8 @@ uint8_t key_decode(uint8_t c) {
     if(c==KB_HOME) return 0x80;
     if(c==KB_END) return 0x81;
     if(c==KB_INSERT) return 22;
+    if(c==KB_PG_UP) return 18;
+    if(c==KB_PG_DOWN) return 3;
     return 0;
 }
 uint8_t key_read(void) {

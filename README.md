@@ -9,6 +9,7 @@ Build using the existing Zeal development environment:
 ```sh
 zde cmake
 python3 tools/test-native-host.py --sanitize
+python3 tools/test-editor-native.py
 python3 tools/test-native.py
 python3 tools/test-input.py
 python3 tools/test-math.py
@@ -41,6 +42,8 @@ files and verify their contents. Run the packaging command again
 after rebuilding; it does not modify your existing system TF image.
 An existing project `build/tf.img` is preserved under `build/recovery/` before
 replacement, including any source files saved on that card.
+`zde cmake` builds the loose files; refreshing this image is a separate step.
+Close the emulator using the project card before refreshing it.
 
 The launcher verifies the complete library before entering any application
 bank. A missing, damaged or mismatched library returns to the shell. The editor,
@@ -312,6 +315,19 @@ Ctrl-Z ends console input. Echo uses the video console separately from Pascal
 Output, so redirected program output does not collect typed input.
 Unbuffered KeyPressed/Kbd, explicit Pascal files/devices and `$I-`/IOResult
 remain pending.
+
+The editor now supports character/word/line movement, smooth scrolling, paging,
+virtual columns through128 and horizontal scrolling. Arrow keys, Home/End and
+Page Up/Down provide physical-key shortcuts. Ctrl-H moves left without deleting;
+Backspace deletes left and Delete deletes under the cursor. Ctrl-V toggles
+insert/overwrite, Ctrl-N splits without moving the cursor, Ctrl-Y deletes a line,
+Ctrl-T deletes the right word, and Ctrl-Q,Y deletes to line end. TAB uses word
+stops from the preceding line; Ctrl-Q,I toggles auto-indent. Ctrl-Q,L restores
+the current line's before-edit text until the cursor leaves it; this is a
+single-line restore, not general undo. Ctrl-P quotes a control byte, Ctrl-U
+interrupts with Escape acknowledgment, and Ctrl-Q,P restores the previous edit
+position. Block commands, search/replace and control/block highlighting remain
+pending, as does the complete physical-control input matrix.
 
 The editor remains partial. Native tests cover the implemented slice, ownership,
 error recovery and file safety; full reference replay and physical hardware

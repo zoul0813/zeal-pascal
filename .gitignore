@@ -11,6 +11,7 @@
 /tools/*
 !/tools/test-native.py
 !/tools/test-native-host.py
+!/tools/test-editor-native.py
 !/tools/test-input.py
 !/tools/test-math.py
 !/tools/test-output.py

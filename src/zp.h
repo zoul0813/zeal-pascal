@@ -128,6 +128,7 @@ uint8_t import_begin(SourceImport *in,const char *path,Diagnostic *d);
 uint8_t import_byte(SourceImport *in,uint8_t value,Diagnostic *d);
 uint8_t import_finish(SourceImport *in,Source *s,Diagnostic *d);
 void source_location(const Source *s, uint16_t position, uint16_t *line, uint16_t *column);
+uint16_t source_rebase(uint16_t position,uint16_t first,uint16_t last,uint16_t inserted,uint8_t right);
 uint8_t source_snapshot(const Source *s, Source *snapshot);
 uint16_t source_editor_offset(const Source *s, uint16_t canonical);
 void sha_init(Sha256 *s);

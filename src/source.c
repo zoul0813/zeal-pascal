@@ -12,11 +12,21 @@ static uint8_t new_source(Source *s, const char *path,uint8_t role) {
 uint8_t source_new(Source *s,const char *path) { return new_source(s,path,PAGE_SOURCE); }
 void source_close(Source *s) { page_drop(s->page); }
 
+/* Delete first, then insert at the surviving boundary. Right-biased positions
+ * follow the old text; left-biased viewport/selection boundaries retain prefix
+ * insertion. Callers validate the edit and bound positions to the old source. */
+uint16_t source_rebase(uint16_t p,uint16_t a,uint16_t z,uint16_t n,uint8_t right) {
+    if(p>=z) p-=z-a;
+    else if(p>=a) p=a;
+    if(p>a||(p==a&&right)) p+=n;
+    return p;
+}
+
 /* Validate the complete proposed text before the first store. No edit allocates
  * or loses the old buffer on a capacity/line-length error. */
 uint8_t source_replace(Source *s, uint16_t a, uint16_t z,
                        const uint8_t *text, uint16_t n) {
-    uint16_t i, size, line = 0;
+    uint16_t i, size, previous, line = 0;
     uint8_t c;
     uint32_t wide;
     if (a > z || z > s->length) return 0;
@@ -24,6 +34,7 @@ uint8_t source_replace(Source *s, uint16_t a, uint16_t z,
     wide = (uint32_t)s->length - (z-a) + n;
     if (wide > SOURCE_LIMIT) return 0;
     size = (uint16_t)wide;
+    previous=s->previous>s->length?s->length:s->previous;
     for (i=0; i<size; ++i) {
         c = i<a ? far_get(s->page,i) : i<a+n ? text[i-a] :
             far_get(s->page,i-n+z-a);
@@ -41,6 +52,7 @@ uint8_t source_replace(Source *s, uint16_t a, uint16_t z,
     s->length=size;
     page_initialized(s->page,size);
     s->cursor=a+n;
+    s->previous=source_rebase(previous,a,z,n,1);
     s->dirty=1;
     ++s->revision;
     return 1;

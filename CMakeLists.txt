@@ -55,6 +55,8 @@ set_property(SOURCE tests/native/input-main.c tests/native/math-main.c APPEND PR
     ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 set_property(SOURCE src/keys.c src/platform.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/keys.h)
+set_property(SOURCE src/editor.c src/main.c tests/native/editor-core.c tests/native/editor-main.c
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/editor.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/sdk_glue.asm CONTENT
     ".globl _fflush_stdout\n.include \"$ENV{ZOS_PATH}/sdk/sdcc/src/zeal8bitos.asm\"\n")
 list(APPEND PASCAL_CORE ${CMAKE_BINARY_DIR}/sdk_glue.asm)
@@ -79,10 +81,12 @@ set_source_files_properties(src/compiler_real.c src/compiler_io.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK9;--constseg;BANK9")
 set_source_files_properties(src/output.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK3;--constseg;BANK3")
+set_source_files_properties(src/editor.c PROPERTIES
+    COMPILE_OPTIONS "--codeseg;BANK10;--constseg;BANK10")
 # Our startup and the installed SDK use the same command-tail ABI. The launcher
 # initializes C data, then verifies/loads its library before entering a bank.
 set(CMAKE_C_LINK_EXECUTABLE "<CMAKE_LINKER> <LINK_FLAGS> <LINK_LIBRARIES> <TARGET> <OBJECTS>")
-add_executable(zpascal src/startup.asm src/banks.c src/main.c $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
+add_executable(zpascal src/startup.asm src/banks.c src/main.c src/editor.c $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
 target_include_directories(zpascal PRIVATE src)
 target_compile_options(zpascal PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_executable(zptest src/startup.asm src/banks.c tests/native/main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
@@ -94,10 +98,18 @@ target_compile_options(zinputtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_executable(zmathtest src/startup.asm src/banks.c tests/native/math-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
 target_include_directories(zmathtest PRIVATE src)
 target_compile_options(zmathtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+add_executable(zedittest src/startup.asm src/banks.c src/editor.c tests/native/editor-main.c tests/native/editor-core.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
+target_include_directories(zedittest PRIVATE src)
+target_compile_options(zedittest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+set_source_files_properties(tests/native/editor-main.c tests/native/editor-core.c PROPERTIES
+    COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-foreach(target zpascal zptest zinputtest zmathtest)
+foreach(target zpascal zptest zinputtest zmathtest zedittest)
     target_link_options(${target} PRIVATE "SHELL:-b _INITIALIZED=0xc000"
         "SHELL:-b _BANK1=0x18000" "SHELL:-b _BANK2=0x28000" "SHELL:-b _BANK3=0x38000" "SHELL:-b _BANK4=0x48000" "SHELL:-b _BANK5=0x58000" "SHELL:-b _BANK6=0x68000" "SHELL:-b _BANK7=0x78000" "SHELL:-b _BANK8=0x88000" "SHELL:-b _BANK9=0x98000")
+    if(target STREQUAL "zpascal" OR target STREQUAL "zedittest")
+        target_link_options(${target} PRIVATE "SHELL:-b _BANK10=0xa8000")
+    endif()
     add_custom_target(${target}_bin ALL
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py $<TARGET_FILE:${target}>
         DEPENDS ${target} ${CMAKE_SOURCE_DIR}/tools/package-native.py
