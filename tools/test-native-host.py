@@ -26,7 +26,7 @@ subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', *flags, '-Isrc'
                 '-o', str(OUT / 'keys')], cwd=ROOT, check=True)
 subprocess.run([str(OUT / 'keys')], cwd=ROOT, check=True)
 subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', *flags, '-Isrc',
-                'src/source.c', 'src/source_blocks.c', 'src/editor.c', 'tests/native/editor-core.c',
+                'src/source.c', 'src/source_blocks.c', 'src/editor.c', 'tests/native/editor-core.c', 'tests/native/editor-search.c',
                 'tests/native/editor-host.c', '-o', str(OUT/'editor')], cwd=ROOT, check=True)
 subprocess.run([str(OUT/'editor')], cwd=ROOT, check=True)
 # Progress is mutable; the independently reviewed functional body is not.

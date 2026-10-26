@@ -30,7 +30,7 @@ def component():
         'native shared editor cases complete': memory.get(sym['_test_done']) == 255
             and word('_test_stage') == 6,
         'native editing, capacity, viewport and MMU/SP/IFF preservation':
-            word('_test_passed') == 3456 and word('_test_failed') == 0,
+            word('_test_passed') == 3724 and word('_test_failed') == 0,
     }, {'passed': word('_test_passed'), 'failed': word('_test_failed')}
 
 
@@ -76,7 +76,7 @@ class IDE:
     def state(self, label):
         self.frames.append((label, 'state'))
         self.commands += ['regs', 'mmu']
-        for symbol, size in (('_work', 140), ('_editor', 154), ('_ide_state', 1),
+        for symbol, size in (('_work', 140), ('_editor', 223), ('_ide_state', 1),
                              ('_build', 83), ('_ram_result', 128)):
             self.commands += [f'rb 0x{self.sym[symbol]:x} {size}']
 
@@ -196,7 +196,7 @@ def horizontal_checks():
             frames['wide screen cursor'] == 0x4f01 and frames['home screen cursor'] == 1,
         'overlong physical Backspace join rejects without source or cursor changes':
             all(before.get(s+i) == rejected.get(s+i) for i in range(140))
-            and all(before.get(e+i) == rejected.get(e+i) for i in range(154))
+            and all(before.get(e+i) == rejected.get(e+i) for i in range(223))
             and frames['after acknowledgment'].get(ide.sym['_ide_state']) == 2,
     }
 
@@ -346,7 +346,7 @@ def block_file_checks():
             and word(f['read'],s+2)==len(original)+3,
         'missing/malformed block reads retain all source state and create no parents':
             same('read','missing') and same('read','bad line') and not (host/'missing').exists()
-            and all(f['read'].get(e+i)==f['missing'].get(e+i)==f['bad line'].get(e+i) for i in range(154)),
+            and all(f['read'].get(e+i)==f['missing'].get(e+i)==f['bad line'].get(e+i) for i in range(223)),
         'block read followed by save produces exact source and backup':
             (host/'BFILE.PAS').read_bytes()==b'XX\n'+original and (host/'BFILE.BAK').read_bytes()==original,
         'block transactions clean only their completed recovery members':
@@ -428,6 +428,109 @@ def transaction_namespace_checks():
             and all((host/f'ZP{i:04X}/KEEP.PAS').read_bytes()==i.to_bytes(2,'little')for i in range(256))}
 
 
+def find_checks():
+    source=b'alpha beta\nBETA alpha\nalphabet beta\n'
+    ide=IDE('FIND.PAS')
+    ide.state('initial')
+    ide.quick('F'); ide.text('beta\n\n'); ide.state('first')
+    ide.key('L',ctrl=True); ide.state('repeat'); ide.quick('P'); ide.state('previous')
+    ide.quick('R'); ide.quick('F'); ide.text('beta\nU2\n'); ide.state('second uppercase')
+    ide.quick('C'); ide.quick('F'); ide.text('beta\nB\n'); ide.state('backward')
+    ide.quick('R'); ide.quick('F'); ide.text('alpha\nW\n'); ide.state('whole word')
+    ide.quick('C'); ide.quick('F'); ide.text('beta\nG\n'); ide.state('global')
+    ide.key('L',ctrl=True); ide.state('global repeat')
+    ide.quick('F'); ide.text('b'); ide.key('P',ctrl=True); ide.key('A',ctrl=True)
+    ide.text('ta\nG\n'); ide.state('wildcard')
+    ide.quick('F'); ide.text('beta\n4294967296\n'); ide.state('invalid options')
+    ide.key('ESC'); ide.key('Y',ctrl=True); ide.text('G\n'); ide.state('corrected options')
+    ide.quick('F'); ide.text('missing\n\n'); ide.state('missing'); ide.key('ESC')
+    ide.quick('F'); ide.key('F',ctrl=True); ide.key('Y',ctrl=True); ide.text('beta\n\n')
+    ide.quick('R'); ide.quick('F'); ide.key('ENTER'); ide.key('L',ctrl=True); ide.state('empty retains search')
+    ide.quick('F'); ide.key('U',ctrl=True); ide.state('prompt abort'); ide.key('ESC')
+    f=ide.finish('editor-find',{'FIND.PAS':source});s=ide.sym['_work'];e=ide.sym['_editor']
+    cursor=lambda label:word(f[label],s+4)
+    revision=bytes(f['initial'].get(s+8+i,0)for i in range(4))
+    return {
+        'actual Find/repeat/previous-position original recipe':cursor('first')==10
+            and cursor('repeat')==35 and cursor('previous')==10,
+        'actual U/count, backward and whole-word options':cursor('second uppercase')==15
+            and cursor('backward')==31 and cursor('whole word')==5,
+        'corrected G and repeat reuse global start':cursor('global')==cursor('global repeat')==10,
+        'quoted control-A wildcard works through real keyboard':cursor('wildcard')==10,
+        'invalid count retains source and option prompt accepts correction':cursor('invalid options')==10
+            and cursor('corrected options')==10,
+        'failed Find and prompt Abort retain usable source':cursor('missing')==10
+            and cursor('prompt abort')==10 and f['prompt abort'].get(ide.sym['_ide_state'])==2,
+        'empty Find retains prior nonempty recalled search':cursor('empty retains search')==10
+            and bytes(f['empty retains search'].get(e+154+i,0)for i in range(4))==b'beta',
+        'Find operations do not edit or save source':all(frame.get(s+1)==0
+            and word(frame,s+2)==len(source) and bytes(frame.get(s+8+i,0)for i in range(4))==revision
+            for frame in f.values()) and (n.RUN/'editor-find/hostfs/FIND.PAS').read_bytes()==source,
+    }
+
+
+def replace_checks():
+    source=b'alpha beta\nBETA alpha\nalphabet beta\n'
+    first=b'alpha Z\nZ alpha\nalphabet Z\n'
+    final=b'Q Z\nZ alpha\nalphabet Z\n'
+    ide=IDE('REPLACE.PAS')
+    ide.quick('A'); ide.text('beta\nZ\nGNU\n'); ide.state('global')
+    ide.block('D'); ide.key('S'); ide.key('ESC'); ide.key('E')
+    ide.quick('A'); ide.text('alpha\nQ\n\n'); ide.state('pending no'); ide.key('N'); ide.state('refused')
+    ide.quick('R'); ide.quick('A'); ide.text('alpha\nQ\n\n'); ide.key('Y'); ide.state('accepted')
+    ide.quick('R'); ide.quick('A'); ide.text('Z\nBAD\nG\n'); ide.state('pending abort')
+    ide.key('U',ctrl=True); ide.state('aborted'); ide.key('ESC')
+    ide.block('D'); ide.key('S'); ide.key('Y'); ide.key('ESC'); ide.state('saved')
+    f=ide.finish('editor-replace',{'REPLACE.PAS':source});s=ide.sym['_work']
+    host=n.RUN/'editor-replace/hostfs'
+    return {
+        'actual GNU global replacement original recipe':word(f['global'],s+2)==len(first)
+            and f['global'].get(s+1)==1,
+        'pending and refused replacement leave clean source unchanged':f['pending no'].get(s+1)==0
+            and f['refused'].get(s+1)==0 and word(f['refused'],s+2)==len(first),
+        'confirmed replacement edits exact current source':f['accepted'].get(s+1)==1
+            and word(f['accepted'],s+2)==len(final),
+        'Ctrl-U at pending confirmation does not apply it':all(f['pending abort'].get(s+i)==f['aborted'].get(s+i)
+            for i in range(140)),
+        'replacement PAS/BAK bytes and dirty clearing are exact':(host/'REPLACE.PAS').read_bytes()==final
+            and (host/'REPLACE.BAK').read_bytes()==first and f['saved'].get(s+1)==0,
+    }
+
+
+def multiline_search_checks():
+    ide=IDE('MULTI.PAS')
+    ide.quick('A'); ide.text('c'); ide.key('P',ctrl=True); ide.key('ENTER'); ide.text('d\nX')
+    ide.key('P',ctrl=True); ide.key('M',ctrl=True); ide.text('\nGN\n')
+    ide.block('D'); ide.key('S'); ide.key('ESC')
+    ide.finish('editor-search-multiline',{'MULTI.PAS':b'abc\ndef\n'})
+    host=n.RUN/'editor-search-multiline/hostfs'
+    return {'quoted line boundaries normalize in actual search and replacement fields':
+            (host/'MULTI.PAS').read_bytes()==b'abX\nef\n'
+            and (host/'MULTI.BAK').read_bytes()==b'abc\ndef\n'}
+
+
+def search_interrupt_checks():
+    source=b'begin\n'+(b'x'*127+b'\n')*120
+    ide=IDE('SCAN.PAS')
+    ide.quick('F'); ide.text('missing\n')
+    poll=ide.sym['_key_interrupt']
+    ide.commands += [f'bp 0x{poll:x}']; ide.key('ENTER')
+    ide.commands += [f'bc 0x{poll:x}','s','tap Z','press CTRL','tap U','release CTRL','run 1000000000']
+    ide.state('interrupted')
+    ide.key('ESC'); ide.state('deferred pending')
+    ide.commands += ['s','run 1000000000']; ide.state('deferred inserted')
+    ide.block('D'); ide.key('S'); ide.key('ESC')
+    f=ide.finish('editor-search-interrupt',{'SCAN.PAS':source});s=ide.sym['_work']
+    host=n.RUN/'editor-search-interrupt/hostfs'
+    return {'Ctrl-U interrupts actual nonblocking scan without editing source':
+            word(f['interrupted'],s+2)==len(source) and f['interrupted'].get(s+1)==0,
+            'acknowledgment preserves queued typing until source resumes':
+            f['deferred pending'].get(s+1)==0 and f['deferred inserted'].get(s+1)==1
+            and word(f['deferred inserted'],s+2)==len(source)+1,
+            'retained typing is saved exactly after cancellation':
+            (host/'SCAN.PAS').read_bytes()==b'z'+source and (host/'SCAN.BAK').read_bytes()==source}
+
+
 def main():
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(), ROOT/'tools/test-native.py',
               ROOT/'tools/package-native.py', n.EMULATOR, n.ROM, n.KERNEL_MAP, n.TF_TEMPLATE,
@@ -447,6 +550,10 @@ def main():
     checks.update(control_block_checks())
     checks.update(tf_block_checks())
     checks.update(transaction_namespace_checks())
+    checks.update(find_checks())
+    checks.update(replace_checks())
+    checks.update(multiline_search_checks())
+    checks.update(search_interrupt_checks())
     checks['source/build/emulator inputs unchanged'] = all(
         n.sha(Path(p)) == digest for p, digest in hashes.items())
     report = {'scope': 'Editor foundation and block editing/I/O; search/full keyboard/hardware remain open',

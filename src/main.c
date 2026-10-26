@@ -8,6 +8,7 @@ uint8_t ide_state; /* 1 menu, 2 editor, 3 error acknowledgment */
 static uint8_t messages=1;
 static uint8_t saved_mode;
 static void block_io(uint8_t kind);
+static void search_command(uint8_t kind);
 
 static void file_error(const char *prefix,uint8_t code) {
     /* Console writes themselves update platform_error. Pass the failed job's
@@ -90,6 +91,7 @@ static void edit(uint8_t at_error) {
         redraw(); revision=work.revision;
         result=editor_key(key_read());
         if(result==EDITOR_READ_BLOCK||result==EDITOR_WRITE_BLOCK) block_io(result);
+        if(result==EDITOR_FIND||result==EDITOR_REPLACE||result==EDITOR_REPEAT) search_command(result);
         if(work.revision!=revision) invalidate();
         if(result==EDITOR_DONE) return;
         if(result==EDITOR_REJECT||result==EDITOR_ABORT) {
@@ -141,6 +143,87 @@ static uint8_t file_field(char *text) {
             if(n==127) { output("\nFilename exceeds 127 bytes. Press Escape"); while(key_read()!=27) {} return 0; }
             text[n++]=c; text[n]=0; one[0]=c; output(one);
         }
+    }
+}
+static void search_ack(const char *message) {
+    output("\n"); output(message); output(". Press Escape");
+    /* Acknowledgment reads fresh events; it must not discard retained typing
+     * from the interrupted operation while waiting for Escape. */
+    key_typeahead_hold(1);
+    while(key_read()!=27) {}
+    key_typeahead_hold(0);
+}
+static void field_draw(const char *prompt,const EditorField *field) {
+    char blank[129],one[2];
+    uint8_t i,c;
+    memset(blank,' ',screen_width<128?screen_width:128); blank[screen_width<128?screen_width:128]=0;
+    screen_at(0,0); screen_mark(0); output(blank); screen_at(0,0); output(prompt);
+    one[1]=0;
+    for(i=0;i<field->length;++i) {
+        c=field->text[i]; screen_mark(c<32||c==127);
+        if(c<32) c+=64;
+        else if(c==127) c='?';
+        one[0]=(char)c; output(one);
+    }
+    screen_mark(0); screen_at((uint8_t)(strlen(prompt)+field->cursor),0);
+}
+static uint8_t search_field(const char *prompt,EditorField *field,const uint8_t *recall,uint8_t length) {
+    uint8_t result;
+    editor_field_begin(field);
+    for(;;) {
+        field_draw(prompt,field);
+        result=editor_field_key(field,key_read(),recall,length);
+        if(result==FIELD_DONE) return 1;
+        if(result==FIELD_CANCEL) return 0;
+        if(result==FIELD_ABORT) { search_ack("*** INTERRUPTED"); return 0; }
+        if(result==FIELD_REJECT) { search_ack("Field exceeds30 bytes or unsupported control"); }
+    }
+}
+static uint8_t search_setup(uint8_t replacing) {
+    EditorField pattern,replacement,options;
+    if(!search_field("Find: ",&pattern,editor.search.pattern,editor.search.length)||!pattern.length) return 0;
+    editor_field_begin(&replacement);
+    if(replacing&&!search_field("Replace with: ",&replacement,
+        editor.search.replacement,editor.search.replacement_length)) return 0;
+    editor_field_begin(&options);
+    for(;;) {
+        field_draw("Options: ",&options);
+        switch(editor_field_key(&options,key_read(),0,0)) {
+        case FIELD_CANCEL: return 0;
+        case FIELD_ABORT: search_ack("*** INTERRUPTED"); return 0;
+        case FIELD_REJECT: search_ack("Field exceeds30 bytes"); break;
+        case FIELD_DONE:
+            if(editor_search_configure(pattern.text,pattern.length,replacement.text,replacement.length,
+                options.text,options.length,replacing)) return 1;
+            search_ack("Invalid options or replacement"); break;
+        }
+    }
+}
+static void search_command(uint8_t kind) {
+    EditorSearchJob job;
+    uint8_t result,c,interrupt;
+    if(kind!=EDITOR_REPEAT&&!search_setup(kind==EDITOR_REPLACE)) return;
+    if(!editor_search_begin(&job)) return;
+    for(;;) {
+        interrupt=key_interrupt();
+        if(interrupt) {
+            search_ack(interrupt==1?"*** INTERRUPTED":"Search interrupted: typeahead full"); return;
+        }
+        result=editor_search_step(&job);
+        if(result==SEARCH_MORE) continue;
+        if(result==SEARCH_MATCH) {
+            c='y';
+            if(!(job.search.flags&SEARCH_NO_CONFIRM)) {
+                redraw(); screen_at(0,0); output("Replace (Y/N), Ctrl-U aborts: ");
+                do { c=suffix(key_read()); } while(c!='y'&&c!='n'&&c!=21&&c!=27);
+                if(c==27) return;
+                if(c==21) { search_ack("*** INTERRUPTED"); return; }
+            }
+            result=editor_search_accept(&job,c=='y');
+        }
+        if(result==SEARCH_DONE) return;
+        if(result==SEARCH_MISSING) { search_ack("Search string not found"); return; }
+        if(result==SEARCH_REJECT) { search_ack("Edit rejected: line or source capacity"); return; }
     }
 }
 static void block_io(uint8_t kind) {

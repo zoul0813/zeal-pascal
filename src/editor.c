@@ -18,6 +18,7 @@ static uint16_t previous(uint16_t p) { p=start(p); return p?start(p-1):0; }
 static uint8_t delimiter(uint8_t c) {
     return c<=32||strchr("<>,;.()[]'*+-/$",c)!=0;
 }
+static void locate(uint16_t p);
 static void sync(void) { editor.column=editor.source->cursor-start(editor.source->cursor)+1; }
 static void column_at(uint16_t line) {
     uint16_t z=end(line),p=line+editor.column-1;
@@ -37,6 +38,10 @@ static void view(void) {
     while(rows>=editor.height-2) { editor.top=next(editor.top); --rows; }
     if(editor.column-1<editor.left) editor.left=editor.column-1;
     else if(editor.column-1>=editor.left+editor.width) editor.left=editor.column-editor.width;
+}
+static void locate(uint16_t p) {
+    if(start(editor.source->cursor)!=start(p)) editor.undo_valid=0;
+    editor.source->cursor=p; sync(); view();
 }
 void editor_forget(void) EDITOR_CALL {
     editor.source=0; editor.undo_valid=0; editor.prefix=editor.quote=0;
@@ -274,6 +279,8 @@ static uint8_t quick(uint8_t c) {
     else if(c=='k'&&(editor.block_marks&2)) { s->cursor=editor.block_end; sync(); }
     else if(c=='e'||c=='x') column_at(c=='e'?editor.top:advance(editor.top,editor.height-3,1));
     else if(c=='i') editor.indent=!editor.indent;
+    else if(c=='f') return EDITOR_FIND;
+    else if(c=='a') return EDITOR_REPLACE;
     else if(c=='y') return replace(p,end(p),0,0,1);
     else if(c=='l'&&editor.undo_valid) {
         uint8_t result;
@@ -301,8 +308,185 @@ uint8_t editor_key(uint8_t c) EDITOR_CALL {
         if(prefix==11) result=block_command(c);
         if(prefix==17) result=quick(c);
     } else if(c==11||c==17) editor.prefix=c;
+    else if(c==12&&editor.search.valid) result=EDITOR_REPEAT;
     else result=command(c);
     if(old_line!=start(editor.source->cursor)) editor.undo_valid=0;
     view();
     return result;
+}
+
+static uint8_t normalize(uint8_t *out,const uint8_t *text,uint8_t length) {
+    uint8_t i,n=0,c;
+    for(i=0;i<length;++i) {
+        c=text[i];
+        if(c=='\r') { c='\n'; if(i+1<length&&text[i+1]=='\n') ++i; }
+        out[n++]=c;
+    }
+    return n;
+}
+uint8_t editor_search_configure(const uint8_t *pattern,uint8_t length,const uint8_t *replacement,
+    uint8_t replacement_length,const uint8_t *options,uint8_t options_length,uint8_t replacing) EDITOR_CALL {
+    EditorSearch next;
+    uint8_t i,c,digits=0;
+    uint32_t count=0;
+    if(!length||length>30||replacement_length>30||options_length>30) return 0;
+    memset(&next,0,sizeof(next));
+    next.length=normalize(next.pattern,pattern,length);
+    next.replacement_length=normalize(next.replacement,replacement,replacement_length);
+    for(i=0;i<next.replacement_length;++i) if(next.replacement[i]==26) return 0;
+    for(i=0;i<options_length;++i) {
+        c=options[i]; if(c>='a'&&c<='z') c-=32;
+        if(c>='0'&&c<='9') {
+            digits=1; c-='0';
+            if(count>429496729UL||(count==429496729UL&&c>5)) return 0;
+            count=count*10+c;
+        } else {
+            if(digits) return 0;
+            if(c=='B') next.flags|=SEARCH_BACK;
+            else if(c=='G') next.flags|=SEARCH_GLOBAL;
+            else if(c=='U') next.flags|=SEARCH_UPPER;
+            else if(c=='W') next.flags|=SEARCH_WORD;
+            else if(c=='N'&&replacing) next.flags|=SEARCH_NO_CONFIRM;
+            else return 0;
+        }
+    }
+    if(digits&&!count) return 0;
+    next.count=digits?count:replacing&&(next.flags&SEARCH_GLOBAL)?0xffffffffUL:1;
+    next.replacing=replacing!=0; next.valid=1;
+    editor.search=next; return 1;
+}
+uint8_t editor_search_begin(EditorSearchJob *job) EDITOR_CALL {
+    Source *s=editor.source;
+    memset(job,0,sizeof(*job));
+    if(!editor.search.valid) return 0;
+    job->search=editor.search; job->source=s; job->page=s->page; job->revision=s->revision;
+    job->remaining=job->search.count; job->active=1;
+    s->previous=s->cursor;
+    job->point=(job->search.flags&SEARCH_GLOBAL)?
+        ((job->search.flags&SEARCH_BACK)?s->length:0):s->cursor;
+    if(job->search.flags&SEARCH_BACK) {
+        if(!job->point) job->exhausted=1;
+        else --job->point;
+        if(s->length>=job->search.length&&job->point>s->length-job->search.length)
+            job->point=s->length-job->search.length;
+    }
+    return 1;
+}
+static uint8_t current_job(const EditorSearchJob *job) {
+    return job->source==editor.source&&job->page==editor.source->page&&job->revision==editor.source->revision;
+}
+static uint8_t upper(uint8_t c) { return c>='a'&&c<='z'?c-32:c; }
+static uint8_t matches(const EditorSearchJob *job,uint16_t p) {
+    uint8_t i,a,b;
+    for(i=0;i<job->search.length;++i) {
+        a=job->search.pattern[i]; b=byte(p+i);
+        if(a==1) continue;
+        if(job->search.flags&SEARCH_UPPER) { a=upper(a); b=upper(b); }
+        if(a!=b) return 0;
+    }
+    if(job->search.flags&SEARCH_WORD) {
+        if(p&&!delimiter(byte(p-1))) return 0;
+        p+=job->search.length;
+        if(p<editor.source->length&&!delimiter(byte(p))) return 0;
+    }
+    return 1;
+}
+static void search_next(EditorSearchJob *job,uint16_t p,uint8_t length) {
+    if(job->search.flags&SEARCH_BACK) {
+        if(!p) job->exhausted=1;
+        else job->point=p-1;
+    } else job->point=p+length;
+}
+uint8_t editor_search_step(EditorSearchJob *job) EDITOR_CALL {
+    uint8_t budget=64;
+    uint16_t p;
+    if(!current_job(job)) return SEARCH_REJECT;
+    if(!job->active) return SEARCH_DONE;
+    if(job->pending) return SEARCH_MATCH;
+    while(budget--) {
+        if(job->exhausted||editor.source->length<job->search.length||
+           job->point>editor.source->length-job->search.length) {
+            job->active=0;
+            return job->search.replacing&&job->visited?SEARCH_DONE:SEARCH_MISSING;
+        }
+        p=job->point;
+        if(matches(job,p)) {
+            if(job->search.replacing) {
+                job->match=p; job->pending=1;
+                locate((job->search.flags&SEARCH_BACK)?p:p+job->search.length);
+                return SEARCH_MATCH;
+            }
+            ++job->visited;
+            if(!--job->remaining) {
+                locate((job->search.flags&SEARCH_BACK)?p:p+job->search.length);
+                job->active=0; return SEARCH_DONE;
+            }
+            search_next(job,p,job->search.length);
+        } else if(job->search.flags&SEARCH_BACK) {
+            if(!p) job->exhausted=1;
+            else --job->point;
+        } else ++job->point;
+    }
+    return SEARCH_MORE;
+}
+uint8_t editor_search_accept(EditorSearchJob *job,uint8_t yes) EDITOR_CALL {
+    uint16_t p=job->match;
+    uint8_t n=job->search.length;
+    if(!current_job(job)||!job->pending||!job->search.replacing) return SEARCH_REJECT;
+    if(yes) {
+        if(replace(p,p+n,job->search.replacement,job->search.replacement_length,1)!=EDITOR_OK)
+            return SEARCH_REJECT;
+        n=job->search.replacement_length;
+        job->revision=editor.source->revision;
+        locate((job->search.flags&SEARCH_BACK)?p:p+n);
+    }
+    ++job->visited; job->pending=0;
+    search_next(job,p,n);
+    if(!--job->remaining) { job->active=0; return SEARCH_DONE; }
+    return SEARCH_MORE;
+}
+void editor_field_begin(EditorField *field) EDITOR_CALL {
+    memset(field,0,sizeof(*field)); field->insert=1;
+}
+uint8_t editor_field_key(EditorField *f,uint8_t c,const uint8_t *recall,uint8_t recall_length) EDITOR_CALL {
+    uint8_t p=f->cursor,i,quoted=f->quote;
+    if(quoted) f->quote=0;
+    else if(c==16) { f->quote=1; return FIELD_MORE; }
+    else if(c==21) return FIELD_ABORT;
+    else if(c==27) return FIELD_CANCEL;
+    else if(c==10||c==13) return FIELD_DONE;
+    else if(c==19||c==8) { if(p) --f->cursor; return FIELD_MORE; }
+    else if(c==4) { if(p<f->length) ++f->cursor; return FIELD_MORE; }
+    else if(c==0x80) { f->cursor=0; return FIELD_MORE; }
+    else if(c==0x81) { f->cursor=f->length; return FIELD_MORE; }
+    else if(c==1) {
+        while(p&&delimiter(f->text[p-1])) --p;
+        while(p&&!delimiter(f->text[p-1])) --p;
+        f->cursor=p; return FIELD_MORE;
+    } else if(c==6) {
+        if(p==f->length&&recall_length) {
+            if(recall_length>30) return FIELD_REJECT;
+            memcpy(f->text,recall,recall_length); f->length=f->cursor=recall_length;
+        } else {
+            while(p<f->length&&!delimiter(f->text[p])) ++p;
+            while(p<f->length&&delimiter(f->text[p])) ++p;
+            f->cursor=p;
+        }
+        return FIELD_MORE;
+    } else if(c==22) { f->insert=!f->insert; return FIELD_MORE; }
+    else if(c==25) { f->cursor=f->length=0; return FIELD_MORE; }
+    else if(c==7||c==127) {
+        if(c==127) { if(!p) return FIELD_MORE; --p; f->cursor=p; }
+        if(p<f->length) {
+            --f->length; for(i=p;i<f->length;++i) f->text[i]=f->text[i+1];
+        }
+        return FIELD_MORE;
+    } else if(c<32||c>126) return FIELD_MORE;
+    if(c>127) return FIELD_REJECT;
+    if((f->insert||p==f->length)&&f->length==30) return FIELD_REJECT;
+    if(f->insert||p==f->length) {
+        for(i=f->length;i>p;--i) f->text[i]=f->text[i-1];
+        ++f->length;
+    }
+    f->text[p]=c; f->cursor=p+1; return FIELD_MORE;
 }

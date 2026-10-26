@@ -9,6 +9,7 @@ extern uint8_t console_scratch[256];
 static struct { uint8_t role; uint16_t initialized; uint32_t lifetime; } ledger[64];
 static uint32_t next_lifetime;
 static uint8_t active, old_x,old_y;
+static uint8_t pending,second,typeahead[32],key_head,key_count,key_hold;
 uint8_t screen_width,screen_height,platform_error;
 
 uint8_t page_new(uint8_t role) {
@@ -116,23 +117,45 @@ uint8_t key_decode(uint8_t c) {
     if(c==KB_PG_DOWN) return 3;
     return 0;
 }
-uint8_t key_read(void) {
+static uint8_t read_key(uint8_t blocking) {
     uint16_t n;
     uint8_t c;
     for(;;) {
         /* Two bytes are necessary for a raw release pair. Consume both before
          * the next read without blocking to flush future input. */
-        static uint8_t pending,second;
         if(pending) { c=second; pending=0; }
         else {
             n=2; platform_error=read(DEV_STDIN,console_scratch,&n);
             if(platform_error) return 27;
-            if(!n) continue;
+            if(!n) { if(!blocking) return 0; continue; }
             c=console_scratch[0];
             if(n==2) { pending=1; second=console_scratch[1]; }
         }
         c=key_decode(c); if(c) return c;
     }
+}
+uint8_t key_read(void) {
+    uint8_t c;
+    if(key_count&&!key_hold) {
+        c=typeahead[key_head]; key_head=(key_head+1)&31; --key_count; return c;
+    }
+    return read_key(1);
+}
+void key_typeahead_hold(uint8_t hold) { key_hold=hold; }
+uint8_t key_interrupt(void) {
+    uint8_t c,result=0;
+    platform_error=ioctl(DEV_STDIN,KB_CMD_SET_MODE,(void*)(KB_MODE_RAW|KB_READ_NON_BLOCK));
+    if(platform_error) return 1;
+    while(key_count<32) {
+        c=read_key(0);
+        if(platform_error||c==21) { result=1; break; }
+        if(!c) break;
+        typeahead[(key_head+key_count)&31]=c; ++key_count;
+    }
+    if(!result&&key_count==32) result=2;
+    platform_error=ioctl(DEV_STDIN,KB_CMD_SET_MODE,(void*)KB_MODE_RAW);
+    if(platform_error) result=1;
+    return result;
 }
 uint8_t run_build(const Source *s,const Build *b) {
     uint8_t child[3]={255,255,255},i,ok=0;

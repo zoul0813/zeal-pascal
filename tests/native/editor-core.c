@@ -2,6 +2,7 @@
 #include "editor.h"
 
 void check(uint8_t ok);
+void editor_search_checks(Source *s);
 static void key(uint8_t c) { check(editor_key(c)==EDITOR_OK); }
 static void quick(uint8_t c) { key(17); key(c); }
 static void block(uint8_t c) { key(11); key(c); }
@@ -158,6 +159,7 @@ void editor_checks(Source *s) {
 
     editor_block_checks(s);
     transfer_checks(s);
+    editor_search_checks(s);
 }
 static void editor_block_checks(Source *s) {
     static const char original[]="alpha beta\ngamma delta\n  indented\nlast\n";

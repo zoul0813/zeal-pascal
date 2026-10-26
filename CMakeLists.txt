@@ -55,7 +55,7 @@ set_property(SOURCE tests/native/input-main.c tests/native/math-main.c APPEND PR
     ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 set_property(SOURCE src/keys.c src/platform.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/keys.h)
-set_property(SOURCE src/editor.c src/main.c tests/native/editor-core.c tests/native/editor-main.c
+set_property(SOURCE src/editor.c src/main.c tests/native/editor-core.c tests/native/editor-search.c tests/native/editor-main.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/editor.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 set_property(SOURCE src/source.c src/source_blocks.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/source_internal.h ${CMAKE_SOURCE_DIR}/src/zp.h)
@@ -100,10 +100,10 @@ target_compile_options(zinputtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_executable(zmathtest src/startup.asm src/banks.c tests/native/math-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
 target_include_directories(zmathtest PRIVATE src)
 target_compile_options(zmathtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
-add_executable(zedittest src/startup.asm src/banks.c src/editor.c src/source_blocks.c tests/native/editor-main.c tests/native/editor-core.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
+add_executable(zedittest src/startup.asm src/banks.c src/editor.c src/source_blocks.c tests/native/editor-main.c tests/native/editor-core.c tests/native/editor-search.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
 target_include_directories(zedittest PRIVATE src)
 target_compile_options(zedittest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
-set_source_files_properties(tests/native/editor-main.c tests/native/editor-core.c PROPERTIES
+set_source_files_properties(tests/native/editor-main.c tests/native/editor-core.c tests/native/editor-search.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 foreach(target zpascal zptest zinputtest zmathtest zedittest)

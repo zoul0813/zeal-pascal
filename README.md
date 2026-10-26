@@ -341,7 +341,21 @@ keep the open source's filename, cursor, markers and dirty state. Parents are
 created only when writing. Hidden, empty, inverted or incomplete selections
 disable copy/move/delete/write. Blocks and literal controls are highlighted;
 quoted controls display their capital-letter equivalents and retain their bytes.
-Search/replace and the complete physical-control input matrix remain pending.
+Ctrl-Q,F finds, Ctrl-Q,A finds/replaces, and Ctrl-L repeats the previous operation.
+Fields accept up to30 bytes, with arrows/Ctrl-S/D, word movement, Home/End,
+Backspace/Delete, insert/overwrite and Ctrl-P quoting. Ctrl-F at a field's end
+recalls its previous entry; Ctrl-Y clears the field. Empty Find cancels while
+retaining prior history. Escape cancels a prompt; Ctrl-U interrupts with Escape
+acknowledgment. Ordinary typing during a scan is retained in a bounded queue.
+
+Options are B backward, G global start, U ignore ASCII case, W whole word, and
+N skip replacement confirmation, followed optionally by a positive occurrence
+count. G Find selects the match as documented, correcting the original's scan
+to EOF. Repeat reuses G too. Quoted Ctrl-A is a one-byte wildcard in the search
+pattern and a literal in replacement. Quoted CR/LF boundaries normalize to LF.
+Replacement counts include N answers; inserted text is not searched again by
+the same operation. A rejected replacement preserves earlier accepted edits.
+The complete physical-control input matrix and full editor replay remain pending.
 
 The editor remains partial. Native tests cover the implemented slice, ownership,
 error recovery and file safety; full reference replay and physical hardware

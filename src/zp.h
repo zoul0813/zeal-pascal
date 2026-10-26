@@ -163,6 +163,10 @@ uint8_t console_open(void);
 uint8_t platform_supported(void);
 void console_close(void);
 uint8_t key_read(void);
+/* Long-operation polling retains ordinary decoded keys for later readers.
+ * Return1 for Ctrl-U,2 when the32-key typeahead buffer is full. */
+uint8_t key_interrupt(void);
+void key_typeahead_hold(uint8_t hold);
 uint8_t key_decode(uint8_t raw);
 void screen_clear(void);
 void screen_at(uint8_t x, uint8_t y);
