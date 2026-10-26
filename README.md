@@ -11,6 +11,7 @@ zde cmake
 python3 tools/test-native-host.py --sanitize
 python3 tools/test-native.py
 python3 tools/test-input.py
+python3 tools/test-math.py
 python3 tools/test-real.py --host --sanitize --native
 ```
 
@@ -253,7 +254,11 @@ Integer-family types, including wide subranges. The native implementation parses
 the complete string (up to 255 bytes), treats embedded NUL as invalid input,
 and correctly accepts -32768; it does not silently accept a truncated prefix.
 
-The remaining mathematical functions are still pending.
+Sqrt accepts Integer or Real and returns Real. Positive square roots use an
+exact integer algorithm with an error below one final Real6 step throughout
+the input range. Zero returns zero; negative inputs report runtime03 and
+return to their source statement in Memory mode. Sin/Cos/ArcTan/Ln/Exp and
+Random/Randomize remain pending.
 
 Labels may be identifiers or decimal digit names. Numeric labels retain their
 exact spelling, so 01 and 1 are different names; their digits are not limited to

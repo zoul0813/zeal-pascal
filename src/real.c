@@ -133,6 +133,35 @@ static void divide_values(void) {
     }
     pack(work,exponent,negative_a^negative_b);
 }
+/* The exact radicand is M<<39 for odd E and M<<40 for even E.
+ * Forty restoring base-four steps produce floor(sqrt(radicand)); packing
+ * that integer gives an error below one final Real6 ULP for every input.
+ * a is the remainder, b the partial root, work the immutable80-bit input. */
+static void square_root(void) {
+    uint8_t i,take;
+    int16_t exponent;
+    if(!exponent_a) return;
+    if(negative_a) {zr_error=3;return;}
+    exponent=(exponent_a+129)/2;
+    clear(work,10);
+    for(i=0;i<5;++i) {
+        if(exponent_a&1) {
+            work[i+4]|=(uint8_t)(a[i]<<7);
+            work[i+5]=a[i]>>1;
+        } else work[i+5]=a[i];
+    }
+    clear(a,6);clear(b,6);
+    i=40;
+    while(i--) {
+        left(a);left(a);
+        a[0]|=(work[i>>2]>>((i&3)*2))&3;
+        left(b);left(b);b[0]|=1;
+        take=compare(a,b)>=0;
+        if(take) subtract(a,b);
+        right(b,1);b[0]|=take;
+    }
+    pack(b,exponent,0);
+}
 static void ordinal_result(uint8_t round) {
     uint16_t magnitude;
     uint8_t extra=0;
@@ -192,6 +221,7 @@ static void evaluate(uint8_t operation) {
     case ZR_ABS: pack(a,exponent_a,0); break;
     case ZR_INT: integral_part(0); break;
     case ZR_FRAC: integral_part(1); break;
+    case ZR_SQRT: square_root(); break;
     default: zr_error=0xff; break;
     }
 }

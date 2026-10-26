@@ -16,6 +16,7 @@ typedef struct {
     uint8_t op;const char *text;uint16_t length,code;uint8_t assigned;
     int16_t value;uint8_t out[6];
 } ValVector;
+typedef struct {uint8_t value[5],odd[5],even[5];} SqrtScaleVector;
 #include "real_vectors.h"
 volatile uint16_t test_passed,test_failed;
 volatile uint8_t test_done;
@@ -68,7 +69,7 @@ static void run_engine(void) {
 static void run_engine(void) { zr_eval(); }
 #endif
 int main(void) {
-    uint16_t i;
+    uint16_t i,exponent;
     const RealVector *v;
     const DecimalVector *d;
     for(i=0;i<sizeof(real_vectors)/sizeof(real_vectors[0]);++i) {
@@ -93,6 +94,22 @@ int main(void) {
         run_engine();
         check(zr_error==d->error);
         if(!d->error) { check(!memcmp(zr_result,d->out,6)); check(zr_integer==0); }
+    }
+    for(exponent=1;exponent<=255;++exponent) {
+        for(i=0;i<sizeof(sqrt_scales)/sizeof(sqrt_scales[0]);++i) {
+            const SqrtScaleVector *v=sqrt_scales+i;
+            zr_op=ZR_SQRT;zr_a[0]=(uint8_t)exponent;memcpy(zr_a+1,v->value,5);
+#ifdef __SDCC
+            if(exponent&1) { __asm di __endasm; }
+#endif
+            run_engine();
+#ifdef __SDCC
+            if(exponent&1) { __asm ei __endasm; }
+#endif
+            check(!zr_error&&zr_result[0]==(exponent+129)/2);
+            check(!memcmp(zr_result+1,exponent&1?v->odd:v->even,5));
+            zr_a[5]|=128;run_engine();check(zr_error==3);
+        }
     }
     for(i=0;i<sizeof(format_vectors)/sizeof(format_vectors[0]);++i) {
         const FormatVector *f=format_vectors+i;

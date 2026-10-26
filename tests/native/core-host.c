@@ -72,6 +72,9 @@ int main(int argc,char **argv) {
     invalid("begin writeln(real(1))end.",30);
     invalid("begin writeln(integer(1.5))end.",31);
     invalid("begin writeln(ord(1.0))end.",31);
+    invalid("begin writeln(sqrt(true))end.",23);
+    invalid("begin writeln(sqrt('x'))end.",23);
+    invalid("begin writeln(sqrt('xx'))end.",23);
     invalid("begin writeln(succ(1.0))end.",31);
     invalid("begin writeln(1.0 div 2)end.",47);
     invalid("begin writeln(1.0 and 2)end.",47);
@@ -399,7 +402,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {
