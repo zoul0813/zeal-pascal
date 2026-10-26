@@ -8,7 +8,7 @@ Build using the existing Zeal development environment:
 
 ```sh
 zde cmake
-python3 tools/test-native-host.py
+python3 tools/test-native-host.py --sanitize
 python3 tools/test-native.py
 python3 tools/test-input.py
 python3 tools/test-real.py --host --sanitize --native
