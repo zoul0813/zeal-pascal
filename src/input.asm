@@ -4,7 +4,7 @@
 .area _REAL_DATA
 line_next: .ds 2
 line_remaining: .ds 1
-line_valid: .ds 1               ; 0 unloaded, 1 buffered, 2 CR consumed
+line_valid: .ds 1               ; 0 unloaded, 1 buffered, 2 end marker consumed
 line_eof: .ds 1
 line_buffer: .ds 255
 input_token: .ds 31             ; short string: at most30 numeric bytes
@@ -200,12 +200,9 @@ input_character:
 input_terminator:
     ld a,#2
     ld (line_valid),a
-    ld a,(line_eof)
-    or a
+    ; A buffered console line is terminated by Ctrl-Z, including ordinary EOL.
+    ; Consuming that marker permits the next field to refill the buffer.
     ld a,#26
-    jr nz,input_character_store
-    ld a,#13
-input_character_store:
     ld (de),a
     ret
 input_advance:

@@ -47,6 +47,9 @@ set_property(SOURCE tests/native/harness.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h)
 set_property(SOURCE tests/native/main.c tests/native/harness.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
+set_property(SOURCE tests/native/input-main.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h
+    ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/sdk_glue.asm CONTENT
     ".globl _fflush_stdout\n.include \"$ENV{ZOS_PATH}/sdk/sdcc/src/zeal8bitos.asm\"\n")
 list(APPEND PASCAL_CORE ${CMAKE_BINARY_DIR}/sdk_glue.asm)
@@ -55,7 +58,7 @@ add_dependencies(zp_core pascal_runtime_bin ram_trampoline_bin)
 target_include_directories(zp_core PRIVATE src)
 target_compile_options(zp_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 # These ordinary C entry points are reached only through resident banks.c.
-set_source_files_properties(src/main.c tests/native/main.c PROPERTIES
+set_source_files_properties(src/main.c tests/native/main.c tests/native/input-main.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 set_source_files_properties(src/compiler.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK2;--constseg;BANK2")
@@ -80,8 +83,11 @@ target_compile_options(zpascal PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_executable(zptest src/startup.asm src/banks.c tests/native/main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
 target_include_directories(zptest PRIVATE src)
 target_compile_options(zptest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+add_executable(zinputtest src/startup.asm src/banks.c tests/native/input-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
+target_include_directories(zinputtest PRIVATE src)
+target_compile_options(zinputtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-foreach(target zpascal zptest)
+foreach(target zpascal zptest zinputtest)
     target_link_options(${target} PRIVATE "SHELL:-b _INITIALIZED=0xc000"
         "SHELL:-b _BANK1=0x18000" "SHELL:-b _BANK2=0x28000" "SHELL:-b _BANK3=0x38000" "SHELL:-b _BANK4=0x48000" "SHELL:-b _BANK5=0x58000" "SHELL:-b _BANK6=0x68000" "SHELL:-b _BANK7=0x78000" "SHELL:-b _BANK8=0x88000" "SHELL:-b _BANK9=0x98000")
     add_custom_target(${target}_bin ALL

@@ -10,6 +10,7 @@ Build using the existing Zeal development environment:
 zde cmake
 python3 tools/test-native-host.py
 python3 tools/test-native.py
+python3 tools/test-input.py
 python3 tools/test-real.py --host --sanitize --native
 ```
 
@@ -253,7 +254,8 @@ before returning. Numeric fields skip leading whitespace and consume at most
 30 characters, leaving the delimiter and any following characters for later
 fields. Invalid numbers report I/O error 10 and return to source; numeric fields
 already at line end retain their values. Byte stores truncate and input does
-not add subrange checks. `$B+` (default) selects a fresh console line for each
+not add subrange checks. A Char read at buffered line end returns Ctrl-Z (`#26`);
+later fields can refill the buffer. `$B+` (default) selects a fresh console line for each
 call; `$B-` retains its unread tail between calls. Bare `Read;` fills the buffer
 without consuming a value, and ReadLn discards the remaining line.
 
