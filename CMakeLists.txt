@@ -16,9 +16,11 @@ target_compile_options(key_runtime PRIVATE --std-c99 "SHELL:--codeseg CODE"
     "SHELL:--constseg CODE" "SHELL:--dataseg REAL_DATA")
 add_executable(pascal_runtime src/runtime.asm src/real_adapter.asm src/format.asm src/input.asm $<TARGET_OBJECTS:real_runtime> $<TARGET_OBJECTS:key_runtime>)
 set_target_properties(pascal_runtime PROPERTIES LINKER_LANGUAGE ASM)
-target_link_options(pascal_runtime PRIVATE "SHELL:-b _REAL_ADAPTER=0x4bf0"
-    "SHELL:-b _REAL=0x4d10" "SHELL:-b _REAL_DATA=0x7e00"
-    "SHELL:-b _TEXT=0x4b50" "SHELL:-b _CODE=0x77a0")
+# Pack private sections within the same checked16 KiB runtime prefix. Public
+# helper addresses remain fixed; I/O recovery adds no runtime bank or page.
+target_link_options(pascal_runtime PRIVATE "SHELL:-b _REAL_ADAPTER=0x4c73"
+    "SHELL:-b _REAL=0x4d8a" "SHELL:-b _REAL_DATA=0x7e26"
+    "SHELL:-b _TEXT=0x4bd6" "SHELL:-b _CODE=0x77cd")
 zos_add_outputs(pascal_runtime WITH_EXTENSION zpl)
 add_custom_command(TARGET pascal_runtime_bin POST_BUILD
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --runtime
@@ -50,7 +52,7 @@ set_property(SOURCE tests/native/harness.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h)
 set_property(SOURCE tests/native/main.c tests/native/harness.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
-set_property(SOURCE tests/native/input-main.c tests/native/math-main.c APPEND PROPERTY OBJECT_DEPENDS
+set_property(SOURCE tests/native/input-main.c tests/native/math-main.c tests/native/io-main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h
     ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 set_property(SOURCE src/keys.c src/platform.c APPEND PROPERTY OBJECT_DEPENDS
@@ -67,7 +69,7 @@ add_dependencies(zp_core pascal_runtime_bin ram_trampoline_bin)
 target_include_directories(zp_core PRIVATE src)
 target_compile_options(zp_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 # These ordinary C entry points are reached only through resident banks.c.
-set_source_files_properties(src/main.c tests/native/main.c tests/native/input-main.c tests/native/math-main.c PROPERTIES
+set_source_files_properties(src/main.c tests/native/main.c tests/native/input-main.c tests/native/math-main.c tests/native/io-main.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 set_source_files_properties(src/compiler.c src/compiler_random.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK2;--constseg;BANK2")
@@ -100,13 +102,16 @@ target_compile_options(zinputtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_executable(zmathtest src/startup.asm src/banks.c tests/native/math-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
 target_include_directories(zmathtest PRIVATE src)
 target_compile_options(zmathtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+add_executable(ziotest src/startup.asm src/banks.c tests/native/io-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
+target_include_directories(ziotest PRIVATE src)
+target_compile_options(ziotest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_executable(zedittest src/startup.asm src/banks.c src/editor.c src/source_blocks.c tests/native/editor-main.c tests/native/editor-core.c tests/native/editor-search.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
 target_include_directories(zedittest PRIVATE src)
 target_compile_options(zedittest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 set_source_files_properties(tests/native/editor-main.c tests/native/editor-core.c tests/native/editor-search.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-foreach(target zpascal zptest zinputtest zmathtest zedittest)
+foreach(target zpascal zptest zinputtest zmathtest ziotest zedittest)
     target_link_options(${target} PRIVATE "SHELL:-b _INITIALIZED=0xc000"
         "SHELL:-b _BANK1=0x18000" "SHELL:-b _BANK2=0x28000" "SHELL:-b _BANK3=0x38000" "SHELL:-b _BANK4=0x48000" "SHELL:-b _BANK5=0x58000" "SHELL:-b _BANK6=0x68000" "SHELL:-b _BANK7=0x78000" "SHELL:-b _BANK8=0x88000" "SHELL:-b _BANK9=0x98000")
     if(target STREQUAL "zpascal" OR target STREQUAL "zedittest")

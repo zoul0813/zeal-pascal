@@ -6,6 +6,7 @@
 .globl buflen,cbreak,user_break
 .globl runtime_prefix_end
 .globl character,neg_hl,false_text,true_text
+.globl io_call,io_result,io_check,io_fail,io_status
 .area _HEADER (ABS)
 .org 0x4000
     jp 0x40a0
@@ -77,6 +78,11 @@ real_buffer: .ds 6              ; 4136: transient helper/return bytes, copied by
     jp input_end                ; 414E: ReadLn discards through current line end
 buflen: .db 127                 ; 4151: next physical console line's byte limit
 cbreak: .db 1                   ; 4152: buffered Ctrl-C checking enabled
+    jp io_call                  ; 4153: inline helper:u16, I checking:u8
+    jp io_result                ; 4156: Integer prior I/O status, cleared
+io_frame: .dw 0                 ; invocation-owned stack frame, never a global landing
+io_status: .db 0
+io_target: .dw 0                ; setup/dispatch scratch; no callback while in use
 
 ; This prefix is deliberately separate from the C compiler's ABI. Only the
 ; private helper entries above are emitted in this first language increment.
@@ -166,6 +172,9 @@ normal_break:
 ; The compiler checks that complete budget before pushing/calling them.
 character:
     ld (io_byte),a
+    ld a,(io_status)
+    or a
+    jp nz,io_check
     ld hl,(0x40be)
     push hl                     ; restore this invocation's source PC after I/O
     ld de,#io_byte
@@ -185,8 +194,98 @@ character:
     ret z
 io_error:
     ld a,#0xf0
+    jp io_fail
+
+; Wrap exactly one runtime I/O operation, after its argument expressions.
+; Preserve all incoming operands while inserting four invocation-owned bytes
+; below the caller's return word. No callback/syscall occurs during setup.
+; Moving the saved registers down is an overlapping forward copy. After they
+; are restored the stack is {checking:u16, previous_frame:u16, return_PC:u16}.
+io_call:
+    push af
+    push bc
+    push de
+    push hl
+    ld hl,#8
+    add hl,sp
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    ex de,hl
+    ld c,(hl)
+    inc hl
+    ld b,(hl)
+    inc hl
+    ld (io_target),bc
+    ld a,(hl)
+    inc hl
+    ex de,hl
+    ld (hl),d
+    dec hl
+    ld (hl),e
+    ld hl,#0
+    add hl,sp
+    ld de,#-4
+    add hl,de
+    ex de,hl
+    ld hl,#0
+    add hl,sp
+    ld bc,#8
+    ldir
+    ld hl,(io_frame)
+    ld (io_frame),de
+    ld (de),a
+    inc de
+    xor a
+    ld (de),a
+    inc de
+    ld a,l
+    ld (de),a
+    inc de
+    ld a,h
+    ld (de),a
+    ld hl,#-4
+    add hl,sp
+    ld sp,hl
+    pop hl
+    pop de
+    pop bc
+    pop af
+    push hl
+    ld hl,#io_return
+    ex (sp),hl
+    push hl
+    ld hl,(io_target)
+    ex (sp),hl
+    ret
+io_return:
+    pop bc
+    pop hl
+    ld (io_frame),hl
+    ret
+io_fail:
+    ld (io_status),a
+io_check:
+    ld hl,(io_frame)
+    ld a,h
+    or l
+    jr z,io_checked
+    ld a,(hl)
+    or a
+    jr nz,io_checked
+    ld sp,hl
+    jr io_return
+io_checked:
+    ld a,(io_status)
     ld b,#3
     jp call_error
+io_result:
+    ld a,(io_status)
+    ld l,a
+    ld h,#0
+    xor a
+    ld (io_status),a
+    ret
 
 string_output:
     ld b,(hl)

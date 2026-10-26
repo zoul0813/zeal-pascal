@@ -47,6 +47,14 @@ static void ordered_map(void) {
         last=end;
     }
 }
+static unsigned calls(uint16_t entry,int mode) {
+    uint16_t i,at=b.code_origin-0x4000u;
+    unsigned count=0;
+    for(i=0;i+5<b.code_bytes;++i) if(image_get(&b,at+i)==0xcd&&
+        image_get(&b,at+i+1)==(uint8_t)entry&&image_get(&b,at+i+2)==(uint8_t)(entry>>8)&&
+        (mode<0||image_get(&b,at+i+5)==mode)) ++count;
+    return count;
+}
 int main(int argc,char **argv) {
     unsigned i;
     uint16_t position;
@@ -279,6 +287,26 @@ int main(int argc,char **argv) {
     invalid("begin readln()end.",41);
     invalid("begin read()end.",41);
     invalid("begin {$B?}end.",93);
+    invalid("begin {$I?}end.",93);
+    invalid("begin {$I}end.",93);
+    invalid("begin {$I0}end.",93);
+    invalid("begin {$J+}end.",93);
+    load("var n:integer;begin {$I-}write(1);{$I+}write(2);read(n);n:=ioresult end.");
+    check(compile(&s,&b,&d));ordered_map();
+    check(calls(RT_IOCALL,0)==1&&calls(RT_IOCALL,1)==3&&calls(RT_IORESULT,-1)==1);
+    check(cc.io_check==1&&cc.temporaries==0);build_close(&b);
+    load("begin {$i-,b-,r+}writeln(ioresult)end.");
+    check(compile(&s,&b,&d));check(!cc.io_check&&!cc.input_fresh&&cc.range_check);
+    check(calls(RT_IOCALL,0)==3&&calls(RT_IOCALL,1)==0);build_close(&b);
+    load("begin writeln(ioresult)end.");
+    check(compile(&s,&b,&d));check(cc.io_check&&cc.input_fresh&&!cc.range_check);
+    check(calls(RT_IOCALL,1)==3);build_close(&b);
+    load("var ioresult:integer;begin ioresult:=7;writeln(ioresult)end.");
+    check(compile(&s,&b,&d));check(!calls(RT_IORESULT,-1));build_close(&b);
+    load("function ioresult:integer;begin ioresult:=7 end;begin writeln(ioresult)end.");
+    check(compile(&s,&b,&d));check(!calls(RT_IORESULT,-1));build_close(&b);
+    load("var a:array[0..1]of byte;begin writeln(sizeof(a[ioresult]))end.");
+    check(compile(&s,&b,&d));check(!calls(RT_IORESULT,-1));build_close(&b);
     invalid("begin readln(missing) end.",41);
     invalid("begin if 1 then end.",20);
     invalid("begin while 'a' do end.",20);

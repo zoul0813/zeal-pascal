@@ -12,6 +12,7 @@ python3 tools/test-native-host.py --sanitize
 python3 tools/test-editor-native.py
 python3 tools/test-native.py
 python3 tools/test-input.py
+python3 tools/test-io.py
 python3 tools/test-math.py
 python3 tools/test-output.py
 python3 tools/test-real.py --host --sanitize --native
@@ -313,8 +314,20 @@ CBreak defaults toTrue: Ctrl-C terminates the program and Escape returns to the
 input statement in the unsaved source. With CBreak=False, Ctrl-C is ignored.
 Ctrl-Z ends console input. Echo uses the video console separately from Pascal
 Output, so redirected program output does not collect typed input.
-Unbuffered KeyPressed/Kbd, explicit Pascal files/devices and `$I-`/IOResult
-remain pending.
+`$I+` is the default and returns checked I/O errors to their source statement.
+`$I-` permits recovery: `IOResult` returns the pending error as an Integer and
+clears it; a second query returns zero. Pending errors suppress further transfers
+while argument expressions still run. Retrieve the status before reporting it:
+
+```pascal
+{$I-} ReadLn(N); Code := IOResult; {$I+}
+if Code <> 0 then WriteLn('Invalid input');
+```
+
+This currently applies to default-console Read/ReadLn and Write/WriteLn.
+Unchecked I/O does not disable division, range or stack errors. Str and Val
+preserve pending status under the native scoped-I/O correction. Explicit Pascal
+files/devices and unbuffered KeyPressed/Kbd remain pending.
 
 The editor now supports character/word/line movement, smooth scrolling, paging,
 virtual columns through128 and horizontal scrolling. Arrow keys, Home/End and

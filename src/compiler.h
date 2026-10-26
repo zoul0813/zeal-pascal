@@ -43,7 +43,7 @@ typedef struct {
     uint16_t emitted,entries,file_bytes,relocations;
     uint8_t workspace,scope,absolute_mode,var_strict,nesting,suppress;
     uint16_t routine_count,temporaries;
-    uint8_t with_depth,with_limit,with_bound,with_types[9],for_depth,input_fresh;
+    uint8_t with_depth,with_limit,with_bound,with_types[9],for_depth,input_fresh,io_check;
     uint16_t field_offset;
     uint16_t random_entry,random_state;
 } Compiler;

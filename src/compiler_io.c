@@ -1,5 +1,12 @@
 #include "compiler.h"
 
+/* The runtime wrapper owns one call's error landing and restores its exact
+ * caller stack on I- failure. Expression callbacks finish before entering it;
+ * a failed field must not skip evaluation of the following field. */
+static void io_call(uint16_t entry,uint16_t reserve) {
+    cc_reserve(reserve+16); cc_op16(0xcd,RT_IOCALL);
+    cc_emit((uint8_t)entry); cc_emit((uint8_t)(entry>>8)); cc_emit(cc.io_check);
+}
 /* A field owns its value before evaluating width/precision. Its three words
  * are value, width, places in push order, all counted as ordinary temporaries.
  * Preparation has no callbacks; the returned body is copied before output or
@@ -43,7 +50,7 @@ void cc_write(uint8_t newline) FRONTEND {
     if(cc.token=='(') {
         cc_next();
         do {
-            offset=field(0);cc_stack_operand(offset);cc_call(RT_FIELD);
+            offset=field(0);cc_stack_operand(offset);io_call(RT_FIELD,0);
             cc_release(before);
             if(cc.token!=',') break;
             cc_next();
@@ -51,8 +58,8 @@ void cc_write(uint8_t newline) FRONTEND {
         cc_expect(')',5);
     } else if(!newline) cc_fail(4);
     if(newline) {
-        cc_emit(0x3e);cc_emit(13);cc_call(RT_CHAR);
-        cc_emit(0x3e);cc_emit(10);cc_call(RT_CHAR);
+        cc_emit(0x3e);cc_emit(13);io_call(RT_CHAR,0);
+        cc_emit(0x3e);cc_emit(10);io_call(RT_CHAR,0);
     }
 }
 void cc_str(void) FRONTEND {
@@ -90,7 +97,7 @@ void cc_read(uint8_t newline) FRONTEND {
     uint16_t before=cc.temporaries;
     uint8_t fresh=cc.input_fresh,type,kind;
     cc_next();cc_emit(0x3e);cc_emit(fresh|((cc.token!='('&&!newline)?2:0));
-    cc_reserve(64);cc_op16(0xcd,RT_INPUT_BEGIN);
+    io_call(RT_INPUT_BEGIN,64);
     if(cc.token=='(') {
         cc_next();
         do {
@@ -99,12 +106,11 @@ void cc_read(uint8_t newline) FRONTEND {
             cc_release(before);
             cc_emit(0x06);cc_emit(kind==K_INTEGER&&cc.types[type].width==1?K_BYTE:kind);
             cc_emit(0x0e);cc_emit(cc.types[type].capacity);
-            if(kind==K_INTEGER||kind==K_REAL) {cc_reserve(256);cc_op16(0xcd,RT_INPUT_VALUE);}
-            else {cc_reserve(64);cc_op16(0xcd,RT_INPUT_VALUE);}
+            io_call(RT_INPUT_VALUE,kind==K_INTEGER||kind==K_REAL?256:64);
             if(cc.token!=',') break;
             cc_next();
         } while(!cc.error->code);
         cc_expect(')',5);
     }
-    if(newline) {cc_reserve(64);cc_op16(0xcd,RT_INPUT_END);}
+    if(newline) io_call(RT_INPUT_END,64);
 }

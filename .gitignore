@@ -13,6 +13,7 @@
 !/tools/test-native-host.py
 !/tools/test-editor-native.py
 !/tools/test-input.py
+!/tools/test-io.py
 !/tools/test-math.py
 !/tools/test-output.py
 !/tools/test-real.py

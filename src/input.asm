@@ -1,7 +1,7 @@
 .module input
 .globl read_line,read_string,input_begin,input_value,input_end
 .globl memory_mode,io_error,call_error,val_dispatch,buflen,cbreak,user_break
-.globl _key_event,c_save,c_restore
+.globl _key_event,c_save,c_restore,io_check,io_fail,io_status
 .area _REAL_DATA
 line_next: .ds 2
 line_remaining: .ds 1
@@ -38,6 +38,9 @@ input_initialized:
     ret z
     jp input_ready
 input_ready:
+    ld a,(io_status)
+    or a
+    jp nz,io_check
     ld a,(line_valid)
     cp #1
     ret z
@@ -356,6 +359,9 @@ read_string_length:
     ld (line_next),hl
     ret
 input_end::
+    ld a,(io_status)
+    or a
+    jp nz,io_check
     ld a,(line_valid)
     or a
     call z,input_ready
@@ -420,8 +426,7 @@ input_invalid:
     pop af
     pop de
     ld a,#0x10
-    ld b,#3
-    jp call_error
+    jp io_fail
 input_character:
     ld a,(line_remaining)
     or a
