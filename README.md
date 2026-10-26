@@ -23,6 +23,19 @@ ZPL there with the normal shell utilities. To select another library path:
 H:/zpascal.bin H:/zpascal.zpl
 ```
 
+For a separate project TF image with the matching executable and library already
+installed, run this after building:
+
+```sh
+python3 tools/package-tf.py
+```
+
+Select `build/tf.img` as the emulator's TF card, then run
+`T:/bin/zpascal.bin`. The image contains `T:/lib/zpascal.zpl` and is checked by
+starting the IDE without a library-path argument. This creates a separate card
+from the development environment's base image. Run the packaging command again
+after rebuilding; it does not modify your existing system TF image.
+
 The launcher verifies the complete library before entering any application
 bank. A missing, damaged or mismatched library returns to the shell. The editor,
 compiler, file operations and compiler front end use separate owned RAM banks.
