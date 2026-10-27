@@ -48,8 +48,7 @@ static void number_result(void) {
     cc_patch(done);
     for(i=0;i<5;++i) cc_patch(skip[i]);
 }
-/* Buffered Input owns lookahead even though raw logical devices report their
- * last byte. Reuse its editor, advance and ReadLn cleanup; no second parser or
+/* Buffered Input owns line lookahead. Reuse its editor, advance and ReadLn cleanup; no second parser or
  * input buffer is installed. Predicates expose the physical CR terminator. */
 static void console_predicate(void) {
     uint16_t loop=cc.emitted,marker,test,advance,end,answer,no,yes,nonempty;
@@ -82,14 +81,25 @@ static void console_predicate(void) {
  * formatting/input. A nested I- landing catches prefix errors before restoring
  * the caller's With register and propagating the enclosing checking policy. */
 static void stream_result(void) {
-    uint16_t disk,done,operand,begin,read,write,end,predicate,string_target,char_target;
+    uint16_t disk,done,operand,begin,read,write,end,predicate,string_target,char_target,buffered,finish;
     index_store(0x7e,34); cc_emit(0xb7); disk=cc_forward(0xca);
     guard(512);
     cc_op16(0xcd,RT_IOCALL); operand=cc.emitted; cc_relocate(operand);
     cc_emit(0); cc_emit(0); cc_emit(0); /* private helper, always I- */
     cc_op16(0x3a,RT_IOSTATUS); index_store(0x77,22);
-    cc_emit(0xaf); index_store(0x77,23); done=cc_forward(0xc3);
+    cc_emit(0xaf); index_store(0x77,23);
+    cc_op16(0x2a,0xfe7a); index_store(0x75,24); index_store(0x74,25);
+    index_store(0x7e,34); cc_emit(0xfe); cc_emit(ZF_STANDARD_KBD); finish=cc_forward(0xc2);
+    /* Commit even after an unchecked service/cleanup error. The private file
+     * owner preserves the first error and the operation's result/count. */
+    index_store(0x7e,0); cc_emit(0xf5);
+    index_store(0x36,0); cc_emit(ZF_STREAM_RETURN);
+    cc_emit(0xfd); cc_emit(0xe5); cc_emit(0xe1); cc_emit(0xaf); cc_op16(0xcd,0xfe90);
+    cc_emit(0xf1); index_store(0x77,0);
+    number_result(); cc_patch(finish); done=cc_forward(0xc3);
     cc_word(operand,cc.emitted);
+    index_store(0x7e,34); cc_emit(0xfe); cc_emit(ZF_STANDARD_KBD); buffered=cc_forward(0xc2);
+    cc_keyboard_stream(); cc_patch(buffered);
     index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_TEXT_BEGIN); begin=cc_forward(0xca);
     cc_emit(0xfe); cc_emit(ZF_TEXT_READ); read=cc_forward(0xca);
     cc_emit(0xfe); cc_emit(ZF_TEXT_WRITE); write=cc_forward(0xca);

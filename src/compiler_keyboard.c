@@ -1,4 +1,5 @@
 #include "compiler.h"
+#include "file_runtime.h"
 
 /* Each activation owns two bytes in its generated static area: a decoded
  * pending press and its presence flag. The prefix still owns raw release pairs
@@ -40,4 +41,76 @@ void cc_keypressed(void) FRONTEND {
      * after that restoration; unchecked/pending failures return False. */
     cc_op16(0x21,0); cc_op16(0x3a,RT_IOSTATUS); cc_emit(0xb7); done=cc_forward(0xc2);
     cc_address(0x3a,cc.keyboard_entry-2); cc_emit(0x6f); cc_patch(done);
+}
+
+static void key_index(uint8_t opcode,uint8_t offset) { cc_emit(0xfd); cc_emit(opcode); cc_emit(offset); }
+/* IY is an authenticated FileJob. The file owner lends its current byte for
+ * this one synchronous operation; the caller returns it before propagating
+ * errors. No Pascal callback runs here. The existing prefix owns all physical
+ * input, modifier/release decoding, typeahead, mode restoration and failures. */
+void cc_keyboard_stream(void) FRONTEND {
+    uint16_t body,peek,take,space,ready,read,line,predicate,skip,loop,done;
+    uint16_t character,string,token,empty,eof,yes,no,answer,lines;
+    body=cc_forward(0xc3);
+    peek=cc.emitted;
+    cc_emit(0xc5); cc_emit(0xd5); cc_emit(0xe5);
+    key_index(0x7e,37); cc_emit(0xb7); ready=cc_forward(0xc2);
+    cc_emit(0x3e); cc_emit(255); cc_op16(0x32,cc_runtime_private(RP_ECHO_FD));
+    cc_op16(0x11,0); cc_op16(0xcd,cc_runtime_private(RP_INPUT_MODE));
+    cc_emit(0xb7); cc_op16(0xc2,cc_runtime_private(RP_INPUT_FAIL));
+    cc_op16(0xcd,cc_runtime_private(RP_INPUT_KEY));
+    key_index(0x77,36); key_index(0x36,37); cc_emit(1);
+    cc_op16(0xcd,cc_runtime_private(RP_INPUT_CLEANUP));
+    cc_emit(0xb7); cc_op16(0xc2,cc_runtime_private(RP_IO_ERROR));
+    cc_patch(ready); cc_emit(0xe1); cc_emit(0xd1); cc_emit(0xc1); key_index(0x7e,36); cc_emit(0xc9);
+    take=cc.emitted; cc_address(0xcd,peek); key_index(0x36,37); cc_emit(0); cc_emit(0xc9);
+    space=cc.emitted;
+    cc_emit(0xfe); cc_emit(32); cc_emit(0xc8); cc_emit(0xfe); cc_emit(9); cc_emit(0xc8);
+    cc_emit(0xfe); cc_emit(13); cc_emit(0xc8); cc_emit(0xfe); cc_emit(10); cc_emit(0xc9);
+
+    cc_patch(body); key_index(0x7e,0);
+    cc_emit(0xfe); cc_emit(ZF_TEXT_BEGIN); skip=cc_forward(0xc2);
+    key_index(0x7e,8); cc_emit(0xe6); cc_emit(2); cc_emit(0xc8); cc_address(0xc3,peek);
+    cc_patch(skip); cc_emit(0xfe); cc_emit(ZF_TEXT_READ); read=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(ZF_TEXT_READLN); predicate=cc_forward(0xc2);
+    line=cc.emitted; cc_address(0xcd,peek); cc_emit(0xfe); cc_emit(26); cc_emit(0xc8);
+    cc_address(0xcd,take); cc_emit(0xfe); cc_emit(13); cc_emit(0xc8); cc_address(0xc3,line);
+
+    cc_patch(read); key_index(0x6e,6); key_index(0x66,7); key_index(0x46,8); key_index(0x4e,9);
+    cc_emit(0x78); cc_emit(0xfe); cc_emit(ZF_TEXT_CHAR); character=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(ZF_TEXT_STRING); string=cc_forward(0xca);
+    cc_op16(0x11,ZF_NUMBER_TOKEN); cc_emit(0x19); cc_emit(0x0e); cc_emit(30);
+    loop=cc.emitted; cc_address(0xcd,peek); cc_address(0xcd,space); token=cc_forward(0xc2);
+    cc_address(0xcd,take); cc_address(0xc3,loop);
+    cc_patch(string); cc_patch(token); cc_emit(0xe5); cc_emit(0x23); cc_emit(0x1e); cc_emit(0);
+    loop=cc.emitted; cc_emit(0x79); cc_emit(0xb7); done=cc_forward(0xca);
+    cc_address(0xcd,peek); cc_emit(0xfe); cc_emit(26); eof=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(13); empty=cc_forward(0xca);
+    cc_emit(0x57); cc_emit(0x78); cc_emit(0xfe); cc_emit(ZF_TEXT_STRING); string=cc_forward(0xca);
+    cc_emit(0x7a); cc_address(0xcd,space); token=cc_forward(0xca);
+    cc_patch(string); cc_address(0xcd,take); cc_emit(0x77); cc_emit(0x23); cc_emit(0x1c); cc_emit(0x0d);
+    cc_address(0xc3,loop);
+    cc_patch(done); cc_patch(eof); cc_patch(empty); cc_patch(token);
+    cc_emit(0xe1); cc_emit(0x73); /* short token/String length */
+    cc_emit(0x78); cc_emit(0xfe); cc_emit(ZF_TEXT_STRING); done=cc_forward(0xca);
+    cc_emit(0x7b); cc_emit(0xb7); cc_emit(0xc8);
+    cc_patch(done); key_index(0x36,10); cc_emit(1); cc_emit(0xc9);
+    cc_patch(character); cc_address(0xcd,take); cc_emit(0x77);
+    key_index(0x36,10); cc_emit(1); cc_emit(0xc9);
+
+    cc_patch(predicate); loop=cc.emitted; cc_address(0xcd,peek); cc_emit(0x47);
+    key_index(0x7e,0); cc_emit(0xfe); cc_emit(ZF_SEEKEOF); lines=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(ZF_SEEKEOLN); answer=cc_forward(0xc2);
+    cc_emit(0x78); cc_emit(0xfe); cc_emit(32); skip=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(9); no=cc_forward(0xc2);
+    cc_patch(skip); cc_address(0xcd,take); cc_address(0xc3,loop);
+    cc_patch(lines); cc_emit(0x78); cc_address(0xcd,space); skip=cc_forward(0xc2);
+    cc_address(0xcd,take); cc_address(0xc3,loop);
+    cc_patch(answer); cc_patch(skip); cc_patch(no); cc_emit(0x78); cc_emit(0xfe); cc_emit(26); yes=cc_forward(0xca);
+    key_index(0x7e,0); cc_emit(0xfe); cc_emit(ZF_EOF); empty=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(ZF_SEEKEOF); eof=cc_forward(0xca);
+    cc_emit(0x78); cc_emit(0xfe); cc_emit(13); token=cc_forward(0xc2);
+    cc_patch(yes); cc_op16(0x21,1); done=cc_forward(0xc3);
+    cc_patch(empty); cc_patch(eof); cc_patch(token); cc_op16(0x21,0);
+    cc_patch(done); key_index(0x75,20); key_index(0x74,21); cc_emit(0xc9);
 }

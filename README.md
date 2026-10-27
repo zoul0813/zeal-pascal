@@ -17,6 +17,7 @@ python3 tools/test-files.py
 python3 tools/test-text.py
 python3 tools/test-standard.py
 python3 tools/test-keyboard.py
+python3 tools/test-logical.py
 python3 tools/test-file-runtime.py --host --native
 python3 tools/test-workers.py
 python3 tools/test-params.py
@@ -208,7 +209,7 @@ empty string. RAM runs receive no arguments. Command tails allow up to 127 bytes
 longer tails are rejected before the Pascal program starts. Ord, Succ and Pred accept
 String/Char-array values of exactly one character; other lengths report runtime
 error 10. The compiler currently has
-512 symbol entries (six predeclared for HeapPtr/RecurPtr/BufLen/CBreak/Input/Output) and 64 type descriptors
+512 symbol entries (seven predeclared for HeapPtr/RecurPtr/BufLen/CBreak/Input/Output/Kbd) and 64 type descriptors
 (including six built-in types).
 Exhaustion reports resource error 98. Arrays support ordinal bounds, nested or
 comma-separated dimensions, packed layout, whole-array assignment, typed
@@ -397,8 +398,25 @@ KeyPressed checks for keyboard input without waiting for Enter. Repeated checks
 retain the pending character for Read/ReadLn; unread text already in Input's
 line buffer does not count as a new physical key. Polling preserves the shared
 modifier/release state and restores the normal IDE/shell keyboard mode.
-Unavailable keyboard input reports I/O20. Kbd and the other logical streams
-remain pending.
+Unavailable keyboard input reports I/O20.
+
+Kbd and Text files assigned to `KBD:` provide unechoed raw input, including
+through Var Text parameters. Character reads return without Enter. Strings stop
+at capacity, CR or Ctrl-Z; numeric fields retain their delimiter and use the same
+conversion rules as disk Text and Val. Eof/Eoln/SeekEof/SeekEoln may fetch a
+character and retain it in that binding's own cache. A character read consumes
+even Ctrl-Z, so raw EOF does not permanently close the keyboard. ReadLn stops at
+CR without waiting for another character or consuming a following LF. Physical
+Enter/Escape/Delete produce CR/ESC/DEL; Ctrl-J remains LF and raw Ctrl-C is byte3.
+Assign accepts `KBD:` case-insensitively without a disk path or directory.
+Reset/Rewrite clear the binding's lookahead; Close on an assigned logical file
+is a no-op. Kbd is input-only (I/O3 on writes); Assign/Reset/Rewrite/Close on the
+preassigned Kbd report I/O22. Other logical/preassigned devices remain pending.
+
+A retained emulator stress replay repeats a key when an immediate tap crosses a
+RAM resource handoff. Paced RAM/saved input tests pass; the tap/release timing
+case remains open alongside the complete physical-input acceptance matrix.
+
 Inline machine-code statements and the C/U/X directives are also pending;
 the implemented directives are A, B, I checking, R, V and W.
 Pascal CRT calls (ClrScr, ClrEol, GotoXY, InsLine, DelLine, CrtInit/CrtExit,

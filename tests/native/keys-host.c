@@ -25,9 +25,20 @@ int main(void) {
     expect(KB_LEFT_CTRL,0);expect(KB_RIGHT_CTRL,0);
     for(i=0;i<26;++i) expect('a'+i,1+i);
     release(KB_LEFT_CTRL);expect('k',11);release(KB_RIGHT_CTRL);expect('k','k');
-    expect('\b',8);expect(127,127);expect('\n',10);expect('\t',9);
+    expect('\b',8);expect(127,127);
+#ifdef ZP_PASCAL_KEYS
+    expect('\n',13);
+#else
+    expect('\n',10);
+#endif
+    expect('\t',9);
+#ifdef ZP_PASCAL_KEYS
+    expect(KB_DELETE,127);release(KB_DELETE);
+    expect(KB_ESC,27);release(KB_ESC);
+#else
     expect(KB_DELETE,KB_DELETE);release(KB_DELETE);
     expect(KB_ESC,KB_ESC);release(KB_ESC);
+#endif
     expect(KB_LEFT_ARROW,KB_LEFT_ARROW);release(KB_LEFT_ARROW);
     expect(0,0);expect(1,0);
     printf("PASS: %u raw-key modifier/release/character checks\n",checks);

@@ -96,6 +96,7 @@ enum { RP_INPUT_READY,RP_INPUT_ADVANCE,RP_LINE_NEXT,RP_LINE_REMAINING,RP_LINE_EO
        RP_INPUT_KEY,RP_INPUT_RAW_KEY,RP_INPUT_MODE,RP_INPUT_CLEANUP,RP_INPUT_FAIL,RP_IO_ERROR,RP_ECHO_FD };
 uint16_t cc_runtime_private(uint8_t entry);
 void cc_keypressed(void) FRONTEND;
+void cc_keyboard_stream(void) FRONTEND;
 uint16_t cc_file_asset_size(uint8_t gate);
 uint8_t cc_file_asset_get(uint8_t gate,uint16_t offset);
 void cc_expect(uint16_t t,uint8_t code) FRONTEND;

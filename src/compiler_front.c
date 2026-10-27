@@ -8,7 +8,7 @@ static const char *const reserved[] = {
 static const struct {const char *name;uint16_t address;uint8_t type;} system_variables[]={
     {"heapptr",RT_HEAPPTR,K_INTEGER},{"recurptr",RT_RECURPTR,K_INTEGER},
     {"buflen",RT_BUFLEN,K_BYTE},{"cbreak",RT_CBREAK,K_BOOLEAN}};
-static const char *const standard_names[]={"input","output"};
+static const char *const standard_names[]={"input","output","kbd"};
 static uint8_t text_file_type(void) {
     if(cc.text_type==255) {
         cc.text_type=cc_new_type(K_FILE,16,0,0,FILE_TEXT);
@@ -24,7 +24,7 @@ void cc_system_init(void) FRONTEND {
         memset(s,0,sizeof(*s));s->role=S_SYSTEM;
         s->type=system_variables[i].type;s->address=system_variables[i].address;
     }
-    for(i=0;i<2;++i) {
+    for(i=0;i<sizeof(standard_names)/sizeof(standard_names[0]);++i) {
         Symbol *s=&cc.symbols[cc.symbol_count++];
         memset(s,0,sizeof(*s));s->role=S_STANDARD;s->type=255;s->initial_type=i+1;
     }

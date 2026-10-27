@@ -40,6 +40,20 @@ static void invalid(const char *text,uint8_t code) {
     if(ok||d.code!=code) fprintf(stderr,"expected diagnostic %u: %s\n",code,text);
     check(!ok&&d.code==code); check(pages_used()==1);
 }
+static void keyboard_corpus(void) {
+    const char *names[]={"kbdread","kbdbind","kbdlife","kbdupper","kbdfail"};
+    char path[80],text[16384];
+    unsigned i;
+    for(i=0;i<sizeof(names)/sizeof(names[0]);++i) {
+        FILE *file;
+        size_t length;
+        snprintf(path,sizeof(path),"tests/native/%s.pas",names[i]);
+        file=fopen(path,"rb");check(file!=NULL);
+        length=fread(text,1,sizeof(text),file);check(feof(file)&&!ferror(file));check(fclose(file)==0);
+        check(source_import(&s,(const uint8_t*)text,(uint16_t)length,&d));
+        check(compile(&s,&b,&d));check(cc.file_entry&&cc.temporaries==0);build_close(&b);
+    }
+}
 static uint16_t map_word(uint16_t at) { return far_get(b.map_page,at)|((uint16_t)far_get(b.map_page,at+1)<<8); }
 static void ordered_map(void) {
     uint16_t at=96+map_word(84),last=0,begin,end;
@@ -65,6 +79,7 @@ int main(int argc,char **argv) {
     FILE *file;
     check(argc==2);
     check(source_new(&s,"H:/SLICE.PAS"));
+    keyboard_corpus();
     load("begin  \r\nend. \r\n\032padding"); check(s.length==11);
     check(source_replace(&s,0,0,NULL,0)&&!s.dirty);
     {
@@ -99,6 +114,10 @@ int main(int argc,char **argv) {
     check(compile(&s,&b,&d)); check(b.globals_bytes==96); build_close(&b);
     load("var Input,Output:integer;begin Input:=7;Output:=Input;if Output<>7 then halt end.");
     check(compile(&s,&b,&d)); check(b.globals_bytes==4); build_close(&b);
+    load("var kbd:integer;begin kbd:=7;writeln(kbd)end.");
+    check(compile(&s,&b,&d));check(b.globals_bytes==2&&!cc.file_entry);build_close(&b);
+    load("var c:char;procedure p(var f:text);begin read(f,c)end;begin p(Kbd)end.");
+    check(compile(&s,&b,&d));check(cc.file_entry&&cc.temporaries==0);build_close(&b);
     load("type text=integer;\nvar n:text;\nbegin n:=7;\nwriteln(n)end.");
     check(compile(&s,&b,&d)); check(cc.text_type==255); build_close(&b);
     load("type ints=file of integer;raw=file;z=record end;zero=file of z;\nblock=array[1..300]of byte;wide=file of block;\nvar t:text;f:ints;u:raw;e:zero;w:wide;begin end.");

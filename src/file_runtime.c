@@ -17,7 +17,7 @@
 #define LOOKAHEAD 16u
 typedef struct {
     uint16_t object,owner,generation,family,width,state,fd,position,count;
-    uint16_t next,physical_low,physical_high,standard,reserved[3];
+    uint16_t next,physical_low,physical_high,standard,device,reserved[2];
     char path[128];
 } Record;
 typedef char record_size_is_fixed[sizeof(Record)==ZF_RECORD_BYTES?1:-1];
@@ -184,12 +184,12 @@ static uint8_t standards(void) {
     if(!table) return 1;
     if(!within(table,2,job->code_origin,job->static_end)) { fail(0x1ff,0); return 0; }
     count=word(table);
-    if(count>2||!within(table+2,count*4,job->code_origin,job->static_end)) { fail(0x1ff,0); return 0; }
+    if(count>ZF_STANDARD_KBD||!within(table+2,count*4,job->code_origin,job->static_end)) { fail(0x1ff,0); return 0; }
     for(i=0;i<count;++i) {
         at=table+2+4*i; object=word(at); identity=word(at+2);
-        if(!identity||identity>2||(identities&(1u<<identity))||
+        if(!identity||identity>ZF_STANDARD_KBD||(identities&(1u<<(identity-1)))||
            !within(object,16,0x8000,job->code_origin)) { fail(0x1ff,0); return 0; }
-        identities|=1u<<identity;
+        identities|=1u<<(identity-1);
         for(j=0;j<i;++j) if(word(table+2+4*j)==object) { fail(0x1ff,0); return 0; }
     }
     for(i=0;i<count&&!job->error;++i) {
@@ -203,7 +203,9 @@ static uint8_t standards(void) {
             if(record->object==job->object) { fail(0x1ff,0); break; }
         }
         if(job->error||!new_record(0,0,0)) break;
-        record->standard=identity; record->state=READABLE|WRITABLE;
+        record->standard=identity;
+        record->device=identity==ZF_STANDARD_KBD?identity:0;
+        record->state=identity==ZF_STANDARD_KBD?READABLE:READABLE|WRITABLE;
         token(0,0,0); save_record(slot);
     }
     job->object=saved; return !job->error;
@@ -406,7 +408,7 @@ static void flush(void) {
 static void close_record(void) {
     uint16_t primary=job->error,detail=job->detail;
     uint8_t error;
-    if(!(record->state&OPENED)) return;
+    if(record->device||!(record->state&OPENED)) return;
     job->error=0; job->detail=0;
     if(!record->family&&(record->state&WRITABLE)) {
         text_position(); bytes[0]=26; text_bytes(1); text_remember();
@@ -487,6 +489,11 @@ static uint8_t assigned_path(void) {
     n=USER(job->data)[0];
     if(!n||n>127||!readable(job->data+1,n)||memchr(USER(job->data+1),0,n)) return 0;
     memcpy(request.path,USER(job->data+1),n); request.path[n]=0;
+    if(n==4&&(request.path[0]=='K'||request.path[0]=='k')&&
+       (request.path[1]=='B'||request.path[1]=='b')&&
+       (request.path[2]=='D'||request.path[2]=='d')&&request.path[3]==':') {
+        strcpy(request.path,"KBD:"); return 1;
+    }
     bytes[0]=0;
     if(n<2||request.path[1]!=':') {
         error=curdir((char*)bytes);
@@ -575,10 +582,34 @@ static void rename_file(void) {
     if(error) native_error(error,2);
     else strcpy(record->path,rename_path);
 }
+/* The file module validates ownership while mapped; the restored prefix owns
+ * keyboard services. Only the authenticated binding's small lookahead state
+ * crosses that handoff. Logical Close owns no native descriptor and is a no-op. */
+static void keyboard_stream(void) {
+    switch(job->operation) {
+    case ZF_RESET: case ZF_REWRITE:
+        record->state=READABLE; record->next=0; save_record(slot); return;
+    case ZF_CLOSE: return;
+    case ZF_TEXT_BEGIN: case ZF_TEXT_READLN: case ZF_EOF:
+    case ZF_EOLN: case ZF_SEEKEOF: case ZF_SEEKEOLN:
+        if(!access(0)) return;
+        break;
+    case ZF_TEXT_READ:
+        if(!access(0)||!text_input_target()) return;
+        break;
+    case ZF_TEXT_WRITE: case ZF_TEXT_WRITELN: fail(3,0); return;
+    default: fail(0x20,0); return;
+    }
+    job->stream=ZF_STANDARD_KBD;
+    job->lookahead=(uint8_t)record->next|((record->state&LOOKAHEAD)?0x100u:0);
+}
 void zf_dispatch(FileJob *invocation) ZFILE_CALL {
     uint16_t owner,family,width;
     uint8_t valid,error;
-    job=invocation; job->error=0; job->detail=0; job->result=0; job->actual=0; job->stream=0;
+    job=invocation;
+    if(job->operation!=ZF_STREAM_RETURN) {
+        job->error=0; job->detail=0; job->result=0; job->actual=0; job->stream=0; job->lookahead=0;
+    }
     record=(Record *)zf_record;
     if(job->static_end<0x8000u||job->static_end>job->heap_floor||
        job->heap_floor>job->heap_frontier||job->heap_frontier>job->stack_pointer||
@@ -587,11 +618,22 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
        (job->heap_floor&1)||!descriptor(&family,&width)||!object_owner(&owner)) {
         fail(0x1ff,0); return;
     }
-    if(!standards()) return;
+    if(job->operation!=ZF_STREAM_RETURN&&!standards()) return;
     valid=bound(owner,family,width);
+    if(job->operation==ZF_STREAM_RETURN) {
+        if(!valid||record->device!=ZF_STANDARD_KBD||job->stream!=ZF_STANDARD_KBD||job->lookahead>0x1ffu)
+            fail(0x1ff,0);
+        else {
+            record->next=(uint8_t)job->lookahead;
+            record->state=(record->state&~LOOKAHEAD)|((job->lookahead&0x100u)?LOOKAHEAD:0);
+            save_record(slot);
+        }
+        return;
+    }
     if(valid&&record->standard) {
         if(job->operation==ZF_ASSIGN||job->operation==ZF_RESET||job->operation==ZF_REWRITE||job->operation==ZF_CLOSE)
             fail(0x22,0);
+        else if(record->device) keyboard_stream();
         else if(job->operation==ZF_TEXT_READ) {
             if(text_input_target()) job->stream=record->standard;
         } else if(job->operation==ZF_TEXT_WRITE) {
@@ -604,8 +646,11 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
     }
     if(job->operation==ZF_ASSIGN) {
         if(!assigned_path()) { fail(0x20,ERR_INVALID_PATH); return; }
+        error=!strcmp(request.path,"KBD:");
+        if(error&&family) { fail(0x20,0); return; }
         if(valid&&(record->state&OPENED)) { fail(0x20,0); return; }
         if(!valid&&!new_record(owner,family,width)) return;
+        record->device=error?ZF_STANDARD_KBD:0; record->state=error?READABLE:0; record->next=0;
         strcpy(record->path,request.path); token(owner,family,width); save_record(slot); return;
     }
     if(!valid) {
@@ -613,6 +658,7 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
              job->operation==ZF_TEXT_READLN||job->operation==ZF_TEXT_BEGIN||job->operation==ZF_EOF||
              (job->operation>=ZF_EOLN&&job->operation<=ZF_SEEKEOLN)?2:3,0); return;
     }
+    if(record->device) { keyboard_stream(); return; }
     switch(job->operation) {
     case ZF_TEXT_BEGIN:
         if(record->family) fail(0x20,0);

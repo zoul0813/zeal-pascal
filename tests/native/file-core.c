@@ -363,6 +363,43 @@ static void renames(void) {
     check(call(ZF_RESET)==0); check(call(ZF_READ)==0&&get(0xc200)==73);
     check(call(ZF_CLOSE)==0); clean(ZF_END_PROGRAM,0,0);
 }
+static void keyboard_files(void) {
+    defaults(); VM(0xc100)[0]=0; put(0xc101,0); invocation.count=ZF_TEXT_CHAR;
+    assign("kBd:"); check(call(ZF_TEXT_READ)==0&&invocation.stream==ZF_STANDARD_KBD);
+    check(call(ZF_RESET)==0); check(call(ZF_TEXT_READ)==0&&invocation.stream==ZF_STANDARD_KBD);
+    invocation.lookahead=0x158; invocation.result=1; invocation.actual=1;
+    check(call(ZF_STREAM_RETURN)==0&&invocation.result==1&&invocation.actual==1);
+    check(call(ZF_EOLN)==0&&invocation.lookahead==0x158);
+    invocation.lookahead=0x258; check(call(ZF_STREAM_RETURN)==0x1ff);
+    check(call(ZF_EOF)==0&&invocation.lookahead==0x158);
+    invocation.lookahead=0x059; invocation.error=0x20; invocation.detail=77;
+    check(call(ZF_STREAM_RETURN)==0x20&&invocation.detail==77);
+    check(call(ZF_TEXT_READ)==0&&invocation.lookahead==0x59);
+    check(call(ZF_CLOSE)==0); check(call(ZF_TEXT_READ)==0&&invocation.stream==ZF_STANDARD_KBD);
+    check(call(ZF_REWRITE)==0); check(call(ZF_EOF)==0&&invocation.lookahead==0);
+    check(call(ZF_TEXT_WRITELN)==3&&!invocation.stream);
+    check(call(ZF_ERASE)==0x20); check(named(ZF_RENAME,"H:/KBDINVALID")==0x20);
+    memcpy(VM(0xc020),VM(0xc000),16); invocation.object=0xc020;
+    invocation.stream=ZF_STANDARD_KBD; invocation.error=0;
+    check(call(ZF_STREAM_RETURN)==0x1ff);
+    invocation.object=0xc000; check(call(ZF_EOF)==0&&invocation.lookahead==0);
+    clean(ZF_END_PROGRAM,0,0);
+
+    defaults(); check(named(ZF_ASSIGN,"KBD:")==0x20); /* Text only. */
+    VM(0xc100)[0]=0; put(0xc101,0); invocation.code_origin=0xc100;
+    invocation.standard_table=0xc300;
+    put(0xc300,3); put(0xc302,0xc000); put(0xc304,ZF_STANDARD_INPUT);
+    put(0xc306,0xc020); put(0xc308,ZF_STANDARD_OUTPUT);
+    put(0xc30a,0xc040); put(0xc30c,ZF_STANDARD_KBD);
+    invocation.object=0xc040;
+    check(call(ZF_EOF)==0&&invocation.stream==ZF_STANDARD_KBD);
+    check(call(ZF_RESET)==0x22); check(call(ZF_REWRITE)==0x22); check(call(ZF_CLOSE)==0x22);
+    check(named(ZF_ASSIGN,"H:/KBDINVALID")==0x22);
+    check(call(ZF_TEXT_WRITELN)==3&&!invocation.stream);
+    put(0xc30c,ZF_STANDARD_OUTPUT); check(call(ZF_EOF)==0x1ff); /* duplicate identity */
+    put(0xc30c,ZF_STANDARD_KBD); check(call(ZF_EOF)==0);
+    clean(ZF_END_PROGRAM,0,0);
+}
 static void standard_files(void) {
     uint16_t code;
     defaults(); invocation.code_origin=0xc100;
@@ -498,7 +535,7 @@ static void faults(void) {
 #endif
 int main(void) {
     check(sizeof(FileJob)==ZF_JOB_BYTES&&sizeof(FileCleanup)==10);
-    basic(); lifetime(); boundaries(); block_files(); many(); wide_components(); text_files(); file_paths(); renames(); standard_files();
+    basic(); lifetime(); boundaries(); block_files(); many(); wide_components(); text_files(); file_paths(); renames(); standard_files(); keyboard_files();
 #ifndef __SDCC
     faults(); rename_faults(); check(model_pages==0&&model_handles==0);
     printf("%u file runtime assertions passed, %u failed\n",test_passed,test_failed);

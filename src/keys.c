@@ -4,7 +4,7 @@
 
 static uint8_t control,shift,caps,released;
 uint8_t key_event(uint8_t c) KEYCALL {
-    uint8_t mask,up;
+    uint8_t mask,up,alpha;
     if(c==KB_RELEASED) { released=1;return 0; }
     up=released;released=0;
     mask=c==KB_LEFT_CTRL||c==KB_LEFT_SHIFT?1:2;
@@ -15,8 +15,9 @@ uint8_t key_event(uint8_t c) KEYCALL {
     } else if(c==KB_CAPS_LOCK&&!up) caps=!caps;
     else if(!up) {
         if(c>=32&&c<127) {
-            if(control&&c>='a'&&c<='z') return c-'a'+1;
-            if(c>='a'&&c<='z') { if((shift!=0)^caps) c-=32; }
+            alpha=(uint8_t)(c-'a')<26;
+            if(control&&alpha) return c-'a'+1;
+            if(alpha) { if((shift!=0)^caps) c-=32; }
             else if(shift) {
                 const char *plain="`1234567890-=[]\\;',./";
                 const char *upper="~!@#$%^&*()_+{}|:\"<>?";
@@ -25,7 +26,16 @@ uint8_t key_event(uint8_t c) KEYCALL {
             }
             return c;
         }
-        if(c=='\b'||c=='\n'||c=='\t'||c==127||c>=128) return c;
+#ifdef ZP_PASCAL_KEYS
+        /* Pascal's physical Enter is CR. Ctrl-J returns LF through the
+         * control-letter branch above; the IDE keeps its own LF convention. */
+        if(c=='\n') return 13;
+        if(c==KB_ESC) return 27;
+        if(c==KB_DELETE) return 127;
+#else
+        if(c=='\n') return c;
+#endif
+        if(c=='\b'||c=='\t'||c==127||c>=128) return c;
     }
     return 0;
 }

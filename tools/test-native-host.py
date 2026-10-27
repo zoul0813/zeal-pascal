@@ -33,6 +33,10 @@ subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', *flags, '-Isrc'
                 '-o', str(OUT / 'keys')], cwd=ROOT, check=True)
 subprocess.run([str(OUT / 'keys')], cwd=ROOT, check=True)
 subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', *flags, '-Isrc',
+                '-I'+str(sdk), '-DZP_PASCAL_KEYS', 'src/keys.c', 'tests/native/keys-host.c',
+                '-o', str(OUT / 'keys-pascal')], cwd=ROOT, check=True)
+subprocess.run([str(OUT / 'keys-pascal')], cwd=ROOT, check=True)
+subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', *flags, '-Isrc',
                 'src/source.c', 'src/source_blocks.c', 'src/editor.c', 'tests/native/editor-core.c', 'tests/native/editor-search.c',
                 'tests/native/editor-host.c', '-o', str(OUT/'editor')], cwd=ROOT, check=True)
 subprocess.run([str(OUT/'editor')], cwd=ROOT, check=True)
