@@ -86,12 +86,21 @@ def validate_runtime(path):
                                  ('line_next',2,0x7ea6,0x8000),
                                  ('line_remaining',1,0x7ea6,0x8000),
                                  ('line_eof',1,0x7ea6,0x8000),
-                                 ('line_valid',1,0x7ea6,0x8000)):
+                                 ('line_valid',1,0x7ea6,0x8000),
+                                 ('input_key',3,0x77cd,0x7ea6),
+                                 ('input_raw_key',1,0x77cd,0x7ea6),
+                                 ('input_mode',1,0x77cd,0x7ea6),
+                                 ('input_cleanup',1,0x77cd,0x7ea6),
+                                 ('input_fail',1,0x77cd,0x7ea6),
+                                 ('input_error',1,0x77cd,0x7ea6),
+                                 ('echo_fd',1,0x7ea6,0x8000)):
         address=symbols[name]
         if not first<=address<=last-width:
             raise ValueError('private runtime input address out of bounds: '+name)
         private.append(address)
-    private_payload=struct.pack('<6H',*private)
+    if bytes(memory.get(symbols['input_key']+i,0)for i in range(3))!=b'\xc3'+struct.pack('<H',symbols['input_raw_key']):
+        raise ValueError('private keyboard dispatch does not start at its raw owner')
+    private_payload=struct.pack('<13H',*private)
     path.with_suffix('.private').write_bytes(private_payload)
     report={'passed':True,'runtime_bytes':len(payload),'real_code_bytes':symbols['l__REAL'],
             'real_data_bytes':symbols['l__REAL_DATA'],
@@ -193,7 +202,7 @@ def package(path):
     metadata=json.loads(runtime.with_suffix('.runtime.json').read_text())
     if (metadata['sha256']!=hashlib.sha256(template).hexdigest() or
             metadata['private_sha256']!=hashlib.sha256(private).hexdigest() or
-            private!=struct.pack('<6H',*metadata['private_input_addresses']) or
+            private!=struct.pack('<13H',*metadata['private_input_addresses']) or
             symbols['_runtime_start']!=0x88000 or
             symbols['_runtime_end']!=0x88000+len(template) or
             payloads[7]!=template+private):

@@ -168,6 +168,19 @@ int main(int argc,char **argv) {
     invalid("begin writeln(eoln(1))end.",21);
     invalid("var f:file of integer;begin writeln(seekeof(f))end.",66);
     invalid("begin writeln(filepos)end.",4);
+    invalid("begin writeln(keypressed())end.",5);
+    load("var a:array[0..1]of integer;begin writeln(sizeof(a[ord(keypressed)]))end.");
+    check(compile(&s,&b,&d));check(!cc.keyboard_entry&&!cc.file_entry);build_close(&b);
+    load("function keypressed:boolean;begin keypressed:=true end;begin writeln(keypressed)end.");
+    check(compile(&s,&b,&d));check(!cc.keyboard_entry&&!cc.file_entry);build_close(&b);
+    load("begin writeln(keypressed)end.");
+    check(compile(&s,&b,&d));check(cc.keyboard_entry&&cc.keyboard_poll&&!cc.file_entry&&cc.temporaries==0);
+    {
+        uint16_t at=cc_runtime_private(RP_INPUT_KEY)-0x4000u+1;
+        check((far_get(b.pages[0],at)|((uint16_t)far_get(b.pages[0],at+1)<<8))==
+              cc.keyboard_entry+b.code_origin-CC_CODE_BASE);
+    }
+    build_close(&b);
     load("var a:array[0..1]of integer;begin writeln(sizeof(a[ord(eof)]))end.");
     check(compile(&s,&b,&d));check(!cc.file_entry&&cc.temporaries==0);build_close(&b);
     invalid("var f:file of integer;begin seek(f,true)end.",23);
@@ -524,7 +537,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes","filetokens","params","diskfiles","diskblocks","disklife","diskwide","textdisk","textseek","textnumber","textformat","textrecover","textnest","texteof","textedges","textargs","capacity","textpath","textrename","textrens","stdinput","stdoutput","stdpred"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes","filetokens","params","diskfiles","diskblocks","disklife","diskwide","textdisk","textseek","textnumber","textformat","textrecover","textnest","texteof","textedges","textargs","capacity","textpath","textrename","textrens","stdinput","stdoutput","stdpred","keyonly","keybuffer","keybreak","keyhigh"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {

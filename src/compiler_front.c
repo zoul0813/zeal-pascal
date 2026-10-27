@@ -91,6 +91,10 @@ uint8_t cc_place_code(void) FRONTEND {
      * always writes behind the unread staging bytes. The second staging page
      * is separate from all final image pages. */
     for(i=0;i<count;++i) cc_put(origin-0x4000u+i,cc_code_get(CC_CODE_BASE+i));
+    /* Bind the private key dispatch only after final placement is known.
+     * Both RAM and saved images own their typeahead state and exact target. */
+    if(cc.keyboard_entry)
+        cc_word(cc_runtime_private(RP_INPUT_KEY)-0x4000u+1,cc.keyboard_entry+delta);
     if(cc.error->code) return 0;
     cc.image->code_origin=origin; cc.image->code_bytes=count;
     cc.image->length=origin-0x4000u+count;

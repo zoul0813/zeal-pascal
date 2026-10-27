@@ -1,9 +1,10 @@
 .module input
 .globl read_line,read_string,input_begin,input_value,input_end
-.globl memory_mode,io_error,call_error,val_dispatch,buflen,cbreak,user_break
+.globl memory_mode,call_error,val_dispatch,buflen,cbreak,user_break
 .globl _key_event,c_save,c_restore,io_check,io_fail,io_status
 .globl line_history
 .globl input_ready,input_advance,line_next,line_remaining,line_eof,line_valid
+.globl input_key,input_raw_key,input_mode,input_cleanup,input_fail,input_error,echo_fd
 .area _REAL_DATA
 line_next: .ds 2
 line_remaining: .ds 1
@@ -148,7 +149,7 @@ input_break_message:
 input_break_cleanup:
     call input_cleanup
     or a
-    jp nz,io_error
+    jp nz,input_error
     jp user_break
 input_eof:
     ld a,#1
@@ -173,7 +174,7 @@ input_history_ready:
     ld (buflen),a
     call input_cleanup
     or a
-    jp nz,io_error
+    jp nz,input_error
     ret
 input_append:
     push af
@@ -224,7 +225,11 @@ input_recall:
     jp input_append
 ; Decode only presses, retaining the second byte of each raw release pair.
 ; The shared C decoder owns a separate modifier state in this runtime image.
+; The compiler can bind this private dispatch operand to its generated
+; typeahead owner. The default has the same raw decoder and no extra state.
 input_key:
+    jp input_raw_key
+input_raw_key:
     ld a,(raw_pending)
     or a
     jr z,input_key_read
@@ -235,8 +240,7 @@ input_key:
 input_key_read:
     ld de,#raw_bytes
     ld bc,#2
-    ld h,#1
-    ld l,#0
+    ld hl,#0x0100
     call input_syscall
     or a
     jp nz,input_fail
@@ -245,7 +249,7 @@ input_key_read:
     jp nz,input_fail
     ld a,c
     or a
-    jr z,input_key
+    ret z                      ; nonblocking polls may find no physical event
     cp #3
     jp nc,input_fail
     cp #2
@@ -265,11 +269,9 @@ input_key_decode:
     ret
 ; Echo is a separate supported console handle, never Pascal Output/stdout.
 input_open:
-    ld a,#255
-    ld (echo_fd),a
+    ; read_line/cleanup own the invalid255 state before every open attempt.
     ld bc,#input_video_name
-    ld h,#1
-    ld l,#2
+    ld hl,#0x0102
     call input_syscall
     or a
     jp m,input_fail
@@ -312,8 +314,7 @@ input_close_owned:
     xor a
     ret
 input_mode:
-    ld h,#1
-    ld l,#7
+    ld hl,#0x0107
     ld c,#0
     jp input_syscall
 input_cleanup:
@@ -331,8 +332,14 @@ input_restore_mode:
     or b
     ret
 input_fail:
+    push af                    ; retain the primary native error across cleanup
     call input_cleanup
-    jp io_error
+    pop af
+input_error:
+    ; IOCALL cleared the detail's high byte before this first input failure.
+    ld (0xfe7a),a
+    ld a,#0x20
+    jp io_fail
 input_video_name: .asciz "#VID0"
 input_break_text: .asciz "\r\nUser break\r\n"
 ; Kernel calls may replace page3; buffers live in the fixed runtime prefix.

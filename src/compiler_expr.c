@@ -322,7 +322,8 @@ static uint8_t factor(void) {
             negative=raw_kind(); raw_index(); kind=K_BYTE;
             if(negative==1) cc_load_indirect(K_BYTE);
             else { cc_emit(0x4d); cc_emit(0x44); cc_emit(0xed); cc_emit(0x68); cc_emit(0x26); cc_emit(0); }
-        } else if(id<0&&(fn=cc_file_function())>=0) kind=(uint8_t)fn;
+        } else if(id<0&&cc_is("keypressed")) { cc_next(); cc_keypressed(); kind=K_BOOLEAN; }
+        else if(id<0&&(fn=cc_file_function())>=0) kind=(uint8_t)fn;
         else if(id<0&&(fn=predefined_function())>=0) kind=intrinsic((uint8_t)fn);
         else if(id<0&&(cc_is("true")||cc_is("false"))) {
             cc_op16(0x21,cc_is("true")?1:0); kind=K_BOOLEAN; cc_next();

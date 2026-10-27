@@ -16,6 +16,7 @@ python3 tools/test-io.py
 python3 tools/test-files.py
 python3 tools/test-text.py
 python3 tools/test-standard.py
+python3 tools/test-keyboard.py
 python3 tools/test-file-runtime.py --host --native
 python3 tools/test-workers.py
 python3 tools/test-params.py
@@ -391,8 +392,20 @@ if Code <> 0 then WriteLn('Invalid input');
 This applies to console I/O and the implemented disk operations, including Text.
 Unchecked I/O does not disable division, range or stack errors. Str and Val
 preserve pending status under the native scoped-I/O correction. Explicit Input
-and Output use the same scoped error handling; their console predicates and
-other logical streams, including unbuffered KeyPressed/Kbd, remain pending.
+and Output and their console predicates use the same scoped error handling.
+KeyPressed checks for keyboard input without waiting for Enter. Repeated checks
+retain the pending character for Read/ReadLn; unread text already in Input's
+line buffer does not count as a new physical key. Polling preserves the shared
+modifier/release state and restores the normal IDE/shell keyboard mode.
+Unavailable keyboard input reports I/O20. Kbd and the other logical streams
+remain pending.
+Inline machine-code statements and the C/U/X directives are also pending;
+the implemented directives are A, B, I checking, R, V and W.
+Pascal CRT calls (ClrScr, ClrEol, GotoXY, InsLine, DelLine, CrtInit/CrtExit,
+LowVideo/NormVideo/HighVideo and Delay), driver/error callbacks, Chain/Execute
+and overlays remain pending. CP/M BIOS/BDOS services are intentionally
+unavailable on Zeal; explicit unsupported-target diagnostics for them are still
+pending. These gaps are separate from the editor's display functions.
 
 The editor now supports character/word/line movement, smooth scrolling, paging,
 virtual columns through128 and horizontal scrolling. Arrow keys, Home/End and
