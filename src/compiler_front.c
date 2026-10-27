@@ -398,6 +398,8 @@ void cc_storage(uint16_t id,uint16_t width) FRONTEND {
         if((uint32_t)cc.image->globals_bytes+width>=PAGE_SIZE) { cc_fail(99); return; }
         cc.symbols[id].address=GLOBAL_BASE+cc.image->globals_bytes;
         cc.image->globals_bytes+=width;
+        if(cc.symbols[id].role==S_VARIABLE)
+            cc_file_static(cc.symbols[id].type,cc.symbols[id].address);
     }
 }
 void cc_frame(uint8_t scope) FRONTEND {

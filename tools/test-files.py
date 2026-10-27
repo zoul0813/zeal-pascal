@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""File declarations/layout and diagnostics through the native RAM/COM compiler.
+"""File storage and fresh-token initialization through native RAM/COM compilation.
 
-This foundation does not qualify initialized file tokens, Assign, disk/device
-transfers or lifetime cleanup; those are subsequent file-runtime increments.
+Binding authority, activation of other variant arms, copied-token adoption,
+Assign, disk/device transfers and lifetime cleanup are subsequent increments.
 """
 import importlib.util
 import json
@@ -38,13 +38,14 @@ def main():
     checks = {
         'native completion marker': memory.get(sym['_test_done']) == 255 and word('_test_stage') == 6,
         'RAM/COM ownership, layout, aliasing and diagnostic assertions':
-            word('_test_failed') == 0 and word('_test_passed') >= 76,
+            word('_test_failed') == 0 and word('_test_passed') >= 90,
         'file families, aggregate copies, recursion, Var, With, New and shadowing in RAM/COM':
-            output.is_file() and output.read_bytes() == b'FILE-DECLARATIONS-OK\r\n'*2,
+            output.is_file() and output.read_bytes() ==
+            b'FILE-DECLARATIONS-OK\r\n'*2 + b'FILE-TOKENS-OK\r\n'*2,
         'implementation and artifacts unchanged during validation':
             all(n.sha(Path(p)) == digest for p, digest in hashes.items()),
     }
-    report = {'scope': 'Native file declaration/layout foundation only; initialized tokens, registry, file/device I/O and cleanup remain unimplemented',
+    report = {'scope': 'Native file storage and fresh-token initialization; registry, other variant-arm activation, copied-token adoption, file/device I/O and cleanup remain unimplemented',
               'passed': all(checks.values()), 'capture_directory': str(n.RUN.relative_to(ROOT)),
               'native_assertions_passed': word('_test_passed'),
               'native_assertions_failed': word('_test_failed'),

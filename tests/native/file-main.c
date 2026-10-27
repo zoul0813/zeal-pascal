@@ -24,6 +24,7 @@ int app_main(void) {
     if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
     test_stage=39;
     execution_file("H:/FILETYPES.PAS",1,0,0);
+    execution_file("H:/FILETOKENS.PAS",1,0,0);
     invalid("var f,g:text;begin f:=g end.",54);
     invalid("var f:text;begin f:=1 end.",54);
     invalid("var f:text;begin writeln(f)end.",54);

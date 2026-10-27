@@ -31,7 +31,7 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/runtime_asset.asm CONTENT
 ".area _BANK8\n.globl _runtime_start\n.globl _runtime_end\n.globl _trampoline_start\n.globl _trampoline_end\n_runtime_start:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.zpl\"\n_runtime_end:\n.area _RODATA\n_trampoline_start:\n.incbin \"${CMAKE_BINARY_DIR}/ram_trampoline.zpl\"\n_trampoline_end:\n")
 set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/pascal_runtime.zpl;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
-set(PASCAL_CORE src/source.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_expr.c src/compiler_types.c src/compiler_front.c src/compiler_routines.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_state.c src/compiler_asset.c src/library.c src/platform.c src/keys.c src/output.c src/native.asm
+set(PASCAL_CORE src/source.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_expr.c src/compiler_types.c src/compiler_front.c src/compiler_routines.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_file.c src/compiler_state.c src/compiler_asset.c src/library.c src/platform.c src/keys.c src/output.c src/native.asm
     ${CMAKE_BINARY_DIR}/runtime_asset.asm)
 # This SDK disables compiler depfiles. Keep shared ABI/header changes from
 # leaving stale objects in another compiler bank during incremental ZDE builds.
@@ -75,7 +75,7 @@ set_source_files_properties(src/compiler.c src/compiler_random.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK2;--constseg;BANK2")
 set_source_files_properties(src/compiler_expr.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK6;--constseg;BANK6")
-set_source_files_properties(src/compiler_types.c PROPERTIES
+set_source_files_properties(src/compiler_types.c src/compiler_file.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK7;--constseg;BANK7")
 set_source_files_properties(src/compiler_front.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK4;--constseg;BANK4")

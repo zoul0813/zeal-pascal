@@ -95,6 +95,22 @@ int main(int argc,char **argv) {
     check(compile(&s,&b,&d)); check(b.globals_bytes==96); build_close(&b);
     load("type text=integer;\nvar n:text;\nbegin n:=7;\nwriteln(n)end.");
     check(compile(&s,&b,&d)); check(cc.text_type==255); build_close(&b);
+    load("type ints=file of integer;raw=file;z=record end;zero=file of z;\nblock=array[1..300]of byte;wide=file of block;\nvar t:text;f:ints;u:raw;e:zero;w:wide;begin end.");
+    check(compile(&s,&b,&d));
+    for(i=0;i<5;++i) {
+        unsigned j;
+        const uint8_t family[]={FILE_TEXT,FILE_TYPED,FILE_UNTYPED,FILE_TYPED,FILE_TYPED};
+        const uint16_t width[]={0,2,128,0,300};
+        for(j=0;j<16;++j) {
+            uint8_t expected=j==0?0x5a:j==1?0x46:j==8?family[i]:j==10?(uint8_t)width[i]:j==11?(uint8_t)(width[i]>>8):0;
+            check(image_get(&b,0x4000u+i*16+j)==expected);
+        }
+    }
+    check(cc.types[cc.text_type].high==0); build_close(&b);
+    load("var p:^text;begin getmem(p,16)end.");
+    check(compile(&s,&b,&d)); check(cc.types[cc.text_type].high==0); build_close(&b);
+    load("var p:^text;begin new(p)end.");
+    check(compile(&s,&b,&d)); check(cc.types[cc.text_type].high!=0); build_close(&b);
     invalid("var n:integer;begin n:=1/2 end.",44);
     invalid("var r:real;begin r:=1e38 end.",57);
     invalid("var r:real;begin r:=1e-39 end.",57);
@@ -470,7 +486,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes","filetokens"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {

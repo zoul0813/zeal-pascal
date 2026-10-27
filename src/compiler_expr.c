@@ -484,7 +484,7 @@ static void raw_store(uint8_t port) {
     else { cc_emit(0x7d); cc_emit(0x12); }
 }
 uint8_t cc_runtime_statement(void) BACKEND {
-    uint8_t op,type,kind;
+    uint8_t op,type=K_INTEGER,kind;
     int16_t id;
     uint16_t before=cc.temporaries,width=0;
     if(cc.token!=T_ID||cc_lookup()>=0) return 0;
@@ -522,6 +522,9 @@ uint8_t cc_runtime_statement(void) BACKEND {
     cc_expect(')',5);
     if(op==2) { cc_emit(0x3e); cc_emit(2); cc_call(RT_AVAIL); }
     else cc_call(op<=1?RT_ALLOC:op<=4?RT_FREE:RT_RELEASE);
+    if(op==0&&cc_file_fields(cc.types[type].element)) {
+        cc_emit(0x54); cc_emit(0x5d); cc_file_initialize(cc.types[type].element);
+    }
     if(op<=2) { cc_emit(0xd1); cc_store_indirect(K_INTEGER); }
     return 1;
 }

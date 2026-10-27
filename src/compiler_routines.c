@@ -56,6 +56,12 @@ static void prologue(void) {
     } else cc_op16(0x21,0);
     indexed(0x75,254); indexed(0x74,255); /* lexical parent */
     cc_frame(cc.scope); indexed(0x75,252); indexed(0x74,253); /* live frame lifetime */
+    if(cc_rget(cc.scope,R_FLAGS)&RF_RECURSIVE)
+        for(id=0;id<cc.symbol_count&&!cc.error->code;++id)
+            if(cc.symbols[id].owner==cc.scope&&cc.symbols[id].role==S_VARIABLE&&cc_file_fields(cc.symbols[id].type)) {
+                cc_symbol_address(id); cc_emit(0xdd); cc_emit(0xe5); cc_emit(0xd1);
+                cc_file_initialize(cc.symbols[id].type);
+            }
 }
 static void epilogue(void) {
     uint16_t i;

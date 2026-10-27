@@ -146,4 +146,7 @@ void cc_val(void) FRONTEND;
 void cc_read(uint8_t newline) FRONTEND;
 void cc_random(uint8_t bounded) FRONTEND;
 void cc_randomize(void) FRONTEND;
+uint8_t cc_file_fields(uint8_t type) FRONTEND;
+void cc_file_static(uint8_t type,uint16_t address) FRONTEND;
+void cc_file_initialize(uint8_t type) FRONTEND;
 #endif
