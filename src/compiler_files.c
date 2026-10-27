@@ -1,24 +1,63 @@
 #include "compiler.h"
 #include "file_runtime.h"
+typedef char text_kinds_match[(K_INTEGER==ZF_TEXT_INTEGER&&K_STRING==ZF_TEXT_STRING&&
+    K_CHAR==ZF_TEXT_CHAR&&K_BYTE==ZF_TEXT_BYTE&&K_REAL==ZF_TEXT_REAL)?1:-1];
 
 static void index_store(uint8_t opcode,uint8_t offset) { cc_emit(0xfd); cc_emit(opcode); cc_emit(offset); }
 /* This helper is shared by all file operations but retains the invocation's
  * actual source PC. No callback occurs during the checked-guard setup. */
 static void guard(uint16_t bytes) {
     cc_op16(0x2a,RT_PC);
-    cc_address(0x22,0x4000u+cc.emitted+8);
+    cc_address(0x22,cc.emitted+8);
     cc_reserve(bytes);
+}
+/* Transport leaves a numeric token in a caller-owned context. Convert only
+ * after the original runtime prefix is restored; Val supplies the same grammar
+ * and Real6 semantics as console input. Commit a destination only on success. */
+static void number_result(void) {
+    uint16_t skip[5],bad,copy,done,i;
+    index_store(0x6e,22); index_store(0x66,23); cc_emit(0x7c); cc_emit(0xb5);
+    skip[0]=cc_forward(0xc2);
+    index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_TEXT_READ); skip[1]=cc_forward(0xc2);
+    index_store(0x7e,8); cc_emit(0xfe); cc_emit(ZF_TEXT_STRING); skip[2]=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(ZF_TEXT_CHAR); skip[3]=cc_forward(0xca);
+    index_store(0x7e,10); cc_emit(0xb7); skip[4]=cc_forward(0xca);
+    guard(262);
+    index_store(0x6e,6); index_store(0x66,7);
+    cc_op16(0x11,ZF_NUMBER_TOKEN); cc_emit(0x19); cc_emit(0xe5);
+    cc_op16(0x11,ZF_NUMBER_VALUE-ZF_NUMBER_TOKEN); cc_emit(0x19); cc_emit(0xe5);
+    cc_emit(0x2b); cc_emit(0x2b); cc_emit(0xe5);
+    cc_op16(0x21,0); cc_emit(0x39);
+    index_store(0x7e,8); cc_emit(0xfe); cc_emit(ZF_TEXT_REAL);
+    cc_emit(0x3e); cc_emit(ZR_VAL_INTEGER); cc_emit(0x20); cc_emit(1); cc_emit(0x3c);
+    cc_op16(0xcd,RT_VAL); cc_emit(0xc1); cc_emit(0xc1); cc_emit(0xc1);
+    index_store(0x6e,6); index_store(0x66,7);
+    cc_emit(0x23); cc_emit(0x23); cc_emit(0x7e); cc_emit(0x23); cc_emit(0xb6);
+    bad=cc_forward(0xc2);
+    index_store(0x6e,6); index_store(0x66,7);
+    cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56);
+    cc_emit(0x23); cc_emit(0x23); cc_emit(0x23); /* HL=value, DE=destination */
+    index_store(0x7e,8); cc_emit(0xfe); cc_emit(ZF_TEXT_REAL);
+    cc_op16(0x01,6); copy=cc_forward(0xca);
+    cc_op16(0x01,2); cc_emit(0xfe); cc_emit(ZF_TEXT_BYTE);
+    cc_emit(0x20); cc_emit(1); cc_emit(0x0b);
+    cc_patch(copy); cc_emit(0xed); cc_emit(0xb0); done=cc_forward(0xc3);
+    cc_patch(bad);
+    cc_emit(0x3e); cc_emit(0x10); index_store(0x77,22);
+    cc_emit(0xaf); index_store(0x77,23);
+    cc_patch(done);
+    for(i=0;i<5;++i) cc_patch(skip[i]);
 }
 static void engine(void) {
     uint16_t skip,asset,gate,bootstrap,ready,normal,allocated,i;
     uint16_t module_bytes=cc_file_asset_size(0),gate_bytes=cc_file_asset_size(1);
     if(cc.file_entry||cc.suppress||cc.error->code) return;
     skip=cc_forward(0xc3);
-    asset=0x4000u+cc.emitted;
+    asset=cc.emitted;
     for(i=0;i<module_bytes;++i) cc_emit(cc_file_asset_get(0,i));
-    gate=0x4000u+cc.emitted;
+    gate=cc.emitted;
     for(i=0;i<gate_bytes;++i) cc_emit(cc_file_asset_get(1,i));
-    cc.file_entry=0x4000u+cc.emitted;
+    cc.file_entry=cc.emitted;
     cc_op16(0x3a,RT_IOSTATUS); cc_emit(0xb7); bootstrap=cc_forward(0xca);
     cc_op16(0xc3,RT_IOFAIL); /* pending status skips resource acquisition/I/O */
     cc_patch(bootstrap);
@@ -58,6 +97,7 @@ static void engine(void) {
     cc_op16(0x21,0); cc_emit(0x39); index_store(0x75,28); index_store(0x74,29);
     cc_op16(0x2a,0x4014); index_store(0x75,30); index_store(0x74,31);
     cc_emit(0xe1); cc_emit(0xe5); cc_emit(0xaf); cc_op16(0xcd,0xfe90);
+    number_result();
     index_store(0x6e,24); index_store(0x66,25); cc_op16(0x22,0xfe7a);
     index_store(0x5e,22); index_store(0x56,23);
     cc_emit(0xe1); cc_emit(0xfd); cc_emit(0xe1); /* restore With before any nonlocal error */
@@ -83,7 +123,7 @@ static uint8_t file_argument(uint16_t base) {
     cc_release(base+32);
     if(cc_family(type)!=K_FILE) { cc_fail(44); return type; }
     store(2,0);
-    skip=cc_forward(0xc3); descriptor=0x4000u+cc.emitted;
+    skip=cc_forward(0xc3); descriptor=cc.emitted;
     width=cc.types[type].capacity==FILE_TEXT?0:cc.types[type].capacity==FILE_UNTYPED?128:
         cc.types[cc.types[type].element].width;
     cc_emit(cc.types[type].capacity); cc_emit((uint8_t)width); cc_emit((uint8_t)(width>>8)); cc_patch(skip);
@@ -133,14 +173,17 @@ uint8_t cc_file_statement(void) FRONTEND {
     cc_release(base); return 1;
 }
 int16_t cc_file_function(void) FRONTEND {
-    uint8_t operation;
+    uint8_t operation,type;
     uint16_t base;
     if(cc.token!=T_ID||cc_lookup()>=0) return -1;
-    operation=cc_is("filepos")?ZF_POSITION:cc_is("filesize")?ZF_SIZE:cc_is("eof")?ZF_EOF:255;
+    operation=cc_is("filepos")?ZF_POSITION:cc_is("filesize")?ZF_SIZE:cc_is("eof")?ZF_EOF:
+        cc_is("eoln")?ZF_EOLN:cc_is("seekeof")?ZF_SEEKEOF:cc_is("seekeoln")?ZF_SEEKEOLN:255;
     if(operation==255) return -1;
-    cc_next(); cc_expect('(',4); base=job_start(operation); file_argument(base);
+    cc_next(); cc_expect('(',4); base=job_start(operation);
+    type=file_argument(base);
+    if(cc_family(type)==K_FILE&&cc.types[type].capacity!=FILE_TEXT&&operation>=ZF_EOLN) cc_fail(66);
     cc_expect(')',5); invoke(base); result(base,20); cc_release(base);
-    return operation==ZF_EOF?K_BOOLEAN:K_INTEGER;
+    return operation==ZF_POSITION||operation==ZF_SIZE?K_INTEGER:K_BOOLEAN;
 }
 /* Selection-only lookahead does not evaluate an index twice at runtime. The
  * shared suppressed parser validates its type; re-lexing restores literal/name
@@ -156,8 +199,36 @@ uint8_t cc_file_prefix(void) FRONTEND {
 }
 void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND {
     uint16_t base=job_start(writing?ZF_WRITE:ZF_READ);
-    uint8_t type=file_argument(base),actual,component;
-    if(cc_family(type)!=K_FILE||cc.types[type].capacity!=FILE_TYPED||newline) cc_fail(66);
+    uint8_t type=file_argument(base),actual,component,kind;
+    if(cc_family(type)!=K_FILE) { cc_fail(66); return; }
+    if(cc.types[type].capacity==FILE_TEXT) {
+        while(cc.token==','&&!cc.error->code) {
+            cc_next();
+            cc_op16(0x21,writing?ZF_TEXT_WRITE:ZF_TEXT_READ); store(0,0);
+            if(writing) {
+                cc_formatted_value(); store(6,cc.temporaries-base-32);
+            } else {
+                actual=cc_reference(41); kind=cc_family(actual); cc_release(base+32);
+                if(kind!=K_STRING&&kind!=K_CHAR&&kind!=K_INTEGER&&kind!=K_REAL) { cc_fail(66); break; }
+                if(kind==K_INTEGER&&cc.types[actual].width==1) kind=K_BYTE;
+                if(kind==K_STRING||kind==K_CHAR) store(6,0);
+                else {
+                    cc_temporary(ZF_NUMBER_BYTES);
+                    cc_emit(0xeb); cc_emit(0x73); cc_emit(0x23); cc_emit(0x72); /* captured target */
+                    cc_op16(0x21,0); cc_emit(0x39); store(6,ZF_NUMBER_BYTES);
+                }
+                cc_op16(0x21,kind|((uint16_t)(kind==K_STRING?cc.types[actual].capacity:0)<<8));
+                store(8,cc.temporaries-base-32);
+            }
+            invoke(base); cc_release(base+32);
+        }
+        cc_expect(')',5);
+        if(newline) {
+            cc_op16(0x21,writing?ZF_TEXT_WRITELN:ZF_TEXT_READLN); store(0,0); invoke(base);
+        }
+        cc_release(base); return;
+    }
+    if(cc.types[type].capacity!=FILE_TYPED||newline) cc_fail(66);
     component=cc.types[type].element;
     while(cc.token==','&&!cc.error->code) {
         cc_next(); actual=cc_reference(41); cc_release(base+32);

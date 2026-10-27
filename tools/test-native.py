@@ -24,6 +24,9 @@ TF_TEMPLATE = ZEAL / 'zeal-dev-environment/home/tf.base.img.gz'
 COREUTILS = ZEAL / 'zeal-dev-environment/home/zeal-coreutils/bin'
 OUT = ROOT / "analysis/native-slice"
 RUN = OUT / datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
+# Loading/hashing the complete banked library is deliberately not optimized yet.
+# Stop at the actual breakpoint, with room for the growing native product.
+LIBRARY_READY_CYCLES = 8000000000
 
 
 def sha(path):
@@ -132,7 +135,7 @@ def program_launch(target='zpascal'):
     # The child loader is hashing its library after the small resident image
     # has loaded. Stop at its resident transition before sending IDE input.
     return (type_text(f'H:/{target}.bin H:/{target}.zpl\n') + ['run 1000000',
-            f'bp 0x{ready:x}', 'run 2000000000', f'bc 0x{ready:x}'])
+            f'bp 0x{ready:x}', f'run {LIBRARY_READY_CYCLES}', f'bc 0x{ready:x}'])
 
 
 def code_banks(target='zpascal'):
@@ -555,7 +558,7 @@ def library_failure_checks():
         # A resident address can also be executable in the launching shell.
         # Reach the child's normal entry before arming its fast failure exit.
         commands += ['bp 0x4000', 'tap ENTER', 'run 2000000000', 'bc 0x4000',
-                     f"bp 0x{sym['_fflush_stdout']:x}", 's', 'run 2000000000', 'regs', 'mmu',
+                     f"bp 0x{sym['_fflush_stdout']:x}", 's', f'run {LIBRARY_READY_CYCLES}', 'regs', 'mmu',
                      f"rb 0x{sym['_code_owned']:x} 2", f"rb 0x{sym['_work']:x} 2", 'quit']
         text = execute('library-' + label, commands, {'BAD.ZPL': data} if data is not None else {})
         observed = memory(text)
@@ -583,7 +586,7 @@ def default_library_checks():
     sym = symbols('zpascal')
     ready,key,work = sym['_code_ready'],sym['_key_read'],sym['_work']
     commands = ['run 100000000'] + type_text('H:/zpascal.bin\n')
-    commands += ['run 1000000', f'bp 0x{ready:x}', 'run 8000000000', f'bc 0x{ready:x}',
+    commands += ['run 1000000', f'bp 0x{ready:x}', f'run {LIBRARY_READY_CYCLES}', f'bc 0x{ready:x}',
                  'run 10000000', f'bp 0x{key:x}', 'tap N', 'run 100000000', 'regs',
                  f"rb 0x{sym['_code_owned']:x} 1", f'rb 0x{work:x} 140', f'bc 0x{key:x}']
     commands += type_text('q', ticks=2000000) + ['quit']
@@ -621,18 +624,20 @@ def main():
                        all(0 < sym[f'l__BANK{bank}'] <= 16384 for bank in range(1,code_banks(target)+1))))
     boot = symbols('zpbootfail')
     commands = ['run 100000000'] + type_text('H:/zpbootfail.bin\n')
-    commands += [f"bp 0x{boot['_boot_complete']:x}", 'run 12000000000', 'regs',
+    # Every partial-allocation case reloads/hashes the available bank prefix.
+    # This is a growing quadratic workload, not one ordinary library launch.
+    commands += [f"bp 0x{boot['_boot_complete']:x}", 'run 120000000000', 'regs',
                  f"rb 0x{boot['_boot_done']:x} 1", f"rb 0x{boot['_boot_failed']:x} 1", 'quit']
     boot_text = execute('boot-allocation', commands,
                         {'zpbootfail.bin': (ROOT / 'build/zpbootfail.bin').read_bytes(),
-                         'BAD.ZPL': b'BAD!' + (ROOT / 'build/zpascal.zpl').read_bytes()[4:]})
+                         'BAD.ZPL': b'BAD!' + (ROOT / 'build/zpascal.zpl').read_bytes()[4:]}, timeout=360)
     boot_memory = memory(boot_text)
     checks.append(('startup allocation failures release partial/all banks and malformed-library retries close handles',
                    boot_memory.get(boot['_boot_done']) == 255 and boot_memory.get(boot['_boot_failed']) == 0))
     checks.extend(bank_lifecycle_checks())
     sym = symbols('zptest')
-    if not 0xc000 <= sym['_test_stop'] <= 0xc7fd:
-        raise RuntimeError('completion stop must be in supervisor data below the managed Pascal stack')
+    if sym['_test_stop'] != 0xfc00:
+        raise RuntimeError('completion stop must be the supervisor-only FC00 marker')
     kernel = kernel_symbols()
     reader, mode = kernel['keyboard_read_raw'], kernel['kb_mode']
     keyboard_ioctl = kernel['keyboard_ioctl']

@@ -75,7 +75,7 @@ static void init_call(uint8_t type) {
     uint8_t family=cc_family(type),arm;
     if(!cc.types[type].high) {
         skip=cc_forward(0xc3);
-        cc.types[type].high=(int16_t)(0x4000u+cc.emitted);
+        cc.types[type].high=(int16_t)(cc.emitted);
         if(family==K_FILE) {
             cc_emit(0xe5); cc_emit(0xd5); cc_op16(0x01,16); cc_emit(0xaf); cc_op16(0xcd,RT_FILL);
             cc_emit(0xd1); cc_emit(0xe1); cc_emit(0xe5);
@@ -85,7 +85,7 @@ static void init_call(uint8_t type) {
             width=component(type); cc_emit(0x36); cc_emit((uint8_t)width); cc_emit(0x23);
             cc_emit(0x36); cc_emit((uint8_t)(width>>8)); cc_emit(0xe1);
         } else if(family==K_ARRAY) {
-            cc_emit(0xe5); cc_op16(0x01,array_count(type)); loop=0x4000u+cc.emitted;
+            cc_emit(0xe5); cc_op16(0x01,array_count(type)); loop=cc.emitted;
             cc_emit(0xc5); init_call(cc.types[type].element); cc_emit(0xc1);
             cc_emit(0xd5); cc_op16(0x11,cc.types[cc.types[type].element].width); cc_emit(0x19); cc_emit(0xd1);
             cc_emit(0x0b); cc_emit(0x78); cc_emit(0xb1); cc_address(0xc2,loop); cc_emit(0xe1);

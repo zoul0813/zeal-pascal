@@ -34,7 +34,7 @@ void cc_real_constant(uint8_t type,uint16_t value) FRONTEND {
 }
 void cc_real_emit(uint16_t reference) FRONTEND {
     uint8_t i;
-    uint16_t address=0x4000u+cc.emitted+3;
+    uint16_t address=cc.emitted+3;
     cc_real_literal(reference);
     cc_address(0xc3,address+6);
     for(i=0;i<6;++i) cc_emit(zr_result[i]);

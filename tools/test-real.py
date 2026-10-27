@@ -421,7 +421,7 @@ def native(trig=False):
             ROOT/'src/zp.h',ROOT/'src/transcendental.c',ROOT/'tests/native/real-core.c',ROOT/'tests/native/machine.asm',
             ROOT/'tools/test-real.py',ROOT/'tools/test-native.py']
     hashes={str(p):hashlib.sha256(p.read_bytes()).hexdigest()for p in inputs}
-    stop=sym['_test_stop'];assert 0xe000<=stop<=0xe7fd
+    stop=sym['_test_stop'];assert stop==0xfc00
     assert 0< (ROOT/f'build/{target}.bin').stat().st_size <49152
     for area in ('HEADER','GSINIT','GSFINAL','INITIALIZER','HOME','SYSTEM','TEXT','CODE','RODATA'):
         at,size=sym.get('s__'+area,0),sym.get('l__'+area,0)

@@ -5,9 +5,6 @@
  * debugger console. No emulated syscall or host Pascal interpreter is used. */
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done;
-/* Executed only after completion. Pascal code/static ends below C000, so an
- * address-only debugger stop here cannot match any generated runtime helper. */
-uint8_t test_stop[3]={0x76,0x18,0xfd};
 volatile uint16_t test_failures[64],test_index;
 volatile uint8_t test_hash[32];
 Source s;

@@ -26,16 +26,31 @@ void cc_fail(uint8_t code) FRONTEND {
     if(!cc.error->code) { cc.error->code=code; cc.error->start=cc.token_start; cc.error->end=cc.token_end; }
 }
 
-void cc_put(uint16_t p,uint8_t v) FRONTEND { far_set(cc.image->pages[p/PAGE_SIZE],p%PAGE_SIZE,v); }
+void cc_put(uint16_t p,uint8_t v) FRONTEND {
+    if(cc.error->code) return;
+    if(p>=0xc000u) {
+        if(cc.stage_page==255) {
+            cc.stage_page=page_new(PAGE_COMPILER);
+            if(cc.stage_page==255) { cc_fail(98); return; }
+        }
+        far_set(cc.stage_page,p-0xc000u,v);
+    } else far_set(cc.image->pages[p/PAGE_SIZE],p%PAGE_SIZE,v);
+}
+uint8_t cc_code_get(uint16_t address) FRONTEND {
+    if(cc.error->code) return 0;
+    if(address<CC_CODE_BASE||address>=cc.emitted) { cc_fail(99); return 0; }
+    return address>=0xc000u?far_get(cc.stage_page,address-0xc000u):
+        far_get(cc.image->pages[2],address-CC_CODE_BASE);
+}
 void cc_word(uint16_t p,uint16_t v) FRONTEND { cc_put(p,(uint8_t)v); cc_put(p+1,(uint8_t)(v>>8)); }
 
 
 
 void cc_emit(uint8_t v) FRONTEND {
     if(cc.error->code||cc.suppress) return;
-    /* Stage code in the third image page. cc_place_code bounds the completed
-     * static/code image below C000, beneath the managed C800 stack floor. */
-    if(cc.emitted>=0xc000u) { cc_fail(99); return; }
+    /* The first staging page reuses image page2. A second owned compiler page
+     * is acquired only if necessary, then released after checked placement. */
+    if(cc.emitted>=CC_STATIC_LIMIT) { cc_fail(99); return; }
     cc_put(cc.emitted++,v);
 }
 static void emit16(uint16_t v) { cc_emit((uint8_t)v); cc_emit((uint8_t)(v>>8)); }
@@ -52,25 +67,26 @@ void cc_address(uint8_t op,uint16_t value) FRONTEND {
 }
 uint8_t cc_place_code(void) FRONTEND {
     uint16_t i,at,value,origin=GLOBAL_BASE+cc.image->globals_bytes;
-    uint16_t count=cc.emitted-0x8000u,delta=origin-0xc000u;
-    if((uint32_t)cc.image->globals_bytes+count>PAGE_SIZE) { cc_fail(99); return 0; }
+    uint16_t count=cc.emitted-CC_CODE_BASE,delta=origin-CC_CODE_BASE;
+    if(origin>0xc000u||(uint32_t)origin+count>CC_STATIC_LIMIT) { cc_fail(99); return 0; }
     for(i=0;i<cc.relocations;++i) {
         at=far_get(cc.workspace,i*2)|((uint16_t)far_get(cc.workspace,i*2+1)<<8);
         if(at<0x8000u||at>=cc.emitted-1) { cc_fail(99); return 0; }
-        value=far_get(cc.image->pages[2],at-0x8000u)|((uint16_t)far_get(cc.image->pages[2],at-0x8000u+1)<<8);
+        value=cc_code_get(at)|((uint16_t)cc_code_get(at+1)<<8);
         cc_word(at,value+delta);
     }
-    /* Temporary code occupies page 2. Its final extent is entirely below
-     * page 2, after all declared globals/static locals, so copying cannot
-     * overwrite bytes that have not yet been read. */
-    for(i=0;i<count;++i) cc_put(origin-0x4000u+i,far_get(cc.image->pages[2],i));
+    /* Globals remain below C000. In the overlapping page2 part, forward copy
+     * always writes behind the unread staging bytes. The second staging page
+     * is separate from all final image pages. */
+    for(i=0;i<count;++i) cc_put(origin-0x4000u+i,cc_code_get(CC_CODE_BASE+i));
+    if(cc.error->code) return 0;
     cc.image->code_origin=origin; cc.image->code_bytes=count;
     cc.image->length=origin-0x4000u+count;
     return 1;
 }
 
 uint16_t cc_forward(uint8_t op) FRONTEND { uint16_t at=cc.emitted+1; cc_address(op,0); return at; }
-void cc_patch(uint16_t at) FRONTEND { if(!cc.error->code&&!cc.suppress) cc_word(at,0x4000u+cc.emitted); }
+void cc_patch(uint16_t at) FRONTEND { if(!cc.error->code&&!cc.suppress) cc_word(at,cc.emitted); }
 uint16_t cc_link(uint8_t opcode,uint16_t head) FRONTEND {
     if(cc.suppress) return head;
     uint16_t at=cc.emitted+1; cc_address(opcode,head); return at;
@@ -78,12 +94,12 @@ uint16_t cc_link(uint8_t opcode,uint16_t head) FRONTEND {
 void cc_patch_chain(uint16_t head,uint16_t value) FRONTEND {
     uint16_t next;
     while(head&&!cc.error->code) {
-        next=far_get(cc.image->pages[2],head-0x8000u)|((uint16_t)far_get(cc.image->pages[2],head-0x8000u+1)<<8);
+        next=cc_code_get(head)|((uint16_t)cc_code_get(head+1)<<8);
         cc_word(head,value); head=next;
     }
 }
 void cc_reserve(uint16_t bytes) FRONTEND {
-    uint16_t pc=cc.emitted-(cc.image->code_origin-0x4000u);
+    uint16_t pc=cc.emitted-CC_CODE_BASE;
     /* Runtime consumes inline size/PC words and preserves both register sets. */
     cc_op16(0xcd,RT_GUARD);
     cc_emit((uint8_t)bytes); cc_emit((uint8_t)(bytes>>8));
@@ -93,7 +109,7 @@ void cc_guard(void) FRONTEND { cc_reserve(0); }
 /* Terminal entries restore their own emergency stack before doing cleanup.
  * Capturing their source PC must not push onto a caller-selected boundary SP. */
 void cc_finish(uint16_t entry) FRONTEND {
-    cc_op16(0x21,cc.emitted-(cc.image->code_origin-0x4000u));
+    cc_op16(0x21,cc.emitted-CC_CODE_BASE);
     cc_op16(0x22,RT_PC);
     cc_emit(0x06); cc_emit(cc.io_check); cc_op16(0xc3,entry);
 }
@@ -521,7 +537,7 @@ void cc_constant_literal(uint16_t at) FRONTEND {
     cc.scan=saved_scan; cc.token=saved_token; cc.token_start=first; cc.token_end=last;
 }
 void cc_emit_literal(void) FRONTEND {
-    uint16_t i,address=0x4000u+cc.emitted+3;
+    uint16_t i,address=cc.emitted+3;
     cc_address(0xc3,address+cc.literal_length+1); cc_emit((uint8_t)cc.literal_length);
     for(i=0;i<cc.literal_length;++i) cc_emit(cc.literal[i]);
     cc_address(0x21,address);

@@ -1,5 +1,5 @@
 .module file_test_start
-.globl _main,_test_stop
+.globl _main,_test_complete
 .globl s__DATA,l__DATA,s__TEST_DATA,l__TEST_DATA
 .area _HEADER
     ld sp,#0xfc00
@@ -12,7 +12,7 @@
     ld bc,#l__TEST_DATA
     call clear
     call _main
-    jp _test_stop
+    jp _test_complete
 clear:
     ld a,b
     or c

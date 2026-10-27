@@ -65,7 +65,7 @@ def main():
     for name in (target, 'zpascal'):
         inputs += [ROOT/f'build/{name}.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}
-    assert 0xc000 <= sym['_test_stop'] <= 0xc7fd
+    assert sym['_test_stop'] == 0xfc00
     commands = ['run 100000000'] + n.program_launch(target)
     commands += [f"bp 0x{sym['_test_stop']:x}"]
     lines = ['7 bad 42', 'bad 42', '99', 'bad 42', 'bad', 'bad', 'bad', 'bad', 'bad 77', 'bad', 'bad 1.25', 'bad', 'bad']

@@ -36,9 +36,9 @@ static void draw(void) {
         /* The initial jump skips both writable state and callable code. A
          * later call, even from another routine, reuses this one definition. */
         skip=cc_forward(0xc3);
-        cc.random_state=0x4000u+cc.emitted;
+        cc.random_state=cc.emitted;
         cc_emit(0xf5); cc_emit(0x79); cc_emit(0x2b); cc_emit(0x6d);
-        cc.random_entry=0x4000u+cc.emitted;
+        cc.random_entry=cc.emitted;
         cc_address(0x2a,cc.random_state);
         cc_emit(0xed); cc_address(0x5b,cc.random_state+2);
         /* Marsaglia xorshift32 (13,17,5), period 2^32-1 from any nonzero state. */
@@ -63,7 +63,7 @@ void cc_random(uint8_t bounded) FRONTEND {
         cc_emit(0xaf); cc_emit(0x95); cc_emit(0x6f);
         cc_emit(0x9f); cc_emit(0x94); cc_emit(0x67);
         cc_emit(0xe5); /* threshold */
-        loop=0x4000u+cc.emitted;
+        loop=cc.emitted;
         draw();
         cc_emit(0xcb); cc_emit(0xbc); /* RES 7,H: 0..32767 candidate */
         cc_emit(0xc1); cc_emit(0xc5); /* BC = threshold, retained */
@@ -76,7 +76,7 @@ void cc_random(uint8_t bounded) FRONTEND {
     } else {
         draw();
         cc_emit(0x3e); cc_emit(128);
-        loop=0x4000u+cc.emitted;
+        loop=cc.emitted;
         cc_emit(0xcb); cc_emit(0x7a); /* normalize DEHL to a Real6 mantissa */
         ready=cc_forward(0xc2);
         cc_emit(0x29); cc_emit(0xcb); cc_emit(0x13); cc_emit(0xcb); cc_emit(0x12);

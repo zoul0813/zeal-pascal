@@ -3,7 +3,6 @@
 
 volatile uint16_t test_passed,test_failed,test_stage,test_index,test_failures[64];
 volatile uint8_t test_done;
-uint8_t test_stop[3]={0x76,0x18,0xfd};
 Source s;
 void test_machine(uint8_t *state) NATIVE;
 void test_complete(void);

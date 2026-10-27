@@ -65,7 +65,7 @@ def main():
     inputs += [ROOT/'build/file_runtime.zpl',ROOT/'build/file_gate.zpl']
     inputs += [ROOT/'build/diskabi.zpl']
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}
-    assert 0xc000 <= sym['_test_stop'] <= 0xc7fd
+    assert sym['_test_stop'] == 0xfc00
     commands = ['run 100000000'] + n.program_launch(target)
     commands += [f"bp 0x{sym['_test_stop']:x}", 'run 60000000000', 's', 'regs', 'mmu']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage'):

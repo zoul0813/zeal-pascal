@@ -17,7 +17,7 @@ static void map16(uint16_t p,uint16_t v) { map8(p,(uint8_t)v); map8(p+1,(uint8_t
 
 static void map32(uint16_t p,uint32_t v) { uint8_t i; for(i=0;i<4;++i) map8(p+i,(uint8_t)(v>>(i*8))); }
 
-static uint16_t pc(void) { return cc.emitted-(cc.image->code_origin-0x4000u); }
+static uint16_t pc(void) { return cc.emitted-CC_CODE_BASE; }
 
 static void mapping(uint16_t begin,uint16_t end,uint16_t first,uint16_t last) {
     uint16_t offset=96+cc.file_bytes+cc.entries*16;
@@ -61,8 +61,7 @@ void cc_labels_finish(void) BACKEND {
            !cc.symbols[i].initial_type&&cc.symbols[i].address) cc_fail(40);
 }
 static uint16_t label_word(uint16_t at) {
-    return far_get(cc.image->pages[2],at-0x8000u)|
-        ((uint16_t)far_get(cc.image->pages[2],at-0x8000u+1)<<8);
+    return cc_code_get(at)|((uint16_t)cc_code_get(at+1)<<8);
 }
 /* A pending jump keeps its source For/With depths in immediate operands.
  * The JP operand links the pending records until the label is defined.
@@ -70,7 +69,7 @@ static uint16_t label_word(uint16_t at) {
 static void label_patch(uint16_t id,uint16_t at) {
     Symbol *s=&cc.symbols[id];
     uint16_t loops=label_word(at-5);
-    uint8_t with=far_get(cc.image->pages[2],at-0x8000u-25);
+    uint8_t with=cc_code_get(at-25);
     if(loops<s->type) { cc_fail(71); return; }
     cc_put(at-25,with>s->control?with-s->control:0);
     cc_word(at-5,(uint16_t)((loops-s->type)*2+(int16_t)(with-s->control)*4));
@@ -81,7 +80,7 @@ static void label_define(uint16_t id) {
     uint16_t head=s->address,next;
     if(s->owner!=cc.scope) { cc_fail(72); return; }
     if(s->initial_type) { cc_fail(43); return; }
-    s->initial_type=1; s->address=0x4000u+cc.emitted;
+    s->initial_type=1; s->address=cc.emitted;
     s->type=cc.for_depth; s->control=cc.with_depth;
     while(head&&!cc.error->code) {
         next=label_word(head); label_patch(id,head); head=next;
@@ -135,7 +134,7 @@ static void link_jump(uint8_t opcode,uint16_t *head) {
     *head=cc_link(opcode,*head);
 }
 static void patch_jumps(uint16_t head) {
-    cc_patch_chain(head,0x4000u+cc.emitted);
+    cc_patch_chain(head,cc.emitted);
 }
 static uint16_t case_constant(uint8_t selector) {
     uint8_t type;
@@ -236,7 +235,7 @@ static uint16_t statement(void) {
     } else if(cc_is("while")) {
         loop=cc.emitted; cc_next(); branch=condition(); cc_keyword("do",13);
         head_end=cc.token_start; mapping(code,pc(),start,head_end);
-        statement(); code=pc(); cc_address(0xc3,0x4000u+loop); cc_patch(branch);
+        statement(); code=pc(); cc_address(0xc3,loop); cc_patch(branch);
         mapping(code,pc(),start,head_end);
         --cc.depth; return start;
     } else if(cc_is("repeat")) {
@@ -247,7 +246,7 @@ static uint16_t statement(void) {
         }
         start=cc.token_start; code=pc(); cc_keyword("until",41);
         branch=condition();
-        if(!cc.error->code) cc_word(branch,0x4000u+loop);
+        if(!cc.error->code) cc_word(branch,loop);
         mapping(code,pc(),start,cc.token_start);
         --cc.depth; return start;
     } else if(cc_is("for")) {
@@ -284,7 +283,7 @@ static uint16_t statement(void) {
         cc_emit(0x7c); cc_emit(0xb5); other=cc_forward(0xca);
         if(id>=0) cc_load_symbol((uint16_t)id);
         cc_emit(newline?0x2b:0x23); if(id>=0) cc_store_symbol((uint16_t)id);
-        cc_address(0xc3,0x4000u+body);
+        cc_address(0xc3,body);
         cc_patch(branch); cc_patch(other); cc_emit(0xc1); /* exactly one owned bound word */
         mapping(code,pc(),start,head_end);
         --cc.depth; return start;
@@ -368,7 +367,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     uint8_t digest[32];
     Sha256 hash;
     cc.image=b; cc.error=d;
-    cc.workspace=255;
+    cc.workspace=255; cc.stage_page=255;
     memset(d,0,sizeof(*d));
     memset(b,0,sizeof(*b)); memset(b->pages,255,3); b->map_page=255;
     if(!source_snapshot(s,&cc.snapshot)) { d->code=98; return 0; }
@@ -406,8 +405,8 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
         if(cc.token=='(') { cc_next(); cc_expect(T_ID,53); while(cc.token==',') { cc_next(); cc_expect(T_ID,53); } cc_expect(')',5); }
         cc_expect(';',1);
     }
-    b->code_origin=0xc000u;
-    cc.emitted=0x8000u;
+    b->code_origin=CC_CODE_BASE;
+    cc.emitted=CC_CODE_BASE;
     i=cc_block();
     j=pc();
     cc_expect('.',10);
@@ -416,6 +415,10 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     mapping(j,pc(),i,i);
     if(d->code) goto failed;
     if(!cc_place_code()) goto failed;
+    if(cc.stage_page!=255) {
+        if(page_drop(cc.stage_page)) cc.stage_page=255;
+        else { d->code=98; goto failed; }
+    }
     if(page_drop(cc.workspace)) cc.workspace=255;
     else { d->code=98; goto failed; }
     b->revision=s->revision;
@@ -445,6 +448,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     source_close(&cc.snapshot);
     return 1;
 failed:
+    if(cc.stage_page!=255&&page_drop(cc.stage_page)) cc.stage_page=255;
     if(cc.workspace!=255&&page_drop(cc.workspace)) cc.workspace=255;
     d->start=source_editor_offset(s,d->start);
     d->end=source_editor_offset(s,d->end);

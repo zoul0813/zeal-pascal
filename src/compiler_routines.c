@@ -75,7 +75,7 @@ static void epilogue(void) {
     cc_emit(0x06); cc_emit(cc.io_check);
     /* Exit already restored its stack and captured its own source/checking
      * policy. Join after the implicit scope-end guard, before any cleanup. */
-    cc_patch_chain(cc_rget(cc.scope,R_EXITS),0x4000u+cc.emitted);
+    cc_patch_chain(cc_rget(cc.scope,R_EXITS),cc.emitted);
     cc_emit(0xdd); cc_emit(0xe5); cc_emit(0xd1); /* actual ending activation */
     cc_op16(0x21,0); cc_emit(0x3e); cc_emit(16);
     cc_op16(0xcd,RT_FILECLEANUP);
@@ -189,11 +189,11 @@ uint16_t cc_block(void) ROUTINES {
         if(cc_rget((uint8_t)i,R_PARENT)==scope&&!(cc_rget((uint8_t)i,R_FLAGS)&RF_DEFINED)) cc_fail(73);
     if(jump) cc_patch(jump);
     if(scope) {
-        entry=0x4000u+cc.emitted; cc_rput(scope,R_ENTRY,entry);
+        entry=cc.emitted; cc_rput(scope,R_ENTRY,entry);
         cc.symbols[cc_rget(scope,R_SYMBOL)].address=entry;
         cc_patch_chain(cc_rget(scope,R_CALLS),entry); cc_rput(scope,R_CALLS,0);
-        code=cc.emitted-0x8000u; start=cc.symbols[cc_rget(scope,R_SYMBOL)].name_start;
-        prologue(); cc_mapping(code,cc.emitted-0x8000u,start,cc.token_start);
+        code=cc.emitted-CC_CODE_BASE; start=cc.symbols[cc_rget(scope,R_SYMBOL)].name_start;
+        prologue(); cc_mapping(code,cc.emitted-CC_CODE_BASE,start,cc.token_start);
     }
     cc.with_bound=cc.with_limit;
     start=cc.token_start;
@@ -202,8 +202,8 @@ uint16_t cc_block(void) ROUTINES {
     cc.with_bound=saved_bound;
     if(!cc.error->code&&cc.temporaries) cc_fail(99); /* no temporary escapes a statement/block */
     if(scope) {
-        code=cc.emitted-0x8000u;
-        epilogue(); cc_mapping(code,cc.emitted-0x8000u,start,start);
+        code=cc.emitted-CC_CODE_BASE;
+        epilogue(); cc_mapping(code,cc.emitted-CC_CODE_BASE,start,start);
     }
     --cc.nesting;
     return start;

@@ -1,10 +1,17 @@
 .module test_machine
 .globl _test_machine
 .globl _test_complete, _test_stop
+.equ _test_stop, 0xfc00
 .area _TEXT
-; The initialized supervisor data-page stop is disjoint from Pascal code.
-; This is a test marker, not a product entry point.
+; Generated static/code storage can now extend into page3, up to F400.
+; FC00 is a nonexecutable completion context in Pascal children. Install this
+; supervisor-only stop after all checks, abandoning its finished C stack.
 _test_complete::
+    ld sp,#0xfc00
+    ld a,#0x76
+    ld (_test_stop),a
+    ld hl,#0xfd18
+    ld (_test_stop+1),hl
     jp _test_stop
 ; Test-only observation of IFF, exact caller SP and all four MMU mappings.
 ; No page, interrupt state, stack or index register is changed.

@@ -44,6 +44,19 @@ static uint16_t field(uint8_t numeric) {
     if(bytes) snapshot(bytes);
     return bytes+2; /* width word relative to the current SP */
 }
+/* A complete padded field is at most255 bytes under the recovered width
+ * rule. Reuse Str's copy/padding engine; keep the result invocation-owned
+ * before entering a disk stream or evaluating the next argument. */
+void cc_formatted_value(void) FRONTEND {
+    uint16_t offset=field(0);
+    cc_temporary(256); /* HL body survives; DE is the new String slot. */
+    cc_reserve(4); cc_emit(0xe5); cc_emit(0xd5);
+    cc_op16(0x21,offset+260); cc_emit(0x39);
+    cc_emit(0x4e); cc_emit(0x23); cc_emit(0x46);
+    cc_emit(0xd1); cc_emit(0xe1);
+    cc_emit(0x3e); cc_emit(255); cc_call(RT_STR);
+    cc_op16(0x21,0); cc_emit(0x39);
+}
 void cc_write(uint8_t newline) FRONTEND {
     uint16_t before=cc.temporaries,offset;
     cc_next();

@@ -16,7 +16,6 @@ uint8_t file_probe_before[7],file_probe_after[7],file_probe_ok;
 
 volatile uint16_t test_passed,test_failed,test_failures[64],test_index;
 volatile uint8_t test_done;
-const uint8_t test_stop[3]={0x76,0x18,0xfd};
 static FileJob invocation;
 static FileCleanup ending;
 static uint8_t saved_token[16];
@@ -189,6 +188,61 @@ static void wide_components(void) {
     check(call(ZF_READ)==0&&VM(0xc200)[0]==0x6b&&VM(0xc200)[299]==0x6b);
     check(call(ZF_CLOSE)==0); clean(ZF_END_PROGRAM,0,0);
 }
+static void text_defaults(const char *name) {
+    defaults(); VM(0xc100)[0]=0; put(0xc101,0); assign(name);
+}
+static void text_value(const char *value) {
+    VM(0xc200)[0]=(uint8_t)strlen(value); memcpy(VM(0xc201),value,strlen(value));
+    check(call(ZF_TEXT_WRITE)==0);
+}
+static void text_files(void) {
+    static const uint8_t white[]="  \r\n\t 12 \t\r\n \r\n\032X";
+    text_defaults("H:/TEXT.DAT"); check(call(ZF_REWRITE)==0);
+    text_value("ABC"); text_value("D"); check(call(ZF_TEXT_WRITELN)==0);
+    text_value("  123"); check(call(ZF_TEXT_WRITELN)==0); check(call(ZF_CLOSE)==0);
+    check(call(ZF_RESET)==0); invocation.count=ZF_TEXT_CHAR;
+    check(call(ZF_TEXT_READ)==0&&invocation.actual==1&&VM(0xc200)[0]=='A');
+    check(call(ZF_EOF)==0&&!invocation.result); check(call(ZF_EOLN)==0&&!invocation.result);
+    invocation.count=ZF_TEXT_STRING|(20u<<8);
+    check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]==3&&!memcmp(VM(0xc201),"BCD",3));
+    check(call(ZF_EOLN)==0&&invocation.result); check(call(ZF_TEXT_READLN)==0);
+    check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]==5&&!memcmp(VM(0xc201),"  123",5));
+    check(call(ZF_TEXT_READLN)==0); check(call(ZF_EOF)==0&&invocation.result);
+    check(call(ZF_EOLN)==0&&invocation.result); check(call(ZF_TEXT_READLN)==0);
+    check(call(ZF_CLOSE)==0); check(call(ZF_TEXT_READ)==2); check(call(ZF_TEXT_WRITE)==3);
+    clean(ZF_END_PROGRAM,0,0);
+
+    seed("H:/WHITE.TXT",white,sizeof(white)-1);
+    text_defaults("H:/WHITE.TXT"); check(call(ZF_RESET)==0);
+    check(call(ZF_EOLN)==0&&!invocation.result);
+    check(call(ZF_SEEKEOLN)==0&&invocation.result); check(call(ZF_TEXT_READLN)==0);
+    check(call(ZF_SEEKEOF)==0&&!invocation.result);
+    put(0xc200,0xc250); put(0xc250,777); invocation.count=ZF_TEXT_INTEGER;
+    check(call(ZF_TEXT_READ)==0&&invocation.actual==1&&get(0xc250)==777);
+    check(VM(0xc200+ZF_NUMBER_TOKEN)[0]==2&&!memcmp(VM(0xc201+ZF_NUMBER_TOKEN),"12",2));
+    check(call(ZF_SEEKEOLN)==0&&invocation.result);
+    check(call(ZF_SEEKEOF)==0&&invocation.result);
+    check(call(ZF_TEXT_READ)==0&&!invocation.actual&&get(0xc250)==777);
+    invocation.count=ZF_TEXT_CHAR; check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]==26);
+    check(call(ZF_EOF)==0&&invocation.result); check(call(ZF_CLOSE)==0);
+    clean(ZF_END_PROGRAM,0,0);
+
+    seed("H:/EMPTY.TXT",white,0); text_defaults("H:/EMPTY.TXT"); check(call(ZF_RESET)==0);
+    check(call(ZF_EOF)==0&&invocation.result); check(call(ZF_EOLN)==0&&invocation.result);
+    invocation.count=ZF_TEXT_STRING; VM(0xc201)[0]=77;
+    check(call(ZF_TEXT_READ)==0&&!VM(0xc200)[0]&&VM(0xc201)[0]==77);
+    check(call(ZF_CLOSE)==0); clean(ZF_END_PROGRAM,0,0);
+
+    text_defaults("H:/TEXT.DAT"); check(call(ZF_RESET)==0);
+    invocation.count=ZF_TEXT_INTEGER; put(0xc200,0x7000);
+    check(call(ZF_TEXT_READ)==0x1ff);
+    invocation.count=ZF_TEXT_CHAR; check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]=='A');
+    check(call(ZF_TEXT_WRITE)==3); check(call(ZF_POSITION)==0x20); check(call(ZF_FLUSH)==0x20);
+    check(call(ZF_CLOSE)==0); clean(ZF_END_PROGRAM,0,0);
+
+    text_defaults("H:/AUTOTEXT.DAT"); check(call(ZF_REWRITE)==0); text_value("AUTO");
+    clean(ZF_END_PROGRAM,0,0);
+}
 #ifndef __SDCC
 static void faults(void) {
     uint8_t handles;
@@ -228,7 +282,7 @@ static void faults(void) {
 #endif
 int main(void) {
     check(sizeof(FileJob)==32&&sizeof(FileCleanup)==10);
-    basic(); lifetime(); boundaries(); block_files(); many(); wide_components();
+    basic(); lifetime(); boundaries(); block_files(); many(); wide_components(); text_files();
 #ifndef __SDCC
     faults(); check(model_pages==0&&model_handles==0);
     printf("%u file runtime assertions passed, %u failed\n",test_passed,test_failed);

@@ -14,6 +14,7 @@ python3 tools/test-native.py
 python3 tools/test-input.py
 python3 tools/test-io.py
 python3 tools/test-files.py
+python3 tools/test-text.py
 python3 tools/test-file-runtime.py --host --native
 python3 tools/test-workers.py
 python3 tools/test-params.py
@@ -148,9 +149,21 @@ heap objects are disposed or released, and when a program ends, halts or fails.
 Checked cleanup errors return to the ending scope or cleanup statement; a later
 cleanup failure preserves an earlier runtime error. Saved file programs include
 their disk runtime and need no separately installed file-runtime libraries.
-Text files, logical devices, Rename, relative paths and the complete file-error/
-capacity matrix remain in progress. File support does not establish full Turbo
-Pascal conformance.
+Disk Text files support formatted Write/Writeln, Char/String/Integer/Byte/Real
+Read/ReadLn, Eof, Eoln, SeekEof and SeekEoln. Text output uses CR/LF and a final
+Ctrl-Z; input accepts physical EOF as well. Eof/Eoln inspect the next byte;
+the seek predicates consume their specified whitespace. Numeric reads use the
+same conversion rules as console input and Val. Nested file operations in
+argument expressions retain the enclosing operation's file and value snapshots.
+Preassigned standard files, logical devices, Rename, relative paths and the
+complete file-error/capacity matrix remain in progress. File support does not
+establish full Turbo Pascal conformance.
+
+Generated code and static storage can occupy up to29,696 bytes above the fixed
+16 KiB runtime prefix, leaving at least2 KiB of initial stack space. The compiler
+uses an additional temporary page only when code staging exceeds16 KiB and
+releases it before execution. Source remains limited to16,383 bytes and ordinary
+globals to less than16 KiB; stack/heap checks still apply to actual program use.
 
 Declarations may repeat in any order. Ordinary constants alias literal/constant
 values; scalar and string typed constants are initialized writable storage.
@@ -350,10 +363,10 @@ while argument expressions still run. Retrieve the status before reporting it:
 if Code <> 0 then WriteLn('Invalid input');
 ```
 
-This applies to console I/O and the implemented typed/block disk operations.
+This applies to console I/O and the implemented disk operations, including Text.
 Unchecked I/O does not disable division, range or stack errors. Str and Val
-preserve pending status under the native scoped-I/O correction. Text files/devices
-and unbuffered KeyPressed/Kbd remain pending.
+preserve pending status under the native scoped-I/O correction. Preassigned and
+logical streams and unbuffered KeyPressed/Kbd remain pending.
 
 The editor now supports character/word/line movement, smooth scrolling, paging,
 virtual columns through128 and horizontal scrolling. Arrow keys, Home/End and

@@ -337,7 +337,7 @@ void cc_typed_storage(uint16_t first) FRONTEND {
     uint8_t range,absolute,strict,limit;
     for(i=first;i<cc.symbol_count&&!cc.error->code;++i) if(cc.symbols[i].role==S_TYPED) {
         if(!jump) jump=cc_forward(0xc3);
-        value=cc.symbols[i].address; cc.symbols[i].address=0x4000u+cc.emitted;
+        value=cc.symbols[i].address; cc.symbols[i].address=cc.emitted;
         if(cc_aggregate(cc.symbols[i].type)||cc_family(cc.symbols[i].type)==K_SET) {
             saved_scan=cc.scan; saved_token=cc.token; start=cc.token_start; end=cc.token_end;
             range=cc.range_check; absolute=cc.absolute_mode; strict=cc.var_strict;

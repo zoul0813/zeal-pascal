@@ -32,6 +32,10 @@ enum { RF_FORWARD=1,RF_RECURSIVE=2,RF_DEFINED=4,RF_EXTERNAL=8 };
 typedef struct { uint16_t name_start,address; uint8_t name_length,type,role,control,initial_type,owner; } Symbol;
 typedef struct { uint16_t width; int16_t low,high; uint8_t family,capacity,element; } Type;
 enum { SYMBOL_LIMIT=512,TYPE_LIMIT=64 };
+/* Preferred code addresses never wrap through zero. The final image reserves
+ * the specified2 KiB initial stack below FC00; globals share this static span. */
+#define CC_CODE_BASE 0x8000u
+#define CC_STATIC_LIMIT 0xf400u
 typedef struct {
     Symbol symbols[SYMBOL_LIMIT];
     Type types[TYPE_LIMIT];
@@ -45,7 +49,7 @@ typedef struct {
     uint8_t literal[256],hexadecimal,number_overflow;
     char name[128];
     uint16_t emitted,entries,file_bytes,relocations;
-    uint8_t workspace,scope,absolute_mode,var_strict,nesting,suppress;
+    uint8_t workspace,stage_page,scope,absolute_mode,var_strict,nesting,suppress;
     uint16_t routine_count,temporaries;
     uint8_t with_depth,with_limit,with_bound,with_types[9],for_depth,input_fresh,io_check;
     uint16_t field_offset;
@@ -58,6 +62,7 @@ extern Compiler cc;
 
 void cc_fail(uint8_t code) FRONTEND;
 void cc_put(uint16_t p,uint8_t v) FRONTEND;
+uint8_t cc_code_get(uint16_t address) FRONTEND;
 void cc_word(uint16_t p,uint16_t v) FRONTEND;
 void cc_emit(uint8_t v) FRONTEND;
 void cc_op16(uint8_t op,uint16_t value) FRONTEND;
@@ -162,4 +167,5 @@ uint8_t cc_file_statement(void) FRONTEND;
 int16_t cc_file_function(void) FRONTEND;
 uint8_t cc_file_prefix(void) FRONTEND;
 void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND;
+void cc_formatted_value(void) FRONTEND;
 #endif

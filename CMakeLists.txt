@@ -60,7 +60,7 @@ set_property(SOURCE tests/native/harness.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h)
 set_property(SOURCE tests/native/main.c tests/native/harness.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
-set_property(SOURCE tests/native/input-main.c tests/native/math-main.c tests/native/io-main.c tests/native/file-main.c tests/native/params-main.c tests/native/worker-main.c APPEND PROPERTY OBJECT_DEPENDS
+set_property(SOURCE tests/native/input-main.c tests/native/math-main.c tests/native/io-main.c tests/native/file-main.c tests/native/text-main.c tests/native/params-main.c tests/native/worker-main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h
     ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 set_property(SOURCE src/keys.c src/platform.c APPEND PROPERTY OBJECT_DEPENDS
@@ -79,7 +79,7 @@ add_dependencies(zp_core pascal_runtime_bin ram_trampoline_bin)
 target_include_directories(zp_core PRIVATE src)
 target_compile_options(zp_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 # These ordinary C entry points are reached only through resident banks.c.
-set_source_files_properties(src/main.c tests/native/main.c tests/native/input-main.c tests/native/math-main.c tests/native/io-main.c tests/native/file-main.c tests/native/params-main.c tests/native/worker-main.c PROPERTIES
+set_source_files_properties(src/main.c tests/native/main.c tests/native/input-main.c tests/native/math-main.c tests/native/io-main.c tests/native/file-main.c tests/native/text-main.c tests/native/params-main.c tests/native/worker-main.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 set_source_files_properties(src/compiler.c src/compiler_random.c src/compiler_params.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK2;--constseg;BANK2")
@@ -96,7 +96,7 @@ set_source_files_properties(src/compiler_real.c src/compiler_io.c PROPERTIES
 set_source_files_properties(src/output.c src/worker.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK3;--constseg;BANK3")
 set_source_files_properties(src/editor.c src/source_blocks.c PROPERTIES
-    COMPILE_OPTIONS "--codeseg;BANK11;--constseg;BANK11")
+    COMPILE_OPTIONS "--codeseg;BANK12;--constseg;BANK12")
 set_source_files_properties(src/compiler_files.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK10;--constseg;BANK10")
 # Our startup and the installed SDK use the same command-tail ABI. The launcher
@@ -120,6 +120,9 @@ target_compile_options(ziotest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_executable(zfiletest src/startup.asm src/banks.c tests/native/file-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
 target_include_directories(zfiletest PRIVATE src)
 target_compile_options(zfiletest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+add_executable(ztexttest src/startup.asm src/banks.c tests/native/text-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
+target_include_directories(ztexttest PRIVATE src)
+target_compile_options(ztexttest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_executable(zparamtest src/startup.asm src/banks.c tests/native/params-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>)
 target_include_directories(zparamtest PRIVATE src)
 target_compile_options(zparamtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
@@ -132,11 +135,12 @@ target_compile_options(zedittest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 set_source_files_properties(tests/native/editor-main.c tests/native/editor-core.c tests/native/editor-search.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-foreach(target zpascal zptest zinputtest zmathtest ziotest zfiletest zparamtest zworkertest zedittest)
+foreach(target zpascal zptest zinputtest zmathtest ziotest zfiletest ztexttest zparamtest zworkertest zedittest)
     target_link_options(${target} PRIVATE "SHELL:-b _INITIALIZED=0xc000"
         "SHELL:-b _BANK1=0x18000" "SHELL:-b _BANK2=0x28000" "SHELL:-b _BANK3=0x38000" "SHELL:-b _BANK4=0x48000" "SHELL:-b _BANK5=0x58000" "SHELL:-b _BANK6=0x68000" "SHELL:-b _BANK7=0x78000" "SHELL:-b _BANK8=0x88000" "SHELL:-b _BANK9=0x98000" "SHELL:-b _BANK10=0xa8000")
+    target_link_options(${target} PRIVATE "SHELL:-b _BANK11=0xb8000")
     if(target STREQUAL "zpascal" OR target STREQUAL "zedittest")
-        target_link_options(${target} PRIVATE "SHELL:-b _BANK11=0xb8000")
+        target_link_options(${target} PRIVATE "SHELL:-b _BANK12=0xc8000")
     endif()
     add_custom_target(${target}_bin ALL
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py $<TARGET_FILE:${target}>
@@ -170,7 +174,7 @@ zos_add_outputs(diskabi WITH_EXTENSION zpl)
 add_library(file_runtime_core OBJECT src/file_runtime.c src/file_native.asm)
 target_include_directories(file_runtime_core PRIVATE src)
 target_compile_options(file_runtime_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
-set_property(SOURCE src/file_runtime.c APPEND PROPERTY OBJECT_DEPENDS
+set_property(SOURCE src/file_runtime.c src/compiler_files.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/file_runtime.h)
 add_executable(file_runtime src/file_module.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
     $<TARGET_OBJECTS:file_runtime_core>)
@@ -180,7 +184,7 @@ add_custom_command(TARGET file_runtime_bin POST_BUILD
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --file-runtime
         ${CMAKE_BINARY_DIR}/file_runtime.ihx VERBATIM)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/file_asset.asm CONTENT
-".area _BANK10\n.globl _file_start,_file_end,_file_gate_start,_file_gate_end\n_file_start:\n.incbin \"${CMAKE_BINARY_DIR}/file_runtime.zpl\"\n_file_end:\n_file_gate_start:\n.incbin \"${CMAKE_BINARY_DIR}/file_gate.zpl\"\n_file_gate_end:\n")
+".area _BANK11\n.globl _file_start,_file_end,_file_gate_start,_file_gate_end\n_file_start:\n.incbin \"${CMAKE_BINARY_DIR}/file_runtime.zpl\"\n_file_end:\n_file_gate_start:\n.incbin \"${CMAKE_BINARY_DIR}/file_gate.zpl\"\n_file_gate_end:\n")
 set_source_files_properties(${CMAKE_BINARY_DIR}/file_asset.asm PROPERTIES
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/file_runtime.zpl;${CMAKE_BINARY_DIR}/file_gate.zpl")
 add_dependencies(zp_core file_runtime_bin file_gate_bin)

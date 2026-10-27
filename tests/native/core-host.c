@@ -512,7 +512,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes","filetokens","params","diskfiles","diskblocks","disklife","diskwide"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes","filetokens","params","diskfiles","diskblocks","disklife","diskwide","textdisk","textseek","textnumber","textformat","textrecover","textnest","texteof","textedges","textargs","capacity"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {
@@ -523,7 +523,19 @@ int main(int argc,char **argv) {
                 old=compile(&s,&b,&d); if(!old) fprintf(stderr,"fixture %s\n",fixtures[fixture]); check(old);
                 if(!strcmp(fixtures[fixture],"absolute")) check(b.globals_bytes==8);
                 if(!strcmp(fixtures[fixture],"realabi")) check(b.globals_bytes==0);
+                if(!strcmp(fixtures[fixture],"textedges")||!strcmp(fixtures[fixture],"capacity")) {
+                    check(b.code_bytes>PAGE_SIZE&&0x4000u+b.length<=CC_STATIC_LIMIT);
+                    check(cc.stage_page==255);
+                }
                 ordered_map(); build_close(&b);
+                if(!strcmp(fixtures[fixture],"textedges")) {
+                    for(i=0;i<7;++i) {
+                        fail_after=(int)i;
+                        check(!compile(&s,&b,&d)&&d.code==98);
+                        check(pages_used()==1&&cc.stage_page==255);
+                    }
+                    fail_after=-1;
+                }
             }
         }
         {
@@ -592,6 +604,14 @@ int main(int argc,char **argv) {
             snprintf((char*)text+n,sizeof(text)-n,"begin end.");
             invalid((char*)text,98);
         }
+    }
+    {
+        unsigned member;
+        uint8_t text[1024];
+        uint16_t n=(uint16_t)snprintf((char*)text,sizeof(text),"type b=array[1..127]of string[255];const x:b=(");
+        for(member=0;member<127;++member) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"%s''%s",member?",":"",member%10==9?"\n":"");
+        snprintf((char*)text+n,sizeof(text)-n,");begin end.");
+        invalid((char*)text,99); check(cc.stage_page==255);
     }
     source_close(&s); check(!pages_used());
     printf("PASS: %u host front-end, identity and allocation-failure checks\n",checks);

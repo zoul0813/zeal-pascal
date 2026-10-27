@@ -25,7 +25,6 @@ typedef struct {uint8_t op,value[6],low[6],high[6],error;} WideVector;
 #endif
 volatile uint16_t test_passed,test_failed;
 volatile uint8_t test_done;
-uint8_t test_stop[3]={0x76,0x18,0xfd};
 #ifdef __SDCC
 static uint8_t real_before[7],real_after[7],real_guard_ok;
 extern void test_machine(uint8_t *state) NATIVE;

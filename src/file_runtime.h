@@ -16,6 +16,14 @@ enum {
     ZF_BLOCKREAD, ZF_BLOCKREAD_PARTIAL, ZF_BLOCKWRITE, ZF_BLOCKWRITE_PARTIAL
 };
 enum { ZF_END_FRAME=16, ZF_END_OBJECT, ZF_END_RANGE, ZF_END_PROGRAM };
+enum { ZF_TEXT_READ=20,ZF_TEXT_WRITE,ZF_TEXT_READLN,ZF_TEXT_WRITELN,
+       ZF_EOLN,ZF_SEEKEOF,ZF_SEEKEOLN };
+/* Text input kinds share the existing generated input/format family numbers.
+ * The high byte of count is String capacity. Numeric input uses this private
+ * caller-owned context, parsed by the existing runtime Val after prefix return. */
+enum { ZF_TEXT_INTEGER=0,ZF_TEXT_STRING=1,ZF_TEXT_CHAR=3,ZF_TEXT_BYTE=4,ZF_TEXT_REAL=5 };
+enum { ZF_NUMBER_TARGET=0,ZF_NUMBER_CODE=2,ZF_NUMBER_VALUE=4,
+       ZF_NUMBER_TOKEN=10,ZF_NUMBER_BYTES=41 };
 typedef struct {
     uint16_t operation,object,descriptor,data,count,actual;
     uint16_t frame,heap_floor,heap_frontier,static_end;

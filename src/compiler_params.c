@@ -9,16 +9,16 @@ static void scan(void) {
     uint16_t skip,word,space,selected,ready,missing,loop,separator;
     if(!cc.parameter_entry) {
         skip=cc_forward(0xc3);
-        cc.parameter_entry=0x4000u+cc.emitted;
+        cc.parameter_entry=cc.emitted;
         cc_emit(0x57);                       /* D=requested index */
         cc_op16(0x3a,RT_PARAMTAIL); cc_emit(0x47);
         cc_op16(0x21,RT_PARAMTAIL+1); cc_emit(0x1e); cc_emit(0);
-        loop=0x4000u+cc.emitted;
+        loop=cc.emitted;
         cc_emit(0x78); cc_emit(0xb7); missing=cc_forward(0xca);
         cc_emit(0x7e); cc_emit(0xfe); cc_emit(' '); space=cc_forward(0xca);
         cc_emit(0xfe); cc_emit(9); separator=cc_forward(0xca);
         cc_emit(0x1c); cc_emit(0x7a); cc_emit(0xbb); selected=cc_forward(0xca);
-        word=0x4000u+cc.emitted;
+        word=cc.emitted;
         cc_emit(0x23); cc_emit(0x05); ready=cc_forward(0xca);
         cc_emit(0x7e); cc_emit(0xfe); cc_emit(' '); cc_address(0xca,loop);
         cc_emit(0xfe); cc_emit(9); cc_address(0xca,loop);
@@ -29,7 +29,7 @@ static void scan(void) {
         cc_emit(0x7b); cc_op16(0x01,0); cc_emit(0xc9);
         cc_patch(selected);
         cc_emit(0x0e); cc_emit(0); cc_emit(0xe5);
-        word=0x4000u+cc.emitted;
+        word=cc.emitted;
         cc_emit(0x23); cc_emit(0x0c); cc_emit(0x05); ready=cc_forward(0xca);
         cc_emit(0x7e); cc_emit(0xfe); cc_emit(' '); space=cc_forward(0xca);
         cc_emit(0xfe); cc_emit(9); cc_address(0xc2,word);

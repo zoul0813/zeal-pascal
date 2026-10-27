@@ -13,9 +13,10 @@
 #define READABLE 2u
 #define WRITABLE 4u
 #define DIRTY 8u
+#define LOOKAHEAD 16u
 typedef struct {
     uint16_t object,owner,generation,family,width,state,fd,position,count;
-    uint16_t reserved[7];
+    uint16_t next,physical_low,physical_high,reserved[4];
     char path[128];
 } Record;
 typedef char record_size_is_fixed[sizeof(Record)==ZF_RECORD_BYTES?1:-1];
@@ -252,6 +253,104 @@ static uint8_t header(uint8_t writing) {
     }
     return !job->error;
 }
+static uint8_t access(uint8_t writing) {
+    if(!(record->state&(writing?WRITABLE:READABLE))) {
+        fail(record->family==2&&!(record->state&OPENED)?4:writing?3:2,0); return 0;
+    }
+    return 1;
+}
+static void text_position(void) {
+    native_position=(uint32_t)record->physical_low|((uint32_t)record->physical_high<<16);
+}
+static void text_remember(void) {
+    record->physical_low=(uint16_t)native_position;
+    record->physical_high=(uint16_t)(native_position>>16);
+}
+static void text_bytes(uint16_t count) {
+    uint16_t done=0,size;
+    uint8_t error;
+    while(done<count&&!job->error) {
+        size=count-done; error=write_bytes(bytes+done,&size);
+        if(error) native_error(error,1);
+        else if(!size||size>count-done) fail(0xf0,0);
+        else done+=size;
+    }
+}
+static uint8_t text_peek(void) {
+    uint16_t size=1;
+    uint8_t error;
+    if(!(record->state&LOOKAHEAD)) {
+        error=read((int8_t)record->fd,bytes,&size);
+        if(error) { native_error(error,0); return 26; }
+        if(size>1) { fail(0x99,ERR_INVALID_PARAMETER); return 26; }
+        record->next=size?bytes[0]:26;
+        record->state|=LOOKAHEAD;
+    }
+    return (uint8_t)record->next;
+}
+static uint8_t text_take(void) {
+    uint8_t c=text_peek();
+    if(c!=26) record->state&=(uint16_t)~LOOKAHEAD;
+    return c;
+}
+static uint8_t text_space(uint8_t c,uint8_t lines) {
+    return c==32||c==9||(lines&&(c==13||c==10));
+}
+static void text_predicate(uint16_t operation) {
+    uint8_t c=text_peek();
+    if(operation==ZF_SEEKEOF||operation==ZF_SEEKEOLN)
+        while(!job->error&&text_space(c,operation==ZF_SEEKEOF)) {
+            text_take(); c=text_peek();
+        }
+    job->result=c==26||((operation==ZF_EOLN||operation==ZF_SEEKEOLN)&&c==13);
+}
+static void text_read(void) {
+    uint16_t out=job->data;
+    uint8_t kind=(uint8_t)job->count,limit=(uint8_t)(job->count>>8),n=0,c;
+    if(kind!=ZF_TEXT_STRING&&limit) { fail(0x1ff,0); return; }
+    if(kind==ZF_TEXT_CHAR) {
+        if(!readable(out,1)) { fail(0x1ff,0); return; }
+        c=text_take(); if(!job->error) { USER(out)[0]=c; job->actual=1; }
+        return;
+    }
+    if(kind==ZF_TEXT_STRING) {
+        if(!readable(out,(uint16_t)limit+1)) { fail(0x1ff,0); return; }
+    } else {
+        if((kind!=ZF_TEXT_INTEGER&&kind!=ZF_TEXT_BYTE&&kind!=ZF_TEXT_REAL)||
+           !readable(out,ZF_NUMBER_BYTES)||
+           !readable(word(out+ZF_NUMBER_TARGET),kind==ZF_TEXT_BYTE?1:kind==ZF_TEXT_REAL?6:2)) {
+            fail(0x1ff,0); return;
+        }
+        out+=ZF_NUMBER_TOKEN; limit=30;
+        c=text_peek();
+        while(!job->error&&text_space(c,1)) { text_take(); c=text_peek(); }
+    }
+    while(n<limit&&!job->error) {
+        c=text_peek();
+        if(c==26||c==13||(kind!=ZF_TEXT_STRING&&text_space(c,1))) break;
+        USER(out+1+n)[0]=text_take(); ++n;
+    }
+    if(!job->error) {
+        USER(out)[0]=n; job->actual=kind==ZF_TEXT_STRING||n!=0;
+    }
+}
+static void text_readln(void) {
+    uint8_t c;
+    do { c=text_take(); } while(!job->error&&c!=13&&c!=26);
+    if(c==13&&!job->error&&text_peek()==10) text_take();
+}
+static void text_write(uint8_t newline) {
+    uint16_t n;
+    text_position();
+    if(newline) { bytes[0]=13; bytes[1]=10; text_bytes(2); }
+    else {
+        if(!readable(job->data,1)) { fail(0x1ff,0); return; }
+        n=USER(job->data)[0];
+        if(!readable(job->data,(uint16_t)n+1)) { fail(0x1ff,0); return; }
+        transfer(job->data+1,n,1);
+    }
+    text_remember();
+}
 static void flush(void) {
     if(record->family==1&&(record->state&DIRTY)) {
         if(header(1)) record->state&=(uint16_t)~DIRTY;
@@ -262,24 +361,17 @@ static void close_record(void) {
     uint8_t error;
     if(!(record->state&OPENED)) return;
     job->error=0; job->detail=0;
-    flush();
+    if(!record->family&&(record->state&WRITABLE)) {
+        text_position(); bytes[0]=26; text_bytes(1); text_remember();
+    } else flush();
     error=close_file((uint8_t)record->fd);
     record->state=0; record->fd=0; /* VFS consumes even a failed close. */
     if(error) fail(error==ERR_NO_SUCH_ENTRY?0xff:error==ERR_CANNOT_REGISTER_MORE?0xf3:0xf0,error);
     if(primary) { job->error=primary; job->detail=detail; }
 }
-static uint8_t access(uint8_t writing) {
-    if(!(record->state&(writing?WRITABLE:READABLE))) {
-        fail(record->family==2&&!(record->state&OPENED)?4:writing?3:2,0); return 0;
-    }
-    return 1;
-}
 static void activate(uint8_t rewriting) {
     int8_t fd;
     uint8_t flags,error;
-    /* Text streams need their own lookahead/terminator layer. Do not create
-     * files with incomplete Text semantics through this disk component. */
-    if(!record->family) { fail(0x20,ERR_NOT_IMPLEMENTED); return; }
     if(record->family==1&&!record->width) { fail(0x90,0); return; }
     if(record->state&OPENED) { fail(0x20,0); return; }
     /* On the pinned OS, descriptor stat does not mask access flags from
@@ -299,6 +391,7 @@ static void activate(uint8_t rewriting) {
     }
     if(fd<0) { native_error((uint8_t)-fd,rewriting); return; }
     record->fd=(uint8_t)fd; record->position=0; record->count=0;
+    record->next=record->physical_low=record->physical_high=0;
     record->state=OPENED|(flags&O_WRONLY?WRITABLE:flags&O_RDWR?READABLE|WRITABLE:READABLE);
     if(record->family==1) header(rewriting);
     else if(record->family==2) {
@@ -378,14 +471,22 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
         if(!valid&&!new_record(owner,family,width)) return;
         strcpy(record->path,request.path); token(owner,family,width); save_record(slot); return;
     }
-    if(!valid) { fail(family==2?4:job->operation==ZF_READ?2:3,0); return; }
+    if(!valid) {
+        fail(family==2?4:job->operation==ZF_READ||job->operation==ZF_TEXT_READ||
+             job->operation==ZF_TEXT_READLN||job->operation==ZF_EOF||
+             job->operation>=ZF_EOLN?2:3,0); return;
+    }
     switch(job->operation) {
     case ZF_RESET: activate(0); break;
     case ZF_REWRITE: activate(1); break;
     case ZF_CLOSE: close_record(); break;
     case ZF_READ: component(0); break;
     case ZF_WRITE: component(1); break;
-    case ZF_POSITION: case ZF_SIZE: case ZF_EOF:
+    case ZF_EOF:
+        if(!record->family) { if(access(0)) text_predicate(ZF_EOF); break; }
+        /* fall through */
+    case ZF_POSITION: case ZF_SIZE:
+        if(!record->family) { fail(0x20,0); break; }
         if(access(0)) job->result=job->operation==ZF_POSITION?record->position:
             job->operation==ZF_SIZE?record->count:record->position>=record->count;
         break;
@@ -412,6 +513,18 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
         break;
     case ZF_BLOCKREAD: case ZF_BLOCKREAD_PARTIAL: case ZF_BLOCKWRITE: case ZF_BLOCKWRITE_PARTIAL:
         blocks(job->operation>=ZF_BLOCKWRITE,job->operation&1); break;
+    case ZF_TEXT_READ: case ZF_TEXT_READLN: case ZF_EOLN: case ZF_SEEKEOF: case ZF_SEEKEOLN:
+        if(record->family) fail(0x20,0);
+        else if(access(0)) {
+            if(job->operation==ZF_TEXT_READ) text_read();
+            else if(job->operation==ZF_TEXT_READLN) text_readln();
+            else text_predicate(job->operation);
+        }
+        break;
+    case ZF_TEXT_WRITE: case ZF_TEXT_WRITELN:
+        if(record->family) fail(0x20,0);
+        else if(access(1)) text_write(job->operation==ZF_TEXT_WRITELN);
+        break;
     default: fail(0x20,ERR_NOT_IMPLEMENTED); break;
     }
     save_record(slot);
