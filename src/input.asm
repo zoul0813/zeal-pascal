@@ -3,10 +3,11 @@
 .globl memory_mode,io_error,call_error,val_dispatch,buflen,cbreak,user_break
 .globl _key_event,c_save,c_restore,io_check,io_fail,io_status
 .globl line_history
+.globl input_ready,input_advance,line_next,line_remaining,line_eof,line_valid
 .area _REAL_DATA
 line_next: .ds 2
 line_remaining: .ds 1
-line_valid: .ds 1               ; 0 unloaded, 1 buffered, 2 end marker consumed
+line_valid: .ds 1               ; 0 unloaded, 1 buffered, 2 consumed, 5 lookahead
 line_eof: .ds 1
 line_buffer: .ds 128
 .equ line_history, 0xff80       ; private transition data, never stack payload
@@ -21,12 +22,16 @@ raw_second: .ds 1
 input_token: .ds 31             ; short string: at most30 numeric bytes
 .area _CODE
 ; Bit0 selects fresh buffering. Bit1 primes bare Read immediately; calls with
-; destinations stay lazy until after their callbacks. Even B- starts another
-; line when the preceding call exhausted its buffer.
+; destinations stay lazy until after their callbacks. Without lookahead, even
+; B- starts another line when the preceding call exhausted its buffer.
 input_begin::
     push af
     and #1
     jr nz,input_new
+    ld hl,#line_valid
+    bit 2,(hl)                 ; lookahead preserves even an exhausted line
+    res 2,(hl)                 ; only the next non-fresh Read owns this latch
+    jr nz,input_initialized
     ld a,(line_remaining)
     or a
     jr nz,input_initialized
@@ -43,8 +48,8 @@ input_ready:
     or a
     jp nz,io_check
     ld a,(line_valid)
-    cp #1
-    ret z
+    and #1
+    ret nz
     ld a,(line_eof)
     or a
     jr z,read_line
@@ -439,9 +444,10 @@ input_character:
 input_terminator:
     ld a,#2
     ld (line_valid),a
-    ; A buffered console line is terminated by Ctrl-Z, including ordinary EOL.
-    ; Consuming that marker permits the next field to refill the buffer.
-    ld a,#26
+    ; Ordinary Read uses Ctrl-Z at buffered EOL; lookahead predicates expose
+    ; CR instead. Consuming either marker permits the next field to refill.
+    ld hl,(line_next)
+    ld a,(hl)                  ; predicates expose CR at ordinary buffered EOL
     ld (de),a
     ret
 input_advance:

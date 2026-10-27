@@ -90,11 +90,15 @@ void cc_next(void) FRONTEND;
 void cc_control_literal(void) FRONTEND;
 uint16_t cc_runtime_size(void);
 uint8_t cc_runtime_get(uint16_t offset);
+/* Build-bound private input addresses; never an installed/public runtime ABI. */
+enum { RP_INPUT_READY,RP_INPUT_ADVANCE,RP_LINE_NEXT,RP_LINE_REMAINING,RP_LINE_EOF,RP_LINE_VALID };
+uint16_t cc_runtime_private(uint8_t entry);
 uint16_t cc_file_asset_size(uint8_t gate);
 uint8_t cc_file_asset_get(uint8_t gate,uint16_t offset);
 void cc_expect(uint16_t t,uint8_t code) FRONTEND;
 int16_t cc_lookup(void) FRONTEND;
 void cc_system_init(void) FRONTEND;
+uint8_t cc_standard_reference(uint8_t identity) FRONTEND;
 uint8_t cc_new_type(uint8_t family,uint16_t width,int16_t low,int16_t high,uint8_t capacity) FRONTEND;
 uint8_t cc_family(uint8_t type) FRONTEND;
 uint8_t cc_compatible(uint8_t left,uint8_t right) FRONTEND;

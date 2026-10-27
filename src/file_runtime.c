@@ -596,7 +596,8 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
             if(text_input_target()) job->stream=record->standard;
         } else if(job->operation==ZF_TEXT_WRITE) {
             if(text_output_value()) job->stream=record->standard;
-        } else if(job->operation==ZF_TEXT_BEGIN||job->operation==ZF_TEXT_READLN||job->operation==ZF_TEXT_WRITELN)
+        } else if(job->operation==ZF_TEXT_BEGIN||job->operation==ZF_TEXT_READLN||job->operation==ZF_TEXT_WRITELN||
+                  job->operation==ZF_EOF||(job->operation>=ZF_EOLN&&job->operation<=ZF_SEEKEOLN))
             job->stream=record->standard;
         else fail(0x20,0);
         return;

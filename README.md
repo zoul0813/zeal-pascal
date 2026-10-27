@@ -140,8 +140,7 @@ source; checked errors return to their source statement after Escape.
 Typed files (`file of T`) support Assign, Reset, Rewrite, Close, Read, Write,
 Seek, FilePos, FileSize, Eof, Flush and Erase. Untyped files support 128-byte
 BlockRead/BlockWrite transfers, including the optional completed-block count.
-Assign currently requires an absolute disk path such as `T:/DATA.DAT`; it
-does not create directories. Typed files retain the four-byte component-count/
+Assign binds a disk filename without creating directories. Typed files retain the four-byte component-count/
 component-size header. Zero-size components report I/O error 90 before creating
 or truncating a file. `$I-` and IOResult support recovery from ordinary I/O errors.
 
@@ -176,8 +175,13 @@ unread data across calls; ReadLn(Input) consumes the current line. The B directi
 continues to control omitted-Input Read calls. Assign, Reset, Rewrite and Close
 on these preassigned variables report I/O22. Copied tokens gain no standard-stream
 authority, and program cleanup leaves inherited console descriptors open.
-Console Eof/Eoln/seek predicates, the other preassigned/logical devices and the
-complete file-error/capacity matrix remain in progress. File support does not
+Console Eof/Eoln/SeekEof/SeekEoln support omitted Input, explicit Input and
+Var Text aliases. They read a line when needed and inspect its unread tail.
+SeekEoln skips spaces/tabs within a line; SeekEof also skips line endings.
+Predicate-observed ordinary EOL yields CR to the next character read. The B+
+directive still starts a fresh line for omitted Read/ReadLn; B- uses the primed
+line. The other preassigned/logical devices and the complete file-error/capacity
+matrix remain in progress. File support does not
 establish full Turbo Pascal conformance.
 
 Generated code and static storage can occupy up to29,696 bytes above the fixed
@@ -203,7 +207,7 @@ empty string. RAM runs receive no arguments. Command tails allow up to 127 bytes
 longer tails are rejected before the Pascal program starts. Ord, Succ and Pred accept
 String/Char-array values of exactly one character; other lengths report runtime
 error 10. The compiler currently has
-512 symbol entries (four reserved for HeapPtr/RecurPtr/BufLen/CBreak) and 64 type descriptors
+512 symbol entries (six predeclared for HeapPtr/RecurPtr/BufLen/CBreak/Input/Output) and 64 type descriptors
 (including six built-in types).
 Exhaustion reports resource error 98. Arrays support ordinal bounds, nested or
 comma-separated dimensions, packed layout, whole-array assignment, typed

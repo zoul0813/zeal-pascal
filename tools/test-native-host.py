@@ -17,6 +17,8 @@ runtime = (ROOT / 'build/pascal_runtime.zpl').read_bytes()
     ','.join(str(x) for x in runtime) + '};\n' +
     '__asm__(".globl _runtime_end\\n_runtime_end = _runtime_start + ' + str(len(runtime)) + '");\n')
 with (OUT/'asset.c').open('a') as asset:
+    data=(ROOT/'build/pascal_runtime.private').read_bytes()
+    asset.write('const unsigned char runtime_private[] = {'+','.join(map(str,data))+'};\n')
     for start,end,name in (('file_start','file_end','file_runtime'),('file_gate_start','file_gate_end','file_gate')):
         data=(ROOT/f'build/{name}.zpl').read_bytes()
         asset.write('const unsigned char '+start+'[] = {'+','.join(map(str,data))+'};\n')

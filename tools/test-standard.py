@@ -35,6 +35,10 @@ def main():
             ready(); commands+=n.type_text(line,ticks=2000000)+['press ENTER','run 100000000']; held[:]=['ENTER']
         ready(); commands+=['press CTRL','press Z','run 100000000']; held[:]=['Z','CTRL']
     for _ in range(2):
+        for line in ('A b ','','   ','  Z ','minus','discard','fresh'):
+            ready(); commands+=n.type_text(line,ticks=2000000)+['press ENTER','run 100000000']; held[:]=['ENTER']
+        ready(); commands+=n.type_text('end',ticks=2000000)+['press CTRL','press Z','run 100000000']; held[:]=['Z','CTRL']
+    for _ in range(4):
         ready(); commands+=['press CTRL','press C','run 100000000']; held[:]=['C','CTRL']
     commands+=['run 20000000000','s','regs','mmu']
     for name in ('_test_done','_test_passed','_test_failed','_test_stage'):
@@ -48,6 +52,7 @@ def main():
     disk=n.RUN/'standard-streams/hostfs'
     expected=(b'STD=  -123,  TRUE,   1.50,  ok\r\nALIAS=  7\r\nSTD-OUTPUT-OK\r\n')*2
     expected+=b'STD-INPUT-OK\r\n'*2
+    expected+=b'STD-PREDICATES-OK\r\n'*2
     checks={
         'native completion':memory.get(sym['_test_done'])==255 and word('_test_stage')==6,
         'RAM/saved stack, mappings, IFF, ownership, dirty source, breaks and exact error locations':
@@ -59,8 +64,8 @@ def main():
         'preassigned lifecycle attempts never create a file':not (disk/'STDINVALID').exists(),
         'source/build/platform inputs unchanged':all(n.sha(Path(p))==h for p,h in hashes.items()),
     }
-    report={'scope':'Explicit buffered Input/Output reads, writes, Var aliases and protected lifecycle; '
-                    'console predicates, other logical/preassigned streams and full conformance remain pending',
+    report={'scope':'Explicit buffered Input/Output, default/explicit console predicates and Var aliases; '
+                    'other logical/preassigned streams and full conformance remain pending',
             'passed':all(checks.values()),'capture_directory':str(n.RUN.relative_to(ROOT)),
             'native_assertions_passed':word('_test_passed'),'native_assertions_failed':word('_test_failed'),
             'input_sha256':hashes,'checks':checks}

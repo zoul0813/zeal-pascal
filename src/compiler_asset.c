@@ -13,6 +13,15 @@ uint8_t cc_runtime_get(uint16_t offset) {
     return runtime_start[offset];
 #endif
 }
+uint16_t cc_runtime_private(uint8_t entry) {
+#ifdef __SDCC
+    uint16_t offset=cc_runtime_size()+2*entry;
+    return far_get(code_pages[7],offset)|((uint16_t)far_get(code_pages[7],offset+1)<<8);
+#else
+    extern const uint8_t runtime_private[];
+    return runtime_private[2*entry]|((uint16_t)runtime_private[2*entry+1]<<8);
+#endif
+}
 uint16_t cc_file_asset_size(uint8_t gate) {
     return gate?(uint16_t)(file_gate_end-file_gate_start):(uint16_t)(file_end-file_start);
 }

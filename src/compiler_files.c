@@ -48,11 +48,41 @@ static void number_result(void) {
     cc_patch(done);
     for(i=0;i<5;++i) cc_patch(skip[i]);
 }
+/* Buffered Input owns lookahead even though raw logical devices report their
+ * last byte. Reuse its editor, advance and ReadLn cleanup; no second parser or
+ * input buffer is installed. Predicates expose the physical CR terminator. */
+static void console_predicate(void) {
+    uint16_t loop=cc.emitted,marker,test,advance,end,answer,no,yes,nonempty;
+    cc_op16(0xcd,cc_runtime_private(RP_INPUT_READY));
+    cc_op16(0x3a,cc_runtime_private(RP_LINE_EOF)); cc_emit(0x47); /* B=physical EOF */
+    cc_op16(0x3a,cc_runtime_private(RP_LINE_REMAINING)); cc_emit(0x4f); /* C=remaining */
+    cc_emit(0x5f); cc_emit(0x16); cc_emit(0);
+    cc_op16(0x2a,cc_runtime_private(RP_LINE_NEXT)); cc_emit(0x19);
+    cc_emit(0x36); cc_emit(26); cc_emit(0x78); cc_emit(0xb7); marker=cc_forward(0xc2);
+    cc_emit(0x36); cc_emit(13); cc_patch(marker);
+    index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_SEEKEOF); test=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(ZF_SEEKEOLN); answer=cc_forward(0xc2);
+    cc_patch(test); cc_emit(0x79); cc_emit(0xb7); end=cc_forward(0xca);
+    cc_op16(0x2a,cc_runtime_private(RP_LINE_NEXT)); cc_emit(0x7e);
+    cc_emit(0xfe); cc_emit(32); advance=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(9); no=cc_forward(0xc2);
+    cc_patch(advance); cc_op16(0xcd,cc_runtime_private(RP_INPUT_ADVANCE)); cc_address(0xc3,loop);
+    cc_patch(end); cc_emit(0x78); cc_emit(0xb7); yes=cc_forward(0xc2);
+    index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_SEEKEOF); end=cc_forward(0xc2);
+    cc_op16(0xcd,RT_INPUT_END); cc_address(0xc3,loop);
+    cc_patch(answer); cc_emit(0x79); cc_emit(0xb7); nonempty=cc_forward(0xc2);
+    index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_EOF); answer=cc_forward(0xc2);
+    cc_emit(0x78); cc_emit(0xb7); test=cc_forward(0xca);
+    cc_patch(yes); cc_patch(end); cc_patch(answer); cc_op16(0x21,1); end=cc_forward(0xc3);
+    cc_patch(no); cc_patch(nonempty); cc_patch(test); cc_op16(0x21,0);
+    cc_patch(end); index_store(0x75,20); index_store(0x74,21);
+    cc_emit(0x3e); cc_emit(5); cc_op16(0x32,cc_runtime_private(RP_LINE_VALID)); cc_emit(0xc9);
+}
 /* The disk module resolves authority, then the restored prefix owns console
  * formatting/input. A nested I- landing catches prefix errors before restoring
  * the caller's With register and propagating the enclosing checking policy. */
 static void stream_result(void) {
-    uint16_t disk,done,operand,begin,read,write,end,string_target,char_target;
+    uint16_t disk,done,operand,begin,read,write,end,predicate,string_target,char_target;
     index_store(0x7e,34); cc_emit(0xb7); disk=cc_forward(0xca);
     guard(512);
     cc_op16(0xcd,RT_IOCALL); operand=cc.emitted; cc_relocate(operand);
@@ -64,6 +94,7 @@ static void stream_result(void) {
     cc_emit(0xfe); cc_emit(ZF_TEXT_READ); read=cc_forward(0xca);
     cc_emit(0xfe); cc_emit(ZF_TEXT_WRITE); write=cc_forward(0xca);
     cc_emit(0xfe); cc_emit(ZF_TEXT_READLN); end=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(ZF_TEXT_WRITELN); predicate=cc_forward(0xc2);
     cc_emit(0x3e); cc_emit(13); cc_op16(0xcd,RT_CHAR);
     cc_emit(0x3e); cc_emit(10); cc_op16(0xc3,RT_CHAR);
     cc_patch(begin); index_store(0x7e,8);
@@ -78,6 +109,7 @@ static void stream_result(void) {
     cc_emit(0xfe); cc_emit(K_CHAR); char_target=cc_forward(0xca);
     cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb);
     cc_patch(string_target); cc_patch(char_target); cc_op16(0xc3,RT_INPUT_VALUE);
+    cc_patch(predicate); console_predicate();
     cc_patch(disk); number_result(); cc_patch(done);
 }
 static void engine(void) {
@@ -151,17 +183,19 @@ static uint16_t job_start(uint8_t operation) {
     cc_op16(0x21,operation); store(0,0);
     return before;
 }
-static uint8_t file_argument(uint16_t base) {
-    uint8_t type=cc_reference(41);
+static void argument_descriptor(uint8_t type) {
     uint16_t skip,descriptor,width;
-    cc_release(base+ZF_JOB_BYTES);
-    if(cc_family(type)!=K_FILE) { cc_fail(44); return type; }
+    if(cc_family(type)!=K_FILE) { cc_fail(21); return; }
     store(2,0);
     skip=cc_forward(0xc3); descriptor=cc.emitted;
     width=cc.types[type].capacity==FILE_TEXT?0:cc.types[type].capacity==FILE_UNTYPED?128:
         cc.types[cc.types[type].element].width;
     cc_emit(cc.types[type].capacity); cc_emit((uint8_t)width); cc_emit((uint8_t)(width>>8)); cc_patch(skip);
     cc_address(0x21,descriptor); store(4,0);
+}
+static uint8_t file_argument(uint16_t base) {
+    uint8_t type=cc_reference(21);
+    cc_release(base+ZF_JOB_BYTES); argument_descriptor(type);
     return type;
 }
 static void invoke(uint16_t base) {
@@ -214,10 +248,14 @@ int16_t cc_file_function(void) FRONTEND {
     operation=cc_is("filepos")?ZF_POSITION:cc_is("filesize")?ZF_SIZE:cc_is("eof")?ZF_EOF:
         cc_is("eoln")?ZF_EOLN:cc_is("seekeof")?ZF_SEEKEOF:cc_is("seekeoln")?ZF_SEEKEOLN:255;
     if(operation==255) return -1;
-    cc_next(); cc_expect('(',4); base=job_start(operation);
-    type=file_argument(base);
+    cc_next(); base=job_start(operation);
+    if(operation!=ZF_POSITION&&operation!=ZF_SIZE&&cc.token!='(') {
+        type=cc_standard_reference(ZF_STANDARD_INPUT); argument_descriptor(type);
+    } else {
+        cc_expect('(',4); type=file_argument(base); cc_expect(')',5);
+    }
     if(cc_family(type)==K_FILE&&cc.types[type].capacity!=FILE_TEXT&&operation>=ZF_EOLN) cc_fail(66);
-    cc_expect(')',5); invoke(base); result(base,20); cc_release(base);
+    invoke(base); result(base,20); cc_release(base);
     return operation==ZF_POSITION||operation==ZF_SIZE?K_INTEGER:K_BOOLEAN;
 }
 /* Selection-only lookahead does not evaluate an index twice at runtime. The

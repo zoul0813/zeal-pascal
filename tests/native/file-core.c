@@ -371,6 +371,10 @@ static void standard_files(void) {
     put(0xc300,2); put(0xc302,0xc000); put(0xc304,ZF_STANDARD_INPUT);
     put(0xc306,0xc020); put(0xc308,ZF_STANDARD_OUTPUT);
     check(call(ZF_TEXT_BEGIN)==0&&invocation.stream==ZF_STANDARD_INPUT);
+    check(call(ZF_EOF)==0&&invocation.stream==ZF_STANDARD_INPUT);
+    check(call(ZF_EOLN)==0&&invocation.stream==ZF_STANDARD_INPUT);
+    check(call(ZF_SEEKEOF)==0&&invocation.stream==ZF_STANDARD_INPUT);
+    check(call(ZF_SEEKEOLN)==0&&invocation.stream==ZF_STANDARD_INPUT);
     check(VM(0xc009)[0]==1&&VM(0xc029)[0]==1);
     check(call(ZF_CLOSE)==0x22&&!invocation.stream);
     check(call(ZF_RESET)==0x22); check(call(ZF_REWRITE)==0x22);

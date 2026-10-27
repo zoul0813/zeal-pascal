@@ -467,6 +467,13 @@ void cc_slot(uint16_t id) FRONTEND {
         cc_frame(s->owner); cc_op16(0x11,s->address); cc_emit(0x19);
     } else cc_op16(0x21,s->address);
 }
+uint8_t cc_standard_reference(uint8_t identity) FRONTEND {
+    uint16_t i;
+    for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].role==S_STANDARD&&cc.symbols[i].initial_type==identity) {
+        cc.symbols[i].type=text_file_type(); cc_slot(i); return cc.symbols[i].type;
+    }
+    cc_fail(99); return 255;
+}
 void cc_symbol_address(uint16_t id) FRONTEND {
     if(cc.symbols[id].role==S_FIELD) { cc_with_address(id); return; }
     cc_slot(id);

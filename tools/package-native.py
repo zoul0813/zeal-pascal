@@ -78,9 +78,26 @@ def validate_runtime(path):
     payload=bytes(memory.get(at,0)for at in range(0x4000,max(memory)+1))
     if path.with_suffix('.zpl').read_bytes()!=payload:
         raise ValueError('runtime binary differs from its checked link image')
+    # The compiler embeds this exact prefix and these private addresses in one
+    # verified library. Generated console code need not grow the fixed prefix.
+    private=[]
+    for name,width,first,last in (('input_ready',1,0x77cd,0x7ea6),
+                                 ('input_advance',1,0x77cd,0x7ea6),
+                                 ('line_next',2,0x7ea6,0x8000),
+                                 ('line_remaining',1,0x7ea6,0x8000),
+                                 ('line_eof',1,0x7ea6,0x8000),
+                                 ('line_valid',1,0x7ea6,0x8000)):
+        address=symbols[name]
+        if not first<=address<=last-width:
+            raise ValueError('private runtime input address out of bounds: '+name)
+        private.append(address)
+    private_payload=struct.pack('<6H',*private)
+    path.with_suffix('.private').write_bytes(private_payload)
     report={'passed':True,'runtime_bytes':len(payload),'real_code_bytes':symbols['l__REAL'],
             'real_data_bytes':symbols['l__REAL_DATA'],
-            'sha256':hashlib.sha256(payload).hexdigest()}
+            'sha256':hashlib.sha256(payload).hexdigest(),
+            'private_input_addresses':private,
+            'private_sha256':hashlib.sha256(private_payload).hexdigest()}
     path.with_suffix('.runtime.json').write_text(json.dumps(report,indent=2)+'\n')
     print('runtime:',report)
 
@@ -167,6 +184,20 @@ def package(path):
         if any(first + size <= at < first + 0x4000 for at in memory):
             raise ValueError(f'bank {bank} contains bytes beyond its declared extent')
         payloads.append(bytes(memory.get(first + i, 0) for i in range(size)))
+    # Private addresses must accompany their exact prefix, including after an
+    # incremental rebuild. A stale assembly asset must never be packaged as a
+    # matching compiler/library pair merely because its own hash is consistent.
+    runtime=path.parent/'pascal_runtime.zpl'
+    private=runtime.with_suffix('.private').read_bytes()
+    template=runtime.read_bytes()
+    metadata=json.loads(runtime.with_suffix('.runtime.json').read_text())
+    if (metadata['sha256']!=hashlib.sha256(template).hexdigest() or
+            metadata['private_sha256']!=hashlib.sha256(private).hexdigest() or
+            private!=struct.pack('<6H',*metadata['private_input_addresses']) or
+            symbols['_runtime_start']!=0x88000 or
+            symbols['_runtime_end']!=0x88000+len(template) or
+            payloads[7]!=template+private):
+        raise ValueError('embedded runtime/private input metadata is stale or mismatched')
     header_bytes = 16 + 2 * len(banks)
     total = header_bytes + sum(map(len, payloads))
     library = (struct.pack('<4sBBHII', b'ZPL1', 1, len(banks), header_bytes, total, 0)
