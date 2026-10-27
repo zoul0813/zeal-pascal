@@ -413,9 +413,10 @@ Reset/Rewrite clear the binding's lookahead; Close on an assigned logical file
 is a no-op. Kbd is input-only (I/O3 on writes); Assign/Reset/Rewrite/Close on the
 preassigned Kbd report I/O22. Other logical/preassigned devices remain pending.
 
-A retained emulator stress replay repeats a key when an immediate tap crosses a
-RAM resource handoff. Paced RAM/saved input tests pass; the tap/release timing
-case remains open alongside the complete physical-input acceptance matrix.
+The duplicate-key case during RAM resource calls is fixed and tested with
+complete queued taps. Parent resource services retain the caller's interrupt
+setting after their stack and mappings are ready. Full physical-input and
+hardware acceptance remain open.
 
 Inline machine-code statements and the C/U/X directives are also pending;
 the implemented directives are A, B, I checking, R, V and W.

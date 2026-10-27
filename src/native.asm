@@ -152,11 +152,15 @@ detail_copied:
 ; SP, C is the operation, DE its argument. Run the owner's C service on the
 ; already-suspended parent stack, then restore backing before touching it.
 ; No child subroutine stack enters FC00..FFFF. Parent SP/frame and return metadata
-; remain intact for the eventual ordinary program return.
+; remain intact for the eventual ordinary program return. Only the mapping/SP
+; transitions mask interrupts; the complete parent service context honors the
+; child's incoming IFF so keyboard release bytes can arrive during bookkeeping.
 _ram_worker_service::
     ld (_worker_child_sp),hl
     ld a,(0xfd58)
     ld (_worker_child_prefix),a
+    ld a,(0xfd5a)              ; capture before replacing child page3
+    ld (_worker_child_iff),a
     ld a,#0x80
     in a,(0xf2)
     ld (_worker_child_page2),a
@@ -168,6 +172,11 @@ _ram_worker_service::
     ld sp,(_parent_sp)
     ld a,(_code_pages+2)       ; ordinary file/service bank in parent page2
     out (0xf2),a
+    ld a,(_worker_child_iff)
+    or a
+    jr z,worker_service_ready
+    ei
+worker_service_ready:
     ld a,c
     call _worker_dispatch
     di
@@ -180,6 +189,7 @@ _ram_worker_service::
     ld sp,(_worker_child_sp)
     jp 0xfe40                 ; restore prefix from code outside that window
 _worker_child_sp: .ds 2
+_worker_child_iff: .ds 1
 _worker_child_page:: .ds 1
 _worker_child_prefix:: .ds 1
 _worker_child_page2:: .ds 1

@@ -27,12 +27,8 @@ def main():
         for key in held:commands.extend(['release '+key,'run 2000000'])
         held.clear()
     def text(value):
-        ready();commands.extend(n.type_text(value[:-1],ticks=2000000))
-        char=value[-1];shifted=char in n.SHIFTED or char.isupper()
-        last=n.SHIFTED.get(char,n.KEYS.get(char,char.upper()))
-        if shifted:commands.extend(['press SHIFT','run 2000000'])
-        commands.extend(['press '+last,'run 100000000'])
-        held[:]=[last]+(['SHIFT']if shifted else[])
+        # Complete taps, including releases, must survive RAM resource calls.
+        ready();commands.extend(n.type_text(value,ticks=2000000)+['run 100000000'])
     def key(value,control=False):
         ready()
         if control:commands.append('press CTRL')
@@ -50,7 +46,7 @@ def main():
         ready();commands.extend(n.type_text(' \t',ticks=2000000)+['press ENTER','run 100000000']);held[:]=['ENTER']
         ready();commands.extend(n.type_text(' \n',ticks=2000000)+['press CTRL','press Z','run 100000000']);held[:]=['Z','CTRL']
     for _ in range(2):
-        for value in ('H','J','T','U','V'):text(value)
+        for value in ('H','J','TUV'):text(value)
     for _ in range(2):text('G')
     for _ in range(2):text('bad ')
     commands+=['run 20000000000','s','regs','mmu']
