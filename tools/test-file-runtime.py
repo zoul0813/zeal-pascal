@@ -19,7 +19,7 @@ def host():
                '-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-g',
                '-DZP_FILE_HOST', '-D__SDCC_VERSION_MAJOR=4', '-D__SDCC_VERSION_MINOR=2',
                '-D__sdcccall(x)=', '-Isrc', '-I'+str(sdk)]
-    command += ['-D'+name+'=zf_model_'+name for name in ('open', 'close', 'read', 'write', 'seek', 'exit')]
+    command += ['-D'+name+'=zf_model_'+name for name in ('open', 'close', 'read', 'write', 'seek', 'ioctl', 'exit')]
     command += ['src/path.c', 'src/file_runtime.c', 'tests/native/file-core.c', 'tests/native/file-model.c',
                 '-o', str(out/'file-core')]
     subprocess.run(command, cwd=ROOT, check=True)

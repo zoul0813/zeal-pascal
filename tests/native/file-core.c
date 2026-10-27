@@ -14,6 +14,10 @@ extern uint8_t model_oversize_read,model_oversize_write;
 extern uint16_t model_open_calls,model_close_calls,model_read_calls,model_write_calls;
 extern uint16_t model_fail_open_at,model_fail_close_at,model_fail_read_at,model_fail_write_at;
 extern uint16_t model_zero_read_at;
+extern uint8_t model_serial_present,model_serial_attr;
+extern uint8_t model_serial_input[256],model_serial_output[512];
+extern uint16_t model_serial_size,model_serial_position,model_serial_written;
+extern uint16_t model_serial_ioctl_calls,model_serial_fail_ioctl_at,model_serial_seek_calls;
 #else
 #define VM(at) ((uint8_t *)(at))
 extern void test_complete(void);
@@ -473,7 +477,103 @@ static void standard_files(void) {
     VM(0xc009)[0]=1; check(call(ZF_TEXT_BEGIN)==0&&invocation.stream==1);
     clean(ZF_END_PROGRAM,0,0);
 }
+/* Identity numbers are an independently fixed table expectation, not derived
+ * from the product's new enumeration. Lst=6, Aux=7. */
+static void printer_files(void) {
+    defaults(); VM(0xc100)[0]=0; put(0xc101,0); invocation.count=ZF_TEXT_CHAR;
+    assign("lSt:"); check(call(ZF_RESET)==0); check(call(ZF_REWRITE)==0);
+    check(call(ZF_TEXT_READ)==2&&!invocation.stream);
+    check(call(ZF_EOF)==2); check(call(ZF_EOLN)==2); check(call(ZF_SEEKEOF)==2);
+    check(call(ZF_TEXT_WRITELN)==0x20&&!invocation.stream);
+    VM(0xc200)[0]=1; VM(0xc201)[0]='X'; check(call(ZF_TEXT_WRITE)==0x20);
+    check(call(ZF_CLOSE)==0); check(call(ZF_TEXT_WRITELN)==0x20);
+    check(call(ZF_ERASE)==0x20); check(named(ZF_RENAME,"H:/DEVINVALID")==0x20);
+    clean(ZF_END_PROGRAM,0,0);
+    defaults(); check(named(ZF_ASSIGN,"LST:")==0x20); check(named(ZF_ASSIGN,"AUX:")==0x20);
+    VM(0xc100)[0]=0; put(0xc101,0); invocation.code_origin=0xc100;
+    invocation.standard_table=0xc300;
+    put(0xc300,7);
+    { uint16_t i; for(i=1;i<=7;++i) { put(0xc2fe + i*4,0xc000+(i-1)*16); put(0xc300+i*4,i); } }
+    invocation.object=0xc050; check(call(ZF_TEXT_WRITELN)==0x20);
+    check(call(ZF_CLOSE)==0x22); check(call(ZF_RESET)==0x22); check(call(ZF_REWRITE)==0x22);
+    check(named(ZF_ASSIGN,"LST:")==0x22);
+    invocation.object=0xc060;
+    check(call(ZF_CLOSE)==0x22); check(call(ZF_RESET)==0x22); check(call(ZF_REWRITE)==0x22);
+    check(named(ZF_ASSIGN,"AUX:")==0x22);
+    put(0xc31c,6); check(call(ZF_EOF)==0x1ff); /* duplicate Lst/Aux identity */
+    put(0xc31c,7); clean(ZF_END_PROGRAM,0,0);
+}
 #ifndef __SDCC
+static void serial_input(const char *data,uint16_t length) {
+    memcpy(model_serial_input,data,length); model_serial_size=length; model_serial_position=0;
+}
+static void serial_files(void) {
+    uint16_t before,position;
+    uint8_t scenario;
+    defaults(); VM(0xc100)[0]=0; put(0xc101,0); invocation.count=ZF_TEXT_CHAR;
+    assign("aUx:"); serial_input("A\032B\r\nC",6);
+    check(call(ZF_EOF)==0&&!invocation.result&&!invocation.stream&&model_handles==0);
+    position=model_serial_position; check(position==1); before=model_open_calls;
+    model_serial_present=0;
+    check(call(ZF_EOLN)==0&&!invocation.result&&model_serial_position==position&&model_open_calls==before);
+    check(call(ZF_CLOSE)==0);
+    check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]=='A'&&model_open_calls==before);
+    model_serial_present=1;
+    check(call(ZF_EOF)==0&&invocation.result);
+    check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]==26);
+    check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]=='B');
+    check(call(ZF_TEXT_READLN)==0&&model_serial_position==4);
+    check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]==10);
+    check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]=='C');
+    check(call(ZF_TEXT_READ)==0x99&&VM(0xc200)[0]=='C'&&model_handles==0);
+    serial_input("  \t\r\n123 Z",10); invocation.count=ZF_TEXT_INTEGER;
+    put(0xc200,0xc280); check(call(ZF_SEEKEOF)==0&&!invocation.result);
+    check(call(ZF_TEXT_READ)==0&&invocation.actual==1&&VM(0xc20a)[0]==3&&
+        !memcmp(VM(0xc20b),"123",3));
+    invocation.count=ZF_TEXT_CHAR; check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]==' ');
+    check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]=='Z');
+    serial_input("XY",2); check(call(ZF_EOF)==0&&!invocation.result);
+    check(call(ZF_RESET)==0); check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]=='Y');
+    serial_input("PQ",2); check(call(ZF_EOF)==0&&!invocation.result);
+    invocation.object=0xc020; assign("AUX:"); check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]=='Q');
+    invocation.object=0xc000; check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]=='P');
+    serial_input("xyz\r",4); invocation.count=ZF_TEXT_STRING|(2u<<8);
+    check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]==2&&!memcmp(VM(0xc201),"xy",2));
+    check(call(ZF_TEXT_READLN)==0&&model_serial_position==4);
+    serial_input(" \t\rQ",4); check(call(ZF_SEEKEOLN)==0&&invocation.result);
+    check(call(ZF_TEXT_READLN)==0&&model_serial_position==3);
+    invocation.count=ZF_TEXT_CHAR; check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]=='Q');
+    check(call(ZF_ERASE)==0x20); check(named(ZF_RENAME,"CON:")==0x20);
+    model_serial_written=0; model_serial_attr=0; text_value("RAW");
+    check(call(ZF_TEXT_WRITELN)==0&&model_serial_attr==0&&model_handles==0);
+    check(model_serial_written==5&&!memcmp(model_serial_output,"RAW\r\n",5));
+    check(model_serial_seek_calls==0);
+    /* Missing serial, setup, transfer, restoration and close faults must not
+     * become success, leak a handle, or change a destination on failed input. */
+    model_serial_present=0; check(call(ZF_TEXT_WRITELN)==0x20);
+    check(call(ZF_TEXT_READ)==0x20); model_serial_present=1;
+    for(scenario=1;scenario<=3;++scenario) {
+        before=model_serial_ioctl_calls; model_serial_fail_ioctl_at=before+scenario;
+        check(call(ZF_TEXT_WRITELN)==(scenario==3?0xf0:0x20)&&model_handles==0);
+        model_serial_fail_ioctl_at=0; model_serial_attr=0;
+    }
+    model_zero_write=1; check(call(ZF_TEXT_WRITELN)==0xf0&&model_serial_attr==0&&model_handles==0);
+    model_zero_write=0; model_oversize_write=1;
+    check(call(ZF_TEXT_WRITELN)==0xf0&&model_serial_attr==0&&model_handles==0);
+    model_oversize_write=0; model_write_error=ERR_FAILURE; model_close_error=ERR_NO_SUCH_ENTRY;
+    check(call(ZF_TEXT_WRITELN)==0xf0&&invocation.detail==ERR_FAILURE&&model_handles==0);
+    model_write_error=0; model_close_error=0;
+    invocation.count=ZF_TEXT_CHAR; model_read_error=ERR_FAILURE; VM(0xc200)[0]='!';
+    check(call(ZF_TEXT_READ)==0x99&&VM(0xc200)[0]=='!'&&model_handles==0);
+    model_read_error=0; model_oversize_read=1;
+    check(call(ZF_TEXT_READ)==0x99&&VM(0xc200)[0]=='!'&&model_handles==0);
+    model_oversize_read=0; serial_input("Z",1); model_close_error=ERR_FAILURE;
+    check(call(ZF_EOF)==0xf0&&model_handles==0); model_close_error=0;
+    check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]=='Z');
+    before=model_serial_position; invocation.count=0;
+    check(call(ZF_TEXT_BEGIN)==0&&model_serial_position==before);
+    clean(ZF_END_PROGRAM,0,0); model_serial_attr=1;
+}
 static void rename_faults(void) {
     uint16_t scenario,i,n;
     int8_t fd;
@@ -565,9 +665,9 @@ static void faults(void) {
 #endif
 int main(void) {
     check(sizeof(FileJob)==ZF_JOB_BYTES&&sizeof(FileCleanup)==10);
-    basic(); lifetime(); boundaries(); block_files(); many(); wide_components(); text_files(); file_paths(); renames(); standard_files(); keyboard_files(); console_files();
+    basic(); lifetime(); boundaries(); block_files(); many(); wide_components(); text_files(); file_paths(); renames(); standard_files(); keyboard_files(); console_files(); printer_files();
 #ifndef __SDCC
-    faults(); rename_faults(); check(model_pages==0&&model_handles==0);
+    serial_files(); faults(); rename_faults(); check(model_pages==0&&model_handles==0);
     printf("%u file runtime assertions passed, %u failed\n",test_passed,test_failed);
 #else
     test_done=255; test_complete();

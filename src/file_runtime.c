@@ -3,6 +3,7 @@
 #include <string.h>
 #include <zos_sys.h>
 #include <zos_vfs.h>
+#include <zos_serial.h>
 
 /* No user token, copied slot, or returned page list owns a native handle.
  * The only authority is an exact match with this module's private record.
@@ -33,6 +34,7 @@ static char rename_path[128];
 static uint8_t verify_bytes[128];
 static zos_stat_t info;
 static uint32_t native_position;
+static uint8_t serial_attribute;
 
 #ifdef ZP_FILE_HOST
 extern uint8_t zf_user_memory[65536];
@@ -175,6 +177,9 @@ static uint8_t new_record(uint16_t owner,uint16_t family,uint16_t width) {
     record->generation=generation; record->family=family; record->width=width;
     slot=i; return 1;
 }
+static uint8_t device_access(uint16_t identity) {
+    return identity==ZF_STANDARD_KBD?READABLE:identity==ZF_STANDARD_LST?WRITABLE:READABLE|WRITABLE;
+}
 /* Only immutable compiler-supplied addresses acquire preassigned identity.
  * A flag or token copied into any other object cannot grant that authority.
  * Check the complete bounded table before registering any of its objects. */
@@ -184,10 +189,10 @@ static uint8_t standards(void) {
     if(!table) return 1;
     if(!within(table,2,job->code_origin,job->static_end)) { fail(0x1ff,0); return 0; }
     count=word(table);
-    if(count>ZF_STANDARD_TRM||!within(table+2,count*4,job->code_origin,job->static_end)) { fail(0x1ff,0); return 0; }
+    if(count>ZF_STANDARD_AUX||!within(table+2,count*4,job->code_origin,job->static_end)) { fail(0x1ff,0); return 0; }
     for(i=0;i<count;++i) {
         at=table+2+4*i; object=word(at); identity=word(at+2);
-        if(!identity||identity>ZF_STANDARD_TRM||(identities&(1u<<(identity-1)))||
+        if(!identity||identity>ZF_STANDARD_AUX||(identities&(1u<<(identity-1)))||
            !within(object,16,0x8000,job->code_origin)) { fail(0x1ff,0); return 0; }
         identities|=1u<<(identity-1);
         for(j=0;j<i;++j) if(word(table+2+4*j)==object) { fail(0x1ff,0); return 0; }
@@ -205,7 +210,7 @@ static uint8_t standards(void) {
         if(job->error||!new_record(0,0,0)) break;
         record->standard=identity;
         record->device=identity>=ZF_STANDARD_KBD?identity:0;
-        record->state=identity==ZF_STANDARD_KBD?READABLE:READABLE|WRITABLE;
+        record->state=device_access(identity);
         token(0,0,0); save_record(slot);
     }
     job->object=saved; return !job->error;
@@ -227,6 +232,9 @@ static uint8_t write_bytes(const uint8_t *data,uint16_t *size) {
     uint8_t error=write((int8_t)record->fd,data,size);
     int32_t next=0,end=0,restored;
     uint32_t advanced;
+    /* Serial has no file cursor/size metadata. Never reinterpret a real device
+     * error through the disk-only post-write bookkeeping workaround. */
+    if(record->device) return error;
     if(!error) {
         if(*size<=wanted) native_position+=*size;
         return 0;
@@ -316,13 +324,22 @@ static void text_bytes(uint16_t count) {
         else done+=size;
     }
 }
+static uint8_t serial_open(void) {
+    int8_t fd;
+    if(record->fd!=0xffffu) return 1;
+    fd=open_path("#SER0",O_RDWR);
+    if(fd<0) { fail(-fd==ERR_CANNOT_REGISTER_MORE?0xf3:0x20,(uint8_t)-fd); return 0; }
+    record->fd=(uint8_t)fd; return 1;
+}
 static uint8_t text_peek(void) {
     uint16_t size=1;
     uint8_t error;
     if(!(record->state&LOOKAHEAD)) {
+        if(record->device&&!serial_open()) return 26;
         error=read((int8_t)record->fd,bytes,&size);
         if(error) { native_error(error,0); return 26; }
         if(size>1) { fail(0x99,ERR_INVALID_PARAMETER); return 26; }
+        if(!size&&record->device) { fail(0x99,0); return 26; }
         record->next=size?bytes[0]:26;
         record->state|=LOOKAHEAD;
     }
@@ -367,7 +384,10 @@ static void text_read(void) {
     uint8_t kind=(uint8_t)job->count,limit=(uint8_t)(job->count>>8),n=0,c;
     if(!text_input_target()) return;
     if(kind==ZF_TEXT_CHAR) {
-        c=text_take(); if(!job->error) { USER(out)[0]=c; job->actual=1; }
+        c=text_take(); if(!job->error) {
+            if(record->device) record->state&=(uint16_t)~LOOKAHEAD;
+            USER(out)[0]=c; job->actual=1;
+        }
         return;
     }
     if(kind!=ZF_TEXT_STRING) {
@@ -387,7 +407,7 @@ static void text_read(void) {
 static void text_readln(void) {
     uint8_t c;
     do { c=text_take(); } while(!job->error&&c!=13&&c!=26);
-    if(c==13&&!job->error&&text_peek()==10) text_take();
+    if(c==13&&!record->device&&!job->error&&text_peek()==10) text_take();
 }
 static void text_write(uint8_t newline) {
     uint16_t n;
@@ -485,6 +505,8 @@ static uint8_t logical_device(const char *path) {
     if(!strcmp(path,"KBD:")) return ZF_STANDARD_KBD;
     if(!strcmp(path,"CON:")) return ZF_STANDARD_CON;
     if(!strcmp(path,"TRM:")) return ZF_STANDARD_TRM;
+    if(!strcmp(path,"LST:")) return ZF_STANDARD_LST;
+    if(!strcmp(path,"AUX:")) return ZF_STANDARD_AUX;
     return 0;
 }
 /* Capture and resolve once, before replacing any association. The fixed prefix
@@ -591,13 +613,54 @@ static void rename_file(void) {
     if(error) native_error(error,2);
     else strcpy(record->path,rename_path);
 }
+/* The native default Aux adapter owns one supported SER0 descriptor per
+ * operation. Logical Close remains a no-op; only the adapter closes its own
+ * transient handle. Input opens lazily: an already owned current byte needs no
+ * descriptor or live device. Preserve the global driver's raw/cooked setting,
+ * including after failed output. All SDK buffers live in this module prefix. */
+static void serial_stream(void) {
+    int8_t fd;
+    uint8_t writing=job->operation==ZF_TEXT_WRITE||job->operation==ZF_TEXT_WRITELN;
+    uint8_t error,restore=0;
+    if(job->operation==ZF_TEXT_BEGIN&&!(job->count&2)) return;
+    if(job->operation==ZF_TEXT_WRITE&&!USER(job->data)[0]) return;
+    record->fd=0xffffu;
+    if(writing) {
+        if(!serial_open()) { record->fd=0; return; }
+        fd=(int8_t)record->fd;
+        error=ioctl(fd,SERIAL_CMD_GET_ATTR,&serial_attribute);
+        if(!error) {
+            restore=1;
+            error=ioctl(fd,SERIAL_CMD_SET_ATTR,(void *)(uintptr_t)(serial_attribute|SERIAL_ATTR_MODE_RAW));
+        }
+        if(error) fail(0x20,error);
+    }
+    if(!job->error) switch(job->operation) {
+    case ZF_TEXT_BEGIN: text_peek(); break;
+    case ZF_TEXT_READ: text_read(); break;
+    case ZF_TEXT_READLN: text_readln(); break;
+    case ZF_TEXT_WRITE: case ZF_TEXT_WRITELN:
+        text_write(job->operation==ZF_TEXT_WRITELN); break;
+    default: text_predicate(job->operation); break;
+    }
+    if(restore) {
+        fd=(int8_t)record->fd;
+        error=ioctl(fd,SERIAL_CMD_SET_ATTR,(void *)(uintptr_t)serial_attribute);
+        if(error) fail(0xf0,error);
+    }
+    if(record->fd!=0xffffu) {
+        error=close_file((uint8_t)record->fd);
+        if(error) fail(0xf0,error);
+    }
+    record->fd=0;
+}
 /* The file module validates ownership while mapped; the restored prefix owns
  * keyboard services. Only the authenticated binding's small lookahead state
  * crosses that handoff. Logical Close owns no native descriptor and is a no-op. */
 static void logical_stream(void) {
     switch(job->operation) {
     case ZF_RESET: case ZF_REWRITE:
-        record->state=record->device==ZF_STANDARD_KBD?READABLE:READABLE|WRITABLE;
+        record->state=device_access(record->device);
         record->next=0; save_record(slot); return;
     case ZF_CLOSE: return;
     case ZF_TEXT_BEGIN: case ZF_TEXT_READLN: case ZF_EOF:
@@ -612,6 +675,8 @@ static void logical_stream(void) {
         break;
     default: fail(0x20,0); return;
     }
+    if(record->device==ZF_STANDARD_LST) { fail(0x20,ERR_NOT_SUPPORTED); return; }
+    if(record->device==ZF_STANDARD_AUX) { serial_stream(); save_record(slot); return; }
     job->stream=record->device;
     job->lookahead=(uint8_t)record->next|((record->state&LOOKAHEAD)?0x100u:0);
 }
@@ -663,7 +728,7 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
         if(error&&family) { fail(0x20,0); return; }
         if(valid&&(record->state&OPENED)) { fail(0x20,0); return; }
         if(!valid&&!new_record(owner,family,width)) return;
-        record->device=error; record->state=!error?0:error==ZF_STANDARD_KBD?READABLE:READABLE|WRITABLE; record->next=0;
+        record->device=error; record->state=error?device_access(error):0; record->next=0;
         strcpy(record->path,request.path); token(owner,family,width); save_record(slot); return;
     }
     if(!valid) {

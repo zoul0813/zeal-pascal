@@ -19,6 +19,7 @@ python3 tools/test-standard.py
 python3 tools/test-keyboard.py
 python3 tools/test-logical.py
 python3 tools/test-console.py
+python3 tools/test-devices.py
 python3 tools/test-file-runtime.py --host --native
 python3 tools/test-workers.py
 python3 tools/test-params.py
@@ -213,8 +214,8 @@ empty string. RAM runs receive no arguments. Command tails allow up to 127 bytes
 longer tails are rejected before the Pascal program starts. Ord, Succ and Pred accept
 String/Char-array values of exactly one character; other lengths report runtime
 error 10. The compiler currently has
-512 symbol entries (nine predeclared for HeapPtr/RecurPtr/BufLen/CBreak and
-Input/Output/Kbd/Con/Trm) and 64 type descriptors
+512 symbol entries (eleven predeclared for HeapPtr/RecurPtr/BufLen/CBreak and
+Input/Output/Kbd/Con/Trm/Lst/Aux) and 64 type descriptors
 (including six built-in types).
 Exhaustion reports resource error 98. Arrays support ordinal bounds, nested or
 comma-separated dimensions, packed layout, whole-array assignment, typed
@@ -439,7 +440,24 @@ Pending earlier errors retain their code and suppress transfers.
 Logical names are case-insensitive and create no disk files or directories.
 Assigned CON:/TRM: support immediate input/output, Reset/Rewrite clear only that
 binding's lookahead, and Close is a no-op. Preassigned Con/Trm lifecycle calls
-report I/O22. Lst/Aux/Usr and their logical names remain pending.
+report I/O22.
+
+Aux and Text assigned to `AUX:` use Zeal's native `#SER0` serial driver. They
+support formatted output, Char/String/numeric input and Text predicates, with
+independent current-byte caches. Char consumes even Ctrl-Z; ReadLn stops at CR
+without waiting for or consuming a following LF. A cached byte needs no new
+device open. Output temporarily selects raw serial mode so Pascal's CR/LF is
+sent exactly once, then restores the previous mode and closes its own descriptor.
+This does not redirect serial traffic to the video console or keyboard.
+
+Lst and `LST:` are output-only. The current Zeal target has no printer driver:
+attempted output reports I/O20, and input reports I/O02. An unavailable serial
+adapter also reports I/O20. Failed transfers and cleanup retain their I/O errors.
+Assigned LST:/AUX: Reset/Rewrite clear lookahead; Close is a no-op. Preassigned
+Lst/Aux lifecycle calls report I/O22. Logical names are case-insensitive and
+create no disk files. Native UART transmission is emulator-tested; reception and
+faults have deterministic host coverage, while physical serial RX remains an
+open hardware gate. Usr and replacement Pascal device/error callbacks remain pending.
 
 The duplicate-key case during RAM resource calls is fixed and tested with
 complete queued taps. Parent resource services retain the caller's interrupt
