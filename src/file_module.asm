@@ -1,0 +1,13 @@
+.module file_module
+.globl _zf_dispatch,_zf_cleanup
+.area _HEADER
+    jp _zf_dispatch
+    jp _zf_cleanup
+    .ascii "ZFIL"
+    .db 1,0
+    .dw 16,0
+.area _SYSTEM
+.area _TEXT
+.area _INITIALIZED
+.area _DATA
+.area _BSS

@@ -2,13 +2,14 @@
 .globl read_line,read_string,input_begin,input_value,input_end
 .globl memory_mode,io_error,call_error,val_dispatch,buflen,cbreak,user_break
 .globl _key_event,c_save,c_restore,io_check,io_fail,io_status
+.globl line_history
 .area _REAL_DATA
 line_next: .ds 2
 line_remaining: .ds 1
 line_valid: .ds 1               ; 0 unloaded, 1 buffered, 2 end marker consumed
 line_eof: .ds 1
 line_buffer: .ds 128
-line_history: .ds 128
+.equ line_history, 0xff80       ; private transition data, never stack payload
 history_length: .ds 1
 input_length: .ds 1
 input_max: .ds 1

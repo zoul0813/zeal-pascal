@@ -393,7 +393,7 @@ void cc_storage(uint16_t id,uint16_t width) FRONTEND {
         count=cc_rget(cc.scope,R_LOCALS);
         if((uint32_t)count+width>0x7ff0u) { cc_fail(99); return; }
         count+=width; cc_rput(cc.scope,R_LOCALS,count);
-        cc.symbols[id].address=(uint16_t)(0u-6u-count);
+        cc.symbols[id].address=(uint16_t)(0u-FRAME_PRIVATE_BYTES-count);
     } else {
         if((uint32_t)cc.image->globals_bytes+width>=PAGE_SIZE) { cc_fail(99); return; }
         cc.symbols[id].address=GLOBAL_BASE+cc.image->globals_bytes;

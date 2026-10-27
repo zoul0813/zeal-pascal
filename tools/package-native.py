@@ -48,17 +48,17 @@ def validate_runtime(path):
     if not 0x40a0<=symbols['runtime_prefix_end']<=0x4bd6:
         raise ValueError('runtime assembly prefix overlaps SDK helper text')
     for area,first,last in (('REAL_ADAPTER',0x4c73,0x4d8a),('REAL',0x4d8a,0x77cd),
-                            ('TEXT',0x4bd6,0x4c73),('CODE',0x77cd,0x7e26),
-                            ('REAL_DATA',0x7e26,0x8000)):
+                            ('TEXT',0x4bd6,0x4c73),('CODE',0x77cd,0x7ea6),
+                            ('REAL_DATA',0x7ea6,0x8000)):
         at,size=symbols.get('s__'+area,first),symbols.get('l__'+area,0)
         if size and not first<=at<=at+size<=last:
             raise ValueError('runtime '+area+' exceeds its bounded extent')
     if not 0x4d8a<=symbols['_zr_eval']<0x77cd or symbols['real_buffer']!=0x4136:
         raise ValueError('runtime Real helper ABI is misplaced')
-    if symbols['tail_length']!=0x4159 or symbols['tail']!=0x415a:
+    if symbols['tail_length']!=0xff00 or symbols['tail']!=0xff01:
         raise ValueError('runtime command-tail cache ABI is misplaced')
-    if any(memory.get(at,0) for at in range(0x4159,0x41d9)):
-        raise ValueError('runtime command-tail cache must start empty')
+    if symbols['line_history']!=0xff80 or symbols['runtime_stack_budget']!=0xfe7c:
+        raise ValueError('runtime private transition-data bounds are misplaced')
     for entry,name in ((0x4133,'real_dispatch'),(0x413c,'format_field'),
                        (0x413f,'field_output'),(0x4142,'str_copy'),(0x4145,'val_field'),
                        (0x4148,'input_begin'),(0x414b,'input_value'),(0x414e,'input_end'),
@@ -66,7 +66,7 @@ def validate_runtime(path):
         if (memory.get(entry)!=0xc3 or memory.get(entry+1)!=symbols[name]&255
                 or memory.get(entry+2)!=symbols[name]>>8):
             raise ValueError('runtime helper jump is misplaced: '+name)
-    if not all(0x77cd<=symbols[name]<0x7e26
+    if not all(0x77cd<=symbols[name]<0x7ea6
                for name in ('format_field','field_output','str_copy','integer_prepare','val_field',
                             'read_line','read_string','input_begin','input_value','input_end')):
         raise ValueError('runtime field helpers exceed their owned extent')
@@ -96,6 +96,29 @@ def validate_trampoline(path):
     if path.with_suffix('.zpl').read_bytes() != payload:
         raise ValueError('RAM transition binary differs from its checked link image')
     print('RAM transition:', len(payload), 'bytes; checked program and service gates')
+
+
+def validate_file_runtime(path):
+    memory, symbols = read_hex(path), read_symbols(path)
+    if not memory or min(memory) != 0x4000 or max(memory) >= 0x8000:
+        raise ValueError('file runtime exceeds its owned module page')
+    for entry, name in ((0x4000, '_zf_dispatch'), (0x4003, '_zf_cleanup')):
+        if bytes(memory.get(entry+i, 0) for i in range(3)) != b'\xc3'+struct.pack('<H', symbols[name]):
+            raise ValueError('file module entry misplaced: '+name)
+    if bytes(memory.get(0x4006+i, 0) for i in range(10)) != b'ZFIL\x01\0\x10\0\0\0':
+        raise ValueError('file module header mismatch')
+    for area in ('HEADER', 'SYSTEM', 'TEXT', 'INITIALIZED', 'DATA', 'BSS'):
+        at, size = symbols['s__'+area], symbols['l__'+area]
+        if size and not 0x4000 <= at <= at+size <= 0x8000:
+            raise ValueError('file module '+area+' exceeds its owned page')
+    payload = bytes(memory.get(at, 0) for at in range(0x4000, max(memory)+1))
+    if path.with_suffix('.zpl').read_bytes() != payload:
+        raise ValueError('file runtime binary differs from its checked link image')
+    report = {'passed': True, 'module_bytes': len(payload),
+              'data_end': max(symbols['s__'+a]+symbols['l__'+a] for a in ('DATA', 'BSS')),
+              'sha256': hashlib.sha256(payload).hexdigest()}
+    path.with_suffix('.module.json').write_text(json.dumps(report, indent=2)+'\n')
+    print('file runtime:', report)
 
 
 def package(path):
@@ -158,4 +181,5 @@ def package(path):
 if __name__ == '__main__':
     if sys.argv[1]=='--runtime':validate_runtime(Path(sys.argv[2]))
     elif sys.argv[1]=='--trampoline':validate_trampoline(Path(sys.argv[2]))
+    elif sys.argv[1]=='--file-runtime':validate_file_runtime(Path(sys.argv[2]))
     else:package(Path(sys.argv[1]))

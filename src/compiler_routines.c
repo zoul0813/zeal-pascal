@@ -26,9 +26,10 @@ static void raw_store(uint16_t id) {
 static void prologue(void) {
     uint16_t id,first=cc_rget(cc.scope,R_PARAMETERS),count=cc_rget(cc.scope,R_COUNT);
     uint16_t locals=cc_rget(cc.scope,R_LOCALS);
-    cc_reserve(locals+8); cc_emit(0xdd); cc_emit(0xe5); /* saved IX */
+    cc_reserve(locals+FRAME_PRIVATE_BYTES+2); cc_emit(0xdd); cc_emit(0xe5); /* saved IX */
     cc_emit(0xdd); cc_op16(0x21,0); cc_emit(0xdd); cc_emit(0x39); /* IX = SP */
-    cc_op16(0x21,(uint16_t)(0u-6u-locals)); cc_emit(0x39); cc_emit(0xf9);
+    cc_op16(0x21,(uint16_t)(0u-FRAME_PRIVATE_BYTES-locals)); cc_emit(0x39); cc_emit(0xf9);
+    indexed(0x75,248); indexed(0x74,249); /* actual owned-local lower bound */
     cc_frame(cc.scope); cc_op16(0x11,4); cc_emit(0x19); cursor_store();
     while(count--&&!cc.error->code) {
         id=first+count; cursor_load();

@@ -19,7 +19,7 @@ set_target_properties(pascal_runtime PROPERTIES LINKER_LANGUAGE ASM)
 # Pack private sections within the same checked16 KiB runtime prefix. Public
 # helper addresses remain fixed; I/O recovery adds no runtime bank or page.
 target_link_options(pascal_runtime PRIVATE "SHELL:-b _REAL_ADAPTER=0x4c73"
-    "SHELL:-b _REAL=0x4d8a" "SHELL:-b _REAL_DATA=0x7e26"
+    "SHELL:-b _REAL=0x4d8a" "SHELL:-b _REAL_DATA=0x7ea6"
     "SHELL:-b _TEXT=0x4bd6" "SHELL:-b _CODE=0x77cd")
 zos_add_outputs(pascal_runtime WITH_EXTENSION zpl)
 add_custom_command(TARGET pascal_runtime_bin POST_BUILD
@@ -155,6 +155,30 @@ add_executable(realabi tests/native/realabi.asm)
 zos_add_outputs(realabi WITH_EXTENSION zpl)
 add_executable(workerabi tests/native/workerabi.asm)
 zos_add_outputs(workerabi WITH_EXTENSION zpl)
+
+# Callable disk component owns code, SDK staging and registry metadata in one
+# page. The compiler will embed this asset; it is not an installed dependency.
+add_library(file_runtime_core OBJECT src/file_runtime.c src/file_native.asm)
+target_include_directories(file_runtime_core PRIVATE src)
+target_compile_options(file_runtime_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+set_property(SOURCE src/file_runtime.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/file_runtime.h)
+add_executable(file_runtime src/file_module.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
+    $<TARGET_OBJECTS:file_runtime_core>)
+set_target_properties(file_runtime PROPERTIES LINKER_LANGUAGE ASM)
+zos_add_outputs(file_runtime WITH_EXTENSION zpl)
+add_custom_command(TARGET file_runtime_bin POST_BUILD
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --file-runtime
+        ${CMAKE_BINARY_DIR}/file_runtime.ihx VERBATIM)
+add_executable(zfilecoretest tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
+    tests/native/file-core.c tests/native/file-probe.asm tests/native/machine.asm $<TARGET_OBJECTS:file_runtime_core>)
+target_include_directories(zfilecoretest PRIVATE src)
+set_source_files_properties(tests/native/file-core.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;TEST;--constseg;TEST;--dataseg;TEST_DATA")
+set_property(SOURCE tests/native/file-core.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/file_runtime.h)
+target_link_options(zfilecoretest PRIVATE "SHELL:-b _TEST=0x8000" "SHELL:-b _TEST_DATA=0xe000")
+zos_add_outputs(zfilecoretest)
 
 # The Real6 component is checked independently before compiler integration.
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/real_vectors.h

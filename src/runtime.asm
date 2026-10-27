@@ -8,6 +8,10 @@
 .globl character,neg_hl,false_text,true_text
 .globl io_call,io_result,io_check,io_fail,io_status
 .globl tail_length,tail
+.globl runtime_stack_budget
+.equ tail_length, 0xff00
+.equ tail, 0xff01
+.equ runtime_stack_budget, 0xfe7c
 .area _HEADER (ABS)
 .org 0x4000
     jp 0x40a0
@@ -81,8 +85,6 @@ buflen: .db 127                 ; 4151: next physical console line's byte limit
 cbreak: .db 1                   ; 4152: buffered Ctrl-C checking enabled
     jp io_call                  ; 4153: inline helper:u16, I checking:u8
     jp io_result                ; 4156: Integer prior I/O status, cleared
-tail_length: .db 0              ; 4159: immutable cached native command tail
-tail: .ds 127                   ; 415A: bounded bytes, not NUL terminated
 io_frame: .dw 0                 ; invocation-owned stack frame, never a global landing
 io_status: .db 0
 io_target: .dw 0                ; setup/dispatch scratch; no callback while in use
@@ -97,13 +99,34 @@ normal:
     cp #128
     jr nc,bad_start
     ld a,c
-    ld (tail_length),a
+    ex af,af'                   ; retain length without touching source/stack
+    ld a,c
     or a
     jr z,tail_copied
     ex de,hl
     ld de,#tail
+    ; The OS tail can overlap its private destination. Copy toward the lower
+    ; end when source >= destination, otherwise toward the higher end. Store
+    ; the length only after copying: even FF00 may be a source byte.
+    ld a,h
+    cp #0xff
+    jr c,tail_backward
+    ld a,l
+    cp #1
+    jr c,tail_backward
     ldir
+    jr tail_copied
+tail_backward:
+    add hl,bc
+    dec hl
+    ex de,hl
+    add hl,bc
+    dec hl
+    ex de,hl
+    lddr
 tail_copied:
+    ex af,af'
+    ld (tail_length),a
     xor a
     ld (memory_mode),a
     ld sp,#0xfc00
@@ -113,9 +136,24 @@ bad_start:
     ld l,#15
     rst 8
 ram:
+    xor a
+    ld (tail_length),a
     ld a,#1
     ld (memory_mode),a
 start:
+    ld ix,#0                    ; terminate the actual Pascal frame chain
+    ld hl,#0xfe70               ; runtime-owned persistent module control
+    ld de,#0xfe71
+    ld bc,#31
+    ld (hl),#0
+    ldir
+    ld hl,#64
+    ld (runtime_stack_budget),hl
+    ld hl,#0xff80               ; input history, initialized after tail copy
+    ld de,#0xff81
+    ld bc,#127
+    ld (hl),#0
+    ldir
     ld hl,(0x401c)
     bit 0,l
     jr z,heap_aligned
@@ -125,7 +163,7 @@ heap_aligned:
     ld (heap_frontier),hl
     ld hl,#0
     add hl,sp
-    ld de,#64
+    ld de,(runtime_stack_budget)
     or a
     sbc hl,de
     ld (recursion_limit),hl
@@ -1293,7 +1331,7 @@ checked_guard:
     inc hl
     ld (hl),d
     ld hl,(guard_sp)
-    ld de,#64
+    ld de,(runtime_stack_budget)
     or a
     sbc hl,de
     jp c,heap_error
@@ -1649,7 +1687,7 @@ stack_set_end:
     sbc hl,de
     jp c,heap_error
     ld hl,(heap_target)
-    ld de,#64
+    ld de,(runtime_stack_budget)
     or a
     sbc hl,de
     jp c,heap_error

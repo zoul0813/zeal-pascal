@@ -1,0 +1,29 @@
+.module file_test_start
+.globl _main,_test_stop
+.globl s__DATA,l__DATA,s__TEST_DATA,l__TEST_DATA
+.area _HEADER
+    ld sp,#0xfc00
+    xor a
+    ld (0xfe78),a
+    ld hl,#s__DATA
+    ld bc,#l__DATA
+    call clear
+    ld hl,#s__TEST_DATA
+    ld bc,#l__TEST_DATA
+    call clear
+    call _main
+    jp _test_stop
+clear:
+    ld a,b
+    or c
+    ret z
+    ld (hl),#0
+    inc hl
+    dec bc
+    jr clear
+.area _SYSTEM
+.area _TEXT
+.area _DATA
+.area _BSS
+.area _TEST
+.area _TEST_DATA
