@@ -385,7 +385,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     for(i=0;i<96;++i) map8(i,0);
     for(i=0;i<cc_runtime_size();++i) cc_put(i,cc_runtime_get(i));
     cc.scan=0; cc.symbol_count=0; cc.depth=0; cc.entries=0; cc.range_check=0; cc.type_count=0; cc.relocations=0;
-    cc.scope=0; cc.routine_count=0; cc.absolute_mode=1; cc.var_strict=1; cc.nesting=0; cc.suppress=0; cc.with_depth=0; cc.with_limit=4;
+    cc.scope=0; cc.routine_count=0; cc.absolute_mode=1; cc.var_strict=1; cc.index_speed=1; cc.nesting=0; cc.suppress=0; cc.with_depth=0; cc.with_limit=4;
     cc.temporaries=0; cc.for_depth=0; cc.input_fresh=1; cc.io_check=1;
     cc.random_entry=0; cc.random_state=0;
     cc.text_type=255;

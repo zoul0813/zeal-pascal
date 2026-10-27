@@ -28,6 +28,31 @@ static uint8_t set_binary(uint8_t left,uint8_t right,uint8_t op,uint16_t before,
     cc.temporaries=before+32;
     return cc_set_base(left)==255?right:left;
 }
+/* HL is the checked, lower-bound-adjusted ordinal index. Both forms compute
+ * the same sixteen-bit byte offset; DE is scratch until the caller pops its
+ * saved base. X+ avoids the general multiplication loop. X- chooses its
+ * thirteen-byte guarded call only when that saves code over shifts/adds. */
+static void scale_index(uint16_t stride) {
+    uint16_t bit;
+    uint8_t cost=0,mixed;
+    if(stride==1)return;
+    if(!stride){cc_op16(0x21,0);return;}
+    mixed=(stride&(stride-1))!=0;
+    bit=0x8000u;
+    while(!(stride&bit))bit>>=1;
+    if(mixed)cost=2;
+    for(bit>>=1;bit;bit>>=1)cost+=1+((stride&bit)!=0);
+    if(!cc.index_speed&&cost>13) {
+        cc_op16(0x11,stride);cc_call(RT_MUL);return;
+    }
+    if(mixed){cc_emit(0x54);cc_emit(0x5d);} /* DE = original index */
+    bit=0x8000u;
+    while(!(stride&bit))bit>>=1;
+    for(bit>>=1;bit;bit>>=1) {
+        cc_emit(0x29); /* ADD HL,HL */
+        if(stride&bit)cc_emit(0x19); /* ADD HL,DE */
+    }
+}
 uint8_t cc_index(uint8_t type) BACKEND {
     uint16_t before,stride;
     uint8_t kind,index,array;
@@ -61,7 +86,7 @@ uint8_t cc_index(uint8_t type) BACKEND {
                     cc_op16(0x11,(uint16_t)cc.types[index].low); cc_emit(0xb7); cc_emit(0xed); cc_emit(0x52);
                 }
                 type=cc.types[type].element; stride=cc.types[type].width;
-                if(stride!=1) { cc_op16(0x11,stride); cc_call(RT_MUL); }
+                scale_index(stride);
             } else type=K_CHAR;
             cc_emit(0xd1); cc_emit(0x19);
             if(cc.token!=','||cc_family(type)!=K_ARRAY) break;

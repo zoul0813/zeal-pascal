@@ -4,6 +4,9 @@ A native Pascal IDE, compiler and runtime for the MMU Zeal 8-bit Computer.
 This is an incremental implementation of the recovered Turbo Pascal 3 dialect;
 full language, editor and runtime conformance is still in progress.
 
+The current priority is language and IDE completion, followed by performance
+work, then the remaining Turbo Pascal runtime/library services.
+
 Build using the existing Zeal development environment:
 
 ```sh
@@ -21,6 +24,7 @@ python3 tools/test-logical.py
 python3 tools/test-console.py
 python3 tools/test-devices.py
 python3 tools/test-hooks.py
+python3 tools/test-language.py
 python3 tools/test-bridges.py
 python3 tools/test-bridges.py --corpus routines
 python3 tools/test-bridges.py --corpus real
@@ -226,6 +230,11 @@ comma-separated dimensions, packed layout, whole-array assignment, typed
 initializers and value/Var parameters. R+ checks each index before access.
 A value parameter passes a source address; the callee makes an independent
 copy before its body runs. Array- and record-valued user functions remain invalid.
+
+`$X+` (default) selects fast array-index scaling; `$X-` selects the smaller
+encoding. Both preserve bounds checks, signed lower bounds and expression
+evaluation order. The switch accepts either directive-comment spelling and
+comma-separated options.
 
 Records support tightly stored fields, nested arrays/records, whole-record
 copies, value/Var parameters and writable typed initializers. Variant alternatives
@@ -504,8 +513,8 @@ complete queued taps. Parent resource services retain the caller's interrupt
 setting after their stack and mappings are ready. Full physical-input and
 hardware acceptance remain open.
 
-Inline machine-code statements and the C/U/X directives are also pending;
-the implemented directives are A, B, I checking, R, V and W.
+Inline machine-code statements and the C/U directives are also pending;
+the implemented directives are A, B, I checking, R, V, W and X.
 Pascal CRT calls (ClrScr, ClrEol, GotoXY, InsLine, DelLine, CrtInit/CrtExit,
 LowVideo/NormVideo/HighVideo and Delay), replacement input/error callbacks,
 Chain/Execute and overlays remain pending. CP/M BIOS/BDOS services are intentionally

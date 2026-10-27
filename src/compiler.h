@@ -52,7 +52,7 @@ typedef struct {
     uint8_t literal[256],hexadecimal,number_overflow;
     char name[128];
     uint16_t emitted,entries,file_bytes,relocations;
-    uint8_t workspace,stage_page,scope,absolute_mode,var_strict,nesting,suppress;
+    uint8_t workspace,stage_page,scope,absolute_mode,var_strict,nesting,suppress,index_speed;
     uint16_t routine_count,temporaries;
     uint8_t with_depth,with_limit,with_bound,with_types[9],for_depth,input_fresh,io_check;
     uint16_t field_offset;

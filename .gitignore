@@ -23,6 +23,7 @@
 !/tools/test-devices.py
 !/tools/test-bridges.py
 !/tools/test-hooks.py
+!/tools/test-language.py
 !/tools/test-file-runtime.py
 !/tools/test-runtime-layout.py
 !/tools/test-params.py

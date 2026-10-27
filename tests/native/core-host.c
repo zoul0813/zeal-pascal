@@ -99,6 +99,41 @@ static unsigned calls(uint16_t entry,int mode) {
         (mode<0||image_get(&b,at+i+5)==mode)) ++count;
     return count;
 }
+static void index_modes(void) {
+    static const uint16_t strides[]={0,1,2,3,4,5,6,7,8,15,16,17,31,32,63,64,
+        127,128,129,254,255,256,257,511,512,1023,1024,2047,4095,4096,8191,8192,16383};
+    char text[256],element[80];
+    uint16_t bytes,i;
+    uint8_t mode;
+    for(i=0;i<sizeof(strides)/sizeof(strides[0]);++i) {
+        if(strides[i])snprintf(element,sizeof(element),"array[1..%u]of byte",strides[i]);
+        else strcpy(element,"record end");
+        bytes=0;
+        for(mode=0;mode<2;++mode) {
+            snprintf(text,sizeof(text),"{$X%c}type item=%s;var a:array[0..0]of item absolute $9000;i,p:integer;begin p:=addr(a[i])end.",mode?'-':'+',element);
+            load(text);check(compile(&s,&b,&d));check(cc.index_speed==!mode);
+            check(cc.temporaries==0);
+            if(!mode){check(calls(RT_MUL,-1)==0);bytes=b.code_bytes;}
+            else {check(b.code_bytes<=bytes);if(strides[i]==255)check(calls(RT_MUL,-1)==1);}
+            build_close(&b);
+        }
+    }
+    load("(*$x-*)type item=array[1..255]of byte;var a:array[1..2]of item;i,p:integer;begin p:=addr(a[i]);{$R+,X+}p:=addr(a[i])end.");
+    check(compile(&s,&b,&d));check(calls(RT_MUL,-1)==1);check(calls(RT_INDEX,-1)==1);build_close(&b);
+    load("begin end.");check(compile(&s,&b,&d));check(cc.index_speed==1);build_close(&b);
+    invalid("{$X}begin end.",93);invalid("{$X*}begin end.",93);
+    {
+        const char *names[]={"indexmodes","indexwrap","indexrange","indexrsmall"};
+        char source[4096],path[80];
+        FILE *fixture;size_t length;
+        for(i=0;i<4;++i) {
+            snprintf(path,sizeof(path),"tests/native/%s.pas",names[i]);fixture=fopen(path,"rb");check(fixture!=NULL);
+            length=fread(source,1,sizeof(source),fixture);check(feof(fixture)&&!ferror(fixture));check(fclose(fixture)==0);
+            check(source_import(&s,(const uint8_t*)source,(uint16_t)length,&d));
+            check(compile(&s,&b,&d));check(cc.temporaries==0);build_close(&b);
+        }
+    }
+}
 int main(int argc,char **argv) {
     unsigned i;
     uint16_t position;
@@ -109,6 +144,7 @@ int main(int argc,char **argv) {
     keyboard_corpus();
     bridge_corpus();
     hook_corpus();
+    index_modes();
     load("begin  \r\nend. \r\n\032padding"); check(s.length==11);
     check(source_replace(&s,0,0,NULL,0)&&!s.dirty);
     {
