@@ -7,6 +7,7 @@
 .globl runtime_prefix_end
 .globl character,neg_hl,false_text,true_text
 .globl io_call,io_result,io_check,io_fail,io_status
+.globl tail_length,tail
 .area _HEADER (ABS)
 .org 0x4000
     jp 0x40a0
@@ -80,6 +81,8 @@ buflen: .db 127                 ; 4151: next physical console line's byte limit
 cbreak: .db 1                   ; 4152: buffered Ctrl-C checking enabled
     jp io_call                  ; 4153: inline helper:u16, I checking:u8
     jp io_result                ; 4156: Integer prior I/O status, cleared
+tail_length: .db 0              ; 4159: immutable cached native command tail
+tail: .ds 127                   ; 415A: bounded bytes, not NUL terminated
 io_frame: .dw 0                 ; invocation-owned stack frame, never a global landing
 io_status: .db 0
 io_target: .dw 0                ; setup/dispatch scratch; no callback while in use
@@ -623,8 +626,6 @@ error_namespace: .db 0
 io_byte: .db 0
 negative: .db 0
 want_remainder: .db 0
-tail_length: .db 0
-tail: .ds 127
 false_text: .db 5
     .ascii "FALSE"
 true_text: .db 4

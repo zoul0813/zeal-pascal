@@ -55,6 +55,10 @@ def validate_runtime(path):
             raise ValueError('runtime '+area+' exceeds its bounded extent')
     if not 0x4d8a<=symbols['_zr_eval']<0x77cd or symbols['real_buffer']!=0x4136:
         raise ValueError('runtime Real helper ABI is misplaced')
+    if symbols['tail_length']!=0x4159 or symbols['tail']!=0x415a:
+        raise ValueError('runtime command-tail cache ABI is misplaced')
+    if any(memory.get(at,0) for at in range(0x4159,0x41d9)):
+        raise ValueError('runtime command-tail cache must start empty')
     for entry,name in ((0x4133,'real_dispatch'),(0x413c,'format_field'),
                        (0x413f,'field_output'),(0x4142,'str_copy'),(0x4145,'val_field'),
                        (0x4148,'input_begin'),(0x414b,'input_value'),(0x414e,'input_end'),

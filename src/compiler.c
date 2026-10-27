@@ -387,6 +387,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     cc.temporaries=0; cc.for_depth=0; cc.input_fresh=1; cc.io_check=1;
     cc.random_entry=0; cc.random_state=0;
     cc.text_type=255;
+    cc.parameter_entry=0;
     cc_new_type(K_INTEGER,2,-32768,32767,0);
     cc_new_type(K_STRING,0,0,0,0); /* expression/literal string, not a storage type */
     cc_new_type(K_BOOLEAN,1,0,1,0);

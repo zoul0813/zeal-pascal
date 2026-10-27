@@ -136,6 +136,22 @@ int main(int argc,char **argv) {
     invalid("type t=(a,b);begin writeln(random(a))end.",23);
     invalid("begin writeln(random(1,2))end.",5);
     invalid("begin randomize()end.",1);
+    invalid("begin writeln(paramcount())end.",5);
+    invalid("begin writeln(paramstr)end.",4);
+    invalid("begin writeln(paramstr())end.",54);
+    invalid("begin writeln(paramstr(1,2))end.",5);
+    invalid("begin writeln(paramstr(1.5))end.",23);
+    invalid("begin writeln(paramstr(true))end.",23);
+    invalid("begin writeln(paramstr('A'))end.",23);
+    invalid("begin writeln(paramstr('text'))end.",23);
+    invalid("type t=(a,b);begin writeln(paramstr(a))end.",23);
+    load("var a:array[0..1]of byte;begin writeln(sizeof(a[paramcount+length(paramstr(1))]))end.");
+    check(compile(&s,&b,&d));check(!cc.parameter_entry);build_close(&b);
+    load("var paramcount:integer;\nfunction paramstr(n:integer):integer;begin paramstr:=n end;\nbegin paramcount:=7;writeln(paramstr(paramcount))end.");
+    check(compile(&s,&b,&d));check(!cc.parameter_entry);build_close(&b);
+    load("begin writeln(paramcount,paramstr(1))end.");
+    check(compile(&s,&b,&d));check(cc.parameter_entry&&cc.temporaries==0);ordered_map();build_close(&b);
+    load("begin end.");check(compile(&s,&b,&d));check(!cc.parameter_entry);build_close(&b);
     load("var a:array[0..1]of integer;begin writeln(sizeof(a[random(2)]))end.");
     check(compile(&s,&b,&d)); check(!cc.random_entry&&!cc.random_state);
     build_close(&b);
@@ -486,7 +502,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes","filetokens"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes","filetokens","params"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {

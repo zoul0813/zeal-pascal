@@ -13,6 +13,8 @@ python3 tools/test-editor-native.py
 python3 tools/test-native.py
 python3 tools/test-input.py
 python3 tools/test-io.py
+python3 tools/test-files.py
+python3 tools/test-params.py
 python3 tools/test-math.py
 python3 tools/test-output.py
 python3 tools/test-real.py --host --sanitize --native
@@ -140,7 +142,12 @@ Char/string conversions and comparisons are supported; converting a string
 whose length is not one to Char reports runtime error 10.
 
 Implemented functions include Ord, Chr, Succ, Pred, SizeOf, Addr, UpCase, Length,
-Odd, Hi, Lo, Swap, Abs, Sqr, Int, Frac, Trunc and Round. Ord, Succ and Pred accept
+Odd, Hi, Lo, Swap, Abs, Sqr, Int, Frac, Trunc, Round, ParamCount and ParamStr.
+Saved programs can read shell arguments with `ParamCount` and `ParamStr(N)`.
+Spaces and tabs separate parameters; case and literal quote bytes are retained.
+Index zero, negative indexes and indexes beyond the parameter count return an
+empty string. RAM runs receive no arguments. Command tails allow up to 127 bytes;
+longer tails are rejected before the Pascal program starts. Ord, Succ and Pred accept
 String/Char-array values of exactly one character; other lengths report runtime
 error 10. The compiler currently has
 512 symbol entries (four reserved for HeapPtr/RecurPtr/BufLen/CBreak) and 64 type descriptors

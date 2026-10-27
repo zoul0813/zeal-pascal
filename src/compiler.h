@@ -48,6 +48,7 @@ typedef struct {
     uint16_t field_offset;
     uint16_t random_entry,random_state;
     uint8_t text_type;
+    uint16_t parameter_entry;
 } Compiler;
 extern Compiler cc;
 
@@ -146,6 +147,7 @@ void cc_val(void) FRONTEND;
 void cc_read(uint8_t newline) FRONTEND;
 void cc_random(uint8_t bounded) FRONTEND;
 void cc_randomize(void) FRONTEND;
+void cc_params(uint8_t string_result) FRONTEND;
 uint8_t cc_file_fields(uint8_t type) FRONTEND;
 void cc_file_static(uint8_t type,uint16_t address) FRONTEND;
 void cc_file_initialize(uint8_t type) FRONTEND;
