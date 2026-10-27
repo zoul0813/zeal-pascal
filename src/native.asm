@@ -3,6 +3,8 @@
 .globl _ram_result, _ram_pages, _ram_entry
 .globl _console_scratch
 .globl _page_versions
+.globl _ram_worker_service, _worker_dispatch, _code_pages
+.globl _worker_child_page, _worker_child_prefix, _worker_child_page2, _worker_value
 
 ; Retained low-memory core. The link-map acceptance test checks the entire
 ; area (including control data) remains in page 1. C may otherwise use page 2.
@@ -132,6 +134,43 @@ return_core:
     ret z
     ei
     ret
+
+; Called from FDA0 with child page3/stack still mapped. HL is the saved child
+; SP, C is the operation, DE its argument. Run the owner's C service on the
+; already-suspended parent stack, then restore backing before touching it.
+; No child subroutine stack enters FC00..FFFF. Parent SP/frame and return metadata
+; remain intact for the eventual ordinary program return.
+_ram_worker_service::
+    ld (_worker_child_sp),hl
+    ld a,(0xfd58)
+    ld (_worker_child_prefix),a
+    ld a,#0x80
+    in a,(0xf2)
+    ld (_worker_child_page2),a
+    ld a,#0xc0
+    in a,(0xf3)
+    ld (_worker_child_page),a
+    ld a,(_parent_page3)
+    out (0xf3),a
+    ld sp,(_parent_sp)
+    ld a,(_code_pages+2)       ; ordinary file/service bank in parent page2
+    out (0xf2),a
+    ld a,c
+    call _worker_dispatch
+    di
+    ld c,a
+    ld de,(_worker_value)
+    ld a,(_worker_child_page2)
+    out (0xf2),a
+    ld a,(_worker_child_page)
+    out (0xf3),a
+    ld sp,(_worker_child_sp)
+    jp 0xfe40                 ; restore prefix from code outside that window
+_worker_child_sp: .ds 2
+_worker_child_page:: .ds 1
+_worker_child_prefix:: .ds 1
+_worker_child_page2:: .ds 1
+_worker_value:: .ds 2
 _parent_sp: .ds 2
 _parent_iff: .ds 1
 _parent_page3: .ds 1

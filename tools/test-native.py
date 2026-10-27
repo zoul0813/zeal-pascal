@@ -552,7 +552,10 @@ def library_failure_checks():
     checks = []
     for label, data, error in cases:
         commands = ['run 100000000'] + type_text('H:/zpascal.bin H:/BAD.ZPL')
-        commands += [f"bp 0x{sym['_fflush_stdout']:x}", 'tap ENTER', 'run 2000000000', 'regs', 'mmu',
+        # A resident address can also be executable in the launching shell.
+        # Reach the child's normal entry before arming its fast failure exit.
+        commands += ['bp 0x4000', 'tap ENTER', 'run 2000000000', 'bc 0x4000',
+                     f"bp 0x{sym['_fflush_stdout']:x}", 's', 'run 2000000000', 'regs', 'mmu',
                      f"rb 0x{sym['_code_owned']:x} 2", f"rb 0x{sym['_work']:x} 2", 'quit']
         text = execute('library-' + label, commands, {'BAD.ZPL': data} if data is not None else {})
         observed = memory(text)

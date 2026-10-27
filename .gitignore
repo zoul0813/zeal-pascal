@@ -16,6 +16,7 @@
 !/tools/test-io.py
 !/tools/test-files.py
 !/tools/test-params.py
+!/tools/test-workers.py
 !/tools/test-math.py
 !/tools/test-output.py
 !/tools/test-real.py

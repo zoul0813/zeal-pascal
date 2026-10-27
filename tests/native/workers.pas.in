@@ -1,0 +1,86 @@
+program WorkerOwnership;
+type code=array[1..%ABI_LENGTH%]of byte;
+  wordstr=string[127];
+  requesttype=record flags:byte;path:array[0..127]of char end;
+  pages=array[1..32]of integer;descriptors=array[1..128]of integer;
+const machine:code=(%ABI_BYTES%);
+  scenario:integer=%CASE%;req:requesttype=(flags:0);
+  error:integer=0;value:integer=0;page:integer=0;fd:integer=0;
+  i:integer=0;n:integer=0;count:integer=0;saved:integer=0;
+  blocks:pages=(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
+  fds:descriptors=(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);number:string[4]='';
+procedure broker(operation,argument:integer;var err,result:integer);external $8003;
+{$A-}
+procedure require(ok:boolean);
+begin if not ok then begin writeln('WORKER-FAIL');halt end end;
+procedure call(operation,argument:integer);
+begin broker(operation,argument,error,value);require(error<>255)end;
+procedure path(name:wordstr);
+var j:integer;
+begin
+  fillchar(req.path,128,0);
+  for j:=1 to length(name)do req.path[j-1]:=name[j]
+end;
+begin
+  call(255,0);require((error=6)and(value=-1));
+  call(1,mem[$fc0c]);require(error=6);
+  call(1,mem[$fc09]);require(error=6);
+  call(1,-1);require(error=6);
+  call(3,0);require(error=6);call(3,1);require(error=6);
+  call(3,2);require(error=6);call(3,3);require(error=6);
+  call(2,$fc00);require(error=6);call(2,$3fff);require(error=6);
+  path('H:/MISSING.WRK');call(2,addr(req));require(error=4);
+  fillchar(req.path,128,'X');call(2,addr(req));require(error=14);
+  mem[$fd54]:=2;call(0,0);require(error=6);mem[$fd54]:=1;
+  mem[$fd55]:=0;call(0,0);require(error=6);mem[$fd55]:=1;
+  saved:=mem[$fd56]+256*mem[$fd57];
+  mem[$fd57]:=$3f;call(0,0);require(error=6);
+  mem[$fd56]:=lo(saved);mem[$fd57]:=hi(saved);
+  call(0,0);require((error=0)and(value>=32)and(value<=63));page:=value;
+  require((mem[$fc51]=1)and(mem[$fc52]=page));
+  call($8001,page);require((error=0)and(mem[$fc51]=0));
+  call(1,page);require(error=6);
+  for i:=1 to 100 do begin
+    call($8000,0);require(error=0);page:=value;
+    call(1,page);require((error=0)and(mem[$fc51]=0))
+  end;
+  count:=0;call(0,0);
+  while error=0 do begin
+    count:=count+1;blocks[count]:=value;
+    require((count<=32)and(mem[$fc51]=count));call($8000,0)
+  end;
+  require((error=22)and(value=-1)and(count>0));
+  for i:=1 to count do begin call(1,blocks[i]);require(error=0)end;
+  require(mem[$fc51]=0);
+  req.flags:=21;path('H:/WORKER.NEW');call(2,addr(req));
+  require((error=0)and(value>=4));fd:=value;
+  call($8003,fd);require((error=0)and(value=0));
+  call(3,fd);require(error=6);
+  req.flags:=1;path('#VID0');call(2,addr(req));require(error=0);fd:=value;
+  call(3,fd);require((error=2)and(value=0));
+  call(3,fd);require(error=6);
+  req.flags:=0;count:=0;i:=0;error:=0;
+  while error=0 do begin
+    str(i:1,number);path('H:/FD'+number+'.DAT');call(2,addr(req));
+    if error=0 then begin count:=count+1;fds[count]:=value end;
+    i:=i+1;require(i<=128)
+  end;
+  require((count>0)and((error=20)or(error=22)));
+  for i:=2 to count do begin call(3,fds[i]);require(error=0)end;
+  call(0,0);require(error=0);page:=value;
+  require((mem[$fc51]=1)and(mem[$fc52]=page));
+  writeln('WORKER-READY:',count:1);
+  if(scenario=5)or(scenario=6)then begin
+    call(3,fds[1]);require(error=0);
+    req.flags:=1;path('#VID0');call(2,addr(req));require(error=0);
+    if scenario=5 then n:=1 div (scenario-5)
+  end;
+  if scenario=1 then mem[$fc52]:=mem[$fc0c];
+  if scenario=2 then mem[$fc4c]:=1;
+  if scenario=3 then n:=1 div (scenario-3);
+  if scenario=4 then halt;
+  writeln('WORKER-OK')
+end.

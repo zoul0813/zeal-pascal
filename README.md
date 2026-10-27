@@ -14,6 +14,7 @@ python3 tools/test-native.py
 python3 tools/test-input.py
 python3 tools/test-io.py
 python3 tools/test-files.py
+python3 tools/test-workers.py
 python3 tools/test-params.py
 python3 tools/test-math.py
 python3 tools/test-output.py

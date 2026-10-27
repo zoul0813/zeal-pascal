@@ -1,4 +1,5 @@
 #include "library.h"
+#include "worker.h"
 #include <zos_errors.h>
 
 /* All bank transitions have resident callers and stack/data arguments. The
@@ -23,6 +24,12 @@ uint8_t files_run_saved(const Source *s,const Build *b,uint8_t *status);
 const char *files_output_path(void);
 const char *files_output_recovery(void);
 static uint8_t capture_path(char *out,const char *name);
+uint8_t files_worker_control(uint8_t mode);
+
+uint8_t worker_control(uint8_t mode) {
+    uint8_t old=code_select(2),ok=files_worker_control(mode);
+    code_restore(old); return ok;
+}
 
 void code_ready(void) { __asm nop __endasm; }
 int main(int argc,char **argv) {

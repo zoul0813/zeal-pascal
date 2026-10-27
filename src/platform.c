@@ -1,5 +1,6 @@
 #include "zp.h"
 #include "keys.h"
+#include "worker.h"
 #include <zos_sys.h>
 #include <zos_vfs.h>
 #include <zos_video.h>
@@ -25,6 +26,9 @@ uint8_t page_drop(uint8_t p) {
     platform_error=pfree(p);
     if(platform_error) return 0;
     memset(&ledger[p],0,sizeof(ledger[p])); return 1;
+}
+uint8_t page_role(uint8_t p) {
+    return p>=32&&p<64?ledger[p].role:0;
 }
 uint8_t pages_used(void) {
     extern uint8_t code_owned;
@@ -158,9 +162,10 @@ uint8_t key_interrupt(void) {
     return result;
 }
 uint8_t run_build(const Source *s,const Build *b) {
-    uint8_t child[3]={255,255,255},i,ok=0;
+    uint8_t child[3]={255,255,255},i,ok=0,entered=0,failure;
     uint16_t j;
     if(!build_ready(s,b)) return 0;
+    if(!worker_control(WORKER_START)) return 0;
     for(i=0;i<3;++i) {
         child[i]=page_new(PAGE_RUN);
         if(child[i]==255) goto cleanup;
@@ -170,6 +175,9 @@ uint8_t run_build(const Source *s,const Build *b) {
     for(j=0;j<1024;++j) far_set(child[2],0x3c00+j,0);
     for(j=0;j<(uint16_t)(trampoline_end-trampoline_start);++j)
         far_set(child[2],0x3d00+j,trampoline_start[j]);
+    far_set(child[2],WORKER_CONTROL-0xc000u+5,1);
+    far_set(child[2],WORKER_CONTROL-0xc000u+6,(uint8_t)(uint16_t)ram_worker_service);
+    far_set(child[2],WORKER_CONTROL-0xc000u+7,(uint8_t)((uint16_t)ram_worker_service>>8));
     memset(ram_result,0,128); memcpy(ram_result,"ZRAM",4);
     ram_result[4]=1; ram_result[5]=2; ram_result[6]=128;
     ram_result[34]=ram_result[35]=255;
@@ -177,6 +185,7 @@ uint8_t run_build(const Source *s,const Build *b) {
     for(i=0;i<3;++i) { ram_pages[i]=child[i]; ram_result[12+i]=child[i]; }
     ram_entry=RT_RAM;
     ram_enter();
+    entered=1;
     /* A returned/stopped worker is not by itself success. Bind the bounded
      * completion record to this build before the editor consumes its PC. */
     ok=!memcmp(ram_result,"ZRAM",4)&&ram_result[4]==1&&ram_result[5]==2&&
@@ -192,9 +201,17 @@ uint8_t run_build(const Source *s,const Build *b) {
     if(ram_result[26]==5&&(ram_result[27]||ram_result[28]||ram_result[33]!=2)) ok=0;
     if(ram_result[26]==6&&ram_result[27]!=4) ok=0;
     for(i=36;i<44;++i) if(ram_result[i]) ok=0;
-    for(i=76;i<114;++i) if(ram_result[i]) ok=0;
+    for(i=76;i<81;++i) if(ram_result[i]) ok=0;
     for(i=114;i<128;++i) if(ram_result[i]) ok=0;
 cleanup:
-    for(i=0;i<3;++i) if(child[i]!=255&&!page_drop(child[i])) ok=0;
+    failure=ok?0:entered?ERR_INVALID_PARAMETER:platform_error;
+    platform_error=0;
+    if(!worker_control(entered?WORKER_FINISH:WORKER_CANCEL)) {
+        ok=0; if(!failure) failure=platform_error;
+    } else if(platform_error&&!failure) failure=platform_error;
+    for(i=0;i<3;++i) if(child[i]!=255&&!page_drop(child[i])) {
+        ok=0; if(!failure) failure=platform_error;
+    }
+    if(failure) platform_error=failure;
     return ok;
 }

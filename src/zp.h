@@ -82,7 +82,7 @@
 #define RT_IORESULT 0x4156u
 #define RT_PARAMTAIL 0x4159u
 #define DEFAULT_SOURCE "T:/src/pascal/UNTITLED.pas"
-enum { PAGE_SOURCE=1, PAGE_IMAGE, PAGE_MAP, PAGE_RUN, PAGE_SNAPSHOT, PAGE_COMPILER };
+enum { PAGE_SOURCE=1, PAGE_IMAGE, PAGE_MAP, PAGE_RUN, PAGE_SNAPSHOT, PAGE_COMPILER, PAGE_WORKER };
 
 typedef struct {
     uint8_t page, dirty;
@@ -125,6 +125,7 @@ extern const uint8_t trampoline_start[], trampoline_end[];
 
 uint8_t page_new(uint8_t role);
 uint8_t page_drop(uint8_t page);
+uint8_t page_role(uint8_t page);
 uint8_t pages_used(void);
 void page_initialized(uint8_t page, uint16_t extent);
 uint8_t source_new(Source *s, const char *path);

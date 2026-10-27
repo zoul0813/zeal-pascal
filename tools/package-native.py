@@ -80,6 +80,24 @@ def validate_runtime(path):
     print('runtime:',report)
 
 
+def validate_trampoline(path):
+    memory, symbols = read_hex(path), read_symbols(path)
+    if (not memory or min(memory) != 0xfd00 or max(memory) >= 0x10000
+            or not 0xfd00 < symbols['trampoline_enter_end'] <= 0xfd50
+            or symbols['worker_control_data'] != 0xfd50
+            or symbols['worker_gate'] != 0xfda0
+            or symbols['worker_return'] != 0xfe40
+            or not 0xfe40 < symbols['worker_end'] <= 0x10000):
+        raise ValueError('RAM transition/service extents overlap or escape their page')
+    expected = b'ZWRK\x01' + bytes(11)
+    if bytes(memory.get(at, 0) for at in range(0xfd50, 0xfd60)) != expected:
+        raise ValueError('RAM service control must start disabled without a parent pointer')
+    payload = bytes(memory.get(at, 0) for at in range(0xfd00, max(memory)+1))
+    if path.with_suffix('.zpl').read_bytes() != payload:
+        raise ValueError('RAM transition binary differs from its checked link image')
+    print('RAM transition:', len(payload), 'bytes; checked program and service gates')
+
+
 def package(path):
     memory = read_hex(path)
     symbols = read_symbols(path)
@@ -139,4 +157,5 @@ def package(path):
 
 if __name__ == '__main__':
     if sys.argv[1]=='--runtime':validate_runtime(Path(sys.argv[2]))
+    elif sys.argv[1]=='--trampoline':validate_trampoline(Path(sys.argv[2]))
     else:package(Path(sys.argv[1]))
