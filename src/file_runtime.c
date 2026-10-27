@@ -1,4 +1,5 @@
 #include "file_runtime.h"
+#include "path.h"
 #include <string.h>
 #include <zos_sys.h>
 #include <zos_vfs.h>
@@ -430,27 +431,22 @@ static void blocks(uint8_t writing,uint8_t partial) {
     }
     if(!partial&&job->actual!=job->count&&!job->error) fail(writing?0xf0:0x99,0);
 }
-/* Assign's string is captured before replacing any association. Dot handling
- * and current-directory resolution will use the shared path normalizer when
- * the compiler exposes this module. This private component currently accepts
- * only validated drive-qualified absolute disk names (no implicit .PAS). */
+/* Capture and resolve once, before replacing any association. The fixed prefix
+ * owns every native syscall buffer, including the returned current directory.
+ * Runtime data names never acquire the editor's implicit .PAS extension. */
 static uint8_t assigned_path(void) {
-    uint16_t n,i,start;
+    uint16_t n;
+    uint8_t error;
     if(!readable(job->data,1)) return 0;
     n=USER(job->data)[0];
-    if(n<4||n>127||!readable(job->data+1,n)) return 0;
+    if(!n||n>127||!readable(job->data+1,n)||memchr(USER(job->data+1),0,n)) return 0;
     memcpy(request.path,USER(job->data+1),n); request.path[n]=0;
-    if(request.path[0]>='a'&&request.path[0]<='z') request.path[0]-=32;
-    if(request.path[0]<'A'||request.path[0]>'Z'||request.path[1]!=':'||request.path[2]!='/') return 0;
-    start=3;
-    for(i=3;i<=n;++i) {
-        if(i==n||request.path[i]=='/') {
-            if(i==start||i-start>15||(i-start==1&&request.path[start]=='.')||
-               (i-start==2&&request.path[start]=='.'&&request.path[start+1]=='.')) return 0;
-            start=i+1;
-        } else if((uint8_t)request.path[i]<32||request.path[i]==':') return 0;
+    bytes[0]=0;
+    if(n<2||request.path[1]!=':') {
+        error=curdir((char*)bytes);
+        if(error) { fail(0x20,error); return 0; }
     }
-    return 1;
+    return path_resolve(request.path,(char*)bytes,request.path);
 }
 void zf_dispatch(FileJob *invocation) ZFILE_CALL {
     uint16_t owner,family,width;

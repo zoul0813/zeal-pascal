@@ -18,7 +18,7 @@ def host():
                '-DZP_FILE_HOST', '-D__SDCC_VERSION_MAJOR=4', '-D__SDCC_VERSION_MINOR=2',
                '-D__sdcccall(x)=', '-Isrc', '-I'+str(sdk)]
     command += ['-D'+name+'=zf_model_'+name for name in ('open', 'close', 'read', 'write', 'seek', 'exit')]
-    command += ['src/file_runtime.c', 'tests/native/file-core.c', 'tests/native/file-model.c',
+    command += ['src/path.c', 'src/file_runtime.c', 'tests/native/file-core.c', 'tests/native/file-model.c',
                 '-o', str(out/'file-core')]
     subprocess.run(command, cwd=ROOT, check=True)
     result = subprocess.run([str(out/'file-core')], cwd=ROOT, check=True, capture_output=True, text=True)
@@ -33,7 +33,7 @@ def native():
     target = 'zfilecoretest'
     sym = n.symbols(target)
     inputs = [Path(__file__).resolve(), ROOT/'tools/test-native.py', ROOT/'tools/package-native.py',
-              ROOT/'CMakeLists.txt', ROOT/'src/file_runtime.c', ROOT/'src/file_runtime.h',
+              ROOT/'CMakeLists.txt', ROOT/'src/path.c', ROOT/'src/path.h', ROOT/'src/file_runtime.c', ROOT/'src/file_runtime.h',
               ROOT/'src/file_native.asm', ROOT/'src/file_module.asm', ROOT/'tests/native/file-core.c',
               ROOT/'tests/native/file-start.asm', ROOT/'tests/native/file-probe.asm',
               ROOT/'tests/native/machine.asm', n.EMULATOR, n.ROM]
@@ -63,7 +63,7 @@ def native():
                 'MAX.DAT': bytes.fromhex('ffff0100'), 'BLOCKS.DAT': bytes(range(256)),
                 'MANY.DAT': bytes.fromhex('00000200'), 'WIDE.DAT': bytes.fromhex('01002c01')+b'\x6b'*300,
                 'TEXT.DAT':b'ABCD\r\n  123\r\n\x1a','WHITE.TXT':b'  \r\n\t 12 \t\r\n \r\n\x1aX',
-                'EMPTY.TXT':b'', 'AUTOTEXT.DAT':b'AUTO\x1a'}
+                'EMPTY.TXT':b'', 'AUTOTEXT.DAT':b'AUTO\x1a','PATHCASE':bytes.fromhex('010002003a01')}
     checks = {'native component completes': memory.get(sym['_test_done']) == 255,
               'native disk, ownership, lifetime, stack canary and MMU/IFF assertions':
                   word('_test_failed') == 0 and word('_test_passed') >= 500,
@@ -71,7 +71,7 @@ def native():
     for name, data in expected.items():
         checks['exact disk bytes: '+name] = (directory/name).is_file() and (directory/name).read_bytes() == data
     report = {'scope': 'Callable file disk component: native SDK transfers and registry lifetime; '
-                       'compiler dispatch/bootstrap/lifecycle integration, Text/devices and full conformance remain pending',
+                       'logical devices, Rename and full conformance remain pending',
               'passed': all(checks.values()), 'capture_directory': str(n.RUN.relative_to(ROOT)),
               'native_assertions_passed': word('_test_passed'), 'native_assertions_failed': word('_test_failed'),
               'input_sha256': hashes, 'checks': checks}

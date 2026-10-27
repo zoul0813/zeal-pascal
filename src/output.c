@@ -10,6 +10,7 @@
 #define output_recovery files_output_recovery
 #endif
 #include "zp.h"
+#include "path.h"
 #include <zos_vfs.h>
 #include <zos_errors.h>
 #include <zos_sys.h>
@@ -327,45 +328,15 @@ cleanup:
     return ok;
 }
 static uint8_t canonical_path(const char *name,char *out) {
-    uint16_t i,a,n,w=3,base,j;
+    uint16_t w,base,j;
     uint8_t extension=0;
-    n=(uint16_t)strlen(name);
-    if(!n||n>127||name[n-1]=='/') return 0;
-    if(n>1&&name[1]==':') {
-        if(n<4||name[2]!='/') return 0;
-        strcpy(member,name);
-    } else {
+    console_scratch[0]=0;
+    if(strlen(name)<2||name[1]!=':') {
         platform_error=curdir((char*)console_scratch);
         if(platform_error) return 0;
-        if(name[0]=='/') { memcpy(member,console_scratch,2); member[2]=0; }
-        else {
-            strcpy(member,(char*)console_scratch);
-            i=(uint16_t)strlen(member);
-            if(i&&member[i-1]!='/') { if(i==127) return 0; member[i++]='/'; member[i]=0; }
-        }
-        if(strlen(member)+n>127) return 0;
-        strcat(member,name);
     }
-    if(member[0]>='a'&&member[0]<='z') member[0]-=32;
-    if(member[0]<'A'||member[0]>'Z'||member[1]!=':'||member[2]!='/') return 0;
-    memcpy(out,member,3); i=3;
-    while(member[i]) {
-        while(member[i]=='/') ++i;
-        a=i; while(member[i]&&member[i]!='/') ++i; n=i-a;
-        if(!n) break;
-        if(n==1&&member[a]=='.') { if(!member[i]) return 0; continue; }
-        if(n==2&&member[a]=='.'&&member[a+1]=='.') {
-            if(!member[i]) return 0;
-            if(w>3) { --w; while(w>3&&out[w-1]!='/') --w; }
-            continue;
-        }
-        if(n>15) return 0;
-        if(w>3&&out[w-1]!='/') out[w++]='/';
-        if(w+n>127) return 0;
-        for(j=0;j<n;++j) { if((uint8_t)member[a+j]<32||member[a+j]==':') return 0; out[w++]=member[a+j]; }
-    }
-    if(w<=3) return 0;
-    out[w]=0; base=w;
+    if(!path_resolve(name,(char*)console_scratch,out)) return 0;
+    w=(uint16_t)strlen(out); base=w;
     while(base>3&&out[base-1]!='/') --base;
     for(j=base;j<w;++j) if(out[j]=='.') extension=1;
     if(!extension) {

@@ -1,4 +1,5 @@
 #include "file_runtime.h"
+#include "path.h"
 #include <string.h>
 #include <zos_vfs.h>
 #ifndef __SDCC
@@ -7,6 +8,7 @@ uint8_t zf_user_memory[65536];
 #define VM(at) (zf_user_memory+(at))
 extern uint8_t model_pages,model_handles,model_close_error,model_read_error,model_write_error;
 extern uint8_t model_zero_write,model_short,model_readonly;
+extern uint8_t model_curdir_error;
 #else
 #define VM(at) ((uint8_t *)(at))
 extern void test_complete(void);
@@ -243,6 +245,57 @@ static void text_files(void) {
     text_defaults("H:/AUTOTEXT.DAT"); check(call(ZF_REWRITE)==0); text_value("AUTO");
     clean(ZF_END_PROGRAM,0,0);
 }
+static void file_paths(void) {
+    char out[128],name[129];
+    uint16_t n;
+    check(path_resolve("../Mixed.dat","t:/src/pascal",out)&&!strcmp(out,"T:/src/Mixed.dat"));
+    check(path_resolve("/Root","h:/src",out)&&!strcmp(out,"H:/Root"));
+    check(path_resolve("h:/one//./two/../File","",out)&&!strcmp(out,"H:/one/File"));
+    check(path_resolve("../../../Root","T:/a",out)&&!strcmp(out,"T:/Root"));
+    strcpy(out,"../Exact");
+    check(path_resolve(out,"H:/dir/",out)&&!strcmp(out,"H:/Exact"));
+    check(!path_resolve("H:relative","T:/",out));
+    check(!path_resolve("H:/dir/","",out));
+    check(!path_resolve("H:/dir/..","",out));
+    check(!path_resolve("H:/dir/.","",out));
+    check(!path_resolve("H:/","",out));
+    check(!path_resolve("","T:/",out));
+    check(!path_resolve("name","",out));
+    check(!path_resolve("H:/invalid:name","",out));
+    check(!path_resolve("H:/invalid\001","",out));
+    check(path_resolve("H:/123456789012345","",out));
+    check(!path_resolve("H:/1234567890123456","",out));
+    memcpy(name,"H:/",3);
+    for(n=3;n<127;++n) name[n]=(n%16==2)?'/':'a';
+    name[127]=0; check(path_resolve(name,"",out)&&strlen(out)==127);
+    name[127]='a'; name[128]=0; check(!path_resolve(name,"",out));
+
+    defaults();
+    check(curdir((char*)VM(0xc400))==0); check(chdir("H:/")==0);
+    assign("./PATHCASE");
+    check(chdir("A:/")==0); /* A later logged-drive change cannot retarget F. */
+    check(call(ZF_REWRITE)==0); put(0xc200,314);
+    check(call(ZF_WRITE)==0); check(call(ZF_CLOSE)==0);
+    check(call(ZF_RESET)==0); check(call(ZF_READ)==0&&get(0xc200)==314);
+    check(call(ZF_CLOSE)==0);
+    invocation.data=0xc140; VM(0xc140)[0]=12;
+    memcpy(VM(0xc141),"H:/bad\000name!",12);
+    check(call(ZF_ASSIGN)==0x20); /* Embedded NUL never selects a prefix. */
+    VM(0xc140)[0]=10; memcpy(VM(0xc141),"H:relative",10);
+    check(call(ZF_ASSIGN)==0x20);
+    VM(0xc140)[0]=20; memset(VM(0xc141),'a',20);
+    memcpy(VM(0xc141),"H:/",3); check(call(ZF_ASSIGN)==0x20);
+    invocation.data=0xc200;
+    check(call(ZF_RESET)==0); check(call(ZF_READ)==0&&get(0xc200)==314);
+    check(call(ZF_CLOSE)==0); /* Invalid names retain the old association. */
+    assign("h:/./PATHCASE"); check(call(ZF_RESET)==0);
+    check(call(ZF_READ)==0&&get(0xc200)==314); check(call(ZF_CLOSE)==0);
+    check(chdir("H:/")==0); assign("/PATHCASE");
+    check(chdir("A:/")==0); check(call(ZF_RESET)==0);
+    check(call(ZF_READ)==0&&get(0xc200)==314); check(call(ZF_CLOSE)==0);
+    check(chdir((char*)VM(0xc400))==0);
+    clean(ZF_END_PROGRAM,0,0);
+}
 #ifndef __SDCC
 static void faults(void) {
     uint8_t handles;
@@ -278,11 +331,20 @@ static void faults(void) {
     check(call(ZF_SIZE)==0&&invocation.result==1);
     check(call(ZF_READ)==0&&get(0xc200)==1234); check(call(ZF_CLOSE)==0);
     model_short=0; clean(ZF_END_PROGRAM,0,0);
+
+    defaults(); assign("H:/ERROR.DAT");
+    model_curdir_error=ERR_FAILURE;
+    invocation.data=0xc140; VM(0xc140)[0]=8; memcpy(VM(0xc141),"relative",8);
+    check(call(ZF_ASSIGN)==0x20&&invocation.detail==ERR_FAILURE);
+    invocation.data=0xc200;
+    check(call(ZF_RESET)==0); check(call(ZF_READ)==0&&get(0xc200)==1234);
+    check(call(ZF_CLOSE)==0); model_curdir_error=0;
+    clean(ZF_END_PROGRAM,0,0);
 }
 #endif
 int main(void) {
     check(sizeof(FileJob)==32&&sizeof(FileCleanup)==10);
-    basic(); lifetime(); boundaries(); block_files(); many(); wide_components(); text_files();
+    basic(); lifetime(); boundaries(); block_files(); many(); wide_components(); text_files(); file_paths();
 #ifndef __SDCC
     faults(); check(model_pages==0&&model_handles==0);
     printf("%u file runtime assertions passed, %u failed\n",test_passed,test_failed);

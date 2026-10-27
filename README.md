@@ -155,7 +155,14 @@ Ctrl-Z; input accepts physical EOF as well. Eof/Eoln inspect the next byte;
 the seek predicates consume their specified whitespace. Numeric reads use the
 same conversion rules as console input and Val. Nested file operations in
 argument expressions retain the enclosing operation's file and value snapshots.
-Preassigned standard files, logical devices, Rename, relative paths and the
+Assign accepts native relative names, current-disk absolute names and drive-qualified
+absolute names. It resolves the name once against the current native directory,
+normalizes repeated separators and `.`/`..`, and preserves filename case.
+Changing the current directory later does not retarget the association. Data
+filenames receive no implicit extension. Invalid names retain the previous
+association; drive-relative names such as `T:FILE` are rejected. Names are
+limited to127 bytes, with at most15 bytes in each component.
+Preassigned standard files, logical devices, Rename and the
 complete file-error/capacity matrix remain in progress. File support does not
 establish full Turbo Pascal conformance.
 

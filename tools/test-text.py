@@ -40,7 +40,7 @@ def main():
         b'NEST=FALSE\r\nDONE\r\nTEXT-EOF-NESTING-OK\r\n',
         b'FIRST=11,TRUE\r\nSECOND=22,TRUE\r\nTHIRD=999,TRUE\r\n'
         b'LIMIT=0,0,49\r\nEMPTYCHAR=0,26,TRUE\r\nEND-NUMERIC\r\n',
-        b'TEXT-ARGUMENTS-OK\r\n',b'CAPACITY-OK\r\n'))
+        b'TEXT-ARGUMENTS-OK\r\n',b'CAPACITY-OK\r\n',b'NATIVE-PATHS-OK\r\n'))
     checks={
         'native completion marker':memory.get(sym['_test_done'])==255 and word('_test_stage')==6,
         'RAM/COM ownership, stack/MMU/IFF, dirty-source and error-location assertions':
@@ -56,7 +56,8 @@ def main():
               'NESTOUT.TXT':b'L7R\x1a','NESTSIDE.TXT':b'X\x1a','AUTO.TXT':b'AUTO\x1a',
               'LINES.TXT':b'\r\n11\r\n22\r\n\x1a','LIMIT.TXT':b'0'*30+b'1 9\r\n\x1a',
               'EMPTY.TXT':b'\x1a','TEXTARGS.TXT':b'abc 256 Q\r\n\x1a',
-              'LOCALTEXT.TXT':b'LOCAL\r\n\x1a'}
+              'LOCALTEXT.TXT':b'LOCAL\r\n\x1a',
+              'MixedName':bytes.fromhex('010002003a01'),'NoExtension':b'native\r\n\x1a'}
     expected.update({name:fixtures[name] for name in ('NUMBERS.TXT','BADNUM.TXT','NESTIN.TXT')})
     for name,data in expected.items():
         checks['exact disk bytes '+name]=(disk/name).is_file() and (disk/name).read_bytes()==data
@@ -64,7 +65,7 @@ def main():
     checks['standalone Text executable embeds the exact private component']=(
         (ROOT/'build/file_runtime.zpl').read_bytes() in image and
         (ROOT/'build/file_gate.zpl').read_bytes() in image)
-    report={'scope':'Ordinary disk Text: scalar/string reads, shared formatting, CRLF/Ctrl-Z, lookahead/seek predicates, cleanup and nested I/O; preassigned/logical streams, full paths/Rename and full conformance remain pending',
+    report={'scope':'Ordinary disk Text: scalar/string reads, shared formatting, CRLF/Ctrl-Z, lookahead/seek predicates, cleanup and nested I/O; preassigned/logical streams, Rename and full conformance remain pending',
             'passed':all(checks.values()),'capture_directory':str(n.RUN.relative_to(ROOT)),
             'native_assertions_passed':word('_test_passed'),'native_assertions_failed':word('_test_failed'),
             'input_sha256':hashes,'checks':checks}
