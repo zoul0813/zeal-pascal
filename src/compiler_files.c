@@ -149,10 +149,11 @@ uint8_t cc_file_statement(void) FRONTEND {
     if(cc.token!=T_ID||cc_lookup()>=0) return 0;
     operation=cc_is("assign")?ZF_ASSIGN:cc_is("reset")?ZF_RESET:cc_is("rewrite")?ZF_REWRITE:
         cc_is("close")?ZF_CLOSE:cc_is("seek")?ZF_SEEK:cc_is("flush")?ZF_FLUSH:
-        cc_is("erase")?ZF_ERASE:cc_is("blockread")?ZF_BLOCKREAD:cc_is("blockwrite")?ZF_BLOCKWRITE:255;
+        cc_is("erase")?ZF_ERASE:cc_is("rename")?ZF_RENAME:
+        cc_is("blockread")?ZF_BLOCKREAD:cc_is("blockwrite")?ZF_BLOCKWRITE:255;
     if(operation==255) return 0;
     cc_next(); cc_expect('(',4); base=job_start(operation); file_argument(base);
-    if(operation==ZF_ASSIGN) {
+    if(operation==ZF_ASSIGN||operation==ZF_RENAME) {
         cc_expect(',',3); cc_string_value(); store(6,cc.temporaries-base-32);
     } else if(operation==ZF_SEEK) {
         cc_expect(',',3); integer(); cc_release(base+32); store(8,0);

@@ -17,7 +17,7 @@ enum {
 };
 enum { ZF_END_FRAME=16, ZF_END_OBJECT, ZF_END_RANGE, ZF_END_PROGRAM };
 enum { ZF_TEXT_READ=20,ZF_TEXT_WRITE,ZF_TEXT_READLN,ZF_TEXT_WRITELN,
-       ZF_EOLN,ZF_SEEKEOF,ZF_SEEKEOLN };
+       ZF_EOLN,ZF_SEEKEOF,ZF_SEEKEOLN,ZF_RENAME };
 /* Text input kinds share the existing generated input/format family numbers.
  * The high byte of count is String capacity. Numeric input uses this private
  * caller-owned context, parsed by the existing runtime Val after prefix return. */

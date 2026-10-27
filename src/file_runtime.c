@@ -29,6 +29,8 @@ static FileJob *job;
 static Record *record;
 static uint8_t bytes[128];
 static struct { uint8_t flags; char path[128]; } request;
+static char rename_path[128];
+static uint8_t verify_bytes[128];
 static zos_stat_t info;
 static uint32_t native_position;
 
@@ -68,13 +70,14 @@ static uint8_t alloc_page(uint8_t *page) {
 static uint8_t drop_page(uint8_t page) {
     return MEMORY_MODE?zf_service(1,page):pfree(page);
 }
-static int8_t open_file(uint8_t flags) {
+static int8_t open_path(const char *path,uint8_t flags) {
     uint8_t error;
-    if(!MEMORY_MODE) return open(record->path,flags);
-    request.flags=flags; strcpy(request.path,record->path);
+    if(!MEMORY_MODE) return open(path,flags);
+    request.flags=flags; strcpy(request.path,path);
     error=zf_service(2,(uint16_t)(uintptr_t)&request);
     return error?-(int8_t)error:(int8_t)zf_service_value;
 }
+static int8_t open_file(uint8_t flags) { return open_path(record->path,flags); }
 static uint8_t close_file(uint8_t fd) {
     return MEMORY_MODE?zf_service(3,fd):close((int8_t)fd);
 }
@@ -448,6 +451,87 @@ static uint8_t assigned_path(void) {
     }
     return path_resolve(request.path,(char*)bytes,request.path);
 }
+/* Rename is deliberately a copy/verify/remove transaction on the supported
+ * VFS. Every handle is parent-owned immediately in RAM mode, and every local
+ * close is attempted even after failure. Neither the binding nor the old name
+ * changes until both verification handles have closed successfully. A failed
+ * transaction may leave the requested destination for inspection/recovery. */
+static void rename_close(int8_t fd) {
+    uint8_t error;
+    if(fd<0) return;
+    error=close_file((uint8_t)fd);
+    if(error) native_error(error,2);
+}
+static void rename_read(int8_t fd,uint8_t *out,uint16_t count) {
+    uint16_t done=0,n;
+    uint8_t error;
+    while(done<count&&!job->error) {
+        n=count-done; error=read(fd,out+done,&n);
+        if(error) native_error(error,0);
+        else if(!n||n>count-done) fail(0x99,0);
+        else done+=n;
+    }
+}
+static void rename_end(int8_t fd) {
+    uint16_t n=1;
+    uint8_t error=read(fd,bytes,&n);
+    if(error) native_error(error,0);
+    else if(n) fail(0xf0,0);
+}
+static void rename_file(void) {
+    uint32_t size,left;
+    uint16_t n,done,written;
+    uint8_t error;
+    int8_t in=-1,out=-1;
+    if(record->state&OPENED) { fail(0x20,0); return; }
+    if(!assigned_path()) { fail(0x20,ERR_INVALID_PATH); return; }
+    strcpy(rename_path,request.path);
+    error=stat(rename_path,&info);
+    if(!error) { fail(0x20,ERR_ALREADY_EXIST); return; }
+    if(error!=ERR_NO_SUCH_ENTRY) { native_error(error,2); return; }
+    error=stat(record->path,&info);
+    if(error) { native_error(error,2); return; }
+    if(!D_ISFILE(info.s_flags)) { fail(0x20,0); return; }
+    size=info.s_size;
+    in=open_file(O_RDONLY);
+    if(in<0) { native_error((uint8_t)-in,2); return; }
+    /* Existing names were rejected above. No truncation is used or promised
+     * atomicity against an external writer racing on host-backed media. */
+    out=open_path(rename_path,O_WRONLY|O_CREAT);
+    if(out<0) native_error((uint8_t)-out,2);
+    left=size;
+    while(left&&!job->error) {
+        n=left>sizeof(bytes)?sizeof(bytes):(uint16_t)left;
+        rename_read(in,bytes,n); done=0;
+        while(done<n&&!job->error) {
+            written=n-done; error=write(out,bytes+done,&written);
+            if(error) native_error(error,1);
+            else if(!written||written>n-done) fail(0xf0,0);
+            else done+=written;
+        }
+        left-=n;
+    }
+    if(!job->error) rename_end(in);
+    rename_close(out); rename_close(in);
+    if(job->error) return;
+    in=open_file(O_RDONLY);
+    if(in<0) { native_error((uint8_t)-in,2); return; }
+    out=open_path(rename_path,O_RDONLY);
+    if(out<0) native_error((uint8_t)-out,2);
+    left=size;
+    while(left&&!job->error) {
+        n=left>sizeof(bytes)?sizeof(bytes):(uint16_t)left;
+        rename_read(in,bytes,n); rename_read(out,verify_bytes,n);
+        if(!job->error&&memcmp(bytes,verify_bytes,n)) fail(0xf0,0);
+        left-=n;
+    }
+    if(!job->error) { rename_end(in); if(!job->error) rename_end(out); }
+    rename_close(out); rename_close(in);
+    if(job->error) return;
+    error=rm(record->path);
+    if(error) native_error(error,2);
+    else strcpy(record->path,rename_path);
+}
 void zf_dispatch(FileJob *invocation) ZFILE_CALL {
     uint16_t owner,family,width;
     uint8_t valid,error;
@@ -470,7 +554,7 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
     if(!valid) {
         fail(family==2?4:job->operation==ZF_READ||job->operation==ZF_TEXT_READ||
              job->operation==ZF_TEXT_READLN||job->operation==ZF_EOF||
-             job->operation>=ZF_EOLN?2:3,0); return;
+             (job->operation>=ZF_EOLN&&job->operation<=ZF_SEEKEOLN)?2:3,0); return;
     }
     switch(job->operation) {
     case ZF_RESET: activate(0); break;
@@ -507,6 +591,7 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
             else { error=rm(record->path); if(error) native_error(error,2); }
         }
         break;
+    case ZF_RENAME: rename_file(); break;
     case ZF_BLOCKREAD: case ZF_BLOCKREAD_PARTIAL: case ZF_BLOCKWRITE: case ZF_BLOCKWRITE_PARTIAL:
         blocks(job->operation>=ZF_BLOCKWRITE,job->operation&1); break;
     case ZF_TEXT_READ: case ZF_TEXT_READLN: case ZF_EOLN: case ZF_SEEKEOF: case ZF_SEEKEOLN:

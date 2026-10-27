@@ -162,7 +162,13 @@ Changing the current directory later does not retarget the association. Data
 filenames receive no implicit extension. Invalid names retain the previous
 association; drive-relative names such as `T:FILE` are rejected. Names are
 limited to127 bytes, with at most15 bytes in each component.
-Preassigned standard files, logical devices, Rename and the
+Rename accepts a closed assigned file and rejects an existing destination.
+It copies the exact physical bytes, verifies the complete copy and successful
+closes, then removes the old name and updates the association. A failure retains
+the old association and may leave a partial or complete destination copy for
+inspection; remove that copy before retrying the same name. This uses
+copy/verify/remove through Zeal OS's supported APIs and is not atomic.
+Preassigned standard files, logical devices and the
 complete file-error/capacity matrix remain in progress. File support does not
 establish full Turbo Pascal conformance.
 

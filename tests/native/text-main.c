@@ -28,9 +28,13 @@ int app_main(void) {
     execution_file("H:/CAPACITY.PAS",1,0,0);
     check(chdir("H:/")==0);
     execution_file("H:/TEXTPATH.PAS",1,0,0);
+    execution_file("H:/TEXTRENAME.PAS",1,0,0);
+    execution_file("H:/TEXTRENS.PAS",1,0,0);
     check(chdir("A:/")==0);
     checked_error("var f:text;n:integer;begin assign(f,'H:/BADNUM.TXT');\nreset(f);readln(f,n)end.",0x10,"readln");
     check(ram_result[27]==3&&ram_io_detail==0);
+    checked_error("var f:text;begin assign(f,'H:/RNERROR.OLD');rewrite(f);\nwrite(f,'ERROR');close(f);rename(f,'H:/RNNEW.TXT')end.",0x20,"rename");
+    check(ram_result[27]==3&&ram_io_detail==ERR_ALREADY_EXIST);
     checked_error("var f:text;begin assign(f,'H:/NESTIN.TXT');reset(f);\nwriteln(f,'X')end.",3,"writeln");
     check(ram_result[27]==3&&ram_io_detail==0);
     execution("var f:text;begin assign(f,'H:/AUTO.TXT');rewrite(f);\nwrite(f,'AUTO');halt end.",4,0);

@@ -202,7 +202,7 @@ target_include_directories(zfilecoretest PRIVATE src)
 set_source_files_properties(tests/native/file-core.c PROPERTIES
     COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;TEST;--constseg;TEST;--dataseg;TEST_DATA")
 set_property(SOURCE tests/native/file-core.c APPEND PROPERTY OBJECT_DEPENDS
-    ${CMAKE_SOURCE_DIR}/src/file_runtime.h)
+    ${CMAKE_SOURCE_DIR}/src/file_runtime.h ${CMAKE_SOURCE_DIR}/src/path.h)
 target_link_options(zfilecoretest PRIVATE "SHELL:-b _TEST=0x8000" "SHELL:-b _TEST_DATA=0xe000")
 zos_add_outputs(zfilecoretest)
 

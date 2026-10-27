@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Disk component acceptance, independently of compiler/gate integration."""
 import argparse
+import gzip
+import hashlib
 import importlib.util
 import json
 import subprocess
@@ -36,7 +38,7 @@ def native():
               ROOT/'CMakeLists.txt', ROOT/'src/path.c', ROOT/'src/path.h', ROOT/'src/file_runtime.c', ROOT/'src/file_runtime.h',
               ROOT/'src/file_native.asm', ROOT/'src/file_module.asm', ROOT/'tests/native/file-core.c',
               ROOT/'tests/native/file-start.asm', ROOT/'tests/native/file-probe.asm',
-              ROOT/'tests/native/machine.asm', n.EMULATOR, n.ROM]
+              ROOT/'tests/native/machine.asm', n.EMULATOR, n.ROM,n.TF_TEMPLATE]
     inputs += [ROOT/f'build/{target}.{ext}' for ext in ('bin', 'map')]
     inputs += [ROOT/'build/file_runtime.zpl', ROOT/'build/file_runtime.module.json']
     hashes = {str(path): n.sha(path) for path in inputs}
@@ -51,8 +53,10 @@ def native():
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_index'):
         commands += [f'rb 0x{sym[name]:x} 2']
     commands += [f"rb 0x{sym['_test_failures']:x} 128", 'quit']
+    template=gzip.decompress(n.TF_TEMPLATE.read_bytes())
     raw = n.execute('file-runtime-core', commands,
-                    {f'{target}.bin': (ROOT/f'build/{target}.bin').read_bytes()}, timeout=360)
+                    {f'{target}.bin': (ROOT/f'build/{target}.bin').read_bytes()},
+                    tf_image=template,eeprom_image=n.blank_eeprom(),timeout=360)
     memory = n.memory(raw)
     word = lambda name: memory.get(sym[name], 0) | memory.get(sym[name]+1, 0) << 8
     directory = n.RUN/'file-runtime-core/hostfs'
@@ -63,17 +67,31 @@ def native():
                 'MAX.DAT': bytes.fromhex('ffff0100'), 'BLOCKS.DAT': bytes(range(256)),
                 'MANY.DAT': bytes.fromhex('00000200'), 'WIDE.DAT': bytes.fromhex('01002c01')+b'\x6b'*300,
                 'TEXT.DAT':b'ABCD\r\n  123\r\n\x1a','WHITE.TXT':b'  \r\n\t 12 \t\r\n \r\n\x1aX',
-                'EMPTY.TXT':b'', 'AUTOTEXT.DAT':b'AUTO\x1a','PATHCASE':bytes.fromhex('010002003a01')}
+                'EMPTY.TXT':b'', 'AUTOTEXT.DAT':b'AUTO\x1a','PATHCASE':bytes.fromhex('010002003a01'),
+                'RENAMED.DAT':bytes((i^0x5a)&255 for i in range(321)),
+                'RNINT.NEW':bytes.fromhex('01000200c801'),'RNEMPTY.NEW':b'',
+                'RNLARGE.NEW':bytes((i*7+3)&255 for i in range(4096))*17}
     checks = {'native component completes': memory.get(sym['_test_done']) == 255,
               'native disk, ownership, lifetime, stack canary and MMU/IFF assertions':
                   word('_test_failed') == 0 and word('_test_passed') >= 500,
               'unchanged code and artifacts': all(n.sha(Path(p)) == digest for p, digest in hashes.items())}
     for name, data in expected.items():
         checks['exact disk bytes: '+name] = (directory/name).is_file() and (directory/name).read_bytes() == data
+    checks['verified Rename removes only original names and rejects forged/directory/missing sources']=all(
+        not (directory/name).exists() for name in ('RENAME.OLD','RNINT.OLD','RNEMPTY.OLD','RNLARGE.OLD',
+                                                  'FORGED.DAT','RNDIR','RNNOTMADE'))
+    tf=n.zealfs_files((n.RUN/'file-runtime-core/tf.img').read_bytes())
+    previous=n.zealfs_files(template)
+    eeprom=n.zealfs_files((n.RUN/'file-runtime-core/eeprom.img').read_bytes())
+    checks['TF/EEPROM cross-volume Rename preserves bytes and removes old names']=(
+        tf.get('/RNCROSS.NEW')==bytes.fromhex('010002004900') and '/RNCROSS.OLD' not in tf
+        and set(eeprom)=={'/'} and all(tf.get(name)==data for name,data in previous.items()))
     report = {'scope': 'Callable file disk component: native SDK transfers and registry lifetime; '
-                       'logical devices, Rename and full conformance remain pending',
+                       'logical devices and full conformance remain pending',
               'passed': all(checks.values()), 'capture_directory': str(n.RUN.relative_to(ROOT)),
               'native_assertions_passed': word('_test_passed'), 'native_assertions_failed': word('_test_failed'),
+              'initial_media_sha256': {'tf':hashlib.sha256(template).hexdigest(),
+                                      'eeprom':hashlib.sha256(n.blank_eeprom()).hexdigest()},
               'input_sha256': hashes, 'checks': checks}
     (n.RUN/'file-runtime-report.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))

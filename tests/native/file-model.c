@@ -9,9 +9,14 @@
 uint8_t zf_memory_mode,model_pages,model_handles,model_close_error,model_read_error,model_write_error;
 uint8_t model_zero_write,model_short,model_readonly;
 uint8_t model_curdir_error;
+uint8_t model_rm_error,model_corrupt_write;
+uint8_t model_oversize_read,model_oversize_write;
+uint16_t model_open_calls,model_close_calls,model_read_calls,model_write_calls;
+uint16_t model_fail_open_at,model_fail_close_at,model_fail_read_at,model_fail_write_at;
+uint16_t model_zero_read_at;
 static char current_directory[128]="A:/";
 static uint8_t memory[32][16384],owned[32];
-static struct { char path[128]; uint8_t data[8192]; uint32_t size; } files[64];
+static struct { char path[128]; uint8_t data[73728]; uint32_t size; uint8_t directory; } files[64];
 static struct { uint8_t used,file,flags; uint32_t position,cached_size; } handles[16];
 void zf_record_io(uint8_t page,uint16_t offset) {
     assert(page>=32&&page<64&&owned[page-32]&&offset<=16384-ZF_RECORD_BYTES);
@@ -41,13 +46,16 @@ zos_err_t pfree(uint8_t page) {
 }
 zos_dev_t open(const char *name,uint8_t flags) {
     uint8_t i,n;
+    if(++model_open_calls==model_fail_open_at) return -ERR_FAILURE;
+    if(strchr(name+3,'/')) return -ERR_NO_SUCH_ENTRY;
     for(i=0;i<64;++i) if(!strcmp(files[i].path,name)) break;
     if(i==64) {
         if(!(flags&O_CREAT)) return -ERR_NO_SUCH_ENTRY;
         for(i=0;i<64;++i) if(!files[i].path[0]) break;
         if(i==64) return -ERR_CANNOT_REGISTER_MORE;
-        strcpy(files[i].path,name); files[i].size=0;
+        strcpy(files[i].path,name); files[i].size=0; files[i].directory=0;
     }
+    if(files[i].directory) return -ERR_NOT_A_FILE;
     if(model_readonly&&(flags&(O_WRONLY|O_RDWR))) return -ERR_READ_ONLY;
     for(n=2;n<16;++n) if(!handles[n].used) break;
     if(n==16) return -ERR_CANNOT_REGISTER_MORE;
@@ -57,8 +65,10 @@ zos_dev_t open(const char *name,uint8_t flags) {
     ++model_handles; return (int8_t)n;
 }
 zos_err_t close(zos_dev_t fd) {
+    uint8_t fault=++model_close_calls==model_fail_close_at;
     assert(fd>=2&&fd<16&&handles[(uint8_t)fd].used);
-    handles[(uint8_t)fd].used=0; --model_handles; return (zos_err_t)model_close_error;
+    handles[(uint8_t)fd].used=0; --model_handles;
+    return fault?ERR_FAILURE:(zos_err_t)model_close_error;
 }
 zos_err_t dstat(zos_dev_t fd,zos_stat_t *out) {
     assert(fd>=2&&fd<16&&handles[(uint8_t)fd].used);
@@ -66,10 +76,23 @@ zos_err_t dstat(zos_dev_t fd,zos_stat_t *out) {
     memset(out,0,sizeof(*out)); out->s_flags=1; out->s_size=files[handles[(uint8_t)fd].file].size; return 0;
 }
 zos_err_t stat(const char *name,zos_stat_t *out) {
-    int8_t fd=open(name,O_RDONLY);
-    zos_err_t error;
+    int8_t fd;
+    zos_err_t error; uint8_t i;
+    if(!strcmp(name,"A:/")||!strcmp(name,"H:/")) { memset(out,0,sizeof(*out)); return 0; }
+    for(i=0;i<64;++i) if(files[i].directory&&!strcmp(files[i].path,name)) {
+        memset(out,0,sizeof(*out)); return 0;
+    }
+    fd=open(name,O_RDONLY);
     if(fd<0) return (zos_err_t)-fd;
     error=dstat(fd,out); close(fd); return error;
+}
+zos_err_t mkdir(const char *name) {
+    uint8_t i;
+    for(i=0;i<64;++i) if(!strcmp(files[i].path,name)) return ERR_ALREADY_EXIST;
+    for(i=0;i<64;++i) if(!files[i].path[0]) {
+        strcpy(files[i].path,name); files[i].size=0; files[i].directory=1; return 0;
+    }
+    return ERR_CANNOT_REGISTER_MORE;
 }
 zos_err_t seek(zos_dev_t fd,int32_t *at,zos_whence_t whence) {
     uint8_t n=(uint8_t)fd;
@@ -84,6 +107,9 @@ zos_err_t read(zos_dev_t fd,void *out,uint16_t *size) {
     uint8_t n=(uint8_t)fd,file=handles[n].file;
     uint32_t left=files[file].size-handles[n].position;
     assert(fd>=2&&fd<16&&handles[n].used);
+    if(++model_read_calls==model_fail_read_at) return ERR_FAILURE;
+    if(model_read_calls==model_zero_read_at) { *size=0; return 0; }
+    if(model_oversize_read) { ++*size; return 0; }
     if(model_read_error) return (zos_err_t)model_read_error;
     if(handles[n].flags&O_WRONLY) return ERR_BAD_MODE;
     if(*size>left) *size=(uint16_t)left;
@@ -93,13 +119,20 @@ zos_err_t read(zos_dev_t fd,void *out,uint16_t *size) {
 zos_err_t write(zos_dev_t fd,const void *in,uint16_t *size) {
     uint8_t n=(uint8_t)fd,file=handles[n].file;
     assert(fd>=2&&fd<16&&handles[n].used);
+    if(++model_write_calls==model_fail_write_at) return ERR_FAILURE;
+    if(model_oversize_write) { ++*size; return 0; }
     if(model_write_error) return (zos_err_t)model_write_error;
     if(!(handles[n].flags&(O_WRONLY|O_RDWR))) return ERR_BAD_MODE;
     if(model_zero_write) *size=0;
     if(model_short&&*size>1) *size=1;
     assert(handles[n].position+*size<=sizeof(files[file].data));
-    memcpy(files[file].data+handles[n].position,in,*size); handles[n].position+=*size;
+    memcpy(files[file].data+handles[n].position,in,*size);
+    if(model_corrupt_write==1&&*size) files[file].data[handles[n].position]^=1;
+    handles[n].position+=*size;
     if(handles[n].position>files[file].size) files[file].size=handles[n].position;
+    if(model_corrupt_write==2) {
+        files[file].data[handles[n].position]=0xa5; files[file].size=handles[n].position+1;
+    }
     if(handles[n].position>handles[n].cached_size) handles[n].cached_size=handles[n].position;
     /* Match the pinned post-write metadata status. The SDK leaves *size
      * unchanged on a nonzero return, just as for a genuine driver failure. */
@@ -113,6 +146,7 @@ zos_err_t write(zos_dev_t fd,const void *in,uint16_t *size) {
 }
 zos_err_t rm(const char *name) {
     uint8_t i;
+    if(model_rm_error) return (zos_err_t)model_rm_error;
     for(i=0;i<64;++i) if(!strcmp(files[i].path,name)) { files[i].path[0]=0; return 0; }
     return ERR_NO_SUCH_ENTRY;
 }

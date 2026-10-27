@@ -9,6 +9,11 @@ uint8_t zf_user_memory[65536];
 extern uint8_t model_pages,model_handles,model_close_error,model_read_error,model_write_error;
 extern uint8_t model_zero_write,model_short,model_readonly;
 extern uint8_t model_curdir_error;
+extern uint8_t model_rm_error,model_corrupt_write;
+extern uint8_t model_oversize_read,model_oversize_write;
+extern uint16_t model_open_calls,model_close_calls,model_read_calls,model_write_calls;
+extern uint16_t model_fail_open_at,model_fail_close_at,model_fail_read_at,model_fail_write_at;
+extern uint16_t model_zero_read_at;
 #else
 #define VM(at) ((uint8_t *)(at))
 extern void test_complete(void);
@@ -54,11 +59,13 @@ static void defaults(void) {
     invocation.stack_pointer=0xe700;
     memset(VM(0xc000),0,32); VM(0xc100)[0]=1; put(0xc101,2);
 }
-static void assign(const char *name) {
+static uint16_t named(uint16_t operation,const char *name) {
+    uint16_t error;
     invocation.data=0xc140;
     VM(0xc140)[0]=(uint8_t)strlen(name); memcpy(VM(0xc141),name,strlen(name));
-    check(call(ZF_ASSIGN)==0); invocation.data=0xc200;
+    error=call(operation); invocation.data=0xc200; return error;
 }
+static void assign(const char *name) { check(named(ZF_ASSIGN,name)==0); }
 static void clean(uint16_t operation,uint16_t owner,uint16_t end) {
     ending.operation=operation; ending.owner=owner; ending.end=end;
 #ifdef __SDCC
@@ -296,7 +303,111 @@ static void file_paths(void) {
     check(chdir((char*)VM(0xc400))==0);
     clean(ZF_END_PROGRAM,0,0);
 }
+static void renames(void) {
+    uint16_t i,n;
+    int8_t fd;
+    zos_stat_t statbuf;
+    defaults();
+    for(i=0;i<321;++i) VM(0xc500+i)[0]=(uint8_t)(i^0x5a);
+    seed("H:/RENAME.OLD",VM(0xc500),321);
+    assign("H:/RENAME.OLD"); memcpy(saved_token,VM(0xc000),16);
+    check(named(ZF_RENAME,"h:/./RENAMED.DAT")==0);
+    check(!memcmp(saved_token,VM(0xc000),16));
+    check(stat("H:/RENAME.OLD",&statbuf)==ERR_NO_SUCH_ENTRY);
+    check(stat("H:/RENAMED.DAT",&statbuf)==0&&statbuf.s_size==321);
+    check(named(ZF_RENAME,"H:/RENAMED.DAT")==0x20);
+    check(named(ZF_RENAME,"H:/TYPED.DAT")==0x20);
+    check(named(ZF_RENAME,"H:relative")==0x20);
+    check(named(ZF_RENAME,"H:/missing/New")==1);
+    memcpy(VM(0xc020),VM(0xc000),16); invocation.object=0xc020;
+    check(named(ZF_RENAME,"H:/FORGED.DAT")!=0); invocation.object=0xc000;
+    clean(ZF_END_PROGRAM,0,0);
+
+    defaults(); assign("H:/RNINT.OLD"); check(call(ZF_REWRITE)==0);
+    put(0xc200,456); check(call(ZF_WRITE)==0);
+    check(named(ZF_RENAME,"H:/RNINT.NEW")==0x20); /* Must be closed. */
+    check(call(ZF_CLOSE)==0); check(named(ZF_RENAME,"H:/RNINT.NEW")==0);
+    check(call(ZF_RESET)==0); check(call(ZF_READ)==0&&get(0xc200)==456);
+    check(call(ZF_CLOSE)==0); clean(ZF_END_PROGRAM,0,0);
+
+    seed("H:/RNEMPTY.OLD",VM(0xc500),0);
+    text_defaults("H:/RNEMPTY.OLD"); check(named(ZF_RENAME,"H:/RNEMPTY.NEW")==0);
+    check(stat("H:/RNEMPTY.NEW",&statbuf)==0&&statbuf.s_size==0);
+    check(call(ZF_RESET)==0); check(call(ZF_EOF)==0&&invocation.result);
+    check(call(ZF_CLOSE)==0); clean(ZF_END_PROGRAM,0,0);
+
+    check(mkdir("H:/RNDIRECTORY")==0);
+    defaults(); assign("H:/RNDIRECTORY"); check(named(ZF_RENAME,"H:/RNDIR")==0x20);
+    clean(ZF_END_PROGRAM,0,0);
+    defaults(); assign("H:/RNMISSING"); check(named(ZF_RENAME,"H:/RNNOTMADE")==1);
+    clean(ZF_END_PROGRAM,0,0);
+
+    defaults();
+    for(i=0;i<4096;++i) VM(0xc800+i)[0]=(uint8_t)(i*7+3);
+    fd=open("H:/RNLARGE.OLD",O_WRONLY|O_CREAT|O_TRUNC); check(fd>=0);
+    if(fd>=0) {
+        for(i=0;i<17;++i) { n=4096; check(write(fd,VM(0xc800),&n)==0&&n==4096); }
+        check(close(fd)==0);
+    }
+    assign("H:/RNLARGE.OLD"); check(named(ZF_RENAME,"H:/RNLARGE.NEW")==0);
+    check(stat("H:/RNLARGE.NEW",&statbuf)==0&&statbuf.s_size==69632ul);
+    check(stat("H:/RNLARGE.OLD",&statbuf)==ERR_NO_SUCH_ENTRY);
+    clean(ZF_END_PROGRAM,0,0);
+
+    /* Exercise the real TF and EEPROM filesystems in both directions. */
+    defaults(); assign("T:/RNCROSS.OLD"); check(call(ZF_REWRITE)==0);
+    put(0xc200,73); check(call(ZF_WRITE)==0); check(call(ZF_CLOSE)==0);
+    check(named(ZF_RENAME,"B:/RNCROSS.NEW")==0);
+    check(call(ZF_RESET)==0); check(call(ZF_READ)==0&&get(0xc200)==73);
+    check(call(ZF_CLOSE)==0); check(named(ZF_RENAME,"T:/RNCROSS.NEW")==0);
+    check(call(ZF_RESET)==0); check(call(ZF_READ)==0&&get(0xc200)==73);
+    check(call(ZF_CLOSE)==0); clean(ZF_END_PROGRAM,0,0);
+}
 #ifndef __SDCC
+static void rename_faults(void) {
+    uint16_t scenario,i,n;
+    int8_t fd;
+    for(scenario=0;scenario<21;++scenario) {
+        /* Each transaction starts with exactly one complete old copy. */
+        rm("H:/RFAIL.NEW");
+        for(i=0;i<321;++i) VM(0xc500+i)[0]=(uint8_t)(i^0x5a);
+        seed("H:/RFAIL.OLD",VM(0xc500),321);
+        text_defaults("H:/RFAIL.OLD");
+        model_open_calls=model_close_calls=model_read_calls=model_write_calls=0;
+        if(scenario<4) model_fail_open_at=3+scenario;
+        else if(scenario<8) model_fail_close_at=scenario-2;
+        else if(scenario<12) model_fail_read_at=scenario==8?1:scenario==9?5:scenario==10?6:12;
+        else if(scenario==12) model_fail_write_at=2;
+        else if(scenario==13) model_corrupt_write=1;
+        else if(scenario==14) model_rm_error=ERR_FAILURE;
+        else if(scenario==15) model_zero_write=1;
+        else if(scenario==16) model_readonly=1;
+        else if(scenario==17) model_zero_read_at=6;
+        else if(scenario==18) model_corrupt_write=2;
+        else if(scenario==19) model_oversize_read=1;
+        else model_oversize_write=1;
+        check(named(ZF_RENAME,"H:/RFAIL.NEW")==
+            ((scenario>=8&&scenario<12)||scenario==17||scenario==19?0x99:scenario==16?0x20:0xf0));
+        check(model_handles==0);
+        model_fail_open_at=model_fail_close_at=model_fail_read_at=model_fail_write_at=0;
+        model_rm_error=model_corrupt_write=0;
+        model_zero_write=model_readonly=model_zero_read_at=0;
+        model_oversize_read=model_oversize_write=0;
+        fd=open("H:/RFAIL.OLD",O_RDONLY); check(fd>=0); n=321;
+        check(read(fd,VM(0xc700),&n)==0&&n==321&&!memcmp(VM(0xc500),VM(0xc700),321));
+        check(close(fd)==0);
+        check(call(ZF_RESET)==0); invocation.count=ZF_TEXT_CHAR;
+        check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]==0x5a);
+        check(call(ZF_CLOSE)==0); clean(ZF_END_PROGRAM,0,0);
+    }
+    rm("H:/RFAIL.NEW");
+    /* Legal short reads/writes are completed rather than rejected. */
+    text_defaults("H:/RFAIL.OLD"); model_short=1;
+    check(named(ZF_RENAME,"H:/RSHORT.NEW")==0); model_short=0;
+    check(call(ZF_RESET)==0); invocation.count=ZF_TEXT_CHAR;
+    check(call(ZF_TEXT_READ)==0&&VM(0xc200)[0]==0x5a);
+    check(call(ZF_CLOSE)==0); clean(ZF_END_PROGRAM,0,0);
+}
 static void faults(void) {
     uint8_t handles;
     defaults(); assign("H:/ERROR.DAT"); check(call(ZF_REWRITE)==0);
@@ -344,9 +455,9 @@ static void faults(void) {
 #endif
 int main(void) {
     check(sizeof(FileJob)==32&&sizeof(FileCleanup)==10);
-    basic(); lifetime(); boundaries(); block_files(); many(); wide_components(); text_files(); file_paths();
+    basic(); lifetime(); boundaries(); block_files(); many(); wide_components(); text_files(); file_paths(); renames();
 #ifndef __SDCC
-    faults(); check(model_pages==0&&model_handles==0);
+    faults(); rename_faults(); check(model_pages==0&&model_handles==0);
     printf("%u file runtime assertions passed, %u failed\n",test_passed,test_failed);
 #else
     test_done=255; test_complete();
