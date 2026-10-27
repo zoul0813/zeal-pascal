@@ -16,6 +16,7 @@
 !/tools/test-io.py
 !/tools/test-files.py
 !/tools/test-text.py
+!/tools/test-standard.py
 !/tools/test-file-runtime.py
 !/tools/test-runtime-layout.py
 !/tools/test-params.py

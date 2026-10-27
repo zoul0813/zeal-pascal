@@ -69,7 +69,7 @@ def native():
                 'TEXT.DAT':b'ABCD\r\n  123\r\n\x1a','WHITE.TXT':b'  \r\n\t 12 \t\r\n \r\n\x1aX',
                 'EMPTY.TXT':b'', 'AUTOTEXT.DAT':b'AUTO\x1a','PATHCASE':bytes.fromhex('010002003a01'),
                 'RENAMED.DAT':bytes((i^0x5a)&255 for i in range(321)),
-                'RNINT.NEW':bytes.fromhex('01000200c801'),'RNEMPTY.NEW':b'',
+                'RNINT.NEW':bytes.fromhex('01000200c801'),'RNEMPTY.NEW':b'','STDCLONE.TXT':b'X\x1a',
                 'RNLARGE.NEW':bytes((i*7+3)&255 for i in range(4096))*17}
     checks = {'native component completes': memory.get(sym['_test_done']) == 255,
               'native disk, ownership, lifetime, stack canary and MMU/IFF assertions':

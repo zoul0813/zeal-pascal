@@ -48,6 +48,38 @@ static void number_result(void) {
     cc_patch(done);
     for(i=0;i<5;++i) cc_patch(skip[i]);
 }
+/* The disk module resolves authority, then the restored prefix owns console
+ * formatting/input. A nested I- landing catches prefix errors before restoring
+ * the caller's With register and propagating the enclosing checking policy. */
+static void stream_result(void) {
+    uint16_t disk,done,operand,begin,read,write,end,string_target,char_target;
+    index_store(0x7e,34); cc_emit(0xb7); disk=cc_forward(0xca);
+    guard(512);
+    cc_op16(0xcd,RT_IOCALL); operand=cc.emitted; cc_relocate(operand);
+    cc_emit(0); cc_emit(0); cc_emit(0); /* private helper, always I- */
+    cc_op16(0x3a,RT_IOSTATUS); index_store(0x77,22);
+    cc_emit(0xaf); index_store(0x77,23); done=cc_forward(0xc3);
+    cc_word(operand,cc.emitted);
+    index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_TEXT_BEGIN); begin=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(ZF_TEXT_READ); read=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(ZF_TEXT_WRITE); write=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(ZF_TEXT_READLN); end=cc_forward(0xca);
+    cc_emit(0x3e); cc_emit(13); cc_op16(0xcd,RT_CHAR);
+    cc_emit(0x3e); cc_emit(10); cc_op16(0xc3,RT_CHAR);
+    cc_patch(begin); index_store(0x7e,8);
+    cc_emit(0xcb); cc_emit(0x57); cc_emit(0xc0); /* ReadLn retains the current line. */
+    cc_op16(0xc3,RT_INPUT_BEGIN);
+    cc_patch(end); cc_op16(0xc3,RT_INPUT_END);
+    cc_patch(write); index_store(0x6e,6); index_store(0x66,7);
+    cc_op16(0x11,0); cc_op16(0xc3,RT_FIELD);
+    cc_patch(read); index_store(0x6e,6); index_store(0x66,7);
+    index_store(0x46,8); index_store(0x4e,9);
+    cc_emit(0x78); cc_emit(0xfe); cc_emit(K_STRING); string_target=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(K_CHAR); char_target=cc_forward(0xca);
+    cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb);
+    cc_patch(string_target); cc_patch(char_target); cc_op16(0xc3,RT_INPUT_VALUE);
+    cc_patch(disk); number_result(); cc_patch(done);
+}
 static void engine(void) {
     uint16_t skip,asset,gate,bootstrap,ready,normal,allocated,i;
     uint16_t module_bytes=cc_file_asset_size(0),gate_bytes=cc_file_asset_size(1);
@@ -96,8 +128,10 @@ static void engine(void) {
     cc_op16(0x2a,RT_PC); index_store(0x75,26); index_store(0x74,27);
     cc_op16(0x21,0); cc_emit(0x39); index_store(0x75,28); index_store(0x74,29);
     cc_op16(0x2a,0x4014); index_store(0x75,30); index_store(0x74,31);
+    cc.standard_table_operand=cc.emitted+1; cc_address(0x21,0);
+    index_store(0x75,32); index_store(0x74,33);
     cc_emit(0xe1); cc_emit(0xe5); cc_emit(0xaf); cc_op16(0xcd,0xfe90);
-    number_result();
+    stream_result();
     index_store(0x6e,24); index_store(0x66,25); cc_op16(0x22,0xfe7a);
     index_store(0x5e,22); index_store(0x56,23);
     cc_emit(0xe1); cc_emit(0xfd); cc_emit(0xe1); /* restore With before any nonlocal error */
@@ -112,15 +146,15 @@ static void store(uint8_t offset,uint16_t extra) {
 }
 static uint16_t job_start(uint8_t operation) {
     uint16_t before=cc.temporaries;
-    cc_temporary(32); cc_op16(0x21,0); cc_emit(0x39);
-    cc_op16(0x01,32); cc_emit(0xaf); cc_call(RT_FILL);
+    cc_temporary(ZF_JOB_BYTES); cc_op16(0x21,0); cc_emit(0x39);
+    cc_op16(0x01,ZF_JOB_BYTES); cc_emit(0xaf); cc_call(RT_FILL);
     cc_op16(0x21,operation); store(0,0);
     return before;
 }
 static uint8_t file_argument(uint16_t base) {
     uint8_t type=cc_reference(41);
     uint16_t skip,descriptor,width;
-    cc_release(base+32);
+    cc_release(base+ZF_JOB_BYTES);
     if(cc_family(type)!=K_FILE) { cc_fail(44); return type; }
     store(2,0);
     skip=cc_forward(0xc3); descriptor=cc.emitted;
@@ -132,12 +166,12 @@ static uint8_t file_argument(uint16_t base) {
 }
 static void invoke(uint16_t base) {
     engine();
-    cc_reserve(64); cc_op16(0x21,cc.temporaries-base-32); cc_emit(0x39);
+    cc_reserve(64); cc_op16(0x21,cc.temporaries-base-ZF_JOB_BYTES); cc_emit(0x39);
     cc_op16(0xcd,RT_IOCALL); cc_relocate(cc.emitted);
     cc_emit((uint8_t)cc.file_entry); cc_emit((uint8_t)(cc.file_entry>>8)); cc_emit(cc.io_check);
 }
 static void result(uint16_t base,uint8_t offset) {
-    cc_op16(0x21,cc.temporaries-base-32+offset); cc_emit(0x39);
+    cc_op16(0x21,cc.temporaries-base-ZF_JOB_BYTES+offset); cc_emit(0x39);
     cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb);
 }
 static void integer(void) {
@@ -154,15 +188,15 @@ uint8_t cc_file_statement(void) FRONTEND {
     if(operation==255) return 0;
     cc_next(); cc_expect('(',4); base=job_start(operation); file_argument(base);
     if(operation==ZF_ASSIGN||operation==ZF_RENAME) {
-        cc_expect(',',3); cc_string_value(); store(6,cc.temporaries-base-32);
+        cc_expect(',',3); cc_string_value(); store(6,cc.temporaries-base-ZF_JOB_BYTES);
     } else if(operation==ZF_SEEK) {
-        cc_expect(',',3); integer(); cc_release(base+32); store(8,0);
+        cc_expect(',',3); integer(); cc_release(base+ZF_JOB_BYTES); store(8,0);
     } else if(operation==ZF_BLOCKREAD||operation==ZF_BLOCKWRITE) {
-        cc_expect(',',3); cc_reference(41); cc_release(base+32); store(6,0);
-        cc_expect(',',3); integer(); cc_release(base+32); store(8,0);
+        cc_expect(',',3); cc_reference(41); cc_release(base+ZF_JOB_BYTES); store(6,0);
+        cc_expect(',',3); integer(); cc_release(base+ZF_JOB_BYTES); store(8,0);
         if(cc.token==',') {
             cc_next(); if(cc_reference(41)!=K_INTEGER) cc_fail(24);
-            cc_release(base+32); cc_reserve(2); cc_emit(0xe5); cc.temporaries+=2;
+            cc_release(base+ZF_JOB_BYTES); cc_reserve(2); cc_emit(0xe5); cc.temporaries+=2;
             actual=1; cc_op16(0x21,operation+1); store(0,2);
         }
     }
@@ -203,13 +237,22 @@ void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND {
     uint8_t type=file_argument(base),actual,component,kind;
     if(cc_family(type)!=K_FILE) { cc_fail(66); return; }
     if(cc.types[type].capacity==FILE_TEXT) {
+        if(!writing) {
+            uint8_t checking=cc.io_check;
+            cc_op16(0x21,ZF_TEXT_BEGIN); store(0,0);
+            cc_op16(0x21,newline?4:cc.token==')'?2:0); store(8,0);
+            /* Preparation cannot raise a pending I/O error before destination
+             * expressions run. The actual field/ReadLn owns checked delivery. */
+            if(cc.token==','||newline) cc.io_check=0;
+            invoke(base); cc.io_check=checking;
+        }
         while(cc.token==','&&!cc.error->code) {
             cc_next();
             cc_op16(0x21,writing?ZF_TEXT_WRITE:ZF_TEXT_READ); store(0,0);
             if(writing) {
-                cc_formatted_value(); store(6,cc.temporaries-base-32);
+                cc_formatted_value(); store(6,cc.temporaries-base-ZF_JOB_BYTES);
             } else {
-                actual=cc_reference(41); kind=cc_family(actual); cc_release(base+32);
+                actual=cc_reference(41); kind=cc_family(actual); cc_release(base+ZF_JOB_BYTES);
                 if(kind!=K_STRING&&kind!=K_CHAR&&kind!=K_INTEGER&&kind!=K_REAL) { cc_fail(66); break; }
                 if(kind==K_INTEGER&&cc.types[actual].width==1) kind=K_BYTE;
                 if(kind==K_STRING||kind==K_CHAR) store(6,0);
@@ -219,9 +262,9 @@ void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND {
                     cc_op16(0x21,0); cc_emit(0x39); store(6,ZF_NUMBER_BYTES);
                 }
                 cc_op16(0x21,kind|((uint16_t)(kind==K_STRING?cc.types[actual].capacity:0)<<8));
-                store(8,cc.temporaries-base-32);
+                store(8,cc.temporaries-base-ZF_JOB_BYTES);
             }
-            invoke(base); cc_release(base+32);
+            invoke(base); cc_release(base+ZF_JOB_BYTES);
         }
         cc_expect(')',5);
         if(newline) {
@@ -232,7 +275,7 @@ void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND {
     if(cc.types[type].capacity!=FILE_TYPED||newline) cc_fail(66);
     component=cc.types[type].element;
     while(cc.token==','&&!cc.error->code) {
-        cc_next(); actual=cc_reference(41); cc_release(base+32);
+        cc_next(); actual=cc_reference(41); cc_release(base+ZF_JOB_BYTES);
         if(actual!=component&&!
            (cc_family(actual)==K_POINTER&&cc_family(component)==K_POINTER&&cc_compatible(component,actual))&&!
            (cc_family(actual)==K_STRING&&cc_family(component)==K_STRING&&cc.types[actual].width==cc.types[component].width))
@@ -240,4 +283,16 @@ void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND {
         store(6,0); invoke(base);
     }
     cc_expect(')',5); cc_release(base);
+}
+void cc_file_finish(void) FRONTEND {
+    uint16_t i,count=0;
+    if(!cc.file_entry||cc.error->code) return;
+    cc_word(cc.standard_table_operand,cc.emitted);
+    for(i=0;i<cc.symbol_count;++i)
+        if(cc.symbols[i].role==S_STANDARD&&cc.symbols[i].address) ++count;
+    cc_emit((uint8_t)count); cc_emit(0);
+    for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].role==S_STANDARD&&cc.symbols[i].address) {
+        cc_emit((uint8_t)cc.symbols[i].address); cc_emit((uint8_t)(cc.symbols[i].address>>8));
+        cc_emit(cc.symbols[i].initial_type); cc_emit(0);
+    }
 }

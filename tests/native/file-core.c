@@ -363,6 +363,45 @@ static void renames(void) {
     check(call(ZF_RESET)==0); check(call(ZF_READ)==0&&get(0xc200)==73);
     check(call(ZF_CLOSE)==0); clean(ZF_END_PROGRAM,0,0);
 }
+static void standard_files(void) {
+    uint16_t code;
+    defaults(); invocation.code_origin=0xc100;
+    VM(0xc100)[0]=0; put(0xc101,0);
+    invocation.standard_table=0xc300;
+    put(0xc300,2); put(0xc302,0xc000); put(0xc304,ZF_STANDARD_INPUT);
+    put(0xc306,0xc020); put(0xc308,ZF_STANDARD_OUTPUT);
+    check(call(ZF_TEXT_BEGIN)==0&&invocation.stream==ZF_STANDARD_INPUT);
+    check(VM(0xc009)[0]==1&&VM(0xc029)[0]==1);
+    check(call(ZF_CLOSE)==0x22&&!invocation.stream);
+    check(call(ZF_RESET)==0x22); check(call(ZF_REWRITE)==0x22);
+    check(named(ZF_ASSIGN,"H:/STD-INVALID")==0x22);
+    check(call(ZF_ERASE)==0x20); check(named(ZF_RENAME,"H:/STD-INVALID")==0x20);
+    invocation.object=0xc020;
+    VM(0xc200)[0]=1; VM(0xc201)[0]='X';
+    check(call(ZF_TEXT_WRITE)==0&&invocation.stream==ZF_STANDARD_OUTPUT);
+    invocation.data=0x7000; check(call(ZF_TEXT_WRITE)==0x1ff&&!invocation.stream);
+    invocation.count=ZF_TEXT_CHAR;
+    check(call(ZF_TEXT_READ)==0x1ff&&!invocation.stream);
+    invocation.data=0xc200;
+    check(call(ZF_TEXT_READ)==0&&invocation.stream==ZF_STANDARD_OUTPUT);
+    memcpy(VM(0xc040),VM(0xc020),16); invocation.object=0xc040;
+    check(call(ZF_TEXT_WRITE)!=0&&!invocation.stream);
+    assign("H:/STDCLONE.TXT"); check(!VM(0xc049)[0]);
+    check(call(ZF_REWRITE)==0); text_value("X"); check(call(ZF_CLOSE)==0);
+    invocation.object=0xc020; check(call(ZF_TEXT_WRITE)==0&&invocation.stream==ZF_STANDARD_OUTPUT);
+    clean(ZF_END_PROGRAM,0,0);
+    defaults(); invocation.code_origin=0xc100; VM(0xc100)[0]=0; put(0xc101,0);
+    invocation.standard_table=0xc300;
+    put(0xc300,2); put(0xc302,0xc000); put(0xc304,1); put(0xc306,0xc000); put(0xc308,2);
+    check(call(ZF_TEXT_BEGIN)==0x1ff); /* duplicate address, before any registration */
+    put(0xc306,0xc020); put(0xc308,1); check(call(ZF_TEXT_BEGIN)==0x1ff);
+    put(0xc308,2); put(0xc306,0xc100); check(call(ZF_TEXT_BEGIN)==0x1ff);
+    put(0xc306,0xc020); check(call(ZF_TEXT_BEGIN)==0);
+    VM(0xc009)[0]=0; code=call(ZF_TEXT_BEGIN);
+    check(code==0x1ff&&!invocation.stream); /* corrupted identity cannot mint a second owner */
+    VM(0xc009)[0]=1; check(call(ZF_TEXT_BEGIN)==0&&invocation.stream==1);
+    clean(ZF_END_PROGRAM,0,0);
+}
 #ifndef __SDCC
 static void rename_faults(void) {
     uint16_t scenario,i,n;
@@ -454,8 +493,8 @@ static void faults(void) {
 }
 #endif
 int main(void) {
-    check(sizeof(FileJob)==32&&sizeof(FileCleanup)==10);
-    basic(); lifetime(); boundaries(); block_files(); many(); wide_components(); text_files(); file_paths(); renames();
+    check(sizeof(FileJob)==ZF_JOB_BYTES&&sizeof(FileCleanup)==10);
+    basic(); lifetime(); boundaries(); block_files(); many(); wide_components(); text_files(); file_paths(); renames(); standard_files();
 #ifndef __SDCC
     faults(); rename_faults(); check(model_pages==0&&model_handles==0);
     printf("%u file runtime assertions passed, %u failed\n",test_passed,test_failed);

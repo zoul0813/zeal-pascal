@@ -391,6 +391,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     cc.text_type=255;
     cc.parameter_entry=0;
     cc.file_entry=0;
+    cc.standard_table_operand=0;
     cc_new_type(K_INTEGER,2,-32768,32767,0);
     cc_new_type(K_STRING,0,0,0,0); /* expression/literal string, not a storage type */
     cc_new_type(K_BOOLEAN,1,0,1,0);
@@ -413,6 +414,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     if(cc.token!=T_EOF) cc_fail(58);
     cc_finish(RT_DONE);
     mapping(j,pc(),i,i);
+    cc_file_finish();
     if(d->code) goto failed;
     if(!cc_place_code()) goto failed;
     if(cc.stage_page!=255) {

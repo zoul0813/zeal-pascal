@@ -8,6 +8,14 @@ static const char *const reserved[] = {
 static const struct {const char *name;uint16_t address;uint8_t type;} system_variables[]={
     {"heapptr",RT_HEAPPTR,K_INTEGER},{"recurptr",RT_RECURPTR,K_INTEGER},
     {"buflen",RT_BUFLEN,K_BYTE},{"cbreak",RT_CBREAK,K_BOOLEAN}};
+static const char *const standard_names[]={"input","output"};
+static uint8_t text_file_type(void) {
+    if(cc.text_type==255) {
+        cc.text_type=cc_new_type(K_FILE,16,0,0,FILE_TEXT);
+        cc.types[cc.text_type].element=255;
+    }
+    return cc.text_type;
+}
 
 void cc_system_init(void) FRONTEND {
     uint8_t i;
@@ -15,6 +23,10 @@ void cc_system_init(void) FRONTEND {
         Symbol *s=&cc.symbols[cc.symbol_count++];
         memset(s,0,sizeof(*s));s->role=S_SYSTEM;
         s->type=system_variables[i].type;s->address=system_variables[i].address;
+    }
+    for(i=0;i<2;++i) {
+        Symbol *s=&cc.symbols[cc.symbol_count++];
+        memset(s,0,sizeof(*s));s->role=S_STANDARD;s->type=255;s->initial_type=i+1;
     }
 }
 
@@ -290,6 +302,12 @@ int16_t cc_lookup(void) FRONTEND {
     for(;;) {
         i=cc.symbol_count;
         while(i--) if(cc.symbols[i].role<S_FIELD&&cc.symbols[i].owner==scope) {
+            if(cc.symbols[i].role==S_STANDARD) {
+                if(cc_is(standard_names[cc.symbols[i].initial_type-1])) {
+                    cc.symbols[i].type=text_file_type(); return (int16_t)i;
+                }
+                continue;
+            }
             if(cc.symbols[i].role==S_SYSTEM) {
                 for(j=0;j<sizeof(system_variables)/sizeof(system_variables[0]);++j)
                     if(cc.symbols[i].address==system_variables[j].address&&cc_is(system_variables[j].name)) return (int16_t)i;
@@ -353,7 +371,7 @@ uint16_t cc_new_symbol(uint8_t role) FRONTEND {
     uint16_t id=cc.symbol_count;
     int16_t old=cc_lookup();
     if(cc.token!=T_ID) cc_fail(53);
-    else if(old>=0&&cc.symbols[old].owner==cc.scope&&cc.symbols[old].role!=S_SYSTEM) cc_fail(43);
+    else if(old>=0&&cc.symbols[old].owner==cc.scope&&cc.symbols[old].role!=S_SYSTEM&&cc.symbols[old].role!=S_STANDARD) cc_fail(43);
     else if(id==SYMBOL_LIMIT) cc_fail(98);
     if(cc.error->code) return 0;
     memset(&cc.symbols[id],0,sizeof(Symbol));
@@ -397,7 +415,7 @@ uint8_t cc_compatible(uint8_t left,uint8_t right) FRONTEND {
 uint8_t cc_variable(int16_t id) FRONTEND {
     return id>=0&&(cc.symbols[id].role==S_VARIABLE||cc.symbols[id].role==S_TYPED||
            cc.symbols[id].role==S_VALUE||cc.symbols[id].role==S_REFERENCE||cc.symbols[id].role==S_RESULT||cc.symbols[id].role==S_FIELD||cc.symbols[id].role==S_SYSTEM||
-           cc.symbols[id].role==S_ADDRESS||cc.symbols[id].role==S_ALIAS);
+           cc.symbols[id].role==S_ADDRESS||cc.symbols[id].role==S_ALIAS||cc.symbols[id].role==S_STANDARD);
 }
 uint16_t cc_rget(uint8_t scope,uint8_t field) FRONTEND {
     uint16_t at=PAGE_SIZE-(uint16_t)scope*16+field;
@@ -437,6 +455,11 @@ void cc_frame(uint8_t scope) FRONTEND {
 }
 void cc_slot(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];
+    if(s->role==S_STANDARD&&!s->address&&!cc.suppress&&!cc.error->code) {
+        if((uint32_t)cc.image->globals_bytes+16>=PAGE_SIZE) { cc_fail(99); return; }
+        s->address=GLOBAL_BASE+cc.image->globals_bytes; cc.image->globals_bytes+=16;
+        cc_file_static(s->type,s->address); cc_put(s->address-0x4000u+9,1);
+    }
     if(s->role==S_ALIAS) cc_symbol_address(s->address);
     else if(s->role==S_ADDRESS) cc_op16(0x21,s->address);
     else if(s->role==S_TYPED) cc_address(0x21,s->address);
@@ -546,11 +569,7 @@ int16_t cc_predefined_type(void) FRONTEND {
     if(cc_is("text")) {
         /* Text is predefined but lazy, preserving the existing type capacity
          * and enum identities for programs which do not use Pascal files. */
-        if(cc.text_type==255) {
-            cc.text_type=cc_new_type(K_FILE,16,0,0,FILE_TEXT);
-            cc.types[cc.text_type].element=255;
-        }
-        return cc.text_type;
+        return text_file_type();
     }
     return cc_is("integer")?K_INTEGER:cc_is("boolean")?K_BOOLEAN:cc_is("char")?K_CHAR:cc_is("byte")?K_BYTE:cc_is("real")?K_REAL:-1;
 }

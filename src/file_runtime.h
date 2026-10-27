@@ -17,7 +17,9 @@ enum {
 };
 enum { ZF_END_FRAME=16, ZF_END_OBJECT, ZF_END_RANGE, ZF_END_PROGRAM };
 enum { ZF_TEXT_READ=20,ZF_TEXT_WRITE,ZF_TEXT_READLN,ZF_TEXT_WRITELN,
-       ZF_EOLN,ZF_SEEKEOF,ZF_SEEKEOLN,ZF_RENAME };
+       ZF_EOLN,ZF_SEEKEOF,ZF_SEEKEOLN,ZF_RENAME,ZF_TEXT_BEGIN };
+enum { ZF_STANDARD_INPUT=1,ZF_STANDARD_OUTPUT };
+enum { ZF_JOB_BYTES=36 };
 /* Text input kinds share the existing generated input/format family numbers.
  * The high byte of count is String capacity. Numeric input uses this private
  * caller-owned context, parsed by the existing runtime Val after prefix return. */
@@ -28,6 +30,9 @@ typedef struct {
     uint16_t operation,object,descriptor,data,count,actual;
     uint16_t frame,heap_floor,heap_frontier,static_end;
     uint16_t result,error,detail,pc,stack_pointer,code_origin;
+    /* Immutable compiler table {count:u16, {object:u16,identity:u16}...}.
+     * stream is a return action, executed only after restoring the prefix. */
+    uint16_t standard_table,stream;
 } FileJob;
 typedef struct { uint16_t operation,owner,end,error,detail; } FileCleanup;
 void zf_dispatch(FileJob *job) ZFILE_CALL;

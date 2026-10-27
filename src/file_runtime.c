@@ -17,7 +17,7 @@
 #define LOOKAHEAD 16u
 typedef struct {
     uint16_t object,owner,generation,family,width,state,fd,position,count;
-    uint16_t next,physical_low,physical_high,reserved[4];
+    uint16_t next,physical_low,physical_high,standard,reserved[3];
     char path[128];
 } Record;
 typedef char record_size_is_fixed[sizeof(Record)==ZF_RECORD_BYTES?1:-1];
@@ -145,16 +145,17 @@ static void token(uint16_t owner,uint16_t family,uint16_t width) {
     memset(USER(at),0,16);
     put_word(at,0x465a); put_word(at+2,slot); put_word(at+4,record->generation);
     put_word(at+6,owner); USER(at)[8]=(uint8_t)family; put_word(at+10,width);
+    USER(at)[9]=record->standard?1:0;
 }
 static uint8_t bound(uint16_t owner,uint16_t family,uint16_t width) {
     uint16_t at=job->object,n=word(at+2);
     uint8_t i;
     if(word(at)!=0x465a||!n||n>(uint16_t)page_count*RECORDS_PER_PAGE||
-       word(at+6)!=owner||USER(at)[8]!=family||USER(at)[9]||word(at+10)!=width) return 0;
+       word(at+6)!=owner||USER(at)[8]!=family||USER(at)[9]>1||word(at+10)!=width) return 0;
     for(i=12;i<16;++i) if(USER(at)[i]) return 0;
     load_record(n);
     if(record->object!=at||record->owner!=owner||record->family!=family||
-       record->width!=width||record->generation!=word(at+4)) return 0;
+       record->width!=width||record->generation!=word(at+4)||USER(at)[9]!=(record->standard?1:0)) return 0;
     slot=n; return 1;
 }
 static uint8_t new_record(uint16_t owner,uint16_t family,uint16_t width) {
@@ -173,6 +174,39 @@ static uint8_t new_record(uint16_t owner,uint16_t family,uint16_t width) {
     memset(record,0,sizeof(*record)); record->object=job->object; record->owner=owner;
     record->generation=generation; record->family=family; record->width=width;
     slot=i; return 1;
+}
+/* Only immutable compiler-supplied addresses acquire preassigned identity.
+ * A flag or token copied into any other object cannot grant that authority.
+ * Check the complete bounded table before registering any of its objects. */
+static uint8_t standards(void) {
+    uint16_t table=job->standard_table,count,i,j,at,object,identity,saved=job->object;
+    uint8_t identities=0;
+    if(!table) return 1;
+    if(!within(table,2,job->code_origin,job->static_end)) { fail(0x1ff,0); return 0; }
+    count=word(table);
+    if(count>2||!within(table+2,count*4,job->code_origin,job->static_end)) { fail(0x1ff,0); return 0; }
+    for(i=0;i<count;++i) {
+        at=table+2+4*i; object=word(at); identity=word(at+2);
+        if(!identity||identity>2||(identities&(1u<<identity))||
+           !within(object,16,0x8000,job->code_origin)) { fail(0x1ff,0); return 0; }
+        identities|=1u<<identity;
+        for(j=0;j<i;++j) if(word(table+2+4*j)==object) { fail(0x1ff,0); return 0; }
+    }
+    for(i=0;i<count&&!job->error;++i) {
+        at=table+2+4*i; job->object=word(at); identity=word(at+2);
+        if(bound(0,0,0)) {
+            if(record->standard!=identity) fail(0x1ff,0);
+            continue;
+        }
+        for(j=1;j<=(uint16_t)page_count*RECORDS_PER_PAGE;++j) {
+            load_record(j);
+            if(record->object==job->object) { fail(0x1ff,0); break; }
+        }
+        if(job->error||!new_record(0,0,0)) break;
+        record->standard=identity; record->state=READABLE|WRITABLE;
+        token(0,0,0); save_record(slot);
+    }
+    job->object=saved; return !job->error;
 }
 /* The pinned kernel may return an old-size byte after a successful write
  * advances its cursor inside an existing (or just truncated) file. Distinguish
@@ -308,23 +342,33 @@ static void text_predicate(uint16_t operation) {
         }
     job->result=c==26||((operation==ZF_EOLN||operation==ZF_SEEKEOLN)&&c==13);
 }
+static uint8_t text_input_target(void) {
+    uint16_t out=job->data;
+    uint8_t kind=(uint8_t)job->count,limit=(uint8_t)(job->count>>8),valid;
+    if(kind!=ZF_TEXT_STRING&&limit) { fail(0x1ff,0); return 0; }
+    if(kind==ZF_TEXT_STRING) valid=readable(out,(uint16_t)limit+1);
+    else if(kind==ZF_TEXT_CHAR) valid=readable(out,1);
+    else valid=(kind==ZF_TEXT_INTEGER||kind==ZF_TEXT_BYTE||kind==ZF_TEXT_REAL)&&
+        readable(out,ZF_NUMBER_BYTES)&&
+        readable(word(out+ZF_NUMBER_TARGET),kind==ZF_TEXT_BYTE?1:kind==ZF_TEXT_REAL?6:2);
+    if(!valid) fail(0x1ff,0);
+    return valid;
+}
+static uint8_t text_output_value(void) {
+    if(!readable(job->data,1)||!readable(job->data,(uint16_t)USER(job->data)[0]+1)) {
+        fail(0x1ff,0); return 0;
+    }
+    return 1;
+}
 static void text_read(void) {
     uint16_t out=job->data;
     uint8_t kind=(uint8_t)job->count,limit=(uint8_t)(job->count>>8),n=0,c;
-    if(kind!=ZF_TEXT_STRING&&limit) { fail(0x1ff,0); return; }
+    if(!text_input_target()) return;
     if(kind==ZF_TEXT_CHAR) {
-        if(!readable(out,1)) { fail(0x1ff,0); return; }
         c=text_take(); if(!job->error) { USER(out)[0]=c; job->actual=1; }
         return;
     }
-    if(kind==ZF_TEXT_STRING) {
-        if(!readable(out,(uint16_t)limit+1)) { fail(0x1ff,0); return; }
-    } else {
-        if((kind!=ZF_TEXT_INTEGER&&kind!=ZF_TEXT_BYTE&&kind!=ZF_TEXT_REAL)||
-           !readable(out,ZF_NUMBER_BYTES)||
-           !readable(word(out+ZF_NUMBER_TARGET),kind==ZF_TEXT_BYTE?1:kind==ZF_TEXT_REAL?6:2)) {
-            fail(0x1ff,0); return;
-        }
+    if(kind!=ZF_TEXT_STRING) {
         out+=ZF_NUMBER_TOKEN; limit=30;
         c=text_peek();
         while(!job->error&&text_space(c,1)) { text_take(); c=text_peek(); }
@@ -348,9 +392,8 @@ static void text_write(uint8_t newline) {
     text_position();
     if(newline) { bytes[0]=13; bytes[1]=10; text_bytes(2); }
     else {
-        if(!readable(job->data,1)) { fail(0x1ff,0); return; }
+        if(!text_output_value()) return;
         n=USER(job->data)[0];
-        if(!readable(job->data,(uint16_t)n+1)) { fail(0x1ff,0); return; }
         transfer(job->data+1,n,1);
     }
     text_remember();
@@ -535,7 +578,7 @@ static void rename_file(void) {
 void zf_dispatch(FileJob *invocation) ZFILE_CALL {
     uint16_t owner,family,width;
     uint8_t valid,error;
-    job=invocation; job->error=0; job->detail=0; job->result=0; job->actual=0;
+    job=invocation; job->error=0; job->detail=0; job->result=0; job->actual=0; job->stream=0;
     record=(Record *)zf_record;
     if(job->static_end<0x8000u||job->static_end>job->heap_floor||
        job->heap_floor>job->heap_frontier||job->heap_frontier>job->stack_pointer||
@@ -544,7 +587,20 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
        (job->heap_floor&1)||!descriptor(&family,&width)||!object_owner(&owner)) {
         fail(0x1ff,0); return;
     }
+    if(!standards()) return;
     valid=bound(owner,family,width);
+    if(valid&&record->standard) {
+        if(job->operation==ZF_ASSIGN||job->operation==ZF_RESET||job->operation==ZF_REWRITE||job->operation==ZF_CLOSE)
+            fail(0x22,0);
+        else if(job->operation==ZF_TEXT_READ) {
+            if(text_input_target()) job->stream=record->standard;
+        } else if(job->operation==ZF_TEXT_WRITE) {
+            if(text_output_value()) job->stream=record->standard;
+        } else if(job->operation==ZF_TEXT_BEGIN||job->operation==ZF_TEXT_READLN||job->operation==ZF_TEXT_WRITELN)
+            job->stream=record->standard;
+        else fail(0x20,0);
+        return;
+    }
     if(job->operation==ZF_ASSIGN) {
         if(!assigned_path()) { fail(0x20,ERR_INVALID_PATH); return; }
         if(valid&&(record->state&OPENED)) { fail(0x20,0); return; }
@@ -553,10 +609,13 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
     }
     if(!valid) {
         fail(family==2?4:job->operation==ZF_READ||job->operation==ZF_TEXT_READ||
-             job->operation==ZF_TEXT_READLN||job->operation==ZF_EOF||
+             job->operation==ZF_TEXT_READLN||job->operation==ZF_TEXT_BEGIN||job->operation==ZF_EOF||
              (job->operation>=ZF_EOLN&&job->operation<=ZF_SEEKEOLN)?2:3,0); return;
     }
     switch(job->operation) {
+    case ZF_TEXT_BEGIN:
+        if(record->family) fail(0x20,0);
+        break;
     case ZF_RESET: activate(0); break;
     case ZF_REWRITE: activate(1); break;
     case ZF_CLOSE: close_record(); break;

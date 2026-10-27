@@ -73,6 +73,8 @@ int main(int argc,char **argv) {
         check(compile(&s,&b,&d)); build_close(&b);
     }
     invalid("var r:real;begin r:=true end.",44);
+    invalid("begin Input:=Output end.",54);
+    invalid("begin read(Output,true)end.",41);
     invalid("var i:integer;begin rename(i,'x')end.",44);
     invalid("var f:text;begin rename(f)end.",3);
     invalid("var f,g:text;\nbegin f:=g end.",54);
@@ -95,6 +97,8 @@ int main(int argc,char **argv) {
     check(cc.types[cc.text_type].capacity==FILE_TEXT); build_close(&b);
     load("type r=record f:text end;\nar=array[1..2]of r;\nff=file of ar;\nvar a,b:r;\nc:ar;\nprocedure p(x:ar);\nbegin end;\nbegin a:=b;\np(c);\nwriteln(sizeof(ff))end.");
     check(compile(&s,&b,&d)); check(b.globals_bytes==96); build_close(&b);
+    load("var Input,Output:integer;begin Input:=7;Output:=Input;if Output<>7 then halt end.");
+    check(compile(&s,&b,&d)); check(b.globals_bytes==4); build_close(&b);
     load("type text=integer;\nvar n:text;\nbegin n:=7;\nwriteln(n)end.");
     check(compile(&s,&b,&d)); check(cc.text_type==255); build_close(&b);
     load("type ints=file of integer;raw=file;z=record end;zero=file of z;\nblock=array[1..300]of byte;wide=file of block;\nvar t:text;f:ints;u:raw;e:zero;w:wide;begin end.");
@@ -514,7 +518,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes","filetokens","params","diskfiles","diskblocks","disklife","diskwide","textdisk","textseek","textnumber","textformat","textrecover","textnest","texteof","textedges","textargs","capacity","textpath","textrename","textrens"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes","filetokens","params","diskfiles","diskblocks","disklife","diskwide","textdisk","textseek","textnumber","textformat","textrecover","textnest","texteof","textedges","textargs","capacity","textpath","textrename","textrens","stdinput","stdoutput"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {

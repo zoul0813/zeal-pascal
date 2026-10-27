@@ -15,6 +15,7 @@ python3 tools/test-input.py
 python3 tools/test-io.py
 python3 tools/test-files.py
 python3 tools/test-text.py
+python3 tools/test-standard.py
 python3 tools/test-file-runtime.py --host --native
 python3 tools/test-workers.py
 python3 tools/test-params.py
@@ -168,7 +169,14 @@ closes, then removes the old name and updates the association. A failure retains
 the old association and may leave a partial or complete destination copy for
 inspection; remove that copy before retrying the same name. This uses
 copy/verify/remove through Zeal OS's supported APIs and is not atomic.
-Preassigned standard files, logical devices and the
+Input and Output are preassigned Text variables for explicit Read/ReadLn and
+Write/WriteLn, including through Var Text parameters. They share the existing
+console input buffer, conversion and formatting rules. Explicit Input retains
+unread data across calls; ReadLn(Input) consumes the current line. The B directive
+continues to control omitted-Input Read calls. Assign, Reset, Rewrite and Close
+on these preassigned variables report I/O22. Copied tokens gain no standard-stream
+authority, and program cleanup leaves inherited console descriptors open.
+Console Eof/Eoln/seek predicates, the other preassigned/logical devices and the
 complete file-error/capacity matrix remain in progress. File support does not
 establish full Turbo Pascal conformance.
 
@@ -378,8 +386,9 @@ if Code <> 0 then WriteLn('Invalid input');
 
 This applies to console I/O and the implemented disk operations, including Text.
 Unchecked I/O does not disable division, range or stack errors. Str and Val
-preserve pending status under the native scoped-I/O correction. Preassigned and
-logical streams and unbuffered KeyPressed/Kbd remain pending.
+preserve pending status under the native scoped-I/O correction. Explicit Input
+and Output use the same scoped error handling; their console predicates and
+other logical streams, including unbuffered KeyPressed/Kbd, remain pending.
 
 The editor now supports character/word/line movement, smooth scrolling, paging,
 virtual columns through128 and horizontal scrolling. Arrow keys, Home/End and

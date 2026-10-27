@@ -21,7 +21,7 @@ enum { FILE_TEXT,FILE_TYPED,FILE_UNTYPED };
 /* Set expression kinds encode the ordinal family without allocating a type
  * descriptor for every constructor. The empty kind has no fixed base family. */
 enum { K_SET_EXPR=128,K_EMPTY_SET=192,K_ANY_POINTER,K_NIL };
-enum { S_VARIABLE,S_CONSTANT,S_TYPE,S_TYPED,S_PENDING,S_VALUE,S_REFERENCE,S_RESULT,S_PROCEDURE,S_FUNCTION,S_SYSTEM,S_ADDRESS,S_ALIAS,S_LABEL,S_FIELD,S_VARIANT,S_VLABEL };
+enum { S_VARIABLE,S_CONSTANT,S_TYPE,S_TYPED,S_PENDING,S_VALUE,S_REFERENCE,S_RESULT,S_PROCEDURE,S_FUNCTION,S_SYSTEM,S_ADDRESS,S_ALIAS,S_LABEL,S_STANDARD,S_FIELD,S_VARIANT,S_VLABEL };
 enum { R_PARENT=0,R_FLAGS=1,R_SYMBOL=2,R_ENTRY=4,R_CALLS=6,R_PARAMETERS=8,R_COUNT=10,R_LOCALS=12,R_EXITS=14 };
 enum { RF_FORWARD=1,RF_RECURSIVE=2,RF_DEFINED=4,RF_EXTERNAL=8 };
 /* Published saved IX/return/arguments and lexical/lifetime slots stay fixed.
@@ -57,6 +57,7 @@ typedef struct {
     uint8_t text_type;
     uint16_t parameter_entry;
     uint16_t file_entry;
+    uint16_t standard_table_operand;
 } Compiler;
 extern Compiler cc;
 
@@ -168,4 +169,5 @@ int16_t cc_file_function(void) FRONTEND;
 uint8_t cc_file_prefix(void) FRONTEND;
 void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND;
 void cc_formatted_value(void) FRONTEND;
+void cc_file_finish(void) FRONTEND;
 #endif
