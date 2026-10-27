@@ -109,10 +109,10 @@ SHIFTED = {':': 'SEMICOLON', '(': '9', ')': '0', '+': 'EQUAL', '*': '8', '_': 'M
 # One guarded READINPUT.PAS execution. Hold the final Enter through the
 # program handoff; release it at the next reader. Transition-time input is
 # a separate acceptance boundary, not established by these ready-reader cases.
-READ_INPUT_LINES = ['-32768 1.25 Ztail', '300 99 32767', '.5', '-1.25 7',
+READ_INPUT_LINES = ['legacy', '-32768 1.25 Ztail', '300 99 32767', '.5', '-1.25 7',
                     '.125', '42', '11 22 tail', 'abc99 discarded', '5', '6',
-                    'next', '31 88', '32', 'done', '', '0'*30+'1 X',
-                    '12 .25', '12 .25', 'abc', '11 22', '33', '44', '55 66', 'done']
+                    '31 88', '32', 'done', '', '0'*30+'1 X',
+                    '12 .25', '12 .25', 'abc', '11 22', '33', '44', '55 66']
 END_CHAR_INPUT_LINES = ['', '11', 'tail', '', 'X', '', 'next']
 
 

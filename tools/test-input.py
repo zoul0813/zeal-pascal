@@ -13,7 +13,7 @@ spec.loader.exec_module(n)
 def main():
     target = 'zinputtest'
     sym = n.symbols(target)
-    reader = n.kernel_symbols()['keyboard_read_raw']
+    reader = n.kernel_symbols()['keyboard_next_key']
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(), ROOT/'tools/test-native.py',
               ROOT/'tools/package-native.py', n.EMULATOR, n.ROM]
     inputs += sorted((ROOT/'src').glob('*')) + sorted((ROOT/'tests/native').glob('*'))
@@ -42,25 +42,21 @@ def main():
                n.END_CHAR_INPUT_LINES, n.END_CHAR_INPUT_LINES)]
     passes += [console_lines, console_lines, [ctrl('Z')], [ctrl('Z')],
                [ctrl('C')], [ctrl('C')]]
-    # Keep the final Enter held across RAM return/COM loading. Deliver its
-    # release only at the next reader, outside the interrupt-masked mapping
-    # transition. This gate qualifies ready-reader input, not transition timing.
+    # Observe the inner blocking loop for every physical line. The outer
+    # raw-reader entry can still belong to a preceding event; fixed pacing
+    # must not send the next line while the saved compiler/loader owns input.
+    # Hold Enter until the next wait, including across RAM/COM transitions.
     enter_held = False
     for pass_index, lines in enumerate(passes):
-        commands += [f'bp 0x{reader:x}', 'run 12000000000', f'bc 0x{reader:x}']
-        if enter_held:
-            commands += ['release ENTER', 'run 2000000']
-            enter_held = False
-        for at, line in enumerate(lines):
+        for line in lines:
+            commands += [f'bp 0x{reader:x}', 'run 12000000000', f'bc 0x{reader:x}']
+            if enter_held:
+                commands += ['release ENTER', 'run 2000000']
+                enter_held = False
             commands += line
             if pass_index < len(passes)-4:
-                if at+1 == len(lines):
-                    commands += ['press ENTER']
-                    enter_held = True
-                else:
-                    commands += ['tap ENTER']
-            if at+1 < len(lines):
-                commands += ['run 100000000']
+                commands += ['press ENTER', 'run 100000000']
+                enter_held = True
     commands += ['run 12000000000', 's', 'regs', 'mmu']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage'):
         commands += [f'rb 0x{sym[name]:x} 2']

@@ -17,7 +17,7 @@ def error_source_checks():
     original = b"var n:integer;begin {$I-}readln(n);{$I+}\nwriteln('unreachable')end."
     source = b' '+original
     work, build, result = sym['_work'], sym['_build'], sym['_ram_result']
-    reader = n.kernel_symbols()['keyboard_read_raw']
+    reader = n.kernel_symbols()['keyboard_next_key']
     key = sym['_key_read']
     typed = lambda value: n.type_text(value, ticks=2000000)
     def probe():
@@ -58,7 +58,7 @@ def error_source_checks():
 def main():
     target = 'ziotest'
     sym = n.symbols(target)
-    reader = n.kernel_symbols()['keyboard_read_raw']
+    reader = n.kernel_symbols()['keyboard_next_key']
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(), ROOT/'tools/test-native.py',
               ROOT/'tools/package-native.py', n.EMULATOR, n.ROM, n.KERNEL_MAP]
     inputs += sorted((ROOT/'src').glob('*')) + sorted((ROOT/'tests/native').glob('*'))
@@ -72,16 +72,13 @@ def main():
     passes = [lines, lines] + [['bad']]*8
     enter_held = False
     for pass_lines in passes:
-        commands += [f'bp 0x{reader:x}', 'run 60000000000', f'bc 0x{reader:x}']
-        if enter_held:
-            commands += ['release ENTER', 'run 2000000']
-        for at, line in enumerate(pass_lines):
+        for line in pass_lines:
+            commands += [f'bp 0x{reader:x}', 'run 60000000000', f'bc 0x{reader:x}']
+            if enter_held:
+                commands += ['release ENTER', 'run 2000000']
             commands += n.type_text(line, ticks=2000000)
-            if at+1 < len(pass_lines):
-                commands += ['tap ENTER', 'run 100000000']
-            else:
-                commands += ['press ENTER']
-                enter_held = True
+            commands += ['press ENTER', 'run 100000000']
+            enter_held = True
     # Final pass also hands off to non-input programs; release only at the
     # supervisor completion stop, beyond any program mapping transitions.
     commands += ['run 60000000000', 'release ENTER', 's', 'regs', 'mmu']

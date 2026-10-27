@@ -173,9 +173,12 @@ copy/verify/remove through Zeal OS's supported APIs and is not atomic.
 Input and Output are preassigned Text variables for explicit Read/ReadLn and
 Write/WriteLn, including through Var Text parameters. They share the existing
 console input buffer, conversion and formatting rules. Explicit Input retains
-unread data across calls; ReadLn(Input) consumes the current line. The B directive
-continues to control omitted-Input Read calls. Assign, Reset, Rewrite and Close
-on these preassigned variables report I/O22. Copied tokens gain no standard-stream
+unread data across calls; ReadLn(Input) consumes the current line through LF.
+Input and Output share one current-byte cache. Ordinary buffered lines retain
+CR/LF: Char reads can consume both bytes, String reads stop before CR, and
+numeric reads skip the line endings to continue on the following physical line.
+The B directive continues to control omitted-Input Read calls. Assign, Reset,
+Rewrite and Close on these preassigned variables report I/O22. Copied tokens gain no standard-stream
 authority, and program cleanup leaves inherited console descriptors open.
 Console Eof/Eoln/SeekEof/SeekEoln support omitted Input, explicit Input and
 Var Text aliases. They read a line when needed and inspect its unread tail.
@@ -365,11 +368,13 @@ Console Read/ReadLn uses a bounded line editor over Zeal's raw keyboard API
 and restores the IDE or shell keyboard mode before returning. Numeric fields skip leading whitespace and consume at most
 30 characters, leaving the delimiter and any following characters for later
 fields. Invalid numbers report I/O error 10 and return to source; numeric fields
-already at line end retain their values. Byte stores truncate and input does
-not add subrange checks. A Char read at buffered line end returns Ctrl-Z (`#26`);
-later fields can refill the buffer. `$B+` (default) selects a fresh console line for each
-call; `$B-` retains its unread tail between calls. Bare `Read;` fills the buffer
-without consuming a value, and ReadLn discards the remaining line.
+already at the fresh-line Ctrl-Z marker retain their values. Byte stores truncate
+and input does not add subrange checks. A Char read at the end of a fresh `$B+`
+line returns Ctrl-Z (`#26`); consuming that marker permits a later field to refill
+the buffer. Numeric reads and bare Read retain the marker; Char consumes it,
+ReadLn ends the line, and a fresh read replaces it. Ordinary `$B-` and explicit Input lines retain CR/LF instead.
+`$B+` (default) selects a fresh console line for each call; `$B-` retains its unread
+tail between calls. Bare `Read;` fills the buffer without consuming a value, and ReadLn discards the remaining line.
 
 BufLen defaults to127, limits the next physical input line to0..127 characters,
 then resets to127. Larger values report runtime91 before reading. Excess input

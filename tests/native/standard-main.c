@@ -19,6 +19,7 @@ int app_main(void) {
     execution_file("H:/STDOUTPUT.PAS",1,0,0);
     execution_file("H:/STDINPUT.PAS",1,0,0);
     execution_file("H:/STDPRED.PAS",1,0,0);
+    execution_file("H:/STDRECOVER.PAS",1,0,0);
     checked_error("begin close(Output)end.",0x22,"close");
     check(ram_result[27]==3&&ram_io_detail==0);
     checked_error("var a:array[1..2]of integer;begin {$I-}close(Output);{$I+}\nread(Input,a[1 div 0])end.",2,"read");

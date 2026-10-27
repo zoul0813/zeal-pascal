@@ -1,6 +1,6 @@
 program StandardInput;
 type box=record tag,n,m:integer;b:byte;r:real;space,c:char;s:string[20]end;
-var x:box;a:array[1..2]of integer;code:integer;
+var x:box;a:array[1..2]of integer;code:integer;long:string[127];
 procedure take(var source:text;var n:integer);
 begin read(source,n)end;
 function choose:integer;
@@ -22,6 +22,15 @@ begin
     if(b<>44)or(r<>1.5)or(space<>' ')or(c<>'Z')or(s<>'abc')then halt
   end;
   read(Input,a[choose]);if a[1]<>66 then halt;readln(Input);
+  read(Input,long);if(length(long)<>127)or(long[1]<>'L')or(long[127]<>'L')then halt;
+  read(Input,x.c);if x.c<>#13 then halt;readln(Input);
+  read(Input,x.n,x.m);if(x.n<>12)or(x.m<>34)then halt;readln(Input);
+  {$B-}read(x.n);read(x.m);readln(x.s);{$B+}
+  if(x.n<>5)or(x.m<>6)or(x.s<>'')then halt;
+  read(Input,x.s);read(Output,x.c);if(x.s<>'A')or(x.c<>#13)then halt;
+  read(Input,x.c);if x.c<>#10 then halt;
+  {$B-}read(x.s);read(x.c);{$B+}if(x.s<>'B')or(x.c<>#13)then halt;
+  readln(Input);
   readln(Input,x.s);if x.s<>'' then halt;
   x.n:=999;read(Input,x.n);if x.n<>999 then halt;
   read(Input,x.c);if x.c<>#26 then halt;

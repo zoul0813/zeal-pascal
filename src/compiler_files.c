@@ -48,34 +48,25 @@ static void number_result(void) {
     cc_patch(done);
     for(i=0;i<5;++i) cc_patch(skip[i]);
 }
-/* Buffered Input owns line lookahead. Reuse its editor, advance and ReadLn cleanup; no second parser or
- * input buffer is installed. Predicates expose the physical CR terminator. */
+/* Input/Output own one prefix current-byte cache. Predicates and reads share
+ * Peek/Take; the physical source cursor is independent for other bindings. */
 static void console_predicate(void) {
-    uint16_t loop=cc.emitted,marker,test,advance,end,answer,no,yes,nonempty;
-    cc_op16(0xcd,cc_runtime_private(RP_INPUT_READY));
-    cc_op16(0x3a,cc_runtime_private(RP_LINE_EOF)); cc_emit(0x47); /* B=physical EOF */
-    cc_op16(0x3a,cc_runtime_private(RP_LINE_REMAINING)); cc_emit(0x4f); /* C=remaining */
-    cc_emit(0x5f); cc_emit(0x16); cc_emit(0);
-    cc_op16(0x2a,cc_runtime_private(RP_LINE_NEXT)); cc_emit(0x19);
-    cc_emit(0x36); cc_emit(26); cc_emit(0x78); cc_emit(0xb7); marker=cc_forward(0xc2);
-    cc_emit(0x36); cc_emit(13); cc_patch(marker);
-    index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_SEEKEOF); test=cc_forward(0xca);
+    uint16_t loop=cc.emitted,lines,test,skip,no,yes,answer,end;
+    cc_op16(0xcd,cc_runtime_private(RP_INPUT_READY)); cc_emit(0x47);
+    index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_SEEKEOF); lines=cc_forward(0xca);
     cc_emit(0xfe); cc_emit(ZF_SEEKEOLN); answer=cc_forward(0xc2);
-    cc_patch(test); cc_emit(0x79); cc_emit(0xb7); end=cc_forward(0xca);
-    cc_op16(0x2a,cc_runtime_private(RP_LINE_NEXT)); cc_emit(0x7e);
-    cc_emit(0xfe); cc_emit(32); advance=cc_forward(0xca);
+    cc_emit(0x78); cc_emit(0xfe); cc_emit(32); skip=cc_forward(0xca);
     cc_emit(0xfe); cc_emit(9); no=cc_forward(0xc2);
-    cc_patch(advance); cc_op16(0xcd,cc_runtime_private(RP_INPUT_ADVANCE)); cc_address(0xc3,loop);
-    cc_patch(end); cc_emit(0x78); cc_emit(0xb7); yes=cc_forward(0xc2);
-    index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_SEEKEOF); end=cc_forward(0xc2);
-    cc_op16(0xcd,RT_INPUT_END); cc_address(0xc3,loop);
-    cc_patch(answer); cc_emit(0x79); cc_emit(0xb7); nonempty=cc_forward(0xc2);
-    index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_EOF); answer=cc_forward(0xc2);
-    cc_emit(0x78); cc_emit(0xb7); test=cc_forward(0xca);
-    cc_patch(yes); cc_patch(end); cc_patch(answer); cc_op16(0x21,1); end=cc_forward(0xc3);
-    cc_patch(no); cc_patch(nonempty); cc_patch(test); cc_op16(0x21,0);
-    cc_patch(end); index_store(0x75,20); index_store(0x74,21);
-    cc_emit(0x3e); cc_emit(5); cc_op16(0x32,cc_runtime_private(RP_LINE_VALID)); cc_emit(0xc9);
+    cc_patch(skip); cc_op16(0xcd,cc_runtime_private(RP_INPUT_ADVANCE)); cc_address(0xc3,loop);
+    cc_patch(lines); cc_emit(0x78); cc_emit(0xfe); cc_emit(26); yes=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(33); test=cc_forward(0xd2);
+    cc_op16(0xcd,cc_runtime_private(RP_INPUT_ADVANCE)); cc_address(0xc3,loop);
+    cc_patch(answer); cc_patch(no); cc_emit(0x78); cc_emit(0xfe); cc_emit(26); answer=cc_forward(0xca);
+    index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_EOF); end=cc_forward(0xca);
+    cc_emit(0x78); cc_emit(0xfe); cc_emit(13); skip=cc_forward(0xc2);
+    cc_patch(yes); cc_patch(answer); cc_op16(0x21,1); answer=cc_forward(0xc3);
+    cc_patch(test); cc_patch(end); cc_patch(skip); cc_op16(0x21,0);
+    cc_patch(answer); index_store(0x75,20); index_store(0x74,21); cc_emit(0xc9);
 }
 /* The disk module resolves authority, then the restored prefix owns console
  * formatting/input. A nested I- landing catches prefix errors before restoring

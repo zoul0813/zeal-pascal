@@ -3,42 +3,37 @@
 .globl memory_mode,call_error,val_dispatch,buflen,cbreak,user_break
 .globl _key_event,c_save,c_restore,io_check,io_fail,io_status
 .globl line_history
-.globl input_ready,input_advance,line_next,line_remaining,line_eof,line_valid
-.globl input_key,input_raw_key,input_mode,input_cleanup,input_fail,input_error,echo_fd
+.globl input_ready,input_advance,input_source,line_next,line_remaining,line_eof,line_valid
+.globl input_key,input_raw_key,input_mode,input_cleanup,input_fail,input_error,echo_fd,input_echo
 .area _REAL_DATA
 line_next: .ds 2
 line_remaining: .ds 1
-line_valid: .ds 1               ; 0 unloaded, 1 buffered, 2 consumed, 5 lookahead
+line_valid: .ds 1               ; bit0 primary current byte; bit1 pending B+ line
 line_eof: .ds 1
-line_buffer: .ds 128
+primary_byte: .ds 1
+line_buffer: .ds 129             ; 127 content bytes plus ordinary CR/LF
 .equ line_history, 0xff80       ; private transition data, never stack payload
 history_length: .ds 1
 input_length: .ds 1
 input_max: .ds 1
 echo_fd: .ds 1
-echo_byte: .ds 1
 raw_bytes: .ds 2
+.equ echo_byte, raw_bytes       ; read bytes have been decoded before synchronous echo
 raw_pending: .ds 1
 raw_second: .ds 1
 input_token: .ds 31             ; short string: at most30 numeric bytes
 .area _CODE
-; Bit0 selects fresh buffering. Bit1 primes bare Read immediately; calls with
-; destinations stay lazy until after their callbacks. Without lookahead, even
-; B- starts another line when the preceding call exhausted its buffer.
+; Bit0 forces a fresh B+ line. Bit1 primes bare Read immediately; fields stay
+; lazy until their destination callbacks finish. Primary Input/Output share a
+; current-byte cache; the physical line cursor belongs to input_source instead.
 input_begin::
     push af
     and #1
-    jr nz,input_new
-    ld hl,#line_valid
-    bit 2,(hl)                 ; lookahead preserves even an exhausted line
-    res 2,(hl)                 ; only the next non-fresh Read owns this latch
-    jr nz,input_initialized
-    ld a,(line_remaining)
-    or a
-    jr nz,input_initialized
-input_new:
-    xor a
+    jr z,input_initialized
+    ld a,#2
     ld (line_valid),a
+    xor a
+    ld (line_remaining),a
 input_initialized:
     pop af
     bit 1,a
@@ -48,20 +43,50 @@ input_ready:
     ld a,(io_status)
     or a
     jp nz,io_check
-    ld a,(line_valid)
-    and #1
-    ret nz
+    ld hl,#line_valid
+    bit 0,(hl)
+    jr nz,input_current
+    push bc
+    push de
+    call input_source
+    ld (primary_byte),a
+    pop de
+    pop bc
+    ld hl,#line_valid
+    set 0,(hl)
+input_current:
+    ld a,(primary_byte)
+    ret
+; The physical buffered source is shared, but each Text binding owns its own
+; current-byte cache. Fetch advances this cursor exactly once, including CR/LF.
+input_source:
+    ld a,(line_remaining)
+    or a
+    jr nz,input_source_byte
     ld a,(line_eof)
     or a
-    jr z,read_line
-    xor a
+    ld a,#26
+    ret nz
+    call input_line
+input_source_byte:
+    ld hl,(line_next)
+    ld a,(hl)
+    inc hl
+    ld (line_next),hl
+    push af
+    ld a,(line_remaining)
+    dec a
     ld (line_remaining),a
-    ld a,#1
-    ld (line_valid),a
+    pop af
     ret
  ; The runtime owns the selected limit and editing state. Excess bytes are
 ; ignored until a terminator, but deletion can make room for replacement text.
 read_line::
+    ; Keep the original native helper's fresh-line contract. Its current byte
+    ; is available to READSTRING or the ordinary B- path through the same cache.
+    ld a,#3
+    jp input_begin
+input_line:
     ld a,#255
     ld (echo_fd),a
     ld a,(buflen)
@@ -158,7 +183,6 @@ input_finished:
     ld hl,#line_buffer
     ld (line_next),hl
     ld a,(input_length)
-    ld (line_remaining),a
     ld (history_length),a
     ld c,a
     ld b,#0
@@ -167,11 +191,36 @@ input_finished:
     jr z,input_history_ready
     ldir
 input_history_ready:
-    ld (hl),#26                 ; spare byte, including at the127-byte limit
-    ld a,#1
-    ld (line_valid),a
     ld a,#127
     ld (buflen),a
+    ld (hl),#26
+    ld a,(line_eof)
+    or a
+    jr nz,input_marker_ready
+    ld a,(line_valid)
+    bit 1,a
+    jr nz,input_marker_ready
+    ld (hl),#13
+    inc hl
+    ld (hl),#10
+    ld a,(input_length)
+    add a,#2
+    ld (line_remaining),a
+    ld a,#13
+    call input_echo
+    ld a,#10
+    call input_echo
+    jr input_line_ready
+input_marker_ready:
+    ld a,(input_length)
+    inc a
+    ld (line_remaining),a
+input_line_ready:
+    ; Physical refill never invalidates a different binding's current byte.
+    ; Publish the complete extent before echo/cleanup can fail nonlocally.
+    ld a,(line_valid)
+    and #1
+    ld (line_valid),a
     call input_cleanup
     or a
     jp nz,input_error
@@ -353,34 +402,55 @@ input_syscall:
     ld (0x40be),hl
     ret
 read_string::
-    ld hl,(line_next)
-    ld a,(line_remaining)
-    cp c
-    jr c,read_string_length
+    push de
+    inc de
+    ld b,#0
+read_string_byte:
     ld a,c
-read_string_length:
+    or a
+    jr z,read_string_done
+    call input_ready
+    cp #13
+    jr z,read_string_done
+    cp #26
+    jr z,read_string_done
     ld (de),a
     inc de
-    ld c,a
-    ld b,#0
-    or a
-    ret z
-    ld a,(line_remaining)
-    sub c
-    ld (line_remaining),a
-    ldir
-    ld (line_next),hl
+    inc b
+    dec c
+    call input_advance
+    jr read_string_byte
+read_string_done:
+    pop hl
+    ld (hl),b
     ret
 input_end::
     ld a,(io_status)
     or a
     jp nz,io_check
+    ; A Char may have consumed the fresh line's Ctrl-Z already. ReadLn still
+    ; ends that line; it must not fetch another one merely to discard it.
     ld a,(line_valid)
+    bit 1,a
+    jr nz,input_end_read
+    ld a,(line_remaining)
     or a
-    call z,input_ready
+    jr nz,input_end_read
+    ld a,(primary_byte)
+    cp #26
+    jr z,input_end_marker
+input_end_read:
+    call input_ready
+    cp #26
+    jr z,input_end_marker
+    call input_advance
+    cp #10
+    ret z
+    jr input_end
+input_end_marker:
+    call input_advance
     xor a
-    ld (line_remaining),a
-    ld (line_valid),a
+    ld (primary_byte),a
     ld a,(line_eof)
     or a
     ret nz
@@ -441,29 +511,11 @@ input_invalid:
     ld a,#0x10
     jp io_fail
 input_character:
-    ld a,(line_remaining)
-    or a
-    jr z,input_terminator
-    ld hl,(line_next)
-    ld a,(hl)
+    ld a,(primary_byte)
     ld (de),a
-    jp input_advance
-input_terminator:
-    ld a,#2
-    ld (line_valid),a
-    ; Ordinary Read uses Ctrl-Z at buffered EOL; lookahead predicates expose
-    ; CR instead. Consuming either marker permits the next field to refill.
-    ld hl,(line_next)
-    ld a,(hl)                  ; predicates expose CR at ordinary buffered EOL
-    ld (de),a
-    ret
 input_advance:
-    ld hl,(line_next)
-    inc hl
-    ld (line_next),hl
-    ld a,(line_remaining)
-    dec a
-    ld (line_remaining),a
+    ld hl,#line_valid
+    res 0,(hl)
     ret
 input_number:
     ld a,b
@@ -474,11 +526,9 @@ input_number:
 input_mode_ready:
     push af
 input_skip:
-    ld a,(line_remaining)
-    or a
+    call input_ready
+    cp #26
     jr z,input_token_begin
-    ld hl,(line_next)
-    ld a,(hl)
     cp #33
     jr nc,input_token_begin
     call input_advance
@@ -487,11 +537,9 @@ input_token_begin:
     ld de,#input_token+1
     ld c,#0
 input_token_byte:
-    ld a,(line_remaining)
-    or a
+    call input_ready
+    cp #26
     jr z,input_token_ready
-    ld hl,(line_next)
-    ld a,(hl)
     cp #33
     jr c,input_token_ready
     ld (de),a
