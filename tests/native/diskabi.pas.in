@@ -1,0 +1,23 @@
+program DiskABI;
+type code=array[1..%ABI_LENGTH%]of byte;
+var f:file of integer;i,a,b,c,d:integer;
+const machine:code=(%ABI_BYTES%);
+  scenario:integer=%SCENARIO%;
+procedure seed;external $801D;
+procedure capture(var af,hl,de,bc:integer);external $8020;
+function dropfiles:integer;external $8023;
+begin
+  if scenario=0 then begin
+  seed;
+  assign(f,'H:/ABI.DAT');rewrite(f);i:=123;write(f,i);close(f);
+  capture(a,b,c,d);
+  if(hi(a)<>$55)or not odd(a)or(b<>$9ABC)or(c<>$5678)or(d<>$1234)then halt;
+  writeln('DISK-ABI-OK');
+  end else begin
+    if mem[$FE78]<>0 then assign(f,'H:/RAMLOSS.DAT')
+    else assign(f,'H:/SAVLOSS.DAT');
+    rewrite(f);i:=14;write(f,i);
+    if mem[$FE78]<>0 then if dropfiles<>1 then halt;
+    i:=1 div 0;
+  end;
+end.

@@ -178,6 +178,17 @@ static void many(void) {
     invocation.object=0xc800+204u*16; check(call(ZF_REWRITE)==0); check(call(ZF_CLOSE)==0);
     clean(ZF_END_PROGRAM,0,0);
 }
+static void wide_components(void) {
+    defaults(); put(0xc101,300); assign("H:/WIDE.DAT");
+    check(call(ZF_REWRITE)==0); memset(VM(0xc200),0x6b,300);
+    check(call(ZF_WRITE)==0); check(call(ZF_CLOSE)==0);
+    /* Both in-place finalization and Rewrite on an existing file exercise
+     * the pinned metadata status path through the real native SDK too. */
+    check(call(ZF_REWRITE)==0); check(call(ZF_WRITE)==0); check(call(ZF_CLOSE)==0);
+    check(call(ZF_RESET)==0); memset(VM(0xc200),0,300);
+    check(call(ZF_READ)==0&&VM(0xc200)[0]==0x6b&&VM(0xc200)[299]==0x6b);
+    check(call(ZF_CLOSE)==0); clean(ZF_END_PROGRAM,0,0);
+}
 #ifndef __SDCC
 static void faults(void) {
     uint8_t handles;
@@ -217,7 +228,7 @@ static void faults(void) {
 #endif
 int main(void) {
     check(sizeof(FileJob)==32&&sizeof(FileCleanup)==10);
-    basic(); lifetime(); boundaries(); block_files(); many();
+    basic(); lifetime(); boundaries(); block_files(); many(); wide_components();
 #ifndef __SDCC
     faults(); check(model_pages==0&&model_handles==0);
     printf("%u file runtime assertions passed, %u failed\n",test_passed,test_failed);

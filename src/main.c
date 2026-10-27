@@ -108,6 +108,7 @@ static void diagnostic(uint8_t kind,uint16_t code,uint16_t position,uint16_t pc)
     output(kind==0?"User break":kind==1?"Compiler error ":kind==2?"Runtime error ":"I/O error ");
     if(kind==1) output_number(code); else if(kind) output_hex(code,2);
     if(kind!=1) { output(" PC="); output_hex(pc,4); }
+    if(kind==3&&ram_io_detail) { output(" (native error "); output_number(ram_io_detail); output(")"); }
     source_location(&work,position,&line,&col);
     output("\n"); output(work.path); output(" Line "); output_number(line); output(" Col "); output_number(col);
     if(messages&&kind==2&&code==2) output(" Division by zero");

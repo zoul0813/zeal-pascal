@@ -10,7 +10,7 @@ uint8_t zf_memory_mode,model_pages,model_handles,model_close_error,model_read_er
 uint8_t model_zero_write,model_short,model_readonly;
 static uint8_t memory[32][16384],owned[32];
 static struct { char path[128]; uint8_t data[8192]; uint32_t size; } files[64];
-static struct { uint8_t used,file,flags; uint32_t position; } handles[16];
+static struct { uint8_t used,file,flags; uint32_t position,cached_size; } handles[16];
 void zf_record_io(uint8_t page,uint16_t offset) {
     assert(page>=32&&page<64&&owned[page-32]&&offset<=16384-ZF_RECORD_BYTES);
     if(zf_store) memcpy(memory[page-32]+offset,zf_record,ZF_RECORD_BYTES);
@@ -41,6 +41,7 @@ zos_dev_t open(const char *name,uint8_t flags) {
     if(model_readonly&&(flags&(O_WRONLY|O_RDWR))) return -ERR_READ_ONLY;
     for(n=2;n<16;++n) if(!handles[n].used) break;
     if(n==16) return -ERR_CANNOT_REGISTER_MORE;
+    handles[n].cached_size=files[i].size;
     if(flags&O_TRUNC) files[i].size=0;
     handles[n].used=1; handles[n].file=i; handles[n].flags=flags; handles[n].position=0;
     ++model_handles; return (int8_t)n;
@@ -63,8 +64,10 @@ zos_err_t stat(const char *name,zos_stat_t *out) {
 zos_err_t seek(zos_dev_t fd,int32_t *at,zos_whence_t whence) {
     uint8_t n=(uint8_t)fd;
     uint32_t offset=(uint32_t)*at;
-    assert(fd>=2&&fd<16&&handles[n].used&&whence==SEEK_SET);
-    if(offset>files[handles[n].file].size) offset=files[handles[n].file].size;
+    assert(fd>=2&&fd<16&&handles[n].used);
+    if(whence==SEEK_CUR) offset+=handles[n].position;
+    if(whence==SEEK_END) offset+=handles[n].cached_size;
+    if(offset>handles[n].cached_size) offset=handles[n].cached_size;
     handles[n].position=offset; *at=(int32_t)offset; return 0;
 }
 zos_err_t read(zos_dev_t fd,void *out,uint16_t *size) {
@@ -87,6 +90,15 @@ zos_err_t write(zos_dev_t fd,const void *in,uint16_t *size) {
     assert(handles[n].position+*size<=sizeof(files[file].data));
     memcpy(files[file].data+handles[n].position,in,*size); handles[n].position+=*size;
     if(handles[n].position>files[file].size) files[file].size=handles[n].position;
+    if(handles[n].position>handles[n].cached_size) handles[n].cached_size=handles[n].position;
+    /* Match the pinned post-write metadata status. The SDK leaves *size
+     * unchanged on a nonzero return, just as for a genuine driver failure. */
+    {
+        uint32_t limit=handles[n].cached_size,at=handles[n].position;
+        if((limit>>24)!=(at>>24)) return (zos_err_t)(uint8_t)(limit>>24);
+        if((limit>>16)!=(at>>16)) return (zos_err_t)(uint8_t)(limit>>16);
+        if((limit>>8)!=(at>>8)) return (zos_err_t)(uint8_t)(limit>>8);
+    }
     return 0;
 }
 zos_err_t rm(const char *name) {

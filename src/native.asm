@@ -1,6 +1,7 @@
 .module native
 .globl _far_get, _far_set, _ram_enter
 .globl _ram_result, _ram_pages, _ram_entry
+.globl _ram_io_detail,_ram_cleanup_detail
 .globl _console_scratch
 .globl _page_versions
 .globl _ram_worker_service, _worker_dispatch, _code_pages
@@ -116,6 +117,18 @@ return_core:
     ld de,#_ram_result
     ld bc,#128
     ldir
+    ld hl,#0
+    ld a,(_ram_result+26)
+    cp #3
+    jr nz,detail_copied
+    ld a,(_ram_result+27)
+    cp #3
+    jr nz,detail_copied
+    ld hl,(0xfe7a)
+detail_copied:
+    ld (_ram_io_detail),hl
+    ld a,(0xfe73)
+    ld (_ram_cleanup_detail),a
     ld a,(_parent_page3)
     out (0xf3),a
     ld sp,(_parent_sp)          ; no stack access until backing is restored
@@ -177,5 +190,7 @@ _parent_page3: .ds 1
 _ram_entry:: .ds 2
 _ram_pages:: .ds 3
 _ram_result:: .ds 128
+_ram_io_detail:: .ds 2
+_ram_cleanup_detail:: .ds 1
 _console_scratch:: .ds 256
 _page_versions:: .ds 256

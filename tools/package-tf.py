@@ -66,7 +66,10 @@ if not all(n.sha(ROOT/name) == digest for name, digest in hashes.items()):
 
 ready, key, work = sym['_code_ready'], sym['_key_read'], sym['_work']
 commands = ['run 100000000']+n.type_text('T:/bin/zpascal.bin\n', ticks=2000000)
-commands += ['run 1000000', f'bp 0x{ready:x}', 'run 2000000000', f'bc 0x{ready:x}',
+# The complete library now takes over two billion target cycles to load/hash
+# from TF. The breakpoint still stops at real readiness; the larger bound
+# changes validation patience, not application loading or integrity checks.
+commands += ['run 1000000', f'bp 0x{ready:x}', 'run 8000000000', f'bc 0x{ready:x}',
              'run 10000000', f'bp 0x{key:x}', 'tap N', 'run 100000000', 'regs',
              f"rb 0x{sym['_code_owned']:x} 1", f"rb 0x{sym['_ide_state']:x} 1",
              f'rb 0x{work:x} 140', f'bc 0x{key:x}']

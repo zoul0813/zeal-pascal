@@ -9,6 +9,7 @@
 .globl io_call,io_result,io_check,io_fail,io_status
 .globl tail_length,tail
 .globl runtime_stack_budget
+.globl file_cleanup,heap_floor,io_status
 .equ tail_length, 0xff00
 .equ tail, 0xff01
 .equ runtime_stack_budget, 0xfe7c
@@ -85,8 +86,12 @@ buflen: .db 127                 ; 4151: next physical console line's byte limit
 cbreak: .db 1                   ; 4152: buffered Ctrl-C checking enabled
     jp io_call                  ; 4153: inline helper:u16, I checking:u8
     jp io_result                ; 4156: Integer prior I/O status, cleared
+    jp file_cleanup             ; 4159: A lifetime operation, B checking, DE owner, HL end
+heap_floor: .dw 0               ; 415C: actual public heap origin
+    jp io_fail                  ; 415E: generated file operation's I/O failure
+    jp call_error               ; 4161: A code, B namespace
+io_status: .db 0                ; 4164: pending I/O error, consumed by IOResult
 io_frame: .dw 0                 ; invocation-owned stack frame, never a global landing
-io_status: .db 0
 io_target: .dw 0                ; setup/dispatch scratch; no callback while in use
 
 ; This prefix is deliberately separate from the C compiler's ABI. Only the
@@ -147,6 +152,8 @@ start:
     ld bc,#31
     ld (hl),#0
     ldir
+    ld a,(memory_mode)
+    ld (0xfe78),a
     ld hl,#64
     ld (runtime_stack_budget),hl
     ld hl,#0xff80               ; input history, initialized after tail copy
@@ -175,6 +182,13 @@ done:
 halt:
     ld a,#4
 finish:
+    ld sp,#0xfc00
+    push af
+    ld a,#19
+    ld de,#0
+    ld hl,#0
+    call file_cleanup
+    pop af
     ld hl,#memory_mode
     bit 0,(hl)
     jr z,os_exit
@@ -187,6 +201,12 @@ os_exit:
 
 ; Input owns and releases its console resources before this nonlocal return.
 user_break:
+    ld sp,#0xfc00
+    ld b,#2                    ; preserve this primary break through cleanup
+    ld a,#19
+    ld de,#0
+    ld hl,#0
+    call file_cleanup
     ld a,(memory_mode)
     or a
     jr z,normal_break
@@ -244,6 +264,12 @@ io_error:
 ; are restored the stack is {checking:u16, previous_frame:u16, return_PC:u16}.
 io_call:
     push af
+    ld a,(io_status)
+    or a
+    jr nz,io_detail_ready
+    ld (0xfe7a),a
+    ld (0xfe7b),a
+io_detail_ready:
     push bc
     push de
     push hl
@@ -326,6 +352,8 @@ io_result:
     ld h,#0
     xor a
     ld (io_status),a
+    ld (0xfe7a),a
+    ld (0xfe7b),a
     ret
 
 string_output:
@@ -637,6 +665,11 @@ stack_error:                    ; HL already contains compiler call-site PC
 error_ready:
     ld sp,#0xfc00               ; stop using faulting stack; no resumption
     ld (0xfc1e),hl
+    ld b,#2                    ; preserve the primary runtime/I/O fault
+    ld a,#19
+    ld de,#0
+    ld hl,#0
+    call file_cleanup
     ld a,(memory_mode)
     or a
     jp z,normal_error
@@ -661,15 +694,15 @@ normal_error:
 memory_mode: .db 0
 error_code: .db 0
 error_namespace: .db 0
-io_byte: .db 0
-negative: .db 0
-want_remainder: .db 0
+.equ io_byte, 0xfe82
+.equ negative, 0xfe80
+.equ want_remainder, 0xfe81
 false_text: .db 5
     .ascii "FALSE"
 true_text: .db 4
     .ascii "TRUE"
-shift_direction: .db 0
-range_error_code: .db 0
+.equ shift_direction, 0xfe83
+.equ range_error_code, 0xfe84
 text_left_char: .ds 2
 text_right_char: .ds 2
 
@@ -1288,14 +1321,14 @@ set_member:
 set_member_false:
     ld hl,#0
     ret
-set_source: .dw 0
-set_destination: .dw 0
-set_drop: .dw 0
-set_first: .db 0
-set_width: .db 0
-set_element: .db 0
-set_mode: .db 0
-set_byte: .db 0
+.equ set_source, 0xfe85
+.equ set_destination, 0xfe87
+.equ set_drop, 0xfe89
+.equ set_first, 0xfe8b
+.equ set_width, 0xfe8c
+.equ set_element, 0xfe8d
+.equ set_mode, 0xfe8e
+.equ set_byte, 0xfe8f
 set_masks: .db 1,2,4,8,16,32,64,128
 
 ; Managed stack/heap checks preserve both alternate and index register sets.
@@ -1370,10 +1403,6 @@ check_boundary:
     pop bc
     pop de
     ret
-heap_error:
-    ld hl,(0x40be)
-    jp stack_error
-
 ; All public heap calls arrive after checked_guard. Its recursion_limit is
 ; the actual caller SP minus64, so these helpers never allocate into scratch.
 ; Two-byte headers contain an even payload span and a high-bit free flag.
@@ -1499,6 +1528,8 @@ heap_append_ready:
     jr heap_allocate_commit
 
 heap_free:
+    ld a,b
+    ld (heap_mode),a
     ld (heap_target),hl
     ex de,hl
     call heap_round
@@ -1529,6 +1560,12 @@ heap_free_found:
     or a
     sbc hl,de
     jp nz,heap_error
+    ld a,(heap_mode)
+    ld b,a
+    ld a,#17
+    ld de,(heap_target)
+    ld hl,#0
+    call file_cleanup
     ld hl,(heap_at)
     inc hl
     set 7,(hl)
@@ -1589,6 +1626,8 @@ heap_coalesce_next:
     jr heap_coalesce
 
 heap_release:
+    ld a,b
+    ld (heap_mode),a
     ld (heap_target),hl
     ld hl,(heap_floor)
 heap_release_scan:
@@ -1606,7 +1645,13 @@ heap_release_scan:
     ld hl,(heap_next)
     jr heap_release_scan
 heap_release_ready:
-    add hl,de
+    ld a,(heap_mode)
+    ld b,a
+    ld a,#18
+    ld de,(heap_target)
+    ld hl,(heap_frontier)
+    call file_cleanup
+    ld hl,(heap_target)
     ld (heap_frontier),hl
     ret
 
@@ -1703,23 +1748,24 @@ stack_set_end:
     push bc
     ret
 
-guard_sp: .dw 0
-guard_bytes: .dw 0
-boundary_value: .dw 0
-heap_floor: .dw 0
-heap_want: .dw 0
-heap_at: .dw 0
-heap_next: .dw 0
-heap_span: .dw 0
-heap_target: .dw 0
-heap_previous: .dw 0
-heap_total: .dw 0
-heap_largest: .dw 0
-heap_return: .dw 0
-heap_flag: .db 0
-heap_mode: .db 0
+.equ guard_sp, 0xfd60
+.equ guard_bytes, 0xfd62
+.equ boundary_value, 0xfd64
+.equ heap_want, 0xfd66
+.equ heap_at, 0xfd68
+.equ heap_next, 0xfd6a
+.equ heap_span, 0xfd6c
+.equ heap_target, 0xfd6e
+.equ heap_previous, 0xfd70
+.equ heap_total, 0xfd72
+.equ heap_largest, 0xfd74
+.equ heap_return, 0xfd76
+.equ heap_flag, 0xfd78
+.equ heap_mode, 0xfd79
 
 ; Zero count never becomes a 65536-byte write. Caller owns the raw span.
+runtime_prefix_end::
+.area _CODE
 fill_bytes:
     ld d,a
     ld a,b
@@ -1733,4 +1779,74 @@ fill_bytes_loop:
     or c
     jr nz,fill_bytes_loop
     ret
-runtime_prefix_end::
+heap_error:
+    ld hl,(0x40be)
+    jp stack_error
+; Ending lifetimes always traverse trusted private records, even with a
+; pending I/O error. A failed close cannot leave the dying object authoritative.
+file_cleanup::
+    ld c,a
+    ld a,(0xfe74)
+    or a
+    ret z
+    ld a,c
+    push bc                    ; checking policy and operation
+    ld bc,#0
+    push bc                    ; native detail
+    push bc                    ; error
+    push hl                    ; exclusive owner-range end
+    push de                    ; owner
+    ld l,a
+    ld h,#0
+    push hl                    ; operation
+    ld hl,#0
+    add hl,sp                  ; ten-byte caller-owned cleanup job
+    cp #19
+    ld a,#1
+    jr nz,file_cleanup_call
+    inc a                      ; terminal cleanup also releases module backing
+file_cleanup_call:
+    call 0xfe90
+    pop bc
+    pop de
+    pop hl
+    pop de                     ; error word
+    pop hl                     ; native detail
+    pop bc                     ; checking policy
+    ld a,d
+    or e
+    jr nz,file_cleanup_error
+    ld a,(0xfe7f)
+    or a
+    ret z
+    ld l,a
+    ld h,#0
+    ld de,#0x1ff               ; owned module page could not be released
+file_cleanup_error:
+    ld a,b
+    cp #2
+    jr nz,file_cleanup_report
+    ld a,l
+    ld (0xfe73),a              ; secondary native detail, never the primary fault
+    ret
+file_cleanup_report:
+    ld a,d
+    or a
+    jr nz,file_cleanup_runtime
+    ld a,(io_status)
+    or a
+    jr nz,file_cleanup_pending
+    ld (0xfe7a),hl
+    ld a,e
+    ld (io_status),a
+file_cleanup_pending:
+    ld a,b
+    or a
+    ret z
+    ld a,(io_status)
+    ld b,#3
+    jp call_error
+file_cleanup_runtime:
+    ld a,e
+    ld b,#2
+    jp call_error

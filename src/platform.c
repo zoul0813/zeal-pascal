@@ -164,6 +164,7 @@ uint8_t key_interrupt(void) {
 uint8_t run_build(const Source *s,const Build *b) {
     uint8_t child[3]={255,255,255},i,ok=0,entered=0,failure;
     uint16_t j;
+    ram_io_detail=0; ram_cleanup_detail=0;
     if(!build_ready(s,b)) return 0;
     if(!worker_control(WORKER_START)) return 0;
     for(i=0;i<3;++i) {
@@ -209,6 +210,7 @@ cleanup:
     if(!worker_control(entered?WORKER_FINISH:WORKER_CANCEL)) {
         ok=0; if(!failure) failure=platform_error;
     } else if(platform_error&&!failure) failure=platform_error;
+    if(ram_cleanup_detail&&!failure) failure=ram_cleanup_detail;
     for(i=0;i<3;++i) if(child[i]!=255&&!page_drop(child[i])) {
         ok=0; if(!failure) failure=platform_error;
     }

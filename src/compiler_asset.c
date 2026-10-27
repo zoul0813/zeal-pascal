@@ -13,3 +13,14 @@ uint8_t cc_runtime_get(uint16_t offset) {
     return runtime_start[offset];
 #endif
 }
+uint16_t cc_file_asset_size(uint8_t gate) {
+    return gate?(uint16_t)(file_gate_end-file_gate_start):(uint16_t)(file_end-file_start);
+}
+uint8_t cc_file_asset_get(uint8_t gate,uint16_t offset) {
+#ifdef __SDCC
+    uint16_t base=(uint16_t)(gate?file_gate_start:file_start)&0x3fffu;
+    return far_get(code_pages[9],base+offset);
+#else
+    return (gate?file_gate_start:file_start)[offset];
+#endif
+}

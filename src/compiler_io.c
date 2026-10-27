@@ -49,6 +49,7 @@ void cc_write(uint8_t newline) FRONTEND {
     cc_next();
     if(cc.token=='(') {
         cc_next();
+        if(cc_file_prefix()) { cc_file_transfer(1,newline); return; }
         do {
             offset=field(0);cc_stack_operand(offset);io_call(RT_FIELD,0);
             cc_release(before);
@@ -96,7 +97,14 @@ void cc_val(void) FRONTEND {
 void cc_read(uint8_t newline) FRONTEND {
     uint16_t before=cc.temporaries;
     uint8_t fresh=cc.input_fresh,type,kind;
-    cc_next();cc_emit(0x3e);cc_emit(fresh|((cc.token!='('&&!newline)?2:0));
+    cc_next();
+    if(cc.token=='(') {
+        uint16_t start=cc.token_start;
+        cc_next();
+        if(cc_file_prefix()) { cc_file_transfer(0,newline); return; }
+        cc.scan=start; cc_next();
+    }
+    cc_emit(0x3e);cc_emit(fresh|((cc.token!='('&&!newline)?2:0));
     io_call(RT_INPUT_BEGIN,64);
     if(cc.token=='(') {
         cc_next();

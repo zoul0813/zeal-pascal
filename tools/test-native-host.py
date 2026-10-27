@@ -16,8 +16,13 @@ runtime = (ROOT / 'build/pascal_runtime.zpl').read_bytes()
 (OUT / 'asset.c').write_text('const unsigned char runtime_start[] = {' +
     ','.join(str(x) for x in runtime) + '};\n' +
     '__asm__(".globl _runtime_end\\n_runtime_end = _runtime_start + ' + str(len(runtime)) + '");\n')
+with (OUT/'asset.c').open('a') as asset:
+    for start,end,name in (('file_start','file_end','file_runtime'),('file_gate_start','file_gate_end','file_gate')):
+        data=(ROOT/f'build/{name}.zpl').read_bytes()
+        asset.write('const unsigned char '+start+'[] = {'+','.join(map(str,data))+'};\n')
+        asset.write('__asm__(".globl _'+end+'\\n_'+end+' = _'+start+' + '+str(len(data))+'");\n')
 subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', *flags, '-Isrc',
-                'src/source.c', 'src/sha256.c', 'src/compiler.c', 'src/compiler_expr.c', 'src/compiler_types.c', 'src/compiler_front.c', 'src/compiler_routines.c', 'src/compiler_real.c', 'src/compiler_io.c', 'src/compiler_random.c', 'src/compiler_params.c', 'src/compiler_file.c', 'src/real.c', 'src/transcendental.c', 'src/compiler_state.c', 'src/compiler_asset.c',
+                'src/source.c', 'src/sha256.c', 'src/compiler.c', 'src/compiler_expr.c', 'src/compiler_types.c', 'src/compiler_front.c', 'src/compiler_routines.c', 'src/compiler_real.c', 'src/compiler_io.c', 'src/compiler_random.c', 'src/compiler_params.c', 'src/compiler_file.c', 'src/compiler_files.c', 'src/real.c', 'src/transcendental.c', 'src/compiler_state.c', 'src/compiler_asset.c',
                 'tests/native/core-host.c', str(OUT / 'asset.c'), '-o', str(OUT / 'core')], cwd=ROOT, check=True)
 subprocess.run([str(OUT / 'core'), str(OUT / 'image.bin')], cwd=ROOT, check=True)
 sdk = ROOT.parent / 'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'

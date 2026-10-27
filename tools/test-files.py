@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""File storage and fresh-token initialization through native RAM/COM compilation.
-
-Binding authority, activation of other variant arms, copied-token adoption,
-Assign, disk/device transfers and lifetime cleanup are subsequent increments.
-"""
+"""Typed/block disk I/O and file storage through native RAM/COM compilation."""
 import importlib.util
+import hashlib
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,13 +12,58 @@ n = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(n)
 
 
+def error_source_checks():
+    """Exercise the real editor/compiler/diagnostic return for a file error."""
+    sym=n.symbols('zpascal')
+    original=b"var f:file of integer;\nbegin assign(f,'H:/NOFILE.DAT');\nreset(f)end."
+    source=b' '+original
+    work,build,result,key=(sym[name] for name in ('_work','_build','_ram_result','_key_read'))
+    typed=lambda value:n.type_text(value,ticks=2000000)
+    def probe():
+        return ['regs','mmu',f"rb 0x{sym['_ide_state']:x} 1",f'rb 0x{work:x} 12',
+                f'rb 0x{build:x} 83',f'rb 0x{result:x} 128',f"rb 0x{sym['_ram_io_detail']:x} 2"]
+    commands=['run 100000000']+n.program_launch()+['run 10000000']
+    commands+=typed('nwH:/FERROR.PAS\n')+['run 100000000',f'bp 0x{key:x}',
+        'tap E','run 1000000000','s','tap SPACE','run 1000000000','s']
+    commands+=n.control('K')[:-1]+['run 1000000000','s','tap D','run 1000000000',
+        f'bc 0x{key:x}',f"bp 0x{sym['_ram_enter']:x}",'tap R','run 60000000000',
+        f"bc 0x{sym['_ram_enter']:x}",'bp 0xfd80','run 12000000000','bc 0xfd80',
+        f'bp 0x{key:x}','run 1000000000']+probe()
+    commands+=['s','tap ESC','run 1000000000']+probe()
+    commands+=[f'bc 0x{key:x}']+n.control('K')+typed('dqn')+['quit']
+    raw=n.execute('file-error-source',commands,{'FERROR.PAS':original},timeout=180)
+    parts=re.split(r'\[DBG\] PC=',raw)[1:]
+    if len(parts)!=2:
+        return {'actual IDE file-error recovery checkpoints':False}
+    diagnostic,editor=[n.memory(part) for part in parts]
+    word=lambda frame,at:frame.get(at,0)|frame.get(at+1,0)<<8
+    return {
+        'actual IDE missing-file diagnostic retains Pascal and native errors':
+            diagnostic.get(sym['_ide_state'])==3 and diagnostic.get(result+26)==3
+            and diagnostic.get(result+27)==3 and diagnostic.get(result+28)==1
+            and word(diagnostic,sym['_ram_io_detail'])==4,
+        'file diagnostic retains exact unsaved source':
+            diagnostic.get(work+1)==1 and word(diagnostic,work+2)==len(source)
+            and bytes(diagnostic.get(build+51+i,0) for i in range(32))==hashlib.sha256(source).digest(),
+        'Escape selects Reset and retains dirty source after file error':
+            editor.get(sym['_ide_state'])==2 and editor.get(work+1)==1
+            and word(editor,work+4)==source.index(b'reset'),
+        'failed file operation and unsaved edit leave disk source unchanged':
+            (n.RUN/'file-error-source/hostfs/FERROR.PAS').read_bytes()==original
+            and not (n.RUN/'file-error-source/hostfs/NOFILE.DAT').exists(),
+    }
+
+
 def main():
     target = 'zfiletest'
     sym = n.symbols(target)
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(), ROOT/'tools/test-native.py',
               ROOT/'tools/package-native.py', n.EMULATOR, n.ROM]
     inputs += sorted((ROOT/'src').glob('*')) + sorted((ROOT/'tests/native').glob('*'))
-    inputs += [ROOT/f'build/{target}.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
+    for name in (target,'zpascal'):
+        inputs += [ROOT/f'build/{name}.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
+    inputs += [ROOT/'build/file_runtime.zpl',ROOT/'build/file_gate.zpl']
+    inputs += [ROOT/'build/diskabi.zpl']
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}
     assert 0xc000 <= sym['_test_stop'] <= 0xc7fd
     commands = ['run 100000000'] + n.program_launch(target)
@@ -31,21 +74,72 @@ def main():
     fixtures = {f'{target}.{ext}': (ROOT/f'build/{target}.{ext}').read_bytes()
                 for ext in ('bin', 'zpl')}
     fixtures.update({p.name.upper(): p.read_bytes() for p in (ROOT/'tests/native').glob('*.pas')})
+    abi=(ROOT/'build/diskabi.zpl').read_bytes()
+    body=',\n'.join(','.join(map(str,abi[i:i+20])) for i in range(0,len(abi),20))
+    template=(ROOT/'tests/native/diskabi.pas.in').read_text().replace(
+        '%ABI_LENGTH%',str(len(abi))).replace('%ABI_BYTES%',body)
+    fixtures['DISKABI.PAS']=template.replace('%SCENARIO%','0').encode()
+    fixtures['DISKFAIL.PAS']=template.replace('%SCENARIO%','1').encode()
+    cleanup=(ROOT/'tests/native/diskcleanup.pas.in').read_text().replace(
+        '%ABI_LENGTH%',str(len(abi))).replace('%ABI_BYTES%',body)
+    open_file="assign(f,'H:/CLEAN.DAT');rewrite(f);i:=7;write(f,i);if dropfiles<>1 then halt;"
+    heap_file="new(p);assign(p^.f,'H:/CLEAN.DAT');rewrite(p^.f);i:=7;write(p^.f,i);if dropfiles<>1 then halt;"
+    scenarios={
+        'SCOPE': ('','', 'scoped;'),
+        'EXIT': ('','exit;', 'scoped;'),
+        'IGNORE': ('{$I-}','', 'scoped;if ioresult<>$99 then halt;'),
+        'EXITOFF': ('','{$I-}exit;{$I+}', 'scoped;if ioresult<>$99 then halt;'),
+        'DISPOSE': ('','',heap_file+'dispose(p);'),
+        'FREE': ('','',heap_file+'freemem(p,sizeof(item));'),
+        'RELEASE': ('','','mark(markptr);'+heap_file+'release(markptr);'),
+        'FINISH': ('','',open_file),
+        'HALT': ('','',open_file+'halt;'),
+    }
+    for name,(checking,scope_exit,program) in scenarios.items():
+        fixtures[name+'.PAS']=cleanup.replace('%CHECKING%',checking).replace(
+            '%SCOPE_EXIT%',scope_exit).replace('%BODY%',program).encode()
     raw = n.execute('file-component', commands, fixtures, timeout=540)
     memory = n.memory(raw)
     word = lambda name: memory.get(sym[name], 0) | memory.get(sym[name]+1, 0) << 8
     output = n.RUN/'file-component/hostfs/FILES.TXT'
+    disk=n.RUN/'file-component/hostfs'
     checks = {
         'native completion marker': memory.get(sym['_test_done']) == 255 and word('_test_stage') == 6,
         'RAM/COM ownership, layout, aliasing and diagnostic assertions':
             word('_test_failed') == 0 and word('_test_passed') >= 90,
         'file families, aggregate copies, recursion, Var, With, New and shadowing in RAM/COM':
             output.is_file() and output.read_bytes() ==
-            b'FILE-DECLARATIONS-OK\r\n'*2 + b'FILE-TOKENS-OK\r\n'*2,
+            b'FILE-DECLARATIONS-OK\r\n'*2 + b'FILE-TOKENS-OK\r\n'*2 +
+            b'DISK-TYPED-OK\r\n'*2+b'DISK-BLOCKS-OK\r\n'*2+b'DISK-LIFETIME-OK\r\n'*2+b'DISK-WIDE-OK\r\n'*2+
+            b'DISK-ABI-OK\r\n'*2,
         'implementation and artifacts unchanged during validation':
             all(n.sha(Path(p)) == digest for p, digest in hashes.items()),
     }
-    report = {'scope': 'Native file storage and fresh-token initialization; registry, other variant-arm activation, copied-token adoption, file/device I/O and cleanup remain unimplemented',
+    expected={'TYPED.DAT':bytes.fromhex('030002000b0063002100'),'BLOCKS.DAT':bytes(range(256)),
+              'HEAPIO.DAT':bytes.fromhex('010002002a00'),'RELEASE.DAT':bytes.fromhex('010002003700'),
+              'HALTIO.DAT':bytes.fromhex('010002005800'),'FAULTIO.DAT':bytes.fromhex('010002006300'),
+              'ABI.DAT':bytes.fromhex('010002007b00'),
+              'LOWHALT.DAT':bytes.fromhex('010002005100'),
+              'LOWEXIT.DAT':bytes.fromhex('010002005200'),
+              'LOWEND.DAT':bytes.fromhex('010002005300'),
+              'RAMLOSS.DAT':bytes.fromhex('000002000e00'),'SAVLOSS.DAT':bytes.fromhex('010002000e00'),
+              'WIDE.DAT':bytes.fromhex('01002c01')+bytes(i%251 for i in range(1,301))}
+    expected.update({f'REC{i}.DAT':bytes((1,0,2,0,i,0)) for i in range(4)})
+    expected['CLEAN.DAT']=bytes.fromhex('000002000700')
+    for name,data in expected.items():
+        checks['exact native disk bytes '+name]=(disk/name).is_file() and (disk/name).read_bytes()==data
+    checks['zero-component safety creates no disk file']=not (disk/'ZERO.DAT').exists()
+    image=(disk/'DISKFILES.COM').read_bytes() if (disk/'DISKFILES.COM').is_file() else b''
+    checks['self-contained executable embeds exact module and gate without installed file libraries']=(
+        (ROOT/'build/file_runtime.zpl').read_bytes() in image and
+        (ROOT/'build/file_gate.zpl').read_bytes() in image and
+        not (disk/'file_runtime.zpl').exists() and not (disk/'file_gate.zpl').exists())
+    abi_image=(disk/'DISKABI.COM').read_bytes() if (disk/'DISKABI.COM').exists() else b''
+    checks['independently assembled alternate-register probe retained exactly']=abi_image[0x401d:0x401d+len(abi)]==abi
+    checks.update(error_source_checks())
+    checks['implementation and artifacts unchanged during validation']=all(
+        n.sha(Path(p))==digest for p,digest in hashes.items())
+    report = {'scope': 'Native typed/block file transfers, token storage, automatic routine/heap/program cleanup and RAM/self-contained COM execution; Text/devices, full paths/Rename, copied/variant adoption and full file conformance remain pending',
               'passed': all(checks.values()), 'capture_directory': str(n.RUN.relative_to(ROOT)),
               'native_assertions_passed': word('_test_passed'),
               'native_assertions_failed': word('_test_failed'),

@@ -28,6 +28,7 @@ static Record *record;
 static uint8_t bytes[128];
 static struct { uint8_t flags; char path[128]; } request;
 static zos_stat_t info;
+static uint32_t native_position;
 
 #ifdef ZP_FILE_HOST
 extern uint8_t zf_user_memory[65536];
@@ -168,6 +169,38 @@ static uint8_t new_record(uint16_t owner,uint16_t family,uint16_t width) {
     record->generation=generation; record->family=family; record->width=width;
     slot=i; return 1;
 }
+/* The pinned kernel may return an old-size byte after a successful write
+ * advances its cursor inside an existing (or just truncated) file. Distinguish
+ * that exact post-write path through supported cursor/size queries. Driver
+ * failures return before cursor advancement and must never become success.
+ * No raw kernel table access or third-party patch is needed. */
+static uint8_t bookkeeping_status(uint32_t size,uint32_t position) {
+    if(size<=position) return 0;
+    if((size>>24)!=(position>>24)) return (uint8_t)(size>>24);
+    if((size>>16)!=(position>>16)) return (uint8_t)(size>>16);
+    if((size>>8)!=(position>>8)) return (uint8_t)(size>>8);
+    return 0;
+}
+static uint8_t write_bytes(const uint8_t *data,uint16_t *size) {
+    uint16_t wanted=*size;
+    uint8_t error=write((int8_t)record->fd,data,size);
+    int32_t next=0,end=0,restored;
+    uint32_t advanced;
+    if(!error) {
+        if(*size<=wanted) native_position+=*size;
+        return 0;
+    }
+    if(!wanted||seek((int8_t)record->fd,&next,SEEK_CUR)) return error;
+    if((uint32_t)next<=native_position) return error;
+    advanced=(uint32_t)next-native_position;
+    if(advanced>wanted) return error;
+    if(seek((int8_t)record->fd,&end,SEEK_END)) return error;
+    restored=next;
+    if(seek((int8_t)record->fd,&restored,SEEK_SET)||restored!=next) return error;
+    if(bookkeeping_status((uint32_t)end,(uint32_t)next)!=error) return error;
+    *size=(uint16_t)advanced; native_position=(uint32_t)next;
+    return 0;
+}
 /* The byte bridge owns fixed prefix staging. Neither an outer SDK pointer
  * nor a nested request ever points into page3 or crosses a virtual page. */
 static uint16_t transfer(uint16_t address,uint16_t count,uint8_t writing) {
@@ -177,12 +210,13 @@ static uint16_t transfer(uint16_t address,uint16_t count,uint8_t writing) {
         n=count-done; if(n>sizeof(bytes)) n=sizeof(bytes);
         if(writing) memcpy(bytes,USER(address+done),n);
         size=n;
-        error=writing?write((int8_t)record->fd,bytes,&size):read((int8_t)record->fd,bytes,&size);
+        error=writing?write_bytes(bytes,&size):read((int8_t)record->fd,bytes,&size);
         /* The SDK leaves size unchanged on error; it is not a transferred
          * byte count. Never copy stale input or claim completion from it. */
         if(error) { native_error(error,writing); break; }
         if(size>n) { fail(writing?0xf0:0x99,ERR_INVALID_PARAMETER); break; }
         if(!writing&&size) memcpy(USER(address+done),bytes,size);
+        if(!writing) native_position+=size;
         done+=size;
         if(!size) { if(writing) fail(0xf0,0); break; }
     }
@@ -193,6 +227,7 @@ static uint8_t seek_file(uint32_t at) {
     uint8_t error=seek((int8_t)record->fd,(int32_t *)&at,SEEK_SET);
     if(error) native_error(error,0);
     else if(at!=requested) fail(0x99,0); /* native seek clamps at EOF */
+    else native_position=at;
     return !job->error;
 }
 static uint8_t header(uint8_t writing) {
@@ -205,9 +240,10 @@ static uint8_t header(uint8_t writing) {
     }
     while(done<4) {
         size=4-done;
-        error=writing?write((int8_t)record->fd,bytes+done,&size):read((int8_t)record->fd,bytes+done,&size);
+        error=writing?write_bytes(bytes+done,&size):read((int8_t)record->fd,bytes+done,&size);
         if(error) { native_error(error,writing); return 0; }
         if(!size||size>4-done) { fail(writing?0xf0:0x99,0); return 0; }
+        if(!writing) native_position+=size;
         done+=size;
     }
     if(!writing) {
@@ -397,7 +433,7 @@ void zf_cleanup(FileCleanup *ending) ZFILE_CALL {
     if(ending->operation==ZF_END_PROGRAM) {
         while(page_count) {
             error=drop_page(pages[page_count-1]);
-            if(error) { native_error(error,1); break; }
+            if(error) { fail(0x1ff,error); break; }
             --page_count;
         }
     }

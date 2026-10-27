@@ -14,6 +14,7 @@ python3 tools/test-native.py
 python3 tools/test-input.py
 python3 tools/test-io.py
 python3 tools/test-files.py
+python3 tools/test-file-runtime.py --host --native
 python3 tools/test-workers.py
 python3 tools/test-params.py
 python3 tools/test-math.py
@@ -133,6 +134,23 @@ accept Integer, Byte, Integer-subrange, Real, Char and String targets, including
 selected fields, array elements, pointers and Var parameters. Short-string assignment
 truncates to the destination capacity. Memory execution preserves IDE pages and
 source; checked errors return to their source statement after Escape.
+
+Typed files (`file of T`) support Assign, Reset, Rewrite, Close, Read, Write,
+Seek, FilePos, FileSize, Eof, Flush and Erase. Untyped files support 128-byte
+BlockRead/BlockWrite transfers, including the optional completed-block count.
+Assign currently requires an absolute disk path such as `T:/DATA.DAT`; it
+does not create directories. Typed files retain the four-byte component-count/
+component-size header. Zero-size components report I/O error 90 before creating
+or truncating a file. `$I-` and IOResult support recovery from ordinary I/O errors.
+
+File bindings close automatically when recursive routines return, when their
+heap objects are disposed or released, and when a program ends, halts or fails.
+Checked cleanup errors return to the ending scope or cleanup statement; a later
+cleanup failure preserves an earlier runtime error. Saved file programs include
+their disk runtime and need no separately installed file-runtime libraries.
+Text files, logical devices, Rename, relative paths and the complete file-error/
+capacity matrix remain in progress. File support does not establish full Turbo
+Pascal conformance.
 
 Declarations may repeat in any order. Ordinary constants alias literal/constant
 values; scalar and string typed constants are initialized writable storage.
@@ -332,10 +350,10 @@ while argument expressions still run. Retrieve the status before reporting it:
 if Code <> 0 then WriteLn('Invalid input');
 ```
 
-This currently applies to default-console Read/ReadLn and Write/WriteLn.
+This applies to console I/O and the implemented typed/block disk operations.
 Unchecked I/O does not disable division, range or stack errors. Str and Val
-preserve pending status under the native scoped-I/O correction. Explicit Pascal
-files/devices and unbuffered KeyPressed/Kbd remain pending.
+preserve pending status under the native scoped-I/O correction. Text files/devices
+and unbuffered KeyPressed/Kbd remain pending.
 
 The editor now supports character/word/line movement, smooth scrolling, paging,
 virtual columns through128 and horizontal scrolling. Arrow keys, Home/End and

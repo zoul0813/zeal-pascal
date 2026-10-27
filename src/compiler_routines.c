@@ -64,9 +64,21 @@ static void prologue(void) {
                 cc_file_initialize(cc.symbols[id].type);
             }
 }
+static void unwind_frame(void) {
+    indexed(0x6e,248); indexed(0x66,249); cc_emit(0xf9);
+}
 static void epilogue(void) {
     uint16_t i;
     uint16_t routine=cc_rget(cc.scope,R_SYMBOL);
+    unwind_frame();
+    cc_guard(); /* implicit checked close faults belong to this scope end */
+    cc_emit(0x06); cc_emit(cc.io_check);
+    /* Exit already restored its stack and captured its own source/checking
+     * policy. Join after the implicit scope-end guard, before any cleanup. */
+    cc_patch_chain(cc_rget(cc.scope,R_EXITS),0x4000u+cc.emitted);
+    cc_emit(0xdd); cc_emit(0xe5); cc_emit(0xd1); /* actual ending activation */
+    cc_op16(0x21,0); cc_emit(0x3e); cc_emit(16);
+    cc_op16(0xcd,RT_FILECLEANUP);
     if(cc.symbols[routine].role==S_FUNCTION) {
         for(i=0;i<cc.symbol_count;++i)
             if(cc.symbols[i].owner==cc.scope&&cc.symbols[i].role==S_RESULT) { cc_load_symbol(i); break; }
@@ -160,10 +172,10 @@ static void routine(void) {
     cc_rput(scope,R_FLAGS,flags|RF_DEFINED); cc.scope=scope;
     cc_block(); cc.scope=parent; cc_expect(';',1);
 }
-void cc_block(void) ROUTINES {
+uint16_t cc_block(void) ROUTINES {
     uint16_t first,jump=0,i,entry,start,code;
     uint8_t scope=cc.scope,saved_bound=cc.with_bound;
-    if(++cc.nesting>24) { cc_fail(98); --cc.nesting; return; }
+    if(++cc.nesting>24) { cc_fail(98); --cc.nesting; return cc.token_start; }
     while(!cc.error->code) {
         if(cc_is("label")) cc_labels();
         else if(cc_is("var")||cc_is("const")||cc_is("type")) {
@@ -184,21 +196,25 @@ void cc_block(void) ROUTINES {
         prologue(); cc_mapping(code,cc.emitted-0x8000u,start,cc.token_start);
     }
     cc.with_bound=cc.with_limit;
-    if(!cc_is("begin")) cc_fail(12); else cc_statement();
+    start=cc.token_start;
+    if(!cc_is("begin")) cc_fail(12); else start=cc_statement();
     cc_labels_finish();
     cc.with_bound=saved_bound;
     if(!cc.error->code&&cc.temporaries) cc_fail(99); /* no temporary escapes a statement/block */
     if(scope) {
-        cc_patch_chain(cc_rget(scope,R_EXITS),0x4000u+cc.emitted);
-        code=cc.emitted-0x8000u; start=cc.token_start;
+        code=cc.emitted-0x8000u;
         epilogue(); cc_mapping(code,cc.emitted-0x8000u,start,start);
     }
     --cc.nesting;
+    return start;
 }
 void cc_exit(void) ROUTINES {
     cc_with_unwind();
-    if(!cc.scope) cc_op16(0xc3,RT_DONE);
-    else cc_rput(cc.scope,R_EXITS,cc_link(0xc3,cc_rget(cc.scope,R_EXITS)));
+    if(!cc.scope) cc_finish(RT_DONE);
+    else {
+        unwind_frame(); cc_guard(); cc_emit(0x06); cc_emit(cc.io_check);
+        cc_rput(cc.scope,R_EXITS,cc_link(0xc3,cc_rget(cc.scope,R_EXITS)));
+    }
 }
 static void entry_reference(uint8_t opcode,uint8_t scope) {
     uint16_t entry=cc_rget(scope,R_ENTRY);

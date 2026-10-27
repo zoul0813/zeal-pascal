@@ -583,7 +583,7 @@ def default_library_checks():
     sym = symbols('zpascal')
     ready,key,work = sym['_code_ready'],sym['_key_read'],sym['_work']
     commands = ['run 100000000'] + type_text('H:/zpascal.bin\n')
-    commands += ['run 1000000', f'bp 0x{ready:x}', 'run 2000000000', f'bc 0x{ready:x}',
+    commands += ['run 1000000', f'bp 0x{ready:x}', 'run 8000000000', f'bc 0x{ready:x}',
                  'run 10000000', f'bp 0x{key:x}', 'tap N', 'run 100000000', 'regs',
                  f"rb 0x{sym['_code_owned']:x} 1", f'rb 0x{work:x} 140', f'bc 0x{key:x}']
     commands += type_text('q', ticks=2000000) + ['quit']

@@ -90,6 +90,13 @@ void cc_reserve(uint16_t bytes) FRONTEND {
     cc_emit((uint8_t)pc); cc_emit((uint8_t)(pc>>8));
 }
 void cc_guard(void) FRONTEND { cc_reserve(0); }
+/* Terminal entries restore their own emergency stack before doing cleanup.
+ * Capturing their source PC must not push onto a caller-selected boundary SP. */
+void cc_finish(uint16_t entry) FRONTEND {
+    cc_op16(0x21,cc.emitted-(cc.image->code_origin-0x4000u));
+    cc_op16(0x22,RT_PC);
+    cc_emit(0x06); cc_emit(cc.io_check); cc_op16(0xc3,entry);
+}
 void cc_temporary(uint16_t bytes) FRONTEND {
     cc_reserve(bytes); cc_emit(0xeb); cc_op16(0x21,(uint16_t)(0u-bytes));
     cc_emit(0x39); cc_emit(0xf9); cc_emit(0xeb); /* preserve HL; DE = new SP */

@@ -80,6 +80,11 @@
 #define RT_CBREAK 0x4152u
 #define RT_IOCALL 0x4153u
 #define RT_IORESULT 0x4156u
+#define RT_FILECLEANUP 0x4159u
+#define RT_HEAPFLOOR 0x415cu
+#define RT_IOFAIL 0x415eu
+#define RT_ERROR 0x4161u
+#define RT_IOSTATUS 0x4164u
 #define RT_PARAMTAIL 0xff00u
 #define DEFAULT_SOURCE "T:/src/pascal/UNTITLED.pas"
 enum { PAGE_SOURCE=1, PAGE_IMAGE, PAGE_MAP, PAGE_RUN, PAGE_SNAPSHOT, PAGE_COMPILER, PAGE_WORKER };
@@ -117,11 +122,14 @@ uint8_t far_get(uint8_t page, uint16_t offset) NATIVE;
 void far_set(uint8_t page, uint16_t offset, uint8_t value) NATIVE;
 void ram_enter(void) NATIVE;
 extern uint8_t ram_result[128];
+extern uint16_t ram_io_detail;
+extern uint8_t ram_cleanup_detail;
 extern uint8_t ram_pages[3];
 extern uint16_t ram_entry;
 extern volatile uint32_t page_versions[64];
 extern const uint8_t runtime_start[], runtime_end[];
 extern const uint8_t trampoline_start[], trampoline_end[];
+extern const uint8_t file_start[],file_end[],file_gate_start[],file_gate_end[];
 
 uint8_t page_new(uint8_t role);
 uint8_t page_drop(uint8_t page);

@@ -61,7 +61,7 @@ def native():
                 'HEAP.DAT': bytes.fromhex('010002002a00'),
                 'FRAME.DAT': bytes.fromhex('010002003700'), 'ZERO.DAT': bytes((9, 8, 7, 6)),
                 'MAX.DAT': bytes.fromhex('ffff0100'), 'BLOCKS.DAT': bytes(range(256)),
-                'MANY.DAT': bytes.fromhex('00000200')}
+                'MANY.DAT': bytes.fromhex('00000200'), 'WIDE.DAT': bytes.fromhex('01002c01')+b'\x6b'*300}
     checks = {'native component completes': memory.get(sym['_test_done']) == 255,
               'native disk, ownership, lifetime, stack canary and MMU/IFF assertions':
                   word('_test_failed') == 0 and word('_test_passed') >= 500,

@@ -1,0 +1,20 @@
+program DiskCleanup;
+type code=array[1..%ABI_LENGTH%]of byte;
+  ints=file of integer;item=record f:ints end;pointer=^item;
+var f:ints;p,markptr:pointer;i:integer;
+  probe_layout:array[1..4]of byte; { Keep the assembled probe at $801D. }
+const machine:code=(%ABI_BYTES%);
+function dropfiles:integer;external $8023;
+{$A-}%CHECKING%
+procedure scoped;
+var local:ints;
+begin
+  assign(local,'H:/CLEAN.DAT');rewrite(local);i:=7;write(local,i);
+  if dropfiles<>1 then halt;
+  %SCOPE_EXIT%
+end{SCOPE};
+{$I+}
+begin
+  if addr(machine)<>$801D then halt;
+  %BODY%
+end{PROGRAM}.

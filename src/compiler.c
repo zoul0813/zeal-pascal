@@ -32,7 +32,7 @@ static uint16_t condition(void) {
     cc_emit(0x7c); cc_emit(0xb5); /* A = H | L; false has Z set */
     return cc_forward(0xca);
 }
-static void statement(void);
+static uint16_t statement(void);
 /* Labels share the lexical namespace, but With fields never capture a Goto.
  * Numeric names use their source spelling, rather than an Integer value. */
 static int16_t label_lookup(void) {
@@ -196,18 +196,18 @@ static void case_statement(uint16_t start,uint16_t code) {
     }
     cc_keyword("end",14); patch_jumps(exits);
 }
-static void statement(void) {
+static uint16_t statement(void) {
     uint16_t start=cc.token_start, code=pc(),branch,other,loop,body,head_end;
     int16_t id;
     uint8_t newline,kind,target,indexed;
     uint16_t before=cc.temporaries;
-    if(++cc.depth>24) { cc_fail(98); --cc.depth; return; }
+    if(++cc.depth>24) { cc_fail(98); --cc.depth; return start; }
     id=cc.token==T_ID?cc_lookup():-1;
     if(cc.token==T_NUMBER||(id>=0&&cc.symbols[id].role==S_LABEL)) {
         id=label_lookup();
         if(id<0||cc.symbols[id].role!=S_LABEL) cc_fail(41);
         else label_define((uint16_t)id);
-        if(cc.error->code) { --cc.depth; return; }
+        if(cc.error->code) { --cc.depth; return start; }
         start=cc.token_start;
     }
     if(cc_is("begin")) {
@@ -216,12 +216,13 @@ static void statement(void) {
             statement();
             if(cc.token==';') cc_next(); else if(!cc_is("end")) cc_fail(1);
         }
+        start=cc.token_start;
         if(cc_is("end")) cc_next(); else cc_fail(14);
-        --cc.depth; return;
+        --cc.depth; return start;
     } else if(cc_is("case")) {
-        case_statement(start,code); --cc.depth; return;
+        case_statement(start,code); --cc.depth; return start;
     } else if(cc_is("with")) {
-        with_statement(start,code); --cc.depth; return;
+        with_statement(start,code); --cc.depth; return start;
     } else if(cc_is("if")) {
         cc_next(); branch=condition(); cc_keyword("then",17);
         mapping(code,pc(),start,cc.token_start);
@@ -231,13 +232,13 @@ static void statement(void) {
             mapping(code,pc(),start,cc.token_start);
             cc_patch(branch); cc_next(); statement(); cc_patch(other);
         } else cc_patch(branch);
-        --cc.depth; return;
+        --cc.depth; return start;
     } else if(cc_is("while")) {
         loop=cc.emitted; cc_next(); branch=condition(); cc_keyword("do",13);
         head_end=cc.token_start; mapping(code,pc(),start,head_end);
         statement(); code=pc(); cc_address(0xc3,0x4000u+loop); cc_patch(branch);
         mapping(code,pc(),start,head_end);
-        --cc.depth; return;
+        --cc.depth; return start;
     } else if(cc_is("repeat")) {
         loop=cc.emitted; cc_next();
         while(!cc.error->code&&!cc_is("until")&&cc.token!=T_EOF) {
@@ -248,7 +249,7 @@ static void statement(void) {
         branch=condition();
         if(!cc.error->code) cc_word(branch,0x4000u+loop);
         mapping(code,pc(),start,cc.token_start);
-        --cc.depth; return;
+        --cc.depth; return start;
     } else if(cc_is("for")) {
         cc_next(); id=cc.token==T_ID?cc_lookup():-1;
         if(!cc_variable(id)) cc_fail(24);
@@ -286,7 +287,7 @@ static void statement(void) {
         cc_address(0xc3,0x4000u+body);
         cc_patch(branch); cc_patch(other); cc_emit(0xc1); /* exactly one owned bound word */
         mapping(code,pc(),start,head_end);
-        --cc.depth; return;
+        --cc.depth; return start;
     } else if(cc_is("goto")) {
         goto_statement();
     } else if((cc_is("write")||cc_is("writeln"))&&cc_lookup()<0) {
@@ -301,10 +302,11 @@ static void statement(void) {
         cc_string_statement(cc_is("insert"));
     } else if(cc_is("randomize")&&cc_lookup()<0) {
         cc_next(); cc_randomize();
+    } else if(cc_file_statement()) {
     } else if(cc_runtime_statement()) {
     } else if((cc_is("halt")||cc_is("exit"))&&cc_lookup()<0) {
         newline=cc_is("halt"); cc_next();
-        if(newline) cc_op16(0xc3,RT_HALT); else cc_exit();
+        if(newline) cc_finish(RT_HALT); else cc_exit();
     }
     else if(cc.token==T_ID&&!cc_is("end")) {
         id=cc_lookup();
@@ -340,8 +342,9 @@ static void statement(void) {
     } else if(cc.token!=';'&&!cc_is("end")&&!cc_is("else")&&!cc_is("until")) cc_fail(54);
     mapping(code,pc(),start,cc.token_start);
     --cc.depth;
+    return start;
 }
-void cc_statement(void) BACKEND { statement(); }
+uint16_t cc_statement(void) BACKEND { return statement(); }
 void build_close(Build *b) {
     uint8_t i;
     b->valid=0;
@@ -388,6 +391,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     cc.random_entry=0; cc.random_state=0;
     cc.text_type=255;
     cc.parameter_entry=0;
+    cc.file_entry=0;
     cc_new_type(K_INTEGER,2,-32768,32767,0);
     cc_new_type(K_STRING,0,0,0,0); /* expression/literal string, not a storage type */
     cc_new_type(K_BOOLEAN,1,0,1,0);
@@ -404,10 +408,12 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     }
     b->code_origin=0xc000u;
     cc.emitted=0x8000u;
-    cc_block();
+    i=cc_block();
+    j=pc();
     cc_expect('.',10);
     if(cc.token!=T_EOF) cc_fail(58);
-    cc_op16(0xc3,RT_DONE);
+    cc_finish(RT_DONE);
+    mapping(j,pc(),i,i);
     if(d->code) goto failed;
     if(!cc_place_code()) goto failed;
     if(page_drop(cc.workspace)) cc.workspace=255;

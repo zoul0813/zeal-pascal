@@ -75,7 +75,7 @@ int main(int argc,char **argv) {
     invalid("var r:real;begin r:=true end.",44);
     invalid("var f,g:text;\nbegin f:=g end.",54);
     invalid("var f:text;\nbegin f:=1 end.",54);
-    invalid("var f:text;\nbegin writeln(f)end.",54);
+    invalid("var f:text;\nbegin writeln(1+f)end.",54);
     invalid("type f=file;\nprocedure p(a:f);\nbegin end;\nbegin end.",67);
     invalid("function f:text;\nbegin end;\nbegin end.",67);
     invalid("type a=file;\nf=file of a;\nbegin end.",68);
@@ -152,6 +152,16 @@ int main(int argc,char **argv) {
     load("begin writeln(paramcount,paramstr(1))end.");
     check(compile(&s,&b,&d));check(cc.parameter_entry&&cc.temporaries==0);ordered_map();build_close(&b);
     load("begin end.");check(compile(&s,&b,&d));check(!cc.parameter_entry);build_close(&b);
+    load("var f:file of integer;a:array[0..1]of integer;begin writeln(sizeof(a[filepos(f)]))end.");
+    check(compile(&s,&b,&d));check(!cc.file_entry&&cc.temporaries==0);build_close(&b);
+    load("var f:integer;function filepos(n:integer):integer;begin filepos:=n end;\nbegin f:=7;writeln(filepos(f))end.");
+    check(compile(&s,&b,&d));check(!cc.file_entry);build_close(&b);
+    invalid("var f:file of integer;begin assign(f,1)end.",33);
+    invalid("var f:integer;begin reset(f)end.",44);
+    invalid("var f:file of integer;begin seek(f,true)end.",23);
+    invalid("var f:file of integer;begin write(f,1)end.",41);
+    invalid("var f:file of integer;b:byte;begin write(f,b)end.",44);
+    invalid("var f:file;b:byte;begin blockread(f,b,1,b)end.",24);
     load("var a:array[0..1]of integer;begin writeln(sizeof(a[random(2)]))end.");
     check(compile(&s,&b,&d)); check(!cc.random_entry&&!cc.random_state);
     build_close(&b);
@@ -502,14 +512,15 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes","filetokens","params"};
+            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes","filetokens","params","diskfiles","diskblocks","disklife","diskwide"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {
                 snprintf(path,sizeof(path),"tests/native/%s.pas",fixtures[fixture]);
                 file=fopen(path,"rb"); check(file!=NULL);
                 n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
-                check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
+                check(source_import(&s,text,n,&d));
+                old=compile(&s,&b,&d); if(!old) fprintf(stderr,"fixture %s\n",fixtures[fixture]); check(old);
                 if(!strcmp(fixtures[fixture],"absolute")) check(b.globals_bytes==8);
                 if(!strcmp(fixtures[fixture],"realabi")) check(b.globals_bytes==0);
                 ordered_map(); build_close(&b);

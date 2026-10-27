@@ -322,7 +322,8 @@ static uint8_t factor(void) {
             negative=raw_kind(); raw_index(); kind=K_BYTE;
             if(negative==1) cc_load_indirect(K_BYTE);
             else { cc_emit(0x4d); cc_emit(0x44); cc_emit(0xed); cc_emit(0x68); cc_emit(0x26); cc_emit(0); }
-        } else if(id<0&&(fn=predefined_function())>=0) kind=intrinsic((uint8_t)fn);
+        } else if(id<0&&(fn=cc_file_function())>=0) kind=(uint8_t)fn;
+        else if(id<0&&(fn=predefined_function())>=0) kind=intrinsic((uint8_t)fn);
         else if(id<0&&(cc_is("true")||cc_is("false"))) {
             cc_op16(0x21,cc_is("true")?1:0); kind=K_BOOLEAN; cc_next();
         } else if(id<0&&cc_is("maxint")) { cc_op16(0x21,32767); cc_next();
@@ -526,7 +527,10 @@ uint8_t cc_runtime_statement(void) BACKEND {
     }
     cc_expect(')',5);
     if(op==2) { cc_emit(0x3e); cc_emit(2); cc_call(RT_AVAIL); }
-    else cc_call(op<=1?RT_ALLOC:op<=4?RT_FREE:RT_RELEASE);
+    else {
+        if(op>=3) { cc_emit(0x06); cc_emit(cc.io_check); }
+        cc_call(op<=1?RT_ALLOC:op<=4?RT_FREE:RT_RELEASE);
+    }
     if(op==0&&cc_file_fields(cc.types[type].element)) {
         cc_emit(0x54); cc_emit(0x5d); cc_file_initialize(cc.types[type].element);
     }

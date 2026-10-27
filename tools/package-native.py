@@ -66,6 +66,11 @@ def validate_runtime(path):
         if (memory.get(entry)!=0xc3 or memory.get(entry+1)!=symbols[name]&255
                 or memory.get(entry+2)!=symbols[name]>>8):
             raise ValueError('runtime helper jump is misplaced: '+name)
+    for entry, name in ((0x4159,'file_cleanup'), (0x415e,'io_fail'), (0x4161,'call_error')):
+        if bytes(memory.get(entry+i,0) for i in range(3)) != b'\xc3'+struct.pack('<H',symbols[name]):
+            raise ValueError('runtime file helper jump is misplaced: '+name)
+    if symbols['heap_floor']!=0x415c or symbols['io_status']!=0x4164:
+        raise ValueError('runtime file/I/O state is misplaced')
     if not all(0x77cd<=symbols[name]<0x7ea6
                for name in ('format_field','field_output','str_copy','integer_prepare','val_field',
                             'read_line','read_string','input_begin','input_value','input_end')):
@@ -119,6 +124,16 @@ def validate_file_runtime(path):
               'sha256': hashlib.sha256(payload).hexdigest()}
     path.with_suffix('.module.json').write_text(json.dumps(report, indent=2)+'\n')
     print('file runtime:', report)
+
+
+def validate_file_gate(path):
+    memory, symbols=read_hex(path),read_symbols(path)
+    if not memory or min(memory)!=0xfe90 or max(memory)>=0xff00 or symbols['file_gate_end']>0xff00:
+        raise ValueError('file module gate overlaps transition data or cached command tail')
+    payload=bytes(memory.get(at,0) for at in range(0xfe90,max(memory)+1))
+    if path.with_suffix('.zpl').read_bytes()!=payload:
+        raise ValueError('file module gate differs from its checked link image')
+    print('file gate:',len(payload),'bytes; bounded below command-tail cache')
 
 
 def package(path):
@@ -182,4 +197,5 @@ if __name__ == '__main__':
     if sys.argv[1]=='--runtime':validate_runtime(Path(sys.argv[2]))
     elif sys.argv[1]=='--trampoline':validate_trampoline(Path(sys.argv[2]))
     elif sys.argv[1]=='--file-runtime':validate_file_runtime(Path(sys.argv[2]))
+    elif sys.argv[1]=='--file-gate':validate_file_gate(Path(sys.argv[2]))
     else:package(Path(sys.argv[1]))
