@@ -19,6 +19,7 @@
 !/tools/test-standard.py
 !/tools/test-keyboard.py
 !/tools/test-logical.py
+!/tools/test-console.py
 !/tools/test-file-runtime.py
 !/tools/test-runtime-layout.py
 !/tools/test-params.py

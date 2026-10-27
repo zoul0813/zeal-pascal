@@ -8,7 +8,7 @@ static const char *const reserved[] = {
 static const struct {const char *name;uint16_t address;uint8_t type;} system_variables[]={
     {"heapptr",RT_HEAPPTR,K_INTEGER},{"recurptr",RT_RECURPTR,K_INTEGER},
     {"buflen",RT_BUFLEN,K_BYTE},{"cbreak",RT_CBREAK,K_BOOLEAN}};
-static const char *const standard_names[]={"input","output","kbd"};
+static const char *const standard_names[]={"input","output","kbd","con","trm"};
 static uint8_t text_file_type(void) {
     if(cc.text_type==255) {
         cc.text_type=cc_new_type(K_FILE,16,0,0,FILE_TEXT);

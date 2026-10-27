@@ -4,11 +4,11 @@
 .globl _key_event,c_save,c_restore,io_check,io_fail,io_status
 .globl line_history
 .globl input_ready,input_advance,input_source,line_next,line_remaining,line_eof,line_valid
-.globl input_key,input_raw_key,input_mode,input_cleanup,input_fail,input_error,echo_fd,input_echo
+.globl input_key,input_raw_key,input_mode,input_cleanup,input_fail,input_error,echo_fd,input_echo,input_open,input_close
 .area _REAL_DATA
 line_next: .ds 2
 line_remaining: .ds 1
-line_valid: .ds 1               ; bit0 primary current byte; bit1 pending B+ line
+line_valid: .ds 1               ; bit0 primary current; bit1 pending B+; bit2 primary sticky EOF
 line_eof: .ds 1
 primary_byte: .ds 1
 line_buffer: .ds 129             ; 127 content bytes plus ordinary CR/LF
@@ -28,6 +28,9 @@ input_token: .ds 31             ; short string: at most30 numeric bytes
 ; current-byte cache; the physical line cursor belongs to input_source instead.
 input_begin::
     push af
+    ld hl,#line_valid
+    bit 2,(hl)                 ; an ended primary stream cannot discard Con data
+    jr nz,input_initialized
     and #1
     jr z,input_initialized
     ld a,#2
@@ -48,7 +51,18 @@ input_ready:
     jr nz,input_current
     push bc
     push de
+    ld a,#26
+    bit 2,(hl)
+    jr nz,input_cache
     call input_source
+    cp #26
+    jr nz,input_cache
+    ld hl,#line_eof
+    bit 0,(hl)                 ; B+ synthetic26 does not make primary EOF sticky
+    jr z,input_cache
+    ld hl,#line_valid
+    set 2,(hl)
+input_cache:
     ld (primary_byte),a
     pop de
     pop bc
@@ -63,10 +77,6 @@ input_source:
     ld a,(line_remaining)
     or a
     jr nz,input_source_byte
-    ld a,(line_eof)
-    or a
-    ld a,#26
-    ret nz
     call input_line
 input_source_byte:
     ld hl,(line_next)
@@ -99,6 +109,7 @@ input_limit_ready:
     ld (input_max),a
     xor a
     ld (input_length),a
+    ld (line_eof),a             ; physical Ctrl-Z belongs to this accepted line
     ld de,#0                    ; blocking raw while editing
     call input_mode
     or a
@@ -219,7 +230,7 @@ input_line_ready:
     ; Physical refill never invalidates a different binding's current byte.
     ; Publish the complete extent before echo/cleanup can fail nonlocally.
     ld a,(line_valid)
-    and #1
+    and #5
     ld (line_valid),a
     call input_cleanup
     or a
@@ -451,8 +462,8 @@ input_end_marker:
     call input_advance
     xor a
     ld (primary_byte),a
-    ld a,(line_eof)
-    or a
+    ld a,(line_valid)
+    and #4
     ret nz
     call input_open
     ld a,#13

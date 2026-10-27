@@ -400,6 +400,36 @@ static void keyboard_files(void) {
     put(0xc30c,ZF_STANDARD_KBD); check(call(ZF_EOF)==0);
     clean(ZF_END_PROGRAM,0,0);
 }
+static void console_files(void) {
+    uint16_t device;
+    for(device=ZF_STANDARD_CON;device<=ZF_STANDARD_TRM;++device) {
+        defaults(); VM(0xc100)[0]=0; put(0xc101,0); invocation.count=ZF_TEXT_CHAR;
+        assign(device==ZF_STANDARD_CON?"cOn:":"tRm:");
+        check(call(ZF_TEXT_READ)==0&&invocation.stream==device);
+        invocation.lookahead=0x141; check(call(ZF_STREAM_RETURN)==0);
+        check(call(ZF_CLOSE)==0); check(call(ZF_EOLN)==0&&invocation.lookahead==0x141);
+        check(call(ZF_RESET)==0); check(call(ZF_EOF)==0&&invocation.lookahead==0);
+        check(call(ZF_TEXT_WRITELN)==0&&invocation.stream==device);
+        invocation.data=0xc200; VM(0xc200)[0]=1; VM(0xc201)[0]='X';
+        check(call(ZF_TEXT_WRITE)==0&&invocation.stream==device);
+        check(call(ZF_REWRITE)==0); check(call(ZF_TEXT_READ)==0&&invocation.lookahead==0);
+        invocation.lookahead=0x142; invocation.stream=device==ZF_STANDARD_CON?ZF_STANDARD_TRM:ZF_STANDARD_CON;
+        check(call(ZF_STREAM_RETURN)==0x1ff);
+        check(call(ZF_ERASE)==0x20); check(named(ZF_RENAME,"H:/CONINVALID")==0x20);
+        clean(ZF_END_PROGRAM,0,0);
+    }
+    defaults(); VM(0xc100)[0]=0; put(0xc101,0); invocation.code_origin=0xc100;
+    invocation.standard_table=0xc300;
+    put(0xc300,2); put(0xc302,0xc000); put(0xc304,ZF_STANDARD_CON);
+    put(0xc306,0xc020); put(0xc308,ZF_STANDARD_TRM);
+    for(device=ZF_STANDARD_CON;device<=ZF_STANDARD_TRM;++device) {
+        invocation.object=device==ZF_STANDARD_CON?0xc000:0xc020;
+        check(call(ZF_EOF)==0&&invocation.stream==device);
+        check(call(ZF_RESET)==0x22);check(call(ZF_REWRITE)==0x22);check(call(ZF_CLOSE)==0x22);
+        check(named(ZF_ASSIGN,"CON:")==0x22);
+    }
+    clean(ZF_END_PROGRAM,0,0);
+}
 static void standard_files(void) {
     uint16_t code;
     defaults(); invocation.code_origin=0xc100;
@@ -535,7 +565,7 @@ static void faults(void) {
 #endif
 int main(void) {
     check(sizeof(FileJob)==ZF_JOB_BYTES&&sizeof(FileCleanup)==10);
-    basic(); lifetime(); boundaries(); block_files(); many(); wide_components(); text_files(); file_paths(); renames(); standard_files(); keyboard_files();
+    basic(); lifetime(); boundaries(); block_files(); many(); wide_components(); text_files(); file_paths(); renames(); standard_files(); keyboard_files(); console_files();
 #ifndef __SDCC
     faults(); rename_faults(); check(model_pages==0&&model_handles==0);
     printf("%u file runtime assertions passed, %u failed\n",test_passed,test_failed);

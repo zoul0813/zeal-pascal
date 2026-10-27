@@ -77,10 +77,16 @@ static void stream_result(void) {
     guard(512);
     cc_op16(0xcd,RT_IOCALL); operand=cc.emitted; cc_relocate(operand);
     cc_emit(0); cc_emit(0); cc_emit(0); /* private helper, always I- */
+    index_store(0x7e,34); cc_emit(0xfe); cc_emit(ZF_STANDARD_CON); finish=cc_forward(0xda);
+    index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_TEXT_WRITE); write=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(ZF_TEXT_WRITELN); end=cc_forward(0xc2);
+    cc_patch(write); cc_op16(0x3a,RT_IOSTATUS); cc_emit(0xfe); cc_emit(0x20); write=cc_forward(0xc2);
+    cc_emit(0x3e); cc_emit(0xf0); cc_op16(0x32,RT_IOSTATUS);
+    cc_patch(finish); cc_patch(end); cc_patch(write);
     cc_op16(0x3a,RT_IOSTATUS); index_store(0x77,22);
     cc_emit(0xaf); index_store(0x77,23);
     cc_op16(0x2a,0xfe7a); index_store(0x75,24); index_store(0x74,25);
-    index_store(0x7e,34); cc_emit(0xfe); cc_emit(ZF_STANDARD_KBD); finish=cc_forward(0xc2);
+    index_store(0x7e,34); cc_emit(0xfe); cc_emit(ZF_STANDARD_KBD); finish=cc_forward(0xda);
     /* Commit even after an unchecked service/cleanup error. The private file
      * owner preserves the first error and the operation's result/count. */
     index_store(0x7e,0); cc_emit(0xf5);
@@ -89,8 +95,8 @@ static void stream_result(void) {
     cc_emit(0xf1); index_store(0x77,0);
     number_result(); cc_patch(finish); done=cc_forward(0xc3);
     cc_word(operand,cc.emitted);
-    index_store(0x7e,34); cc_emit(0xfe); cc_emit(ZF_STANDARD_KBD); buffered=cc_forward(0xc2);
-    cc_keyboard_stream(); cc_patch(buffered);
+    index_store(0x7e,34); cc_emit(0xfe); cc_emit(ZF_STANDARD_KBD); buffered=cc_forward(0xda);
+    cc_logical_stream(); cc_patch(buffered);
     index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_TEXT_BEGIN); begin=cc_forward(0xca);
     cc_emit(0xfe); cc_emit(ZF_TEXT_READ); read=cc_forward(0xca);
     cc_emit(0xfe); cc_emit(ZF_TEXT_WRITE); write=cc_forward(0xca);

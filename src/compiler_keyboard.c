@@ -48,20 +48,36 @@ static void key_index(uint8_t opcode,uint8_t offset) { cc_emit(0xfd); cc_emit(op
  * this one synchronous operation; the caller returns it before propagating
  * errors. No Pascal callback runs here. The existing prefix owns all physical
  * input, modifier/release decoding, typeahead, mode restoration and failures. */
-void cc_keyboard_stream(void) FRONTEND {
+void cc_logical_stream(void) FRONTEND {
     uint16_t body,peek,take,space,ready,read,line,predicate,skip,loop,done;
-    uint16_t character,string,token,empty,eof,yes,no,answer,lines;
+    uint16_t character,string,token,empty,eof,yes,no,answer,lines,cached,raw,quiet,cr,output,newline,nonempty;
     body=cc_forward(0xc3);
     peek=cc.emitted;
     cc_emit(0xc5); cc_emit(0xd5); cc_emit(0xe5);
     key_index(0x7e,37); cc_emit(0xb7); ready=cc_forward(0xc2);
+    key_index(0x7e,34); cc_emit(0xfe); cc_emit(ZF_STANDARD_CON); raw=cc_forward(0xc2);
+    cc_op16(0xcd,cc_runtime_private(RP_INPUT_SOURCE)); cached=cc_forward(0xc3);
+    cc_patch(raw);
     cc_emit(0x3e); cc_emit(255); cc_op16(0x32,cc_runtime_private(RP_ECHO_FD));
     cc_op16(0x11,0); cc_op16(0xcd,cc_runtime_private(RP_INPUT_MODE));
     cc_emit(0xb7); cc_op16(0xc2,cc_runtime_private(RP_INPUT_FAIL));
-    cc_op16(0xcd,cc_runtime_private(RP_INPUT_KEY));
+    key_index(0x7e,34); cc_emit(0xfe); cc_emit(ZF_STANDARD_TRM); quiet=cc_forward(0xc2);
+    cc_op16(0xcd,cc_runtime_private(RP_INPUT_OPEN));
+    cc_patch(quiet); cc_op16(0xcd,cc_runtime_private(RP_INPUT_KEY));
     key_index(0x77,36); key_index(0x36,37); cc_emit(1);
+    key_index(0x7e,34); cc_emit(0xfe); cc_emit(ZF_STANDARD_TRM); quiet=cc_forward(0xc2);
+    key_index(0x7e,36); cc_emit(0xfe); cc_emit(13); cr=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(32); empty=cc_forward(0xda);
+    cc_emit(0xfe); cc_emit(127); done=cc_forward(0xd2);
+    cc_op16(0xcd,cc_runtime_private(RP_INPUT_ECHO)); output=cc_forward(0xc3);
+    cc_patch(cr); cc_op16(0xcd,cc_runtime_private(RP_INPUT_ECHO));
+    cc_emit(0x3e); cc_emit(10); cc_op16(0xcd,cc_runtime_private(RP_INPUT_ECHO));
+    cc_patch(quiet); cc_patch(empty); cc_patch(done); cc_patch(output);
     cc_op16(0xcd,cc_runtime_private(RP_INPUT_CLEANUP));
     cc_emit(0xb7); cc_op16(0xc2,cc_runtime_private(RP_IO_ERROR));
+    skip=cc_forward(0xc3);
+    cc_patch(cached); key_index(0x77,36); key_index(0x36,37); cc_emit(1);
+    cc_patch(skip);
     cc_patch(ready); cc_emit(0xe1); cc_emit(0xd1); cc_emit(0xc1); key_index(0x7e,36); cc_emit(0xc9);
     take=cc.emitted; cc_address(0xcd,peek); key_index(0x36,37); cc_emit(0); cc_emit(0xc9);
     space=cc.emitted;
@@ -69,12 +85,39 @@ void cc_keyboard_stream(void) FRONTEND {
     cc_emit(0xfe); cc_emit(13); cc_emit(0xc8); cc_emit(0xfe); cc_emit(10); cc_emit(0xc9);
 
     cc_patch(body); key_index(0x7e,0);
+    cc_emit(0xfe); cc_emit(ZF_TEXT_WRITE); output=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(ZF_TEXT_WRITELN); read=cc_forward(0xc2);
+    cc_patch(output);
+    cc_emit(0xfe); cc_emit(ZF_TEXT_WRITELN); nonempty=cc_forward(0xca);
+    key_index(0x6e,6); key_index(0x66,7); cc_emit(0x7e); cc_emit(0xb7); cc_emit(0xc8);
+    cc_patch(nonempty);
+    cc_emit(0x3e); cc_emit(255); cc_op16(0x32,cc_runtime_private(RP_ECHO_FD));
+    cc_op16(0xcd,cc_runtime_private(RP_INPUT_OPEN));
+    key_index(0x7e,0); cc_emit(0xfe); cc_emit(ZF_TEXT_WRITELN); newline=cc_forward(0xca);
+    key_index(0x6e,6); key_index(0x66,7); cc_emit(0x46); cc_emit(0x23);
+    loop=cc.emitted; cc_emit(0x78); cc_emit(0xb7); done=cc_forward(0xca);
+    cc_emit(0xc5); cc_emit(0xe5); cc_emit(0x7e); cc_op16(0xcd,cc_runtime_private(RP_INPUT_ECHO));
+    cc_emit(0xe1); cc_emit(0xc1); cc_emit(0x23); cc_emit(0x05); cc_address(0xc3,loop);
+    cc_patch(newline); cc_emit(0x3e); cc_emit(13); cc_op16(0xcd,cc_runtime_private(RP_INPUT_ECHO));
+    cc_emit(0x3e); cc_emit(10); cc_op16(0xcd,cc_runtime_private(RP_INPUT_ECHO));
+    cc_patch(done); cc_op16(0xcd,cc_runtime_private(RP_INPUT_CLOSE));
+    cc_emit(0xb7); cc_op16(0xc2,cc_runtime_private(RP_IO_ERROR)); cc_emit(0xc9);
+    cc_patch(read); key_index(0x7e,0);
     cc_emit(0xfe); cc_emit(ZF_TEXT_BEGIN); skip=cc_forward(0xc2);
     key_index(0x7e,8); cc_emit(0xe6); cc_emit(2); cc_emit(0xc8); cc_address(0xc3,peek);
     cc_patch(skip); cc_emit(0xfe); cc_emit(ZF_TEXT_READ); read=cc_forward(0xca);
     cc_emit(0xfe); cc_emit(ZF_TEXT_READLN); predicate=cc_forward(0xc2);
     line=cc.emitted; cc_address(0xcd,peek); cc_emit(0xfe); cc_emit(26); cc_emit(0xc8);
-    cc_address(0xcd,take); cc_emit(0xfe); cc_emit(13); cc_emit(0xc8); cc_address(0xc3,line);
+    cc_address(0xcd,take); cc_emit(0xfe); cc_emit(13); cr=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(10); skip=cc_forward(0xc2);
+    key_index(0x7e,34); cc_emit(0xfe); cc_emit(ZF_STANDARD_CON); cc_emit(0xc8);
+    cc_patch(skip); cc_address(0xc3,line);
+    cc_patch(cr); key_index(0x7e,34); cc_emit(0xfe); cc_emit(ZF_STANDARD_CON); cc_emit(0xc0);
+    /* Discard only an LF already in the shared physical buffer. A different
+     * binding may own it, or may have refilled the source; never fetch a key. */
+    cc_op16(0x3a,cc_runtime_private(RP_LINE_REMAINING)); cc_emit(0xb7); cc_emit(0xc8);
+    cc_op16(0x2a,cc_runtime_private(RP_LINE_NEXT)); cc_emit(0x7e); cc_emit(0xfe); cc_emit(10); cc_emit(0xc0);
+    cc_op16(0xc3,cc_runtime_private(RP_INPUT_SOURCE));
 
     cc_patch(read); key_index(0x6e,6); key_index(0x66,7); key_index(0x46,8); key_index(0x4e,9);
     cc_emit(0x78); cc_emit(0xfe); cc_emit(ZF_TEXT_CHAR); character=cc_forward(0xca);

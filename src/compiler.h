@@ -93,10 +93,11 @@ uint16_t cc_runtime_size(void);
 uint8_t cc_runtime_get(uint16_t offset);
 /* Build-bound private input addresses; never an installed/public runtime ABI. */
 enum { RP_INPUT_READY,RP_INPUT_ADVANCE,RP_LINE_NEXT,RP_LINE_REMAINING,RP_LINE_EOF,RP_LINE_VALID,
-       RP_INPUT_KEY,RP_INPUT_RAW_KEY,RP_INPUT_MODE,RP_INPUT_CLEANUP,RP_INPUT_FAIL,RP_IO_ERROR,RP_ECHO_FD };
+       RP_INPUT_KEY,RP_INPUT_RAW_KEY,RP_INPUT_MODE,RP_INPUT_CLEANUP,RP_INPUT_FAIL,RP_IO_ERROR,RP_ECHO_FD,
+       RP_INPUT_SOURCE,RP_INPUT_OPEN,RP_INPUT_ECHO,RP_INPUT_CLOSE };
 uint16_t cc_runtime_private(uint8_t entry);
 void cc_keypressed(void) FRONTEND;
-void cc_keyboard_stream(void) FRONTEND;
+void cc_logical_stream(void) FRONTEND;
 uint16_t cc_file_asset_size(uint8_t gate);
 uint8_t cc_file_asset_get(uint8_t gate,uint16_t offset);
 void cc_expect(uint16_t t,uint8_t code) FRONTEND;

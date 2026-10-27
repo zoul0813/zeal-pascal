@@ -18,6 +18,7 @@ python3 tools/test-text.py
 python3 tools/test-standard.py
 python3 tools/test-keyboard.py
 python3 tools/test-logical.py
+python3 tools/test-console.py
 python3 tools/test-file-runtime.py --host --native
 python3 tools/test-workers.py
 python3 tools/test-params.py
@@ -185,8 +186,8 @@ Var Text aliases. They read a line when needed and inspect its unread tail.
 SeekEoln skips spaces/tabs within a line; SeekEof also skips line endings.
 Predicate-observed ordinary EOL yields CR to the next character read. The B+
 directive still starts a fresh line for omitted Read/ReadLn; B- uses the primed
-line. The other preassigned/logical devices and the complete file-error/capacity
-matrix remain in progress. File support does not
+line. Con/Trm are also supported as described below; the other logical devices and
+the complete file-error/capacity matrix remain in progress. File support does not
 establish full Turbo Pascal conformance.
 
 Generated code and static storage can occupy up to29,696 bytes above the fixed
@@ -212,7 +213,8 @@ empty string. RAM runs receive no arguments. Command tails allow up to 127 bytes
 longer tails are rejected before the Pascal program starts. Ord, Succ and Pred accept
 String/Char-array values of exactly one character; other lengths report runtime
 error 10. The compiler currently has
-512 symbol entries (seven predeclared for HeapPtr/RecurPtr/BufLen/CBreak/Input/Output/Kbd) and 64 type descriptors
+512 symbol entries (nine predeclared for HeapPtr/RecurPtr/BufLen/CBreak and
+Input/Output/Kbd/Con/Trm) and 64 type descriptors
 (including six built-in types).
 Exhaustion reports resource error 98. Arrays support ordinal bounds, nested or
 comma-separated dimensions, packed layout, whole-array assignment, typed
@@ -416,7 +418,28 @@ Enter/Escape/Delete produce CR/ESC/DEL; Ctrl-J remains LF and raw Ctrl-C is byte
 Assign accepts `KBD:` case-insensitively without a disk path or directory.
 Reset/Rewrite clear the binding's lookahead; Close on an assigned logical file
 is a no-op. Kbd is input-only (I/O3 on writes); Assign/Reset/Rewrite/Close on the
-preassigned Kbd report I/O22. Other logical/preassigned devices remain pending.
+preassigned Kbd report I/O22.
+
+Con and Text assigned to `CON:` use the shared buffered console line source,
+with a separate current-byte cache for each binding. They support Char/String/
+numeric Read/ReadLn, Eof/Eoln/SeekEof/SeekEoln and Var Text aliases. Cached bytes
+survive another binding loading a new physical line. Con ReadLn consumes CR and
+an LF already present in the buffer, without fetching another physical key; it
+also handles a CR consumed by an earlier Char read. Consuming Con's Ctrl-Z with
+Char permits another line; primary Input retains its existing sticky EOF rule.
+
+Trm and Text assigned to `TRM:` read immediately without Enter. They use the
+same raw decoder, typeahead, conversions and predicates as Kbd. Printable keys
+echo to the physical console; CR echoes CR/LF and other controls do not echo.
+Raw ReadLn stops at CR without consuming a following LF. Con/Trm formatted
+Write/Writeln goes to the physical video console independently of Pascal
+Output. Physical output errors report I/O F0; input-service errors report I/O20.
+Pending earlier errors retain their code and suppress transfers.
+
+Logical names are case-insensitive and create no disk files or directories.
+Assigned CON:/TRM: support immediate input/output, Reset/Rewrite clear only that
+binding's lookahead, and Close is a no-op. Preassigned Con/Trm lifecycle calls
+report I/O22. Lst/Aux/Usr and their logical names remain pending.
 
 The duplicate-key case during RAM resource calls is fixed and tested with
 complete queued taps. Parent resource services retain the caller's interrupt

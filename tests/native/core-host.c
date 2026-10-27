@@ -41,7 +41,7 @@ static void invalid(const char *text,uint8_t code) {
     check(!ok&&d.code==code); check(pages_used()==1);
 }
 static void keyboard_corpus(void) {
-    const char *names[]={"kbdread","kbdbind","kbdlife","kbdupper","kbdfail"};
+    const char *names[]={"kbdread","kbdbind","kbdlife","kbdupper","kbdfail","conread","conbind","conoutput","conupper","conoutfail","confail","trmread","trmfail"};
     char path[80],text[16384];
     unsigned i;
     for(i=0;i<sizeof(names)/sizeof(names[0]);++i) {
@@ -118,6 +118,10 @@ int main(int argc,char **argv) {
     check(compile(&s,&b,&d));check(b.globals_bytes==2&&!cc.file_entry);build_close(&b);
     load("var c:char;procedure p(var f:text);begin read(f,c)end;begin p(Kbd)end.");
     check(compile(&s,&b,&d));check(cc.file_entry&&cc.temporaries==0);build_close(&b);
+    load("var c:char;procedure p(var f:text);begin read(f,c)end;begin p(Con);p(Trm);write(Con,c);write(Trm,c)end.");
+    check(compile(&s,&b,&d));check(cc.file_entry&&cc.temporaries==0);build_close(&b);
+    load("var Con,Trm:integer;begin Con:=1;Trm:=Con end.");
+    check(compile(&s,&b,&d));check(b.globals_bytes==4&&!cc.file_entry);build_close(&b);
     load("type text=integer;\nvar n:text;\nbegin n:=7;\nwriteln(n)end.");
     check(compile(&s,&b,&d)); check(cc.text_type==255); build_close(&b);
     load("type ints=file of integer;raw=file;z=record end;zero=file of z;\nblock=array[1..300]of byte;wide=file of block;\nvar t:text;f:ints;u:raw;e:zero;w:wide;begin end.");
