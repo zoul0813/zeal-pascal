@@ -70,6 +70,17 @@ static void bridge_corpus(void) {
         build_close(&b);
     }
 }
+static void hook_corpus(void) {
+    const char *names[]={"hookout","hookmulti","hookaux","hookstatus","hookusr","hookecho","hookpure","hookerror","hookioerr"};
+    char path[80],text[16384]; unsigned i;
+    for(i=0;i<sizeof(names)/sizeof(names[0]);++i) {
+        FILE *file; size_t length;
+        snprintf(path,sizeof(path),"tests/native/%s.pas",names[i]);file=fopen(path,"rb");check(file!=NULL);
+        length=fread(text,1,sizeof(text),file);check(feof(file)&&!ferror(file));check(fclose(file)==0);
+        check(source_import(&s,(const uint8_t*)text,(uint16_t)length,&d));
+        check(compile(&s,&b,&d));check(cc.temporaries==0);build_close(&b);
+    }
+}
 static uint16_t map_word(uint16_t at) { return far_get(b.map_page,at)|((uint16_t)far_get(b.map_page,at+1)<<8); }
 static void ordered_map(void) {
     uint16_t at=96+map_word(84),last=0,begin,end;
@@ -97,6 +108,7 @@ int main(int argc,char **argv) {
     check(source_new(&s,"H:/SLICE.PAS"));
     keyboard_corpus();
     bridge_corpus();
+    hook_corpus();
     load("begin  \r\nend. \r\n\032padding"); check(s.length==11);
     check(source_replace(&s,0,0,NULL,0)&&!s.dirty);
     {

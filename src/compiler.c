@@ -392,7 +392,11 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     cc.parameter_entry=0;
     cc.file_entry=0;
     cc.standard_table_operand=0;
-    cc.keyboard_entry=0; cc.keyboard_poll=0;
+    cc.keyboard_entry=0; cc.keyboard_poll=0; cc.keyboard_status=0;
+    memset(cc.hook_variables,0,sizeof(cc.hook_variables));
+    memset(cc.hook_defaults,0,sizeof(cc.hook_defaults));
+    cc.hook_output_calls=0; cc.hook_mask_call=0;
+    cc.hook_character=0; cc.hook_echo=0; cc.hook_open=0;
     cc_new_type(K_INTEGER,2,-32768,32767,0);
     cc_new_type(K_STRING,0,0,0,0); /* expression/literal string, not a storage type */
     cc_new_type(K_BOOLEAN,1,0,1,0);
@@ -415,7 +419,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     if(cc.token!=T_EOF) cc_fail(58);
     cc_finish(RT_DONE);
     mapping(j,pc(),i,i);
-    cc_file_finish();
+    cc_hooks_finish(); cc_file_finish();
     if(d->code) goto failed;
     if(!cc_place_code()) goto failed;
     if(cc.stage_page!=255) {

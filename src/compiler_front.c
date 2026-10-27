@@ -8,7 +8,8 @@ static const char *const reserved[] = {
 static const struct {const char *name;uint16_t address;uint8_t type;} system_variables[]={
     {"heapptr",RT_HEAPPTR,K_INTEGER},{"recurptr",RT_RECURPTR,K_INTEGER},
     {"buflen",RT_BUFLEN,K_BYTE},{"cbreak",RT_CBREAK,K_BOOLEAN}};
-static const char *const standard_names[]={"input","output","kbd","con","trm","lst","aux"};
+static const char *const standard_names[]={"input","output","kbd","con","trm","lst","aux","usr"};
+static const char *const hook_names[]={"constptr","conoutptr","lstoutptr","auxoutptr","usroutptr"};
 static uint8_t text_file_type(void) {
     if(cc.text_type==255) {
         cc.text_type=cc_new_type(K_FILE,16,0,0,FILE_TEXT);
@@ -27,6 +28,10 @@ void cc_system_init(void) FRONTEND {
     for(i=0;i<sizeof(standard_names)/sizeof(standard_names[0]);++i) {
         Symbol *s=&cc.symbols[cc.symbol_count++];
         memset(s,0,sizeof(*s));s->role=S_STANDARD;s->type=255;s->initial_type=i+1;
+    }
+    for(i=0;i<HOOK_COUNT;++i) {
+        Symbol *s=&cc.symbols[cc.symbol_count++];
+        memset(s,0,sizeof(*s));s->role=S_HOOK;s->type=K_INTEGER;s->initial_type=i;
     }
 }
 
@@ -95,6 +100,9 @@ uint8_t cc_place_code(void) FRONTEND {
      * Both RAM and saved images own their typeahead state and exact target. */
     if(cc.keyboard_entry)
         cc_word(cc_runtime_private(RP_INPUT_KEY)-0x4000u+1,cc.keyboard_entry+delta);
+    for(i=0;i<HOOK_COUNT;++i) if(cc.hook_variables[i])
+        cc_word(cc.hook_variables[i]-0x4000u,cc.hook_defaults[i]+delta);
+    cc_hooks_place(delta);
     if(cc.error->code) return 0;
     cc.image->code_origin=origin; cc.image->code_bytes=count;
     cc.image->length=origin-0x4000u+count;
@@ -312,6 +320,10 @@ int16_t cc_lookup(void) FRONTEND {
                 }
                 continue;
             }
+            if(cc.symbols[i].role==S_HOOK) {
+                if(cc_is(hook_names[cc.symbols[i].initial_type])) return (int16_t)i;
+                continue;
+            }
             if(cc.symbols[i].role==S_SYSTEM) {
                 for(j=0;j<sizeof(system_variables)/sizeof(system_variables[0]);++j)
                     if(cc.symbols[i].address==system_variables[j].address&&cc_is(system_variables[j].name)) return (int16_t)i;
@@ -375,7 +387,7 @@ uint16_t cc_new_symbol(uint8_t role) FRONTEND {
     uint16_t id=cc.symbol_count;
     int16_t old=cc_lookup();
     if(cc.token!=T_ID) cc_fail(53);
-    else if(old>=0&&cc.symbols[old].owner==cc.scope&&cc.symbols[old].role!=S_SYSTEM&&cc.symbols[old].role!=S_STANDARD) cc_fail(43);
+    else if(old>=0&&cc.symbols[old].owner==cc.scope&&cc.symbols[old].role!=S_SYSTEM&&cc.symbols[old].role!=S_STANDARD&&cc.symbols[old].role!=S_HOOK) cc_fail(43);
     else if(id==SYMBOL_LIMIT) cc_fail(98);
     if(cc.error->code) return 0;
     memset(&cc.symbols[id],0,sizeof(Symbol));
@@ -419,7 +431,7 @@ uint8_t cc_compatible(uint8_t left,uint8_t right) FRONTEND {
 uint8_t cc_variable(int16_t id) FRONTEND {
     return id>=0&&(cc.symbols[id].role==S_VARIABLE||cc.symbols[id].role==S_TYPED||
            cc.symbols[id].role==S_VALUE||cc.symbols[id].role==S_REFERENCE||cc.symbols[id].role==S_RESULT||cc.symbols[id].role==S_FIELD||cc.symbols[id].role==S_SYSTEM||
-           cc.symbols[id].role==S_ADDRESS||cc.symbols[id].role==S_ALIAS||cc.symbols[id].role==S_STANDARD);
+           cc.symbols[id].role==S_ADDRESS||cc.symbols[id].role==S_ALIAS||cc.symbols[id].role==S_STANDARD||cc.symbols[id].role==S_HOOK);
 }
 uint16_t cc_rget(uint8_t scope,uint8_t field) FRONTEND {
     uint16_t at=PAGE_SIZE-(uint16_t)scope*ROUTINE_BYTES+field;
@@ -466,6 +478,7 @@ void cc_frame(uint8_t scope) FRONTEND {
 }
 void cc_slot(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];
+    if(s->role==S_HOOK) cc_hook_variable(id);
     if(s->role==S_STANDARD&&!s->address&&!cc.suppress&&!cc.error->code) {
         if((uint32_t)cc.image->globals_bytes+16>=PAGE_SIZE) { cc_fail(99); return; }
         s->address=GLOBAL_BASE+cc.image->globals_bytes; cc.image->globals_bytes+=16;
@@ -496,6 +509,7 @@ static uint8_t indirect_symbol(const Symbol *s) {
 }
 void cc_destination(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];
+    if(s->role==S_HOOK) cc_hook_variable(id);
     if(indirect_symbol(s)) {
         cc_guard(); cc_emit(0xe5); cc_symbol_address(id); cc_emit(0xeb); cc_emit(0xe1);
     } else if(s->role==S_TYPED) cc_address(0x11,s->address);
@@ -503,6 +517,7 @@ void cc_destination(uint16_t id) FRONTEND {
 }
 void cc_load_symbol(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];
+    if(s->role==S_HOOK) cc_hook_variable(id);
     if(s->type==255) { cc_fail(44); return; }
     if(cc_family(s->type)==K_FILE) { cc_fail(54); return; }
     if(cc_family(s->type)==K_SET) { cc_symbol_address(id); cc_set_load(s->type); return; }
@@ -519,6 +534,7 @@ void cc_load_symbol(uint16_t id) FRONTEND {
 void cc_store_symbol(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];
     uint8_t op;
+    if(s->role==S_HOOK) cc_hook_variable(id);
     if(s->type==255) { cc_fail(44); return; }
     op=cc.types[s->type].width==1?0x32:0x22;
     if(indirect_symbol(s)) {

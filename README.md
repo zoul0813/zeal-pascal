@@ -20,6 +20,7 @@ python3 tools/test-keyboard.py
 python3 tools/test-logical.py
 python3 tools/test-console.py
 python3 tools/test-devices.py
+python3 tools/test-hooks.py
 python3 tools/test-bridges.py
 python3 tools/test-bridges.py --corpus routines
 python3 tools/test-bridges.py --corpus real
@@ -190,7 +191,7 @@ Var Text aliases. They read a line when needed and inspect its unread tail.
 SeekEoln skips spaces/tabs within a line; SeekEof also skips line endings.
 Predicate-observed ordinary EOL yields CR to the next character read. The B+
 directive still starts a fresh line for omitted Read/ReadLn; B- uses the primed
-line. Con/Trm are also supported as described below; the other logical devices and
+line. The logical devices are described below; replacement input drivers and
 the complete file-error/capacity matrix remain in progress. File support does not
 establish full Turbo Pascal conformance.
 
@@ -217,9 +218,9 @@ empty string. RAM runs receive no arguments. Command tails allow up to 127 bytes
 longer tails are rejected before the Pascal program starts. Ord, Succ and Pred accept
 String/Char-array values of exactly one character; other lengths report runtime
 error 10. The compiler currently has
-512 symbol entries (eleven predeclared for HeapPtr/RecurPtr/BufLen/CBreak and
-Input/Output/Kbd/Con/Trm/Lst/Aux) and 64 type descriptors
-(including six built-in types).
+512 symbol entries (seventeen predeclared for HeapPtr/RecurPtr/BufLen/CBreak,
+Input/Output/Kbd/Con/Trm/Lst/Aux/Usr and the five output/status pointers) and
+64 type descriptors (including six built-in types).
 Exhaustion reports resource error 98. Arrays support ordinal bounds, nested or
 comma-separated dimensions, packed layout, whole-array assignment, typed
 initializers and value/Var parameters. R+ checks each index before access.
@@ -317,9 +318,10 @@ within its declaring activation; its private22-byte thunk lives in that frame
 and becomes invalid when the owner returns. Mark/Release does not reclaim it.
 All-static lexical ancestry uses a program-lifetime bridge with no captured
 frame; static routines inside recursive ancestry still retain the live lexical
-chain. Top-level routine addresses remain ordinary native entries. Device and
-error hook variables are still pending; this completes their nested-address
-prerequisite rather than adding procedural-parameter syntax.
+chain. Top-level routine addresses remain ordinary native entries. Output/status
+driver pointers use these bridges as described below.
+Replacement input pointers and ErrorPtr remain pending; no procedural-parameter
+syntax is added.
 
 The [control-flow fixture](tests/native/control.pas),
 [ordinal fixture](tests/native/ordinals.pas), [Case fixture](tests/native/cases.pas)
@@ -470,7 +472,32 @@ Assigned LST:/AUX: Reset/Rewrite clear lookahead; Close is a no-op. Preassigned
 Lst/Aux lifecycle calls report I/O22. Logical names are case-insensitive and
 create no disk files. Native UART transmission is emulator-tested; reception and
 faults have deterministic host coverage, while physical serial RX remains an
-open hardware gate. Usr and replacement Pascal device/error callbacks remain pending.
+open hardware gate.
+
+Usr and Text assigned to `USR:` provide raw unechoed console input and physical
+console output. Input uses its own binding cache, consumes Ctrl-Z on a Char read,
+and permits a subsequent refill, like Kbd. Default Usr output is independent of
+ConOutPtr. Assigned Reset/Rewrite clear lookahead and Close is a no-op;
+preassigned Usr lifecycle operations report I/O22.
+
+ConStPtr, ConOutPtr, LstOutPtr, AuxOutPtr and UsrOutPtr are writable Integer
+addresses. Assign `Addr(callback)` to replace one; save its original value to
+restore the default. ConSt callbacks return Boolean without parameters; output
+callbacks take one Char. Nested callbacks may capture still-active recursive
+locals through the native Addr bridges. A callback address must not outlive its
+captured owner.
+
+ConOut intercepts ordinary Output, Con/Trm output and console input echo.
+ConSt supplies KeyPressed from the callback's Boolean result; physical
+typeahead remains separate. Lst/Aux/Usr output uses the corresponding pointer,
+including assigned logical files and Var Text aliases. Saved default pointers
+are callable native Pascal adapters: physical video, unavailable printer, or
+native SER0 as appropriate. Default ordinary Output retains inherited stdout;
+the saved ConOut adapter writes to physical video. Pending I/O errors suppress
+callbacks, and a callback's error code survives outer cleanup. Error unwinds
+close files owned by abandoned callback frames while retaining caller and heap
+file owners. Replacement
+ConInPtr/AuxInPtr/UsrInPtr and ErrorPtr dispatch remain pending.
 
 The duplicate-key case during RAM resource calls is fixed and tested with
 complete queued taps. Parent resource services retain the caller's interrupt
@@ -480,8 +507,8 @@ hardware acceptance remain open.
 Inline machine-code statements and the C/U/X directives are also pending;
 the implemented directives are A, B, I checking, R, V and W.
 Pascal CRT calls (ClrScr, ClrEol, GotoXY, InsLine, DelLine, CrtInit/CrtExit,
-LowVideo/NormVideo/HighVideo and Delay), driver/error callbacks, Chain/Execute
-and overlays remain pending. CP/M BIOS/BDOS services are intentionally
+LowVideo/NormVideo/HighVideo and Delay), replacement input/error callbacks,
+Chain/Execute and overlays remain pending. CP/M BIOS/BDOS services are intentionally
 unavailable on Zeal; explicit unsupported-target diagnostics for them are still
 pending. These gaps are separate from the editor's display functions.
 

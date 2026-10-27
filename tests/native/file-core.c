@@ -503,6 +503,27 @@ static void printer_files(void) {
     put(0xc31c,6); check(call(ZF_EOF)==0x1ff); /* duplicate Lst/Aux identity */
     put(0xc31c,7); clean(ZF_END_PROGRAM,0,0);
 }
+static void callback_output_files(void) {
+    /* New requests are explicitly tagged. A mask only lends output after the
+     * existing binding, direction and complete value have been authenticated. */
+    defaults(); VM(0xc100)[0]=0; put(0xc101,0);
+    assign("LST:"); invocation.count=0x4001; VM(0xc200)[0]=1; VM(0xc201)[0]='X';
+    check(call(ZF_TEXT_WRITE)==0&&invocation.stream==6);
+    check(call(ZF_TEXT_WRITELN)==0&&invocation.stream==6);
+    invocation.count=0x8000; check(call(ZF_TEXT_WRITE)==0x20&&!invocation.stream);
+    invocation.count=0x4001; invocation.data=0xffff; check(call(ZF_TEXT_WRITE)==0x1ff&&!invocation.stream);
+    invocation.data=0xc200; assign("KBD:");check(call(ZF_TEXT_WRITE)==3&&!invocation.stream);
+    assign("AUX:");invocation.count=0x4002;check(call(ZF_TEXT_WRITE)==0&&invocation.stream==7);
+    assign("uSr:");invocation.count=ZF_TEXT_CHAR;
+    check(call(ZF_TEXT_READ)==0&&invocation.stream==8);
+    invocation.lookahead=0x15a;check(call(ZF_STREAM_RETURN)==0);
+    check(call(ZF_CLOSE)==0);check(call(ZF_EOF)==0&&invocation.lookahead==0x15a);
+    check(call(ZF_RESET)==0);check(call(ZF_EOLN)==0&&invocation.lookahead==0);
+    invocation.count=0;check(call(ZF_TEXT_WRITELN)==0&&invocation.stream==8);
+    check(named(ZF_RENAME,"H:/USRINVALID")==0x20);check(call(ZF_ERASE)==0x20);
+    clean(ZF_END_PROGRAM,0,0);
+    defaults();check(named(ZF_ASSIGN,"USR:")==0x20);
+}
 #ifndef __SDCC
 static void serial_input(const char *data,uint16_t length) {
     memcpy(model_serial_input,data,length); model_serial_size=length; model_serial_position=0;
@@ -665,7 +686,7 @@ static void faults(void) {
 #endif
 int main(void) {
     check(sizeof(FileJob)==ZF_JOB_BYTES&&sizeof(FileCleanup)==10);
-    basic(); lifetime(); boundaries(); block_files(); many(); wide_components(); text_files(); file_paths(); renames(); standard_files(); keyboard_files(); console_files(); printer_files();
+    basic(); lifetime(); boundaries(); block_files(); many(); wide_components(); text_files(); file_paths(); renames(); standard_files(); keyboard_files(); console_files(); printer_files(); callback_output_files();
 #ifndef __SDCC
     serial_files(); faults(); rename_faults(); check(model_pages==0&&model_handles==0);
     printf("%u file runtime assertions passed, %u failed\n",test_passed,test_failed);

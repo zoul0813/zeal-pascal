@@ -5,11 +5,12 @@
  * pending press and its presence flag. The prefix still owns raw release pairs
  * and the one modifier decoder. Its private dispatch consumes this cache before
  * returning to the existing raw reader, so buffered input cannot lose a peek. */
-static void engine(void) {
+void cc_keyboard_engine(void) FRONTEND {
     uint16_t skip,state,empty;
     if(cc.keyboard_entry||cc.suppress||cc.error->code) return;
     skip=cc_forward(0xc3);
     state=cc.emitted; cc_emit(0); cc_emit(0);
+    cc.keyboard_status=cc.emitted; cc_emit(0);
     cc.keyboard_entry=cc.emitted;
     cc_address(0x3a,state); cc_emit(0xb7); empty=cc_forward(0xca);
     cc_emit(0xaf); cc_address(0x32,state);
@@ -18,9 +19,8 @@ static void engine(void) {
 
     cc.keyboard_poll=cc.emitted;
     cc_op16(0x3a,RT_IOSTATUS); cc_emit(0xb7); cc_op16(0xc2,RT_IOFAIL);
-    cc_address(0x3a,state); cc_emit(0xb7); cc_emit(0xc0);
-    /* No Pascal callback runs while the buffered editor owns its echo handle.
-     * Establish invalid ownership before any mode/read failure can clean up. */
+    cc_address(0x3a,state); cc_address(0x32,cc.keyboard_status); cc_emit(0xb7); cc_emit(0xc0);
+    /* Polling owns no buffered editor echo handle. Establish invalid ownership before any mode/read failure can clean up. */
     cc_emit(0x3e); cc_emit(255); cc_op16(0x32,cc_runtime_private(RP_ECHO_FD));
     cc_op16(0x11,4); cc_op16(0xcd,cc_runtime_private(RP_INPUT_MODE));
     cc_emit(0xb7); cc_op16(0xc2,cc_runtime_private(RP_INPUT_FAIL));
@@ -28,25 +28,27 @@ static void engine(void) {
     cc_emit(0xb7); empty=cc_forward(0xca);
     cc_address(0x32,state+1); cc_emit(0x3e); cc_emit(1); cc_address(0x32,state);
     cc_patch(empty); cc_op16(0xcd,cc_runtime_private(RP_INPUT_CLEANUP));
-    cc_emit(0xb7); cc_op16(0xc2,cc_runtime_private(RP_IO_ERROR)); cc_emit(0xc9);
+    cc_emit(0xb7); cc_op16(0xc2,cc_runtime_private(RP_IO_ERROR));
+    cc_address(0x3a,state); cc_address(0x32,cc.keyboard_status); cc_emit(0xc9);
     cc_patch(skip);
 }
 void cc_keypressed(void) FRONTEND {
     uint16_t done;
-    engine();
+    cc_keyboard_engine();
     cc_reserve(512); cc_op16(0xcd,RT_IOCALL);
     cc_relocate(cc.emitted);
     cc_emit((uint8_t)cc.keyboard_poll); cc_emit((uint8_t)(cc.keyboard_poll>>8)); cc_emit(cc.io_check);
     /* IOCALL owns HL while restoring its landing. Read the owned result only
      * after that restoration; unchecked/pending failures return False. */
     cc_op16(0x21,0); cc_op16(0x3a,RT_IOSTATUS); cc_emit(0xb7); done=cc_forward(0xc2);
-    cc_address(0x3a,cc.keyboard_entry-2); cc_emit(0x6f); cc_patch(done);
+    cc_address(0x3a,cc.keyboard_status); cc_emit(0x6f); cc_patch(done);
 }
 
 static void key_index(uint8_t opcode,uint8_t offset) { cc_emit(0xfd); cc_emit(opcode); cc_emit(offset); }
 /* IY is an authenticated FileJob. The file owner lends its current byte for
  * this one synchronous operation; the caller returns it before propagating
- * errors. No Pascal callback runs here. The existing prefix owns all physical
+ * errors. Output and echo may invoke Pascal callbacks after prefix restoration.
+ * The existing prefix owns all physical
  * input, modifier/release decoding, typeahead, mode restoration and failures. */
 void cc_logical_stream(void) FRONTEND {
     uint16_t body,peek,take,space,ready,read,line,predicate,skip,loop,done;
@@ -91,17 +93,14 @@ void cc_logical_stream(void) FRONTEND {
     cc_emit(0xfe); cc_emit(ZF_TEXT_WRITELN); nonempty=cc_forward(0xca);
     key_index(0x6e,6); key_index(0x66,7); cc_emit(0x7e); cc_emit(0xb7); cc_emit(0xc8);
     cc_patch(nonempty);
-    cc_emit(0x3e); cc_emit(255); cc_op16(0x32,cc_runtime_private(RP_ECHO_FD));
-    cc_op16(0xcd,cc_runtime_private(RP_INPUT_OPEN));
     key_index(0x7e,0); cc_emit(0xfe); cc_emit(ZF_TEXT_WRITELN); newline=cc_forward(0xca);
     key_index(0x6e,6); key_index(0x66,7); cc_emit(0x46); cc_emit(0x23);
     loop=cc.emitted; cc_emit(0x78); cc_emit(0xb7); done=cc_forward(0xca);
-    cc_emit(0xc5); cc_emit(0xe5); cc_emit(0x7e); cc_op16(0xcd,cc_runtime_private(RP_INPUT_ECHO));
+    cc_emit(0xc5); cc_emit(0xe5); cc_emit(0x7e); cc_hook_output();
     cc_emit(0xe1); cc_emit(0xc1); cc_emit(0x23); cc_emit(0x05); cc_address(0xc3,loop);
-    cc_patch(newline); cc_emit(0x3e); cc_emit(13); cc_op16(0xcd,cc_runtime_private(RP_INPUT_ECHO));
-    cc_emit(0x3e); cc_emit(10); cc_op16(0xcd,cc_runtime_private(RP_INPUT_ECHO));
-    cc_patch(done); cc_op16(0xcd,cc_runtime_private(RP_INPUT_CLOSE));
-    cc_emit(0xb7); cc_op16(0xc2,cc_runtime_private(RP_IO_ERROR)); cc_emit(0xc9);
+    cc_patch(newline); cc_emit(0x3e); cc_emit(13); cc_hook_output();
+    cc_emit(0x3e); cc_emit(10); cc_hook_output();
+    cc_patch(done); cc_emit(0xc9);
     cc_patch(read); key_index(0x7e,0);
     cc_emit(0xfe); cc_emit(ZF_TEXT_BEGIN); skip=cc_forward(0xc2);
     key_index(0x7e,8); cc_emit(0xe6); cc_emit(2); cc_emit(0xc8); cc_address(0xc3,peek);

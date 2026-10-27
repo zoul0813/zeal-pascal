@@ -21,7 +21,8 @@ enum { FILE_TEXT,FILE_TYPED,FILE_UNTYPED };
 /* Set expression kinds encode the ordinal family without allocating a type
  * descriptor for every constructor. The empty kind has no fixed base family. */
 enum { K_SET_EXPR=128,K_EMPTY_SET=192,K_ANY_POINTER,K_NIL };
-enum { S_VARIABLE,S_CONSTANT,S_TYPE,S_TYPED,S_PENDING,S_VALUE,S_REFERENCE,S_RESULT,S_PROCEDURE,S_FUNCTION,S_SYSTEM,S_ADDRESS,S_ALIAS,S_LABEL,S_STANDARD,S_FIELD,S_VARIANT,S_VLABEL };
+enum { S_VARIABLE,S_CONSTANT,S_TYPE,S_TYPED,S_PENDING,S_VALUE,S_REFERENCE,S_RESULT,S_PROCEDURE,S_FUNCTION,S_SYSTEM,S_ADDRESS,S_ALIAS,S_LABEL,S_STANDARD,S_HOOK,S_FIELD,S_VARIANT,S_VLABEL };
+enum { HOOK_STATUS,HOOK_CON_OUT,HOOK_LST_OUT,HOOK_AUX_OUT,HOOK_USR_OUT,HOOK_COUNT };
 enum { R_PARENT=0,R_FLAGS=1,R_SYMBOL=2,R_ENTRY=4,R_CALLS=6,R_PARAMETERS=8,R_COUNT=10,R_LOCALS=12,R_EXITS=14,
        R_DESCRIPTOR=16,R_THUNK=18,R_LOCAL_GUARD=20,R_LOCAL_ALLOC=22 };
 #define ROUTINE_BYTES 24u
@@ -60,7 +61,10 @@ typedef struct {
     uint16_t parameter_entry;
     uint16_t file_entry;
     uint16_t standard_table_operand;
-    uint16_t keyboard_entry,keyboard_poll;
+    uint16_t keyboard_entry,keyboard_poll,keyboard_status;
+    uint16_t hook_variables[HOOK_COUNT],hook_defaults[HOOK_COUNT];
+    uint16_t hook_output_calls,hook_mask_call;
+    uint16_t hook_character,hook_echo,hook_open;
 } Compiler;
 extern Compiler cc;
 
@@ -100,6 +104,12 @@ enum { RP_INPUT_READY,RP_INPUT_ADVANCE,RP_LINE_NEXT,RP_LINE_REMAINING,RP_LINE_EO
 uint16_t cc_runtime_private(uint8_t entry);
 void cc_keypressed(void) FRONTEND;
 void cc_logical_stream(void) FRONTEND;
+void cc_keyboard_engine(void) FRONTEND;
+void cc_hook_variable(uint16_t id) ROUTINES;
+void cc_hook_output(void) ROUTINES;
+void cc_hooks_finish(void) ROUTINES;
+void cc_hooks_place(uint16_t delta) ROUTINES;
+uint16_t cc_file_default_output(void) FRONTEND;
 uint16_t cc_file_asset_size(uint8_t gate);
 uint8_t cc_file_asset_get(uint8_t gate,uint16_t offset);
 void cc_expect(uint16_t t,uint8_t code) FRONTEND;

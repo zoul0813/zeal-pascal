@@ -189,10 +189,10 @@ static uint8_t standards(void) {
     if(!table) return 1;
     if(!within(table,2,job->code_origin,job->static_end)) { fail(0x1ff,0); return 0; }
     count=word(table);
-    if(count>ZF_STANDARD_AUX||!within(table+2,count*4,job->code_origin,job->static_end)) { fail(0x1ff,0); return 0; }
+    if(count>ZF_STANDARD_USR||!within(table+2,count*4,job->code_origin,job->static_end)) { fail(0x1ff,0); return 0; }
     for(i=0;i<count;++i) {
         at=table+2+4*i; object=word(at); identity=word(at+2);
-        if(!identity||identity>ZF_STANDARD_AUX||(identities&(1u<<(identity-1)))||
+        if(!identity||identity>ZF_STANDARD_USR||(identities&(1u<<(identity-1)))||
            !within(object,16,0x8000,job->code_origin)) { fail(0x1ff,0); return 0; }
         identities|=1u<<(identity-1);
         for(j=0;j<i;++j) if(word(table+2+4*j)==object) { fail(0x1ff,0); return 0; }
@@ -507,6 +507,7 @@ static uint8_t logical_device(const char *path) {
     if(!strcmp(path,"TRM:")) return ZF_STANDARD_TRM;
     if(!strcmp(path,"LST:")) return ZF_STANDARD_LST;
     if(!strcmp(path,"AUX:")) return ZF_STANDARD_AUX;
+    if(!strcmp(path,"USR:")) return ZF_STANDARD_USR;
     return 0;
 }
 /* Capture and resolve once, before replacing any association. The fixed prefix
@@ -675,6 +676,12 @@ static void logical_stream(void) {
         break;
     default: fail(0x20,0); return;
     }
+    if((job->operation==ZF_TEXT_WRITE||job->operation==ZF_TEXT_WRITELN)&&
+       !(job->count&ZF_OUTPUT_NATIVE)&&(job->count&ZF_OUTPUT_OVERRIDES)&&
+       ((record->device==ZF_STANDARD_LST&&(job->count&ZF_OUTPUT_LST))||
+        (record->device==ZF_STANDARD_AUX&&(job->count&ZF_OUTPUT_AUX)))) {
+        job->stream=record->device; return;
+    }
     if(record->device==ZF_STANDARD_LST) { fail(0x20,ERR_NOT_SUPPORTED); return; }
     if(record->device==ZF_STANDARD_AUX) { serial_stream(); save_record(slot); return; }
     job->stream=record->device;
@@ -698,7 +705,8 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
     if(job->operation!=ZF_STREAM_RETURN&&!standards()) return;
     valid=bound(owner,family,width);
     if(job->operation==ZF_STREAM_RETURN) {
-        if(!valid||record->device<ZF_STANDARD_KBD||record->device>ZF_STANDARD_TRM||
+        if(!valid||record->device<ZF_STANDARD_KBD||record->device>ZF_STANDARD_USR||
+           record->device==ZF_STANDARD_LST||record->device==ZF_STANDARD_AUX||
            job->stream!=record->device||job->lookahead>0x1ffu)
             fail(0x1ff,0);
         else {

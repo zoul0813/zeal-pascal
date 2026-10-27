@@ -77,23 +77,19 @@ static void stream_result(void) {
     guard(512);
     cc_op16(0xcd,RT_IOCALL); operand=cc.emitted; cc_relocate(operand);
     cc_emit(0); cc_emit(0); cc_emit(0); /* private helper, always I- */
-    index_store(0x7e,34); cc_emit(0xfe); cc_emit(ZF_STANDARD_CON); finish=cc_forward(0xda);
-    index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_TEXT_WRITE); write=cc_forward(0xca);
-    cc_emit(0xfe); cc_emit(ZF_TEXT_WRITELN); end=cc_forward(0xc2);
-    cc_patch(write); cc_op16(0x3a,RT_IOSTATUS); cc_emit(0xfe); cc_emit(0x20); write=cc_forward(0xc2);
-    cc_emit(0x3e); cc_emit(0xf0); cc_op16(0x32,RT_IOSTATUS);
-    cc_patch(finish); cc_patch(end); cc_patch(write);
     cc_op16(0x3a,RT_IOSTATUS); index_store(0x77,22);
     cc_emit(0xaf); index_store(0x77,23);
     cc_op16(0x2a,0xfe7a); index_store(0x75,24); index_store(0x74,25);
     index_store(0x7e,34); cc_emit(0xfe); cc_emit(ZF_STANDARD_KBD); finish=cc_forward(0xda);
+    index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_TEXT_WRITE); write=cc_forward(0xca);
+    cc_emit(0xfe); cc_emit(ZF_TEXT_WRITELN); end=cc_forward(0xca);
     /* Commit even after an unchecked service/cleanup error. The private file
      * owner preserves the first error and the operation's result/count. */
     index_store(0x7e,0); cc_emit(0xf5);
     index_store(0x36,0); cc_emit(ZF_STREAM_RETURN);
     cc_emit(0xfd); cc_emit(0xe5); cc_emit(0xe1); cc_emit(0xaf); cc_op16(0xcd,0xfe90);
     cc_emit(0xf1); index_store(0x77,0);
-    number_result(); cc_patch(finish); done=cc_forward(0xc3);
+    number_result(); cc_patch(finish); cc_patch(write); cc_patch(end); done=cc_forward(0xc3);
     cc_word(operand,cc.emitted);
     index_store(0x7e,34); cc_emit(0xfe); cc_emit(ZF_STANDARD_KBD); buffered=cc_forward(0xda);
     cc_logical_stream(); cc_patch(buffered);
@@ -169,6 +165,7 @@ static void engine(void) {
     cc_op16(0x2a,0x4014); index_store(0x75,30); index_store(0x74,31);
     cc.standard_table_operand=cc.emitted+1; cc_address(0x21,0);
     index_store(0x75,32); index_store(0x74,33);
+    cc.hook_mask_call=cc.emitted; cc_op16(0xcd,0);
     cc_emit(0xe1); cc_emit(0xe5); cc_emit(0xaf); cc_op16(0xcd,0xfe90);
     stream_result();
     index_store(0x6e,24); index_store(0x66,25); cc_op16(0x22,0xfe7a);
@@ -210,6 +207,30 @@ static void invoke(uint16_t base) {
     cc_reserve(64); cc_op16(0x21,cc.temporaries-base-ZF_JOB_BYTES); cc_emit(0x39);
     cc_op16(0xcd,RT_IOCALL); cc_relocate(cc.emitted);
     cc_emit((uint8_t)cc.file_entry); cc_emit((uint8_t)(cc.file_entry>>8)); cc_emit(cc.io_check);
+}
+/* Native Pascal procedure(Char), independent of any current output override.
+ * The complete ordinary file owner handles SER0 mode/descriptor cleanup. */
+uint16_t cc_file_default_output(void) FRONTEND {
+    uint16_t entry=cc.emitted,base;
+    uint8_t type;
+    guard(1024);
+    cc_op16(0x2a,RT_PC); cc_emit(0xe5);
+    cc_op16(0x21,4); cc_emit(0x39); cc_emit(0x46);
+    cc_temporary(2); cc_emit(0x3e); cc_emit(1); cc_emit(0x12); cc_emit(0x13); cc_emit(0x78); cc_emit(0x12);
+    base=job_start(ZF_TEXT_WRITE);
+    type=cc_standard_reference(ZF_STANDARD_AUX); argument_descriptor(type);
+    cc_op16(0x21,ZF_JOB_BYTES); cc_emit(0x39); store(6,0);
+    cc_op16(0x21,ZF_OUTPUT_NATIVE); store(8,0);
+    cc_op16(0x21,ZF_JOB_BYTES+2); cc_emit(0x39); cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56);
+    cc_emit(0xeb); cc_op16(0x22,RT_PC);
+    engine(); guard(64); cc_op16(0x21,0); cc_emit(0x39);
+    cc_op16(0xcd,RT_IOCALL); cc_relocate(cc.emitted);
+    cc_emit((uint8_t)cc.file_entry); cc_emit((uint8_t)(cc.file_entry>>8)); cc_emit(0);
+    cc_release(base); /* the two-byte short string remains */
+    cc_release(0); cc_emit(0xe1); cc_op16(0x22,RT_PC);
+    cc_emit(0xd1); cc_emit(0xc1); cc_emit(0xd5);
+    cc_op16(0x3a,RT_IOSTATUS); cc_emit(0xb7); cc_emit(0xc8); cc_op16(0xc3,RT_IOFAIL);
+    return entry;
 }
 static void result(uint16_t base,uint8_t offset) {
     cc_op16(0x21,cc.temporaries-base-ZF_JOB_BYTES+offset); cc_emit(0x39);
