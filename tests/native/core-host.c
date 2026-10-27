@@ -54,6 +54,22 @@ static void keyboard_corpus(void) {
         check(compile(&s,&b,&d));check(cc.file_entry&&cc.temporaries==0);build_close(&b);
     }
 }
+static void bridge_corpus(void) {
+    const char *names[]={"bridgeframe","bridgeargs","bridgereloc","bridgefile","bridgeerror","bridgeguard"};
+    char path[80],text[16384];
+    unsigned i;
+    for(i=0;i<sizeof(names)/sizeof(names[0]);++i) {
+        FILE *file; size_t length;
+        snprintf(path,sizeof(path),"tests/native/%s.pas",names[i]);
+        file=fopen(path,"rb");check(file!=NULL);
+        length=fread(text,1,sizeof(text),file);check(feof(file)&&!ferror(file));check(fclose(file)==0);
+        check(source_import(&s,(const uint8_t*)text,(uint16_t)length,&d));
+        check(compile(&s,&b,&d));check(cc.temporaries==0);
+        if(!strcmp(names[i],"bridgereloc")) check(b.globals_bytes==3&&b.code_origin==0x8003);
+        else check(b.globals_bytes==0&&image_get(&b,0x4003)==3&&image_get(&b,0x4004)==195);
+        build_close(&b);
+    }
+}
 static uint16_t map_word(uint16_t at) { return far_get(b.map_page,at)|((uint16_t)far_get(b.map_page,at+1)<<8); }
 static void ordered_map(void) {
     uint16_t at=96+map_word(84),last=0,begin,end;
@@ -80,6 +96,7 @@ int main(int argc,char **argv) {
     check(argc==2);
     check(source_new(&s,"H:/SLICE.PAS"));
     keyboard_corpus();
+    bridge_corpus();
     load("begin  \r\nend. \r\n\032padding"); check(s.length==11);
     check(source_replace(&s,0,0,NULL,0)&&!s.dirty);
     {

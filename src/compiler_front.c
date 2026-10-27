@@ -70,7 +70,7 @@ void cc_op16(uint8_t op,uint16_t value) FRONTEND { cc_emit(op); emit16(value); }
 void cc_relocate(uint16_t operand) FRONTEND {
     uint16_t p=cc.relocations*2;
     if(cc.error->code||cc.suppress) return;
-    if((uint32_t)p+2+(uint32_t)cc.routine_count*16>PAGE_SIZE) { cc_fail(99); return; }
+    if((uint32_t)p+2+(uint32_t)cc.routine_count*ROUTINE_BYTES>PAGE_SIZE) { cc_fail(99); return; }
     far_set(cc.workspace,p,(uint8_t)operand); far_set(cc.workspace,p+1,(uint8_t)(operand>>8));
     ++cc.relocations;
 }
@@ -422,13 +422,13 @@ uint8_t cc_variable(int16_t id) FRONTEND {
            cc.symbols[id].role==S_ADDRESS||cc.symbols[id].role==S_ALIAS||cc.symbols[id].role==S_STANDARD);
 }
 uint16_t cc_rget(uint8_t scope,uint8_t field) FRONTEND {
-    uint16_t at=PAGE_SIZE-(uint16_t)scope*16+field;
+    uint16_t at=PAGE_SIZE-(uint16_t)scope*ROUTINE_BYTES+field;
     uint16_t value=far_get(cc.workspace,at);
     if(field>R_FLAGS) value|=(uint16_t)far_get(cc.workspace,at+1)<<8;
     return value;
 }
 void cc_rput(uint8_t scope,uint8_t field,uint16_t value) FRONTEND {
-    uint16_t at=PAGE_SIZE-(uint16_t)scope*16+field;
+    uint16_t at=PAGE_SIZE-(uint16_t)scope*ROUTINE_BYTES+field;
     far_set(cc.workspace,at,(uint8_t)value);
     if(field>R_FLAGS) far_set(cc.workspace,at+1,(uint8_t)(value>>8));
 }
@@ -447,9 +447,16 @@ void cc_storage(uint16_t id,uint16_t width) FRONTEND {
             cc_file_static(cc.symbols[id].type,cc.symbols[id].address);
     }
 }
+uint8_t cc_frame_required(uint8_t scope) FRONTEND {
+    while(scope) {
+        if(cc_rget(scope,R_FLAGS)&RF_RECURSIVE) return 1;
+        scope=(uint8_t)cc_rget(scope,R_PARENT);
+    }
+    return 0;
+}
 void cc_frame(uint8_t scope) FRONTEND {
     uint8_t current=cc.scope;
-    if(!scope) { cc_op16(0x21,0); return; }
+    if(!scope||(scope!=cc.scope&&!cc_frame_required(scope))) { cc_op16(0x21,0); return; }
     cc_guard(); cc_emit(0xdd); cc_emit(0xe5); cc_emit(0xe1); /* HL = IX */
     while(current!=scope&&!cc.error->code) {
         if(!current) { cc_fail(44); return; }

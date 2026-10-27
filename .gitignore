@@ -21,6 +21,7 @@
 !/tools/test-logical.py
 !/tools/test-console.py
 !/tools/test-devices.py
+!/tools/test-bridges.py
 !/tools/test-file-runtime.py
 !/tools/test-runtime-layout.py
 !/tools/test-params.py

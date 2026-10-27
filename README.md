@@ -20,6 +20,9 @@ python3 tools/test-keyboard.py
 python3 tools/test-logical.py
 python3 tools/test-console.py
 python3 tools/test-devices.py
+python3 tools/test-bridges.py
+python3 tools/test-bridges.py --corpus routines
+python3 tools/test-bridges.py --corpus real
 python3 tools/test-file-runtime.py --host --native
 python3 tools/test-workers.py
 python3 tools/test-params.py
@@ -305,8 +308,18 @@ or zero, including for an empty pattern. Concat joins String/Char arguments in
 order and reports error 10 above 255 bytes. Insert snapshots its source before
 other arguments and truncates the result to the destination capacity. Copy,
 Delete and Insert require positions 1..255; negative Copy/Delete counts report
-error 11. Nested routine address bridges and remaining runtime APIs are
-still in progress.
+error 11. Remaining runtime APIs are still in progress.
+
+Addr now supports nested routines through native Pascal ABI bridges, including
+captured recursive locals, forward declarations, value/Var arguments, Real
+results and short-string results up to255 bytes. A captured address is stable
+within its declaring activation; its private22-byte thunk lives in that frame
+and becomes invalid when the owner returns. Mark/Release does not reclaim it.
+All-static lexical ancestry uses a program-lifetime bridge with no captured
+frame; static routines inside recursive ancestry still retain the live lexical
+chain. Top-level routine addresses remain ordinary native entries. Device and
+error hook variables are still pending; this completes their nested-address
+prerequisite rather than adding procedural-parameter syntax.
 
 The [control-flow fixture](tests/native/control.pas),
 [ordinal fixture](tests/native/ordinals.pas), [Case fixture](tests/native/cases.pas)

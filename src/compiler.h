@@ -22,7 +22,9 @@ enum { FILE_TEXT,FILE_TYPED,FILE_UNTYPED };
  * descriptor for every constructor. The empty kind has no fixed base family. */
 enum { K_SET_EXPR=128,K_EMPTY_SET=192,K_ANY_POINTER,K_NIL };
 enum { S_VARIABLE,S_CONSTANT,S_TYPE,S_TYPED,S_PENDING,S_VALUE,S_REFERENCE,S_RESULT,S_PROCEDURE,S_FUNCTION,S_SYSTEM,S_ADDRESS,S_ALIAS,S_LABEL,S_STANDARD,S_FIELD,S_VARIANT,S_VLABEL };
-enum { R_PARENT=0,R_FLAGS=1,R_SYMBOL=2,R_ENTRY=4,R_CALLS=6,R_PARAMETERS=8,R_COUNT=10,R_LOCALS=12,R_EXITS=14 };
+enum { R_PARENT=0,R_FLAGS=1,R_SYMBOL=2,R_ENTRY=4,R_CALLS=6,R_PARAMETERS=8,R_COUNT=10,R_LOCALS=12,R_EXITS=14,
+       R_DESCRIPTOR=16,R_THUNK=18,R_LOCAL_GUARD=20,R_LOCAL_ALLOC=22 };
+#define ROUTINE_BYTES 24u
 enum { RF_FORWARD=1,RF_RECURSIVE=2,RF_DEFINED=4,RF_EXTERNAL=8 };
 /* Published saved IX/return/arguments and lexical/lifetime slots stay fixed.
  * The private words are caller cursor[-6] and owned-local lower bound[-8]. */
@@ -120,6 +122,7 @@ void cc_storage(uint16_t id,uint16_t width) FRONTEND;
 uint16_t cc_rget(uint8_t scope,uint8_t field) FRONTEND;
 void cc_rput(uint8_t scope,uint8_t field,uint16_t value) FRONTEND;
 void cc_frame(uint8_t scope) FRONTEND;
+uint8_t cc_frame_required(uint8_t scope) FRONTEND;
 void cc_slot(uint16_t id) FRONTEND;
 void cc_convert(uint8_t target,uint8_t source) FRONTEND;
 uint8_t cc_char_array(uint8_t type);

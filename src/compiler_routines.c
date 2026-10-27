@@ -1,15 +1,15 @@
 #include "compiler.h"
 
 /* The compiler owns one workspace page. Relocations grow upward; these
- * sixteen-byte routine records grow downward. Only resident/scalar arguments
+ * routine records grow downward. Only resident/scalar arguments
  * cross the compiler's bank boundaries. */
 static uint8_t new_scope(uint16_t symbol) {
     uint8_t scope,i;
-    if(cc.routine_count==255||(uint32_t)cc.relocations*2+(cc.routine_count+1u)*16>PAGE_SIZE) {
+    if(cc.routine_count==255||(uint32_t)cc.relocations*2+(cc.routine_count+1u)*ROUTINE_BYTES>PAGE_SIZE) {
         cc_fail(98); return 0;
     }
     scope=(uint8_t)++cc.routine_count;
-    for(i=0;i<16;++i) far_set(cc.workspace,PAGE_SIZE-(uint16_t)scope*16+i,0);
+    for(i=0;i<ROUTINE_BYTES;++i) far_set(cc.workspace,PAGE_SIZE-(uint16_t)scope*ROUTINE_BYTES+i,0);
     cc_rput(scope,R_PARENT,cc.scope); cc_rput(scope,R_SYMBOL,symbol);
     cc_rput(scope,R_FLAGS,cc.absolute_mode?0:RF_RECURSIVE);
     return scope;
@@ -26,8 +26,10 @@ static void raw_store(uint16_t id) {
 static void prologue(void) {
     uint16_t id,first=cc_rget(cc.scope,R_PARAMETERS),count=cc_rget(cc.scope,R_COUNT);
     uint16_t locals=cc_rget(cc.scope,R_LOCALS);
+    cc_rput(cc.scope,R_LOCAL_GUARD,cc.emitted+3);
     cc_reserve(locals+FRAME_PRIVATE_BYTES+2); cc_emit(0xdd); cc_emit(0xe5); /* saved IX */
     cc_emit(0xdd); cc_op16(0x21,0); cc_emit(0xdd); cc_emit(0x39); /* IX = SP */
+    cc_rput(cc.scope,R_LOCAL_ALLOC,cc.emitted+1);
     cc_op16(0x21,(uint16_t)(0u-FRAME_PRIVATE_BYTES-locals)); cc_emit(0x39); cc_emit(0xf9);
     indexed(0x75,248); indexed(0x74,249); /* actual owned-local lower bound */
     cc_frame(cc.scope); cc_op16(0x11,4); cc_emit(0x19); cursor_store();
@@ -204,6 +206,10 @@ uint16_t cc_block(void) ROUTINES {
     if(scope) {
         code=cc.emitted-CC_CODE_BASE;
         epilogue(); cc_mapping(code,cc.emitted-CC_CODE_BASE,start,start);
+        /* Addr may discover a declaring activation's private thunk slot after
+         * its prologue was emitted. Existing local offsets remain unchanged. */
+        cc_word(cc_rget(scope,R_LOCAL_GUARD),cc_rget(scope,R_LOCALS)+FRAME_PRIVATE_BYTES+2);
+        cc_word(cc_rget(scope,R_LOCAL_ALLOC),(uint16_t)(0u-FRAME_PRIVATE_BYTES-cc_rget(scope,R_LOCALS)));
     }
     --cc.nesting;
     return start;
@@ -222,10 +228,139 @@ static void entry_reference(uint8_t opcode,uint8_t scope) {
     else if(entry) cc_address(opcode,entry);
     else cc_rput(scope,R_CALLS,cc_link(opcode,cc_rget(scope,R_CALLS)));
 }
+/* A bridge is a real dynamic frame for file-owner traversal. The published
+ * first eight bytes keep their ordinary meaning; the remaining private words
+ * retain IY, BCDEHL results and the original callback caller's source PC. */
+#define BRIDGE_PRIVATE_BYTES 18u
+static void bridge_guard(uint16_t bytes) {
+    uint16_t at=cc.emitted;
+    /* Only A/flags are scratch here. Preserve operand registers and the actual
+     * caller PC instead of attributing a bridge overflow to an earlier Addr. */
+    cc_op16(0x3a,RT_PC); cc_address(0x32,at+17);
+    cc_op16(0x3a,RT_PC+1); cc_address(0x32,at+18);
+    cc_reserve(bytes);
+}
+static void bridge_slot(int16_t offset) {
+    cc_emit(0xdd); cc_emit(0xe5); cc_emit(0xe1);
+    cc_op16(0x11,(uint16_t)offset); cc_emit(0x19);
+}
+static uint16_t argument_bytes(uint16_t id) {
+    uint8_t type=cc.symbols[id].type;
+    if(cc.symbols[id].role==S_REFERENCE) return 2;
+    if(cc_family(type)==K_REAL) return 6;
+    if(cc_family(type)==K_SET) return 32;
+    return 2; /* scalars, pointers and aggregate source addresses */
+}
+static void bridge_body(uint8_t scope) {
+    uint16_t count=cc_rget(scope,R_COUNT),first=cc_rget(scope,R_PARAMETERS),i,width;
+    uint16_t routine=cc_rget(scope,R_SYMBOL);
+    uint8_t string_result=cc.symbols[routine].role==S_FUNCTION&&cc_family(cc.symbols[routine].type)==K_STRING;
+    width=BRIDGE_PRIVATE_BYTES+count*2;
+    bridge_guard(width+4); cc_emit(0xeb); /* DE owns the descriptor */
+    cc_emit(0xdd); cc_emit(0xe5); cc_emit(0xdd); cc_op16(0x21,0); cc_emit(0xdd); cc_emit(0x39);
+    cc_op16(0x21,(uint16_t)(0u-width)); cc_emit(0x39); cc_emit(0xf9);
+    indexed(0x75,248); indexed(0x74,249);
+    cc_emit(0xeb); cc_op16(0x01,10); cc_emit(0x09);
+    cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56);
+    indexed(0x73,254); indexed(0x72,255);
+    cc_emit(0xdd); cc_emit(0xe5); cc_emit(0xe1); indexed(0x75,252); indexed(0x74,253);
+    cc_emit(0xfd); cc_emit(0xe5); cc_emit(0xe1); indexed(0x75,246); indexed(0x74,247);
+    cc_op16(0x2a,RT_PC); indexed(0x75,238); indexed(0x74,239);
+    bridge_slot(4); cc_emit(0xe5); cc_emit(0xfd); cc_emit(0xe1); /* IY scans original actuals */
+    for(i=count;i&&!cc.error->code;--i) {
+        bridge_slot((int16_t)(0u-BRIDGE_PRIVATE_BYTES-i*2));
+        cc_emit(0xfd); cc_emit(0xe5); cc_emit(0xd1);
+        cc_emit(0x73); cc_emit(0x23); cc_emit(0x72);
+        if(cc.symbols[first+i-1].role==S_VALUE&&cc_family(cc.symbols[first+i-1].type)==K_STRING) {
+            cc_emit(0xfd); cc_emit(0x5e); cc_emit(0); cc_emit(0x16); cc_emit(0); cc_emit(0x13);
+        } else cc_op16(0x11,argument_bytes(first+i-1));
+        cc_emit(0xfd); cc_emit(0x19);
+    }
+    cc_emit(0xfd); cc_emit(0xe5); cc_emit(0xe1); cursor_store();
+    if(string_result) {
+        width=cc.types[cc.symbols[routine].type].width;
+        bridge_guard(width); cc_op16(0x21,(uint16_t)(0u-width)); cc_emit(0x39); cc_emit(0xf9);
+    }
+    indexed(0x6e,254); indexed(0x66,255); bridge_guard(2); cc_emit(0xe5);
+    for(i=0;i<count&&!cc.error->code;++i) {
+        bridge_guard(2); bridge_slot((int16_t)(0u-BRIDGE_PRIVATE_BYTES-(i+1u)*2));
+        cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb);
+        if(cc.symbols[first+i].role==S_VALUE&&cc_family(cc.symbols[first+i].type)==K_STRING) {
+            bridge_guard(257); cc_op16(0xcd,RT_PUSHSTRING);
+        } else {
+            width=argument_bytes(first+i); bridge_guard(width+2);
+            cc_emit(0xeb); cc_op16(0x21,(uint16_t)(0u-width)); cc_emit(0x39); cc_emit(0xf9); cc_emit(0xeb);
+            cc_op16(0x01,width); cc_op16(0xcd,RT_MOVE);
+        }
+    }
+    bridge_guard(2); entry_reference(0xcd,scope);
+    indexed(0x75,244); indexed(0x74,245); /* result HL */
+    indexed(0x73,242); indexed(0x72,243); /* result DE */
+    indexed(0x71,240); indexed(0x70,241); /* result BC */
+    indexed(0x6e,238); indexed(0x66,239); cc_op16(0x22,RT_PC);
+    if(string_result) {
+        cc_op16(0x21,0); cc_emit(0x39); indexed(0x5e,250); indexed(0x56,251);
+        cc_emit(0x0e); cc_emit(cc.types[cc.symbols[routine].type].capacity);
+        bridge_guard(2); cc_op16(0xcd,RT_COPY);
+        cursor_load(); indexed(0x75,244); indexed(0x74,245);
+    }
+    /* Build a return packet below our own frame, then memmove it into retired
+     * original actual slots. Original arguments survive until the callee has
+     * finished. IY holds the destination while the old frame is overwritten. */
+    bridge_guard(14);
+    indexed(0x6e,2); indexed(0x66,3); cc_emit(0xe5);
+    indexed(0x6e,0); indexed(0x66,1); cc_emit(0xe5);
+    indexed(0x6e,246); indexed(0x66,247); cc_emit(0xe5);
+    indexed(0x6e,240); indexed(0x66,241); cc_emit(0xe5);
+    indexed(0x6e,242); indexed(0x66,243); cc_emit(0xe5);
+    indexed(0x6e,244); indexed(0x66,245); cc_emit(0xe5);
+    cursor_load(); cc_op16(0x11,(uint16_t)-12); cc_emit(0x19);
+    cc_emit(0xe5); cc_emit(0xfd); cc_emit(0xe1); cc_emit(0xeb);
+    cc_op16(0x21,0); cc_emit(0x39); cc_op16(0x01,12); cc_op16(0xcd,RT_MOVE);
+    cc_emit(0xfd); cc_emit(0xe5); cc_emit(0xe1); cc_emit(0xf9);
+    cc_emit(0xe1); cc_emit(0xd1); cc_emit(0xc1);
+    cc_emit(0xfd); cc_emit(0xe1); cc_emit(0xdd); cc_emit(0xe1); cc_emit(0xc9);
+}
+static uint16_t bridge_descriptor(uint8_t scope,uint8_t dynamic) {
+    uint16_t skip=cc_forward(0xc3),entry=cc.emitted,descriptor,i;
+    bridge_body(scope); descriptor=cc.emitted;
+    cc_emit('Z'); cc_emit('T'); cc_emit('H'); cc_emit('K'); cc_emit(1); cc_emit(dynamic);
+    cc_emit(16); cc_emit(0);
+    cc_relocate(cc.emitted); cc_emit((uint8_t)entry); cc_emit((uint8_t)(entry>>8));
+    for(i=0;i<6;++i) cc_emit(0); /* lexical frame, lifetime, reserved */
+    if(dynamic) cc_op16(0x21,0); else cc_address(0x21,descriptor);
+    cc_address(0xc3,entry); cc_patch(skip);
+    return descriptor;
+}
 void cc_routine_address(uint16_t id) ROUTINES {
     uint8_t scope=cc.symbols[id].role==S_RESULT?cc.symbols[id].owner:cc.symbols[id].initial_type;
-    if(cc_rget(scope,R_PARENT)) cc_fail(44); /* capturing/static bridges still pending */
-    else entry_reference(0x21,scope);
+    uint8_t parent=(uint8_t)cc_rget(scope,R_PARENT),dynamic;
+    uint16_t descriptor,slot,locals;
+    if(!parent) { entry_reference(0x21,scope); return; }
+    if(cc.suppress||cc.error->code) return;
+    dynamic=cc_frame_required(parent);
+    descriptor=cc_rget(scope,R_DESCRIPTOR);
+    if(!descriptor) {
+        descriptor=bridge_descriptor(scope,dynamic); cc_rput(scope,R_DESCRIPTOR,descriptor);
+    }
+    if(!dynamic) { cc_address(0x21,descriptor+16); return; }
+    slot=cc_rget(scope,R_THUNK);
+    if(!slot) {
+        locals=cc_rget(parent,R_LOCALS);
+        if((uint32_t)locals+22>0x7ff0u) { cc_fail(99); return; }
+        locals+=22; cc_rput(parent,R_LOCALS,locals);
+        slot=(uint16_t)(0u-FRAME_PRIVATE_BYTES-locals); cc_rput(scope,R_THUNK,slot);
+    }
+    cc_frame(parent); cc_reserve(6); cc_emit(0xe5); /* live declaring frame */
+    cc_op16(0x11,slot); cc_emit(0x19); cc_emit(0xe5); cc_emit(0xeb);
+    cc_address(0x21,descriptor); cc_op16(0x01,22); cc_call(RT_MOVE);
+    cc_emit(0xe1); cc_emit(0xd1); cc_emit(0xe5); /* descriptor, owner, saved descriptor */
+    cc_op16(0x01,10); cc_emit(0x09);
+    cc_emit(0x73); cc_emit(0x23); cc_emit(0x72); cc_emit(0x23);
+    cc_emit(0x73); cc_emit(0x23); cc_emit(0x72); /* lifetime is the live frame's ID */
+    cc_op16(0x01,4); cc_emit(0x09); cc_emit(0xd1);
+    cc_emit(0x73); cc_emit(0x23); cc_emit(0x72); /* LD HL,descriptor operand */
+    cc_emit(0xeb); cc_op16(0x01,16); cc_emit(0x09);
 }
 uint8_t cc_invoke(uint16_t id) ROUTINES {
     uint8_t scope=cc.symbols[id].role==S_RESULT?cc.symbols[id].owner:cc.symbols[id].initial_type;
