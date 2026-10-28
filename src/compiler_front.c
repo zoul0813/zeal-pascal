@@ -249,7 +249,7 @@ void cc_next(void) FRONTEND {
                 do {
                     c=lower(get(cc.scan)); value=get(cc.scan+1)=='+';
                     if(c=='w'&&digit(get(cc.scan+1))) cc.with_limit=get(cc.scan+1)-'0';
-                    else if((c!='r'&&c!='a'&&c!='v'&&c!='b'&&c!='i'&&c!='x')||(get(cc.scan+1)!='+'&&get(cc.scan+1)!='-')) {
+                    else if((c!='r'&&c!='a'&&c!='v'&&c!='b'&&c!='i'&&c!='x'&&c!='u')||(get(cc.scan+1)!='+'&&get(cc.scan+1)!='-')) {
                         cc_fail(93); cc.token=T_EOF; return;
                     }
                     else if(c=='r') cc.range_check=value;
@@ -258,6 +258,7 @@ void cc_next(void) FRONTEND {
                     else if(c=='b') cc.input_fresh=value;
                     else if(c=='i') cc.io_check=value;
                     else if(c=='x') cc.index_speed=value;
+                    else if(c=='u') cc.user_interrupt=value;
                     cc.scan+=2;
                     if(get(cc.scan)!=',') break;
                     ++cc.scan;

@@ -70,14 +70,15 @@ typedef struct {
     uint16_t emitted,entries,file_bytes,relocations;
     uint8_t workspace,stage_page,scope,absolute_mode,var_strict,nesting,suppress,index_speed;
     uint16_t routine_count,temporaries;
-    uint8_t with_depth,with_limit,with_bound,with_types[9],for_depth,input_fresh,io_check;
+    uint8_t with_depth,with_limit,with_bound,with_types[9],for_depth,input_fresh,io_check,user_interrupt;
     uint16_t field_offset;
     uint16_t random_entry,random_state;
     uint8_t text_type;
     uint16_t parameter_entry;
     uint16_t file_entry;
     uint16_t standard_table_operand;
-    uint16_t keyboard_entry,keyboard_poll,keyboard_status;
+    uint16_t keyboard_entry,keyboard_poll,keyboard_status,keyboard_state,interrupt_entry;
+    uint16_t keyboard_probe,keyboard_enqueue;
     uint16_t hook_variables[HOOK_COUNT],hook_defaults[HOOK_COUNT];
     uint16_t hook_output_calls,hook_mask_call;
     uint16_t hook_character,hook_echo,hook_open;
@@ -133,11 +134,12 @@ uint8_t cc_runtime_get(uint16_t offset);
 /* Build-bound private input addresses; never an installed/public runtime ABI. */
 enum { RP_INPUT_READY,RP_INPUT_ADVANCE,RP_LINE_NEXT,RP_LINE_REMAINING,RP_LINE_EOF,RP_LINE_VALID,
        RP_INPUT_KEY,RP_INPUT_RAW_KEY,RP_INPUT_MODE,RP_INPUT_CLEANUP,RP_INPUT_FAIL,RP_IO_ERROR,RP_ECHO_FD,
-       RP_INPUT_SOURCE,RP_INPUT_OPEN,RP_INPUT_ECHO,RP_INPUT_CLOSE };
+       RP_INPUT_SOURCE,RP_INPUT_OPEN,RP_INPUT_ECHO,RP_INPUT_CLOSE,RP_USER_BREAK };
 uint16_t cc_runtime_private(uint8_t entry);
 void cc_keypressed(void) FRONTEND;
 void cc_logical_stream(void) FRONTEND;
 void cc_keyboard_engine(void) FRONTEND;
+void cc_user_interrupt(void) FRONTEND;
 void cc_hook_variable(uint16_t id) ROUTINES;
 void cc_hook_output(void) ROUTINES;
 void cc_hooks_finish(void) ROUTINES;

@@ -2,11 +2,12 @@
 
 static uint8_t flags(void) {
     return cc.absolute_mode|(cc.var_strict<<1)|(cc.range_check<<2)|
-        (cc.io_check<<3)|(cc.index_speed<<4)|(cc.input_fresh<<5);
+        (cc.io_check<<3)|(cc.index_speed<<4)|(cc.input_fresh<<5)|(cc.user_interrupt<<7);
 }
 static void options(uint8_t value,uint8_t limit) {
     cc.absolute_mode=value&1;cc.var_strict=(value>>1)&1;cc.range_check=(value>>2)&1;
     cc.io_check=(value>>3)&1;cc.index_speed=(value>>4)&1;cc.input_fresh=(value>>5)&1;
+    cc.user_interrupt=(value>>7)&1;
     cc.with_limit=limit;
 }
 /* Persistent references also own their insertion context. The same file byte

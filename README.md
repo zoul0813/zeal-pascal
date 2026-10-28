@@ -29,6 +29,7 @@ python3 tools/test-sources.py
 python3 tools/test-ide-sources.py
 python3 tools/test-inline.py
 python3 tools/test-ide-sources.py --inline
+python3 tools/test-ide-interrupt.py
 python3 tools/test-bridges.py
 python3 tools/test-bridges.py --corpus routines
 python3 tools/test-bridges.py --corpus real
@@ -548,8 +549,17 @@ lexical-parent link and arguments. `Addr` retains its captured-thunk behavior
 for nested Pascal-callable pointers. Inline code preserves SP, IX/IY and the
 other state required by that calling convention.
 
-The C/U directives remain pending; the implemented directives are A, B, I
-checking, R, V, W and X.
+`{$U+}` enables physical Ctrl-C interruption at statements and loop conditions;
+`{$U-}` is the default and leaves Ctrl-C available as raw Kbd character 3.
+The switch restores its containing-file value after an include. User break
+closes program files and returns to the interrupted source in Memory mode.
+Polling preserves ordinary keys in a shared 255-character typeahead queue;
+at capacity it leaves further events with the keyboard driver until reads
+make space. It preserves operands, flags, alternate registers and Pascal frames.
+This is separate from CBreak's existing buffered ReadLn behavior.
+
+The C directive remains pending; the implemented directives are A, B, I
+checking, R, U, V, W and X.
 Pascal CRT calls (ClrScr, ClrEol, GotoXY, InsLine, DelLine, CrtInit/CrtExit,
 LowVideo/NormVideo/HighVideo and Delay), replacement input/error callbacks,
 Chain/Execute and overlays remain pending. CP/M BIOS/BDOS services are intentionally

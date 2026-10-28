@@ -325,7 +325,9 @@ input_key_decode:
     call _key_event
     call c_restore
     or a
-    jr z,input_key
+    ; A physical probe may already have queued characters. Ignored releases
+    ; and modifiers must continue physically, never consume shared typeahead.
+    jr z,input_raw_key
     ret
 ; Echo is a separate supported console handle, never Pascal Output/stdout.
 input_open:

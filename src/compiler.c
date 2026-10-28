@@ -33,6 +33,7 @@ void cc_map_source(uint16_t bytes) BACKEND {
     cc.file_bytes+=bytes;
 }
 static uint16_t condition(void) {
+    cc_user_interrupt();
     if(cc_family(cc_expression())!=K_BOOLEAN) cc_fail(20);
     cc_emit(0x7c); cc_emit(0xb5); /* A = H | L; false has Z set */
     return cc_forward(0xca);
@@ -215,6 +216,8 @@ static SourcePosition statement(void) {
         if(cc.error->code) { --cc.depth; return start; }
         start=cc.token_start;
     }
+    loop=cc.emitted;cc_user_interrupt();
+    mapping(code,pc(),start,cc.token_end);code=pc();
     if(cc_is("begin")) {
         cc_next();
         while(!cc.error->code&&!cc_is("end")&&cc.token!=T_EOF) {
@@ -239,13 +242,13 @@ static SourcePosition statement(void) {
         } else cc_patch(branch);
         --cc.depth; return start;
     } else if(cc_is("while")) {
-        loop=cc.emitted; cc_next(); branch=condition(); cc_keyword("do",13);
+        cc_next(); branch=condition(); cc_keyword("do",13);
         head_end=cc.token_start; mapping(code,pc(),start,head_end);
         statement(); code=pc(); cc_address(0xc3,loop); cc_patch(branch);
         mapping(code,pc(),start,head_end);
         --cc.depth; return start;
     } else if(cc_is("repeat")) {
-        loop=cc.emitted; cc_next();
+        cc_next();
         while(!cc.error->code&&!cc_is("until")&&cc.token!=T_EOF) {
             statement();
             if(cc.token==';') cc_next(); else if(!cc_is("until")) cc_fail(1);
@@ -256,6 +259,7 @@ static SourcePosition statement(void) {
         mapping(code,pc(),start,cc.token_start);
         --cc.depth; return start;
     } else if(cc_is("for")) {
+        target=cc.user_interrupt;
         cc_next(); id=cc.token==T_ID?cc_lookup():-1;
         if(!cc_variable(id)) cc_fail(24);
         else if(cc.symbols[id].role==S_FIELD) cc_fail(41);
@@ -280,6 +284,11 @@ static SourcePosition statement(void) {
         cc_keyword("do",13); head_end=cc.token_start;
         mapping(code,pc(),start,head_end);
         body=cc.emitted;
+        /* The loop owns its interruption policy even if its body changes U.
+         * The backward edge must visit a poll for an empty/disabled body. */
+        code=pc();kind=cc.user_interrupt;cc.user_interrupt=target;
+        cc_user_interrupt();cc.user_interrupt=kind;
+        mapping(code,pc(),start,head_end);
         if(id>=0) cc.symbols[id].control=1;
         ++cc.for_depth; statement(); --cc.for_depth;
         if(id>=0) cc.symbols[id].control=0;

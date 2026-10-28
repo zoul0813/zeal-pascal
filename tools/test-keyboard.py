@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Nondestructive native keyboard polling shares buffered input's decoder."""
+"""Native shared keyboard typeahead and U directive execution interruption."""
 import importlib.util
 import json
 from pathlib import Path
@@ -39,6 +39,26 @@ def main():
         ready();commands+=n.type_text('hi',ticks=2000000)+['press ENTER','run 100000000'];held[:]=['ENTER']
     for _ in range(2):
         ready();commands+=['press CTRL','press C','run 100000000'];held[:]=['C','CTRL']
+    # Frame and ABI executions poll without requiring input. Let them finish
+    # before synchronizing raw Ctrl-C delivery with URaw's waiting read.
+    for key in held:commands+=['release '+key,'run 2000000']
+    held.clear()
+    commands+=['run 4000000000']
+    # Default U- leaves Ctrl-C as Kbd data. U+ preserves key order through
+    # multiple queued bytes and head wrap, then aborts the four loop forms.
+    for _ in range(2):
+        ready();commands+=['press CTRL','press C','run 100000000'];held[:]=['C','CTRL']
+    for _ in range(2):
+        ready();commands+=n.type_text(''.join(chr(97+i%26)for i in range(270)),ticks=2000000)
+        commands+=['run 100000000']
+    # U- KeyPressed can own Ctrl-C already when a later statement enables U.
+    for _ in range(2):
+        ready();commands+=['press CTRL','press C','run 100000000'];held[:]=['C','CTRL']
+    for loop in ('repeat','while','for','goto'):
+        for _ in range(2):
+            if loop in ('repeat','for'):
+                ready();commands+=n.type_text('X',ticks=2000000)+['run 100000000']
+            ready();commands+=['press CTRL','press C','run 100000000'];held[:]=['C','CTRL']
     commands+=['run 20000000000','s','regs','mmu']
     for name in ('_test_done','_test_passed','_test_failed','_test_stage'):
         commands+=[f'rb 0x{sym[name]:x} 2']
@@ -54,13 +74,16 @@ def main():
     high_target=int.from_bytes(high.read_bytes()[private[6]-0x4000+1:private[6]-0x4000+3],'little')if high.exists()else 0
     checks={
         'native completion':memory.get(sym['_test_done'])==255 and word('_test_stage')==6,
-        'RAM/saved mappings, IFF, stack, ownership and exact break source':word('_test_failed')==0 and word('_test_passed')>=40,
+        'RAM/saved mappings, IFF, stack, ownership and exact break source':word('_test_failed')==0 and word('_test_passed')>=170,
         'nondestructive repeated polls, modifiers, buffered tail and callback input':
-            (disk/'KEYS.TXT').is_file()and(disk/'KEYS.TXT').read_bytes()==b'KEY-ONLY-OK\r\n'*2+b'KEY-BUFFER-OK\r\n'*2+b'KEY-HIGH-OK\r\n'*2,
+            (disk/'KEYS.TXT').is_file()and(disk/'KEYS.TXT').read_bytes()==
+            b'KEY-ONLY-OK\r\n'*2+b'KEY-BUFFER-OK\r\n'*2+b'KEY-HIGH-OK\r\n'*2+
+            b'U-FRAME-OK\r\n'*2+b'U-ABI-OK\r\n'*2+b'U-RAW-OK\r\n'*2+b'U-QUEUE-OK\r\n'*2,
+        'user break closes opened files':(disk/'UBREAK.TXT').is_file()and(disk/'UBREAK.TXT').read_bytes()==b'closed\r\n\x1a',
         'native-generated key dispatch executes from upper code page':0xc000<=high_target<0xf400,
         'all source/build/platform inputs unchanged':all(n.sha(Path(p))==h for p,h in hashes.items()),
     }
-    report={'scope':'KeyPressed and shared pending-character ownership in RAM and saved programs; Kbd/logical streams remain pending',
+    report={'scope':__doc__+' Bounded native acceptance, not complete language/editor conformance.',
             'passed':all(checks.values()),'native_assertions_passed':word('_test_passed'),
             'native_assertions_failed':word('_test_failed'),'capture_directory':str(n.RUN.relative_to(ROOT)),
             'input_sha256':hashes,'checks':checks}

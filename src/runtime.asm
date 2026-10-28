@@ -260,8 +260,9 @@ io_error:
 ; Wrap exactly one runtime I/O operation, after its argument expressions.
 ; Preserve all incoming operands while inserting four invocation-owned bytes
 ; below the caller's return word. No callback/syscall occurs during setup.
-; Moving the saved registers down is an overlapping forward copy. After they
-; are restored the stack is {checking:u16, previous_frame:u16, return_PC:u16}.
+; Claim the lower destination before moving the saved registers: interrupts
+; may push below SP at any instruction, including between LDIR iterations.
+; After restoration the stack is {checking:u16, previous_frame:u16, return_PC:u16}.
 io_call:
     push af
     ld a,(io_status)
@@ -290,12 +291,11 @@ io_detail_ready:
     ld (hl),d
     dec hl
     ld (hl),e
-    ld hl,#0
+    ld hl,#-4
     add hl,sp
-    ld de,#-4
-    add hl,de
+    ld sp,hl
     ex de,hl
-    ld hl,#0
+    ld hl,#4
     add hl,sp
     ld bc,#8
     ldir
@@ -311,9 +311,6 @@ io_detail_ready:
     inc de
     ld a,h
     ld (de),a
-    ld hl,#-4
-    add hl,sp
-    ld sp,hl
     pop hl
     pop de
     pop bc

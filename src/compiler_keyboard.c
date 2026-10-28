@@ -1,35 +1,52 @@
 #include "compiler.h"
 #include "file_runtime.h"
 
-/* Each activation owns two bytes in its generated static area: a decoded
- * pending press and its presence flag. The prefix still owns raw release pairs
- * and the one modifier decoder. Its private dispatch consumes this cache before
- * returning to the existing raw reader, so buffered input cannot lose a peek. */
+/* Each activation owns a 255-character circular typeahead queue (count, head,
+ * 256 byte slots). Interruption polling must continue beyond ordinary keys,
+ * retaining them for later reads. At capacity leave further events with the
+ * physical driver. The prefix owns raw release pairs and modifier decoding. */
 void cc_keyboard_engine(void) FRONTEND {
-    uint16_t skip,state,empty;
+    uint16_t skip,state,empty,i;
     if(cc.keyboard_entry||cc.suppress||cc.error->code) return;
     skip=cc_forward(0xc3);
-    state=cc.emitted; cc_emit(0); cc_emit(0);
+    state=cc.keyboard_state=cc.emitted;
+    for(i=0;i<258;++i)cc_emit(0);
     cc.keyboard_status=cc.emitted; cc_emit(0);
     cc.keyboard_entry=cc.emitted;
     cc_address(0x3a,state); cc_emit(0xb7); empty=cc_forward(0xca);
-    cc_emit(0xaf); cc_address(0x32,state);
-    cc_address(0x3a,state+1); cc_emit(0xc9);
+    cc_emit(0x3d);cc_address(0x32,state);
+    cc_address(0x3a,state+1);cc_emit(0x6f);cc_emit(0x26);cc_emit(0);
+    cc_emit(0x3c);cc_address(0x32,state+1);
+    cc_address(0x11,state+2);cc_emit(0x19);cc_emit(0x7e);cc_emit(0xc9);
     cc_patch(empty); cc_op16(0xc3,cc_runtime_private(RP_INPUT_RAW_KEY));
 
-    cc.keyboard_poll=cc.emitted;
+    cc.keyboard_probe=cc.emitted;
     cc_op16(0x3a,RT_IOSTATUS); cc_emit(0xb7); cc_op16(0xc2,RT_IOFAIL);
-    cc_address(0x3a,state); cc_address(0x32,cc.keyboard_status); cc_emit(0xb7); cc_emit(0xc0);
+    cc_address(0x3a,state);cc_emit(0xfe);cc_emit(255);empty=cc_forward(0xc2);
+    cc_emit(0xaf);cc_emit(0xc9);cc_patch(empty);
     /* Polling owns no buffered editor echo handle. Establish invalid ownership before any mode/read failure can clean up. */
     cc_emit(0x3e); cc_emit(255); cc_op16(0x32,cc_runtime_private(RP_ECHO_FD));
     cc_op16(0x11,4); cc_op16(0xcd,cc_runtime_private(RP_INPUT_MODE));
     cc_emit(0xb7); cc_op16(0xc2,cc_runtime_private(RP_INPUT_FAIL));
     cc_op16(0xcd,cc_runtime_private(RP_INPUT_RAW_KEY));
-    cc_emit(0xb7); empty=cc_forward(0xca);
-    cc_address(0x32,state+1); cc_emit(0x3e); cc_emit(1); cc_address(0x32,state);
-    cc_patch(empty); cc_op16(0xcd,cc_runtime_private(RP_INPUT_CLEANUP));
+    cc_emit(0xf5);cc_op16(0xcd,cc_runtime_private(RP_INPUT_CLEANUP));
     cc_emit(0xb7); cc_op16(0xc2,cc_runtime_private(RP_IO_ERROR));
-    cc_address(0x3a,state); cc_address(0x32,cc.keyboard_status); cc_emit(0xc9);
+    cc_emit(0xf1);cc_emit(0xc9);
+
+    /* Probe guarantees space. Zero means no decoded key, never queue data. */
+    cc.keyboard_enqueue=cc.emitted;
+    cc_emit(0xb7);cc_emit(0xc8);cc_emit(0x47);
+    cc_address(0x3a,state);cc_emit(0x3c);cc_address(0x32,state);cc_emit(0x3d);
+    cc_address(0x21,state+1);cc_emit(0x86);cc_emit(0x6f);cc_emit(0x26);cc_emit(0);
+    cc_address(0x11,state+2);cc_emit(0x19);cc_emit(0x70);cc_emit(0xc9);
+
+    cc.keyboard_poll=cc.emitted;
+    cc_op16(0x3a,RT_IOSTATUS);cc_emit(0xb7);cc_op16(0xc2,RT_IOFAIL);
+    cc_address(0x3a,state);cc_emit(0xb7);empty=cc_forward(0xc2);
+    cc_address(0xcd,cc.keyboard_probe);cc_address(0xcd,cc.keyboard_enqueue);
+    cc_patch(empty);cc_address(0x3a,state);cc_emit(0xb7);empty=cc_forward(0xca);
+    cc_emit(0x3e);cc_emit(1);cc_patch(empty);
+    cc_address(0x32,cc.keyboard_status);cc_emit(0xc9);
     cc_patch(skip);
 }
 void cc_keypressed(void) FRONTEND {

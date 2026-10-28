@@ -71,6 +71,22 @@ static void keyboard_corpus(void) {
         check(compile(&s,&b,&d));check(cc.file_entry&&cc.temporaries==0);build_close(&b);
     }
 }
+static void interruption_corpus(void) {
+    const char *names[]={"keyuraw","keyuabi","keyuframe","keyuqueue","keyucached","keyurep","keyuwhile","keyufor","keyugoto","keyufail","keyuignore"};
+    char path[80],text[4096];unsigned i;
+    for(i=0;i<sizeof(names)/sizeof(names[0]);++i) {
+        FILE *file;size_t length;
+        snprintf(path,sizeof(path),"tests/native/%s.pas",names[i]);
+        file=fopen(path,"rb");check(file!=NULL);
+        length=fread(text,1,sizeof(text),file);check(feof(file)&&!ferror(file));check(fclose(file)==0);
+        check(source_import(&s,(const uint8_t*)text,(uint16_t)length,&d));
+        check(compile(&s,&b,&d)&&cc.temporaries==0);
+        check((cc.interrupt_entry!=0)==(i!=0));
+        build_close(&b);check(pages_used()==1);
+    }
+    invalid("{$U}begin end.",93);invalid("{$U1}begin end.",93);
+    invalid("{$U+ ,R+}begin end.",93);
+}
 static void bridge_corpus(void) {
     const char *names[]={"bridgeframe","bridgeargs","bridgereloc","bridgefile","bridgeerror","bridgeguard"};
     char path[80],text[16384];
@@ -193,7 +209,7 @@ static void include_cases(void) {
         {"H:/values.inc","11,22"},
         {"H:/arg.inc","Input"},
         {"H:/bad.inc","const broken=32768;"},
-        {"H:/scope.PAS","{$A-,I-,R+,V-,W0,X-,B-}const local=1;"},
+        {"H:/scope.PAS","{$A-,I-,R+,V-,W0,X-,B-,U+}const local=1;"},
         {"H:/nested.inc","{$I values.inc}"},
         {"H:/runtime.inc","n:=7 div 0;"}
     };
@@ -224,8 +240,12 @@ static void include_cases(void) {
     disk_source_count=0;check(!build_ready(&s,&b));disk_source_count=sizeof(files)/sizeof(files[0]);
     build_close(&b);check(pages_used()==1);
     load("{$R-,X+}\n{$I scope}\nbegin end.");check(compile(&s,&b,&d));
-    check(cc.absolute_mode&&cc.io_check&&!cc.range_check&&cc.var_strict&&cc.with_limit==4&&cc.index_speed&&!cc.input_fresh);
+    check(cc.absolute_mode&&cc.io_check&&!cc.range_check&&cc.var_strict&&cc.with_limit==4&&cc.index_speed&&!cc.input_fresh&&!cc.user_interrupt);
     build_close(&b);
+    load("{$U+}\n{$I scope}\nbegin end.");check(compile(&s,&b,&d)&&cc.user_interrupt&&cc.interrupt_entry);build_close(&b);
+    files[5].text="{$U-}const local=1;";
+    load("{$U+}\n{$I scope}\nbegin end.");check(compile(&s,&b,&d)&&cc.user_interrupt&&cc.interrupt_entry);build_close(&b);
+    load("{$U+}begin {$U-}end.");check(compile(&s,&b,&d)&&!cc.user_interrupt&&cc.interrupt_entry);build_close(&b);
     load("const data:array[1..2]of integer=(\n{$I values.inc}\n);\nbegin writeln(data[1])end.");
     check(compile(&s,&b,&d)&&b.sources.count==2);build_close(&b);
     load("var n:integer;begin read(\n{$I arg.inc}\n,n)end.");
@@ -350,6 +370,7 @@ int main(int argc,char **argv) {
     check(argc==2);
     check(source_new(&s,"H:/SLICE.PAS"));
     keyboard_corpus();
+    interruption_corpus();
     bridge_corpus();
     hook_corpus();
     index_modes();
