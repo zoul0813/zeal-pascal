@@ -444,7 +444,13 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     cc_word(24,GLOBAL_BASE);cc_word(26,b->globals_bytes);cc_word(28,0x4000u+b->length);
     cc_hash_image(b,b->id);
     for(i=0;i<32;++i){cc_put(36+i,b->id[i]);map8(20+i,b->id[i]);}
-    for(i=0;i<3;++i)b->versions[i]=page_versions[b->pages[i]];
+    /* Page2 also served as code staging. Once placed, a short image owns no
+     * bytes there; retaining it can prevent a later run with parked includes. */
+    if(b->length<=2u*PAGE_SIZE) {
+        if(!page_drop(b->pages[2])) { d->code=98;goto failed; }
+        b->pages[2]=255;
+    }
+    for(i=0;i<3;++i)b->versions[i]=b->pages[i]==255?0:page_versions[b->pages[i]];
     b->versions[3]=page_versions[b->map_page];b->versions[4]=page_versions[s->page];
     b->valid=1;return 1;
 failed:
