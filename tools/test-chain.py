@@ -108,7 +108,7 @@ def ide():
     typed=lambda s:n.type_text(s,ticks=100000000);labels=[]
     def state(label,trigger,cycles=4000000000):
         labels.append((label,key))
-        return [f'bp 0x{key:x}']+trigger+[f'run {cycles}','regs','mmu',f'rb 0x{work:x} 140',f'rb 0x{build:x} 113',
+        return [f'bp 0x{key:x}']+trigger+[f'run {cycles}','regs','mmu',f'rb 0x{work:x} 140',f'rb 0x{build:x} {n.BUILD_BYTES}',
             f'rb 0x{opts:x} 5',f"rb 0x{sym['_ide_state']:x} 1",f"rb 0x{sym['_ram_result']:x} 128",f"rb 0x{sym['_main_file']:x} 128",f'bc 0x{key:x}']
     commands=['run 100000000']+n.program_launch()+['run 10000000']
     commands+=typed('nwH:/project/main.pas\nmH:/project/main.pas\ne'+prefix.decode())+n.control('K')+typed('dohq')
@@ -130,7 +130,7 @@ def ide():
         checks.update({'every checkpoint reaches its actual native reader/screen':all(frame.startswith(f'{pc:04x} ')for(_,pc),frame in zip(labels,frames)),
             'H selects CHN and invalidates an old cache':read('chain-mode',opts+4,1)==b'\1'and read('chain-mode',build+4,1)==b'\0',
             'compile saves a valid compact chain without saving dirty source':read('compiled',build+4,1)==b'\1'and word('compiled',build+5)==96+word('compiled',build+9)and read('compiled',work+1,1)==b'\1',
-            'R retains the completed CHN cache and never enters a guest':read('compiled',build,113)==read('direct-run-rejected',build,113)and read('direct-run-rejected',sym['_ram_result'],128)==bytes(128),
+            'R retains the completed CHN cache and never enters a guest':read('compiled',build,n.BUILD_BYTES)==read('direct-run-rejected',build,n.BUILD_BYTES)and read('direct-run-rejected',sym['_ram_result'],128)==bytes(128),
             'physical VRAM explains direct-run rejection':b'Chain support is pending' in read('run-message',0x4000,640),
             'H-mode F finds the selected CHN using matching unsaved source':read('found',sym['_ide_state'],1)==b'\3'and read('found',work+1,1)==b'\1',
             'F returns to the exact chain statement in the editor':read('found-source',sym['_ide_state'],1)==b'\2'and word('found-source',work+4)==(prefix+source).index(b'n:=7'),

@@ -306,6 +306,12 @@ uses an additional temporary page only when code staging exceeds16 KiB and
 releases it before execution. Source remains limited to16,383 bytes and ordinary
 globals to less than16 KiB; stack/heap checks still apply to actual program use.
 
+Compiler source catalogs share unused root-snapshot space when they fit,
+releasing one physical page during compilation and before Run. Canonical source
+bytes, hashes and error mappings are retained. Larger sources use a separate
+catalog page. Available physical RAM still limits execution and file-registry
+capacity.
+
 Declarations may repeat in any order. Ordinary constants alias literal/constant
 values; scalar and string typed constants are initialized writable storage.
 Named types, aliases, enumerations and ordinal subranges are supported. Byte

@@ -31,9 +31,9 @@ def main():
         labels.append((label,'state'))
         if isinstance(trigger,str):trigger=['tap '+trigger]
         return [f'bp 0x{key:x}']+trigger+[f'run {cycles}','regs','mmu',
-            f"rb 0x{sym['_ide_state']:x} 1",f'rb 0x{work:x} 140',f'rb 0x{build:x} 113',
+            f"rb 0x{sym['_ide_state']:x} 1",f'rb 0x{work:x} 140',f'rb 0x{build:x} {n.BUILD_BYTES}',
             f'rb 0x{editor:x} 223',f"rb 0x{sym['_main_file']:x} 128",
-            f"rb 0x{sym['_buffers']:x} 10",f"rb 0x{sym['_ram_result']:x} 128",f'bc 0x{key:x}']
+            f"rb 0x{sym['_buffers']:x} {n.SOURCES_BYTES}",f"rb 0x{sym['_ram_result']:x} 128",f'bc 0x{key:x}']
     def screen(label,trigger,rows=3):
         labels.append((label,'screen'));clear=kernel['_video_vram_set']
         result=[f'bp 0x{clear:x}']+trigger+['run 1000000000','regs','mmu']
@@ -67,7 +67,7 @@ def main():
         frames={label:(n.memory(part),part)for(label,_),part in zip(labels,parts)}
         checks['state snapshots stop at actual resident reader']=all(part.startswith(f'{key:04x} ')for(_,kind),part in zip(labels,parts)if kind=='state')
         data=lambda label,address,size:bytes(frames[label][0].get(address+i,0)for i in range(size))
-        baseline={address:data('cached-build',address,size)for address,size in ((work,140),(build,113),(editor,223),(sym['_main_file'],128),(sym['_buffers'],10))}
+        baseline={address:data('cached-build',address,size)for address,size in ((work,140),(build,n.BUILD_BYTES),(editor,223),(sym['_main_file'],128),(sym['_buffers'],n.SOURCES_BYTES))}
         checkpoints=['ordinary-child','repeat-child','missing','empty','directory','invalid','escape-cancel','empty-cancel','control-cancel']
         checks['ordinary and failed/canceled execution retain exact Work/Main/editor/catalog and cached build']=all(
             data(label,address,len(expected))==expected for label in checkpoints for address,expected in baseline.items())
@@ -85,7 +85,7 @@ def main():
         checks['loader and invalid-path failures are explicit']=all('Execute failed, native error ' in screenshots[label+'-status']for label in ('missing','empty','directory','invalid'))
         checks['child colors are restored before IDE output']=all(data(label,0x5000+80,26)==bytes([15])*26 for label in ('ordinary-status','repeat-status'))
         checks['Escape, empty name and Ctrl-U cancel at menu']=all(data(label,sym['_ide_state'],1)==b'\x01'for label in ('escape-cancel','empty-cancel','control-cancel'))
-        checks['R reuses preserved valid build and returns normally']=data('cached-run',build,113)==baseline[build] and data('cached-run',sym['_ram_result']+26,1)==b'\x01'
+        checks['R reuses preserved valid build and returns normally']=data('cached-run',build,n.BUILD_BYTES)==baseline[build] and data('cached-run',sym['_ram_result']+26,1)==b'\x01'
         checks['IDE exits normally after explicit discard']=frames['ide-exit'][1].startswith(f"{kernel['zos_loader_exit']:04x} ")and re.search(r'HL=00',frames['ide-exit'][1])is not None
         checks['IDE releases source, build and code allocations before exit']=data('ide-exit',kernel['_page_owners'],32).count(2)==3
         checks['actual source screen still contains unsaved text']=all(line.decode()in screenshots['source-retained']for line in (prefix.rstrip(),source.splitlines()[0],source.splitlines()[2]))

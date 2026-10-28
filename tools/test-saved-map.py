@@ -119,8 +119,8 @@ def ide(disk,pc):
     def checkpoint(label,trigger,cycles=4000000000):
         labels.append(label)
         return [f'bp 0x{key:x}',f'tap {trigger}',f'run {cycles}','regs','mmu',
-            f"rb 0x{sym['_ide_state']:x} 1",f'rb 0x{work:x} 140',f'rb 0x{build:x} 113',
-            f"rb 0x{sym['_main_file']:x} 128",f"rb 0x{sym['_buffers']:x} 10",f"rb 0x{sym['_ram_result']:x} 128",f'bc 0x{key:x}']
+            f"rb 0x{sym['_ide_state']:x} 1",f'rb 0x{work:x} 140',f'rb 0x{build:x} {n.BUILD_BYTES}',
+            f"rb 0x{sym['_main_file']:x} 128",f"rb 0x{sym['_buffers']:x} {n.SOURCES_BYTES}",f"rb 0x{sym['_ram_result']:x} 128",f'bc 0x{key:x}']
     commands=['run 100000000']+n.program_launch()+['run 10000000']+typed('nwH:/project/main.pas\nof'+f'{pc:04X}')
     commands+=checkpoint('fresh-found','ENTER')+checkpoint('fresh-source','ESC',100000000)
     commands+=leave()+typed('wH:/project/main.pas\ne')+typed('{dirty}\n')+leave()+typed('of'+f'{pc:04X}')
@@ -165,7 +165,7 @@ def main():
     sdk=ROOT.parent/'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
     cmd=['cc','-std=c99','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-g','-D__SDCC_VERSION_MAJOR=4','-D__SDCC_VERSION_MINOR=2','-D__sdcccall(x)=','-Isrc','-I'+str(sdk)]
     cmd+=['-D'+name+'=map_model_'+name for name in ('open','read','close','seek')]
-    cmd+=['src/source.c','src/sources.c','src/path.c','src/sha256.c','src/source_hash.c','src/saved_map.c','src/image.c','src/native_image.c','tests/native/saved-host.c','-o',str(OUT/'saved-host')]
+    cmd+=['src/source.c','src/sources.c','src/sources_storage.c','src/path.c','src/sha256.c','src/source_hash.c','src/saved_map.c','src/image.c','src/native_image.c','tests/native/saved-host.c','-o',str(OUT/'saved-host')]
     subprocess.run(cmd,cwd=ROOT,check=True)
     b,m=fixture();seal(b,m);positive=write('valid',b,m)
     results=[]

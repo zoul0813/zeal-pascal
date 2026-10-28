@@ -34,8 +34,8 @@ def main():
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()}
     def snapshot():
         return ['regs','mmu',f"rb 0x{sym['_ide_state']:x} 1",f'rb 0x{work:x} 140',
-                f'rb 0x{build:x} 113',f"rb 0x{sym['_main_file']:x} 128",
-                f"rb 0x{sym['_buffers']:x} 10",f"rb 0x{sym['_ram_result']:x} 128",
+                f'rb 0x{build:x} {n.BUILD_BYTES}',f"rb 0x{sym['_main_file']:x} 128",
+                f"rb 0x{sym['_buffers']:x} {n.SOURCES_BYTES}",f"rb 0x{sym['_ram_result']:x} 128",
                 f'rb 0x{modifiers:x} 4']
     commands=['run 100000000']+n.program_launch()+['run 10000000']
     commands+=typed('nwH:/project/main.pas\nmH:/project/main.pas\ne')+typed(prefix.decode())+leave()

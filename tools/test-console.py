@@ -21,7 +21,7 @@ def upper_probe():
     typed=lambda text:n.type_text(text,ticks=100000000)
     commands=['run 100000000']+n.program_launch()+['run 10000000']
     commands+=typed('nwH:/CONUPPER.PAS\nocq')+[f'bp 0x{key:x}','tap C','run 20000000000','regs',
-        f'rb 0x{build:x} 113',f'bc 0x{key:x}','tap ESC','run 100000000']+typed('q')+['quit']
+        f'rb 0x{build:x} {n.BUILD_BYTES}',f'bc 0x{key:x}','tap ESC','run 100000000']+typed('q')+['quit']
     raw=n.execute('console-upper-probe',commands,{'CONUPPER.PAS':(ROOT/'tests/native/conupper.pas').read_bytes()},timeout=300)
     assert n.memory(raw).get(build+4)==1
     folder=n.RUN/'console-upper-probe/hostfs'
@@ -32,12 +32,13 @@ def upper_probe():
     opcode=bytes([0xcd,source&255,source>>8])
     calls=[at for at in range(max(0xc000,origin),origin+size-2)if image[at-0x4000:at-0x4000+3]==opcode]
     assert len(calls)==1 and calls[0]+3<0xf400,calls
-    return image,calls[0]
+    padding=int(re.search(rb'padding:array\[1\.\.(\d+)\]',(ROOT/'tests/native/conupper.pas').read_bytes())[1])
+    return image,calls[0],0x8000+padding-1
 
 
 def main():
     target='zcontest';sym=n.symbols(target);runtime=n.symbols('pascal_runtime')
-    upper_image,upper_site=upper_probe()
+    upper_image,upper_site,upper_last=upper_probe()
     reader=n.kernel_symbols()['keyboard_next_key'];echo=runtime['input_echo'];fail=runtime['input_fail']
     inputs=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),ROOT/'tools/test-native.py',
             ROOT/'tools/package-native.py',n.EMULATOR,n.ROM]
@@ -84,7 +85,7 @@ def main():
     # The file module may execute at the same virtual address as input_source.
     # First stop at this program's authenticated generated CALL above C000.
     commands.extend([f'bp 0x{upper_site:x}','run 20000000000','regs',
-                     f'rb 0x{upper_site:x} 3','rb 0x8000 1','rb 0xa967 1',f'bc 0x{upper_site:x}',
+                     f'rb 0x{upper_site:x} 3','rb 0x8000 1',f'rb 0x{upper_last:x} 1',f'bc 0x{upper_site:x}',
                      f"bp 0x{runtime['input_source']:x}",'run 20000000000','regs','mmu',
                      f"rb 0x{runtime['input_source']:x} 16",
                      'rb 0xf800 256','rb 0xf900 256','rb 0xfa00 256','rb 0xfb00 256',
@@ -138,7 +139,7 @@ def main():
         'Trm CR echoes CR/LF and failed console output selected X':echoed[2*len(physical):]==bytes([13,10,13,10,88,88]),
         'physical source is called from actual generated code above C000':0xc000<=caller<0xf400,
         'upper-page probe observes the authenticated console program and mapped runtime':
-            caller==upper_site+3 and len(gate)==1 and gate[0].get(0x8000)==73 and gate[0].get(0xa967)==149 and
+            caller==upper_site+3 and len(gate)==1 and gate[0].get(0x8000)==73 and gate[0].get(upper_last)==149 and
             bytes(gate[0].get(upper_site+i,0)for i in range(3))==bytes([0xcd,runtime['input_source']&255,runtime['input_source']>>8]) and
             len(upper)==1 and bytes(n.memory(upper[0]).get(runtime['input_source']+i,0)for i in range(16))==prefix[runtime['input_source']-0x4000:runtime['input_source']-0x4000+16] and
             (disk/'CONUPPER.COM').read_bytes()==upper_image,

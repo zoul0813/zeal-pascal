@@ -38,8 +38,8 @@ def main():
     def snapshot(label, expected):
         labels.append((label, expected))
         return ['regs', 'mmu', f"rb 0x{sym['_ide_state']:x} 1",
-                f'rb 0x{work:x} 140', f'rb 0x{build:x} 113', f'rb 0x{editor:x} 223',
-                f"rb 0x{sym['_main_file']:x} 128", f"rb 0x{sym['_buffers']:x} 10",
+                f'rb 0x{work:x} 140', f'rb 0x{build:x} {n.BUILD_BYTES}', f'rb 0x{editor:x} 223',
+                f"rb 0x{sym['_main_file']:x} 128", f"rb 0x{sym['_buffers']:x} {n.SOURCES_BYTES}",
                 f"rb 0x{sym['_ram_result']:x} 128", f"rb 0x{kernel['_page_owners']:x} 32"]
 
     def state(label, trigger, cycles=4000000000):

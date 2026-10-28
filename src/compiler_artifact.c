@@ -85,6 +85,7 @@ uint8_t cc_seal(const Source *s,const CompileOptions *options) FRONTEND {
         if(!page_drop(b->pages[i])) { d->code=98;return 0; }
         b->pages[i]=255;
     }
+    if(!sources_pack(&b->sources)){d->code=98;return 0;}
     for(i=0;i<3;++i)b->versions[i]=b->pages[i]==255?0:page_versions[b->pages[i]];
     b->versions[3]=page_versions[b->map_page];b->versions[4]=page_versions[s->page];
     cc.polling=0;b->valid=1;return 1;

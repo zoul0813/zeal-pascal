@@ -27,6 +27,10 @@ RUN = OUT / datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
 # Loading/hashing the complete banked library is deliberately not optimized yet.
 # Stop at the actual breakpoint, with room for the growing native product.
 LIBRARY_READY_CYCLES = 8000000000
+# Private SDCC near handles inspected by debugger-based IDE acceptance.
+# Native compile-time guards in sources-main.c pin these observer sizes.
+BUILD_BYTES = 115
+SOURCES_BYTES = 12
 
 
 def sha(path):

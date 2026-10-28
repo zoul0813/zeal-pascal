@@ -97,8 +97,9 @@ typedef struct {
     char path[128];
 } Source;
 /* An owner of source pages and their identities. Descriptors live in an owned
- * far page; the near handle authenticates its current immutable contents. */
-typedef struct { uint8_t page,count; uint32_t lifetime,version; } Sources;
+ * far page; the near handle authenticates its current immutable contents.
+ * base0 owns a separate catalog; a nonzero base stores it in the root snapshot. */
+typedef struct { uint8_t page,count; uint32_t lifetime,version; uint16_t base; } Sources;
 typedef struct {
     uint8_t code;
     uint16_t start, end;

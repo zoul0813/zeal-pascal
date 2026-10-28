@@ -6,8 +6,9 @@ project(zeal_pascal C ASM)
 # The shared pure path resolver lives beside IDE file operations, and in the
 # disk module's own retained prefix when used by generated Pascal programs.
 add_library(ide_paths OBJECT src/path.c)
+target_compile_definitions(ide_paths PRIVATE ZP_IDE_PATHS)
 target_compile_options(ide_paths PRIVATE --std-c99 --opt-code-size
-    "SHELL:--codeseg BANK3" "SHELL:--constseg BANK3")
+    "SHELL:--codeseg BANK13" "SHELL:--constseg BANK13")
 
 # The generated Pascal runtime has its own startup, not the SDK C startup.
 set(CMAKE_ASM_LINK_EXECUTABLE "<CMAKE_LINKER> <LINK_FLAGS> <TARGET> <OBJECTS>")
@@ -49,7 +50,7 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/runtime_asset.asm CONTENT
 ".area _BANK8\n.globl _runtime_start\n.globl _runtime_end\n.globl _trampoline_start\n.globl _trampoline_end\n_runtime_start:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.zpl\"\n_runtime_end:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.private\"\n.area _RODATA\n_trampoline_start:\n.incbin \"${CMAKE_BINARY_DIR}/ram_trampoline.zpl\"\n_trampoline_end:\n")
 set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/pascal_runtime.zpl;${CMAKE_BINARY_DIR}/pascal_runtime.private;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
-set(PASCAL_CORE src/source.c src/sources.c src/compiler_sources.c src/source_hash.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/compiler_expr.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_file.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_state.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/saved_map.c src/native.asm
+set(PASCAL_CORE src/source.c src/sources.c src/sources_storage.c src/compiler_sources.c src/source_hash.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/compiler_expr.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_file.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_state.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/saved_map.c src/native.asm
     ${CMAKE_BINARY_DIR}/runtime_asset.asm ${CMAKE_BINARY_DIR}/file_asset.asm)
 # This SDK disables compiler depfiles. Keep shared ABI/header changes from
 # leaving stale objects in another compiler bank during incremental ZDE builds.
@@ -83,6 +84,8 @@ set_property(SOURCE src/editor.c src/main.c tests/native/editor-core.c tests/nat
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/editor.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h)
 set_property(SOURCE src/sources.c src/compiler_sources.c src/compiler.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/output.c src/main.c tests/native/sources-main.c tests/native/inline-main.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources.h)
+set_property(SOURCE src/sources.c src/sources_storage.c APPEND PROPERTY
+    OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources_internal.h ${CMAKE_SOURCE_DIR}/src/sources.h)
 set_property(SOURCE src/source.c src/source_blocks.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/source_internal.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h)
 set_property(SOURCE src/output.c src/saved_map.c src/main.c APPEND PROPERTY OBJECT_DEPENDS
@@ -96,6 +99,7 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/sdk_glue.asm CONTENT
     ".globl _fflush_stdout\n.include \"$ENV{ZOS_PATH}/sdk/sdcc/src/zeal8bitos.asm\"\n")
 list(APPEND PASCAL_CORE ${CMAKE_BINARY_DIR}/sdk_glue.asm)
 add_library(zp_core OBJECT ${PASCAL_CORE})
+target_compile_definitions(zp_core PRIVATE ZP_IDE_PATHS)
 add_dependencies(zp_core pascal_runtime_bin ram_trampoline_bin)
 target_include_directories(zp_core PRIVATE src)
 target_compile_options(zp_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
@@ -120,7 +124,7 @@ set_source_files_properties(src/compiler_console.c src/compiler_keyboard.c src/s
     COMPILE_OPTIONS "--codeseg;BANK12;--constseg;BANK12")
 set_source_files_properties(src/editor.c src/source_blocks.c src/output_transport.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK13;--constseg;BANK13")
-set_source_files_properties(src/compiler_activation.c src/image.c PROPERTIES
+set_source_files_properties(src/compiler_activation.c src/sources_storage.c src/image.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK2;--constseg;BANK2")
 set_source_files_properties(src/compiler_files.c src/compiler_io.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK10;--constseg;BANK10")

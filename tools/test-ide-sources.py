@@ -34,8 +34,8 @@ def main():
     def checkpoint(label,trigger,cycles=4000000000):
         labels.append(label)
         return [f'bp 0x{key:x}',f'tap {trigger}',f'run {cycles}','regs','mmu',
-            f"rb 0x{sym['_ide_state']:x} 1",f'rb 0x{work:x} 140',f'rb 0x{build:x} 113',
-            f"rb 0x{sym['_main_file']:x} 128",f"rb 0x{sym['_buffers']:x} 10",
+            f"rb 0x{sym['_ide_state']:x} 1",f'rb 0x{work:x} 140',f'rb 0x{build:x} {n.BUILD_BYTES}',
+            f"rb 0x{sym['_main_file']:x} 128",f"rb 0x{sym['_buffers']:x} {n.SOURCES_BYTES}",
             f"rb 0x{sym['_ram_result']:x} 128",f'bc 0x{key:x}']
     leave=lambda:control('K')+typed('d')
     commands=['run 100000000']+n.program_launch()+['run 10000000']+typed('nwH:/project/main.pas\ne')

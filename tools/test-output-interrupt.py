@@ -37,7 +37,7 @@ def run_case(kind,helper,ordinal,typing=False,drive="H"):
     labels=[]
     def probe(label,pc):
         labels.append((label,pc))
-        return ['regs','mmu',f'rb 0x{work:x} 140',f'rb 0x{build:x} 113',f'rb 0x{editor:x} 223',
+        return ['regs','mmu',f'rb 0x{work:x} 140',f'rb 0x{build:x} {n.BUILD_BYTES}',f'rb 0x{editor:x} 223',
                 f"rb 0x{sym['_main_file']:x} 128",f"rb 0x{sym['_code_pages']:x} 16",
                 f"rb 0x{reason:x} 1",f"rb 0x{sym['_platform_error']:x} 1",
                 f"rb 0x{sym['_console_scratch']:x} 256",f"rb 0x{kernel['_page_owners']:x} 32"]

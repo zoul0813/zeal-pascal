@@ -45,9 +45,9 @@ static uint8_t resolve(const char *name,const char *directory,char *out,uint8_t 
     while(w>3&&out[w-1]=='/')--w;
     out[w]=0; return 1;
 }
-uint8_t path_resolve(const char *name,const char *directory,char *out) {
+uint8_t path_resolve(const char *name,const char *directory,char *out) PATH_CALL {
     return resolve(name,directory,out,0);
 }
-uint8_t path_directory(const char *name,const char *directory,char *out) {
+uint8_t path_directory(const char *name,const char *directory,char *out) PATH_CALL {
     return resolve(name,directory,out,1);
 }

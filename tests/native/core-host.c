@@ -383,6 +383,80 @@ static void source_catalog_cases(void) {
     check(sources_new(&next));check(next.page==stale.page&&!sources_valid(&stale));check(sources_close(&next));
     source_close(&origin);check(pages_used()==before);
 }
+static void packed_catalog_cases(void) {
+    static uint8_t text[PAGE_SIZE];
+    const uint16_t lengths[]={0,10,PAGE_SIZE-190,PAGE_SIZE-189,SOURCE_LIMIT};
+    Sources set,stale;Source origin,snapshot,include,other,view;
+    uint8_t before=pages_used(),metadata,hash[32],expected[32],packed;
+    uint16_t i,n;unsigned scenario;
+    for(i=0;i<PAGE_SIZE;++i)text[i]=i%80==79?'\n':'x';
+    for(scenario=0;scenario<sizeof(lengths)/sizeof(lengths[0]);++scenario) {
+        n=lengths[scenario];
+        check(source_new(&origin,"H:/root.pas"));
+        check(source_import(&origin,text,n,&d)&&origin.length==n);
+        check(source_snapshot(&origin,&snapshot)&&snapshot.length==n);
+        check(sources_new(&set));check(sources_take(&set,&snapshot,&origin)==0);
+        metadata=set.page;stale=set;source_hash(&snapshot,expected);
+        check(sources_pack(&set));packed=n<PAGE_SIZE-189;
+        check((set.base!=0)==packed&&sources_valid(&set)&&sources_ready(&set,0));
+        check(pages_used()==before+3-packed);
+        check(sources_get(&set,0,&view)&&view.page==snapshot.page&&view.length==n);
+        source_hash(&view,hash);check(!memcmp(hash,expected,32));
+        check(sources_hash(&set,0,hash)&&!memcmp(hash,expected,32));
+        check(sources_find(&set,"H:/root.pas")==0&&sources_origin(&set,0)==origin.page);
+        check(sources_byte(&set,0,n)==0);
+        if(packed) {
+            check(set.page==snapshot.page&&set.base==n+1&&!page_role(metadata));
+            check(!sources_valid(&stale));check(sources_pack(&set));
+            fail_drop=snapshot.page;check(!sources_close(&set)&&set.count==1&&sources_valid(&set));
+            fail_drop=-1;
+            stale=set;far_set(set.page,n?0:set.base,far_get(set.page,n?0:set.base));
+            check(!sources_valid(&set)&&!sources_ready(&set,0)&&!sources_close(&set));
+            /* Restore the test observer only, to retire the deliberately
+             * corrupted owner without weakening production authentication. */
+            set.version=page_versions[set.page];
+            check(!sources_valid(&stale));
+        }
+        if(n==PAGE_SIZE-190) {
+            check(source_snapshot(&origin,&other));strcpy(other.path,"H:/grow.inc");
+            fail_after=0;check(sources_take(&set,&other,0)<0);
+            check(set.base&&set.count==1&&sources_ready(&set,0)&&page_role(other.page));
+            fail_after=-1;check(sources_take(&set,&other,0)==1&&!set.base);
+            check(sources_ready(&set,0)&&sources_ready(&set,1));
+            check(sources_pack(&set)&&!set.base); /* Two records cannot fit. */
+            check(sources_get(&set,0,&view));source_hash(&view,hash);check(!memcmp(hash,expected,32));
+        }
+        check(sources_close(&set));source_close(&origin);check(pages_used()==before);
+    }
+    check(source_new(&origin,"H:/root.pas"));
+    check(source_import(&origin,(const uint8_t*)"begin end.",10,&d));
+    check(source_snapshot(&origin,&snapshot));check(sources_new(&set));
+    check(sources_take(&set,&snapshot,&origin)==0);
+    check(source_snapshot(&origin,&include));strcpy(include.path,"H:/part.inc");
+    check(sources_take(&set,&include,0)==1);
+    check(source_snapshot(&origin,&other));strcpy(other.path,"H:/other.inc");
+    check(sources_take(&set,&other,0)==2);metadata=set.page;
+    fail_drop=metadata;check(!sources_pack(&set));
+    check(set.page==metadata&&!set.base&&sources_valid(&set));
+    check(sources_ready(&set,0)&&sources_ready(&set,1)&&pages_used()==before+5);
+    fail_drop=-1;check(sources_pack(&set)&&pages_used()==before+4);
+    check(sources_ready(&set,0)&&sources_ready(&set,1)&&!sources_resident(&set,1));
+    check(!sources_remove(&set,0)&&set.count==3);
+    check(sources_remove(&set,1)&&set.count==2&&sources_ready(&set,0)&&sources_ready(&set,1));
+    check(sources_get(&set,1,&view)&&view.page==other.page&&sources_find(&set,"H:/other.inc")==1);
+    fail_drop=other.page;check(!sources_close(&set)&&set.count==2&&sources_ready(&set,0));
+    fail_drop=-1;check(sources_remove(&set,1)&&set.count==1&&sources_ready(&set,0));
+    check(!page_role(include.page)&&sources_find(&set,"H:/part.inc")==-1);
+    fail_after=0;check(sources_take(&set,&snapshot,&origin)<0&&set.base&&sources_ready(&set,0));
+    fail_after=-1;check(sources_take(&set,&snapshot,&origin)==0&&!set.base&&sources_ready(&set,0));
+    check(sources_pack(&set)&&set.base&&sources_ready(&set,0));
+    check(source_snapshot(&origin,&other));fail_drop=snapshot.page;
+    check(sources_take(&set,&other,&origin)<0&&!set.base&&sources_ready(&set,0));
+    check(page_role(other.page)==PAGE_SNAPSHOT&&page_role(snapshot.page)==PAGE_SNAPSHOT);
+    fail_drop=-1;check(sources_take(&set,&other,&origin)==0&&!page_role(snapshot.page));
+    check(sources_get(&set,0,&view)&&view.page==other.page&&sources_ready(&set,0));
+    check(sources_close(&set));source_close(&origin);check(pages_used()==before);
+}
 static void include_cases(void) {
     HostSource files[]={
         {"H:/PART.INC","const greeting='included';number=-1.25;\ntype link=^node;node=record value:integer;next:link end;\nconst table:array[1..2]of integer=(1,2);\nvar n:integer;\nprocedure part;begin n:=table[1];writeln(greeting,number)end;"},
@@ -404,6 +478,7 @@ static void include_cases(void) {
     files[2].text="11,22";
     files[1].text="procedure more;begin part;n:=n+table[2]end;";
     source_catalog_cases();
+    packed_catalog_cases();
     load("program Main;\n{$IPART.INC}\n{$I more.inc}\nbegin more;writeln(greeting,number,table[2])end.");
     check(compile(&s,&b,&d));check(b.sources.count==3);check(map_word(8)==1);check(map_word(14)==3);
     check(sources_find(&b.sources,"H:/PART.INC")==1&&sources_find(&b.sources,"H:/more.inc")==2);

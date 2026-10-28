@@ -90,6 +90,7 @@ uint8_t cc_sources_prepare(const Source *root,const Sources *buffers) ROUTINES {
     if(sources_take(&cc.image->sources,cc.input,origin)<0) {
         source_close(cc.input);cc_fail(98);return 0;
     }
+    if(!sources_pack(&cc.image->sources)){cc_fail(98);return 0;}
     cc.sources->refs_page=page_new(PAGE_COMPILER);
     if(cc.sources->refs_page==255){cc_fail(98);return 0;}
     return 1;

@@ -43,8 +43,8 @@ def main():
         if isinstance(trigger,str):trigger=['tap '+trigger]
         assert all(not part.startswith('run ')for part in trigger)
         return [f'bp 0x{key:x}']+trigger+[f'run {cycles}','regs','mmu',
-            f"rb 0x{sym['_ide_state']:x} 1",f'rb 0x{work:x} 140',f'rb 0x{build:x} 113',
-            f'rb 0x{editor:x} 223',f"rb 0x{sym['_main_file']:x} 128",f"rb 0x{sym['_buffers']:x} 10",
+            f"rb 0x{sym['_ide_state']:x} 1",f'rb 0x{work:x} 140',f'rb 0x{build:x} {n.BUILD_BYTES}',
+            f'rb 0x{editor:x} 223',f"rb 0x{sym['_main_file']:x} 128",f"rb 0x{sym['_buffers']:x} {n.SOURCES_BYTES}",
             f"rb 0x{sym['_ram_result']:x} 128",f'bc 0x{key:x}']
     def screen(label,trigger,rows=16):
         labels.append((label,'screen'))
@@ -91,7 +91,7 @@ def main():
         data=lambda label,address,size:bytes(frames[label][0].get(address+i,0)for i in range(size))
         text=lambda label,address:data(label,address,128).split(b'\0')[0]
         checks['state checkpoints stop at actual resident reader']=all(part.startswith(f'{key:04x} ')for(_,kind),part in zip(labels,parts)if kind=='state')
-        baseline={address:data('baseline',address,size)for address,size in ((work,140),(build,113),(editor,223),(sym['_main_file'],128),(sym['_buffers'],10))}
+        baseline={address:data('baseline',address,size)for address,size in ((work,140),(build,n.BUILD_BYTES),(editor,223),(sym['_main_file'],128),(sym['_buffers'],n.SOURCES_BYTES))}
         checks['all drive/listing success, failure, cancellation and paging preserve complete editor/build/catalog state']=all(
             data(label,address,len(expected))==expected for label,kind in labels if kind=='state'and label!='cached-run'for address,expected in baseline.items())
         checks['baseline contains unsaved source, a block mark and valid compiled snapshot']=baseline[work][1]==1 and baseline[editor][152]==1 and baseline[build][4]==1 and baseline[build][51:83]==hashlib.sha256(prefix+source).digest()
@@ -123,7 +123,7 @@ def main():
         closed=[label for label,kind in labels if kind=='screen'and label not in ('page-one','page-two')]
         checks['directory descriptors close on EOF, errors and pager cancellation']=all(data(label,kernel['_dev_table'],32)==data('baseline-menu',kernel['_dev_table'],32)for label in closed)
         checks['page and allocator ownership remains unchanged']=all(data(label,kernel['_page_owners'],32)==data('baseline-menu',kernel['_page_owners'],32)and data(label,kernel['mmu_bitmap'],4)==data('baseline-menu',kernel['mmu_bitmap'],4)for label,kind in labels if kind=='screen')
-        checks['R after logged-drive changes reuses valid absolute-root cache']=data('cached-run',build,113)==baseline[build]and data('cached-run',sym['_ram_result']+26,1)==b'\x01'
+        checks['R after logged-drive changes reuses valid absolute-root cache']=data('cached-run',build,n.BUILD_BYTES)==baseline[build]and data('cached-run',sym['_ram_result']+26,1)==b'\x01'
         checks['actual source display retains unsaved comment and original program']=all(any(line.decode()in row for row in screens['source-retained'])for line in (prefix.rstrip(),source.splitlines()[0],source.splitlines()[2]))
         checks['clean IDE exit releases all non-loader pages']=frames['ide-exit'][1].startswith(f"{kernel['zos_loader_exit']:04x} ")and data('ide-exit',kernel['_page_owners'],32).count(2)==3
     folder=n.RUN/'ide-directory'

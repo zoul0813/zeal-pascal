@@ -13,6 +13,10 @@ uint8_t sources_get(const Sources *set,uint8_t id,Source *source) SOURCE_BLOCK_C
 int16_t sources_take(Sources *set,const Source *source,const Source *origin) SOURCE_BLOCK_CALL;
 uint8_t sources_remove(Sources *set,uint8_t id) SOURCE_BLOCK_CALL;
 uint8_t sources_close(Sources *set) SOURCE_BLOCK_CALL;
+/* Move a snapshot catalog into unused root-page space when it fits. Source
+ * bytes remain at offset0. Growth/replacement separates storage if needed.
+ * No-space is a successful no-op. A failed page release retains both owners. */
+uint8_t sources_pack(Sources *set) SOURCE_BLOCK_CALL;
 uint8_t sources_hash(const Sources *set,uint8_t id,uint8_t hash[32]) SOURCE_BLOCK_CALL;
 uint8_t sources_ready(const Sources *set,uint8_t id) SOURCE_BLOCK_CALL;
 uint8_t sources_resident(const Sources *set,uint8_t id) SOURCE_BLOCK_CALL;
