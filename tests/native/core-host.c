@@ -813,6 +813,10 @@ int main(int argc,char **argv) {
     fail_after=-1;
     }
     check(compile(&s,&b,&d)); check(build_check(&s,&b)); check(build_ready(&s,&b));
+    check(b.length<=2u*PAGE_SIZE&&b.pages[2]==255&&b.versions[2]==0);
+    old=b.pages[1];b.pages[1]=255;check(!build_check(&s,&b)&&!build_ready(&s,&b));b.pages[1]=old;
+    b.pages[2]=old;check(!build_check(&s,&b)&&!build_ready(&s,&b));b.pages[2]=255;
+    check(build_check(&s,&b)&&build_ready(&s,&b));
     old=far_get(b.map_page,b.map_length-1);
     far_set(b.map_page,b.map_length-1,old^1);
     check(!build_check(&s,&b));
@@ -878,7 +882,7 @@ int main(int argc,char **argv) {
                 if(!strcmp(fixtures[fixture],"absolute")) check(b.globals_bytes==8);
                 if(!strcmp(fixtures[fixture],"realabi")) check(b.globals_bytes==0);
                 if(!strcmp(fixtures[fixture],"textedges")||!strcmp(fixtures[fixture],"capacity")) {
-                    check(b.code_bytes>PAGE_SIZE&&0x4000u+b.length<=CC_STATIC_LIMIT);
+                    check(b.code_bytes>PAGE_SIZE&&0x4000u+b.length<=CC_STATIC_LIMIT&&b.pages[2]!=255);
                     check(cc.stage_page==255);
                 }
                 ordered_map(); build_close(&b);

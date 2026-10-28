@@ -11,11 +11,12 @@ void test_complete(void);
 static uint8_t probe_saved;
 
 static void job(const char *name,uint8_t valid,uint8_t kind) {
-    uint8_t owned=pages_used(),before[7],after[7],i;
+    uint8_t owned=pages_used(),retained,before[7],after[7],i;
     uint16_t position,pc;
     uint32_t revision;
     check(load_source(&s,name,&d));check(compile(&s,&b,&d));
     if(!b.valid) return;
+    retained=pages_used();
     check(b.globals_bytes==0);
     if(!probe_saved) {check(save_build(&s,&b));probe_saved=1;}
     s.dirty=1;revision=s.revision;
@@ -32,7 +33,7 @@ static void job(const char *name,uint8_t valid,uint8_t kind) {
         check(build_locate(&s,&b,pc,&position));
         check(far_get(s.page,position)=='n'&&far_get(s.page,position+1)==':');
     }
-    check(pages_used()==owned+4);check(build_check(&s,&b));
+    check(pages_used()==retained);check(build_check(&s,&b));
     for(i=32;i<64;++i) check(page_role(i)!=PAGE_WORKER);
     build_close(&b);check(pages_used()==owned);
 }

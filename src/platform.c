@@ -165,7 +165,7 @@ uint8_t key_interrupt(void) {
     return result;
 }
 uint8_t run_build(const Source *s,const Build *b) {
-    uint8_t child[3]={255,255,255},i,ok=0,entered=0,failure;
+    uint8_t child[3]={255,255,255},i,ok=0,entered=0,failure,from;
     uint16_t j;
     ram_io_detail=0; ram_cleanup_detail=0;
     if(!build_ready(s,b)) return 0;
@@ -173,7 +173,8 @@ uint8_t run_build(const Source *s,const Build *b) {
     for(i=0;i<3;++i) {
         child[i]=page_new(PAGE_RUN);
         if(child[i]==255) goto cleanup;
-        for(j=0;j<PAGE_SIZE;++j) far_set(child[i],j,far_get(b->pages[i],j));
+        from=b->pages[i];
+        for(j=0;j<PAGE_SIZE;++j) far_set(child[i],j,from==255?0:far_get(from,j));
         page_initialized(child[i],PAGE_SIZE);
     }
     for(j=0;j<1024;++j) far_set(child[2],0x3c00+j,0);
