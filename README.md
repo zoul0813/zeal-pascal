@@ -39,6 +39,8 @@ python3 tools/test-compile-interrupt.py --seal-poll 293
 python3 tools/test-options.py
 python3 tools/test-options.py --ide
 python3 tools/test-chain.py
+python3 tools/test-chain-loader.py
+python3 tools/test-chain-loader.py --native
 python3 tools/test-bridges.py
 python3 tools/test-bridges.py --corpus routines
 python3 tools/test-bridges.py --corpus real

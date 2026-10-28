@@ -2,6 +2,7 @@
 #define ZP_H
 #include <stdint.h>
 #include <string.h>
+#include "sha256.h"
 #ifdef __SDCC
 #define NATIVE __sdcccall(1)
 #else
@@ -121,11 +122,6 @@ typedef struct {
     uint32_t versions[5]; /* image pages, map, original source */
     Sources sources; /* canonical source snapshots retained with this build */
 } Build;
-typedef struct {
-    uint32_t h[8], bytes;
-    uint8_t block[64], used;
-    uint32_t schedule[16], working[8];
-} Sha256;
 
 /* These mapping cores execute in retained page 1, with no window pointers. */
 uint8_t far_get(uint8_t page, uint16_t offset) NATIVE;
@@ -161,9 +157,6 @@ void source_location(const Source *s, uint16_t position, uint16_t *line, uint16_
 uint16_t source_rebase(uint16_t position,uint16_t first,uint16_t last,uint16_t inserted,uint8_t right);
 uint8_t source_snapshot(const Source *s, Source *snapshot);
 uint16_t source_editor_offset(const Source *s, uint16_t canonical);
-void sha_init(Sha256 *s);
-void sha_byte(Sha256 *s, uint8_t b);
-void sha_end(Sha256 *s, uint8_t out[32]);
 void source_hash(const Source *s, uint8_t out[32]);
 uint8_t compile(const Source *s, Build *b, Diagnostic *d);
 uint8_t compile_project(const Source *root,const Sources *buffers,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options);

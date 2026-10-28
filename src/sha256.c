@@ -1,4 +1,10 @@
-#include "zp.h"
+#include "sha256.h"
+#include <string.h>
+#ifdef __SDCC
+#define NATIVE __sdcccall(1)
+#else
+#define NATIVE
+#endif
 
 static const uint32_t k[64] = {
 0x428a2f98UL,0x71374491UL,0xb5c0fbcfUL,0xe9b5dba5UL,0x3956c25bUL,0x59f111f1UL,0x923f82a4UL,0xab1c5ed5UL,
@@ -66,19 +72,4 @@ void sha_end(Sha256 *s,uint8_t out[32]) {
     for(i=0;i<4;++i) sha_byte(s,0);
     for(i=0;i<4;++i) sha_byte(s,(uint8_t)(bits>>(24-i*8)));
     for(i=0;i<32;++i) out[i]=(uint8_t)(s->h[i/4]>>(24-(i&3)*8));
-}
-void source_hash(const Source *s,uint8_t out[32]) {
-    Sha256 hash;
-    uint16_t i,a=0,z,trim;
-    sha_init(&hash);
-    while(a<s->length) {
-        z=a;
-        while(z<s->length&&far_get(s->page,z)!='\n') ++z;
-        trim=z;
-        while(trim>a&&far_get(s->page,trim-1)==' ') --trim;
-        for(i=a;i<trim;++i) sha_byte(&hash,far_get(s->page,i));
-        if(z<s->length) sha_byte(&hash,'\n');
-        a=z+1;
-    }
-    sha_end(&hash,out);
 }
