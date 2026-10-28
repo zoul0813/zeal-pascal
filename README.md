@@ -27,6 +27,8 @@ python3 tools/test-hooks.py
 python3 tools/test-language.py
 python3 tools/test-sources.py
 python3 tools/test-ide-sources.py
+python3 tools/test-inline.py
+python3 tools/test-ide-sources.py --inline
 python3 tools/test-bridges.py
 python3 tools/test-bridges.py --corpus routines
 python3 tools/test-bridges.py --corpus real
@@ -531,8 +533,23 @@ complete queued taps. Parent resource services retain the caller's interrupt
 setting after their stack and mappings are ready. Full physical-input and
 hardware acceptance remain open.
 
-Inline machine-code statements and the C/U directives are also pending;
-the implemented directives are A, B, I checking, R, V, W and X.
+Inline machine-code statements support slash-separated additive/subtractive
+elements, integer constants, variable/routine operands, and `*` for the current
+emission address. Constants in 0..255 emit one byte; other values and address
+operands emit a little-endian word. `<` forces a low byte and `>` forces a word.
+Address differences and forced bytes remain correct when generated code moves
+above globals. Forward and enclosing routine entries have stable addresses.
+
+Operands use the native Zeal ABI. Static variables use absolute addresses;
+recursive locals and formal copies use their signed IX-frame offsets. A VAR
+operand identifies its pointer slot. Typed constants reside in generated code.
+Nested routine operands are raw entries: machine-code callers supply the native
+lexical-parent link and arguments. `Addr` retains its captured-thunk behavior
+for nested Pascal-callable pointers. Inline code preserves SP, IX/IY and the
+other state required by that calling convention.
+
+The C/U directives remain pending; the implemented directives are A, B, I
+checking, R, V, W and X.
 Pascal CRT calls (ClrScr, ClrEol, GotoXY, InsLine, DelLine, CrtInit/CrtExit,
 LowVideo/NormVideo/HighVideo and Delay), replacement input/error callbacks,
 Chain/Execute and overlays remain pending. CP/M BIOS/BDOS services are intentionally

@@ -26,6 +26,7 @@
 !/tools/test-language.py
 !/tools/test-sources.py
 !/tools/test-ide-sources.py
+!/tools/test-inline.py
 !/tools/test-file-runtime.py
 !/tools/test-runtime-layout.py
 !/tools/test-params.py

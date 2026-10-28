@@ -27,6 +27,7 @@ enum { HOOK_STATUS,HOOK_CON_OUT,HOOK_LST_OUT,HOOK_AUX_OUT,HOOK_USR_OUT,HOOK_COUN
 enum { R_PARENT=0,R_FLAGS=1,R_SYMBOL=2,R_ENTRY=4,R_CALLS=6,R_PARAMETERS=8,R_COUNT=10,R_LOCALS=12,R_EXITS=14,
        R_DESCRIPTOR=16,R_THUNK=18,R_LOCAL_GUARD=20,R_LOCAL_ALLOC=22 };
 #define ROUTINE_BYTES 24u
+#define RELOCATION_BYTES 4u
 enum { RF_FORWARD=1,RF_RECURSIVE=2,RF_DEFINED=4,RF_EXTERNAL=8 };
 /* Published saved IX/return/arguments and lexical/lifetime slots stay fixed.
  * The private words are caller cursor[-6] and owned-local lower bound[-8]. */
@@ -107,6 +108,7 @@ void cc_emit(uint8_t v) FRONTEND;
 void cc_op16(uint8_t op,uint16_t value) FRONTEND;
 void cc_address(uint8_t op,uint16_t value) FRONTEND;
 void cc_relocate(uint16_t operand) FRONTEND;
+void cc_relocate_value(uint16_t operand,uint16_t coefficient,uint8_t byte) FRONTEND;
 uint8_t cc_place_code(void) FRONTEND;
 void cc_symbol_address(uint16_t id) FRONTEND;
 void cc_destination(uint16_t id) FRONTEND;
@@ -160,6 +162,7 @@ void cc_constant(uint8_t *type,uint16_t *value) FRONTEND;
 uint16_t cc_new_symbol(uint8_t role) FRONTEND;
 void cc_result_symbol(uint16_t routine) FRONTEND;
 void cc_storage(uint16_t id,uint16_t width) FRONTEND;
+void cc_bind_storage(uint16_t id) FRONTEND;
 uint16_t cc_rget(uint8_t scope,uint8_t field) FRONTEND;
 void cc_rput(uint8_t scope,uint8_t field,uint16_t value) FRONTEND;
 void cc_frame(uint8_t scope) FRONTEND;
@@ -193,6 +196,7 @@ uint8_t cc_aggregate_actual(uint8_t type) BACKEND;
 void cc_string_statement(uint8_t insert) BACKEND;
 void cc_string_value(void) BACKEND;
 SourcePosition cc_statement(void) BACKEND;
+void cc_inline(void) FRONTEND;
 void cc_labels(void) BACKEND;
 void cc_labels_finish(void) BACKEND;
 uint8_t cc_runtime_statement(void) BACKEND;

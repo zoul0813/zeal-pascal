@@ -295,6 +295,8 @@ static SourcePosition statement(void) {
         --cc.depth; return start;
     } else if(cc_is("goto")) {
         goto_statement();
+    } else if(cc_is("inline")) {
+        cc_inline();
     } else if((cc_is("write")||cc_is("writeln"))&&cc_lookup()<0) {
         cc_write(cc_is("writeln"));
     } else if(cc_is("str")&&cc_lookup()<0) {

@@ -79,24 +79,38 @@ void cc_emit(uint8_t v) FRONTEND {
 static void emit16(uint16_t v) { cc_emit((uint8_t)v); cc_emit((uint8_t)(v>>8)); }
 void cc_op16(uint8_t op,uint16_t value) FRONTEND { cc_emit(op); emit16(value); }
 void cc_relocate(uint16_t operand) FRONTEND {
-    uint16_t p=cc.relocations*2;
-    if(cc.error->code||cc.suppress) return;
-    if((uint32_t)p+2+(uint32_t)cc.routine_count*ROUTINE_BYTES>PAGE_SIZE) { cc_fail(99); return; }
-    far_set(cc.workspace,p,(uint8_t)operand); far_set(cc.workspace,p+1,(uint8_t)(operand>>8));
+    cc_relocate_value(operand,1,0);
+}
+void cc_relocate_value(uint16_t operand,uint16_t coefficient,uint8_t byte) FRONTEND {
+    uint16_t p=cc.relocations*RELOCATION_BYTES,encoded;
+    if(cc.error->code||cc.suppress||!coefficient)return;
+    if(operand<CC_CODE_BASE||operand>=CC_STATIC_LIMIT||
+       (uint32_t)p+RELOCATION_BYTES+(uint32_t)cc.routine_count*ROUTINE_BYTES>PAGE_SIZE) { cc_fail(99);return; }
+    /* Staged offsets are below7400. Bit15 denotes one-byte relocation;
+     * the other word is the net code-base coefficient, modulo65536. */
+    encoded=(operand-CC_CODE_BASE)|(byte?0x8000u:0);
+    far_set(cc.workspace,p,(uint8_t)encoded);far_set(cc.workspace,p+1,(uint8_t)(encoded>>8));
+    far_set(cc.workspace,p+2,(uint8_t)coefficient);far_set(cc.workspace,p+3,(uint8_t)(coefficient>>8));
     ++cc.relocations;
 }
 void cc_address(uint8_t op,uint16_t value) FRONTEND {
     cc_relocate(cc.emitted+1); cc_op16(op,value);
 }
 uint8_t cc_place_code(void) FRONTEND {
-    uint16_t i,at,value,origin=GLOBAL_BASE+cc.image->globals_bytes;
+    uint16_t i,p,at,value,coefficient,origin=GLOBAL_BASE+cc.image->globals_bytes;
+    uint8_t byte;
     uint16_t count=cc.emitted-CC_CODE_BASE,delta=origin-CC_CODE_BASE;
     if(origin>0xc000u||(uint32_t)origin+count>CC_STATIC_LIMIT) { cc_fail(99); return 0; }
     for(i=0;i<cc.relocations;++i) {
-        at=far_get(cc.workspace,i*2)|((uint16_t)far_get(cc.workspace,i*2+1)<<8);
-        if(at<0x8000u||at>=cc.emitted-1) { cc_fail(99); return 0; }
-        value=cc_code_get(at)|((uint16_t)cc_code_get(at+1)<<8);
-        cc_word(at,value+delta);
+        p=i*RELOCATION_BYTES;
+        at=far_get(cc.workspace,p)|((uint16_t)far_get(cc.workspace,p+1)<<8);
+        byte=(at&0x8000u)!=0;at=CC_CODE_BASE+(at&0x7fffu);
+        coefficient=far_get(cc.workspace,p+2)|((uint16_t)far_get(cc.workspace,p+3)<<8);
+        if(at>=cc.emitted||(!byte&&at>=cc.emitted-1)) { cc_fail(99);return 0; }
+        value=cc_code_get(at);
+        if(!byte)value|=(uint16_t)cc_code_get(at+1)<<8;
+        value+=(uint16_t)((uint32_t)coefficient*delta);
+        if(byte)cc_put(at,(uint8_t)value);else cc_word(at,value);
     }
     /* Globals remain below C000. In the overlapping page2 part, forward copy
      * always writes behind the unread staging bytes. The second staging page
@@ -489,14 +503,19 @@ void cc_frame(uint8_t scope) FRONTEND {
         current=(uint8_t)cc_rget(current,R_PARENT);
     }
 }
-void cc_slot(uint16_t id) FRONTEND {
+void cc_bind_storage(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];
     if(s->role==S_HOOK) cc_hook_variable(id);
     if(s->role==S_STANDARD&&!s->address&&!cc.suppress&&!cc.error->code) {
         if((uint32_t)cc.image->globals_bytes+16>=PAGE_SIZE) { cc_fail(99); return; }
+        s->type=text_file_type();
         s->address=GLOBAL_BASE+cc.image->globals_bytes; cc.image->globals_bytes+=16;
         cc_file_static(s->type,s->address); cc_put(s->address-0x4000u+9,1);
     }
+}
+void cc_slot(uint16_t id) FRONTEND {
+    Symbol *s=&cc.symbols[id];
+    cc_bind_storage(id);
     if(s->role==S_ALIAS) cc_symbol_address(s->address);
     else if(s->role==S_ADDRESS) cc_op16(0x21,s->address);
     else if(s->role==S_TYPED) cc_address(0x21,s->address);

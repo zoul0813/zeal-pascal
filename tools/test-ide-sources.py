@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """PS/2 Main/Work and include-error repair on the native IDE."""
+import argparse
 import hashlib
 import importlib.util
 import json
@@ -10,6 +11,9 @@ spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py'
 n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
 
 def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--inline',action='store_true',help='Repair raw Inline code through included-source compiler/runtime errors')
+    inline=parser.parse_args().inline
     sym=n.symbols('zpascal');key=sym['_key_read'];work=sym['_work'];build=sym['_build']
     # Settle redraws and file/menu transitions before the next physical key.
     # This gate tests behavior; burst input and latency are separate work.
@@ -17,6 +21,11 @@ def main():
     control=lambda letter:n.control(letter)[:-1]+['run 100000000']
     root=b'program Main;\nvar value:integer;\nbegin\n{$I parts/run.inc}\nwriteln(value)\nend.'
     part=b'value:=7 div ;\n';prefix=b'{unsaved}\n'
+    raw_statement='inline(33/>0/17/>7/205/16562/34/value);'
+    if inline:
+        n.SHIFTED['>']='PERIOD'
+        part=b'inline(missing);\n'
+        root=root.replace(b'writeln(value)',b"if value<>7 then halt;\nwriteln('INLINE-IDE-OK')")
     fixtures={'project/main.pas':root,'project/parts/run.inc':part}
     paths=[ROOT/'CMakeLists.txt',Path(__file__),ROOT/'tools/test-native.py',n.EMULATOR,n.ROM]
     paths+=list((ROOT/'src').glob('*'))+[ROOT/f'build/zpascal.{ext}'for ext in ['bin','zpl','map','banks.json']]
@@ -33,9 +42,14 @@ def main():
     commands+=typed(prefix.decode())+leave()
     commands+=checkpoint('compile-error','C')
     commands+=checkpoint('compile-source','ESC',100000000)
-    commands+=typed('0')+leave()+checkpoint('runtime-error','R')
+    commands+=(control('Y')+typed(raw_statement+'\n')if inline else typed('0'))
+    commands+=leave()+checkpoint('runtime-error','R')
     commands+=checkpoint('runtime-source','ESC',100000000)
-    commands+=control('Q')+typed('d')+control('S')+control('S')+control('G')
+    if inline:
+        for _ in range(raw_statement.index('0')):commands+=control('D')
+        commands+=control('G')
+    else:
+        commands+=control('Q')+typed('d')+control('S')+control('S')+control('G')
     commands+=typed('1')+leave()+checkpoint('repaired-run','R')
     commands+=['tap ESC','run 100000000']
     # Quit must consider the parked dirty root as well as the active include.
@@ -56,7 +70,7 @@ def main():
         result=lambda label:f[label].get(sym['_ram_result']+26)
         checks.update({
             'include compiler error selects actual file and preserves Main':state('compile-error')==3 and path('compile-error')==b'H:/project/parts/run.inc'and mainpath('compile-error')==b'H:/project/main.pas',
-            'compiler Escape enters include at exact failing byte':state('compile-source')==2 and word(f['compile-source'],work+4)==part.index(b';'),
+            'compiler Escape enters include at exact failing byte':state('compile-source')==2 and word(f['compile-source'],work+4)==part.index(b'missing'if inline else b';'),
             'unsaved include repair recompiles Main then locates runtime error':state('runtime-error')==3 and result('runtime-error')==3 and f['runtime-error'].get(sym['_ram_result']+28)==2 and path('runtime-error')==b'H:/project/parts/run.inc',
             'runtime Escape enters include at exact statement':state('runtime-source')==2 and word(f['runtime-source'],work+4)==0,
             'second unsaved include repair runs successfully':result('repaired-run')==1 and f['repaired-run'].get(work+1)==1,
@@ -87,7 +101,8 @@ def main():
     folder=n.RUN/'ide-disk-main/hostfs'
     checks['disk-only Main runs in RAM and publishes matching saved output']=len(frames)==3 and frames[0].get(sym['_ram_result']+26)==1 and all(f.get(build+4)==1 and bytes(f.get(work+12+i,0)for i in range(128)).split(b'\0')[0]==b'H:/scratch.inc'for f in frames) and (folder/'main.COM').is_file() and (folder/'main.ZMP').is_file() and hashlib.sha256(diskroot).digest()==(folder/'main.ZMP').read_bytes()[104:136]
     checks['all recorded inputs unchanged']=all(n.sha(Path(p))==h for p,h in hashes.items())
-    report={'passed':all(checks.values()),'checks':checks,'capture_directory':str(n.RUN.relative_to(ROOT)),
+    report={'passed':all(checks.values()),'language_case':'Inline machine code'if inline else'Integer division',
+            'checks':checks,'capture_directory':str(n.RUN.relative_to(ROOT)),
             'input_sha256':hashes,'checkpoints':labels,'scope':__doc__+' Full editor replay, hardware and remaining IDE commands are separate gates.'}
     (n.RUN/'ide-sources-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2));assert report['passed']

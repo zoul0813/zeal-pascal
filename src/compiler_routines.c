@@ -5,7 +5,7 @@
  * cross the compiler's bank boundaries. */
 static uint8_t new_scope(uint16_t symbol) {
     uint8_t scope,i;
-    if(cc.routine_count==255||(uint32_t)cc.relocations*2+(cc.routine_count+1u)*ROUTINE_BYTES>PAGE_SIZE) {
+    if(cc.routine_count==255||(uint32_t)cc.relocations*RELOCATION_BYTES+(cc.routine_count+1u)*ROUTINE_BYTES>PAGE_SIZE) {
         cc_fail(98); return 0;
     }
     scope=(uint8_t)++cc.routine_count;
@@ -138,6 +138,7 @@ static void parameters(uint8_t scope) {
 static void routine(void) {
     uint8_t role=cc_is("function")?S_FUNCTION:S_PROCEDURE,parent=cc.scope,scope,flags;
     uint16_t id,global_start=cc.image->globals_bytes,value;
+    SourcePosition position;
     int16_t old,type;
     cc_next(); old=cc.token==T_ID?cc_lookup():-1;
     if(old>=0&&cc.symbols[old].owner==parent&&cc.symbols[old].role==role&&
@@ -162,15 +163,25 @@ static void routine(void) {
     }
     if(cc.error->code) return;
     flags=(uint8_t)cc_rget(scope,R_FLAGS);
-    if(cc_is("forward")) { cc_rput(scope,R_FLAGS,flags|RF_FORWARD); cc_next(); cc_expect(';',1); return; }
     if(cc_is("external")) {
+        if(flags&RF_FORWARD) {cc_fail(12);return;}
         cc_next(); cc_constant(&flags,&value);
         if(cc_family(flags)!=K_INTEGER) cc_fail(22);
-        cc_rput(scope,R_ENTRY,value); cc_rput(scope,R_FLAGS,RF_DEFINED|RF_EXTERNAL);
+        cc_rput(scope,R_ENTRY,value);cc_rput(scope,R_FLAGS,RF_DEFINED|RF_EXTERNAL);
         cc.image->globals_bytes=global_start;
         cc_expect(';',1);
         return;
     }
+    if(!cc_rget(scope,R_ENTRY)) {
+        /* An entry exists before nested bodies and forward definitions. Raw
+         * Inline expressions can therefore use it without embedding fixup
+         * lists in user instruction bytes or changing later Addr identities. */
+        cc.symbols[id].address=cc.emitted;cc_rput(scope,R_ENTRY,cc.emitted);
+        cc_rput(scope,R_CALLS,cc_link(0xc3,0));
+        position=cc_reference_position(cc.symbols[id].name_start);
+        cc_mapping(cc.symbols[id].address-CC_CODE_BASE,cc.emitted-CC_CODE_BASE,position,position);
+    }
+    if(cc_is("forward")) { cc_rput(scope,R_FLAGS,flags|RF_FORWARD); cc_next(); cc_expect(';',1); return; }
     cc_rput(scope,R_FLAGS,flags|RF_DEFINED); cc.scope=scope;
     cc_block(); cc.scope=parent; cc_expect(';',1);
 }
@@ -192,8 +203,7 @@ SourcePosition cc_block(void) ROUTINES {
         if(cc_rget((uint8_t)i,R_PARENT)==scope&&!(cc_rget((uint8_t)i,R_FLAGS)&RF_DEFINED)) cc_fail(73);
     if(jump) cc_patch(jump);
     if(scope) {
-        entry=cc.emitted; cc_rput(scope,R_ENTRY,entry);
-        cc.symbols[cc_rget(scope,R_SYMBOL)].address=entry;
+        entry=cc.emitted;
         cc_patch_chain(cc_rget(scope,R_CALLS),entry); cc_rput(scope,R_CALLS,0);
         code=cc.emitted-CC_CODE_BASE; start=cc_reference_position(cc.symbols[cc_rget(scope,R_SYMBOL)].name_start);
         prologue(); cc_mapping(code,cc.emitted-CC_CODE_BASE,start,cc.token_start);

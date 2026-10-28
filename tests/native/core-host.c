@@ -255,6 +255,93 @@ static void include_cases(void) {
     check(sources_close(&buffers)&&pages_used()==1);
     disk_sources=0;disk_source_count=0;
 }
+static uint16_t inline_word(uint16_t at) { return image_get(&b,at)|((uint16_t)image_get(&b,at+1)<<8); }
+static uint16_t inline_marker(void) {
+    uint16_t at,found=0;
+    for(at=0x4000;at+4<b.length;++at)
+        if(image_get(&b,at)==0xde&&image_get(&b,at+1)==0xad&&image_get(&b,at+2)==0xbe&&image_get(&b,at+3)==0xef) {
+            check(!found);found=at+4;
+        }
+    check(found!=0);return found;
+}
+static void inline_corpus(void) {
+    const char *names[]={"inlbytes","inladdr","inlframe","inlstd","inlerror"};
+    char text[16384],path[128];unsigned i;FILE *file;size_t length;
+    for(i=0;i<sizeof(names)/sizeof(names[0]);++i) {
+        snprintf(path,sizeof(path),"tests/native/%s.pas",names[i]);file=fopen(path,"rb");check(file!=NULL);
+        length=fread(text,1,sizeof(text),file);check(feof(file)&&!ferror(file));check(fclose(file)==0);
+        check(source_import(&s,(const uint8_t*)text,(uint16_t)length,&d));
+        check(compile(&s,&b,&d));check(cc.temporaries==0);build_close(&b);
+    }
+    {
+        HostSource part={"H:/source-parts/inlnops.inc",text};
+        char root[1024];
+        file=fopen("tests/native/source-parts/inlnops.inc","rb");check(file!=NULL);
+        length=fread(text,1,sizeof(text)-1,file);text[length]=0;check(feof(file)&&!ferror(file));check(fclose(file)==0);
+        file=fopen("tests/native/inlpages.pas","rb");check(file!=NULL);
+        length=fread(root,1,sizeof(root)-1,file);root[length]=0;check(feof(file)&&!ferror(file));check(fclose(file)==0);
+        disk_sources=&part;disk_source_count=1;
+        load(root);check(compile(&s,&b,&d));check(b.code_bytes>0x4000&&b.code_origin>GLOBAL_BASE);
+        check(build_check(&s,&b)&&cc.stage_page==255&&b.sources.count==2);build_close(&b);
+        disk_sources=NULL;disk_source_count=0;
+    }
+}
+static void inline_cases(void) {
+    static const uint8_t constants[]={0,255,0,1,255,255,255,255,0,1,0x34,0x44,0,0,0,0,0x80,0,0x80};
+    const char *bad[]={"", "'A'", "1.25", "true", "Integer", "WriteLn", "--1", "(1)", "1*2", "missing", "1/", "65535", "+32768", "-32769", "$10000", "<$10000", "1 div 2", "^A", "+'A'", "nil"};
+    const uint8_t errors[]={74,22,22,22,74,74,25,74,5,74,74,56,56,56,56,56,5,22,25,74};
+    uint16_t at,i,j,typed=0,routine=0,delta,value;int coefficient;char text[1024],expression[160];
+    load("var pad:array[1..301]of byte;begin\ninline($DE/$AD/$BE/$EF/0/255/256/-1/$FFFF/1+255/<$1234/>$44/1-1/$FFFF+1/32767+1/-32768/$CA/$FE/$BA/$BE)end.");
+    check(compile(&s,&b,&d));at=inline_marker();
+    for(i=0;i<sizeof(constants);++i)check(image_get(&b,at+i)==constants[i]);
+    check(image_get(&b,at+i)==0xca&&image_get(&b,at+i+3)==0xbe&&build_check(&s,&b));build_close(&b);
+    load("var g:array[1..301]of byte;const t:integer=17;\nprocedure p;begin end;procedure ext;external $2345;\nbegin inline($DE/$AD/$BE/$EF/g/g-g/t/t-t/p/p-p/ext/0-*/*+*/0-*-*/*+*-*/<*/<0-*/>1/$CA/$FE/$BA/$BE)end.");
+    check(compile(&s,&b,&d));at=inline_marker();delta=b.code_origin-CC_CODE_BASE;
+    for(i=0;i<cc.symbol_count;++i) {
+        if(cc.symbols[i].role==S_TYPED)typed=cc.symbols[i].address+delta;
+        if(cc.symbols[i].role==S_PROCEDURE&&!routine)routine=cc.symbols[i].address+delta;
+    }
+    check(typed&&routine);check(inline_word(at)==GLOBAL_BASE&&inline_word(at+2)==0);at+=4;
+    check(inline_word(at)==typed&&inline_word(at+2)==0);at+=4;
+    check(inline_word(at)==routine&&inline_word(at+2)==0&&inline_word(at+4)==0x2345);at+=6;
+    check(inline_word(at)==(uint16_t)(0u-(at+0x4000u)));at+=2;
+    check(inline_word(at)==(uint16_t)(2u*(at+0x4000u)));at+=2;
+    check(inline_word(at)==(uint16_t)(0u-2u*(at+0x4000u)));at+=2;
+    check(inline_word(at)==at+0x4000u);at+=2;
+    check(image_get(&b,at)==(uint8_t)(at+0x4000u));++at;
+    check(image_get(&b,at)==(uint8_t)(0u-(at+0x4000u)));++at;
+    check(inline_word(at)==1&&image_get(&b,at+2)==0xca);check(build_check(&s,&b));build_close(&b);
+    load("begin inline($DE/$AD/$BE/$EF/1+-1/1--1/+$FFFF/-$FFFF/-$8000/$CA/$FE/$BA/$BE)end.");
+    check(compile(&s,&b,&d));at=inline_marker();
+    check(image_get(&b,at)==0&&image_get(&b,at+1)==2&&inline_word(at+2)==65535);
+    check(image_get(&b,at+4)==1&&inline_word(at+5)==0x8000&&image_get(&b,at+7)==0xca);build_close(&b);
+    for(coefficient=-20;coefficient<=20;++coefficient)for(j=0;j<2;++j) {
+        strcpy(expression,"0");
+        for(i=0;i<(uint16_t)(coefficient<0?-coefficient:coefficient);++i)strcat(expression,coefficient<0?"-*":"+*");
+        snprintf(text,sizeof(text),"var pad:array[1..511]of byte;begin inline($DE/$AD/$BE/$EF/%c%s/$CA/$FE/$BA/$BE)end.",j?'<':'>',expression);
+        load(text);check(compile(&s,&b,&d));at=inline_marker();value=(uint16_t)((uint32_t)(uint16_t)coefficient*(at+0x4000u));
+        check(j?image_get(&b,at)==(uint8_t)value:inline_word(at)==value);
+        check(image_get(&b,at+(j?1:2))==0xca&&build_check(&s,&b));build_close(&b);
+    }
+    for(i=0;i<sizeof(errors);++i) {
+        snprintf(text,sizeof(text),"begin inline(%s)end.",bad[i]);invalid(text,errors[i]);
+    }
+    invalid("var n:integer;begin inline(-n)end.",25);
+    invalid("type t=(one,two);begin inline(one)end.",22);
+    invalid("var r:record n:integer end;begin with r do inline(n)end.",74);
+    invalid("procedure p;forward;procedure p;external $1234;begin end.",12);
+    invalid("begin inline end.",4);
+    {
+        char large[10000];uint16_t n=0;
+        strcpy(large,"begin inline(\n");n=(uint16_t)strlen(large);
+        for(i=0;i<4200;++i) {
+            large[n++]='*';if(i!=4199)large[n++]='/';
+            if(i%32==31)large[n++]='\n';
+        }
+        strcpy(large+n,")end.");invalid(large,99);
+    }
+    check(pages_used()==1);
+}
 int main(int argc,char **argv) {
     unsigned i;
     uint16_t position;
@@ -267,6 +354,8 @@ int main(int argc,char **argv) {
     hook_corpus();
     index_modes();
     include_cases();
+    inline_cases();
+    inline_corpus();
     load("begin  \r\nend. \r\n\032padding"); check(s.length==11);
     check(source_replace(&s,0,0,NULL,0)&&!s.dirty);
     {
