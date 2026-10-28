@@ -41,6 +41,8 @@ python3 tools/test-options.py --ide
 python3 tools/test-chain.py
 python3 tools/test-chain-loader.py
 python3 tools/test-chain-loader.py --native
+python3 tools/test-chain-files.py
+python3 tools/test-chain-files.py --native
 python3 tools/test-bridges.py
 python3 tools/test-bridges.py --corpus routines
 python3 tools/test-bridges.py --corpus real

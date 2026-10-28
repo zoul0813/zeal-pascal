@@ -29,9 +29,14 @@ static uint16_t slot;
 static FileJob *job;
 static Record *record;
 static uint8_t bytes[128];
-static struct { uint8_t flags; char path[128]; } request;
+/* Open requests finish before Rename begins comparing its streams. Both
+ * buffers belong to this synchronous transport phase; no callback or retained
+ * SDK pointer outlives an open request. Keep the live rename destination apart. */
+static union {
+    struct { uint8_t flags; char path[128]; } request;
+    uint8_t verify_bytes[128];
+} transport;
 static char rename_path[128];
-static uint8_t verify_bytes[128];
 static zos_stat_t info;
 static uint32_t native_position;
 static uint8_t serial_attribute;
@@ -75,8 +80,8 @@ static uint8_t drop_page(uint8_t page) {
 static int8_t open_path(const char *path,uint8_t flags) {
     uint8_t error;
     if(!MEMORY_MODE) return open(path,flags);
-    request.flags=flags; strcpy(request.path,path);
-    error=zf_service(2,(uint16_t)(uintptr_t)&request);
+    transport.request.flags=flags; strcpy(transport.request.path,path);
+    error=zf_service(2,(uint16_t)(uintptr_t)&transport.request);
     return error?-(int8_t)error:(int8_t)zf_service_value;
 }
 static int8_t open_file(uint8_t flags) { return open_path(record->path,flags); }
@@ -183,6 +188,7 @@ static uint8_t device_access(uint16_t identity) {
 /* Only immutable compiler-supplied addresses acquire preassigned identity.
  * A flag or token copied into any other object cannot grant that authority.
  * Check the complete bounded table before registering any of its objects. */
+static void close_record(void);
 static uint8_t standards(void) {
     uint16_t table=job->standard_table,count,i,j,at,object,identity,saved=job->object;
     uint8_t identities=0;
@@ -199,13 +205,17 @@ static uint8_t standards(void) {
     }
     for(i=0;i<count&&!job->error;++i) {
         at=table+2+4*i; job->object=word(at); identity=word(at+2);
-        if(bound(0,0,0)) {
-            if(record->standard!=identity) fail(0x1ff,0);
-            continue;
-        }
+        if(bound(0,0,0)&&record->standard==identity) continue;
         for(j=1;j<=(uint16_t)page_count*RECORDS_PER_PAGE;++j) {
             load_record(j);
-            if(record->object==job->object) { fail(0x1ff,0); break; }
+            if(record->object==job->object) {
+                /* A replacement can put a hidden standard slot over an old
+                 * trailing private global. The validated compiler table owns
+                 * that address; keep shared files at all other addresses. */
+                if(record->standard||record->owner) fail(0x1ff,0);
+                else {close_record();record->object=0;save_record(j);}
+                break;
+            }
         }
         if(job->error||!new_record(0,0,0)) break;
         record->standard=identity;
@@ -519,18 +529,18 @@ static uint8_t assigned_path(void) {
     if(!readable(job->data,1)) return 0;
     n=USER(job->data)[0];
     if(!n||n>127||!readable(job->data+1,n)||memchr(USER(job->data+1),0,n)) return 0;
-    memcpy(request.path,USER(job->data+1),n); request.path[n]=0;
-    if(n==4&&request.path[3]==':') {
-        memcpy(bytes,request.path,5);
+    memcpy(transport.request.path,USER(job->data+1),n); transport.request.path[n]=0;
+    if(n==4&&transport.request.path[3]==':') {
+        memcpy(bytes,transport.request.path,5);
         for(n=0;n<3;++n) if(bytes[n]>='a'&&bytes[n]<='z') bytes[n]-=32;
-        if(logical_device((char*)bytes)) { strcpy(request.path,(char*)bytes); return 1; }
+        if(logical_device((char*)bytes)) { strcpy(transport.request.path,(char*)bytes); return 1; }
     }
     bytes[0]=0;
-    if(n<2||request.path[1]!=':') {
+    if(n<2||transport.request.path[1]!=':') {
         error=curdir((char*)bytes);
         if(error) { fail(0x20,error); return 0; }
     }
-    return path_resolve(request.path,(char*)bytes,request.path);
+    return path_resolve(transport.request.path,(char*)bytes,transport.request.path);
 }
 /* Rename is deliberately a copy/verify/remove transaction on the supported
  * VFS. Every handle is parent-owned immediately in RAM mode, and every local
@@ -566,8 +576,8 @@ static void rename_file(void) {
     int8_t in=-1,out=-1;
     if(record->state&OPENED) { fail(0x20,0); return; }
     if(!assigned_path()) { fail(0x20,ERR_INVALID_PATH); return; }
-    if(logical_device(request.path)) { fail(0x20,ERR_INVALID_PATH); return; }
-    strcpy(rename_path,request.path);
+    if(logical_device(transport.request.path)) { fail(0x20,ERR_INVALID_PATH); return; }
+    strcpy(rename_path,transport.request.path);
     error=stat(rename_path,&info);
     if(!error) { fail(0x20,ERR_ALREADY_EXIST); return; }
     if(error!=ERR_NO_SUCH_ENTRY) { native_error(error,2); return; }
@@ -603,8 +613,8 @@ static void rename_file(void) {
     left=size;
     while(left&&!job->error) {
         n=left>sizeof(bytes)?sizeof(bytes):(uint16_t)left;
-        rename_read(in,bytes,n); rename_read(out,verify_bytes,n);
-        if(!job->error&&memcmp(bytes,verify_bytes,n)) fail(0xf0,0);
+        rename_read(in,bytes,n); rename_read(out,transport.verify_bytes,n);
+        if(!job->error&&memcmp(bytes,transport.verify_bytes,n)) fail(0xf0,0);
         left-=n;
     }
     if(!job->error) { rename_end(in); if(!job->error) rename_end(out); }
@@ -732,12 +742,12 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
     }
     if(job->operation==ZF_ASSIGN) {
         if(!assigned_path()) { fail(0x20,ERR_INVALID_PATH); return; }
-        error=logical_device(request.path);
+        error=logical_device(transport.request.path);
         if(error&&family) { fail(0x20,0); return; }
         if(valid&&(record->state&OPENED)) { fail(0x20,0); return; }
         if(!valid&&!new_record(owner,family,width)) return;
         record->device=error; record->state=error?device_access(error):0; record->next=0;
-        strcpy(record->path,request.path); token(owner,family,width); save_record(slot); return;
+        strcpy(record->path,transport.request.path); token(owner,family,width); save_record(slot); return;
     }
     if(!valid) {
         fail(family==2?4:job->operation==ZF_READ||job->operation==ZF_TEXT_READ||
@@ -746,6 +756,11 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
     }
     if(record->device) { logical_stream(); return; }
     switch(job->operation) {
+    case ZF_TRANSFER_PATH:
+        width=(uint16_t)strlen(record->path)+1;
+        if(job->count<width||!readable(job->data,width)) fail(0x20,0);
+        else {memcpy(USER(job->data),record->path,width);job->actual=width-1;}
+        break;
     case ZF_TEXT_BEGIN:
         if(record->family) fail(0x20,0);
         break;
@@ -811,7 +826,9 @@ void zf_cleanup(FileCleanup *ending) ZFILE_CALL {
         load_record(i);
         selected=ending->operation==ZF_END_PROGRAM||
             ((ending->operation==ZF_END_FRAME||ending->operation==ZF_END_OBJECT)&&record->owner==ending->owner)||
-            (ending->operation==ZF_END_RANGE&&record->owner>=ending->owner&&record->owner<ending->end);
+            (ending->operation==ZF_END_RANGE&&record->owner>=ending->owner&&record->owner<ending->end)||
+            (ending->operation==ZF_END_CHAIN&&(record->standard||record->owner>=ending->end||
+                (!record->owner&&record->object>=ending->owner)));
         if(record->object&&selected) {
             close_record(); record->object=0; save_record(i);
         }

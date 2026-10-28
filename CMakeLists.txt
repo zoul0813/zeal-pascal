@@ -297,6 +297,14 @@ set_property(SOURCE tests/native/file-core.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/file_runtime.h ${CMAKE_SOURCE_DIR}/src/path.h)
 target_link_options(zfilecoretest PRIVATE "SHELL:-b _TEST=0x8000" "SHELL:-b _TEST_DATA=0xe000")
 zos_add_outputs(zfilecoretest)
+add_executable(zchainfilestest tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
+    tests/native/chain-files.c tests/native/file-probe.asm tests/native/machine.asm $<TARGET_OBJECTS:file_runtime_core>)
+target_include_directories(zchainfilestest PRIVATE src)
+set_source_files_properties(tests/native/chain-files.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;TEST;--constseg;TEST;--dataseg;TEST_DATA")
+set_property(SOURCE tests/native/chain-files.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/file_runtime.h)
+target_link_options(zchainfilestest PRIVATE "SHELL:-b _TEST=0x8000" "SHELL:-b _TEST_DATA=0xe000")
+zos_add_outputs(zchainfilestest)
 
 # The Real6 component is checked independently before compiler integration.
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/real_vectors.h
