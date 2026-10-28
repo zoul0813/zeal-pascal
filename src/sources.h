@@ -20,5 +20,6 @@ uint8_t sources_origin(const Sources *set,uint8_t id) SOURCE_BLOCK_CALL;
 uint8_t sources_byte(const Sources *set,uint8_t id,uint16_t offset) SOURCE_BLOCK_CALL;
 uint8_t sources_path(const char *name,const char *directory,char *out) SOURCE_BLOCK_CALL;
 uint8_t sources_canonical(const char *name,char *out) SOURCE_BLOCK_CALL;
+uint8_t sources_directory(const char *name,const char *directory,char *out) SOURCE_BLOCK_CALL;
 
 #endif

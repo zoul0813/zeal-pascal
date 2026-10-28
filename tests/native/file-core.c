@@ -280,6 +280,15 @@ static void file_paths(void) {
     for(n=3;n<127;++n) name[n]=(n%16==2)?'/':'a';
     name[127]=0; check(path_resolve(name,"",out)&&strlen(out)==127);
     name[127]='a'; name[128]=0; check(!path_resolve(name,"",out));
+    check(path_directory("h:/","",out)&&!strcmp(out,"H:/"));
+    check(path_directory("/","T:/src/",out)&&!strcmp(out,"T:/"));
+    check(path_directory(".","H:/one/two/",out)&&!strcmp(out,"H:/one/two"));
+    check(path_directory("..","H:/one/two/",out)&&!strcmp(out,"H:/one"));
+    check(path_directory("../../../","H:/one/",out)&&!strcmp(out,"H:/"));
+    check(path_directory("H:/One//./Two/../","",out)&&!strcmp(out,"H:/One"));
+    strcpy(out,"one/../");check(path_directory(out,"H:/",out)&&!strcmp(out,"H:/"));
+    check(!path_directory("H:relative","T:/",out));
+    check(!path_directory("H:/1234567890123456/","",out));
 
     defaults();
     check(curdir((char*)VM(0xc400))==0); check(chdir("H:/")==0);

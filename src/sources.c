@@ -4,6 +4,9 @@
 uint8_t sources_canonical(const char *name,char *out) SOURCE_BLOCK_CALL {
     return path_resolve(name,"",out);
 }
+uint8_t sources_directory(const char *name,const char *directory,char *out) SOURCE_BLOCK_CALL {
+    return path_directory(name,directory,out);
+}
 
 /* Private in-memory records, never an installed/source-map ABI. The Source
  * descriptor has the same fixed layout on host and target; counters below

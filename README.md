@@ -31,6 +31,7 @@ python3 tools/test-saved-map.py
 python3 tools/test-saved-map.py --native
 python3 tools/test-ide-sources.py
 python3 tools/test-ide-execute.py
+python3 tools/test-ide-directory.py
 python3 tools/test-inline.py
 python3 tools/test-ide-sources.py --inline
 python3 tools/test-ide-interrupt.py
@@ -87,6 +88,8 @@ speed for library loading and verification before the IDE prompt appears.
 
 | Key | Operation |
 | --- | --- |
+| L | Select an available native drive root; empty keeps the current directory |
+| D | List a native directory or filename mask; empty lists the current directory |
 | W | Open/select a work file by name; default extension PAS |
 | M | Set Main, the compilation root; an empty field uses Work |
 | E | Edit; Ctrl-K,D returns to the menu with text retained in RAM |
@@ -147,6 +150,17 @@ restores the IDE text screen and keyboard mode, reports the native exit status,
 and retains Work, Main, dirty buffers, editor state and cached compilation.
 Loader failures retain the session and show the native error. An empty name,
 Escape or Ctrl-U cancels. X supplies no command-tail arguments.
+
+The menu shows the current native directory. L accepts a drive letter such as
+`T`, `T:` or `T:/`; selected Work/Main files retain their absolute paths when
+the logged drive changes. Failed selections retain the previous directory.
+
+D accepts an existing directory or a final filename mask, for example
+`T:/src/pascal/` or `T:/src/pascal/*.pas`. Masks retain native case: `*` matches
+any sequence of bytes and `?` matches one byte. Directories end in `/` in the
+listing. Space or Enter continues a long listing; Escape or Ctrl-U stops it.
+Directory operations create no files or paths. The footer says `Free space
+unavailable` because the supported SDK provides no free-capacity query.
 
 Source saves retain the previous source as BAK. Replacing an existing BAK
 requires confirmation. Source and executable/map publication stage and verify

@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import re
+import hashlib
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -10,8 +11,33 @@ spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py'
 n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
 
 
+def upper_probe():
+    """Locate the generated CALL using the real IDE/compiler, before input.
+
+    A private prefix address can also be code inside a mapped file worker.
+    Gate on the independently authenticated upper-page program call site.
+    """
+    sym=n.symbols('zpascal');key=sym['_key_read'];build=sym['_build']
+    typed=lambda text:n.type_text(text,ticks=100000000)
+    commands=['run 100000000']+n.program_launch()+['run 10000000']
+    commands+=typed('nwH:/CONUPPER.PAS\nocq')+[f'bp 0x{key:x}','tap C','run 20000000000','regs',
+        f'rb 0x{build:x} 113',f'bc 0x{key:x}','tap ESC','run 100000000']+typed('q')+['quit']
+    raw=n.execute('console-upper-probe',commands,{'CONUPPER.PAS':(ROOT/'tests/native/conupper.pas').read_bytes()},timeout=300)
+    assert n.memory(raw).get(build+4)==1
+    folder=n.RUN/'console-upper-probe/hostfs'
+    spec=importlib.util.spec_from_file_location('source_maps',ROOT/'tools/test-sources.py')
+    maps=importlib.util.module_from_spec(spec);spec.loader.exec_module(maps);maps.mapping(folder,'CONUPPER')
+    image=(folder/'CONUPPER.COM').read_bytes();source=n.symbols('pascal_runtime')['input_source']
+    origin=int.from_bytes(image[20:22],'little');size=int.from_bytes(image[22:24],'little')
+    opcode=bytes([0xcd,source&255,source>>8])
+    calls=[at for at in range(max(0xc000,origin),origin+size-2)if image[at-0x4000:at-0x4000+3]==opcode]
+    assert len(calls)==1 and calls[0]+3<0xf400,calls
+    return image,calls[0]
+
+
 def main():
     target='zcontest';sym=n.symbols(target);runtime=n.symbols('pascal_runtime')
+    upper_image,upper_site=upper_probe()
     reader=n.kernel_symbols()['keyboard_next_key'];echo=runtime['input_echo'];fail=runtime['input_fail']
     inputs=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),ROOT/'tools/test-native.py',
             ROOT/'tools/package-native.py',n.EMULATOR,n.ROM]
@@ -55,8 +81,12 @@ def main():
         line('ignored')
         key('J',True);key('ESC');key('DELETE');key('C',True);text('X');key('Z',True);text('X')
         text('K');key('ENTER');text('M');text('N');text('O')
-    # Stop at the banked generated caller before it enters the fixed source.
-    commands.extend([f"bp 0x{runtime['input_source']:x}",'run 20000000000','regs',
+    # The file module may execute at the same virtual address as input_source.
+    # First stop at this program's authenticated generated CALL above C000.
+    commands.extend([f'bp 0x{upper_site:x}','run 20000000000','regs',
+                     f'rb 0x{upper_site:x} 3','rb 0x8000 1','rb 0xa967 1',f'bc 0x{upper_site:x}',
+                     f"bp 0x{runtime['input_source']:x}",'run 20000000000','regs','mmu',
+                     f"rb 0x{runtime['input_source']:x} 16",
                      'rb 0xf800 256','rb 0xf900 256','rb 0xfa00 256','rb 0xfb00 256',
                      f"bc 0x{runtime['input_source']:x}"])
     for _ in range(2):line('U')
@@ -94,6 +124,7 @@ def main():
     echoed=bytes(int(re.search(r'\bAF=([0-9a-fA-F]{2})',f)[1],16)for f in echo_frames)
     faults=[n.memory(f)for f in frames if f.startswith(f'{fail:04x} ')]
     upper=[f for f in frames if f.startswith(f"{runtime['input_source']:04x} ")]
+    gate=[n.memory(f)for f in frames if f.startswith(f'{upper_site:04x} ')]
     caller=0
     if len(upper)==1:
         at=int(re.search(r'\bSP=([0-9a-fA-F]{4})',upper[0])[1],16);m=n.memory(upper[0]);caller=m.get(at,0)|m.get(at+1,0)<<8
@@ -106,6 +137,11 @@ def main():
         'Con/Trm physical formatted output bypasses inherited stdout':echoed[:2*len(physical)]==physical*2,
         'Trm CR echoes CR/LF and failed console output selected X':echoed[2*len(physical):]==bytes([13,10,13,10,88,88]),
         'physical source is called from actual generated code above C000':0xc000<=caller<0xf400,
+        'upper-page probe observes the authenticated console program and mapped runtime':
+            caller==upper_site+3 and len(gate)==1 and gate[0].get(0x8000)==73 and gate[0].get(0xa967)==149 and
+            bytes(gate[0].get(upper_site+i,0)for i in range(3))==bytes([0xcd,runtime['input_source']&255,runtime['input_source']>>8]) and
+            len(upper)==1 and bytes(n.memory(upper[0]).get(runtime['input_source']+i,0)for i in range(16))==prefix[runtime['input_source']-0x4000:runtime['input_source']-0x4000+16] and
+            (disk/'CONUPPER.COM').read_bytes()==upper_image,
         'real input/write cleanup follows restored disposable code in both executions':len(faults)==2 and all(
             bytes(f.get(site+i,0)for i in range(5))==original for f in faults),
         'logical names and invalid operations create no disk files':not(disk/'CONINVALID').exists(),
@@ -114,7 +150,8 @@ def main():
     report={'scope':'Con/CON: buffered physical console and Trm/TRM: unbuffered echo in RAM and saved native programs; remaining logical devices and full conformance stay open',
             'passed':all(checks.values()),'native_assertions_passed':word('_test_passed'),
             'native_assertions_failed':word('_test_failed'),'capture_directory':str(n.RUN.relative_to(ROOT)),
-            'input_sha256':hashes,'physical_echo_hex':echoed.hex(),'upper_generated_caller':caller,'checks':checks}
+            'input_sha256':hashes,'physical_echo_hex':echoed.hex(),'upper_generated_caller':caller,
+            'upper_probe_image_sha256':hashlib.sha256(upper_image).hexdigest(),'checks':checks}
     (n.RUN/'console-report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2));assert report['passed']
 
 

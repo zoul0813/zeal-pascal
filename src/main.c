@@ -16,6 +16,7 @@ char main_file[128];
 uint8_t ide_state; /* 1 menu, 2 editor, 3 acknowledgment */
 static uint8_t messages=1;
 static uint8_t saved_mode;
+extern uint8_t console_scratch[256];
 static void block_io(uint8_t kind);
 static void search_command(uint8_t kind);
 
@@ -516,6 +517,105 @@ static void execute_work(void) {
     if(restore)file_error("\nIDE restore failed, native error ",restore);
     output(". Press Escape");while(key_read()!=27) {}
 }
+static void show_directory(void) {
+    char path[128];uint8_t error;
+    error=curdir((char*)console_scratch);
+    if(!error&&!memchr(console_scratch,0,128))error=ERR_INVALID_PATH;
+    if(!error)memcpy(path,console_scratch,128);
+    output("Directory: ");
+    if(error)file_error("unavailable, native error ",error);else output(path);
+    output("\n");
+}
+static void logged_drive(void) {
+    char name[128],root[4];uint8_t n,c,error;
+    screen_clear();output("Logged drive (A-Z, empty keeps current): ");
+    if(file_field(name)!=1)return;
+    n=(uint8_t)strlen(name);c=(uint8_t)name[0];if(c>='a'&&c<='z')c-=32;
+    if(c<'A'||c>'Z'||n>3||(n>1&&name[1]!=':')||(n>2&&name[2]!='/'))error=ERR_INVALID_PATH;
+    else {
+        root[0]=(char)c;root[1]=':';root[2]='/';root[3]=0;
+        strcpy((char*)console_scratch,root);error=chdir((char*)console_scratch);
+    }
+    if(!error)return;
+    ide_state=3;file_error("\nLogged drive failed, native error ",error);
+    output(". Press Escape");while(key_read()!=27) {}
+}
+static uint8_t directory_match(const char *pattern,const char *name) {
+    const char *star=0,*retry=0;
+    while(*name) {
+        if(*pattern=='*') {star=++pattern;retry=name;}
+        else if(*pattern=='?'||*pattern==*name) {++pattern;++name;}
+        else if(star) {pattern=star;name=++retry;}
+        else return 0;
+    }
+    while(*pattern=='*')++pattern;
+    return !*pattern;
+}
+static int8_t directory_open(const char *path) {
+    strcpy((char*)console_scratch,path);return opendir((char*)console_scratch);
+}
+static void directory_header(const char *path,const char *mask) {
+    screen_clear();output("Directory: ");output(path);
+    output("\nMask: ");output(mask);output("\n");
+}
+static void directory_list(void) {
+    char name[128],path[128],mask[16];zos_dir_entry_t entry;
+    uint8_t field,error=0,closing,wild=0,trailing,any=0,rows=0,c,interrupted=0;
+    uint16_t n,base=3,i;
+    int8_t fd=-1;
+    screen_clear();output("Directory path/mask (empty lists all): ");
+    field=file_field(name);if(field==0||field==2)return;
+    if(field==3)strcpy(name,".");
+    n=(uint16_t)strlen(name);trailing=name[n-1]=='/';
+    error=curdir((char*)console_scratch);
+    if(!error&&!memchr(console_scratch,0,128))error=ERR_INVALID_PATH;
+    if(error)goto done;
+    if(!sources_directory(name,(char*)console_scratch,path)) {error=ERR_INVALID_PATH;goto done;}
+    n=(uint16_t)strlen(path);
+    for(i=3;i<n;++i)if(path[i]=='/')base=i+1;
+    for(i=3;i<n;++i)if(path[i]=='*'||path[i]=='?') {
+        if(i<base||trailing) {error=ERR_INVALID_PATH;goto done;}
+        wild=1;
+    }
+    if(!wild) {
+        fd=directory_open(path);
+        if(fd<0&&(-fd!=ERR_NO_SUCH_ENTRY&&-fd!=ERR_NOT_A_DIR||trailing||n==3)) {
+            error=(uint8_t)-fd;goto done;
+        }
+    }
+    if(fd>=0)strcpy(mask,"*");
+    else {
+        strcpy(mask,path+base);path[base>3?base-1:3]=0;
+        fd=directory_open(path);if(fd<0) {error=(uint8_t)-fd;goto done;}
+    }
+    directory_header(path,mask);
+    for(;;) {
+        error=readdir(fd,(zos_dir_entry_t*)console_scratch);
+        if(error==ERR_NO_MORE_ENTRIES) {error=0;break;}
+        if(error)break;
+        memcpy(&entry,console_scratch,sizeof(entry));
+        if(!entry.d_name[0]||!memchr(entry.d_name,0,sizeof(entry.d_name))) {error=ERR_ENTRY_CORRUPTED;break;}
+        for(i=0;entry.d_name[i];++i)if((uint8_t)entry.d_name[i]<32||entry.d_name[i]==127||
+            entry.d_name[i]=='/'||entry.d_name[i]==':')break;
+        if(entry.d_name[i]) {error=ERR_ENTRY_CORRUPTED;break;}
+        if(!strcmp(entry.d_name,".")||!strcmp(entry.d_name,"..")||!directory_match(mask,entry.d_name))continue;
+        if(rows==screen_height-5) {
+            output("More: Space/Enter continues, Escape/Ctrl-U stops");
+            do {c=key_read();}while(c!=' '&&c!='\n'&&c!=27&&c!=21);
+            if(c==27||c==21) {interrupted=1;break;}
+            directory_header(path,mask);rows=0;
+        }
+        output(entry.d_name);if(D_ISDIR(entry.d_flags))output("/");output("\n");
+        ++rows;any=1;
+    }
+    closing=close(fd);fd=-1;if(!error)error=closing;
+done:
+    if(interrupted&&!error)return;
+    ide_state=3;
+    if(error) {file_error("\nDirectory failed, native error ",error);output("\n");}
+    else if(!any)output("No matching entries\n");
+    output("Free space unavailable\nPress Escape");while(key_read()!=27) {}
+}
 int app_main(void) {
     uint8_t c,status,file,hash[32];
     uint16_t pc,position;Source root,failed;
@@ -533,11 +633,12 @@ int app_main(void) {
     do { c=suffix(key_read()); } while(c!='y'&&c!='n'); messages=c=='y';
     for(;;) {
         ide_state=1; screen_clear();
+        show_directory();
         output(saved_mode?"Zeal Pascal - native Com-file\nWork: ":"Zeal Pascal - Memory\nWork: "); output(work.path);
         output(work.dirty?" *\n":"\n");output("Main: ");
         if(main_file[0])output(main_file);else output("(Work)");
         output("\n");output_number(work.length); output(" source bytes; ");
-        output_number(pages_used()); output(" owned pages\nW Open  M Main  E Edit  S Save  A Save as\nC Compile  R Run  X Execute  O Options  Q Quit\n");
+        output_number(pages_used()); output(" owned pages\nL Logged drive  D Dir  W Open  M Main  E Edit\nS Save  A Save as  C Compile  R Run  X Execute  O Options  Q Quit\n");
         c=suffix(key_read());
         if(c=='e') edit(0);
         else if(c=='w') open_work();
@@ -545,6 +646,8 @@ int app_main(void) {
         else if(c=='s') save_work();
         else if(c=='a') save_as_work();
         else if(c=='c') compile_work();
+        else if(c=='l') logged_drive();
+        else if(c=='d') directory_list();
         else if(c=='x') execute_work();
         else if(c=='o') {
             screen_clear(); output("Compiler options\nM Memory  C native Com-file  F Find run-time error  Q Return\n");

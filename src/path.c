@@ -1,13 +1,13 @@
 #include "path.h"
 #include <string.h>
 
-uint8_t path_resolve(const char *name,const char *directory,char *out) {
+static uint8_t resolve(const char *name,const char *directory,char *out,uint8_t folder) {
     char full[128];
     uint16_t i,a,n,w=3,j;
     n=(uint16_t)strlen(name);
-    if(!n||n>127||name[n-1]=='/') return 0;
+    if(!n||n>127||(!folder&&name[n-1]=='/')) return 0;
     if(n>1&&name[1]==':') {
-        if(n<4||name[2]!='/') return 0;
+        if(n<3||name[2]!='/'||(!folder&&n<4)) return 0;
         strcpy(full,name);
     } else {
         i=(uint16_t)strlen(directory);
@@ -27,9 +27,9 @@ uint8_t path_resolve(const char *name,const char *directory,char *out) {
         while(full[i]=='/') ++i;
         a=i; while(full[i]&&full[i]!='/') ++i; n=i-a;
         if(!n) break;
-        if(n==1&&full[a]=='.') { if(!full[i]) return 0; continue; }
+        if(n==1&&full[a]=='.') { if(!folder&&!full[i]) return 0; continue; }
         if(n==2&&full[a]=='.'&&full[a+1]=='.') {
-            if(!full[i]) return 0;
+            if(!folder&&!full[i]) return 0;
             if(w>3) { --w; while(w>3&&out[w-1]!='/') --w; }
             continue;
         }
@@ -41,6 +41,13 @@ uint8_t path_resolve(const char *name,const char *directory,char *out) {
             out[w++]=full[a+j];
         }
     }
-    if(w<=3) return 0;
+    if(!folder&&w<=3) return 0;
+    while(w>3&&out[w-1]=='/')--w;
     out[w]=0; return 1;
+}
+uint8_t path_resolve(const char *name,const char *directory,char *out) {
+    return resolve(name,directory,out,0);
+}
+uint8_t path_directory(const char *name,const char *directory,char *out) {
+    return resolve(name,directory,out,1);
 }
