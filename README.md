@@ -47,6 +47,7 @@ python3 tools/test-bridges.py
 python3 tools/test-bridges.py --corpus routines
 python3 tools/test-bridges.py --corpus real
 python3 tools/test-file-runtime.py --host --native
+python3 tools/test-file-gate.py
 python3 tools/test-workers.py
 python3 tools/test-params.py
 python3 tools/test-math.py

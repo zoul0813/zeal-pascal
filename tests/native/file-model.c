@@ -11,6 +11,7 @@ uint8_t zf_memory_mode,model_pages,model_handles,model_close_error,model_read_er
 uint8_t model_zero_write,model_short,model_readonly;
 uint8_t model_curdir_error;
 uint8_t model_rm_error,model_corrupt_write;
+uint8_t model_free_error;
 uint8_t model_oversize_read,model_oversize_write;
 uint16_t model_open_calls,model_close_calls,model_read_calls,model_write_calls;
 uint16_t model_fail_open_at,model_fail_close_at,model_fail_read_at,model_fail_write_at;
@@ -47,6 +48,7 @@ zos_err_t palloc(uint8_t *page) {
 }
 zos_err_t pfree(uint8_t page) {
     if(page<32||page>=64||!owned[page-32]) return ERR_INVALID_PARAMETER;
+    if(model_free_error) return (zos_err_t)model_free_error;
     owned[page-32]=0; --model_pages; return 0;
 }
 zos_dev_t open(const char *name,uint8_t flags) {

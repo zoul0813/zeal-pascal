@@ -817,7 +817,7 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
     }
     save_record(slot);
 }
-void zf_cleanup(FileCleanup *ending) ZFILE_CALL {
+uint8_t zf_cleanup(FileCleanup *ending) ZFILE_CALL {
     FileJob result;
     uint16_t i;
     uint8_t selected,error;
@@ -842,4 +842,5 @@ void zf_cleanup(FileCleanup *ending) ZFILE_CALL {
     }
     ending->error=result.error; ending->detail=result.detail;
     job=0;
+    return page_count;
 }

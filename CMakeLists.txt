@@ -46,6 +46,16 @@ zos_add_outputs(file_gate WITH_EXTENSION zpl)
 add_custom_command(TARGET file_gate_bin POST_BUILD
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --file-gate
         ${CMAKE_BINARY_DIR}/file_gate.ihx VERBATIM)
+file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/test_file_gate_asset.asm CONTENT
+    ".area _TEXT\n.globl _gate_start,_gate_end\n_gate_start:\n.incbin \"${CMAKE_BINARY_DIR}/file_gate.zpl\"\n_gate_end:\n")
+set_source_files_properties(${CMAKE_BINARY_DIR}/test_file_gate_asset.asm PROPERTIES
+    OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/file_gate.zpl)
+add_executable(zfilegatetest tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
+    tests/native/file-gate.c tests/native/file-gate.asm tests/native/machine.asm
+    ${CMAKE_BINARY_DIR}/test_file_gate_asset.asm)
+target_compile_options(zfilegatetest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+add_dependencies(zfilegatetest file_gate_bin)
+zos_add_outputs(zfilegatetest)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/runtime_asset.asm CONTENT
 ".area _BANK8\n.globl _runtime_start\n.globl _runtime_end\n.globl _trampoline_start\n.globl _trampoline_end\n_runtime_start:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.zpl\"\n_runtime_end:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.private\"\n.area _RODATA\n_trampoline_start:\n.incbin \"${CMAKE_BINARY_DIR}/ram_trampoline.zpl\"\n_trampoline_end:\n")
 set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES

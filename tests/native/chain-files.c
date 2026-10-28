@@ -8,12 +8,13 @@
 uint8_t zf_user_memory[65536];
 #define VM(at) (zf_user_memory+(at))
 extern uint8_t model_pages,model_handles,model_close_error,model_write_error;
+extern uint8_t model_free_error;
 extern uint16_t model_open_calls,model_close_calls,model_read_calls,model_write_calls;
 #else
 #define VM(at) ((uint8_t*)(at))
 extern void test_complete(void);
 extern void file_probe(uint8_t cleanup,void *job) ZFILE_CALL;
-uint8_t file_probe_before[7],file_probe_after[7],file_probe_ok;
+uint8_t file_probe_before[7],file_probe_after[7],file_probe_ok,file_probe_pending;
 #endif
 volatile uint16_t test_passed,test_failed,test_failures[64],test_index;
 volatile uint8_t test_done;
@@ -44,6 +45,7 @@ static uint16_t cleanup(uint16_t operation) {
     ending.operation=operation;ending.owner=0xc100;ending.end=0xe422;
 #ifdef __SDCC
     file_probe(1,&ending);check(file_probe_ok&&!memcmp(file_probe_before,file_probe_after,7));
+    check(file_probe_pending==(operation==ZF_END_PROGRAM?0:1));
 #else
     zf_cleanup(&ending);
 #endif
@@ -174,6 +176,17 @@ static void faults(void) {
     check(call(ZF_POSITION)==0&&job.result==1); /* retry creates the missing standard safely */
     output(0xc000,22);output(0xe402,44);
     check(cleanup(ZF_END_PROGRAM)==0&&model_handles==0&&model_pages==0);results();
+    parent();ending.operation=ZF_END_PROGRAM;model_free_error=ERR_FAILURE;
+    check(zf_cleanup(&ending)==1&&ending.error==0x1ff&&ending.detail==ERR_FAILURE);
+    check(model_pages==1&&model_handles==0);i=model_close_calls;
+    model_free_error=0;
+    check(zf_cleanup(&ending)==0&&!ending.error&&!ending.detail);
+    check(model_pages==0&&model_handles==0&&model_close_calls==i);
+    parent();model_free_error=model_close_error=ERR_FAILURE;
+    check(zf_cleanup(&ending)==1&&ending.error==0xf0&&ending.detail==ERR_FAILURE);
+    check(model_pages==1&&model_handles==0);i=model_close_calls;
+    model_free_error=model_close_error=0;
+    check(zf_cleanup(&ending)==0&&!ending.error&&model_pages==0&&model_close_calls==i);
 }
 #endif
 int main(void) {

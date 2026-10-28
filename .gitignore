@@ -35,6 +35,7 @@
 !/tools/test-options.py
 !/tools/test-inline.py
 !/tools/test-file-runtime.py
+!/tools/test-file-gate.py
 !/tools/test-runtime-layout.py
 !/tools/test-params.py
 !/tools/test-workers.py

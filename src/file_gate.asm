@@ -36,16 +36,18 @@
 dispatch:
     call 0x4000
 returned:
+    ld c,a                    ; cleanup returns its retained registry-page count
     ld a,(0xfe76)
     out (0xf1),a
     ld a,(0xfe7e)
     cp #2
     jr nz,restore
+    ld a,c
+    or a
+    jr nz,restore             ; the module still owns a failed registry release
     ld a,(0xfe74)
     ld e,a
     ld d,#0
-    xor a
-    ld (0xfe74),a              ; revoke entry before releasing its backing
     ld a,(0xfe78)
     or a
     jr z,native_free
@@ -58,6 +60,9 @@ native_free:
     rst 8
 freed:
     ld (0xfe7f),a
+    or a
+    jr nz,restore             ; keep the physical handle available for retry
+    ld (0xfe74),a              ; release succeeded; A is zero
 restore:
     exx
     pop hl

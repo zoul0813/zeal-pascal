@@ -47,7 +47,9 @@ typedef struct {
  * opening, closing, moving or flushing the associated ordinary file. */
 typedef struct { uint16_t operation,owner,end,error,detail; } FileCleanup;
 void zf_dispatch(FileJob *job) ZFILE_CALL;
-void zf_cleanup(FileCleanup *job) ZFILE_CALL;
+/* Return the number of still-owned registry pages, including on failure.
+ * The terminal gate must retain this module until that ledger is empty. */
+uint8_t zf_cleanup(FileCleanup *job) ZFILE_CALL;
 
 /* Assembly services execute from the module's retained prefix. Registry
  * copies temporarily map their owned page at8000, restoring it before any

@@ -22,7 +22,7 @@ extern uint16_t model_serial_ioctl_calls,model_serial_fail_ioctl_at,model_serial
 #define VM(at) ((uint8_t *)(at))
 extern void test_complete(void);
 extern void file_probe(uint8_t cleanup,void *job) ZFILE_CALL;
-uint8_t file_probe_before[7],file_probe_after[7],file_probe_ok;
+uint8_t file_probe_before[7],file_probe_after[7],file_probe_ok,file_probe_pending;
 #endif
 
 volatile uint16_t test_passed,test_failed,test_failures[64],test_index;
