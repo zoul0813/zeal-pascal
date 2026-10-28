@@ -11,7 +11,7 @@ extern Diagnostic d;
 extern uint8_t console_scratch[256];
 void test_machine(uint8_t *state) NATIVE;
 void check(uint8_t ok);
-void code_hash(uint8_t *out);
+void code_hash(uint8_t *out) SOURCE_BLOCK_CALL;
 uint8_t load(const char *text);
 uint8_t seed(const char *path,const char *text);
 void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position);

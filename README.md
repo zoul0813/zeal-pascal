@@ -30,6 +30,7 @@ python3 tools/test-sources.py
 python3 tools/test-saved-map.py
 python3 tools/test-saved-map.py --native
 python3 tools/test-ide-sources.py
+python3 tools/test-ide-execute.py
 python3 tools/test-inline.py
 python3 tools/test-ide-sources.py --inline
 python3 tools/test-ide-interrupt.py
@@ -93,6 +94,7 @@ speed for library loading and verification before the IDE prompt appears.
 | A | Save current source under another filename; Escape cancels |
 | C | Compile in the selected output mode |
 | R | Run the current build, compiling first when needed |
+| X | Execute an external native program and return to the IDE |
 | O | Select M Memory or C native Com-file; F finds a saved runtime error; Q returns |
 | Q | Quit, resolving unsaved source with save/discard/cancel |
 
@@ -138,6 +140,13 @@ In Com-file mode, compiling the default source writes
 `T:/src/pascal/UNTITLED.COM` and `T:/src/pascal/UNTITLED.ZMP`.
 Run `T:/src/pascal/UNTITLED.COM` from ZShell. These are native Zeal Z80
 executables. Source must be saved separately with S.
+
+X accepts an absolute or relative native executable path without adding an
+extension. Ordinary Zeal applications need no Pascal header. On return it
+restores the IDE text screen and keyboard mode, reports the native exit status,
+and retains Work, Main, dirty buffers, editor state and cached compilation.
+Loader failures retain the session and show the native error. An empty name,
+Escape or Ctrl-U cancels. X supplies no command-tail arguments.
 
 Source saves retain the previous source as BAK. Replacing an existing BAK
 requires confirmation. Source and executable/map publication stage and verify

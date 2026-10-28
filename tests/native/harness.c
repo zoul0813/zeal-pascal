@@ -6,13 +6,6 @@ void check(uint8_t ok) {
     if(ok) ++test_passed;
     else { if(test_failed<64) test_failures[test_failed]=test_index; ++test_failed; }
 }
-void code_hash(uint8_t *out) {
-    Sha256 hash; uint8_t bank; uint16_t i;
-    sha_init(&hash);
-    for(bank=0;bank<code_required;++bank)
-        for(i=0;i<code_sizes[bank];++i) sha_byte(&hash,far_get(code_pages[bank],i));
-    sha_end(&hash,out);
-}
 uint8_t load(const char *text) { return source_import(&s,(const uint8_t*)text,(uint16_t)strlen(text),&d); }
 uint8_t seed(const char *path,const char *text) {
     int8_t fd;

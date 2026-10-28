@@ -3,6 +3,9 @@
 #include <zos_keyboard.h>
 
 static uint8_t control,shift,caps,released;
+#ifndef ZP_PASCAL_KEYS
+void key_reset(void) KEYCALL { control=shift=caps=released=0; }
+#endif
 uint8_t key_event(uint8_t c) KEYCALL {
     uint8_t mask,up,alpha;
     if(c==KB_RELEASED) { released=1;return 0; }

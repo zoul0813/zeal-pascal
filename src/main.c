@@ -1,6 +1,11 @@
 #include "editor.h"
 #include "sources.h"
 #include "saved_map.h"
+#include "keys.h"
+#include <zos_sys.h>
+#include <zos_vfs.h>
+#include <zos_keyboard.h>
+#include <zos_video.h>
 
 /* Public symbols also let the emulator acceptance driver inspect state without
  * adding a host protocol, test menu or debugger to the product. */
@@ -8,7 +13,7 @@ Source work;
 Build build;
 Sources buffers;
 char main_file[128];
-uint8_t ide_state; /* 1 menu, 2 editor, 3 error acknowledgment */
+uint8_t ide_state; /* 1 menu, 2 editor, 3 acknowledgment */
 static uint8_t messages=1;
 static uint8_t saved_mode;
 static void block_io(uint8_t kind);
@@ -464,6 +469,53 @@ static uint8_t find_saved(void) {
     output("\nPress Escape to return to source");while(key_read()!=27) {}
     work.cursor=pc;edit(1);return 1;
 }
+/* Resume console service without repeating startup: console_open also resets
+ * the page-version ledger and remembers the original shell cursor. */
+static uint8_t external_console(void) {
+    uint8_t error;
+    extern uint8_t console_scratch[256];
+    key_reset();
+    error=ioctl(DEV_STDIN,KB_CMD_SET_MODE,(void*)KB_MODE_RAW);
+    if(error)return error;
+    /* GET_AREA reports fixed geometry even after a child selects graphics.
+     * The supported reset restores the real text mode and palette. */
+    error=ioctl(DEV_STDOUT,CMD_RESET_SCREEN,0);
+    if(error)return error;
+    error=ioctl(DEV_STDOUT,CMD_GET_AREA,console_scratch);
+    if(error)return error;
+    if(console_scratch[0]<80||console_scratch[1]<24)return ERR_NOT_SUPPORTED;
+    screen_width=console_scratch[0];screen_height=console_scratch[1];
+    screen_mark(0);return platform_error;
+}
+static void execute_work(void) {
+    char name[128],path[128],directory[128];
+    uint8_t error,status=255,restore=0;
+    extern uint8_t console_scratch[256];
+    screen_clear();output("Execute native program: ");
+    if(file_field(name)!=1)return;
+    if(!native_path(name,path))error=platform_error;
+    else {
+        error=curdir((char*)console_scratch);
+        if(!error) {
+            strcpy(directory,(char*)console_scratch);
+            error=ioctl(DEV_STDIN,KB_CMD_SET_MODE,(void*)(KB_MODE_RAW|KB_READ_NON_BLOCK));
+            if(!error) {
+                strcpy((char*)console_scratch,path);
+                error=exec(EXEC_PRESERVE_PROGRAM,(char*)console_scratch,0,&status);
+                if(!error) {
+                    strcpy((char*)console_scratch,directory);
+                    restore=chdir((char*)console_scratch);
+                }
+            }
+            {uint8_t console=external_console();if(!restore)restore=console;}
+        }
+    }
+    ide_state=3;
+    if(error)file_error("\nExecute failed, native error ",error);
+    else {output("\nProgram returned, status ");output_number(status);}
+    if(restore)file_error("\nIDE restore failed, native error ",restore);
+    output(". Press Escape");while(key_read()!=27) {}
+}
 int app_main(void) {
     uint8_t c,status,file,hash[32];
     uint16_t pc,position;Source root,failed;
@@ -485,7 +537,7 @@ int app_main(void) {
         output(work.dirty?" *\n":"\n");output("Main: ");
         if(main_file[0])output(main_file);else output("(Work)");
         output("\n");output_number(work.length); output(" source bytes; ");
-        output_number(pages_used()); output(" owned pages\nW Open  M Main  E Edit  S Save  A Save as  C Compile  R Run  O Options  Q Quit\n");
+        output_number(pages_used()); output(" owned pages\nW Open  M Main  E Edit  S Save  A Save as\nC Compile  R Run  X Execute  O Options  Q Quit\n");
         c=suffix(key_read());
         if(c=='e') edit(0);
         else if(c=='w') open_work();
@@ -493,6 +545,7 @@ int app_main(void) {
         else if(c=='s') save_work();
         else if(c=='a') save_as_work();
         else if(c=='c') compile_work();
+        else if(c=='x') execute_work();
         else if(c=='o') {
             screen_clear(); output("Compiler options\nM Memory  C native Com-file  F Find run-time error  Q Return\n");
             do {

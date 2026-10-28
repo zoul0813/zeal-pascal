@@ -330,12 +330,21 @@ cleanup:
     if(ok) { s->dirty=0; cleanup_success(1,1u|(exists?2u:0u)|(backup?4u:0u)); }
     return ok;
 }
-uint8_t source_path(const char *name,char *out) SOURCE_BLOCK_CALL {
-    console_scratch[0]=0;
+static uint8_t current_directory(const char *name) {
+    platform_error=0;console_scratch[0]=0;
     if(strlen(name)<2||name[1]!=':') {
         platform_error=curdir((char*)console_scratch);
         if(platform_error) return 0;
     }
+    return 1;
+}
+uint8_t native_path(const char *name,char *out) SOURCE_BLOCK_CALL {
+    if(!current_directory(name))return 0;
+    if(path_resolve(name,(char*)console_scratch,out))return 1;
+    platform_error=ERR_INVALID_PATH;return 0;
+}
+uint8_t source_path(const char *name,char *out) SOURCE_BLOCK_CALL {
+    if(!current_directory(name))return 0;
     return sources_path(name,(char*)console_scratch,out);
 }
 uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup) {

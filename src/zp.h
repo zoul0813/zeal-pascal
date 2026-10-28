@@ -167,6 +167,8 @@ const char *compile_error_path(void);
 const uint8_t *compile_error_hash(void);
 /* Path arguments must live in retained data/stack, like the source catalog. */
 uint8_t source_path(const char *name,char *out) SOURCE_BLOCK_CALL;
+/* Resolve against the native current directory without a source extension. */
+uint8_t native_path(const char *name,char *out) SOURCE_BLOCK_CALL;
 void build_close(Build *b);
 uint8_t build_check(const Source *s, const Build *b);
 uint8_t build_ready(const Source *s,const Build *b);

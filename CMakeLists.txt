@@ -72,6 +72,8 @@ set_property(SOURCE tests/native/input-main.c tests/native/math-main.c tests/nat
     ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 set_property(SOURCE src/keys.c src/platform.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/keys.h)
+set_property(SOURCE src/main.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/keys.h)
 set_property(SOURCE src/platform.c src/worker.c src/banks.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/worker.h)
 set_property(SOURCE src/editor.c src/main.c tests/native/editor-core.c tests/native/editor-search.c tests/native/editor-main.c
@@ -185,7 +187,15 @@ target_compile_options(zedittest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 set_source_files_properties(tests/native/editor-main.c tests/native/editor-core.c tests/native/editor-search.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_library(test_hash OBJECT tests/native/code-hash.c)
+target_include_directories(test_hash PRIVATE src)
+target_compile_options(test_hash PRIVATE --std-c99 "SHELL:--codeseg BANK12" "SHELL:--constseg BANK12")
+set_property(SOURCE tests/native/code-hash.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/tests/native/harness.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h)
 foreach(target zpascal zptest zinputtest zmathtest ziotest zfiletest ztexttest zstdtest zkeytest zkbdtest zcontest zcontroltest zmaptest zdevtest zbridgetest zhooktest zlangtest zsrctest zinlinetest zparamtest zworkertest zedittest)
+    if(NOT target STREQUAL "zpascal" AND NOT target STREQUAL "zedittest")
+        target_sources(${target} PRIVATE $<TARGET_OBJECTS:test_hash>)
+    endif()
     target_link_options(${target} PRIVATE "SHELL:-b _INITIALIZED=0xc000"
         "SHELL:-b _BANK1=0x18000" "SHELL:-b _BANK2=0x28000" "SHELL:-b _BANK3=0x38000" "SHELL:-b _BANK4=0x48000" "SHELL:-b _BANK5=0x58000" "SHELL:-b _BANK6=0x68000" "SHELL:-b _BANK7=0x78000" "SHELL:-b _BANK8=0x88000" "SHELL:-b _BANK9=0x98000" "SHELL:-b _BANK10=0xa8000")
     target_link_options(${target} PRIVATE "SHELL:-b _BANK11=0xb8000")
@@ -205,6 +215,12 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/test_sdk_startup.asm CONTENT
 add_executable(zpbootfail ${CMAKE_BINARY_DIR}/test_sdk_startup.asm tests/native/startup-fail.c)
 target_compile_options(zpbootfail PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 zos_add_outputs(zpbootfail)
+add_executable(zpexecchild ${CMAKE_BINARY_DIR}/test_sdk_startup.asm tests/native/execute-child.c)
+target_compile_options(zpexecchild PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+target_include_directories(zpexecchild PRIVATE "$ENV{ZOS_PATH}/../Zeal-VideoBoard-SDK/include")
+set_property(SOURCE tests/native/execute-child.c APPEND PROPERTY OBJECT_DEPENDS
+    "$ENV{ZOS_PATH}/../Zeal-VideoBoard-SDK/include/zvb_hardware.h")
+zos_add_outputs(zpexecchild)
 # Independent test-only native procedure bytes; not deployed with the product.
 add_executable(stringabi tests/native/stringabi.asm)
 zos_add_outputs(stringabi WITH_EXTENSION zpl)

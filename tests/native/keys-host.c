@@ -41,6 +41,10 @@ int main(void) {
 #endif
     expect(KB_LEFT_ARROW,KB_LEFT_ARROW);release(KB_LEFT_ARROW);
     expect(0,0);expect(1,0);
+#ifndef ZP_PASCAL_KEYS
+    expect(KB_LEFT_CTRL,0);expect(KB_RIGHT_SHIFT,0);expect(KB_CAPS_LOCK,0);
+    expect(KB_RELEASED,0);key_reset();expect('a','a');expect('1','1');
+#endif
     printf("PASS: %u raw-key modifier/release/character checks\n",checks);
     return 0;
 }
