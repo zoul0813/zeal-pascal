@@ -11,6 +11,7 @@
  * adding a host protocol, test menu or debugger to the product. */
 Source work;
 Build build;
+CompileOptions compile_options={0,0xfbffu};
 Sources buffers;
 char main_file[128];
 uint8_t ide_state; /* 1 menu, 2 editor, 3 acknowledgment */
@@ -34,6 +35,7 @@ static void recovery_notice(void) {
 static void invalidate(void) {
     /* Work may be an include; its revision is independent of Main's. */
     build_close(&build);
+    build.code_bytes=build.globals_bytes=0;
 }
 static uint8_t sync_work(void) { return sources_take(&buffers,&work,&work)>=0; }
 static void lookup_failure(void) {
@@ -417,9 +419,10 @@ static uint8_t compile_work(void) {
         temporary=1;
     }
     output(saved_mode?"Compiling to native COM (Ctrl-U cancels)...\n":"Compiling to Memory (Ctrl-U cancels)...\n");
-    ok=compile_project(&root,&buffers,&build,&d,1);
+    ok=compile_project(&root,&buffers,&build,&d,1,saved_mode?&compile_options:0);
     if(temporary)source_close(&root);
     if(!ok) {
+        build.code_bytes=build.globals_bytes=0;
         if(d.code==COMPILE_INTERRUPTED) {
             ide_state=3;
             search_ack(compile_interrupt_reason()==2?"Compile interrupted: typeahead full":"*** COMPILE INTERRUPTED");return 0;
@@ -441,23 +444,59 @@ static uint8_t compile_work(void) {
     output("Code bytes: ");output_number(build.code_bytes);
     output(" Data bytes: ");output_number(build.globals_bytes);output("\n");return 1;
 }
+static uint8_t hexadecimal(const char *text,uint16_t *value) {
+    uint8_t i,digit;
+    if(!text[0]||strlen(text)>4)return 0;
+    *value=0;
+    for(i=0;text[i];++i) {
+        digit=suffix((uint8_t)text[i]);
+        if(digit>='0'&&digit<='9')digit-='0';
+        else if(digit>='a'&&digit<='f')digit-=('a'-10);
+        else return 0;
+        *value=(*value<<4)|digit;
+    }
+    return 1;
+}
+static void options_screen(void) {
+    CompileLimits limits;
+    screen_clear();output("Compiler options\nM Memory  C native Com-file  F Find run-time error  Q Return\n");
+    if(!saved_mode) {output("Memory selected\n");return;}
+    compile_limits(build.code_bytes?build.globals_bytes:0,build.code_bytes,&compile_options,&limits);
+    output("Native Com-file selected\nS Start  E End\nStart: ");
+    if(compile_options.start)output_hex(compile_options.start,4);else output("AUTO");
+    output(" (min ");output_hex(limits.minimum_start,4);output(" max ");output_hex(limits.maximum_start,4);
+    output(")\nEnd: ");output_hex(compile_options.end,4);
+    output(" (min ");output_hex(limits.minimum_end,4);output(" max FBFF)\n");
+    output(build.code_bytes?"Last compiled program bounds\n":"Platform bounds; program extents checked at Compile\n");
+}
+static void option_address(uint8_t start) {
+    char text[128];CompileOptions proposed;CompileLimits limits;
+    uint16_t value;uint8_t field;
+    for(;;) {
+        output(start?"Start hex (0=AUTO, empty keeps current): ":"End hex (empty keeps current): ");
+        field=file_field(text);if(field!=1)return;
+        proposed=compile_options;
+        if(hexadecimal(text,&value)) {
+            if(start)proposed.start=value;else proposed.end=value;
+            if(compile_limits(build.code_bytes?build.globals_bytes:0,build.code_bytes,&proposed,&limits)) {
+                if(proposed.start!=compile_options.start||proposed.end!=compile_options.end) {
+                    compile_options=proposed;build_close(&build);
+                }
+                return;
+            }
+        }
+        output("\nInvalid address or program bounds; value unchanged.\n");
+    }
+}
 static uint8_t find_saved(void) {
     char text[128],root[128];SavedLocation found;
-    uint16_t pc,line,column;uint8_t field,i,digit,valid;
+    uint16_t pc,line,column;uint8_t field;
     strcpy(root,main_file[0]?main_file:work.path);
     for(;;) {
         screen_clear();output("Find saved run-time error\nEnter PC: ");
         field=file_field(text);
         if(field!=1)return 0;
-        valid=strlen(text)<=4;pc=0;
-        for(i=0;text[i]&&valid;++i) {
-            digit=suffix((uint8_t)text[i]);
-            if(digit>='0'&&digit<='9')digit-='0';
-            else if(digit>='a'&&digit<='f')digit-=('a'-10);
-            else {valid=0;break;}
-            pc=(pc<<4)|digit;
-        }
-        if(valid)break;
+        if(hexadecimal(text,&pc))break;
         output("\nInvalid hexadecimal PC. Press Escape to retry");while(key_read()!=27) {}
     }
     output("\nVerifying saved program, map and sources...\n");
@@ -654,16 +693,17 @@ int app_main(void) {
         else if(c=='d') directory_list();
         else if(c=='x') execute_work();
         else if(c=='o') {
-            screen_clear(); output("Compiler options\nM Memory  C native Com-file  F Find run-time error  Q Return\n");
+            options_screen();
             do {
                 c=suffix(key_read());
                 if(c=='m'||c=='c') {
                     if(saved_mode!=(c=='c')) { saved_mode=c=='c'; build_close(&build); }
-                    output(saved_mode?"Native Com-file selected\n":"Memory selected\n");
+                    options_screen();
                 }
+                else if(saved_mode&&(c=='s'||c=='e')) {option_address(c=='s');options_screen();}
                 else if(c=='f') {
                     if(find_saved())break;
-                    screen_clear();output("Compiler options\nM Memory  C native Com-file  F Find run-time error  Q Return\n");
+                    options_screen();
                 }
             } while(c!='q');
         }

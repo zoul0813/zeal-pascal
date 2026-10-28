@@ -98,7 +98,7 @@ static uint8_t image(Reader *r,Identity *id) {
        (uint32_t)GLOBAL_BASE+word(h+26)>id->origin||
        (uint32_t)id->origin+id->bytes>heap||(uint32_t)0x4000u+length!=heap||
        end<0xcfffu||end>0xfbffu||stack<2048||
-       (uint32_t)heap+stack>(uint32_t)end+1||!zeros(h+34,2)||
+       (((uint32_t)heap+1)&~1UL)+stack>(uint32_t)end+1||!zeros(h+34,2)||
        word(h+132)!=PREFIX_BYTES||!zeros(h+140,20))return corrupt();
     /* No native overlay output exists yet. Never guess which overlaid member
      * a one-field PC names; the overlay reader will own that selection. */

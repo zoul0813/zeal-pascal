@@ -102,9 +102,8 @@ normal:
     ld a,b
     or a
     jr nz,bad_start
-    ld a,c
-    cp #128
-    jr nc,bad_start
+    bit 7,c
+    jr nz,bad_start
     ld a,c
     ex af,af'                   ; retain length without touching source/stack
     ld a,c
@@ -116,11 +115,11 @@ normal:
     ; end when source >= destination, otherwise toward the higher end. Store
     ; the length only after copying: even FF00 may be a source byte.
     ld a,h
-    cp #0xff
-    jr c,tail_backward
+    inc a
+    jr nz,tail_backward
     ld a,l
-    cp #1
-    jr c,tail_backward
+    or a
+    jr z,tail_backward
     ldir
     jr tail_copied
 tail_backward:
@@ -137,7 +136,7 @@ tail_copied:
     xor a
     ld (memory_mode),a
     ld sp,#0xfc00
-    jp start
+    jr start
 bad_start:
     ld h,#1
     ld l,#15
@@ -160,7 +159,10 @@ start:
     rlca
     rlca
     ld (input_mode_value),a     ; owned raw mode: IDE blocking, shell nonblocking
-    ld hl,#64
+    ld hl,(0x4020)              ; minimum load-time stack, never below2 KiB
+    ld a,h
+    cp #8
+    jp c,heap_error
     ld (runtime_stack_budget),hl
     ld hl,#0xff80               ; input history, initialized after tail copy
     ld de,#0xff81
@@ -168,17 +170,23 @@ start:
     ld (hl),#0
     ldir
     ld hl,(0x401c)
-    bit 0,l
-    jr z,heap_aligned
     inc hl
+    res 0,l
+    bit 7,h                    ; reject prefix overlap and FFFF alignment wrap
+    jp z,heap_error
 heap_aligned:
     ld (heap_floor),hl
     ld (heap_frontier),hl
-    ld hl,#0
+    ld hl,(0x401e)
+    inc hl                     ; selected End+1 must stay in page3
+    ld a,h
+    cp #0xd0
+    jp c,heap_error
+    call stack_set             ; validate End ceiling and actual static headroom
+    ld hl,#64
+    ld (runtime_stack_budget),hl
+    ld hl,#-64
     add hl,sp
-    ld de,(runtime_stack_budget)
-    or a
-    sbc hl,de
     ld (recursion_limit),hl
     ld hl,(0x4014)
     jp (hl)
@@ -380,9 +388,9 @@ boolean_output:
     ld a,h
     or l
     ld hl,#false_text
-    jp z,string_output
+    jr z,string_output
     ld hl,#true_text
-    jp string_output
+    jr string_output
 
 ; Bias each signed high byte before the unsigned lexicographic comparison.
 ; No subtract-and-sign shortcut: -32768 versus +32767 must not overflow.
@@ -395,8 +403,8 @@ compare_integer:
     ld c,a
     ld a,b
     cp c
-    jp c,compare_less
-    jp nz,compare_greater
+    jr c,compare_less
+    jr nz,compare_greater
     ld a,e
     cp l
     jr c,compare_less
@@ -458,7 +466,7 @@ character_length_error:
     jp call_error
 compare_text:
     call prepare_text
-    jp compare_string
+    jr compare_string
 prepare_text:
     ld c,a
     bit 0,c
@@ -675,7 +683,7 @@ error_ready:
     call file_cleanup
     ld a,(memory_mode)
     or a
-    jp z,normal_error
+    jr z,normal_error
     ld a,#3
     ld (0xfc1a),a
     ld a,(error_namespace)
@@ -736,7 +744,7 @@ push_string:
     ex de,hl
     ld hl,(argument_source)
     ldir
-    jp string_return
+    jr string_return
 argument_overflow:
     ld hl,(0x40be)
     jp stack_error
@@ -1388,15 +1396,15 @@ check_boundary:
     ld a,h
     cp #0xc8
     jp c,heap_error
-    ld (boundary_value),hl
     push de
     push bc
+    push hl
     ld hl,(heap_frontier)
     ld de,(heap_floor)
     or a
     sbc hl,de
     jp c,heap_error
-    ld hl,(boundary_value)
+    pop hl
     ld de,(heap_frontier)
     or a
     sbc hl,de
@@ -1455,7 +1463,7 @@ heap_read:
     ld de,(heap_frontier)
     or a
     sbc hl,de
-    jp nc,heap_read_end
+    jr nc,heap_read_end
     ret
 heap_read_end:
     ld a,h
@@ -1522,7 +1530,7 @@ heap_append:
     ld de,(recursion_limit)
     or a
     sbc hl,de
-    jp c,heap_append_ready
+    jr c,heap_append_ready
     jp nz,heap_error
 heap_append_ready:
     add hl,de
@@ -1725,7 +1733,7 @@ stack_set:
     ld de,#0xfc00
     or a
     sbc hl,de
-    jp c,stack_set_end
+    jr c,stack_set_end
     jp nz,heap_error
 stack_set_end:
     ld hl,(0x401e)

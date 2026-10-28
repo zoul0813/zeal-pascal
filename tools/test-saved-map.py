@@ -174,6 +174,13 @@ def main():
         if p.returncode:print(p.stdout,p.stderr,flush=True);p.check_returncode()
         print(path.name,p.stdout.strip());results.append({'case':path.name,'result':p.stdout.strip()})
     run(positive,False)
+    # An odd static end consumes one byte before the aligned heap starts.
+    # Authenticate coherent large-image/map fixtures around that exact bound.
+    for name,end,fails in [('aligned-stack-short',0xd000,True),('aligned-stack-exact',0xd001,False)]:
+        x,y=fixture();x+=bytes(0x8801-len(x));x[0x4000:0x4020]=bytes(32)
+        x[0x87e1:0x8801]=b'\xc9'*32
+        for at,value in [(10,len(x)),(20,0xc7e1),(28,0xc801),(30,end)]:put16(x,at,value)
+        put16(y,10,0xc7e1);seal(x,y);run(write(name,x,y),fails)
     for name,part in [('stale-include',PART+b'{changed}\n')]:run(write(name,b,m,part=part),True)
     for target,fields in [('image',[(0,0),(7,2),(34,1),(134,1),(140,1),(18,2)]),('map',[(0,0),(4,2),(5,1),(92,1)])]:
         for at,value in fields:

@@ -361,10 +361,27 @@ static SourcePosition statement(void) {
     return start;
 }
 SourcePosition cc_statement(void) BACKEND { return statement(); }
-uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
-    return compile_project(s,0,b,d,0);
+/* Shared job bounds also drive the IDE options annotations. */
+uint8_t compile_limits(uint16_t globals,uint16_t code,const CompileOptions *options,CompileLimits *limits) SOURCE_BLOCK_CALL {
+    uint32_t start,end,top,needed;
+    memset(limits,0,sizeof(*limits));
+    if(globals>=PAGE_SIZE)return 0;
+    limits->minimum_start=GLOBAL_BASE+globals;
+    start=options&&options->start?options->start:limits->minimum_start;
+    end=options?options->end:0xfbffu;
+    if(!code)code=1; /* UI platform bounds before a program has been compiled. */
+    top=end+1;
+    if(top>=2048UL+code)limits->maximum_start=(uint16_t)(((top-2048u)&~1UL)-code);
+    needed=((start+code+1)&~1UL)+2048u-1;
+    if(needed<0xcfffu)needed=0xcfffu;
+    limits->minimum_end=needed>65535u?65535u:(uint16_t)needed;
+    return end>=0xcfffu&&end<=0xfbffu&&start>=limits->minimum_start&&
+        start<=limits->maximum_start&&end>=needed;
 }
-uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnostic *d,uint8_t interruptible) {
+uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
+    return compile_project(s,0,b,d,0,0);
+}
+uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options) {
     uint16_t i,j,at;
     uint8_t file,digest[32];
     SourcePosition begin;
@@ -372,7 +389,7 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     CompilerSources sources;
     Sha256 hash;
     memset(&cc,0,sizeof(cc));memset(&sources,0,sizeof(sources));
-    sources.refs_page=255;sources.root=s;
+    sources.refs_page=255;sources.root=s;sources.options=options;
     cc.input=&active;cc.sources=&sources;cc.image=b;cc.error=d;
     cc.workspace=255;cc.stage_page=255;
     memset(d,0,sizeof(*d));memset(b,0,sizeof(*b));
@@ -451,6 +468,7 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     for(i=0;i<32;++i)cc_put(100+i,digest[i]);
     cc_word(10,b->length);cc_word(20,b->code_origin);cc_word(22,b->code_bytes);
     cc_word(24,GLOBAL_BASE);cc_word(26,b->globals_bytes);cc_word(28,0x4000u+b->length);
+    cc_word(30,options?options->end:0xfbffu);
     cc_hash_image(b,b->id);
     if(d->code||!cc_poll())goto failed;
     for(i=0;i<32;++i){cc_put(36+i,b->id[i]);map8(20+i,b->id[i]);}
@@ -470,4 +488,25 @@ failed:
     if(cc.stage_page!=255&&page_drop(cc.stage_page))cc.stage_page=255;
     if(cc.workspace!=255&&page_drop(cc.workspace))cc.workspace=255;
     build_close(b);return 0;
+}
+
+/* Error provenance is captured while invocation-owned compiler inputs live. */
+void cc_sources_error(void) ROUTINES {
+    Source failed;const Source *original=0;int16_t id;
+    cc.literal_length=0;
+    if(cc.sources->external_error){strcpy(cc.name,cc.input->path);return;}
+    if(!sources_get(&cc.image->sources,cc.sources->error_file,&failed)) {
+        strcpy(cc.name,cc.sources->root->path);return;
+    }
+    strcpy(cc.name,failed.path);
+    if(sources_hash(&cc.image->sources,cc.sources->error_file,cc.literal))cc.literal_length=32;
+    if(!cc.sources->error_file)original=cc.sources->root;
+    else if(cc.sources->buffers) {
+        id=sources_find(cc.sources->buffers,failed.path);
+        if(id>=0&&sources_get(cc.sources->buffers,(uint8_t)id,&failed))original=&failed;
+    }
+    if(original) {
+        cc.error->start=source_editor_offset(original,cc.error->start);
+        cc.error->end=source_editor_offset(original,cc.error->end);
+    }
 }

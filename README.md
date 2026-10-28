@@ -36,6 +36,8 @@ python3 tools/test-inline.py
 python3 tools/test-ide-sources.py --inline
 python3 tools/test-ide-interrupt.py
 python3 tools/test-compile-interrupt.py --seal-poll 293
+python3 tools/test-options.py
+python3 tools/test-options.py --ide
 python3 tools/test-bridges.py
 python3 tools/test-bridges.py --corpus routines
 python3 tools/test-bridges.py --corpus real
@@ -99,7 +101,7 @@ speed for library loading and verification before the IDE prompt appears.
 | C | Compile in the selected output mode |
 | R | Run the current build, compiling first when needed |
 | X | Execute an external native program and return to the IDE |
-| O | Select M Memory or C native Com-file; F finds a saved runtime error; Q returns |
+| O | Select M Memory or C native Com-file; saved modes expose S Start/E End; F finds a saved runtime error; Q returns |
 | Q | Quit, resolving unsaved source with save/discard/cancel |
 
 Startup opens `T:/src/pascal/UNTITLED.pas` when available. Missing source or
@@ -151,6 +153,17 @@ source edits and queued typing remain available. Filling the 32-key IDE typeahea
 queue also stops compilation instead of dropping ordinary keys. Incomplete builds
 are released, and the next R compiles again. Output publication still completes
 synchronously.
+
+In Com-file options, S selects the generated code's Start address and E selects
+the program's End address. Enter one to four hexadecimal digits; Start 0 selects
+the automatic minimum. Empty input, Escape or Ctrl-U retains the current value.
+Invalid input retains the old value and asks again. End defaults to FBFF and must
+be in CFFF..FBFF with enough room for the program and at least 2 KiB of stack.
+The menu shows bounds for the last compiled program; before a successful compile
+it shows platform bounds and checks the complete program when compiling.
+Changing an option invalidates the cached build. Memory mode uses automatic Start
+and FBFF independently of saved-mode settings. Gaps before code are zero-filled;
+startup sets StackPtr to End+1 and validates the actual static/stack extents.
 
 X accepts an absolute or relative native executable path without adding an
 extension. Ordinary Zeal applications need no Pascal header. On return it

@@ -76,14 +76,14 @@ static void compile_cancellation(void) {
     memcpy(content,memory[s.page],s.length);
     for(stage=1;stage<=4;++stage)for(result=1;result<=2;++result) {
         cancel_stage=stage;cancel_result=result;poll_calls=0;
-        check(!compile_project(&s,0,&b,&d,1));
+        check(!compile_project(&s,0,&b,&d,1,0));
         check(d.code==COMPILE_INTERRUPTED&&compile_interrupt_reason()==result);
         check(poll_calls>0&&!cc.polling&&!b.valid&&pages_used()==1);
         if(stage==4&&result==1)printf("Compile cancellation seal checkpoint: %u\n",poll_calls);
         check(!memcmp(&s,&before,sizeof(s))&&!memcmp(content,memory[s.page],s.length));
         check(b.pages[0]==255&&b.pages[1]==255&&b.pages[2]==255&&b.map_page==255&&b.sources.page==255);
         cancel_stage=0;
-        check(compile_project(&s,0,&b,&d,1));check(!cc.polling&&compile_interrupt_reason()==0);
+        check(compile_project(&s,0,&b,&d,1,0));check(!cc.polling&&compile_interrupt_reason()==0);
         calls=poll_calls;
         /* Completed-build verification must never use the expired job's
          * diagnostic or consume input, even when the next poll would abort. */
@@ -100,11 +100,55 @@ static void compile_cancellation(void) {
         for(i=0;i<100;++i)strcat(text,"a long comment must remain cancellable\n");
         strcat(text,"}\nbegin end.\n");load(text);before=s;
         cancel_stage=5;cancel_result=1;
-        check(!compile_project(&s,0,&b,&d,1)&&d.code==COMPILE_INTERRUPTED);
+        check(!compile_project(&s,0,&b,&d,1,0)&&d.code==COMPILE_INTERRUPTED);
         check(cc.scan>512&&cc.scan<1024&&!memcmp(&s,&before,sizeof(s)));
         check(!b.valid&&!cc.polling&&pages_used()==1);
         cancel_stage=0;check(compile(&s,&b,&d));build_close(&b);
     }
+}
+static void compilation_options(void) {
+    const uint16_t starts[]={0,0x8000,0x8202,0x9000,0xbfff,0xc000,0xc001,0xd000,0xef00,0xf400,0xffff};
+    const uint16_t ends[]={0,0xcffe,0xcfff,0xd000,0xe123,0xfbfe,0xfbff,0xfc00,0xffff};
+    CompileOptions options;CompileLimits limits;
+    uint8_t identity[32];uint16_t bytes,globals,i,j,at,typed;
+    uint32_t start,heap;uint8_t expected,ok,gap_zero;
+    load("program Layout;\nvar pad:array[1..513]of byte;marker:integer;\n"
+         "const typed:integer=17;\nprocedure p;begin pad[1]:=7 end;\n"
+         "begin p;marker:=typed;writeln(marker,pad[1])end.\n");
+    check(compile(&s,&b,&d));bytes=b.code_bytes;globals=b.globals_bytes;
+    check(globals==515);memcpy(identity,b.id,32);build_close(&b);
+    for(i=0;i<sizeof(starts)/sizeof(starts[0]);++i)for(j=0;j<sizeof(ends)/sizeof(ends[0]);++j) {
+        options.start=starts[i];options.end=ends[j];
+        start=options.start?options.start:GLOBAL_BASE+globals;
+        heap=(start+bytes+1)&~1UL;
+        expected=options.end>=0xcfffu&&options.end<=0xfbffu&&
+            start>=(uint32_t)GLOBAL_BASE+globals&&heap+2048u<=(uint32_t)options.end+1;
+        check(compile_limits(globals,bytes,&options,&limits)==expected);
+        ok=compile_project(&s,0,&b,&d,0,&options);check(ok==expected);
+        if(ok) {
+            check(b.code_origin==start&&b.code_bytes==bytes&&b.globals_bytes==globals);
+            check(image_get(&b,30)==(uint8_t)options.end&&image_get(&b,31)==(uint8_t)(options.end>>8));
+            check(b.length==start-0x4000u+bytes&&build_check(&s,&b));
+            gap_zero=1;
+            for(at=GLOBAL_BASE+globals-0x4000u;at<start-0x4000u;++at)if(image_get(&b,at))gap_zero=0;
+            check(gap_zero);
+            typed=0;
+            for(at=0;at<cc.symbol_count;++at)if(cc.symbols[at].role==S_TYPED) {
+                typed=cc.symbols[at].address+b.code_origin-CC_CODE_BASE-0x4000u;
+                check(image_get(&b,typed)==17&&image_get(&b,typed+1)==0);
+            }
+            check(typed!=0);
+            check((!memcmp(identity,b.id,32))==(start==GLOBAL_BASE+globals&&options.end==0xfbffu));
+            build_close(&b);
+        } else check(d.code==99&&!b.valid);
+        check(pages_used()==1);
+    }
+    options.start=0xd001;options.end=(uint16_t)(((0xd001UL+bytes+1)&~1UL)+2048u-1);
+    check(compile_project(&s,0,&b,&d,0,&options));build_close(&b);
+    --options.end;check(!compile_project(&s,0,&b,&d,0,&options)&&d.code==99&&pages_used()==1);
+    options.start=0;options.end=0xfbff;
+    check(!compile_limits(0xffff,1,&options,&limits));
+    check(!compile_limits(0,0xffff,&options,&limits));
 }
 static void keyboard_corpus(void) {
     const char *names[]={"kbdread","kbdbind","kbdlife","kbdupper","kbdfail","conread","conbind","conoutput","conupper","conoutfail","confail","trmread","trmfail","devoutput","devfail"};
@@ -353,13 +397,13 @@ static void include_cases(void) {
     check(source_import(&override,(const uint8_t*)"const answer=42;",16,&d));
     check(sources_new(&buffers));check(sources_take(&buffers,&root,&root)==0);
     check(sources_take(&buffers,&override,&override)==1);reads=disk_reads;
-    check(compile_project(&root,&buffers,&b,&d,0));check(b.sources.count==2&&disk_reads==reads);
+    check(compile_project(&root,&buffers,&b,&d,0,0));check(b.sources.count==2&&disk_reads==reads);
     check(build_ready(&root,&b));check(sources_get(&b.sources,1,&snapshot));
     check(snapshot.page!=override.page&&snapshot.length==override.length);
     check(source_replace(&override,override.length,override.length,(const uint8_t*)" ",1));
     check(!build_ready(&root,&b));build_close(&b);
     check(sources_take(&buffers,&override,&override)==1);
-    check(compile_project(&root,&buffers,&b,&d,0)&&build_ready(&root,&b));build_close(&b);
+    check(compile_project(&root,&buffers,&b,&d,0,0)&&build_ready(&root,&b));build_close(&b);
     check(sources_close(&buffers)&&pages_used()==1);
     disk_sources=0;disk_source_count=0;
 }
@@ -460,6 +504,7 @@ int main(int argc,char **argv) {
     keyboard_corpus();
     interruption_corpus();
     compile_cancellation();
+    compilation_options();
     console_boundary();
     bridge_corpus();
     hook_corpus();

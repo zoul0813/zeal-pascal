@@ -22,10 +22,13 @@ void build_close(Build *b) {
 /* Final placement and relocation belong with build sealing. Keeping them in
  * this bank also leaves lexer/emission room for cancellable scanning. */
 uint8_t cc_place_code(void) FRONTEND {
-    uint16_t i,p,at,value,coefficient,origin=GLOBAL_BASE+cc.image->globals_bytes;
+    uint16_t i,p,at,value,coefficient,origin;
     uint8_t byte;
-    uint16_t count=cc.emitted-CC_CODE_BASE,delta=origin-CC_CODE_BASE;
-    if(origin>0xc000u||(uint32_t)origin+count>CC_STATIC_LIMIT) { cc_fail(99); return 0; }
+    uint16_t count=cc.emitted-CC_CODE_BASE,delta;
+    CompileLimits limits;
+    if(!compile_limits(cc.image->globals_bytes,count,cc.sources->options,&limits)) { cc_fail(99);return 0; }
+    origin=cc.sources->options&&cc.sources->options->start?cc.sources->options->start:limits.minimum_start;
+    delta=origin-CC_CODE_BASE;
     for(i=0;i<cc.relocations;++i) {
         if(!(i&63)&&!cc_poll())return 0;
         p=i*RELOCATION_BYTES;
@@ -38,12 +41,17 @@ uint8_t cc_place_code(void) FRONTEND {
         value+=(uint16_t)((uint32_t)coefficient*delta);
         if(byte)cc_put(at,(uint8_t)value);else cc_word(at,value);
     }
-    /* Globals remain below C000. In the overlapping page2 part, forward copy
-     * always writes behind the unread staging bytes. The second staging page
-     * is separate from all final image pages. */
+    /* A higher Start may overlap the first staging page in either direction.
+     * Reverse only for an upward overlapping move. The second staging page
+     * is separate from all final image pages. Clear gaps after staging dies. */
     for(i=0;i<count;++i) {
         if(!(i&255)&&!cc_poll())return 0;
-        cc_put(origin-0x4000u+i,cc_code_get(CC_CODE_BASE+i));
+        p=origin>0xc000u?count-1-i:i;
+        cc_put(origin-0x4000u+p,cc_code_get(CC_CODE_BASE+p));
+    }
+    for(i=limits.minimum_start-0x4000u;i<origin-0x4000u;++i) {
+        if(!(i&255)&&!cc_poll())return 0;
+        cc_put(i,0);
     }
     /* Bind the private key dispatch only after final placement is known.
      * Both RAM and saved images own their typeahead state and exact target. */
@@ -134,26 +142,6 @@ uint8_t build_location(const Source *s,const Build *b,uint16_t pc,uint8_t *file,
     return 0;
 }
 
-/* Error provenance is captured while invocation-owned compiler inputs live. */
-void cc_sources_error(void) ROUTINES {
-    Source failed;const Source *original=0;int16_t id;
-    cc.literal_length=0;
-    if(cc.sources->external_error){strcpy(cc.name,cc.input->path);return;}
-    if(!sources_get(&cc.image->sources,cc.sources->error_file,&failed)) {
-        strcpy(cc.name,cc.sources->root->path);return;
-    }
-    strcpy(cc.name,failed.path);
-    if(sources_hash(&cc.image->sources,cc.sources->error_file,cc.literal))cc.literal_length=32;
-    if(!cc.sources->error_file)original=cc.sources->root;
-    else if(cc.sources->buffers) {
-        id=sources_find(cc.sources->buffers,failed.path);
-        if(id>=0&&sources_get(cc.sources->buffers,(uint8_t)id,&failed))original=&failed;
-    }
-    if(original) {
-        cc.error->start=source_editor_offset(original,cc.error->start);
-        cc.error->end=source_editor_offset(original,cc.error->end);
-    }
-}
 uint8_t cc_sources_ready(const Source *root,const Build *build) ROUTINES {
     uint8_t id,hash[32],expected[32];Source source;
     Diagnostic diagnostic;

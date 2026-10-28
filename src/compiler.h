@@ -48,6 +48,7 @@ typedef struct {
     uint8_t refs_page,file,error_file,external_error;
     uint16_t refs,parent_scan;
     uint8_t parent_flags,parent_limit;
+    const CompileOptions *options;
 } CompilerSources;
 typedef struct {
     SourcePosition first,last;
