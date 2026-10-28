@@ -22,6 +22,7 @@ python3 tools/test-standard.py
 python3 tools/test-keyboard.py
 python3 tools/test-logical.py
 python3 tools/test-console.py
+python3 tools/test-control.py
 python3 tools/test-devices.py
 python3 tools/test-hooks.py
 python3 tools/test-language.py
@@ -431,6 +432,8 @@ Escape/Ctrl-X clear the line. Ctrl-D recalls one previous-line character and
 Ctrl-R recalls the remaining previous line, preserving any typed prefix.
 CBreak defaults toTrue: Ctrl-C terminates the program and Escape returns to the
 input statement in the unsaved source. With CBreak=False, Ctrl-C is ignored.
+This applies to buffered console input and immediate Trm input; Kbd still
+provides raw Ctrl-C as character3.
 Ctrl-Z ends console input. Echo uses the video console separately from Pascal
 Output, so redirected program output does not collect typed input.
 `$I+` is the default and returns checked I/O errors to their source statement.
@@ -558,8 +561,20 @@ at capacity it leaves further events with the keyboard driver until reads
 make space. It preserves operands, flags, alternate registers and Pascal frames.
 This is separate from CBreak's existing buffered ReadLn behavior.
 
-The C directive remains pending; the implemented directives are A, B, I
-checking, R, U, V, W and X.
+`{$C+}` (default) initializes CBreak toTrue and `{$C-}` toFalse when the root
+block begins, before declarations. Later C switches do not assign the runtime
+variable; set CBreak directly to change it during execution. Include-local C
+switches restore the containing-file setting.
+
+With CBreak=True, Ctrl-S pauses physical console output. Ctrl-S or Ctrl-Q
+resumes the pending byte, and Ctrl-C while paused terminates the program.
+Ordinary queued keys retain their order. At the255-character typeahead limit,
+additional ordinary presses during output polling are discarded while resume
+and break controls remain usable. Regular-file stdout redirection bypasses
+keyboard flow control. Native input batching retains complete release events;
+polling restores the borrowed input mode and echo descriptor.
+
+The implemented directives are A, B, C, I checking, R, U, V, W and X.
 Pascal CRT calls (ClrScr, ClrEol, GotoXY, InsLine, DelLine, CrtInit/CrtExit,
 LowVideo/NormVideo/HighVideo and Delay), replacement input/error callbacks,
 Chain/Execute and overlays remain pending. CP/M BIOS/BDOS services are intentionally

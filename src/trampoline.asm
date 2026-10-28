@@ -1,5 +1,5 @@
 .module trampoline
-.globl trampoline_enter_end,worker_control_data,worker_gate,worker_return,worker_end
+.globl trampoline_enter_end,trampoline_map_page,worker_control_data,worker_gate,worker_return,worker_end
 .area _HEADER (ABS)
 .org 0xfd00
     ld a,(0xfc0c)
@@ -25,6 +25,7 @@ failed:
     ld a,#4
     ld (0xfc1b),a
     jp 0xfd80
+trampoline_map_page::
 map_page:
     ld b,#0
     ld c,b

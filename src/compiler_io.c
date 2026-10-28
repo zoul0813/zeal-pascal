@@ -58,6 +58,7 @@ void cc_formatted_value(void) FRONTEND {
     cc_op16(0x21,0); cc_emit(0x39);
 }
 void cc_write(uint8_t newline) FRONTEND {
+    cc.console_used=1;
     uint16_t before=cc.temporaries,offset;
     cc_next();
     if(cc.token=='(') {
@@ -108,6 +109,7 @@ void cc_val(void) FRONTEND {
     cc_reserve(256);cc_op16(0xcd,RT_VAL);cc_release(before);
 }
 void cc_read(uint8_t newline) FRONTEND {
+    cc.console_used=1;
     uint16_t before=cc.temporaries;
     uint8_t fresh=cc.input_fresh,type,kind;
     cc_next();

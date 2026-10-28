@@ -150,6 +150,42 @@ void cc_reserve(uint16_t bytes) FRONTEND {
     cc_emit((uint8_t)pc); cc_emit((uint8_t)(pc>>8));
 }
 void cc_guard(void) FRONTEND { cc_reserve(0); }
+/* Preserve the actual caller PC and every operand, including an optional A
+ * character. Self-modified immediates are consumed before any callback runs. */
+void cc_capture_guard(uint16_t bytes,uint8_t a) FRONTEND {
+    uint16_t start=cc.emitted;
+    if(a) cc_address(0x32,start+23);
+    start=cc.emitted;
+    cc_op16(0x3a,RT_PC); cc_address(0x32,start+17);
+    cc_op16(0x3a,RT_PC+1); cc_address(0x32,start+18);
+    cc_reserve(bytes);
+    if(a) { cc_emit(0x3e); cc_emit(0); }
+}
+uint16_t cc_original_entry(uint16_t entry,uint8_t staged) FRONTEND {
+    uint8_t i;
+    uint16_t at=cc.emitted,n,encoded,coefficient,count=cc.relocations;
+    for(i=0;i<3;++i) cc_emit(staged?cc_code_get(entry+i):cc_runtime_get(entry-0x4000u+i));
+    /* These adapters begin with one three-byte instruction. Its operand may
+     * name generated self-modifying guard storage, not just fixed prefix
+     * data. A copied instruction retains the source operand's relocation. */
+    if(staged)for(n=0;n<count;++n) {
+        encoded=far_get(cc.workspace,n*RELOCATION_BYTES)|((uint16_t)far_get(cc.workspace,n*RELOCATION_BYTES+1)<<8);
+        if((encoded&0x7fffu)+CC_CODE_BASE==entry+1) {
+            coefficient=far_get(cc.workspace,n*RELOCATION_BYTES+2)|((uint16_t)far_get(cc.workspace,n*RELOCATION_BYTES+3)<<8);
+            cc_relocate_value(at+1,coefficient,(encoded&0x8000u)!=0);break;
+        }
+    }
+    if(staged) cc_address(0xc3,entry+3); else cc_op16(0xc3,entry+3);
+    return at;
+}
+/* Generated private helpers preserve complete Pascal CPU state around polls. */
+void cc_preserve_registers(uint8_t restore) FRONTEND {
+    static const uint8_t save[]={0xf5,0xc5,0xd5,0xe5,0xdd,0xe5,0xfd,0xe5,
+        0x08,0xf5,0x08,0xd9,0xc5,0xd5,0xe5,0xd9};
+    static const uint8_t load[]={0xd9,0xe1,0xd1,0xc1,0xd9,0x08,0xf1,0x08,
+        0xfd,0xe1,0xdd,0xe1,0xe1,0xd1,0xc1,0xf1};
+    uint8_t i;for(i=0;i<16;++i)cc_emit(restore?load[i]:save[i]);
+}
 /* Terminal entries restore their own emergency stack before doing cleanup.
  * Capturing their source PC must not push onto a caller-selected boundary SP. */
 void cc_finish(uint16_t entry) FRONTEND {
@@ -249,7 +285,7 @@ void cc_next(void) FRONTEND {
                 do {
                     c=lower(get(cc.scan)); value=get(cc.scan+1)=='+';
                     if(c=='w'&&digit(get(cc.scan+1))) cc.with_limit=get(cc.scan+1)-'0';
-                    else if((c!='r'&&c!='a'&&c!='v'&&c!='b'&&c!='i'&&c!='x'&&c!='u')||(get(cc.scan+1)!='+'&&get(cc.scan+1)!='-')) {
+                    else if((c!='r'&&c!='a'&&c!='v'&&c!='b'&&c!='i'&&c!='x'&&c!='u'&&c!='c')||(get(cc.scan+1)!='+'&&get(cc.scan+1)!='-')) {
                         cc_fail(93); cc.token=T_EOF; return;
                     }
                     else if(c=='r') cc.range_check=value;
@@ -259,6 +295,7 @@ void cc_next(void) FRONTEND {
                     else if(c=='i') cc.io_check=value;
                     else if(c=='x') cc.index_speed=value;
                     else if(c=='u') cc.user_interrupt=value;
+                    else if(c=='c') cc.console_control=value;
                     cc.scan+=2;
                     if(get(cc.scan)!=',') break;
                     ++cc.scan;

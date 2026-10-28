@@ -5,6 +5,15 @@
 .globl line_history
 .globl input_ready,input_advance,input_source,line_next,line_remaining,line_eof,line_valid
 .globl input_key,input_raw_key,input_mode,input_cleanup,input_fail,input_error,echo_fd,input_echo,input_open,input_close
+.globl input_mode_value,input_break,input_console_area,input_raw_buffer
+.equ input_mode_value, 0xfd7a   ; follows private heap scratch, below RAM return gate
+.equ input_console_area, 0xfd7b ; four-byte area_t, wholly inside one MMU page
+; The RAM entry at FD00 has finished before Pascal can read input. Return uses
+; FD80 and worker calls use FDA0/FD50. The return gate still calls the mapping
+; helper above FD30, so only FD00..FD1F becomes input storage. Saved programs
+; reserve the same transition page. No live gate/helper is overwritten.
+.equ input_raw_buffer, 0xfd00
+.equ raw_capacity, 32
 .area _REAL_DATA
 line_next: .ds 2
 line_remaining: .ds 1
@@ -16,11 +25,10 @@ line_buffer: .ds 129             ; 127 content bytes plus ordinary CR/LF
 history_length: .ds 1
 input_length: .ds 1
 input_max: .ds 1
-echo_fd: .ds 1
-raw_bytes: .ds 2
-.equ echo_byte, raw_bytes       ; read bytes have been decoded before synchronous echo
+echo_fd: .db 255               ; no owned echo handle until input_open succeeds
+echo_byte: .ds 1                ; echo cannot overwrite retained raw events
 raw_pending: .ds 1
-raw_second: .ds 1
+raw_next: .ds 2
 input_token: .ds 31             ; short string: at most30 numeric bytes
 .area _CODE
 ; Bit0 forces a fresh B+ line. Bit1 primes bare Read immediately; fields stay
@@ -172,6 +180,7 @@ input_control_c:
     ld a,(cbreak)
     or a
     jr z,input_edit
+input_break:
     ld hl,#input_break_text
 input_break_message:
     ld a,(hl)
@@ -293,13 +302,20 @@ input_raw_key:
     ld a,(raw_pending)
     or a
     jr z,input_key_read
-    xor a
+    dec a
     ld (raw_pending),a
-    ld a,(raw_second)
+    ld hl,(raw_next)
+    ld a,(hl)
+    inc hl
+    ld (raw_next),hl
     jr input_key_decode
 input_key_read:
-    ld de,#raw_bytes
-    ld bc,#2
+    ; Drain a physical burst, rather than a two-byte prefix of it. The pinned
+    ; keyboard driver can drop a release's key when its result buffer fills
+    ; immediately after KB_RELEASED. Its FIFO is16 bytes;32 leaves room
+    ; for complete decoded events, including a previously suspended scancode.
+    ld de,#input_raw_buffer
+    ld bc,#raw_capacity
     ld hl,#0x0100
     call input_syscall
     or a
@@ -310,16 +326,15 @@ input_key_read:
     ld a,c
     or a
     ret z                      ; nonblocking polls may find no physical event
-    cp #3
+    ; A full batch cannot establish complete release pairs on that driver.
+    ; Reject it before changing modifier state, rather than silently losing
+    ; controls. Ordinary partial batches retain every byte across callbacks.
+    cp #raw_capacity
     jp nc,input_fail
-    cp #2
-    jr nz,input_key_first
-    ld a,(raw_bytes+1)
-    ld (raw_second),a
-    ld a,#1
     ld (raw_pending),a
-input_key_first:
-    ld a,(raw_bytes)
+    ld hl,#input_raw_buffer
+    ld (raw_next),hl
+    jr input_raw_key
 input_key_decode:
     call c_save
     call _key_event
@@ -376,6 +391,8 @@ input_close_owned:
     xor a
     ret
 input_mode:
+    ld a,e
+    ld (input_mode_value),a
     ld hl,#0x0107
     ld c,#0
     jp input_syscall

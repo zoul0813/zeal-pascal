@@ -59,6 +59,8 @@ def validate_runtime(path):
         raise ValueError('runtime command-tail cache ABI is misplaced')
     if symbols['line_history']!=0xff80 or symbols['runtime_stack_budget']!=0xfe7c:
         raise ValueError('runtime private transition-data bounds are misplaced')
+    if symbols['input_raw_buffer']!=0xfd00 or symbols['input_raw_buffer']+32>0xfd30:
+        raise ValueError('raw input overlaps retained worker control or return gates')
     for entry,name in ((0x4133,'real_dispatch'),(0x413c,'format_field'),
                        (0x413f,'field_output'),(0x4142,'str_copy'),(0x4145,'val_field'),
                        (0x4148,'input_begin'),(0x414b,'input_value'),(0x414e,'input_end'),
@@ -98,7 +100,10 @@ def validate_runtime(path):
                                  ('input_open',1,0x77cd,0x7ea6),
                                  ('input_echo',1,0x77cd,0x7ea6),
                                  ('input_close',1,0x77cd,0x7ea6),
-                                 ('user_break',1,0x4169,0x4bd6)):
+                                 ('user_break',1,0x4169,0x4bd6),
+                                 ('input_mode_value',1,0xfd7a,0xfd7b),
+                                 ('input_break',1,0x77cd,0x7ea6),
+                                 ('input_console_area',4,0xfd7b,0xfd7f)):
         address=symbols[name]
         if not first<=address<=last-width:
             raise ValueError('private runtime input address out of bounds: '+name)
@@ -120,6 +125,7 @@ def validate_trampoline(path):
     memory, symbols = read_hex(path), read_symbols(path)
     if (not memory or min(memory) != 0xfd00 or max(memory) >= 0x10000
             or not 0xfd00 < symbols['trampoline_enter_end'] <= 0xfd50
+            or not 0xfd30 <= symbols['trampoline_map_page'] < symbols['trampoline_enter_end']
             or symbols['worker_control_data'] != 0xfd50
             or symbols['worker_gate'] != 0xfda0
             or symbols['worker_return'] != 0xfe40
@@ -207,7 +213,7 @@ def package(path):
     metadata=json.loads(runtime.with_suffix('.runtime.json').read_text())
     if (metadata['sha256']!=hashlib.sha256(template).hexdigest() or
             metadata['private_sha256']!=hashlib.sha256(private).hexdigest() or
-            private!=struct.pack('<18H',*metadata['private_input_addresses']) or
+            private!=struct.pack('<21H',*metadata['private_input_addresses']) or
             symbols['_runtime_start']!=0x88000 or
             symbols['_runtime_end']!=0x88000+len(template) or
             payloads[7]!=template+private):

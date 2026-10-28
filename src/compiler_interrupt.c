@@ -26,14 +26,8 @@ void cc_user_interrupt(void) FRONTEND {
      * registers and flags. Reserve before pushing; I- failures unwind to this
      * invocation's own landing and retain the pending I/O result. */
     cc_reserve(512);
-    cc_emit(0xf5);cc_emit(0xc5);cc_emit(0xd5);cc_emit(0xe5);
-    cc_emit(0xdd);cc_emit(0xe5);cc_emit(0xfd);cc_emit(0xe5);
-    cc_emit(0x08);cc_emit(0xf5);cc_emit(0x08);
-    cc_emit(0xd9);cc_emit(0xc5);cc_emit(0xd5);cc_emit(0xe5);cc_emit(0xd9);
+    cc_preserve_registers(0);
     cc_op16(0xcd,RT_IOCALL);cc_relocate(cc.emitted);
     cc_emit((uint8_t)cc.interrupt_entry);cc_emit((uint8_t)(cc.interrupt_entry>>8));cc_emit(cc.io_check);
-    cc_emit(0xd9);cc_emit(0xe1);cc_emit(0xd1);cc_emit(0xc1);cc_emit(0xd9);
-    cc_emit(0x08);cc_emit(0xf1);cc_emit(0x08);
-    cc_emit(0xfd);cc_emit(0xe1);cc_emit(0xdd);cc_emit(0xe1);
-    cc_emit(0xe1);cc_emit(0xd1);cc_emit(0xc1);cc_emit(0xf1);
+    cc_preserve_registers(1);
 }

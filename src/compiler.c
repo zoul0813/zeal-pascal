@@ -391,7 +391,7 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     for(i=0;i<96;++i)map8(i,0);
     for(i=0;i<cc_runtime_size();++i)cc_put(i,cc_runtime_get(i));
     cc.absolute_mode=1;cc.var_strict=1;cc.index_speed=1;cc.with_limit=4;
-    cc.input_fresh=1;cc.io_check=1;cc.text_type=255;
+    cc.input_fresh=1;cc.io_check=1;cc.console_control=1;cc.text_type=255;
     cc_new_type(K_INTEGER,2,-32768,32767,0);
     cc_new_type(K_STRING,0,0,0,0);
     cc_new_type(K_BOOLEAN,1,0,1,0);
@@ -410,7 +410,7 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     begin=cc_block();j=pc();cc_expect('.',10);
     if(cc.token!=T_EOF)cc_fail(58);
     cc_finish(RT_DONE);mapping(j,pc(),begin,begin);
-    cc_hooks_finish();cc_file_finish();
+    cc_hooks_finish();cc_console_finish();cc_file_finish();
     if(d->code||!cc_place_code())goto failed;
     if(cc.stage_page!=255) {
         if(page_drop(cc.stage_page))cc.stage_page=255;

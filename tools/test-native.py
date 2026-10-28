@@ -171,18 +171,20 @@ def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, tim
     # Keep installation files read-only and assert that Memory mode creates
     # no outputs; do not represent this as a read-only-volume test.
     try:
-        result = subprocess.run(cmd, input='\n'.join(commands) + '\n', text=True,
-                                capture_output=True, cwd=directory, timeout=timeout)
+        # Keep a live journal: a long run or a failed checkpoint must remain
+        # inspectable before the subprocess exits, including on timeout.
+        with (directory/'console.txt').open('wb') as capture:
+            result = subprocess.run(cmd, input='\n'.join(commands) + '\n', text=True,
+                                    stdout=capture, stderr=subprocess.STDOUT,
+                                    cwd=directory, timeout=timeout)
     except subprocess.TimeoutExpired as error:
-        captured = (error.stdout or b'') + (error.stderr or b'')
-        (directory / 'console.txt').write_bytes(captured)
         raise RuntimeError(f'{name}: emulator timed out; see retained capture') from error
-    (directory / 'console.txt').write_text(result.stdout + result.stderr)
+    raw = (directory/'console.txt').read_text()
     if result.returncode:
         raise RuntimeError(f'{name}: emulator exit {result.returncode}')
-    if 'debug> ' not in result.stdout:
+    if 'debug> ' not in raw:
         raise RuntimeError(f'{name}: emulator did not enter its console; see retained capture')
-    return result.stdout
+    return raw
 
 
 def artifact_checks(directory):
@@ -318,6 +320,7 @@ def user_break_checks():
     typed = lambda text: type_text(text, ticks=2000000)
     source = b'var s:string[8];\nbegin\nreadln(s)\nend.'
     reader, setter = kernel['keyboard_read_raw'], kernel['keyboard_ioctl']
+    cleanup = symbols('pascal_runtime')['input_cleanup']
     work, build, result = sym['_work'], sym['_build'], sym['_ram_result']
     def probe():
         return ['regs', 'mmu', f"rb 0x{sym['_ide_state']:x} 1",
@@ -325,7 +328,8 @@ def user_break_checks():
     commands = ['run 100000000'] + program_launch() + ['run 10000000']
     commands += typed('ne') + typed(source.decode()) + control('K') + typed('d')
     commands += [f'bp 0x{reader:x}', 'tap R', 'run 4000000000', f'bc 0x{reader:x}',
-                 f'bp 0x{setter:x}', 'press CTRL', 'tap C', 'release CTRL', 'run 100000000']
+                 f'bp 0x{cleanup:x}', 'press CTRL', 'tap C', 'release CTRL', 'run 1000000000',
+                 f'bc 0x{cleanup:x}', f'bp 0x{setter:x}', 'run 100000000']
     commands += ['s'] * 12
     commands += ['regs', 'mmu', f"rb 0x{kernel['kb_mode']:x} 1", f'bc 0x{setter:x}',
                  f"bp 0x{sym['_key_read']:x}", 'run 1000000000'] + probe()

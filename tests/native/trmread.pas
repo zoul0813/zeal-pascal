@@ -9,7 +9,8 @@ begin
  read(Trm,s);read(Trm,c);check((s='abc')and(c='d'));
  read(Trm,c);check(c=#13);readln(Trm);check(not keypressed);
  read(Trm,c);check(c=#10);read(Trm,c);check(c=#27);
- read(Trm,c);check(c=#127);read(Trm,c);check(c=#3);
+ read(Trm,c);check(c=#127);CBreak:=false;
+ read(Trm,c);check(c='X');CBreak:=true;
  p:=eof(Trm);read(Trm,c);check(p and(c=#26));
  read(Trm,c);check(c='X');
  assign(f,'tRm:');assign(g,'TRM:');rewrite(g);

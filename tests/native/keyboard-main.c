@@ -51,6 +51,7 @@ int app_main(void) {
         check(exec(EXEC_PRESERVE_PROGRAM,"H:/KEYUIGNORE.COM",0,&status)==0&&status==0);
         check(pages_used()==owned);check(swap(input,DEV_STDIN)==0);check(close(input)==0);
     }
+    output("U-AFTER-BREAK-OK\r\n");
     if(capture>=0) {check(swap(capture,DEV_STDOUT)==0);check(close(capture)==0);}
     source_close(&s);check(pages_used()==code_required);
     test_stage=6;test_done=255;test_complete();return 0;

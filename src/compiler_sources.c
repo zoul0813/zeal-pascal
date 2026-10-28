@@ -2,12 +2,14 @@
 
 static uint8_t flags(void) {
     return cc.absolute_mode|(cc.var_strict<<1)|(cc.range_check<<2)|
-        (cc.io_check<<3)|(cc.index_speed<<4)|(cc.input_fresh<<5)|(cc.user_interrupt<<7);
+        (cc.io_check<<3)|(cc.index_speed<<4)|(cc.input_fresh<<5)|
+        (cc.console_control<<6)|(cc.user_interrupt<<7);
 }
 static void options(uint8_t value,uint8_t limit) {
     cc.absolute_mode=value&1;cc.var_strict=(value>>1)&1;cc.range_check=(value>>2)&1;
     cc.io_check=(value>>3)&1;cc.index_speed=(value>>4)&1;cc.input_fresh=(value>>5)&1;
     cc.user_interrupt=(value>>7)&1;
+    cc.console_control=(value>>6)&1;
     cc.with_limit=limit;
 }
 /* Persistent references also own their insertion context. The same file byte
@@ -94,8 +96,7 @@ uint8_t cc_sources_prepare(const Source *root,const Sources *buffers) ROUTINES {
 }
 uint8_t cc_source_resume(void) ROUTINES {
     if(cc.scan!=cc.input->length||!cc.sources->file)return 0;
-    /* B is global across includes. All currently implemented other switches
-     * and W resume their containing-file values. */
+    /* B is global across includes; other switches and W restore. */
     options((cc.sources->parent_flags&~32u)|(cc.input_fresh<<5),cc.sources->parent_limit);
     cc_source_seek(cc.sources->parent_scan);return 1;
 }

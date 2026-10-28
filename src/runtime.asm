@@ -4,6 +4,7 @@
 .globl val_field
 .globl read_line,read_string,input_begin,input_value,input_end,memory_mode,io_error
 .globl buflen,cbreak,user_break
+.globl input_mode_value
 .globl runtime_prefix_end
 .globl character,neg_hl,false_text,true_text
 .globl io_call,io_result,io_check,io_fail,io_status
@@ -154,6 +155,10 @@ start:
     ldir
     ld a,(memory_mode)
     ld (0xfe78),a
+    xor #1
+    rlca
+    rlca
+    ld (input_mode_value),a     ; owned raw mode: IDE blocking, shell nonblocking
     ld hl,#64
     ld (runtime_stack_budget),hl
     ld hl,#0xff80               ; input history, initialized after tail copy

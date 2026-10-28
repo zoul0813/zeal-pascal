@@ -190,6 +190,10 @@ SourcePosition cc_block(void) ROUTINES {
     SourcePosition start;
     uint8_t scope=cc.scope,saved_bound=cc.with_bound;
     if(++cc.nesting>24) { cc_fail(98); --cc.nesting; return cc.token_start; }
+    /* C selects CBreak's initial value at the program block's start. Later
+     * source switches do not become assignments to this runtime variable. */
+    if(!scope)cc_put(RT_CBREAK-0x4000u,cc.sources->file?
+        (cc.sources->parent_flags>>6)&1:cc.console_control);
     while(!cc.error->code) {
         if(cc_is("label")) cc_labels();
         else if(cc_is("var")||cc_is("const")||cc_is("type")) {

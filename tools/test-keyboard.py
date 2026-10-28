@@ -78,7 +78,7 @@ def main():
         'nondestructive repeated polls, modifiers, buffered tail and callback input':
             (disk/'KEYS.TXT').is_file()and(disk/'KEYS.TXT').read_bytes()==
             b'KEY-ONLY-OK\r\n'*2+b'KEY-BUFFER-OK\r\n'*2+b'KEY-HIGH-OK\r\n'*2+
-            b'U-FRAME-OK\r\n'*2+b'U-ABI-OK\r\n'*2+b'U-RAW-OK\r\n'*2+b'U-QUEUE-OK\r\n'*2,
+            b'U-FRAME-OK\r\n'*2+b'U-ABI-OK\r\n'*2+b'U-RAW-OK\r\n'*2+b'U-QUEUE-OK\r\n'*2+b'U-AFTER-BREAK-OK\r\n',
         'user break closes opened files':(disk/'UBREAK.TXT').is_file()and(disk/'UBREAK.TXT').read_bytes()==b'closed\r\n\x1a',
         'native-generated key dispatch executes from upper code page':0xc000<=high_target<0xf400,
         'all source/build/platform inputs unchanged':all(n.sha(Path(p))==h for p,h in hashes.items()),

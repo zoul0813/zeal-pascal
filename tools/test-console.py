@@ -53,17 +53,21 @@ def main():
         ready();commands.extend([f'bp 0x{echo:x}','press ENTER','run 100000000','regs',
                                   'run 100000000','regs',f'bc 0x{echo:x}','run 100000000']);held[:]=['ENTER']
         line('ignored')
-        key('J',True);key('ESC');key('DELETE');key('C',True);key('Z',True);text('X')
+        key('J',True);key('ESC');key('DELETE');key('C',True);text('X');key('Z',True);text('X')
         text('K');key('ENTER');text('M');text('N');text('O')
     # Stop at the banked generated caller before it enters the fixed source.
     commands.extend([f"bp 0x{runtime['input_source']:x}",'run 20000000000','regs',
                      'rb 0xf800 256','rb 0xf900 256','rb 0xfa00 256','rb 0xfb00 256',
                      f"bc 0x{runtime['input_source']:x}"])
     for _ in range(2):line('U')
-    prefix=(ROOT/'build/pascal_runtime.zpl').read_bytes();original=prefix[echo-0x4000:echo-0x4000+5]
-    assert len(original)==5 and original[0]==0x32
+    # The compiler replaces the first three bytes with its console wrapper.
+    # Inject inside the remaining native body, so restoration retains that
+    # build-specific jump and its ownership/error checks.
+    site=echo+3;prefix=(ROOT/'build/pascal_runtime.zpl').read_bytes()
+    original=prefix[site-0x4000:site-0x4000+5]
+    assert prefix[echo-0x4000]==0x32 and len(original)==5 and original[0]==0x11
     replacement=bytes([0x3e,1,0xc3,fail&255,fail>>8])
-    write=lambda data:f'wb 0x{echo:x} '+' '.join(f'0x{x:02x}'for x in data)
+    write=lambda data:f'wb 0x{site:x} '+' '.join(f'0x{x:02x}'for x in data)
     for _ in range(2):
         ready();commands.extend(n.type_text('Z',ticks=2000000))
         # Two line-editor echo calls precede the X output whose failure is
@@ -71,7 +75,7 @@ def main():
         commands.extend([f'bp 0x{echo:x}','press ENTER','run 100000000',
                          'run 100000000','run 100000000','regs',f'bc 0x{echo:x}',
                          write(replacement),f'bp 0x{fail:x}','run 100000000',f'bc 0x{fail:x}',
-                         'regs',write(original),f'rb 0x{echo:x} 5','run 100000000']);held[:]=['ENTER']
+                         'regs',write(original),f'rb 0x{site:x} 5','run 100000000']);held[:]=['ENTER']
     for _ in range(2):line('bad')
     for _ in range(2):text('bad ')
     commands+=['run 20000000000','s','regs','mmu']
@@ -103,7 +107,7 @@ def main():
         'Trm CR echoes CR/LF and failed console output selected X':echoed[2*len(physical):]==bytes([13,10,13,10,88,88]),
         'physical source is called from actual generated code above C000':0xc000<=caller<0xf400,
         'real input/write cleanup follows restored disposable code in both executions':len(faults)==2 and all(
-            bytes(f.get(echo+i,0)for i in range(5))==original for f in faults),
+            bytes(f.get(site+i,0)for i in range(5))==original for f in faults),
         'logical names and invalid operations create no disk files':not(disk/'CONINVALID').exists(),
         'all source/build/platform inputs unchanged':all(n.sha(Path(p))==h for p,h in hashes.items()),
     }

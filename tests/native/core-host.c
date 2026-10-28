@@ -71,6 +71,28 @@ static void keyboard_corpus(void) {
         check(compile(&s,&b,&d));check(cc.file_entry&&cc.temporaries==0);build_close(&b);
     }
 }
+/* Keep the regression's classifier at the placement where its old inline
+ * four-byte result would cross BFFF/C000. Native execution checks the actual
+ * output and neighboring data; this only establishes that layout precondition. */
+static void console_boundary(void) {
+    char text[2048];FILE *file=fopen("tests/native/ctlboundary.pas","rb");
+    uint16_t at,entry=0,area=cc_runtime_private(RP_INPUT_CONSOLE_AREA);
+    size_t length;
+    check(file!=NULL);length=fread(text,1,sizeof(text),file);
+    check(feof(file)&&!ferror(file));check(fclose(file)==0);
+    check(source_import(&s,(const uint8_t*)text,(uint16_t)length,&d));
+    check(compile(&s,&b,&d));
+    for(at=b.code_origin-0x4000u;at+8<b.length;++at)
+        if(image_get(&b,at)==0x11&&image_get(&b,at+1)==(uint8_t)area&&
+           image_get(&b,at+2)==(uint8_t)(area>>8)&&image_get(&b,at+3)==0x0e&&
+           image_get(&b,at+4)==1&&image_get(&b,at+5)==0x2a&&
+           image_get(&b,at+6)==(uint8_t)RT_PC&&image_get(&b,at+7)==(uint8_t)(RT_PC>>8)) {
+            check(!entry);entry=at+0x4000u-7;
+        }
+    if(entry!=0xbffeu)fprintf(stderr,"console classifier at %04x; adjust fixture padding by %d\n",entry,0xbffe - (int)entry);
+    check(entry==0xbffeu);check((area&0x3fffu)<=0x3ffcu);
+    build_close(&b);check(pages_used()==1);
+}
 static void interruption_corpus(void) {
     const char *names[]={"keyuraw","keyuabi","keyuframe","keyuqueue","keyucached","keyurep","keyuwhile","keyufor","keyugoto","keyufail","keyuignore"};
     char path[80],text[4096];unsigned i;
@@ -86,6 +108,12 @@ static void interruption_corpus(void) {
     }
     invalid("{$U}begin end.",93);invalid("{$U1}begin end.",93);
     invalid("{$U+ ,R+}begin end.",93);
+    load("{$C-}begin end.");check(compile(&s,&b,&d));check(image_get(&b,RT_CBREAK-0x4000u)==0);build_close(&b);
+    load("{$C+}{$C-}begin end.");check(compile(&s,&b,&d));check(image_get(&b,RT_CBREAK-0x4000u)==0);build_close(&b);
+    load("begin {$C-}end.");check(compile(&s,&b,&d));check(image_get(&b,RT_CBREAK-0x4000u)==1);build_close(&b);
+    load("var n:integer;{$C-}begin end.");check(compile(&s,&b,&d));check(image_get(&b,RT_CBREAK-0x4000u)==1);build_close(&b);
+    load("{$C+}procedure p;{$C-}begin end;begin p end.");check(compile(&s,&b,&d));check(image_get(&b,RT_CBREAK-0x4000u)==1);build_close(&b);
+    invalid("{$C}begin end.",93);invalid("{$C1}begin end.",93);
 }
 static void bridge_corpus(void) {
     const char *names[]={"bridgeframe","bridgeargs","bridgereloc","bridgefile","bridgeerror","bridgeguard"};
@@ -246,6 +274,17 @@ static void include_cases(void) {
     files[5].text="{$U-}const local=1;";
     load("{$U+}\n{$I scope}\nbegin end.");check(compile(&s,&b,&d)&&cc.user_interrupt&&cc.interrupt_entry);build_close(&b);
     load("{$U+}begin {$U-}end.");check(compile(&s,&b,&d)&&!cc.user_interrupt&&cc.interrupt_entry);build_close(&b);
+    files[5].text="{$C-}";
+    load("{$C+}\n{$I scope}\nbegin end.");check(compile(&s,&b,&d));
+    check(cc.console_control&&image_get(&b,RT_CBREAK-0x4000u)==1);build_close(&b);
+    files[5].text="{$C-}var local:integer;";
+    load("{$C+}\n{$I scope}\nbegin end.");check(compile(&s,&b,&d));
+    check(cc.console_control&&image_get(&b,RT_CBREAK-0x4000u)==1);build_close(&b);
+    files[5].text="{$C+}";
+    load("{$C-}\n{$I scope}\nbegin end.");check(compile(&s,&b,&d));
+    check(!cc.console_control&&image_get(&b,RT_CBREAK-0x4000u)==0);build_close(&b);
+    load("{$C+}\n{$I scope}\n{$C-}begin end.");check(compile(&s,&b,&d));
+    check(!cc.console_control&&image_get(&b,RT_CBREAK-0x4000u)==0);build_close(&b);
     load("const data:array[1..2]of integer=(\n{$I values.inc}\n);\nbegin writeln(data[1])end.");
     check(compile(&s,&b,&d)&&b.sources.count==2);build_close(&b);
     load("var n:integer;begin read(\n{$I arg.inc}\n,n)end.");
@@ -371,6 +410,7 @@ int main(int argc,char **argv) {
     check(source_new(&s,"H:/SLICE.PAS"));
     keyboard_corpus();
     interruption_corpus();
+    console_boundary();
     bridge_corpus();
     hook_corpus();
     index_modes();
@@ -494,9 +534,9 @@ int main(int argc,char **argv) {
     invalid("begin writeln(filepos)end.",4);
     invalid("begin writeln(keypressed())end.",5);
     load("var a:array[0..1]of integer;begin writeln(sizeof(a[ord(keypressed)]))end.");
-    check(compile(&s,&b,&d));check(!cc.keyboard_entry&&!cc.file_entry);build_close(&b);
+    check(compile(&s,&b,&d));check(cc.keyboard_entry&&!cc.file_entry&&cc.hook_character);build_close(&b);
     load("function keypressed:boolean;begin keypressed:=true end;begin writeln(keypressed)end.");
-    check(compile(&s,&b,&d));check(!cc.keyboard_entry&&!cc.file_entry);build_close(&b);
+    check(compile(&s,&b,&d));check(cc.keyboard_entry&&!cc.file_entry&&cc.hook_character);build_close(&b);
     load("begin writeln(keypressed)end.");
     check(compile(&s,&b,&d));check(cc.keyboard_entry&&cc.keyboard_poll&&!cc.file_entry&&cc.temporaries==0);
     {
@@ -709,11 +749,11 @@ int main(int argc,char **argv) {
     invalid("begin {$J+}end.",93);
     load("var n:integer;begin {$I-}write(1);{$I+}write(2);read(n);n:=ioresult end.");
     check(compile(&s,&b,&d));ordered_map();
-    check(calls(RT_IOCALL,0)==1&&calls(RT_IOCALL,1)==3&&calls(RT_IORESULT,-1)==1);
+    check(calls(RT_IOCALL,0)==4&&calls(RT_IOCALL,1)==3&&calls(RT_IORESULT,-1)==1);
     check(cc.io_check==1&&cc.temporaries==0);build_close(&b);
     load("begin {$i-,b-,r+}writeln(ioresult)end.");
     check(compile(&s,&b,&d));check(!cc.io_check&&!cc.input_fresh&&cc.range_check);
-    check(calls(RT_IOCALL,0)==3&&calls(RT_IOCALL,1)==0);build_close(&b);
+    check(calls(RT_IOCALL,0)==6&&calls(RT_IOCALL,1)==0);build_close(&b);
     load("begin writeln(ioresult)end.");
     check(compile(&s,&b,&d));check(cc.io_check&&cc.input_fresh&&!cc.range_check);
     check(calls(RT_IOCALL,1)==3);build_close(&b);

@@ -60,14 +60,17 @@ def main():
     disk=n.RUN/'logical-keyboard/hostfs'
     expected=b''.join((f'KBD-{name}-OK\r\n'.encode()*2)for name in ('READ','BIND','LIFE','UPPER'))
     upper=disk/'KBDUPPER.COM'
+    private=json.loads((ROOT/'build/pascal_runtime.runtime.json').read_text())['private_input_addresses']
+    # Padding leaves room for console-control helpers. Check the actual raw
+    # dispatch, rather than requiring an arbitrary B000 code-origin boundary.
+    upper_target=int.from_bytes(upper.read_bytes()[private[6]-0x4000+1:private[6]-0x4000+3],'little')if upper.exists()else 0
     checks={
         'native completion':memory.get(sym['_test_done'])==255 and word('_test_stage')==6,
         'RAM/saved ownership, mappings, IFF, stack, checked error source and unavailable keyboard recovery':
             word('_test_failed')==0 and word('_test_passed')>=80,
         'unechoed character/numeric/string input, per-binding cache, heap/recursive lifetimes and upper code':
             (disk/'KBDS.TXT').is_file()and(disk/'KBDS.TXT').read_bytes()==expected,
-        'raw logical handler works with a code origin above B000':
-            upper.is_file()and int.from_bytes(upper.read_bytes()[20:22],'little')>=0xb000,
+        'raw logical handler executes from upper code page':0xc000<=upper_target<0xf400,
         'logical names and invalid lifecycle operations create no disk files':
             not(disk/'KBDINVALID').exists()and not(disk/'KBD:').exists(),
         'all source/build/platform inputs unchanged':all(n.sha(Path(p))==h for p,h in hashes.items()),
