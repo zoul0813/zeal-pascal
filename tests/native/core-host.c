@@ -10,6 +10,18 @@ static uint32_t lifetimes[64],next_lifetime;
 volatile uint32_t page_versions[64];
 static int fail_after=-1,fail_drop=-1;
 static unsigned checks,allocation_calls;
+static uint8_t cancel_stage,cancel_result;
+static unsigned poll_calls;
+uint8_t key_interrupt(void) {
+    uint8_t reached;
+    ++poll_calls;
+    reached=cancel_stage==1||
+        (cancel_stage==2&&cc.image->pages[0]!=255)||
+        (cancel_stage==3&&cc.emitted>CC_CODE_BASE)||
+        (cancel_stage==4&&cc.image->map_length!=0)||
+        (cancel_stage==5&&cc.scan>512);
+    return reached?cancel_result:0;
+}
 uint8_t page_new(uint8_t role) {
     uint8_t i;
     ++allocation_calls;
@@ -56,6 +68,43 @@ static void invalid(const char *text,uint8_t code) {
     load(text); ok=compile(&s,&b,&d);
     if(ok||d.code!=code) fprintf(stderr,"expected diagnostic %u: %s\n",code,text);
     check(!ok&&d.code==code); check(pages_used()==1);
+}
+static void compile_cancellation(void) {
+    Source before;uint8_t content[128],stage,result,hash[32];unsigned calls;
+    load("{unsaved}\nprogram Cancel;\nvar n:integer;\nbegin n:=7;writeln(n) end.\n");
+    s.cursor=9;s.dirty=1;before=s;
+    memcpy(content,memory[s.page],s.length);
+    for(stage=1;stage<=4;++stage)for(result=1;result<=2;++result) {
+        cancel_stage=stage;cancel_result=result;poll_calls=0;
+        check(!compile_project(&s,0,&b,&d,1));
+        check(d.code==COMPILE_INTERRUPTED&&compile_interrupt_reason()==result);
+        check(poll_calls>0&&!cc.polling&&!b.valid&&pages_used()==1);
+        if(stage==4&&result==1)printf("Compile cancellation seal checkpoint: %u\n",poll_calls);
+        check(!memcmp(&s,&before,sizeof(s))&&!memcmp(content,memory[s.page],s.length));
+        check(b.pages[0]==255&&b.pages[1]==255&&b.pages[2]==255&&b.map_page==255&&b.sources.page==255);
+        cancel_stage=0;
+        check(compile_project(&s,0,&b,&d,1));check(!cc.polling&&compile_interrupt_reason()==0);
+        calls=poll_calls;
+        /* Completed-build verification must never use the expired job's
+         * diagnostic or consume input, even when the next poll would abort. */
+        cancel_stage=1;cc_hash_image(&b,hash);
+        check(!memcmp(hash,b.id,32)&&build_check(&s,&b)&&poll_calls==calls);
+        build_close(&b);check(pages_used()==1);
+    }
+    calls=poll_calls;
+    check(compile(&s,&b,&d)&&poll_calls==calls);build_close(&b);
+    cancel_stage=0;
+    {
+        char text[4096];unsigned i;
+        strcpy(text,"{\n");
+        for(i=0;i<100;++i)strcat(text,"a long comment must remain cancellable\n");
+        strcat(text,"}\nbegin end.\n");load(text);before=s;
+        cancel_stage=5;cancel_result=1;
+        check(!compile_project(&s,0,&b,&d,1)&&d.code==COMPILE_INTERRUPTED);
+        check(cc.scan>512&&cc.scan<1024&&!memcmp(&s,&before,sizeof(s)));
+        check(!b.valid&&!cc.polling&&pages_used()==1);
+        cancel_stage=0;check(compile(&s,&b,&d));build_close(&b);
+    }
 }
 static void keyboard_corpus(void) {
     const char *names[]={"kbdread","kbdbind","kbdlife","kbdupper","kbdfail","conread","conbind","conoutput","conupper","conoutfail","confail","trmread","trmfail","devoutput","devfail"};
@@ -304,13 +353,13 @@ static void include_cases(void) {
     check(source_import(&override,(const uint8_t*)"const answer=42;",16,&d));
     check(sources_new(&buffers));check(sources_take(&buffers,&root,&root)==0);
     check(sources_take(&buffers,&override,&override)==1);reads=disk_reads;
-    check(compile_project(&root,&buffers,&b,&d));check(b.sources.count==2&&disk_reads==reads);
+    check(compile_project(&root,&buffers,&b,&d,0));check(b.sources.count==2&&disk_reads==reads);
     check(build_ready(&root,&b));check(sources_get(&b.sources,1,&snapshot));
     check(snapshot.page!=override.page&&snapshot.length==override.length);
     check(source_replace(&override,override.length,override.length,(const uint8_t*)" ",1));
     check(!build_ready(&root,&b));build_close(&b);
     check(sources_take(&buffers,&override,&override)==1);
-    check(compile_project(&root,&buffers,&b,&d)&&build_ready(&root,&b));build_close(&b);
+    check(compile_project(&root,&buffers,&b,&d,0)&&build_ready(&root,&b));build_close(&b);
     check(sources_close(&buffers)&&pages_used()==1);
     disk_sources=0;disk_source_count=0;
 }
@@ -410,6 +459,7 @@ int main(int argc,char **argv) {
     check(source_new(&s,"H:/SLICE.PAS"));
     keyboard_corpus();
     interruption_corpus();
+    compile_cancellation();
     console_boundary();
     bridge_corpus();
     hook_corpus();

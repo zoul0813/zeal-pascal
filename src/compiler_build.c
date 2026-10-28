@@ -19,16 +19,61 @@ void build_close(Build *b) {
     if(b->map_page!=255&&page_drop(b->map_page)) b->map_page=255;
     sources_close(&b->sources);
 }
+/* Final placement and relocation belong with build sealing. Keeping them in
+ * this bank also leaves lexer/emission room for cancellable scanning. */
+uint8_t cc_place_code(void) FRONTEND {
+    uint16_t i,p,at,value,coefficient,origin=GLOBAL_BASE+cc.image->globals_bytes;
+    uint8_t byte;
+    uint16_t count=cc.emitted-CC_CODE_BASE,delta=origin-CC_CODE_BASE;
+    if(origin>0xc000u||(uint32_t)origin+count>CC_STATIC_LIMIT) { cc_fail(99); return 0; }
+    for(i=0;i<cc.relocations;++i) {
+        if(!(i&63)&&!cc_poll())return 0;
+        p=i*RELOCATION_BYTES;
+        at=far_get(cc.workspace,p)|((uint16_t)far_get(cc.workspace,p+1)<<8);
+        byte=(at&0x8000u)!=0;at=CC_CODE_BASE+(at&0x7fffu);
+        coefficient=far_get(cc.workspace,p+2)|((uint16_t)far_get(cc.workspace,p+3)<<8);
+        if(at>=cc.emitted||(!byte&&at>=cc.emitted-1)) { cc_fail(99);return 0; }
+        value=cc_code_get(at);
+        if(!byte)value|=(uint16_t)cc_code_get(at+1)<<8;
+        value+=(uint16_t)((uint32_t)coefficient*delta);
+        if(byte)cc_put(at,(uint8_t)value);else cc_word(at,value);
+    }
+    /* Globals remain below C000. In the overlapping page2 part, forward copy
+     * always writes behind the unread staging bytes. The second staging page
+     * is separate from all final image pages. */
+    for(i=0;i<count;++i) {
+        if(!(i&255)&&!cc_poll())return 0;
+        cc_put(origin-0x4000u+i,cc_code_get(CC_CODE_BASE+i));
+    }
+    /* Bind the private key dispatch only after final placement is known.
+     * Both RAM and saved images own their typeahead state and exact target. */
+    if(cc.keyboard_entry)
+        cc_word(cc_runtime_private(RP_INPUT_KEY)-0x4000u+1,cc.keyboard_entry+delta);
+    for(i=0;i<HOOK_COUNT;++i) if(cc.hook_variables[i])
+        cc_word(cc.hook_variables[i]-0x4000u,cc.hook_defaults[i]+delta);
+    cc_hooks_place(delta);
+    if(cc.error->code) return 0;
+    cc.image->code_origin=origin; cc.image->code_bytes=count;
+    cc.image->length=origin-0x4000u+count;
+    return 1;
+}
+
 void cc_hash_image(const Build *b,uint8_t out[32]) ROUTINES {
     Sha256 hash; uint16_t i;
     sha_init(&hash);
-    for(i=0;i<b->length;++i) sha_byte(&hash,i>=36&&i<68?0:image_get(b,i));
+    for(i=0;i<b->length;++i) {
+        if(!(i&255)&&!cc_poll())return;
+        sha_byte(&hash,i>=36&&i<68?0:image_get(b,i));
+    }
     sha_end(&hash,out);
 }
 void cc_hash_map(const Build *b,uint8_t out[32]) ROUTINES {
     Sha256 hash; uint16_t i;
     sha_init(&hash);
-    for(i=0;i<b->map_length;++i) sha_byte(&hash,i>=20&&i<52?0:far_get(b->map_page,i));
+    for(i=0;i<b->map_length;++i) {
+        if(!(i&255)&&!cc_poll())return;
+        sha_byte(&hash,i>=20&&i<52?0:far_get(b->map_page,i));
+    }
     sha_end(&hash,out);
 }
 static uint8_t image_layout(const Build *b) {

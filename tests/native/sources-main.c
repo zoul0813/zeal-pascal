@@ -38,7 +38,7 @@ static void unsaved_override(void) {
     if(!ok){source_close(&root);source_close(&work);return;}
     check(sources_take(&buffers,&root,&root)==0);
     check(sources_take(&buffers,&work,&work)==1);source_hash(&work,hash);
-    check(compile_project(&root,&buffers,&b,&d));if(!b.valid){sources_close(&buffers);return;}
+    check(compile_project(&root,&buffers,&b,&d,0));if(!b.valid){sources_close(&buffers);return;}
     check(save_build(&root,&b));owned=pages_used();
     check(run_build(&root,&b)&&ram_result[26]==1);status=255;
     check(run_saved(&root,&b,&status)&&status==0);
@@ -46,7 +46,7 @@ static void unsaved_override(void) {
     check(source_replace(&work,work.length,work.length,(const uint8_t*)" ",1));
     check(!build_ready(&root,&b));build_close(&b);
     check(sources_take(&buffers,&work,&work)==1);
-    check(compile_project(&root,&buffers,&b,&d)&&build_ready(&root,&b));build_close(&b);
+    check(compile_project(&root,&buffers,&b,&d,0)&&build_ready(&root,&b));build_close(&b);
     check(sources_close(&buffers)&&pages_used()==code_required+1);
 }
 int app_main(void) {

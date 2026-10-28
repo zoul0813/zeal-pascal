@@ -35,7 +35,10 @@ void cc_system_init(void) FRONTEND {
     }
 }
 
-static uint8_t get(uint16_t p) { return p<cc.input->length ? far_get(cc.input->page,p) : 0; }
+static uint8_t get(uint16_t p) {
+    if(!++cc.scan_poll)cc_poll();
+    return p<cc.input->length ? far_get(cc.input->page,p) : 0;
+}
 static uint8_t lower(uint8_t c) { return c>='A'&&c<='Z' ? c+32 : c; }
 static uint8_t name_byte(uint16_t reference,uint8_t offset) {
     return lower(cc_source_byte(cc_reference_position(reference)+offset));
@@ -71,6 +74,7 @@ void cc_word(uint16_t p,uint16_t v) FRONTEND { cc_put(p,(uint8_t)v); cc_put(p+1,
 
 void cc_emit(uint8_t v) FRONTEND {
     if(cc.error->code||cc.suppress) return;
+    if(!(cc.emitted&255)&&!cc_poll())return;
     /* The first staging page reuses image page2. A second owned compiler page
      * is acquired only if necessary, then released after checked placement. */
     if(cc.emitted>=CC_STATIC_LIMIT) { cc_fail(99); return; }
@@ -95,38 +99,6 @@ void cc_relocate_value(uint16_t operand,uint16_t coefficient,uint8_t byte) FRONT
 }
 void cc_address(uint8_t op,uint16_t value) FRONTEND {
     cc_relocate(cc.emitted+1); cc_op16(op,value);
-}
-uint8_t cc_place_code(void) FRONTEND {
-    uint16_t i,p,at,value,coefficient,origin=GLOBAL_BASE+cc.image->globals_bytes;
-    uint8_t byte;
-    uint16_t count=cc.emitted-CC_CODE_BASE,delta=origin-CC_CODE_BASE;
-    if(origin>0xc000u||(uint32_t)origin+count>CC_STATIC_LIMIT) { cc_fail(99); return 0; }
-    for(i=0;i<cc.relocations;++i) {
-        p=i*RELOCATION_BYTES;
-        at=far_get(cc.workspace,p)|((uint16_t)far_get(cc.workspace,p+1)<<8);
-        byte=(at&0x8000u)!=0;at=CC_CODE_BASE+(at&0x7fffu);
-        coefficient=far_get(cc.workspace,p+2)|((uint16_t)far_get(cc.workspace,p+3)<<8);
-        if(at>=cc.emitted||(!byte&&at>=cc.emitted-1)) { cc_fail(99);return 0; }
-        value=cc_code_get(at);
-        if(!byte)value|=(uint16_t)cc_code_get(at+1)<<8;
-        value+=(uint16_t)((uint32_t)coefficient*delta);
-        if(byte)cc_put(at,(uint8_t)value);else cc_word(at,value);
-    }
-    /* Globals remain below C000. In the overlapping page2 part, forward copy
-     * always writes behind the unread staging bytes. The second staging page
-     * is separate from all final image pages. */
-    for(i=0;i<count;++i) cc_put(origin-0x4000u+i,cc_code_get(CC_CODE_BASE+i));
-    /* Bind the private key dispatch only after final placement is known.
-     * Both RAM and saved images own their typeahead state and exact target. */
-    if(cc.keyboard_entry)
-        cc_word(cc_runtime_private(RP_INPUT_KEY)-0x4000u+1,cc.keyboard_entry+delta);
-    for(i=0;i<HOOK_COUNT;++i) if(cc.hook_variables[i])
-        cc_word(cc.hook_variables[i]-0x4000u,cc.hook_defaults[i]+delta);
-    cc_hooks_place(delta);
-    if(cc.error->code) return 0;
-    cc.image->code_origin=origin; cc.image->code_bytes=count;
-    cc.image->length=origin-0x4000u+count;
-    return 1;
 }
 
 uint16_t cc_forward(uint8_t op) FRONTEND { uint16_t at=cc.emitted+1; cc_address(op,0); return at; }
@@ -268,8 +240,9 @@ void cc_next(void) FRONTEND {
     uint8_t c,q,base,value;
     uint16_t n=0;
     uint32_t wide;
-    if(cc.error->code) { cc.token=T_EOF; return; }
+    if(cc.error->code||!cc_poll()) { cc.token=T_EOF; return; }
     for(;;) {
+        if(cc.error->code) { cc.token=T_EOF; return; }
         if(cc_source_resume())continue;
         c=get(cc.scan);
         if(cc.scan<cc.input->length && c<=32) { ++cc.scan; continue; }
@@ -305,7 +278,7 @@ void cc_next(void) FRONTEND {
                     cc_fail(93); cc.token=T_EOF; return;
                 }
             }
-            while(cc.scan<cc.input->length && !(q=='{' ? get(cc.scan)=='}' : get(cc.scan)=='*'&&get(cc.scan+1)==')')) ++cc.scan;
+            while(!cc.error->code&&cc.scan<cc.input->length && !(q=='{' ? get(cc.scan)=='}' : get(cc.scan)=='*'&&get(cc.scan+1)==')')) ++cc.scan;
             if(cc.scan==cc.input->length) { cc.token_start=cc_source_position();cc.token_end=cc.token_start;cc_fail(91);cc.token=T_EOF;return; }
             cc.scan+=q=='{' ? 1 : 2; continue;
         }

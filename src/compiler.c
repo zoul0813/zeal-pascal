@@ -362,9 +362,9 @@ static SourcePosition statement(void) {
 }
 SourcePosition cc_statement(void) BACKEND { return statement(); }
 uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
-    return compile_project(s,0,b,d);
+    return compile_project(s,0,b,d,0);
 }
-uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnostic *d) {
+uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnostic *d,uint8_t interruptible) {
     uint16_t i,j,at;
     uint8_t file,digest[32];
     SourcePosition begin;
@@ -377,11 +377,16 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     cc.workspace=255;cc.stage_page=255;
     memset(d,0,sizeof(*d));memset(b,0,sizeof(*b));
     memset(b->pages,255,3);b->map_page=255;b->sources.page=255;
+    cc.polling=interruptible;
+    if(!cc_poll())goto failed;
     if(!cc_sources_prepare(s,buffers))goto failed;
     for(i=0;i<3;++i) {
         b->pages[i]=page_new(PAGE_IMAGE);
         if(b->pages[i]==255){d->code=98;goto failed;}
-        for(j=0;j<PAGE_SIZE;++j)far_set(b->pages[i],j,0);
+        for(j=0;j<PAGE_SIZE;++j) {
+            if(!(j&255)&&!cc_poll())goto failed;
+            far_set(b->pages[i],j,0);
+        }
         page_initialized(b->pages[i],PAGE_SIZE);
     }
     b->map_page=page_new(PAGE_MAP);
@@ -389,7 +394,10 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     cc.workspace=page_new(PAGE_COMPILER);
     if(cc.workspace==255){d->code=98;goto failed;}
     for(i=0;i<96;++i)map8(i,0);
-    for(i=0;i<cc_runtime_size();++i)cc_put(i,cc_runtime_get(i));
+    for(i=0;i<cc_runtime_size();++i) {
+        if(!(i&255)&&!cc_poll())goto failed;
+        cc_put(i,cc_runtime_get(i));
+    }
     cc.absolute_mode=1;cc.var_strict=1;cc.index_speed=1;cc.with_limit=4;
     cc.input_fresh=1;cc.io_check=1;cc.console_control=1;cc.text_type=255;
     cc_new_type(K_INTEGER,2,-32768,32767,0);
@@ -439,10 +447,12 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     sha_end(&hash,digest);
     for(i=0;i<32;++i){cc_put(68+i,digest[i]);map8(52+i,digest[i]);}
     b->map_length=at+cc.entries*16;page_initialized(b->map_page,b->map_length);
-    cc_hash_map(b,digest);for(i=0;i<32;++i)cc_put(100+i,digest[i]);
+    cc_hash_map(b,digest);if(d->code)goto failed;
+    for(i=0;i<32;++i)cc_put(100+i,digest[i]);
     cc_word(10,b->length);cc_word(20,b->code_origin);cc_word(22,b->code_bytes);
     cc_word(24,GLOBAL_BASE);cc_word(26,b->globals_bytes);cc_word(28,0x4000u+b->length);
     cc_hash_image(b,b->id);
+    if(d->code||!cc_poll())goto failed;
     for(i=0;i<32;++i){cc_put(36+i,b->id[i]);map8(20+i,b->id[i]);}
     /* Page2 also served as code staging. Once placed, a short image owns no
      * bytes there; retaining it can prevent a later run with parked includes. */
@@ -452,9 +462,10 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     }
     for(i=0;i<3;++i)b->versions[i]=b->pages[i]==255?0:page_versions[b->pages[i]];
     b->versions[3]=page_versions[b->map_page];b->versions[4]=page_versions[s->page];
-    b->valid=1;return 1;
+    cc.polling=0;b->valid=1;return 1;
 failed:
-    cc_sources_error();
+    if(d->code!=COMPILE_INTERRUPTED)cc_sources_error();
+    cc.polling=0;
     if(sources.refs_page!=255&&page_drop(sources.refs_page))sources.refs_page=255;
     if(cc.stage_page!=255&&page_drop(cc.stage_page))cc.stage_page=255;
     if(cc.workspace!=255&&page_drop(cc.workspace))cc.workspace=255;

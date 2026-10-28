@@ -1,6 +1,16 @@
 #include "compiler.h"
 
 Compiler cc;
+uint8_t compile_interrupt_reason(void) { return cc.interrupted; }
+uint8_t cc_poll(void) {
+    /* The synchronous job alone enables polling. Build authentication also
+     * uses hash helpers after the job's stack-owned diagnostic has expired. */
+    if(!cc.polling)return 1;
+    if(cc.error->code)return 0;
+    cc.interrupted=key_interrupt();
+    if(!cc.interrupted)return 1;
+    cc.error->code=COMPILE_INTERRUPTED;return 0;
+}
 const char *compile_error_path(void) { return cc.name; }
 const uint8_t *compile_error_hash(void) { return cc.literal_length==32?cc.literal:0; }
 

@@ -31,6 +31,7 @@
 !/tools/test-ide-execute.py
 !/tools/test-ide-directory.py
 !/tools/test-ide-interrupt.py
+!/tools/test-compile-interrupt.py
 !/tools/test-inline.py
 !/tools/test-file-runtime.py
 !/tools/test-runtime-layout.py

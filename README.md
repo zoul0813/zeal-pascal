@@ -35,6 +35,7 @@ python3 tools/test-ide-directory.py
 python3 tools/test-inline.py
 python3 tools/test-ide-sources.py --inline
 python3 tools/test-ide-interrupt.py
+python3 tools/test-compile-interrupt.py --seal-poll 293
 python3 tools/test-bridges.py
 python3 tools/test-bridges.py --corpus routines
 python3 tools/test-bridges.py --corpus real
@@ -143,6 +144,13 @@ In Com-file mode, compiling the default source writes
 `T:/src/pascal/UNTITLED.COM` and `T:/src/pascal/UNTITLED.ZMP`.
 Run `T:/src/pascal/UNTITLED.COM` from ZShell. These are native Zeal Z80
 executables. Source must be saved separately with S.
+
+Ctrl-U cancels compilation before publication, including image preparation,
+scanning, code placement and final hashing. Escape acknowledges the interruption;
+source edits and queued typing remain available. Filling the 32-key IDE typeahead
+queue also stops compilation instead of dropping ordinary keys. Incomplete builds
+are released, and the next R compiles again. Output publication still completes
+synchronously.
 
 X accepts an absolute or relative native executable path without adding an
 extension. Ordinary Zeal applications need no Pascal header. On return it

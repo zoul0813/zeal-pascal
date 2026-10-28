@@ -102,6 +102,8 @@ typedef struct {
     uint8_t code;
     uint16_t start, end;
 } Diagnostic;
+/* Cancellation is a job outcome, never a Pascal syntax diagnostic. */
+#define COMPILE_INTERRUPTED 255u
 typedef struct {
     Source staged;
     uint16_t out,line,spaces;
@@ -160,7 +162,8 @@ void sha_byte(Sha256 *s, uint8_t b);
 void sha_end(Sha256 *s, uint8_t out[32]);
 void source_hash(const Source *s, uint8_t out[32]);
 uint8_t compile(const Source *s, Build *b, Diagnostic *d);
-uint8_t compile_project(const Source *root,const Sources *buffers,Build *b,Diagnostic *d);
+uint8_t compile_project(const Source *root,const Sources *buffers,Build *b,Diagnostic *d,uint8_t interruptible);
+uint8_t compile_interrupt_reason(void);
 /* On compile failure these resident values survive until the next compile.
  * A missing/unreadable source has no authenticated hash (NULL). */
 const char *compile_error_path(void);

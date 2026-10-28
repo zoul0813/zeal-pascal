@@ -416,10 +416,14 @@ static uint8_t compile_work(void) {
         }
         temporary=1;
     }
-    output(saved_mode?"Compiling to native COM...\n":"Compiling to Memory...\n");
-    ok=compile_project(&root,&buffers,&build,&d);
+    output(saved_mode?"Compiling to native COM (Ctrl-U cancels)...\n":"Compiling to Memory (Ctrl-U cancels)...\n");
+    ok=compile_project(&root,&buffers,&build,&d,1);
     if(temporary)source_close(&root);
     if(!ok) {
+        if(d.code==COMPILE_INTERRUPTED) {
+            ide_state=3;
+            search_ack(compile_interrupt_reason()==2?"Compile interrupted: typeahead full":"*** COMPILE INTERRUPTED");return 0;
+        }
         if(strcmp(compile_error_path(),root.path)&&!main_file[0])strcpy(main_file,root.path);
         diagnostic(1,d.code,compile_error_path(),compile_error_hash(),d.start,0,0);return 0;
     }

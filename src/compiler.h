@@ -63,6 +63,7 @@ typedef struct {
     CompilerSources *sources;
     Build *image;
     Diagnostic *error;
+    uint8_t polling,interrupted,scan_poll;
     uint16_t scan,token,magnitude,literal_length;
     SourcePosition token_start,token_end;
     uint8_t literal[256],hexadecimal,number_overflow;
@@ -86,6 +87,7 @@ typedef struct {
     uint16_t error_entry;
 } Compiler;
 extern Compiler cc;
+uint8_t cc_poll(void);
 
 void cc_fail(uint8_t code) FRONTEND;
 SourcePosition cc_source_position(void) ROUTINES;

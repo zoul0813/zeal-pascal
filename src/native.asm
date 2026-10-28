@@ -3,6 +3,7 @@
 .globl _ram_result, _ram_pages, _ram_entry
 .globl _ram_io_detail,_ram_cleanup_detail
 .globl _console_scratch
+.globl _key_raw
 .globl _page_versions
 .globl _ram_worker_service, _worker_dispatch, _code_pages
 .globl _worker_child_page, _worker_child_prefix, _worker_child_page2, _worker_value
@@ -203,4 +204,5 @@ _ram_result:: .ds 128
 _ram_io_detail:: .ds 2
 _ram_cleanup_detail:: .ds 1
 _console_scratch:: .ds 256
+_key_raw:: .ds 32
 _page_versions:: .ds 256

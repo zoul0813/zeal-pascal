@@ -7,10 +7,11 @@
 #include <zos_keyboard.h>
 
 extern uint8_t console_scratch[256];
+extern uint8_t key_raw[32];
 static struct { uint8_t role; uint16_t initialized; uint32_t lifetime; } ledger[64];
 static uint32_t next_lifetime;
 static uint8_t active, old_x,old_y;
-static uint8_t pending,second,typeahead[32],key_head,key_count,key_hold;
+static uint8_t raw_at,raw_count,typeahead[32],key_head,key_count,key_hold;
 uint8_t screen_width,screen_height,platform_error;
 
 uint8_t page_new(uint8_t role) {
@@ -128,16 +129,19 @@ static uint8_t read_key(uint8_t blocking) {
     uint16_t n;
     uint8_t c;
     for(;;) {
-        /* Two bytes are necessary for a raw release pair. Consume both before
-         * the next read without blocking to flush future input. */
-        if(pending) { c=second; pending=0; }
-        else {
-            n=2; platform_error=read(DEV_STDIN,console_scratch,&n);
+        /* As in the Pascal runtime, a two-byte read can split the pinned
+         * driver's release encoding and lose a following modifier press.
+         * Retain complete batches independently of console/file scratch. */
+        if(raw_at==raw_count) {
+            n=sizeof(key_raw); platform_error=read(DEV_STDIN,key_raw,&n);
             if(platform_error) return 27;
             if(!n) { if(!blocking) return 0; continue; }
-            c=console_scratch[0];
-            if(n==2) { pending=1; second=console_scratch[1]; }
+            /* A full batch may have been truncated by the driver. Reject it
+             * before changing decoder state, just like runtime transport. */
+            if(n>=sizeof(key_raw)) { platform_error=ERR_FAILURE;return 27; }
+            raw_at=0;raw_count=(uint8_t)n;
         }
+        c=key_raw[raw_at++];
         c=key_decode(c); if(c) return c;
     }
 }
