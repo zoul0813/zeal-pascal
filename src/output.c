@@ -6,13 +6,12 @@
 #define read_block files_read_block
 #define save_block files_save_block
 #define run_saved files_run_saved
-#define output_path files_output_path
-#define output_recovery files_output_recovery
 #endif
 #include "zp.h"
 #include "path.h"
 #include "sources.h"
 #include "saved_map.h"
+#include "output_transport.h"
 #include <zos_vfs.h>
 #include <zos_errors.h>
 #include <zos_sys.h>
@@ -22,19 +21,12 @@ static char destinations[2][128], transaction[128], member[128];
 static uint16_t serial;
 static uint8_t transaction_owned;
 static char no_recovery[1]; /* Returned pointers must survive a code-bank switch. */
-const char *output_path(void) { return destinations[0]; }
-const char *output_recovery(void) {
+const char *output_path(void) SOURCE_BLOCK_CALL { return destinations[0]; }
+const char *output_recovery(void) SOURCE_BLOCK_CALL {
     if(transaction_owned) return transaction;
     return no_recovery;
 }
 
-static int8_t open_path(const char *path,uint8_t flags) {
-    int8_t fd;
-    strcpy((char*)console_scratch,path);
-    fd=open((char*)console_scratch,flags);
-    if(fd<0) platform_error=(uint8_t)-fd;
-    return fd;
-}
 static uint8_t stat_path(const char *path) {
     strcpy((char*)console_scratch,path);
     return stat((char*)console_scratch,(zos_stat_t*)(console_scratch+128));
@@ -44,6 +36,7 @@ static uint8_t parent_dirs(const char *path,uint8_t create) {
     uint8_t e;
     strcpy(member,path);
     for(i=3;member[i];++i) if(member[i]=='/') {
+        if(!output_poll()) return 0;
         member[i]=0;
         e=stat_path(member);
         if(e==ERR_NO_SUCH_ENTRY&&create) {
@@ -55,22 +48,6 @@ static uint8_t parent_dirs(const char *path,uint8_t create) {
         if(e==ERR_NO_SUCH_ENTRY&&!create) return 1;
         if(!e&&!D_ISDIR(((zos_stat_t*)(console_scratch+128))->s_flags)) e=ERR_NOT_A_DIR;
         if(e) { platform_error=e; return 0; }
-    }
-    return 1;
-}
-static uint8_t finish(int8_t fd,uint8_t ok) {
-    uint8_t prior=platform_error,e=close(fd);
-    if(!ok) platform_error=prior?prior:ERR_FAILURE;
-    else if(e) { platform_error=e; ok=0; }
-    return ok;
-}
-static uint8_t write_all(int8_t fd,uint16_t n) {
-    uint16_t at=0,size;
-    while(at<n) {
-        size=n-at; platform_error=write(fd,console_scratch+at,&size);
-        if(platform_error) return 0;
-        if(!size||size>n-at) { platform_error=ERR_FAILURE; return 0; }
-        at+=size;
     }
     return 1;
 }
@@ -113,6 +90,7 @@ static uint8_t create_transaction(void) {
     /* Reserve the folder, slash and longest recovery member (PRIOR.BAK). */
     if(base+16>127) {platform_error=ERR_INVALID_PATH;return 0;}
     for(attempt=0;attempt<256;++attempt) {
+        if(!output_poll()) return 0;
         value=serial++;
         transaction[base]='Z'; transaction[base+1]='P';
         for(j=0;j<4;++j) transaction[base+2+j]="0123456789ABCDEF"[(value>>(12-j*4))&15];
@@ -131,88 +109,21 @@ static uint8_t create_transaction(void) {
     }
     platform_error=ERR_NO_MORE_ENTRIES; return 0;
 }
-static uint8_t stream_byte(const uint8_t *pages,uint16_t p) {
-    return far_get(pages[p/PAGE_SIZE],p%PAGE_SIZE);
-}
-static uint8_t store_range(const uint8_t *pages,uint16_t first,uint16_t total,const char *path) {
-    uint16_t p=0,n,i;
-    int8_t fd=open_path(path,O_WRONLY|O_CREAT|O_TRUNC);
-    uint8_t ok=1;
-    if(fd<0) return 0;
-    while(p<total&&ok) {
-        n=total-p; if(n>128) n=128;
-        for(i=0;i<n;++i) console_scratch[i]=stream_byte(pages,first+p+i);
-        ok=write_all(fd,n); p+=n;
-    }
-    return finish(fd,ok);
-}
 static uint8_t store(const uint8_t *pages,uint16_t total,const char *path) {
-    return store_range(pages,0,total,path);
-}
-static uint8_t verify_range(const uint8_t *pages,uint16_t first,uint16_t total,const char *path) {
-    uint16_t p=0,n,i,requested;
-    int8_t fd=open_path(path,O_RDONLY);
-    uint8_t ok=1;
-    if(fd<0) return 0;
-    while(p<total&&ok) {
-        requested=total-p; if(requested>128) requested=128; n=requested;
-        platform_error=read(fd,console_scratch,&n);
-        if(platform_error) { ok=0; break; }
-        if(!n||n>requested) { ok=0; break; }
-        for(i=0;i<n;++i) if(console_scratch[i]!=stream_byte(pages,first+p+i)) ok=0;
-        p+=n;
-    }
-    if(ok) { n=1; platform_error=read(fd,console_scratch,&n); if(platform_error||n) ok=0; }
-    if(!ok&&!platform_error) platform_error=ERR_FAILURE;
-    return finish(fd,ok);
+    return output_store_range(pages,0,total,path);
 }
 static uint8_t verify(const uint8_t *pages,uint16_t total,const char *path) {
-    return verify_range(pages,0,total,path);
-}
-static uint8_t copy_file(const char *from,const char *to) {
-    int8_t input=open_path(from,O_RDONLY),out;
-    uint16_t n;
-    uint8_t ok=1;
-    if(input<0) return 0;
-    out=open_path(to,O_WRONLY|O_CREAT|O_TRUNC);
-    if(out<0) { finish(input,0); return 0; }
-    for(;;) {
-        n=128; platform_error=read(input,console_scratch,&n);
-        if(platform_error||n>128) { ok=0; break; }
-        if(!n) break;
-        if(!write_all(out,n)) { ok=0; break; }
-    }
-    ok=finish(input,ok); return finish(out,ok);
-}
-static uint8_t same_files(const char *a,const char *b) {
-    int8_t first=open_path(a,O_RDONLY),second;
-    uint16_t n[2]={0,0},at[2]={0,0},count,i;
-    uint8_t j,ok=1;
-    if(first<0) return 0;
-    second=open_path(b,O_RDONLY);
-    if(second<0) { finish(first,0); return 0; }
-    for(;;) {
-        for(j=0;j<2;++j) if(at[j]==n[j]) {
-            n[j]=128; at[j]=0;
-            platform_error=read(j?second:first,console_scratch+j*128,&n[j]);
-            if(platform_error||n[j]>128) { ok=0; break; }
-        }
-        if(!ok||!n[0]||!n[1]) { if(n[0]!=n[1]) ok=0; break; }
-        count=n[0]-at[0]; if(count>n[1]-at[1]) count=n[1]-at[1];
-        for(i=0;i<count;++i) if(console_scratch[at[0]+i]!=console_scratch[128+at[1]+i]) ok=0;
-        if(!ok) break;
-        at[0]+=count; at[1]+=count;
-    }
-    if(!ok&&!platform_error) platform_error=ERR_FAILURE;
-    ok=finish(first,ok); return finish(second,ok);
+    return output_verify_range(pages,0,total,path);
 }
 /* Every old_name is a closed, verified recovery member. Recheck before removing
  * the destination, then create it afresh: the pinned HostFS reports stale size
  * on truncate, and the OS can return a size byte as an error for in-file writes.
  * Do not reinterpret that error as success. Failed copies retain all recovery
  * members; this is deliberately no more atomic than the previous copy/truncate. */
-static uint8_t publish_file(const char *new_name,const char *old_name,const char *destination) {
-    uint8_t e=stat_path(destination);
+static uint8_t publish_file(const char *new_name,const char *old_name,const char *destination,uint8_t *touched) {
+    uint8_t e;
+    if(!output_poll()) return 0;
+    e=stat_path(destination);
     if(e!=ERR_NO_SUCH_ENTRY) {
         if(e) { platform_error=e; return 0; }
         /* ERR_ALREADY_EXIST is reserved by source saving for BAK approval. An
@@ -222,15 +133,36 @@ static uint8_t publish_file(const char *new_name,const char *old_name,const char
             platform_error=ERR_NOT_A_FILE; return 0;
         }
         in_transaction(old_name);
-        if(!same_files(destination,member)) return 0;
+        if(!output_same_files(destination,member)) return 0;
+        if(!output_poll()) return 0;
+        *touched=1;
         strcpy((char*)console_scratch,destination); e=rm((char*)console_scratch);
         if(e) { platform_error=e; return 0; }
     }
+    if(!output_poll()) return 0;
+    *touched=1;
     in_transaction(new_name);
-    return copy_file(member,destination);
+    return output_copy_file(member,destination);
 }
-uint8_t save_build(const Source *s,const Build *b) {
-    uint8_t i,e,members=3; /* NEW.COM / NEW.ZMP, then optional OLD pair */
+/* Restoration never removes a recovery member. A failed restore leaves the
+ * complete NEW/OLD copies available at the reported transaction path. Try both
+ * destinations even if one restoration fails, preserving the first error. */
+static void restore_file(const char *destination,const char *old_name,uint8_t touched) {
+    uint8_t prior=platform_error,e;
+    if(!touched) return;
+    strcpy((char*)console_scratch,destination); e=rm((char*)console_scratch);
+    if(e&&e!=ERR_NO_SUCH_ENTRY) { platform_error=prior?prior:e; return; }
+    platform_error=0;
+    if(old_name) {
+        in_transaction(old_name);
+        if(!output_copy_file(member,destination)||!output_same_files(member,destination)) {
+            if(!platform_error) platform_error=ERR_FAILURE;
+        }
+    }
+    if(prior) platform_error=prior;
+}
+static uint8_t do_save_build(const Source *s,const Build *b) {
+    uint8_t i,e,members=3,touched[2]={0,0}; /* NEW.COM / NEW.ZMP, then optional OLD pair */
     zos_stat_t *info=(zos_stat_t*)(console_scratch+128);
     platform_error=0;
     if(!build_ready(s,b)) { platform_error=ERR_FAILURE; return 0; }
@@ -254,16 +186,23 @@ uint8_t save_build(const Source *s,const Build *b) {
         if(e) { platform_error=e; return 0; }
         if(!D_ISFILE(info->s_flags)) { platform_error=ERR_NOT_A_FILE; return 0; }
         in_transaction(i?"OLD.ZMP":"OLD.COM");
-        if(!copy_file(destinations[i],member)||!same_files(destinations[i],member)) return 0;
+        if(!output_copy_file(destinations[i],member)||!output_same_files(destinations[i],member)) return 0;
         members|=1u<<(i+2);
     }
     for(i=0;i<2;++i) {
         if(!publish_file(i?"NEW.ZMP":"NEW.COM",
-                         members&(1u<<(i+2))?(i?"OLD.ZMP":"OLD.COM"):0,destinations[i])||
-           !verify(i?&b->map_page:b->pages,i?b->map_length:b->length,destinations[i])) return 0;
+                         members&(1u<<(i+2))?(i?"OLD.ZMP":"OLD.COM"):0,destinations[i],&touched[i])||
+           !verify(i?&b->map_page:b->pages,i?b->map_length:b->length,destinations[i])) goto failed;
     }
+    if(!output_poll()) goto failed;
+    output_job_end();
     cleanup_success(0,members);
     return 1;
+failed:
+    output_job_end();
+    for(i=0;i<2;++i)
+        restore_file(destinations[i],members&(1u<<(i+2))?(i?"OLD.ZMP":"OLD.COM"):0,touched[i]);
+    return 0;
 }
 uint8_t run_saved(const Source *s,const Build *b,uint8_t *status) {
     uint8_t e;
@@ -287,10 +226,10 @@ static uint8_t ordinary_file(const char *path,uint8_t *exists) {
     if(!D_ISFILE(((zos_stat_t*)(console_scratch+128))->s_flags)) { platform_error=ERR_NOT_A_FILE; return 0; }
     return 1;
 }
-uint8_t save_source(Source *s,uint8_t replace_backup) {
+static uint8_t do_save_source(Source *s,uint8_t replace_backup) {
     Source snapshot;
     uint16_t extension;
-    uint8_t exists,backup=0,ok=0,error;
+    uint8_t exists,backup=0,ok=0,error,touched[2]={0,0};
     platform_error=0;
     if(!paths(s)) { platform_error=ERR_INVALID_PATH; return 0; }
     strcpy(destinations[1],destinations[0]);
@@ -312,18 +251,24 @@ uint8_t save_source(Source *s,uint8_t replace_backup) {
     if(!store(&snapshot.page,snapshot.length,member)||!verify(&snapshot.page,snapshot.length,member)) goto cleanup;
     if(exists) {
         in_transaction("OLD.PAS");
-        if(!copy_file(s->path,member)||!same_files(s->path,member)) goto cleanup;
+        if(!output_copy_file(s->path,member)||!output_same_files(s->path,member)) goto cleanup;
         if(backup) {
             in_transaction("PRIOR.BAK");
-            if(!copy_file(destinations[1],member)||!same_files(destinations[1],member)) goto cleanup;
+            if(!output_copy_file(destinations[1],member)||!output_same_files(destinations[1],member)) goto cleanup;
         }
-        if(!publish_file("OLD.PAS",backup?"PRIOR.BAK":0,destinations[1])||
-           !same_files(member,destinations[1])) goto cleanup;
+        if(!publish_file("OLD.PAS",backup?"PRIOR.BAK":0,destinations[1],&touched[1])||
+           !output_same_files(member,destinations[1])) goto cleanup;
     }
-    if(!publish_file("NEW.PAS",exists?"OLD.PAS":0,s->path)||
+    if(!publish_file("NEW.PAS",exists?"OLD.PAS":0,s->path,&touched[0])||
        !verify(&snapshot.page,snapshot.length,s->path)) goto cleanup;
+    if(!output_poll()) goto cleanup;
     ok=1;
 cleanup:
+    output_job_end();
+    if(!ok) {
+        restore_file(s->path,exists?"OLD.PAS":0,touched[0]);
+        restore_file(destinations[1],backup?"PRIOR.BAK":0,touched[1]);
+    }
     error=platform_error;
     if(!page_drop(snapshot.page)) { if(ok) error=platform_error; ok=0; }
     platform_error=error;
@@ -347,14 +292,14 @@ uint8_t source_path(const char *name,char *out) SOURCE_BLOCK_CALL {
     if(!current_directory(name))return 0;
     return sources_path(name,(char*)console_scratch,out);
 }
-uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup) {
+static uint8_t do_save_source_as(Source *s,const char *name,uint8_t replace_backup) {
     Source candidate;
     memcpy(&candidate,s,sizeof(candidate));
     platform_error=0;
     if(!source_path(name,candidate.path)) { if(!platform_error) platform_error=ERR_INVALID_PATH; return 0; }
     /* Publish from the same RAM page. Adopt the new identity only after the
      * ordinary verified save succeeds; failure leaves the entire Source intact. */
-    if(!save_source(&candidate,replace_backup)) return 0;
+    if(!do_save_source(&candidate,replace_backup)) return 0;
     if(strcmp(s->path,candidate.path)) { strcpy(s->path,candidate.path); ++s->revision; }
     s->dirty=0; return 1;
 }
@@ -372,8 +317,8 @@ static uint8_t read_source(Source *s,const char *name,Diagnostic *d,uint8_t requ
         if(!import_begin(&in,destinations[0],d)) return 0;
         return import_finish(&in,s,d);
     }
-    fd=open_path(destinations[0],O_RDONLY); if(fd<0) return 0;
-    if(!import_begin(&in,destinations[0],d)) { finish(fd,0); return 0; }
+    fd=output_open_path(destinations[0],O_RDONLY); if(fd<0) return 0;
+    if(!import_begin(&in,destinations[0],d)) { output_finish(fd,0); return 0; }
     while(!in.eof) {
         n=128; platform_error=read(fd,console_scratch,&n);
         if(platform_error||n>128) { ok=0; break; }
@@ -381,7 +326,7 @@ static uint8_t read_source(Source *s,const char *name,Diagnostic *d,uint8_t requ
         for(i=0;i<n;++i) if(!import_byte(&in,console_scratch[i],d)) { ok=0; break; }
         if(!ok) break;
     }
-    ok=finish(fd,ok);
+    ok=output_finish(fd,ok);
     if(!ok) { error=platform_error; page_drop(in.staged.page); platform_error=error; return 0; }
     return import_finish(&in,s,d);
 }
@@ -395,8 +340,8 @@ uint8_t read_block(Source *block,const char *name,Diagnostic *d) {
     if(read_source(block,name,d,1)) return 1;
     error=platform_error; source_close(block); platform_error=error; return 0;
 }
-uint8_t save_block(const Source *s,uint16_t a,uint16_t z,const char *name,uint8_t replace) {
-    uint8_t exists;
+static uint8_t do_save_block(const Source *s,uint16_t a,uint16_t z,const char *name,uint8_t replace) {
+    uint8_t exists,touched=0;
     uint16_t base;
     platform_error=0; transaction_owned=0; transaction[0]=0;
     if(a>=z||z>s->length) { platform_error=ERR_INVALID_PARAMETER; return 0; }
@@ -414,13 +359,36 @@ uint8_t save_block(const Source *s,uint16_t a,uint16_t z,const char *name,uint8_
     in_transaction("NEW.PAS");
     /* Block output is an exact byte slice, not a canonicalized source save.
      * The editor is suspended throughout this synchronous publication. */
-    if(!store_range(&s->page,a,z-a,member)||!verify_range(&s->page,a,z-a,member)) return 0;
+    if(!output_store_range(&s->page,a,z-a,member)||!output_verify_range(&s->page,a,z-a,member)) return 0;
     if(exists) {
         in_transaction("OLD.PAS");
-        if(!copy_file(destinations[0],member)||!same_files(destinations[0],member)) return 0;
+        if(!output_copy_file(destinations[0],member)||!output_same_files(destinations[0],member)) return 0;
     }
-    if(!publish_file("NEW.PAS",exists?"OLD.PAS":0,destinations[0])||
-       !verify_range(&s->page,a,z-a,destinations[0])) return 0;
+    if(!publish_file("NEW.PAS",exists?"OLD.PAS":0,destinations[0],&touched)||
+       !output_verify_range(&s->page,a,z-a,destinations[0])) goto failed;
+    if(!output_poll()) goto failed;
+    output_job_end();
     cleanup_success(1,exists?3:1);
     return 1;
+failed:
+    output_job_end();
+    restore_file(destinations[0],exists?"OLD.PAS":0,touched);
+    return 0;
+}
+
+uint8_t save_build(const Source *s,const Build *b,uint8_t interruptible) {
+    uint8_t ok;
+    output_job_begin(interruptible); ok=do_save_build(s,b); output_job_end(); return ok;
+}
+uint8_t save_source(Source *s,uint8_t replace_backup,uint8_t interruptible) {
+    uint8_t ok;
+    output_job_begin(interruptible); ok=do_save_source(s,replace_backup); output_job_end(); return ok;
+}
+uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup,uint8_t interruptible) {
+    uint8_t ok;
+    output_job_begin(interruptible); ok=do_save_source_as(s,name,replace_backup); output_job_end(); return ok;
+}
+uint8_t save_block(const Source *s,uint16_t a,uint16_t z,const char *name,uint8_t replace,uint8_t interruptible) {
+    uint8_t ok;
+    output_job_begin(interruptible); ok=do_save_block(s,a,z,name,replace); output_job_end(); return ok;
 }

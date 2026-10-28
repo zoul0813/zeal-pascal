@@ -18,7 +18,7 @@ static void job(const char *name,uint8_t valid,uint8_t kind) {
     if(!b.valid) return;
     retained=pages_used();
     check(b.globals_bytes==0);
-    if(!probe_saved) {check(save_build(&s,&b));probe_saved=1;}
+    if(!probe_saved) {check(save_build(&s,&b,0));probe_saved=1;}
     s.dirty=1;revision=s.revision;
     test_machine(before);
     check(run_build(&s,&b)==valid);

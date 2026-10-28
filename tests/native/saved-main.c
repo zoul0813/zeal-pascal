@@ -17,7 +17,7 @@ int app_main(void) {
     capture=open("H:/LOOKUP.TXT",O_WRONLY|O_CREAT|O_TRUNC);check(capture>=0);
     if(capture>=0)check(swap(capture,DEV_STDOUT)==0);
     test_stage=55;test_machine(before);
-    check(compile(&s,&b,&d));check(save_build(&s,&b));check(run_build(&s,&b));
+    check(compile(&s,&b,&d));check(save_build(&s,&b,0));check(run_build(&s,&b));
     check(ram_result[26]==3&&ram_result[28]==2);
     test_pc=ram_result[30]|((uint16_t)ram_result[31]<<8);
     check(build_location(&s,&b,test_pc,&file,&position));check(file==1&&position==0);
@@ -54,7 +54,7 @@ int app_main(void) {
     check(!saved_location(s.path,&edits,0xffff,&found));
     check(sources_close(&edits));check(pages_used()==code_required);
     check(source_new(&s,"H:/ioerr.pas"));check(load_source(&s,s.path,&d));
-    check(compile(&s,&b,&d));check(save_build(&s,&b));check(run_build(&s,&b));
+    check(compile(&s,&b,&d));check(save_build(&s,&b,0));check(run_build(&s,&b));
     check(ram_result[26]==3&&ram_result[27]==3&&ram_result[28]==1);
     test_io_pc=ram_result[30]|((uint16_t)ram_result[31]<<8);build_close(&b);
     status=255;check(exec(EXEC_PRESERVE_PROGRAM,"H:/ioerr.COM",0,&status)==0&&status==1);

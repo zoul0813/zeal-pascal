@@ -46,7 +46,7 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/runtime_asset.asm CONTENT
 ".area _BANK8\n.globl _runtime_start\n.globl _runtime_end\n.globl _trampoline_start\n.globl _trampoline_end\n_runtime_start:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.zpl\"\n_runtime_end:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.private\"\n.area _RODATA\n_trampoline_start:\n.incbin \"${CMAKE_BINARY_DIR}/ram_trampoline.zpl\"\n_trampoline_end:\n")
 set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/pascal_runtime.zpl;${CMAKE_BINARY_DIR}/pascal_runtime.private;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
-set(PASCAL_CORE src/source.c src/sources.c src/compiler_sources.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_build.c src/compiler_expr.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_file.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_state.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/saved_map.c src/native.asm
+set(PASCAL_CORE src/source.c src/sources.c src/compiler_sources.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_build.c src/compiler_expr.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_file.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_state.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/saved_map.c src/native.asm
     ${CMAKE_BINARY_DIR}/runtime_asset.asm ${CMAKE_BINARY_DIR}/file_asset.asm)
 # This SDK disables compiler depfiles. Keep shared ABI/header changes from
 # leaving stale objects in another compiler bank during incremental ZDE builds.
@@ -84,6 +84,8 @@ set_property(SOURCE src/source.c src/source_blocks.c APPEND PROPERTY OBJECT_DEPE
     ${CMAKE_SOURCE_DIR}/src/source_internal.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 set_property(SOURCE src/output.c src/saved_map.c src/main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/saved_map.h ${CMAKE_SOURCE_DIR}/src/sources.h)
+set_property(SOURCE src/output.c src/output_transport.c src/banks.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/output_transport.h)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/sdk_glue.asm CONTENT
     ".globl _fflush_stdout\n.include \"$ENV{ZOS_PATH}/sdk/sdcc/src/zeal8bitos.asm\"\n")
 list(APPEND PASCAL_CORE ${CMAKE_BINARY_DIR}/sdk_glue.asm)
@@ -110,7 +112,7 @@ set_source_files_properties(src/output.c src/worker.c src/sources.c src/compiler
     COMPILE_OPTIONS "--codeseg;BANK3;--constseg;BANK3")
 set_source_files_properties(src/compiler_console.c src/compiler_keyboard.c src/saved_map.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK12;--constseg;BANK12")
-set_source_files_properties(src/editor.c src/source_blocks.c PROPERTIES
+set_source_files_properties(src/editor.c src/source_blocks.c src/output_transport.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK13;--constseg;BANK13")
 set_source_files_properties(src/compiler_files.c src/compiler_io.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK10;--constseg;BANK10")
@@ -204,9 +206,7 @@ foreach(target zpascal zptest zinputtest zmathtest ziotest zfiletest ztexttest z
         "SHELL:-b _BANK1=0x18000" "SHELL:-b _BANK2=0x28000" "SHELL:-b _BANK3=0x38000" "SHELL:-b _BANK4=0x48000" "SHELL:-b _BANK5=0x58000" "SHELL:-b _BANK6=0x68000" "SHELL:-b _BANK7=0x78000" "SHELL:-b _BANK8=0x88000" "SHELL:-b _BANK9=0x98000" "SHELL:-b _BANK10=0xa8000")
     target_link_options(${target} PRIVATE "SHELL:-b _BANK11=0xb8000")
     target_link_options(${target} PRIVATE "SHELL:-b _BANK12=0xc8000")
-    if(target STREQUAL "zpascal" OR target STREQUAL "zedittest")
-        target_link_options(${target} PRIVATE "SHELL:-b _BANK13=0xd8000")
-    endif()
+    target_link_options(${target} PRIVATE "SHELL:-b _BANK13=0xd8000")
     add_custom_target(${target}_bin ALL
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py $<TARGET_FILE:${target}>
         DEPENDS ${target} ${CMAKE_SOURCE_DIR}/tools/package-native.py

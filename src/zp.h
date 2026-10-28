@@ -182,15 +182,17 @@ uint8_t build_ready(const Source *s,const Build *b);
 uint8_t build_locate(const Source *s, const Build *b, uint16_t pc, uint16_t *position);
 uint8_t build_location(const Source *root,const Build *b,uint16_t pc,uint8_t *file,uint16_t *position);
 uint8_t run_build(const Source *s, const Build *b);
-uint8_t save_build(const Source *s,const Build *b);
-uint8_t save_source(Source *s,uint8_t replace_backup);
-uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup);
+uint8_t save_build(const Source *s,const Build *b,uint8_t interruptible);
+uint8_t save_source(Source *s,uint8_t replace_backup,uint8_t interruptible);
+uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup,uint8_t interruptible);
 uint8_t load_source(Source *s,const char *path,Diagnostic *d);
 uint8_t read_block(Source *block,const char *path,Diagnostic *d);
-uint8_t save_block(const Source *s,uint16_t first,uint16_t last,const char *path,uint8_t replace);
+uint8_t save_block(const Source *s,uint16_t first,uint16_t last,const char *path,uint8_t replace,uint8_t interruptible);
 uint8_t run_saved(const Source *s,const Build *b,uint8_t *status);
-const char *output_path(void);
-const char *output_recovery(void);
+const char *output_path(void) SOURCE_BLOCK_CALL;
+const char *output_recovery(void) SOURCE_BLOCK_CALL;
+/* Private job reason: 1 Ctrl-U/keyboard error, 2 retained typeahead full. */
+uint8_t output_interrupt_reason(void) SOURCE_BLOCK_CALL;
 uint8_t image_get(const Build *b, uint16_t offset);
 
 uint8_t console_open(void);

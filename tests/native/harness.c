@@ -38,9 +38,9 @@ void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) {
     if(!b.valid) { if(test_stage==3) { __asm ei __endasm; } return; }
     if(test_stage==2) {
         check(seed("H:/SLICE.COM","old executable")); check(seed("H:/SLICE.ZMP","old map"));
-        check(save_build(&s,&b));
+        check(save_build(&s,&b,0));
     }
-    if(test_stage==7||saved_corpus()) check(save_build(&s,&b));
+    if(test_stage==7||saved_corpus()) check(save_build(&s,&b,0));
     owned=pages_used();
     test_machine(before);
     check(run_build(&s,&b));

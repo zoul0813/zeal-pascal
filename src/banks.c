@@ -1,5 +1,6 @@
 #include "library.h"
 #include "worker.h"
+#include "output_transport.h"
 #include <zos_errors.h>
 
 /* All bank transitions have resident callers and stack/data arguments. The
@@ -16,15 +17,13 @@ uint8_t compiler_build_ready(const Source *s,const Build *b);
 uint8_t compiler_build_locate(const Source *s,const Build *b,uint16_t pc,uint16_t *position);
 uint8_t compiler_build_location(const Source *s,const Build *b,uint16_t pc,uint8_t *file,uint16_t *position);
 uint8_t compiler_image_get(const Build *b,uint16_t offset);
-uint8_t files_save_build(const Source *s,const Build *b);
-uint8_t files_save_source(Source *s,uint8_t replace_backup);
-uint8_t files_save_source_as(Source *s,const char *name,uint8_t replace_backup);
+uint8_t files_save_build(const Source *s,const Build *b,uint8_t interruptible);
+uint8_t files_save_source(Source *s,uint8_t replace_backup,uint8_t interruptible);
+uint8_t files_save_source_as(Source *s,const char *name,uint8_t replace_backup,uint8_t interruptible);
 uint8_t files_load_source(Source *s,const char *name,Diagnostic *d);
 uint8_t files_read_block(Source *block,const char *name,Diagnostic *d);
-uint8_t files_save_block(const Source *s,uint16_t first,uint16_t last,const char *name,uint8_t replace);
+uint8_t files_save_block(const Source *s,uint16_t first,uint16_t last,const char *name,uint8_t replace,uint8_t interruptible);
 uint8_t files_run_saved(const Source *s,const Build *b,uint8_t *status);
-const char *files_output_path(void);
-const char *files_output_recovery(void);
 static uint8_t capture_path(char *out,const char *name);
 uint8_t files_worker_control(uint8_t mode);
 
@@ -85,22 +84,22 @@ uint8_t image_get(const Build *b,uint16_t offset) {
     uint8_t old=code_select(6),value=compiler_image_get(b,offset);
     code_restore(old); return value;
 }
-uint8_t save_build(const Source *s,const Build *b) {
-    uint8_t old=code_select(2),ok=files_save_build(s,b);
+uint8_t save_build(const Source *s,const Build *b,uint8_t interruptible) {
+    uint8_t old=code_select(2),ok=files_save_build(s,b,interruptible);
     code_restore(old); return ok;
 }
-uint8_t save_source(Source *s,uint8_t replace_backup) {
-    uint8_t old=code_select(2),ok=files_save_source(s,replace_backup);
+uint8_t save_source(Source *s,uint8_t replace_backup,uint8_t interruptible) {
+    uint8_t old=code_select(2),ok=files_save_source(s,replace_backup,interruptible);
     code_restore(old); return ok;
 }
 static uint8_t capture_path(char *out,const char *name) {
-    if(strlen(name)>127) { platform_error=ERR_INVALID_PATH; return 0; }
+    if(strlen(name)>127) { output_job_begin(0); platform_error=ERR_INVALID_PATH; return 0; }
     strcpy(out,name); return 1;
 }
-uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup) {
+uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup,uint8_t interruptible) {
     char path[128]; uint8_t old,ok;
     if(!capture_path(path,name)) return 0;
-    old=code_select(2); ok=files_save_source_as(s,path,replace_backup);
+    old=code_select(2); ok=files_save_source_as(s,path,replace_backup,interruptible);
     code_restore(old); return ok;
 }
 uint8_t load_source(Source *s,const char *name,Diagnostic *d) {
@@ -121,17 +120,9 @@ uint8_t read_block(Source *block,const char *name,Diagnostic *d) {
     old=code_select(2); ok=files_read_block(block,path,d);
     code_restore(old); return ok;
 }
-uint8_t save_block(const Source *s,uint16_t first,uint16_t last,const char *name,uint8_t replace) {
+uint8_t save_block(const Source *s,uint16_t first,uint16_t last,const char *name,uint8_t replace,uint8_t interruptible) {
     char path[128]; uint8_t old,ok;
     if(!capture_path(path,name)) return 0;
-    old=code_select(2); ok=files_save_block(s,first,last,path,replace);
+    old=code_select(2); ok=files_save_block(s,first,last,path,replace,interruptible);
     code_restore(old); return ok;
-}
-const char *output_path(void) {
-    uint8_t old=code_select(2); const char *p=files_output_path();
-    code_restore(old); return p;
-}
-const char *output_recovery(void) {
-    uint8_t old=code_select(2); const char *p=files_output_recovery();
-    code_restore(old); return p;
 }

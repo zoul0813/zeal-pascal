@@ -321,17 +321,17 @@ static void media_tests(void) {
     if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
     for(attempt=0;attempt<3;++attempt) {
         s.dirty=1;
-        check(save_source(&s,1)&&!s.dirty&&!*output_recovery());
+        check(save_source(&s,1,0)&&!s.dirty&&!*output_recovery());
         check(compile(&s,&b,&d));
         if(!b.valid) break;
-        check(save_build(&s,&b)&&!*output_recovery());
+        check(save_build(&s,&b,0)&&!*output_recovery());
         status=255; check(run_saved(&s,&b,&status)&&status==0);
         if(attempt<2) build_close(&b);
     }
     strcpy(s.path,"B:/UNTITLED.COM");
-    check(!save_build(&s,&b)&&platform_error==ERR_INVALID_PATH);
+    check(!save_build(&s,&b,0)&&platform_error==ERR_INVALID_PATH);
     strcpy(s.path,"B:/UNTITLED.BAK");
-    check(!save_source(&s,1)&&platform_error==ERR_INVALID_PATH);
+    check(!save_source(&s,1,0)&&platform_error==ERR_INVALID_PATH);
     strcpy(s.path,"B:/UNTITLED.PAS");
     status=255; check(run_saved(&s,&b,&status)&&status==0);
     build_close(&b);
@@ -396,12 +396,12 @@ int app_main(void) {
     strcpy(s.path,"H:/EDIT.PAS");
     check(load("begin\nend.\n"));
     check(source_replace(&s,5,5,(const uint8_t*)"  ",2));
-    check(save_source(&s,0)&&!s.dirty);
+    check(save_source(&s,0,0)&&!s.dirty);
     check(source_replace(&s,8,8,(const uint8_t*)"{second}\n",9));
-    check(save_source(&s,0)&&!s.dirty);
+    check(save_source(&s,0,0)&&!s.dirty);
     check(source_replace(&s,8,8,(const uint8_t*)"{third}\n",8));
-    check(!save_source(&s,0)&&platform_error==15&&s.dirty&&!*output_recovery());
-    check(save_source(&s,1)&&!s.dirty);
+    check(!save_source(&s,0,0)&&platform_error==15&&s.dirty&&!*output_recovery());
+    check(save_source(&s,1,0)&&!s.dirty);
     check(load_source(&s,"H:/sub/../EDIT.PAS",&d)&&s.length==28&&!s.dirty);
     check(source_replace(&s,0,0,(const uint8_t*)" ",1));
     check(seed("H:/BLOCK","existing file"));
@@ -414,15 +414,15 @@ int app_main(void) {
         memcpy(&before,&s,sizeof(s));
         source_hash(&s,old_hash);
         check(compile(&s,&b,&d));
-        check(!save_source_as(&s,"H:/BLOCK/denied.pas",0)&&platform_error==ERR_NOT_A_DIR);
+        check(!save_source_as(&s,"H:/BLOCK/denied.pas",0,0)&&platform_error==ERR_NOT_A_DIR);
         check(!memcmp(&s,&before,sizeof(s))&&build_ready(&s,&b));
-        check(save_source_as(&s,"h:/./RENAMED",0));
+        check(save_source_as(&s,"h:/./RENAMED",0,0));
         check(!strcmp(s.path,"H:/RENAMED.PAS")&&!s.dirty&&s.revision==before.revision+1);
         check(s.page==before.page&&s.length==before.length&&s.cursor==before.cursor&&s.previous==before.previous);
         source_hash(&s,new_hash); check(!memcmp(old_hash,new_hash,32)&&!build_ready(&s,&b));
         build_close(&b);
         memcpy(&before,&s,sizeof(s));
-        check(save_source_as(&s,s.path,0)&&!memcmp(&s,&before,sizeof(s)));
+        check(save_source_as(&s,s.path,0,0)&&!memcmp(&s,&before,sizeof(s)));
     }
     check(load_source(&s,"H:/NEWFILE",&d)&&!strcmp(s.path,"H:/NEWFILE.PAS")&&!s.length&&!s.dirty);
     check(pages_used()==code_required+1);

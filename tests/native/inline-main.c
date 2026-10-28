@@ -10,7 +10,7 @@ static void included_error(void) {
     uint8_t file,status,owned;uint16_t pc,position;Source source;
     check(load_source(&s,"H:/INLSRC.PAS",&d));s.dirty=1;
     check(compile(&s,&b,&d));if(!b.valid)return;
-    check(save_build(&s,&b));owned=pages_used();
+    check(save_build(&s,&b,0));owned=pages_used();
     check(run_build(&s,&b)&&ram_result[26]==3&&ram_result[28]==2);
     pc=ram_result[30]|((uint16_t)ram_result[31]<<8);
     check(build_location(&s,&b,pc,&file,&position)&&file==1&&position==0);

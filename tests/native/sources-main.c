@@ -12,7 +12,7 @@ static void included_error(void) {
     check(load_source(&s,"H:/SRCERROR.PAS",&d));s.dirty=1;
     test_machine(before);check(compile(&s,&b,&d));test_machine(after);
     check(!memcmp(before,after,7));if(!b.valid)return;
-    check(save_build(&s,&b));owned=pages_used();
+    check(save_build(&s,&b,0));owned=pages_used();
     check(run_build(&s,&b));check(ram_result[26]==3&&ram_result[28]==2);
     pc=ram_result[30]|((uint16_t)ram_result[31]<<8);
     check(build_location(&s,&b,pc,&file,&position)&&file==1&&position==0);
@@ -39,7 +39,7 @@ static void unsaved_override(void) {
     check(sources_take(&buffers,&root,&root)==0);
     check(sources_take(&buffers,&work,&work)==1);source_hash(&work,hash);
     check(compile_project(&root,&buffers,&b,&d,0,0));if(!b.valid){sources_close(&buffers);return;}
-    check(save_build(&root,&b));owned=pages_used();
+    check(save_build(&root,&b,0));owned=pages_used();
     check(run_build(&root,&b)&&ram_result[26]==1);status=255;
     check(run_saved(&root,&b,&status)&&status==0);
     source_hash(&work,after);check(work.dirty&&!memcmp(hash,after,32)&&pages_used()==owned);

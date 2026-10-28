@@ -31,8 +31,8 @@ int app_main(void) {
     execution_file("H:/CTLSTDOUT.PAS",1,0,0);
     execution_file("H:/CTLBOUNDARY.PAS",1,0,0);
     if(capture>=0)check(swap(capture,DEV_STDOUT)==0);
-    check(load_source(&s,"H:/CTLFAIL.PAS",&d)&&compile(&s,&b,&d)&&save_build(&s,&b));build_close(&b);
-    check(load_source(&s,"H:/CTLIGNORE.PAS",&d)&&compile(&s,&b,&d)&&save_build(&s,&b));build_close(&b);
+    check(load_source(&s,"H:/CTLFAIL.PAS",&d)&&compile(&s,&b,&d)&&save_build(&s,&b,0));build_close(&b);
+    check(load_source(&s,"H:/CTLIGNORE.PAS",&d)&&compile(&s,&b,&d)&&save_build(&s,&b,0));build_close(&b);
     check(seed("H:/CONTROL.IN","x"));input=open("H:/CONTROL.IN",O_RDONLY);check(input>=0);
     if(input>=0) {
         check(swap(input,DEV_STDIN)==0);owned=pages_used();status=255;

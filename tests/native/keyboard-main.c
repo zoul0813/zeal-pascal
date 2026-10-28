@@ -41,8 +41,8 @@ int app_main(void) {
     execution_file("H:/KEYUGOTO.PAS",5,0,48);
     /* Inject an unavailable physical keyboard through supported descriptor
      * swapping. The checked poll aborts; I- returns its pending result. */
-    check(load_source(&s,"H:/KEYUFAIL.PAS",&d)&&compile(&s,&b,&d)&&save_build(&s,&b));build_close(&b);
-    check(load_source(&s,"H:/KEYUIGNORE.PAS",&d)&&compile(&s,&b,&d)&&save_build(&s,&b));build_close(&b);
+    check(load_source(&s,"H:/KEYUFAIL.PAS",&d)&&compile(&s,&b,&d)&&save_build(&s,&b,0));build_close(&b);
+    check(load_source(&s,"H:/KEYUIGNORE.PAS",&d)&&compile(&s,&b,&d)&&save_build(&s,&b,0));build_close(&b);
     input=open("H:/KEYIN.TXT",O_RDONLY);check(input>=0);
     if(input>=0) {
         check(swap(input,DEV_STDIN)==0);owned=pages_used();status=255;

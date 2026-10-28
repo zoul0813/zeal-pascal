@@ -20,6 +20,7 @@ static uint8_t saved_mode;
 extern uint8_t console_scratch[256];
 static void block_io(uint8_t kind);
 static void search_command(uint8_t kind);
+static void search_ack(const char *message);
 
 static void file_error(const char *prefix,uint8_t code) {
     /* Console writes themselves update platform_error. Pass the failed job's
@@ -30,6 +31,16 @@ static void file_error(const char *prefix,uint8_t code) {
 }
 static void recovery_notice(void) {
     if(*output_recovery()) { output("\nTemporary/recovery files remain: "); output(output_recovery()); }
+}
+
+static uint8_t publication_interrupted(void) {
+    uint8_t reason=output_interrupt_reason(),error=platform_error,prior=ide_state;
+    if(!reason) return 0;
+    ide_state=3;
+    output(reason==2?"Save interrupted: typeahead full":"*** SAVE INTERRUPTED");
+    if(error) file_error(". Native I/O error ",error);
+    recovery_notice();
+    search_ack("RAM source retained"); ide_state=prior; return 1;
 }
 
 static void invalidate(void) {
@@ -120,6 +131,11 @@ static void redraw(void) {
     screen_at((uint8_t)(editor.column-1-editor.left),(uint8_t)(line-top_line+1));
 }
 static uint8_t suffix(uint8_t c) { return c>=1&&c<=26?c+'a'-1:c>='A'&&c<='Z'?c+32:c; }
+/* Menu command normalization accepts control letters. Confirmation prompts
+ * must retain Ctrl-U as cancellation rather than normalize it to letter U. */
+static uint8_t confirmation_key(void) {
+    uint8_t c=key_read(); return c==21?c:suffix(c);
+}
 static void edit(uint8_t at_error) {
     uint8_t result;
     uint32_t revision;
@@ -171,17 +187,18 @@ static uint8_t save_work_as(const char *name) {
         id=sources_find(&buffers,candidate.path);
         if(id>=0&&sources_get(&buffers,(uint8_t)id,&other)&&other.page!=work.page&&other.dirty) {
             output("Discard unsaved destination buffer (Y/N)? ");
-            do { c=suffix(key_read()); } while(c!='y'&&c!='n'&&c!=27&&c!=21);
+            do { c=confirmation_key(); } while(c!='y'&&c!='n'&&c!=27&&c!=21);
             if(c!='y')return 0;
         }
     }
     candidate=work;
-    screen_clear(); output("Saving source "); output(name?name:work.path); output("...\n");
-    ok=name?save_source_as(&candidate,name,0):save_source(&candidate,0);
-    if(!ok&&platform_error==15) {
+    screen_clear(); output("Saving source "); output(name?name:work.path); output(" (Ctrl-U cancels)...\n");
+    ok=name?save_source_as(&candidate,name,0,1):save_source(&candidate,0,1);
+    if(!ok&&platform_error==15&&!output_interrupt_reason()) {
         output("Existing BAK is unchanged.\nReplace BAK with the previous source (Y/N)? ");
-        do { c=suffix(key_read()); } while(c!='y'&&c!='n'&&c!=27);
-        if(c=='y') ok=name?save_source_as(&candidate,name,1):save_source(&candidate,1);
+        do { c=confirmation_key(); } while(c!='y'&&c!='n'&&c!=27&&c!=21);
+        if(c==21) { search_ack("*** INTERRUPTED"); return 0; }
+        if(c=='y') ok=name?save_source_as(&candidate,name,1,1):save_source(&candidate,1,1);
         else return 0;
     }
     if(ok) {
@@ -190,8 +207,9 @@ static uint8_t save_work_as(const char *name) {
             output("Disk saved; buffer identity could not be updated. RAM retained.");ok=0;
         } else { work=candidate;output("Source saved: ");output(work.path);recovery_notice(); }
     }
+    else if(publication_interrupted()) return 0;
     else { file_error("Save failed, native error ",platform_error); output(". RAM source retained."); recovery_notice(); }
-    output("\nPress Escape"); while(key_read()!=27) {}
+    search_ack("");
     return ok;
 }
 static uint8_t save_work(void) { return save_work_as(0); }
@@ -210,7 +228,7 @@ static uint8_t file_field(char *text) {
     }
 }
 static void search_ack(const char *message) {
-    output("\n"); output(message); output(". Press Escape");
+    output("\n"); if(*message) { output(message); output(". "); } output("Press Escape");
     /* Acknowledgment reads fresh events; it must not discard retained typing
      * from the interrupted operation while waiting for Escape. */
     key_typeahead_hold(1);
@@ -279,7 +297,7 @@ static void search_command(uint8_t kind) {
             c='y';
             if(!(job.search.flags&SEARCH_NO_CONFIRM)) {
                 redraw(); screen_at(0,0); output("Replace (Y/N), Ctrl-U aborts: ");
-                do { c=suffix(key_read()); } while(c!='y'&&c!='n'&&c!=21&&c!=27);
+                do { c=confirmation_key(); } while(c!='y'&&c!='n'&&c!=21&&c!=27);
                 if(c==27) return;
                 if(c==21) { search_ack("*** INTERRUPTED"); return; }
             }
@@ -307,16 +325,16 @@ static void block_io(uint8_t kind) {
             return;
         }
         if(kind==EDITOR_WRITE_BLOCK) {
-            ok=save_block(&work,editor.block_begin,editor.block_end,name,0);
-            if(!ok&&platform_error==15) {
+            ok=save_block(&work,editor.block_begin,editor.block_end,name,0,1);
+            if(!ok&&platform_error==15&&!output_interrupt_reason()) {
                 output("\nOverwrite old file (Y/N), Escape cancels: ");
-                do { c=suffix(key_read()); } while(c!='y'&&c!='n'&&c!=27&&c!=21);
+                do { c=confirmation_key(); } while(c!='y'&&c!='n'&&c!=27&&c!=21);
                 if(c==21) { output("\n*** INTERRUPTED. Press Escape"); while(key_read()!=27) {} return; }
                 if(c==27) return;
                 if(c=='n') continue;
-                ok=save_block(&work,editor.block_begin,editor.block_end,name,1);
+                ok=save_block(&work,editor.block_begin,editor.block_end,name,1,1);
             }
-            if(ok) return;
+            if(ok||publication_interrupted()) return;
         } else {
             if(read_block(&block,name,&d)) {
                 result=editor_insert_block(&block); source_close(&block);
@@ -336,7 +354,7 @@ static void open_work(void) {
     Source candidate;int16_t id;
     if(work.dirty) {
         output("Save current source first (Y/N), Escape cancels: ");
-        do { c=suffix(key_read()); } while(c!='y'&&c!='n'&&c!=27&&c!=21);
+        do { c=confirmation_key(); } while(c!='y'&&c!='n'&&c!=27&&c!=21);
         if(c==27||c==21||(c=='y'&&!save_work()))return;
     }
     screen_clear();output("Open work file (for example T:/HELLO.PAS): ");
@@ -386,7 +404,7 @@ static uint8_t quit_work(void) {
         if(!sources_get(&buffers,id,&pending)) { lookup_failure();return 0; }
         if(!pending.dirty)continue;
         output("Save ");output(pending.path);output(" before quitting (Y/N), Escape cancels: ");
-        do { c=suffix(key_read()); } while(c!='y'&&c!='n'&&c!=27&&c!=21);
+        do { c=confirmation_key(); } while(c!='y'&&c!='n'&&c!=27&&c!=21);
         if(c==27||c==21)return 0;
         if(c=='y') {
             if(!sync_work()) { lookup_failure();return 0; }
@@ -432,14 +450,18 @@ static uint8_t compile_work(void) {
     }
     if(!sources_get(&build.sources,0,&root)) { lookup_failure();return 0; }
     if(saved_mode) {
-        output("Verifying and saving executable/map...\n");
-        if(!save_build(&root,&build)) {
+        output("Verifying and saving executable/map (Ctrl-U cancels)...\n");
+        if(!save_build(&root,&build,1)) {
+            if(output_interrupt_reason()) {
+                ok=platform_error; invalidate(); platform_error=ok;
+                publication_interrupted(); return 0;
+            }
             file_error("Output failed, native error ",platform_error);
             output(". RAM source retained.");recovery_notice();
-            invalidate();output("\nPress Escape");while(key_read()!=27) {}return 0;
+            invalidate();search_ack("");return 0;
         }
         output("Saved ");output(output_path());output(" and .ZMP");recovery_notice();
-        output("\nSource buffers unchanged. Press Escape");while(key_read()!=27) {}
+        search_ack("Source buffers unchanged");
     }
     output("Code bytes: ");output_number(build.code_bytes);
     output(" Data bytes: ");output_number(build.globals_bytes);output("\n");return 1;

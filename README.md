@@ -46,6 +46,8 @@ python3 tools/test-workers.py
 python3 tools/test-params.py
 python3 tools/test-math.py
 python3 tools/test-output.py
+python3 tools/test-output-host.py
+python3 tools/test-output-interrupt.py
 python3 tools/test-real.py --host --sanitize --native
 python3 tools/test-real.py --trig --sanitize --native
 ```
@@ -147,12 +149,20 @@ In Com-file mode, compiling the default source writes
 Run `T:/src/pascal/UNTITLED.COM` from ZShell. These are native Zeal Z80
 executables. Source must be saved separately with S.
 
-Ctrl-U cancels compilation before publication, including image preparation,
-scanning, code placement and final hashing. Escape acknowledges the interruption;
+Ctrl-U cancels compilation, including image preparation, scanning, code
+placement and final hashing. It also cancels source, Save As, block and executable/
+map publication between transfer chunks. Escape acknowledges the interruption;
 source edits and queued typing remain available. Filling the 32-key IDE typeahead
-queue also stops compilation instead of dropping ordinary keys. Incomplete builds
-are released, and the next R compiles again. Output publication still completes
-synchronously.
+queue also stops the operation instead of dropping ordinary keys. Incomplete
+builds are released, and the next R compiles again.
+
+If final publication has begun, the IDE attempts to restore the previous files
+from its verified recovery copies. Restoration runs to completion without further
+keyboard cancellation. A failed or canceled save retains its transaction directory
+and reports the recovery path; a retry uses a new directory. Source dirty state
+and Save As identity change only after a verified successful save. Filesystem
+calls remain synchronous, and this copy-based protocol cannot promise atomic
+replacement or protection against power loss.
 
 In Com-file options, S selects the generated code's Start address and E selects
 the program's End address. Enter one to four hexadecimal digits; Start 0 selects

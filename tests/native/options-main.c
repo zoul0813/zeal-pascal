@@ -28,7 +28,7 @@ static void run(void) {
     check(run_build(&s,&b)&&ram_result[26]==1);
     test_machine(after);check(!memcmp(before,after,7));
     check(pages_used()==owned&&build_check(&s,&b));
-    check(save_build(&s,&b));check(run_saved(&s,&b,&status)&&status==0);
+    check(save_build(&s,&b,0));check(run_saved(&s,&b,&status)&&status==0);
     test_machine(after);check(!memcmp(before,after,7));
     check(pages_used()==owned&&build_check(&s,&b));
     at=96+far_get(b.map_page,84)+((uint16_t)far_get(b.map_page,85)<<8);
@@ -76,7 +76,7 @@ int app_main(void) {
         changed_header(i==1||i==5?32:i>=3?28:30,i==0||i>=4?0xffff:i==1?2047:i==2?0xcffe:0xf401);
         owned=pages_used();check(run_build(&s,&b)&&ram_result[26]==3&&ram_result[28]==255);
         check(pages_used()==owned&&build_check(&s,&b));
-        check(save_build(&s,&b));status=0;
+        check(save_build(&s,&b,0));status=0;
         check(run_saved(&s,&b,&status)&&status==255);
         check(pages_used()==owned);build_close(&b);
     }

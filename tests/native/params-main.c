@@ -35,7 +35,7 @@ int app_main(void) {
     test_stage=40;
     check(load_source(&s,"H:/PARAMS.PAS",&d));check(compile(&s,&b,&d));
     if(b.valid) {
-        check(save_build(&s,&b));
+        check(save_build(&s,&b,0));
         check(run_build(&s,&b)&&ram_result[26]==1);
         saved("");saved(" \t ");saved("  one\tTWO  three-four \t");
         saved("\"two words\"\tMiXeD");
