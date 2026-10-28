@@ -19,7 +19,7 @@ def mapping(directory,name):
     u16=lambda at:struct.unpack_from('<H',data,at)[0]
     u32=lambda at:struct.unpack_from('<I',data,at)[0]
     assert data[:8]==b'ZMAP\x01\0\x60\0'and image[3:8]==b'ZP80\x01'
-    assert u16(14)==1 and data[92:96]==bytes(4)
+    assert u16(8)==1 and data[92:96]==bytes(4)
     table=data[96:96+u32(84)];assert hashlib.sha256(table).digest()==data[52:84]==image[68:100]
     manifest=bytearray(data);manifest[20:52]=bytes(32)
     assert hashlib.sha256(manifest).digest()==image[100:132]
@@ -27,7 +27,7 @@ def mapping(directory,name):
     assert hashlib.sha256(payload).digest()==image[36:68]==data[20:52]
     assert u16(10)==int.from_bytes(image[20:22],'little')and u16(12)==int.from_bytes(image[22:24],'little')
     at=0;files=[]
-    for file in range(u16(8)):
+    for file in range(u16(14)):
         ident,length,size=struct.unpack_from('<HHI',table,at);assert ident==file and 1<=length<=127
         expected=table[at+8:at+40];path=table[at+40:at+40+length].decode('ascii')
         assert path.startswith('H:/')and all(1<=len(part)<=15 for part in path[3:].split('/'))

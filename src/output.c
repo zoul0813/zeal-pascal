@@ -12,6 +12,7 @@
 #include "zp.h"
 #include "path.h"
 #include "sources.h"
+#include "saved_map.h"
 #include <zos_vfs.h>
 #include <zos_errors.h>
 #include <zos_sys.h>
@@ -74,17 +75,13 @@ static uint8_t write_all(int8_t fd,uint16_t n) {
     return 1;
 }
 static uint8_t paths(const Source *s) {
-    uint16_t n=(uint16_t)strlen(s->path),base=0,dot=0,i;
+    uint16_t base;
     transaction[0]=0;
     transaction_owned=0;
-    if(n>123||n<4||s->path[1]!=':'||s->path[2]!='/') return 0;
-    for(i=0;i<n;++i) { if(s->path[i]=='/') { base=i+1; dot=0; } else if(s->path[i]=='.') dot=i; }
-    if(!dot) dot=n;
-    if(dot-base+4>15||base+15>=128) return 0;
-    for(i=0;i<2;++i) {
-        memcpy(destinations[i],s->path,dot);
-        strcpy(destinations[i]+dot,i?".ZMP":".COM");
-    }
+    if(strlen(s->path)>123||!saved_paths(s->path,destinations))return 0;
+    base=(uint16_t)strlen(destinations[0]);
+    while(base&&destinations[0][base-1]!='/')--base;
+    if(base+15>=128)return 0;
     memcpy(transaction,s->path,base); transaction[base]=0;
     return 1;
 }
@@ -113,6 +110,8 @@ static void cleanup_success(uint8_t source,uint8_t members) {
 static uint8_t create_transaction(void) {
     uint16_t base=(uint16_t)strlen(transaction),attempt,value;
     uint8_t j,e;
+    /* Reserve the folder, slash and longest recovery member (PRIOR.BAK). */
+    if(base+16>127) {platform_error=ERR_INVALID_PATH;return 0;}
     for(attempt=0;attempt<256;++attempt) {
         value=serial++;
         transaction[base]='Z'; transaction[base+1]='P';

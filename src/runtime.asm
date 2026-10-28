@@ -5,6 +5,7 @@
 .globl read_line,read_string,input_begin,input_value,input_end,memory_mode,io_error
 .globl buflen,cbreak,user_break
 .globl input_mode_value
+.globl normal_error,error_code,error_namespace
 .globl runtime_prefix_end
 .globl character,neg_hl,false_text,true_text
 .globl io_call,io_result,io_check,io_fail,io_status

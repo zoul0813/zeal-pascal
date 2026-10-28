@@ -27,6 +27,8 @@ python3 tools/test-devices.py
 python3 tools/test-hooks.py
 python3 tools/test-language.py
 python3 tools/test-sources.py
+python3 tools/test-saved-map.py
+python3 tools/test-saved-map.py --native
 python3 tools/test-ide-sources.py
 python3 tools/test-inline.py
 python3 tools/test-ide-sources.py --inline
@@ -91,7 +93,7 @@ speed for library loading and verification before the IDE prompt appears.
 | A | Save current source under another filename; Escape cancels |
 | C | Compile in the selected output mode |
 | R | Run the current build, compiling first when needed |
-| O | Select M Memory or C native Com-file; Q returns |
+| O | Select M Memory or C native Com-file; F finds a saved runtime error; Q returns |
 | Q | Quit, resolving unsaved source with save/discard/cancel |
 
 Startup opens `T:/src/pascal/UNTITLED.pas` when available. Missing source or
@@ -122,6 +124,15 @@ W can restore a parked dirty buffer. Its dirty-current prompt still offers
 save/discard/cancel; N explicitly discards that current buffer on successful
 replacement. Quit resolves every retained dirty buffer. Compilation never
 silently saves these sources. Saved COM/ZMP output names follow Main when set.
+
+Saved programs report runtime and I/O errors with a hexadecimal PC. Select the
+program's Main or Work source, choose O then F, and enter that PC (one to four
+hexadecimal digits). The IDE verifies the saved COM/ZMP pair and all source
+identities, then Escape opens the actual source or include at the error position.
+This works in a fresh session without compiling. Matching unsaved buffers take
+precedence over disk; changed, missing or invalid artifacts/sources reject lookup
+and retain edits. Overlay lookup remains unsupported. Recompile older programs
+with includes to replace their incorrectly encoded source-map headers.
 
 In Com-file mode, compiling the default source writes
 `T:/src/pascal/UNTITLED.COM` and `T:/src/pascal/UNTITLED.ZMP`.

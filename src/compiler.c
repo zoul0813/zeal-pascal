@@ -410,7 +410,7 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     begin=cc_block();j=pc();cc_expect('.',10);
     if(cc.token!=T_EOF)cc_fail(58);
     cc_finish(RT_DONE);mapping(j,pc(),begin,begin);
-    cc_hooks_finish();cc_console_finish();cc_file_finish();
+    cc_hooks_finish();cc_console_finish();cc_file_finish();cc_error_finish();
     if(d->code||!cc_place_code())goto failed;
     if(cc.stage_page!=255) {
         if(page_drop(cc.stage_page))cc.stage_page=255;
@@ -422,8 +422,8 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     else {d->code=98;goto failed;}
     b->revision=s->revision;sources_hash(&b->sources,0,b->source_hash);
     for(i=0;i<4;++i)map8(i,"ZMAP"[i]);
-    map8(4,1);map16(6,96);map16(8,b->sources.count);map16(10,b->code_origin);map16(12,b->code_bytes);
-    map16(14,1);map32(16,cc.entries);map32(84,cc.file_bytes);map32(88,(uint32_t)cc.entries*16);
+    map8(4,1);map16(6,96);map16(8,1);map16(10,b->code_origin);map16(12,b->code_bytes);
+    map16(14,b->sources.count);map32(16,cc.entries);map32(84,cc.file_bytes);map32(88,(uint32_t)cc.entries*16);
     at=96;
     for(file=0;file<b->sources.count;++file) {
         if(!sources_get(&b->sources,file,&active)||!sources_hash(&b->sources,file,digest)){cc_fail(99);goto failed;}

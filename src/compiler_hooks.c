@@ -192,4 +192,8 @@ void cc_hooks_place(uint16_t delta) ROUTINES {
         value=k==0?cc.hook_character:k==1?cc.hook_echo:cc.hook_open;
         if(value) { cc_put(at-0x4000u,0xc3); cc_word(at-0x4000u+1,value+delta); }
     }
+    if(cc.error_entry) {
+        at=cc_runtime_private(RP_NORMAL_ERROR)-0x4000u;
+        cc_put(at,0xc3);cc_word(at+1,cc.error_entry+delta);
+    }
 }

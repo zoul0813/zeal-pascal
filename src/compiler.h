@@ -83,6 +83,7 @@ typedef struct {
     uint16_t hook_variables[HOOK_COUNT],hook_defaults[HOOK_COUNT];
     uint16_t hook_output_calls,hook_mask_call;
     uint16_t hook_character,hook_echo,hook_open;
+    uint16_t error_entry;
 } Compiler;
 extern Compiler cc;
 
@@ -139,13 +140,15 @@ uint8_t cc_runtime_get(uint16_t offset);
 enum { RP_INPUT_READY,RP_INPUT_ADVANCE,RP_LINE_NEXT,RP_LINE_REMAINING,RP_LINE_EOF,RP_LINE_VALID,
        RP_INPUT_KEY,RP_INPUT_RAW_KEY,RP_INPUT_MODE,RP_INPUT_CLEANUP,RP_INPUT_FAIL,RP_IO_ERROR,RP_ECHO_FD,
        RP_INPUT_SOURCE,RP_INPUT_OPEN,RP_INPUT_ECHO,RP_INPUT_CLOSE,RP_USER_BREAK,
-       RP_INPUT_MODE_VALUE,RP_INPUT_BREAK,RP_INPUT_CONSOLE_AREA };
+       RP_INPUT_MODE_VALUE,RP_INPUT_BREAK,RP_INPUT_CONSOLE_AREA,
+       RP_NORMAL_ERROR,RP_ERROR_CODE,RP_ERROR_NAMESPACE };
 uint16_t cc_runtime_private(uint8_t entry);
 void cc_keypressed(void) FRONTEND;
 void cc_logical_stream(void) FRONTEND;
 void cc_keyboard_engine(void) FRONTEND;
 void cc_user_interrupt(void) FRONTEND;
 void cc_console_finish(void) FRONTEND;
+void cc_error_finish(void) FRONTEND;
 void cc_hook_variable(uint16_t id) ROUTINES;
 void cc_hook_output(void) ROUTINES;
 void cc_hooks_finish(void) ROUTINES;

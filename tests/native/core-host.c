@@ -252,7 +252,7 @@ static void include_cases(void) {
     files[1].text="procedure more;begin part;n:=n+table[2]end;";
     source_catalog_cases();
     load("program Main;\n{$IPART.INC}\n{$I more.inc}\nbegin more;writeln(greeting,number,table[2])end.");
-    check(compile(&s,&b,&d));check(b.sources.count==3);check(map_word(8)==3);
+    check(compile(&s,&b,&d));check(b.sources.count==3);check(map_word(8)==1);check(map_word(14)==3);
     check(sources_find(&b.sources,"H:/PART.INC")==1&&sources_find(&b.sources,"H:/more.inc")==2);
     at=96;
     for(i=0;i<3;++i){check(map_word(at)==i);n=map_word(at+2);check(n&&n<=127);at+=40+n;}

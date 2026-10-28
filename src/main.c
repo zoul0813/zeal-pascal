@@ -1,5 +1,6 @@
 #include "editor.h"
 #include "sources.h"
+#include "saved_map.h"
 
 /* Public symbols also let the emulator acceptance driver inspect state without
  * adding a host protocol, test menu or debugger to the product. */
@@ -430,6 +431,39 @@ static uint8_t compile_work(void) {
     output("Code bytes: ");output_number(build.code_bytes);
     output(" Data bytes: ");output_number(build.globals_bytes);output("\n");return 1;
 }
+static uint8_t find_saved(void) {
+    char text[128],root[128];SavedLocation found;
+    uint16_t pc,line,column;uint8_t field,i,digit,valid;
+    strcpy(root,main_file[0]?main_file:work.path);
+    for(;;) {
+        screen_clear();output("Find saved run-time error\nEnter PC: ");
+        field=file_field(text);
+        if(field!=1)return 0;
+        valid=strlen(text)<=4;pc=0;
+        for(i=0;text[i]&&valid;++i) {
+            digit=suffix((uint8_t)text[i]);
+            if(digit>='0'&&digit<='9')digit-='0';
+            else if(digit>='a'&&digit<='f')digit-=('a'-10);
+            else {valid=0;break;}
+            pc=(pc<<4)|digit;
+        }
+        if(valid)break;
+        output("\nInvalid hexadecimal PC. Press Escape to retry");while(key_read()!=27) {}
+    }
+    output("\nVerifying saved program, map and sources...\n");
+    if(!sync_work()||!saved_location(root,&buffers,pc,&found)) {
+        file_error("Saved lookup failed, native error ",platform_error);
+        lookup_failure();return 0;
+    }
+    if(!select_error_source(found.path,found.hash)) {lookup_failure();return 0;}
+    if(strcmp(found.path,root)&&!main_file[0])strcpy(main_file,root);
+    pc=source_editor_offset(&work,found.position);
+    source_location(&work,pc,&line,&column);ide_state=3;
+    output("Run-time error position found\n");output(found.path);
+    output(" Line ");output_number(line);output(" Col ");output_number(column);
+    output("\nPress Escape to return to source");while(key_read()!=27) {}
+    work.cursor=pc;edit(1);return 1;
+}
 int app_main(void) {
     uint8_t c,status,file,hash[32];
     uint16_t pc,position;Source root,failed;
@@ -460,12 +494,16 @@ int app_main(void) {
         else if(c=='a') save_as_work();
         else if(c=='c') compile_work();
         else if(c=='o') {
-            screen_clear(); output("Compiler options\nM Memory  C native Com-file  Q Return\n");
+            screen_clear(); output("Compiler options\nM Memory  C native Com-file  F Find run-time error  Q Return\n");
             do {
                 c=suffix(key_read());
                 if(c=='m'||c=='c') {
                     if(saved_mode!=(c=='c')) { saved_mode=c=='c'; build_close(&build); }
                     output(saved_mode?"Native Com-file selected\n":"Memory selected\n");
+                }
+                else if(c=='f') {
+                    if(find_saved())break;
+                    screen_clear();output("Compiler options\nM Memory  C native Com-file  F Find run-time error  Q Return\n");
                 }
             } while(c!='q');
         }

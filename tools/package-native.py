@@ -103,7 +103,10 @@ def validate_runtime(path):
                                  ('user_break',1,0x4169,0x4bd6),
                                  ('input_mode_value',1,0xfd7a,0xfd7b),
                                  ('input_break',1,0x77cd,0x7ea6),
-                                 ('input_console_area',4,0xfd7b,0xfd7f)):
+                                 ('input_console_area',4,0xfd7b,0xfd7f),
+                                 ('normal_error',3,0x4169,0x4bd6),
+                                 ('error_code',1,0x4169,0x4bd6),
+                                 ('error_namespace',1,0x4169,0x4bd6)):
         address=symbols[name]
         if not first<=address<=last-width:
             raise ValueError('private runtime input address out of bounds: '+name)
@@ -213,7 +216,7 @@ def package(path):
     metadata=json.loads(runtime.with_suffix('.runtime.json').read_text())
     if (metadata['sha256']!=hashlib.sha256(template).hexdigest() or
             metadata['private_sha256']!=hashlib.sha256(private).hexdigest() or
-            private!=struct.pack('<21H',*metadata['private_input_addresses']) or
+            private!=struct.pack('<24H',*metadata['private_input_addresses']) or
             symbols['_runtime_start']!=0x88000 or
             symbols['_runtime_end']!=0x88000+len(template) or
             payloads[7]!=template+private):
