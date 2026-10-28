@@ -63,15 +63,17 @@ uint8_t cc_place_code(void) FRONTEND {
     if(cc.error->code) return 0;
     cc.image->code_origin=origin; cc.image->code_bytes=count;
     cc.image->length=origin-0x4000u+count;
-    return 1;
+    if(cc.sources->options&&cc.sources->options->kind==COMPILE_CHAIN)cc_activation_place();
+    return !cc.error->code;
 }
 
 void cc_hash_image(const Build *b,uint8_t out[32]) ROUTINES {
     Sha256 hash; uint16_t i;
+    uint8_t zero=build_is_chain(b)?20:36;
     sha_init(&hash);
     for(i=0;i<b->length;++i) {
         if(!(i&255)&&!cc_poll())return;
-        sha_byte(&hash,i>=36&&i<68?0:image_get(b,i));
+        sha_byte(&hash,i>=zero&&i<zero+32u?0:image_get(b,i));
     }
     sha_end(&hash,out);
 }
@@ -86,14 +88,14 @@ void cc_hash_map(const Build *b,uint8_t out[32]) ROUTINES {
 }
 static uint8_t image_layout(const Build *b) {
     uint8_t i;
-    if(b->length<PAGE_SIZE||b->length>CC_STATIC_LIMIT-0x4000u||
+    if(b->length<96||b->length>CC_STATIC_LIMIT-0x4000u||
        b->map_length<96||b->map_length>PAGE_SIZE||page_role(b->map_page)!=PAGE_MAP)return 0;
     for(i=0;i<3;++i) {
         if((uint16_t)i*PAGE_SIZE<b->length) {
             if(page_role(b->pages[i])!=PAGE_IMAGE)return 0;
         } else if(b->pages[i]!=255||b->versions[i])return 0;
     }
-    return 1;
+    return b->length>=PAGE_SIZE||build_is_chain(b);
 }
 uint8_t build_check(const Source *s,const Build *b) {
     uint8_t hash[32], expected[32], i;
@@ -101,7 +103,7 @@ uint8_t build_check(const Source *s,const Build *b) {
     source_hash(s,hash); if(memcmp(hash,b->source_hash,32)) return 0;
     cc_hash_image(b,hash); if(memcmp(hash,b->id,32)) return 0;
     cc_hash_map(b,hash);
-    for(i=0;i<32;++i) expected[i]=image_get(b,100+i);
+    for(i=0;i<32;++i) expected[i]=image_get(b,(build_is_chain(b)?52:100)+i);
     return !memcmp(hash,expected,32);
 }
 uint8_t build_ready(const Source *s,const Build *b) {

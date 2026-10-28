@@ -173,6 +173,7 @@ uint8_t run_build(const Source *s,const Build *b) {
     uint16_t j;
     ram_io_detail=0; ram_cleanup_detail=0;
     if(!build_ready(s,b)) return 0;
+    if(build_is_chain(b)) { platform_error=ERR_NOT_SUPPORTED;return 0; }
     if(!worker_control(WORKER_START)) return 0;
     for(i=0;i<3;++i) {
         child[i]=page_new(PAGE_RUN);

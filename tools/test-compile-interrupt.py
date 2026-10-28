@@ -84,7 +84,11 @@ def main():
     commands += [f'bp 0x{poll:x}', 'tap C', 'run 4000000000', f'bp 0x{key:x}']
     for letter in 'E'+'Z'*31:
         commands += ['s', 'tap '+letter, 'run 4000000000']
-    commands += snapshot('capacity-cancelled', key)+[f'bc 0x{poll:x}', f'bc 0x{key:x}']
+    # The last injected key can still be waiting at the next polling entry.
+    # Let that poll consume it, then observe cancellation at the reader rather
+    # than taking a snapshot before the queue-full result has been handled.
+    commands += [f'bc 0x{poll:x}', 's', 'run 4000000000']
+    commands += snapshot('capacity-cancelled', key)+[f'bc 0x{key:x}']
     commands += [f'bp 0x{clear:x}', 'tap ESC', 'run 100000000']+snapshot('capacity-kernel', clear)+[f'bc 0x{clear:x}']
     commands += state('capacity-pending', [], 100000000)
     commands += [f'bp 0x{key:x}']

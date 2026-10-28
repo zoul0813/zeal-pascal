@@ -46,7 +46,7 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/runtime_asset.asm CONTENT
 ".area _BANK8\n.globl _runtime_start\n.globl _runtime_end\n.globl _trampoline_start\n.globl _trampoline_end\n_runtime_start:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.zpl\"\n_runtime_end:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.private\"\n.area _RODATA\n_trampoline_start:\n.incbin \"${CMAKE_BINARY_DIR}/ram_trampoline.zpl\"\n_trampoline_end:\n")
 set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/pascal_runtime.zpl;${CMAKE_BINARY_DIR}/pascal_runtime.private;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
-set(PASCAL_CORE src/source.c src/sources.c src/compiler_sources.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_build.c src/compiler_expr.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_file.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_state.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/saved_map.c src/native.asm
+set(PASCAL_CORE src/source.c src/sources.c src/compiler_sources.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/compiler_expr.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_file.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_state.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/saved_map.c src/native.asm
     ${CMAKE_BINARY_DIR}/runtime_asset.asm ${CMAKE_BINARY_DIR}/file_asset.asm)
 # This SDK disables compiler depfiles. Keep shared ABI/header changes from
 # leaving stale objects in another compiler bank during incremental ZDE builds.
@@ -78,7 +78,7 @@ set_property(SOURCE src/platform.c src/worker.c src/banks.c APPEND PROPERTY OBJE
     ${CMAKE_SOURCE_DIR}/src/worker.h)
 set_property(SOURCE src/editor.c src/main.c tests/native/editor-core.c tests/native/editor-search.c tests/native/editor-main.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/editor.h ${CMAKE_SOURCE_DIR}/src/zp.h)
-set_property(SOURCE src/sources.c src/compiler_sources.c src/compiler.c src/compiler_build.c src/output.c src/main.c tests/native/sources-main.c tests/native/inline-main.c APPEND PROPERTY
+set_property(SOURCE src/sources.c src/compiler_sources.c src/compiler.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/output.c src/main.c tests/native/sources-main.c tests/native/inline-main.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources.h)
 set_property(SOURCE src/source.c src/source_blocks.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/source_internal.h ${CMAKE_SOURCE_DIR}/src/zp.h)
@@ -86,6 +86,7 @@ set_property(SOURCE src/output.c src/saved_map.c src/main.c APPEND PROPERTY OBJE
     ${CMAKE_SOURCE_DIR}/src/saved_map.h ${CMAKE_SOURCE_DIR}/src/sources.h)
 set_property(SOURCE src/output.c src/output_transport.c src/banks.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/output_transport.h)
+set_property(SOURCE src/image.c src/saved_map.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/image.h)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/sdk_glue.asm CONTENT
     ".globl _fflush_stdout\n.include \"$ENV{ZOS_PATH}/sdk/sdcc/src/zeal8bitos.asm\"\n")
 list(APPEND PASCAL_CORE ${CMAKE_BINARY_DIR}/sdk_glue.asm)
@@ -106,7 +107,7 @@ set_source_files_properties(src/compiler_front.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK4;--constseg;BANK4")
 set_source_files_properties(src/compiler_routines.c src/compiler_hooks.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK5;--constseg;BANK5")
-set_source_files_properties(src/compiler_real.c PROPERTIES
+set_source_files_properties(src/compiler_real.c src/compiler_artifact.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK9;--constseg;BANK9")
 set_source_files_properties(src/output.c src/worker.c src/sources.c src/compiler_sources.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK3;--constseg;BANK3")
@@ -114,6 +115,8 @@ set_source_files_properties(src/compiler_console.c src/compiler_keyboard.c src/s
     COMPILE_OPTIONS "--codeseg;BANK12;--constseg;BANK12")
 set_source_files_properties(src/editor.c src/source_blocks.c src/output_transport.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK13;--constseg;BANK13")
+set_source_files_properties(src/compiler_activation.c src/image.c PROPERTIES
+    COMPILE_OPTIONS "--codeseg;BANK2;--constseg;BANK2")
 set_source_files_properties(src/compiler_files.c src/compiler_io.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK10;--constseg;BANK10")
 # Our startup and the installed SDK use the same command-tail ABI. The launcher
@@ -183,6 +186,11 @@ target_compile_options(zparamtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_executable(zoptionstest src/startup.asm src/banks.c tests/native/options-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:ide_paths>)
 target_include_directories(zoptionstest PRIVATE src)
 target_compile_options(zoptionstest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+add_executable(zchaintest src/startup.asm src/banks.c tests/native/chain-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:ide_paths>)
+target_include_directories(zchaintest PRIVATE src)
+target_compile_options(zchaintest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+set_source_files_properties(tests/native/chain-main.c PROPERTIES COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
+set_property(SOURCE tests/native/chain-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/saved_map.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 set_property(SOURCE tests/native/options-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/saved_map.h)
 add_executable(zworkertest src/startup.asm src/banks.c tests/native/worker-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:ide_paths>)
 target_include_directories(zworkertest PRIVATE src)
@@ -198,7 +206,7 @@ target_include_directories(test_hash PRIVATE src)
 target_compile_options(test_hash PRIVATE --std-c99 "SHELL:--codeseg BANK12" "SHELL:--constseg BANK12")
 set_property(SOURCE tests/native/code-hash.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/tests/native/harness.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h)
-foreach(target zpascal zptest zinputtest zmathtest ziotest zfiletest ztexttest zstdtest zkeytest zkbdtest zcontest zcontroltest zmaptest zdevtest zbridgetest zhooktest zlangtest zsrctest zinlinetest zparamtest zoptionstest zworkertest zedittest)
+foreach(target zpascal zptest zinputtest zmathtest ziotest zfiletest ztexttest zstdtest zkeytest zkbdtest zcontest zcontroltest zmaptest zdevtest zbridgetest zhooktest zlangtest zsrctest zinlinetest zparamtest zoptionstest zchaintest zworkertest zedittest)
     if(NOT target STREQUAL "zpascal" AND NOT target STREQUAL "zedittest")
         target_sources(${target} PRIVATE $<TARGET_OBJECTS:test_hash>)
     endif()
@@ -225,6 +233,9 @@ target_include_directories(zpexecchild PRIVATE "$ENV{ZOS_PATH}/../Zeal-VideoBoar
 set_property(SOURCE tests/native/execute-child.c APPEND PROPERTY OBJECT_DEPENDS
     "$ENV{ZOS_PATH}/../Zeal-VideoBoard-SDK/include/zvb_hardware.h")
 zos_add_outputs(zpexecchild)
+add_executable(zchainreplay ${CMAKE_BINARY_DIR}/test_sdk_startup.asm tests/native/chain-replay.c)
+target_compile_options(zchainreplay PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+zos_add_outputs(zchainreplay)
 # Independent test-only native procedure bytes; not deployed with the product.
 add_executable(stringabi tests/native/stringabi.asm)
 zos_add_outputs(stringabi WITH_EXTENSION zpl)

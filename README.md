@@ -38,6 +38,7 @@ python3 tools/test-ide-interrupt.py
 python3 tools/test-compile-interrupt.py --seal-poll 293
 python3 tools/test-options.py
 python3 tools/test-options.py --ide
+python3 tools/test-chain.py
 python3 tools/test-bridges.py
 python3 tools/test-bridges.py --corpus routines
 python3 tools/test-bridges.py --corpus real
@@ -104,13 +105,13 @@ speed for library loading and verification before the IDE prompt appears.
 | C | Compile in the selected output mode |
 | R | Run the current build, compiling first when needed |
 | X | Execute an external native program and return to the IDE |
-| O | Select M Memory or C native Com-file; saved modes expose S Start/E End; F finds a saved runtime error; Q returns |
+| O | Select M Memory, C native Com-file or H cHn-file; saved modes expose S Start/E End; F finds a saved runtime error; Q returns |
 | Q | Quit, resolving unsaved source with save/discard/cancel |
 
 Startup opens `T:/src/pascal/UNTITLED.pas` when available. Missing source or
 parent directories start an empty RAM buffer silently. W accepts native absolute
 or relative paths, including a new filename under missing parents. Loading
-creates no directories. S and native COM publication create missing parents
+creates no directories. S and native COM/CHN publication create missing parents
 recursively when saving. A parent that is an existing file is an error; failed
 loads/saves retain the previous RAM buffer.
 
@@ -134,12 +135,13 @@ repairing an include in RAM and pressing R recompiles Main with those edits.
 W can restore a parked dirty buffer. Its dirty-current prompt still offers
 save/discard/cancel; N explicitly discards that current buffer on successful
 replacement. Quit resolves every retained dirty buffer. Compilation never
-silently saves these sources. Saved COM/ZMP output names follow Main when set.
+silently saves these sources. Saved COM/CHN and ZMP output names follow Main when set.
 
 Saved programs report runtime and I/O errors with a hexadecimal PC. Select the
 program's Main or Work source, choose O then F, and enter that PC (one to four
-hexadecimal digits). The IDE verifies the saved COM/ZMP pair and all source
-identities, then Escape opens the actual source or include at the error position.
+hexadecimal digits). The IDE verifies the saved COM/ZMP or CHN/ZMP pair for the
+selected output mode and all source identities, then Escape opens the actual
+source or include at the error position.
 This works in a fresh session without compiling. Matching unsaved buffers take
 precedence over disk; changed, missing or invalid artifacts/sources reject lookup
 and retain edits. Overlay lookup remains unsupported. Recompile older programs
@@ -149,6 +151,14 @@ In Com-file mode, compiling the default source writes
 `T:/src/pascal/UNTITLED.COM` and `T:/src/pascal/UNTITLED.ZMP`.
 Run `T:/src/pascal/UNTITLED.COM` from ZShell. These are native Zeal Z80
 executables. Source must be saved separately with S.
+
+H cHn-file mode writes a compact `.CHN` code payload and its `.ZMP` source map.
+It omits the ordinary executable's runtime, globals and placement gaps. It uses
+the same verified save/recovery protocol. CHN files require a compatible caller;
+they cannot run directly from ZShell or R. The production Pascal `Chain` loader
+is still pending, and R explains that limitation while retaining the compiled
+file. CHN source lookup through O,F is available. Switching output kinds
+invalidates the cached build; it does not save source.
 
 Ctrl-U cancels compilation, including image preparation, scanning, code
 placement and final hashing. It also cancels source, Save As, block and executable/
@@ -165,16 +175,17 @@ and Save As identity change only after a verified successful save. Filesystem
 calls remain synchronous, and this copy-based protocol cannot promise atomic
 replacement or protection against power loss.
 
-In Com-file options, S selects the generated code's Start address and E selects
-the program's End address. Enter one to four hexadecimal digits; Start 0 selects
+In Com-file and cHn-file options, S selects the generated code's Start address
+and E selects the program's End address. Enter one to four hexadecimal digits; Start 0 selects
 the automatic minimum. Empty input, Escape or Ctrl-U retains the current value.
 Invalid input retains the old value and asks again. End defaults to FBFF and must
 be in CFFF..FBFF with enough room for the program and at least 2 KiB of stack.
 The menu shows bounds for the last compiled program; before a successful compile
 it shows platform bounds and checks the complete program when compiling.
 Changing an option invalidates the cached build. Memory mode uses automatic Start
-and FBFF independently of saved-mode settings. Gaps before code are zero-filled;
-startup sets StackPtr to End+1 and validates the actual static/stack extents.
+and FBFF independently of saved-mode settings. Gaps before code are zero-filled.
+Ordinary executable startup sets StackPtr to End+1 and validates the actual
+static/stack extents.
 
 X accepts an absolute or relative native executable path without adding an
 extension. Ordinary Zeal applications need no Pascal header. On return it
@@ -643,7 +654,8 @@ polling restores the borrowed input mode and echo descriptor.
 The implemented directives are A, B, C, I checking, R, U, V, W and X.
 Pascal CRT calls (ClrScr, ClrEol, GotoXY, InsLine, DelLine, CrtInit/CrtExit,
 LowVideo/NormVideo/HighVideo and Delay), replacement input/error callbacks,
-Chain/Execute and overlays remain pending. CP/M BIOS/BDOS services are intentionally
+Pascal Chain/Execute loading and overlays remain pending; CHN compilation and
+source-map lookup are implemented. CP/M BIOS/BDOS services are intentionally
 unavailable on Zeal; explicit unsupported-target diagnostics for them are still
 pending. These gaps are separate from the editor's display functions.
 

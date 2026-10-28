@@ -11,7 +11,7 @@
  * adding a host protocol, test menu or debugger to the product. */
 Source work;
 Build build;
-CompileOptions compile_options={0,0xfbffu};
+CompileOptions compile_options={0,0xfbffu,COMPILE_PROGRAM};
 Sources buffers;
 char main_file[128];
 uint8_t ide_state; /* 1 menu, 2 editor, 3 acknowledgment */
@@ -436,7 +436,7 @@ static uint8_t compile_work(void) {
         }
         temporary=1;
     }
-    output(saved_mode?"Compiling to native COM (Ctrl-U cancels)...\n":"Compiling to Memory (Ctrl-U cancels)...\n");
+    output(saved_mode==2?"Compiling native CHN (Ctrl-U cancels)...\n":saved_mode?"Compiling to native COM (Ctrl-U cancels)...\n":"Compiling to Memory (Ctrl-U cancels)...\n");
     ok=compile_project(&root,&buffers,&build,&d,1,saved_mode?&compile_options:0);
     if(temporary)source_close(&root);
     if(!ok) {
@@ -481,10 +481,10 @@ static uint8_t hexadecimal(const char *text,uint16_t *value) {
 }
 static void options_screen(void) {
     CompileLimits limits;
-    screen_clear();output("Compiler options\nM Memory  C native Com-file  F Find run-time error  Q Return\n");
+    screen_clear();output("Compiler options\nM Memory  C Com-file  H cHn-file  F Find run-time error  Q Return\n");
     if(!saved_mode) {output("Memory selected\n");return;}
     compile_limits(build.code_bytes?build.globals_bytes:0,build.code_bytes,&compile_options,&limits);
-    output("Native Com-file selected\nS Start  E End\nStart: ");
+    output(saved_mode==2?"Native cHn-file selected\nS Start  E End\nStart: ":"Native Com-file selected\nS Start  E End\nStart: ");
     if(compile_options.start)output_hex(compile_options.start,4);else output("AUTO");
     output(" (min ");output_hex(limits.minimum_start,4);output(" max ");output_hex(limits.maximum_start,4);
     output(")\nEnd: ");output_hex(compile_options.end,4);
@@ -522,7 +522,7 @@ static uint8_t find_saved(void) {
         output("\nInvalid hexadecimal PC. Press Escape to retry");while(key_read()!=27) {}
     }
     output("\nVerifying saved program, map and sources...\n");
-    if(!sync_work()||!saved_location(root,&buffers,pc,&found)) {
+    if(!sync_work()||!saved_location_kind(root,&buffers,pc,&found,saved_mode==2)) {
         file_error("Saved lookup failed, native error ",platform_error);
         lookup_failure();return 0;
     }
@@ -699,7 +699,7 @@ int app_main(void) {
     for(;;) {
         ide_state=1; screen_clear();
         show_directory();
-        output(saved_mode?"Zeal Pascal - native Com-file\nWork: ":"Zeal Pascal - Memory\nWork: "); output(work.path);
+        output(saved_mode==2?"Zeal Pascal - native cHn-file\nWork: ":saved_mode?"Zeal Pascal - native Com-file\nWork: ":"Zeal Pascal - Memory\nWork: "); output(work.path);
         output(work.dirty?" *\n":"\n");output("Main: ");
         if(main_file[0])output(main_file);else output("(Work)");
         output("\n");output_number(work.length); output(" source bytes; ");
@@ -718,8 +718,12 @@ int app_main(void) {
             options_screen();
             do {
                 c=suffix(key_read());
-                if(c=='m'||c=='c') {
-                    if(saved_mode!=(c=='c')) { saved_mode=c=='c'; build_close(&build); }
+                if(c=='m'||c=='c'||c=='h') {
+                    status=c=='m'?0:c=='c'?1:2;
+                    if(saved_mode!=status) {
+                        if(compile_options.kind!=(status==2?COMPILE_CHAIN:COMPILE_PROGRAM))build.code_bytes=build.globals_bytes=0;
+                        saved_mode=status;compile_options.kind=status==2?COMPILE_CHAIN:COMPILE_PROGRAM;build_close(&build);
+                    }
                     options_screen();
                 }
                 else if(saved_mode&&(c=='s'||c=='e')) {option_address(c=='s');options_screen();}
@@ -732,6 +736,9 @@ int app_main(void) {
         else if(c=='r') {
             if((!build.valid||!sources_get(&build.sources,0,&root)||!build_ready(&root,&build))&&!compile_work())continue;
             if(!sources_get(&build.sources,0,&root)) { lookup_failure();continue; }
+            if(saved_mode==2) {
+                screen_clear();search_ack("CHN requires Chain activation; Chain support is pending");continue;
+            }
             screen_clear(); output("Validating and preparing program...\n");
             if(saved_mode) {
                 if(!run_saved(&root,&build,&status)) file_error("Saved program failed validation/exec. Native error ",platform_error);

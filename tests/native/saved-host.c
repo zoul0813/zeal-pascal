@@ -15,7 +15,7 @@ static char directory[1024];
 static unsigned assertions,opens,reads,closes,seeks,allocations;
 static unsigned fail_open,fail_read,fail_close,fail_seek,fail_alloc;
 static int fail_drop=-1;
-static uint8_t short_read,zero_read,oversize,tamper_seek;
+static uint8_t short_read,zero_read,oversize,tamper_seek,chain;
 static void check_at(int ok,unsigned line) {
     ++assertions;
     if(!ok) {fprintf(stderr,"saved-map check %u at line %u, error %u\n",assertions,line,platform_error);abort();}
@@ -95,10 +95,13 @@ static void reset(void) {
     fail_open=fail_read=fail_close=fail_seek=fail_alloc=0;
     short_read=zero_read=oversize=tamper_seek=0;
 }
+static uint8_t lookup(const char *root,const Sources *buffers,uint16_t pc,SavedLocation *location) {
+    return saved_location_kind(root,buffers,pc,location,chain);
+}
 static void locate(uint8_t expected,uint16_t pc) {
     SavedLocation result,before;unsigned pages=owned();uint8_t ok;
     memset(&result,0xa5,sizeof(result));before=result;
-    ok=saved_location("H:/main.pas",NULL,pc,&result);check(ok==expected);
+    ok=lookup("H:/main.pas",NULL,pc,&result);check(ok==expected);
     check(!opened());
     if(owned()!=pages)fprintf(stderr,"pages before %u after %u; failures open/read/close/alloc %u/%u/%u/%u\n",pages,owned(),fail_open,fail_read,fail_close,fail_alloc);
     check(owned()==pages);
@@ -108,9 +111,9 @@ static void locate(uint8_t expected,uint16_t pc) {
 int main(int argc,char **argv) {
     unsigned i,open_count,read_count,close_count,alloc_count;
     char paths[2][128];Source root;Sources buffers;SavedLocation result;Diagnostic d;
-    check(argc==3);snprintf(directory,sizeof(directory),"%s",argv[1]);
-    if(atoi(argv[2])==1){reset();locate(0,5);printf("PASS: %u saved-map rejection checks\n",assertions);return 0;}
-    if(atoi(argv[2])==2){reset();locate(1,5);reset();fail_alloc=2;locate(0,5);printf("PASS: %u wide/reordered saved-map checks\n",assertions);return 0;}
+    check(argc==3);chain=(uint8_t)(atoi(argv[2])>>2);snprintf(directory,sizeof(directory),"%s",argv[1]);
+    if((atoi(argv[2])&3)==1){reset();locate(0,5);printf("PASS: %u saved-map rejection checks\n",assertions);return 0;}
+    if((atoi(argv[2])&3)==2){reset();locate(1,5);reset();fail_alloc=2;locate(0,5);printf("PASS: %u wide/reordered saved-map checks\n",assertions);return 0;}
     reset();locate(1,5);
     open_count=opens;read_count=reads;close_count=closes;alloc_count=allocations;
     reset();short_read=1;locate(1,5);
@@ -125,25 +128,26 @@ int main(int argc,char **argv) {
     for(i=1;i<=read_count;++i){reset();fail_read=i;locate(0,5);check(platform_error==ERR_FAILURE);}
     for(i=1;i<=alloc_count;++i){reset();fail_alloc=i;locate(0,5);}
     reset();check(saved_paths("H:/main.pas",paths));check(!strcmp(paths[0],"H:/main.COM")&&!strcmp(paths[1],"H:/main.ZMP"));
+    check(saved_paths_kind("H:/main.pas",paths,1)&&!strcmp(paths[0],"H:/main.CHN"));
     check(saved_paths("H:/main.COM",paths));check(!strcmp(paths[0],"H:/main.COM"));
     check(saved_paths("H:/main.ZMP",paths));check(!strcmp(paths[1],"H:/main.ZMP"));
     check(!saved_paths("H:/123456789012345",paths));check(!saved_paths("H:/parts/../main.pas",paths));
     reset();check(sources_new(&buffers));check(read_block(&root,"H:/main.pas",&d));root.dirty=1;
     check(sources_take(&buffers,&root,&root)>=0);
-    check(saved_location("H:/main.pas",&buffers,5,&result));check(!strcmp(result.path,"H:/parts/fail.inc"));
-    ++buffers.version;check(!saved_location("H:/main.pas",&buffers,5,&result));--buffers.version;
+    check(lookup("H:/main.pas",&buffers,5,&result));check(!strcmp(result.path,"H:/parts/fail.inc"));
+    ++buffers.version;check(!lookup("H:/main.pas",&buffers,5,&result));--buffers.version;
     check(source_replace(&root,0,0,(const uint8_t*)"{dirty}\n",8));check(sources_take(&buffers,&root,&root)>=0);
-    memset(&result,0xa5,sizeof(result));check(!saved_location("H:/main.pas",&buffers,5,&result));check(result.path[0]==(char)0xa5);
+    memset(&result,0xa5,sizeof(result));check(!lookup("H:/main.pas",&buffers,5,&result));check(result.path[0]==(char)0xa5);
     check(root.dirty&&root.cursor==8);check(sources_close(&buffers));check(!opened()&&!owned());
     reset();fail_drop=32;
-    check(!saved_location("H:/main.pas",NULL,5,&result));check(owned()==1);
-    fail_drop=-1;reset();check(saved_location("H:/main.pas",NULL,5,&result));
+    check(!lookup("H:/main.pas",NULL,5,&result));check(owned()==1);
+    fail_drop=-1;reset();check(lookup("H:/main.pas",NULL,5,&result));
     check(!opened()); /* Pending owner is retired before retry. */
     check(!owned());
-    reset();fail_drop=34;check(!saved_location("H:/main.pas",NULL,5,&result));check(owned()==2);
-    fail_drop=-1;reset();check(saved_location("H:/main.pas",NULL,5,&result));check(!owned()&&!opened());
-    reset();fail_drop=33;check(!saved_location("H:/main.pas",NULL,5,&result));check(owned()==2);
-    fail_drop=-1;reset();check(saved_location("H:/main.pas",NULL,5,&result));check(!owned()&&!opened());
+    reset();fail_drop=34;check(!lookup("H:/main.pas",NULL,5,&result));check(owned()==2);
+    fail_drop=-1;reset();check(lookup("H:/main.pas",NULL,5,&result));check(!owned()&&!opened());
+    reset();fail_drop=33;check(!lookup("H:/main.pas",NULL,5,&result));check(owned()==2);
+    fail_drop=-1;reset();check(lookup("H:/main.pas",NULL,5,&result));check(!owned()&&!opened());
     printf("PASS: %u saved-map format, identity, source, short-I/O and ownership checks\n",assertions);
     return 0;
 }

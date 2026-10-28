@@ -51,11 +51,11 @@ static uint8_t parent_dirs(const char *path,uint8_t create) {
     }
     return 1;
 }
-static uint8_t paths(const Source *s) {
+static uint8_t paths(const Source *s,uint8_t chain) {
     uint16_t base;
     transaction[0]=0;
     transaction_owned=0;
-    if(strlen(s->path)>123||!saved_paths(s->path,destinations))return 0;
+    if(strlen(s->path)>123||!saved_paths_kind(s->path,destinations,chain))return 0;
     base=(uint16_t)strlen(destinations[0]);
     while(base&&destinations[0][base-1]!='/')--base;
     if(base+15>=128)return 0;
@@ -72,10 +72,10 @@ static void cleanup_success(uint8_t source,uint8_t members) {
      * this operation's own known members, never old or unrelated ZP folders.
      * A cleanup failure leaves a visible recovery path but does not turn an
      * already verified save into failure. No failure path calls this routine. */
-    for(i=0;i<(source?3:4);++i) {
+    for(i=0;i<(source==1?3:4);++i) {
         if(!(members&(1u<<i))) continue;
-        if(source) name=i==0?"NEW.PAS":i==1?"OLD.PAS":"PRIOR.BAK";
-        else name=i==0?"NEW.COM":i==1?"NEW.ZMP":i==2?"OLD.COM":"OLD.ZMP";
+        if(source==1) name=i==0?"NEW.PAS":i==1?"OLD.PAS":"PRIOR.BAK";
+        else name=i==0?(source==2?"NEW.CHN":"NEW.COM"):i==1?"NEW.ZMP":i==2?(source==2?"OLD.CHN":"OLD.COM"):"OLD.ZMP";
         in_transaction(name);
         strcpy((char*)console_scratch,member); e=rm((char*)console_scratch);
         if(e&&e!=ERR_NO_SUCH_ENTRY) { platform_error=e; return; }
@@ -162,11 +162,12 @@ static void restore_file(const char *destination,const char *old_name,uint8_t to
     if(prior) platform_error=prior;
 }
 static uint8_t do_save_build(const Source *s,const Build *b) {
-    uint8_t i,e,members=3,touched[2]={0,0}; /* NEW.COM / NEW.ZMP, then optional OLD pair */
+    uint8_t chain,i,e,members=3,touched[2]={0,0}; /* NEW.COM / NEW.ZMP, then optional OLD pair */
     zos_stat_t *info=(zos_stat_t*)(console_scratch+128);
     platform_error=0;
     if(!build_ready(s,b)) { platform_error=ERR_FAILURE; return 0; }
-    if(!paths(s)) { platform_error=ERR_INVALID_PATH; return 0; }
+    chain=build_is_chain(b);
+    if(!paths(s,chain)) { platform_error=ERR_INVALID_PATH; return 0; }
     if(!strcmp(s->path,destinations[0])||!strcmp(s->path,destinations[1])) { platform_error=ERR_INVALID_PATH; return 0; }
     if(sources_find(&b->sources,destinations[0])>=0||sources_find(&b->sources,destinations[1])>=0) {
         platform_error=ERR_INVALID_PATH;return 0;
@@ -176,7 +177,7 @@ static uint8_t do_save_build(const Source *s,const Build *b) {
     /* Finish both new outputs and every old recovery copy before truncating
      * either destination. Failed publication retains the recovery files. */
     for(i=0;i<2;++i) {
-        in_transaction(i?"NEW.ZMP":"NEW.COM");
+        in_transaction(i?"NEW.ZMP":chain?"NEW.CHN":"NEW.COM");
         if(!store(i?&b->map_page:b->pages,i?b->map_length:b->length,member)||
            !verify(i?&b->map_page:b->pages,i?b->map_length:b->length,member)) return 0;
     }
@@ -185,30 +186,31 @@ static uint8_t do_save_build(const Source *s,const Build *b) {
         if(e==ERR_NO_SUCH_ENTRY) continue;
         if(e) { platform_error=e; return 0; }
         if(!D_ISFILE(info->s_flags)) { platform_error=ERR_NOT_A_FILE; return 0; }
-        in_transaction(i?"OLD.ZMP":"OLD.COM");
+        in_transaction(i?"OLD.ZMP":chain?"OLD.CHN":"OLD.COM");
         if(!output_copy_file(destinations[i],member)||!output_same_files(destinations[i],member)) return 0;
         members|=1u<<(i+2);
     }
     for(i=0;i<2;++i) {
-        if(!publish_file(i?"NEW.ZMP":"NEW.COM",
-                         members&(1u<<(i+2))?(i?"OLD.ZMP":"OLD.COM"):0,destinations[i],&touched[i])||
+        if(!publish_file(i?"NEW.ZMP":chain?"NEW.CHN":"NEW.COM",
+                         members&(1u<<(i+2))?(i?"OLD.ZMP":chain?"OLD.CHN":"OLD.COM"):0,destinations[i],&touched[i])||
            !verify(i?&b->map_page:b->pages,i?b->map_length:b->length,destinations[i])) goto failed;
     }
     if(!output_poll()) goto failed;
     output_job_end();
-    cleanup_success(0,members);
+    cleanup_success(chain?2:0,members);
     return 1;
 failed:
     output_job_end();
     for(i=0;i<2;++i)
-        restore_file(destinations[i],members&(1u<<(i+2))?(i?"OLD.ZMP":"OLD.COM"):0,touched[i]);
+        restore_file(destinations[i],members&(1u<<(i+2))?(i?"OLD.ZMP":chain?"OLD.CHN":"OLD.COM"):0,touched[i]);
     return 0;
 }
 uint8_t run_saved(const Source *s,const Build *b,uint8_t *status) {
     uint8_t e;
     platform_error=0;
     if(!build_ready(s,b)) { platform_error=ERR_FAILURE; return 0; }
-    if(!paths(s)) { platform_error=ERR_INVALID_PATH; return 0; }
+    if(build_is_chain(b)) {platform_error=ERR_NOT_SUPPORTED;return 0;}
+    if(!paths(s,0)) { platform_error=ERR_INVALID_PATH; return 0; }
     if(!strcmp(s->path,destinations[0])||!strcmp(s->path,destinations[1])) { platform_error=ERR_INVALID_PATH; return 0; }
     if(!verify(b->pages,b->length,destinations[0])||
        !verify(&b->map_page,b->map_length,destinations[1])) return 0;
@@ -231,7 +233,7 @@ static uint8_t do_save_source(Source *s,uint8_t replace_backup) {
     uint16_t extension;
     uint8_t exists,backup=0,ok=0,error,touched[2]={0,0};
     platform_error=0;
-    if(!paths(s)) { platform_error=ERR_INVALID_PATH; return 0; }
+    if(!paths(s,0)) { platform_error=ERR_INVALID_PATH; return 0; }
     strcpy(destinations[1],destinations[0]);
     extension=(uint16_t)strlen(destinations[1]);
     extension-=3;

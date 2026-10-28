@@ -39,9 +39,9 @@ def fixture(extra=0,reverse=False):
 def seal(b,m):
     m[20:52]=bytes(32);b[100:132]=sha(m);b[36:68]=bytes(32);b[36:68]=sha(b);m[20:52]=b[36:68]
 
-def write(name,b,m,source=SOURCE,part=PART):
+def write(name,b,m,source=SOURCE,part=PART,chain=False):
     p=OUT/name;(p/'parts').mkdir(parents=True,exist_ok=True)
-    (p/'main.COM').write_bytes(b);(p/'main.ZMP').write_bytes(m)
+    (p/('main.CHN'if chain else'main.COM')).write_bytes(b);(p/'main.ZMP').write_bytes(m)
     (p/'main.pas').write_bytes(source);(p/'parts/fail.inc').write_bytes(part)
     return p
 
@@ -165,7 +165,7 @@ def main():
     sdk=ROOT.parent/'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
     cmd=['cc','-std=c99','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-g','-D__SDCC_VERSION_MAJOR=4','-D__SDCC_VERSION_MINOR=2','-D__sdcccall(x)=','-Isrc','-I'+str(sdk)]
     cmd+=['-D'+name+'=map_model_'+name for name in ('open','read','close','seek')]
-    cmd+=['src/source.c','src/sources.c','src/path.c','src/sha256.c','src/saved_map.c','tests/native/saved-host.c','-o',str(OUT/'saved-host')]
+    cmd+=['src/source.c','src/sources.c','src/path.c','src/sha256.c','src/saved_map.c','src/image.c','tests/native/saved-host.c','-o',str(OUT/'saved-host')]
     subprocess.run(cmd,cwd=ROOT,check=True)
     b,m=fixture();seal(b,m);positive=write('valid',b,m)
     results=[]
@@ -203,6 +203,26 @@ def main():
         x,y=fixture(extra,reverse);seal(x,y);p=write(name,x,y)
         for i in range(extra):(p/'parts'/f'e{i:03}.inc').write_bytes(b'')
         run(p,2)
+    # Independently authored code-only wire fixtures. Only complete-stream
+    # hashing, shape and source-map lookup are tested here, not execution.
+    def chain_fixture():
+        _,mapping=fixture();image=bytearray(96)+b'\xc9'*32;image[:4]=b'ZCHN';image[4]=1
+        for at,value in [(6,96),(8,1),(10,0x8000),(12,32),(14,0x8000),(16,0),(18,0xfbff)]:put16(image,at,value)
+        return image,mapping
+    def seal_chain(image,mapping):
+        mapping[20:52]=bytes(32);image[52:84]=sha(mapping);image[20:52]=bytes(32);image[20:52]=sha(image);mapping[20:52]=image[20:52]
+    x,y=chain_fixture();seal_chain(x,y);run(write('chain-valid',x,y,chain=True),4)
+    for at,value in [(4,2),(5,1),(6,95),(8,2),(10,0x7fff),(12,0),(12,0xffff),
+                     (14,0x8100),(16,0xffff),(18,0xcffe),(18,0xffff),(84,1),(90,1),(92,1)]:
+        x,y=chain_fixture();put16(x,at,value);seal_chain(x,y)
+        run(write(f'chain-field-{at}-{value}',x,y,chain=True),5)
+    for label,delta in [('truncated',-1),('trailing',1)]:
+        x,y=chain_fixture();seal_chain(x,y);x=x[:-1]if delta<0 else x+b'x'
+        run(write('chain-'+label,x,y,chain=True),5)
+    x,y=chain_fixture();seal_chain(x,y);x[-1]^=1;run(write('chain-unsealed-payload',x,y,chain=True),5)
+    x,y=chain_fixture();y[52]^=1;seal_chain(x,y);run(write('chain-bad-manifest',x,y,chain=True),5)
+    x,y=chain_fixture();x+=bytes(0x7400-32);put16(x,12,0x7400);put16(y,12,0x7400);seal_chain(x,y)
+    run(write('chain-maximum-static',x,y,chain=True),6)
     report={'passed':True,'scope':__doc__+' Structural/failure tests; native IDE acceptance is separate.','cases':results}
     (OUT/'report.json').write_text(json.dumps(report,indent=2)+'\n')
 if __name__=='__main__':main()

@@ -115,18 +115,19 @@ static int retained(const char *name,const uint8_t *data,unsigned size) {
 static void setup(unsigned kind,unsigned mask) {
     unsigned i;assert(!opened());memset(files,0,sizeof(files));memset(fds,0,sizeof(fds));memset(roles,0,sizeof(roles));
     memset(&build,0,sizeof(build));case_kind=kind;case_old=mask;events=polls=writes=reads=0;platform_error=0;
-    target[0]=kind==1?"T:/new/name.pas":kind==2?"T:/block.pas":kind==3?"T:/code.COM":"T:/code.pas";
-    target[1]=kind==1?"T:/new/name.BAK":kind==3?"T:/code.ZMP":"T:/code.BAK";
+    target[0]=kind==1?"T:/new/name.pas":kind==2?"T:/block.pas":kind>=3?(kind==4?"T:/code.CHN":"T:/code.COM"):"T:/code.pas";
+    target[1]=kind==1?"T:/new/name.BAK":kind>=3?"T:/code.ZMP":"T:/code.BAK";
     make("T:/",1);make("T:/ZPKEEP",1);seed("T:/ZPKEEP/FOREIGN",(const uint8_t*)"keep",4);
     if(kind==1)make("T:/new",1);
     for(i=0;i<401;++i){fresh[i]=i%79==78?'\n':(uint8_t)('a'+i%26);old[0][i]=(uint8_t)(i*3+5);old[1][i]=(uint8_t)(i*7+9);}
     check(source_new(&source,kind==1?"T:/original.pas":"T:/code.pas"));
     check(source_replace(&source,0,0,fresh,sizeof(fresh)));source.cursor=19;source.previous=6;before=source;
     for(i=0;i<2;++i)if(mask&(1u<<i))seed(target[i],old[i],old_length[i]);
-    if(kind==3) {
+    if(kind>=3) {
         build.pages[0]=page_new(PAGE_IMAGE);build.pages[1]=page_new(PAGE_IMAGE);build.pages[2]=255;build.map_page=page_new(PAGE_MAP);
         build.length=PAGE_SIZE+513;build.map_length=913;
         for(i=0;i<build.length;++i)far_set(build.pages[i/PAGE_SIZE],i%PAGE_SIZE,(uint8_t)(i*11+3));
+        if(kind==4)for(i=0;i<4;++i)far_set(build.pages[0],i,(uint8_t)"ZCHN"[i]);
         for(i=0;i<build.map_length;++i)far_set(build.map_page,i,(uint8_t)(i*13+1));
     }
 }
@@ -159,7 +160,7 @@ static void prove(uint8_t success,unsigned pages,uint8_t restore_failed) {
             if(case_kind==2)check(equals(target[0],fresh+17,372));
             else {
                 f=find(target[0]);check(f>=0&&files[f].length==build.length);
-                for(i=0;i<build.length;++i)check(files[f].bytes[i]==(uint8_t)(i*11+3));
+                for(i=0;i<build.length;++i)check(files[f].bytes[i]==(case_kind==4&&i<4?(uint8_t)"ZCHN"[i]:(uint8_t)(i*11+3)));
                 f=find(target[1]);check(f>=0&&files[f].length==build.map_length);
                 for(i=0;i<build.map_length;++i)check(files[f].bytes[i]==(uint8_t)(i*13+1));
             }
@@ -168,7 +169,7 @@ static void prove(uint8_t success,unsigned pages,uint8_t restore_failed) {
 }
 int main(void) {
     unsigned kind,mask,pages,total_events,total_polls,i;uint8_t ok;
-    for(kind=0;kind<4;++kind)for(mask=0;mask<(kind==2?2u:4u);++mask) {
+    for(kind=0;kind<5;++kind)for(mask=0;mask<(kind==2?2u:4u);++mask) {
         fail_at=cancel_at=rollback_fault=shorts=bad_io=fail_read=fail_write=0;setup(kind,mask);pages=owned();
         ok=save();check(ok);total_events=events;total_polls=polls;prove(ok,pages,0);
         for(i=1;i<=total_polls;++i) {
@@ -191,8 +192,8 @@ int main(void) {
          * Recovery copies, source identity and all ownership must survive. */
         if(mask&1) {
             rollback_fault=1;setup(kind,mask);ok=save();check(!ok&&platform_error&&output_interrupt_reason());prove(ok,pages,1);
-            if(kind==3) {
-                check(retained("OLD.COM",old[0],old_length[0]));
+            if(kind>=3) {
+                check(retained(kind==4?"OLD.CHN":"OLD.COM",old[0],old_length[0]));
                 check(retained("NEW.ZMP",memory[build.map_page],build.map_length));
             } else {
                 check(retained("OLD.PAS",old[0],old_length[0]));

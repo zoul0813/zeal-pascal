@@ -40,6 +40,7 @@ enum { SYMBOL_LIMIT=512,TYPE_LIMIT=64 };
 /* Preferred code addresses never wrap through zero. The final image reserves
  * the specified2 KiB initial stack below FC00; globals share this static span. */
 #define CC_CODE_BASE 0x8000u
+#define CC_ACTIVATION_BYTES 96u
 #define CC_STATIC_LIMIT 0xf400u
 typedef uint32_t SourcePosition; /* file ID in high word, canonical offset in low */
 typedef struct {
@@ -89,6 +90,9 @@ typedef struct {
 } Compiler;
 extern Compiler cc;
 uint8_t cc_poll(void);
+void cc_activation_begin(void) FRONTEND;
+void cc_activation_place(void) FRONTEND;
+uint8_t cc_seal(const Source *root,const CompileOptions *options) FRONTEND;
 
 void cc_fail(uint8_t code) FRONTEND;
 SourcePosition cc_source_position(void) ROUTINES;

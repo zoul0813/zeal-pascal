@@ -105,7 +105,8 @@ typedef struct {
 /* Cancellation is a job outcome, never a Pascal syntax diagnostic. */
 #define COMPILE_INTERRUPTED 255u
 /* Start zero selects the computed minimum. NULL options mean these defaults. */
-typedef struct { uint16_t start,end; } CompileOptions;
+enum { COMPILE_PROGRAM,COMPILE_CHAIN };
+typedef struct { uint16_t start,end; uint8_t kind; } CompileOptions;
 typedef struct { uint16_t minimum_start,maximum_start,minimum_end; } CompileLimits;
 typedef struct {
     Source staged;
@@ -170,8 +171,8 @@ uint8_t compile_limits(uint16_t globals,uint16_t code,const CompileOptions *opti
 uint8_t compile_interrupt_reason(void);
 /* On compile failure these resident values survive until the next compile.
  * A missing/unreadable source has no authenticated hash (NULL). */
-const char *compile_error_path(void);
-const uint8_t *compile_error_hash(void);
+const char *compile_error_path(void) SOURCE_BLOCK_CALL;
+const uint8_t *compile_error_hash(void) SOURCE_BLOCK_CALL;
 /* Path arguments must live in retained data/stack, like the source catalog. */
 uint8_t source_path(const char *name,char *out) SOURCE_BLOCK_CALL;
 /* Resolve against the native current directory without a source extension. */
@@ -194,6 +195,7 @@ const char *output_recovery(void) SOURCE_BLOCK_CALL;
 /* Private job reason: 1 Ctrl-U/keyboard error, 2 retained typeahead full. */
 uint8_t output_interrupt_reason(void) SOURCE_BLOCK_CALL;
 uint8_t image_get(const Build *b, uint16_t offset);
+uint8_t build_is_chain(const Build *b) SOURCE_BLOCK_CALL;
 
 uint8_t console_open(void);
 uint8_t platform_supported(void);

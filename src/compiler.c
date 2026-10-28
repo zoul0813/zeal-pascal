@@ -5,33 +5,8 @@
 #include "compiler.h"
 
 
-static void map8(uint16_t p,uint8_t v) { far_set(cc.image->map_page,p,v); }
-
-static void map16(uint16_t p,uint16_t v) { map8(p,(uint8_t)v); map8(p+1,(uint8_t)(v>>8)); }
-
-static void map32(uint16_t p,uint32_t v) { uint8_t i; for(i=0;i<4;++i) map8(p+i,(uint8_t)(v>>(i*8))); }
-
 static uint16_t pc(void) { return cc.emitted-CC_CODE_BASE; }
 
-static void mapping(uint16_t begin,uint16_t end,SourcePosition first,SourcePosition last) {
-    uint16_t offset=96+cc.file_bytes+cc.entries*16;
-    uint16_t file=(uint16_t)(first>>16),start=(uint16_t)first,finish=(uint16_t)last;
-    Source source;
-    if(begin==end||cc.error->code) return;
-    if(offset>PAGE_SIZE-16) { cc_fail(99); return; }
-    if(!sources_get(&cc.image->sources,(uint8_t)file,&source)||start>source.length){cc_fail(99);return;}
-    if((last>>16)!=file)finish=start<source.length?start+1:start;
-    if(finish<start||finish>source.length){cc_fail(99);return;}
-    map16(offset,begin);map16(offset+2,end);map16(offset+4,file);map16(offset+6,0);
-    map32(offset+8,start);map32(offset+12,finish);++cc.entries;
-}
-void cc_mapping(uint16_t begin,uint16_t end,SourcePosition first,SourcePosition last) BACKEND { mapping(begin,end,first,last); }
-void cc_map_source(uint16_t bytes) BACKEND {
-    uint16_t i,first=96+cc.file_bytes,end=first+cc.entries*16;
-    if((uint32_t)end+bytes>PAGE_SIZE){cc_fail(99);return;}
-    i=end;while(i>first){--i;map8(i+bytes,far_get(cc.image->map_page,i));}
-    cc.file_bytes+=bytes;
-}
 static uint16_t condition(void) {
     cc_user_interrupt();
     if(cc_family(cc_expression())!=K_BOOLEAN) cc_fail(20);
@@ -127,12 +102,12 @@ static void with_statement(SourcePosition start,uint16_t code) {
         cc.with_types[cc.with_depth++]=type;
         if(cc.token!=',') break; cc_next();
     } while(!cc.error->code);
-    cc_keyword("do",13); mapping(code,pc(),start,cc.token_start);
+    cc_keyword("do",13); cc_mapping(code,pc(),start,cc.token_start);
     statement(); code=pc();
     while(cc.with_depth>saved) {
         cc_emit(0xe1); cc_emit(0xfd); cc_emit(0xe1); --cc.with_depth;
     }
-    mapping(code,pc(),start,cc.token_start);
+    cc_mapping(code,pc(),start,cc.token_start);
 }
 /* Forward operands double as a private patch list until the image is sealed.
  * Each nested Case owns its own heads; no extra compiler workspace is needed. */
@@ -162,7 +137,7 @@ static void case_statement(SourcePosition start,uint16_t code) {
     cc_release(before);
     cc_keyword("of",15); cc_guard(); cc_emit(0xe5);
     if(cc_is("end")||cc_is("else")) cc_fail(41);
-    mapping(code,pc(),start,cc.token_start);
+    cc_mapping(code,pc(),start,cc.token_start);
     while(!cc.error->code&&!cc_is("end")&&!cc_is("else")&&cc.token!=T_EOF) {
         start=cc.token_start; code=pc(); matches=0;
         do {
@@ -184,14 +159,14 @@ static void case_statement(SourcePosition start,uint16_t code) {
         } while(!cc.error->code);
         cc_expect(':',3); miss=cc_forward(0xc3); patch_jumps(matches);
         cc_emit(0xc1); /* match releases its selector before entering the arm */
-        mapping(code,pc(),start,cc.token_start);
+        cc_mapping(code,pc(),start,cc.token_start);
         statement();
         code=pc(); link_jump(0xc3,&exits);
-        mapping(code,pc(),start,cc.token_start); cc_patch(miss);
+        cc_mapping(code,pc(),start,cc.token_start); cc_patch(miss);
         if(cc.token==';') cc_next(); else if(!cc_is("end")&&!cc_is("else")) cc_fail(1);
     }
     start=cc.token_start; code=pc(); cc_emit(0xc1); /* unmatched selector */
-    mapping(code,pc(),start,cc.token_start);
+    cc_mapping(code,pc(),start,cc.token_start);
     if(cc_is("else")) {
         cc_next();
         while(!cc.error->code&&!cc_is("end")&&cc.token!=T_EOF) {
@@ -217,7 +192,7 @@ static SourcePosition statement(void) {
         start=cc.token_start;
     }
     loop=cc.emitted;cc_user_interrupt();
-    mapping(code,pc(),start,cc.token_end);code=pc();
+    cc_mapping(code,pc(),start,cc.token_end);code=pc();
     if(cc_is("begin")) {
         cc_next();
         while(!cc.error->code&&!cc_is("end")&&cc.token!=T_EOF) {
@@ -233,19 +208,19 @@ static SourcePosition statement(void) {
         with_statement(start,code); --cc.depth; return start;
     } else if(cc_is("if")) {
         cc_next(); branch=condition(); cc_keyword("then",17);
-        mapping(code,pc(),start,cc.token_start);
+        cc_mapping(code,pc(),start,cc.token_start);
         statement();
         if(cc_is("else")) {
             code=pc(); other=cc_forward(0xc3);
-            mapping(code,pc(),start,cc.token_start);
+            cc_mapping(code,pc(),start,cc.token_start);
             cc_patch(branch); cc_next(); statement(); cc_patch(other);
         } else cc_patch(branch);
         --cc.depth; return start;
     } else if(cc_is("while")) {
         cc_next(); branch=condition(); cc_keyword("do",13);
-        head_end=cc.token_start; mapping(code,pc(),start,head_end);
+        head_end=cc.token_start; cc_mapping(code,pc(),start,head_end);
         statement(); code=pc(); cc_address(0xc3,loop); cc_patch(branch);
-        mapping(code,pc(),start,head_end);
+        cc_mapping(code,pc(),start,head_end);
         --cc.depth; return start;
     } else if(cc_is("repeat")) {
         cc_next();
@@ -256,7 +231,7 @@ static SourcePosition statement(void) {
         start=cc.token_start; code=pc(); cc_keyword("until",41);
         branch=condition();
         if(!cc.error->code) cc_word(branch,loop);
-        mapping(code,pc(),start,cc.token_start);
+        cc_mapping(code,pc(),start,cc.token_start);
         --cc.depth; return start;
     } else if(cc_is("for")) {
         target=cc.user_interrupt;
@@ -282,13 +257,13 @@ static SourcePosition statement(void) {
         cc_emit(0x7d); cc_emit(0xfe); cc_emit(newline?255:1); branch=cc_forward(0xca);
         cc_emit(0xeb); if(id>=0) cc_store_symbol((uint16_t)id);
         cc_keyword("do",13); head_end=cc.token_start;
-        mapping(code,pc(),start,head_end);
+        cc_mapping(code,pc(),start,head_end);
         body=cc.emitted;
         /* The loop owns its interruption policy even if its body changes U.
          * The backward edge must visit a poll for an empty/disabled body. */
         code=pc();kind=cc.user_interrupt;cc.user_interrupt=target;
         cc_user_interrupt();cc.user_interrupt=kind;
-        mapping(code,pc(),start,head_end);
+        cc_mapping(code,pc(),start,head_end);
         if(id>=0) cc.symbols[id].control=1;
         ++cc.for_depth; statement(); --cc.for_depth;
         if(id>=0) cc.symbols[id].control=0;
@@ -300,7 +275,7 @@ static SourcePosition statement(void) {
         cc_emit(newline?0x2b:0x23); if(id>=0) cc_store_symbol((uint16_t)id);
         cc_address(0xc3,body);
         cc_patch(branch); cc_patch(other); cc_emit(0xc1); /* exactly one owned bound word */
-        mapping(code,pc(),start,head_end);
+        cc_mapping(code,pc(),start,head_end);
         --cc.depth; return start;
     } else if(cc_is("goto")) {
         goto_statement();
@@ -356,7 +331,7 @@ static SourcePosition statement(void) {
             cc_release(before);
         }
     } else if(cc.token!=';'&&!cc_is("end")&&!cc_is("else")&&!cc_is("until")) cc_fail(54);
-    mapping(code,pc(),start,cc.token_start);
+    cc_mapping(code,pc(),start,cc.token_start);
     --cc.depth;
     return start;
 }
@@ -365,7 +340,7 @@ SourcePosition cc_statement(void) BACKEND { return statement(); }
 uint8_t compile_limits(uint16_t globals,uint16_t code,const CompileOptions *options,CompileLimits *limits) SOURCE_BLOCK_CALL {
     uint32_t start,end,top,needed;
     memset(limits,0,sizeof(*limits));
-    if(globals>=PAGE_SIZE)return 0;
+    if(globals>=PAGE_SIZE||(options&&options->kind>COMPILE_CHAIN))return 0;
     limits->minimum_start=GLOBAL_BASE+globals;
     start=options&&options->start?options->start:limits->minimum_start;
     end=options?options->end:0xfbffu;
@@ -382,12 +357,10 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     return compile_project(s,0,b,d,0,0);
 }
 uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options) {
-    uint16_t i,j,at;
-    uint8_t file,digest[32];
+    uint16_t i,j;
     SourcePosition begin;
     Source active;
     CompilerSources sources;
-    Sha256 hash;
     memset(&cc,0,sizeof(cc));memset(&sources,0,sizeof(sources));
     sources.refs_page=255;sources.root=s;sources.options=options;
     cc.input=&active;cc.sources=&sources;cc.image=b;cc.error=d;
@@ -410,7 +383,7 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     if(b->map_page==255){d->code=98;goto failed;}
     cc.workspace=page_new(PAGE_COMPILER);
     if(cc.workspace==255){d->code=98;goto failed;}
-    for(i=0;i<96;++i)map8(i,0);
+    for(i=0;i<96;++i)far_set(b->map_page,i,0);
     for(i=0;i<cc_runtime_size();++i) {
         if(!(i&255)&&!cc_poll())goto failed;
         cc_put(i,cc_runtime_get(i));
@@ -432,9 +405,10 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
         cc_expect(';',1);
     }
     b->code_origin=CC_CODE_BASE;cc.emitted=CC_CODE_BASE;
+    if(options&&options->kind==COMPILE_CHAIN)cc_activation_begin();
     begin=cc_block();j=pc();cc_expect('.',10);
     if(cc.token!=T_EOF)cc_fail(58);
-    cc_finish(RT_DONE);mapping(j,pc(),begin,begin);
+    cc_finish(RT_DONE);cc_mapping(j,pc(),begin,begin);
     cc_hooks_finish();cc_console_finish();cc_file_finish();cc_error_finish();
     if(d->code||!cc_place_code())goto failed;
     if(cc.stage_page!=255) {
@@ -445,42 +419,8 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     else {d->code=98;goto failed;}
     if(page_drop(sources.refs_page))sources.refs_page=255;
     else {d->code=98;goto failed;}
-    b->revision=s->revision;sources_hash(&b->sources,0,b->source_hash);
-    for(i=0;i<4;++i)map8(i,"ZMAP"[i]);
-    map8(4,1);map16(6,96);map16(8,1);map16(10,b->code_origin);map16(12,b->code_bytes);
-    map16(14,b->sources.count);map32(16,cc.entries);map32(84,cc.file_bytes);map32(88,(uint32_t)cc.entries*16);
-    at=96;
-    for(file=0;file<b->sources.count;++file) {
-        if(!sources_get(&b->sources,file,&active)||!sources_hash(&b->sources,file,digest)){cc_fail(99);goto failed;}
-        j=(uint16_t)strlen(active.path);
-        map16(at,file);map16(at+2,j);map32(at+4,active.length);
-        for(i=0;i<32;++i)map8(at+8+i,digest[i]);
-        for(i=0;i<j;++i)map8(at+40+i,(uint8_t)active.path[i]);
-        at+=40+j;
-    }
-    if(at!=96+cc.file_bytes){cc_fail(99);goto failed;}
-    sha_init(&hash);
-    for(i=96;i<at;++i)sha_byte(&hash,far_get(b->map_page,i));
-    sha_end(&hash,digest);
-    for(i=0;i<32;++i){cc_put(68+i,digest[i]);map8(52+i,digest[i]);}
-    b->map_length=at+cc.entries*16;page_initialized(b->map_page,b->map_length);
-    cc_hash_map(b,digest);if(d->code)goto failed;
-    for(i=0;i<32;++i)cc_put(100+i,digest[i]);
-    cc_word(10,b->length);cc_word(20,b->code_origin);cc_word(22,b->code_bytes);
-    cc_word(24,GLOBAL_BASE);cc_word(26,b->globals_bytes);cc_word(28,0x4000u+b->length);
-    cc_word(30,options?options->end:0xfbffu);
-    cc_hash_image(b,b->id);
-    if(d->code||!cc_poll())goto failed;
-    for(i=0;i<32;++i){cc_put(36+i,b->id[i]);map8(20+i,b->id[i]);}
-    /* Page2 also served as code staging. Once placed, a short image owns no
-     * bytes there; retaining it can prevent a later run with parked includes. */
-    if(b->length<=2u*PAGE_SIZE) {
-        if(!page_drop(b->pages[2])) { d->code=98;goto failed; }
-        b->pages[2]=255;
-    }
-    for(i=0;i<3;++i)b->versions[i]=b->pages[i]==255?0:page_versions[b->pages[i]];
-    b->versions[3]=page_versions[b->map_page];b->versions[4]=page_versions[s->page];
-    cc.polling=0;b->valid=1;return 1;
+    if(!cc_seal(s,options))goto failed;
+    return 1;
 failed:
     if(d->code!=COMPILE_INTERRUPTED)cc_sources_error();
     cc.polling=0;

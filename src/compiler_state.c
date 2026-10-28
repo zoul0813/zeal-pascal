@@ -11,8 +11,6 @@ uint8_t cc_poll(void) {
     if(!cc.interrupted)return 1;
     cc.error->code=COMPILE_INTERRUPTED;return 0;
 }
-const char *compile_error_path(void) { return cc.name; }
-const uint8_t *compile_error_hash(void) { return cc.literal_length==32?cc.literal:0; }
 
 uint8_t cc_char_array(uint8_t type) {
     return type<cc.type_count&&cc.types[type].family==K_ARRAY&&

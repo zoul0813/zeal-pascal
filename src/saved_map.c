@@ -1,4 +1,5 @@
 #include "saved_map.h"
+#include "image.h"
 #include <zos_vfs.h>
 #include <zos_errors.h>
 
@@ -10,10 +11,6 @@ typedef struct {
     uint8_t zero,hashing;
     Sha256 hash;
 } Reader;
-typedef struct {
-    uint16_t origin,bytes;
-    uint8_t id[32],manifest[32],map[32];
-} Identity;
 
 /* Only this retained handle consumes C data. The first temporary page keeps
  * its own ownership ledger, including a source page whose release failed.
@@ -32,7 +29,7 @@ static uint8_t zeros(const uint8_t *p,uint8_t n) {
     return 1;
 }
 
-uint8_t saved_paths(const char *root,char files[2][128]) SOURCE_BLOCK_CALL {
+uint8_t saved_paths_kind(const char *root,char files[2][128],uint8_t chain) SOURCE_BLOCK_CALL {
     char canonical[128];uint16_t n,base=0,dot=0,i;
     if(!sources_canonical(root,canonical)||strcmp(root,canonical))return 0;
     n=(uint16_t)strlen(canonical);
@@ -43,7 +40,7 @@ uint8_t saved_paths(const char *root,char files[2][128]) SOURCE_BLOCK_CALL {
     if(!dot)dot=n;
     if(dot+4>127||dot-base+4>15)return 0;
     for(i=0;i<2;++i) {
-        memcpy(files[i],canonical,dot);strcpy(files[i]+dot,i?".ZMP":".COM");
+        memcpy(files[i],canonical,dot);strcpy(files[i]+dot,i?".ZMP":chain?".CHN":".COM");
     }
     return 1;
 }
@@ -85,27 +82,12 @@ static uint8_t at_end(Reader *r) {
     if(platform_error)return 0;
     return n?corrupt():1;
 }
-static uint8_t image(Reader *r,Identity *id) {
-    uint8_t h[160],digest[32];uint16_t length,heap,end,stack,n;
-    if(!take(r,h,sizeof(h),0))return 0;
-    length=word(h+10);heap=word(h+28);end=word(h+30);stack=word(h+32);
-    id->origin=word(h+20);id->bytes=word(h+22);
-    if(h[0]!=0xc3||memcmp(h+3,"ZP80",4)||h[7]!=1||word(h+8)!=160||
-       length<PREFIX_BYTES||length>48128u||word(h+1)!=word(h+12)||
-       word(h+12)<0x40a0u||word(h+12)>=(uint32_t)0x4000u+length||
-       word(h+14)<0x40a0u||word(h+14)>=(uint32_t)0x4000u+length||
-       word(h+16)!=1||(word(h+18)&~1u)||word(h+24)!=GLOBAL_BASE||
-       (uint32_t)GLOBAL_BASE+word(h+26)>id->origin||
-       (uint32_t)id->origin+id->bytes>heap||(uint32_t)0x4000u+length!=heap||
-       end<0xcfffu||end>0xfbffu||stack<2048||
-       (((uint32_t)heap+1)&~1UL)+stack>(uint32_t)end+1||!zeros(h+34,2)||
-       word(h+132)!=PREFIX_BYTES||!zeros(h+140,20))return corrupt();
-    /* No native overlay output exists yet. Never guess which overlaid member
-     * a one-field PC names; the overlay reader will own that selection. */
-    if(!zeros(h+134,6))return fail(ERR_NOT_SUPPORTED);
-    memcpy(id->id,h+36,32);memcpy(id->manifest,h+68,32);memcpy(id->map,h+100,32);
-    while(r->position<length) {
-        n=(uint16_t)(length-r->position);if(n>128)n=128;
+static uint8_t image(Reader *r,NativeImage *id,uint8_t chain) {
+    uint8_t h[160],digest[32],error;uint16_t n;
+    if(!take(r,h,chain?96:160,0))return 0;
+    error=native_header(h,chain,id);if(error)return fail(error);
+    while(r->position<id->length) {
+        n=(uint16_t)(id->length-r->position);if(n>128)n=128;
         if(!take(r,0,n,0))return 0;
     }
     if(!at_end(r))return 0;
@@ -199,7 +181,7 @@ static uint8_t source_check(const Sources *buffers,const char *path,uint32_t byt
     return ok?1:corrupt();
 }
 
-static uint8_t mapping(Reader *r,const Identity *id,const char *root,const Sources *buffers,
+static uint8_t mapping(Reader *r,const NativeImage *id,const char *root,const Sources *buffers,
                        uint16_t pc,SavedLocation *candidate) {
     uint8_t h[96],record[40],entry[16],digest[32],key[32];
     char path[128],canonical[128];
@@ -210,7 +192,7 @@ static uint8_t mapping(Reader *r,const Identity *id,const char *root,const Sourc
     files=word(h+14);entries=longword(h+16);table=longword(h+84);entry_bytes=longword(h+88);
     if(memcmp(h,"ZMAP",4)||h[4]!=1||h[5]||word(h+6)!=96||word(h+8)!=1||
        word(h+10)!=id->origin||word(h+12)!=id->bytes||
-       memcmp(h+20,id->id,32)||memcmp(h+52,id->manifest,32)||!zeros(h+92,4)||
+       memcmp(h+20,id->id,32)||(!id->chain&&memcmp(h+52,id->manifest,32))||!zeros(h+92,4)||
        !files||table>32UL*PAGE_SIZE||(uint32_t)files*41>table||entries>id->bytes||
        entry_bytes!=entries*16||96UL+table+entry_bytes>32UL*PAGE_SIZE)return corrupt();
     if(!metadata(files))return 0;
@@ -234,7 +216,7 @@ static uint8_t mapping(Reader *r,const Identity *id,const char *root,const Sourc
         if(!source_check(buffers,path,longword(record+4),record+8))return 0;
     }
     for(i=0;i<files;++i)if(!meta_word(i,OFFSET))return corrupt();
-    sha_end(&manifest,digest);if(memcmp(digest,id->manifest,32))return corrupt();
+    sha_end(&manifest,digest);if(memcmp(digest,h+52,32))return corrupt();
     for(offset=0;offset<entries;++offset) {
         if(!take(r,entry,16,0))return 0;
         first=word(entry);last=word(entry+2);file=word(entry+4);
@@ -264,17 +246,17 @@ static uint8_t mapping(Reader *r,const Identity *id,const char *root,const Sourc
     return 1;
 }
 
-uint8_t saved_location(const char *root,const Sources *buffers,uint16_t pc,
-                       SavedLocation *location) SOURCE_BLOCK_CALL {
-    Reader r;Identity id;SavedLocation candidate;char paths[2][128];
+uint8_t saved_location_kind(const char *root,const Sources *buffers,uint16_t pc,
+                       SavedLocation *location,uint8_t chain) SOURCE_BLOCK_CALL {
+    Reader r;NativeImage id;SavedLocation candidate;char paths[2][128];
     uint8_t ok=0,error;
     platform_error=0;r.fd=-1;
     if(!cleanup())return 0;
     if(buffers&&!sources_valid(buffers))return corrupt();
-    if(!saved_paths(root,paths))return fail(ERR_INVALID_PATH);
+    if(!saved_paths_kind(root,paths,chain))return fail(ERR_INVALID_PATH);
     if(!strcmp(root,paths[0])||!strcmp(root,paths[1]))return fail(ERR_INVALID_PATH);
-    if(!open_reader(&r,paths[0],36))return 0;
-    ok=image(&r,&id);ok=close_reader(&r,ok);
+    if(!open_reader(&r,paths[0],chain?20:36))return 0;
+    ok=image(&r,&id,chain);ok=close_reader(&r,ok);
     if(!ok)return 0;
     if(pc>=id.bytes)return fail(ERR_INVALID_OFFSET);
     if(!open_reader(&r,paths[1],20))return 0;
@@ -284,4 +266,12 @@ uint8_t saved_location(const char *root,const Sources *buffers,uint16_t pc,
     platform_error=error;
     if(ok)*location=candidate;
     return ok;
+}
+
+uint8_t saved_paths(const char *root,char files[2][128]) SOURCE_BLOCK_CALL {
+    return saved_paths_kind(root,files,0);
+}
+uint8_t saved_location(const char *root,const Sources *buffers,uint16_t pc,
+                       SavedLocation *location) SOURCE_BLOCK_CALL {
+    return saved_location_kind(root,buffers,pc,location,0);
 }

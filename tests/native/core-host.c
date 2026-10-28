@@ -1,6 +1,7 @@
 /* Host structural/failure tests for the exact C front end used on Zeal.
  * These are deliberately not counted as native execution tests. */
 #include "compiler.h"
+#include "image.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -109,7 +110,7 @@ static void compile_cancellation(void) {
 static void compilation_options(void) {
     const uint16_t starts[]={0,0x8000,0x8202,0x9000,0xbfff,0xc000,0xc001,0xd000,0xef00,0xf400,0xffff};
     const uint16_t ends[]={0,0xcffe,0xcfff,0xd000,0xe123,0xfbfe,0xfbff,0xfc00,0xffff};
-    CompileOptions options;CompileLimits limits;
+    CompileOptions options={0,0xfbffu,COMPILE_PROGRAM};CompileLimits limits;
     uint8_t identity[32];uint16_t bytes,globals,i,j,at,typed;
     uint32_t start,heap;uint8_t expected,ok,gap_zero;
     load("program Layout;\nvar pad:array[1..513]of byte;marker:integer;\n"
@@ -150,6 +151,65 @@ static void compilation_options(void) {
     check(!compile_limits(0xffff,1,&options,&limits));
     check(!compile_limits(0,0xffff,&options,&limits));
 }
+/* Execute only the generated activation instruction subset. Ordinary globals
+ * are caller-owned sentinels; all other memory starts as an earlier program's
+ * unrelated bytes. Native execution independently checks the same handoff. */
+static void chain_cases(void) {
+    static uint8_t caller[65536],writes[65536];
+    const char *programs[]={"{$C-}var shared:integer;const value:integer=17;begin shared:=value end.",
+        "{$C-}var shared:integer;begin if ConOutPtr=0 then halt;writeln(shared)end.",
+        ("{$C-}var shared:integer;begin if ConStPtr=0 then halt;if ConOutPtr=0 then halt;\n"
+        "if LstOutPtr=0 then halt;if AuxOutPtr=0 then halt;if UsrOutPtr=0 then halt;writeln(shared)end.")};
+    const uint16_t origins[]={0,0x9000,0xc001,0xd100};
+    CompileOptions options={0,0xfbffu,COMPILE_CHAIN};
+    NativeImage identity;uint8_t header[160],a=0,op,expected[3],zero;
+    uint16_t i,j,k,ip,hl=0,address,target,sites[5],first;unsigned scenario;
+    for(scenario=0;scenario<3;++scenario)for(k=0;k<(scenario?1:4);++k) {
+        load(programs[scenario]);options.start=origins[k];
+        check(compile_project(&s,0,&b,&d,0,&options));check(build_is_chain(&b));
+        check(b.length==96+b.code_bytes&&b.globals_bytes>=2&&build_check(&s,&b));
+        for(i=0;i<96;++i)header[i]=image_get(&b,i);
+        check(native_header(header,1,&identity)==0&&identity.origin==b.code_origin&&identity.bytes==b.code_bytes);
+        check(!memcmp(identity.id,b.id,32)&&identity.length==b.length);
+        memset(caller,0xa5,sizeof(caller));memset(writes,0,sizeof(writes));
+        for(i=0;i<b.code_bytes;++i)caller[b.code_origin+i]=image_get(&b,96+i);
+        ip=b.code_origin;first=ip;
+        while(ip<first+CC_ACTIVATION_BYTES) {
+            op=caller[ip++];
+            if(op==0)continue;
+            if(op==0x3e){a=caller[ip++];continue;}
+            if(op==0x21){hl=caller[ip]|((uint16_t)caller[ip+1]<<8);ip+=2;continue;}
+            if(op==0xc3){check(ip==first+CC_ACTIVATION_BYTES-2);target=caller[ip]|((uint16_t)caller[ip+1]<<8);check(target==first+CC_ACTIVATION_BYTES);ip=target;break;}
+            check(op==0x32||op==0x22);address=caller[ip]|((uint16_t)caller[ip+1]<<8);ip+=2;
+            check(address<GLOBAL_BASE||address>=GLOBAL_BASE+2);
+            caller[address]=op==0x32?a:(uint8_t)hl;writes[address]=1;
+            if(op==0x22){caller[address+1]=(uint8_t)(hl>>8);writes[address+1]=1;}
+        }
+        check(ip==first+CC_ACTIVATION_BYTES&&caller[GLOBAL_BASE]==0xa5&&caller[GLOBAL_BASE+1]==0xa5);
+        sites[0]=cc_runtime_private(RP_INPUT_KEY);sites[1]=cc_runtime_get(RT_CHAR-0x4000u+1)|((uint16_t)cc_runtime_get(RT_CHAR-0x4000u+2)<<8);
+        sites[2]=cc_runtime_private(RP_INPUT_ECHO);sites[3]=cc_runtime_private(RP_INPUT_OPEN);sites[4]=cc_runtime_private(RP_NORMAL_ERROR);
+        for(i=0;i<5;++i) {
+            address=sites[i];target=i==0?cc.keyboard_entry:i==1?cc.hook_character:i==2?cc.hook_echo:i==3?cc.hook_open:cc.error_entry;
+            if(target){target+=b.code_origin-CC_CODE_BASE;expected[0]=0xc3;expected[1]=(uint8_t)target;expected[2]=(uint8_t)(target>>8);}
+            else for(j=0;j<3;++j)expected[j]=cc_runtime_get(address-0x4000u+j);
+            for(j=0;j<3;++j)check(caller[address+j]==expected[j]&&writes[address+j]);
+        }
+        check(caller[RT_CBREAK]==0&&writes[RT_CBREAK]);
+        for(i=0;i<HOOK_COUNT;++i)if(cc.hook_variables[i]) {
+            address=cc.hook_variables[i];target=cc.hook_defaults[i]+b.code_origin-CC_CODE_BASE;
+            check(caller[address]==(uint8_t)target&&caller[address+1]==(uint8_t)(target>>8));
+        }
+        for(i=0;i<cc.symbol_count;++i)if(cc.symbols[i].role==S_TYPED) {
+            address=96+cc.symbols[i].address-CC_CODE_BASE;
+            check(image_get(&b,address)==17&&image_get(&b,address+1)==0);
+        }
+        zero=image_get(&b,97);far_set(b.pages[0],97,zero^1);check(!build_check(&s,&b));
+        far_set(b.pages[0],97,zero);check(build_check(&s,&b));
+        build_close(&b);check(pages_used()==1);
+    }
+    options.kind=2;load("begin end.");check(!compile_project(&s,0,&b,&d,0,&options)&&d.code==99&&!b.valid&&pages_used()==1);
+}
+
 static void keyboard_corpus(void) {
     const char *names[]={"kbdread","kbdbind","kbdlife","kbdupper","kbdfail","conread","conbind","conoutput","conupper","conoutfail","confail","trmread","trmfail","devoutput","devfail"};
     char path[80],text[16384];
@@ -505,6 +565,7 @@ int main(int argc,char **argv) {
     interruption_corpus();
     compile_cancellation();
     compilation_options();
+    chain_cases();
     console_boundary();
     bridge_corpus();
     hook_corpus();

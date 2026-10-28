@@ -43,7 +43,7 @@ int app_main(void) {
     const uint16_t ends[]={0xfbff,0xd000,0xefff,0xefff,0xefff,0xfbff,0xcfff,0xfbfe};
     const char *paths[]={"H:/OBASE.PAS","H:/OLOW.PAS","H:/OBFFF.PAS","H:/OC000.PAS",
         "H:/OC001.PAS","H:/OD100.PAS","H:/OMIN.PAS","H:/OODD.PAS","H:/OMAX.PAS"};
-    CompileOptions options;CompileLimits limits;
+    CompileOptions options={0,0xfbffu,COMPILE_PROGRAM};CompileLimits limits;
     uint16_t i,at,bytes=0,globals=0,origin;
     uint8_t gap,status,owned;
     int8_t capture;
