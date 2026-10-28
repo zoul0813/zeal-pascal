@@ -48,6 +48,7 @@ python3 tools/test-math.py
 python3 tools/test-output.py
 python3 tools/test-output-host.py
 python3 tools/test-output-interrupt.py
+python3 tools/test-startup-path.py
 python3 tools/test-real.py --host --sanitize --native
 python3 tools/test-real.py --trig --sanitize --native
 ```

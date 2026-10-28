@@ -93,12 +93,12 @@ uint8_t save_source(Source *s,uint8_t replace_backup,uint8_t interruptible) {
     code_restore(old); return ok;
 }
 static uint8_t capture_path(char *out,const char *name) {
-    if(strlen(name)>127) { output_job_begin(0); platform_error=ERR_INVALID_PATH; return 0; }
+    if(strlen(name)>127) { platform_error=ERR_INVALID_PATH; return 0; }
     strcpy(out,name); return 1;
 }
 uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup,uint8_t interruptible) {
     char path[128]; uint8_t old,ok;
-    if(!capture_path(path,name)) return 0;
+    if(!capture_path(path,name)) { output_job_begin(0); return 0; }
     old=code_select(2); ok=files_save_source_as(s,path,replace_backup,interruptible);
     code_restore(old); return ok;
 }
@@ -122,7 +122,7 @@ uint8_t read_block(Source *block,const char *name,Diagnostic *d) {
 }
 uint8_t save_block(const Source *s,uint16_t first,uint16_t last,const char *name,uint8_t replace,uint8_t interruptible) {
     char path[128]; uint8_t old,ok;
-    if(!capture_path(path,name)) return 0;
+    if(!capture_path(path,name)) { output_job_begin(0); return 0; }
     old=code_select(2); ok=files_save_block(s,first,last,path,replace,interruptible);
     code_restore(old); return ok;
 }

@@ -42,6 +42,7 @@
 !/tools/test-output.py
 !/tools/test-output-host.py
 !/tools/test-output-interrupt.py
+!/tools/test-startup-path.py
 !/tools/test-real.py
 !/tools/package-native.py
 !/tools/package-tf.py
