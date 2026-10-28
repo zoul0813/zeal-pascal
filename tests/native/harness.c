@@ -27,7 +27,7 @@ uint8_t seed(const char *path,const char *text) {
 static uint8_t saved_corpus(void) {
     switch(test_stage) {
     case 9: case 11: case 13: case 15: case 17: case 19:
-    case 21: case 23: case 25: case 27: case 29: case 31: case 33: case 35: case 37: case 39: case 41: case 43: case 45: case 49: return 1;
+    case 21: case 23: case 25: case 27: case 29: case 31: case 33: case 35: case 37: case 39: case 41: case 43: case 45: case 49: case 51: return 1;
     default: return 0;
     }
 }

@@ -174,8 +174,9 @@ static void routine(void) {
     cc_rput(scope,R_FLAGS,flags|RF_DEFINED); cc.scope=scope;
     cc_block(); cc.scope=parent; cc_expect(';',1);
 }
-uint16_t cc_block(void) ROUTINES {
-    uint16_t first,jump=0,i,entry,start,code;
+SourcePosition cc_block(void) ROUTINES {
+    uint16_t first,jump=0,i,entry,code;
+    SourcePosition start;
     uint8_t scope=cc.scope,saved_bound=cc.with_bound;
     if(++cc.nesting>24) { cc_fail(98); --cc.nesting; return cc.token_start; }
     while(!cc.error->code) {
@@ -194,7 +195,7 @@ uint16_t cc_block(void) ROUTINES {
         entry=cc.emitted; cc_rput(scope,R_ENTRY,entry);
         cc.symbols[cc_rget(scope,R_SYMBOL)].address=entry;
         cc_patch_chain(cc_rget(scope,R_CALLS),entry); cc_rput(scope,R_CALLS,0);
-        code=cc.emitted-CC_CODE_BASE; start=cc.symbols[cc_rget(scope,R_SYMBOL)].name_start;
+        code=cc.emitted-CC_CODE_BASE; start=cc_reference_position(cc.symbols[cc_rget(scope,R_SYMBOL)].name_start);
         prologue(); cc_mapping(code,cc.emitted-CC_CODE_BASE,start,cc.token_start);
     }
     cc.with_bound=cc.with_limit;

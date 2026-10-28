@@ -1,17 +1,17 @@
 #include "compiler.h"
 
-static uint8_t source_byte(uint16_t at) {
-    return at<cc.input->length?far_get(cc.input->page,at):0;
-}
+static uint8_t source_byte(SourcePosition at) { return cc_source_byte(at); }
 static uint8_t digit(uint8_t c) { return c>='0'&&c<='9'; }
 /* Real constant references retain the original literal and one sign bit.
  * Re-decoding does not change the current token, name, or string literal. */
 void cc_real_literal(uint16_t reference) FRONTEND {
     static const uint8_t pi[6]={130,33,162,218,15,73};
     uint8_t text[128],n=0,i;
-    uint16_t at=reference&0x7fffu;
-    if(at==REAL_PI) { zr_error=0; for(i=0;i<6;++i) zr_result[i]=pi[i]; }
+    SourcePosition at;
+    uint16_t id=reference&0x7fffu;
+    if(id==REAL_PI) { zr_error=0; for(i=0;i<6;++i) zr_result[i]=pi[i]; }
     else {
+        at=cc_reference_position(id);
         while(digit(source_byte(at))&&n<127) text[n++]=source_byte(at++);
         if(source_byte(at)=='.'&&source_byte(at+1)!='.') {
             if(n<127) text[n++]=source_byte(at++);

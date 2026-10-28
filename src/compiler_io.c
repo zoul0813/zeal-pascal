@@ -112,10 +112,10 @@ void cc_read(uint8_t newline) FRONTEND {
     uint8_t fresh=cc.input_fresh,type,kind;
     cc_next();
     if(cc.token=='(') {
-        uint16_t start=cc.token_start;
-        cc_next();
+        SourceCursor cursor;
+        cc_source_save(&cursor);cc_next();
         if(cc_file_prefix()) { cc_file_transfer(0,newline); return; }
-        cc.scan=start; cc_next();
+        cc_source_restore(&cursor);
     }
     cc_emit(0x3e);cc_emit(fresh|((cc.token!='('&&!newline)?2:0));
     io_call(RT_INPUT_BEGIN,64);

@@ -87,7 +87,7 @@
 #define RT_IOSTATUS 0x4164u
 #define RT_PARAMTAIL 0xff00u
 #define DEFAULT_SOURCE "T:/src/pascal/UNTITLED.pas"
-enum { PAGE_SOURCE=1, PAGE_IMAGE, PAGE_MAP, PAGE_RUN, PAGE_SNAPSHOT, PAGE_COMPILER, PAGE_WORKER };
+enum { PAGE_SOURCE=1, PAGE_IMAGE, PAGE_MAP, PAGE_RUN, PAGE_SNAPSHOT, PAGE_COMPILER, PAGE_WORKER, PAGE_SOURCES };
 
 typedef struct {
     uint8_t page, dirty;
@@ -95,6 +95,9 @@ typedef struct {
     uint32_t revision;
     char path[128];
 } Source;
+/* An owner of source pages and their identities. Descriptors live in an owned
+ * far page; the near handle authenticates its current immutable contents. */
+typedef struct { uint8_t page,count; uint32_t lifetime,version; } Sources;
 typedef struct {
     uint8_t code;
     uint16_t start, end;
@@ -110,6 +113,7 @@ typedef struct {
     uint32_t revision;
     uint8_t id[32], source_hash[32];
     uint32_t versions[5]; /* image pages, map, original source */
+    Sources sources; /* canonical source snapshots retained with this build */
 } Build;
 typedef struct {
     uint32_t h[8], bytes;
@@ -134,6 +138,7 @@ extern const uint8_t file_start[],file_end[],file_gate_start[],file_gate_end[];
 uint8_t page_new(uint8_t role);
 uint8_t page_drop(uint8_t page);
 uint8_t page_role(uint8_t page);
+uint32_t page_lifetime(uint8_t page);
 uint8_t pages_used(void);
 void page_initialized(uint8_t page, uint16_t extent);
 uint8_t source_new(Source *s, const char *path);
@@ -155,10 +160,18 @@ void sha_byte(Sha256 *s, uint8_t b);
 void sha_end(Sha256 *s, uint8_t out[32]);
 void source_hash(const Source *s, uint8_t out[32]);
 uint8_t compile(const Source *s, Build *b, Diagnostic *d);
+uint8_t compile_project(const Source *root,const Sources *buffers,Build *b,Diagnostic *d);
+/* On compile failure these resident values survive until the next compile.
+ * A missing/unreadable source has no authenticated hash (NULL). */
+const char *compile_error_path(void);
+const uint8_t *compile_error_hash(void);
+/* Path arguments must live in retained data/stack, like the source catalog. */
+uint8_t source_path(const char *name,char *out) SOURCE_BLOCK_CALL;
 void build_close(Build *b);
 uint8_t build_check(const Source *s, const Build *b);
 uint8_t build_ready(const Source *s,const Build *b);
 uint8_t build_locate(const Source *s, const Build *b, uint16_t pc, uint16_t *position);
+uint8_t build_location(const Source *root,const Build *b,uint16_t pc,uint8_t *file,uint16_t *position);
 uint8_t run_build(const Source *s, const Build *b);
 uint8_t save_build(const Source *s,const Build *b);
 uint8_t save_source(Source *s,uint8_t replace_backup);

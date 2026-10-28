@@ -2,6 +2,7 @@
 #define ZP_COMPILER_H
 #include "zp.h"
 #include "real.h"
+#include "sources.h"
 #ifdef __SDCC
 #define FRONTEND __banked
 #define ROUTINES __banked
@@ -39,16 +40,30 @@ enum { SYMBOL_LIMIT=512,TYPE_LIMIT=64 };
  * the specified2 KiB initial stack below FC00; globals share this static span. */
 #define CC_CODE_BASE 0x8000u
 #define CC_STATIC_LIMIT 0xf400u
+typedef uint32_t SourcePosition; /* file ID in high word, canonical offset in low */
+typedef struct {
+    const Source *root;
+    const Sources *buffers;
+    uint8_t refs_page,file,error_file,external_error;
+    uint16_t refs,parent_scan;
+    uint8_t parent_flags,parent_limit;
+} CompilerSources;
+typedef struct {
+    SourcePosition first,last;
+    uint16_t scan,token,parent_scan;
+    uint8_t file,flags,limit,parent_flags,parent_limit;
+} SourceCursor;
 typedef struct {
     Symbol symbols[SYMBOL_LIMIT];
     Type types[TYPE_LIMIT];
     uint16_t symbol_count;
     uint8_t type_count,depth,range_check;
-    const Source *input;
-    Source snapshot;
+    Source *input;
+    CompilerSources *sources;
     Build *image;
     Diagnostic *error;
-    uint16_t scan,token,token_start,token_end,magnitude,literal_length;
+    uint16_t scan,token,magnitude,literal_length;
+    SourcePosition token_start,token_end;
     uint8_t literal[256],hexadecimal,number_overflow;
     char name[128];
     uint16_t emitted,entries,file_bytes,relocations;
@@ -69,6 +84,22 @@ typedef struct {
 extern Compiler cc;
 
 void cc_fail(uint8_t code) FRONTEND;
+SourcePosition cc_source_position(void) ROUTINES;
+uint8_t cc_source_byte(SourcePosition position) ROUTINES;
+uint16_t cc_source_reference(SourcePosition position) ROUTINES;
+SourcePosition cc_reference_position(uint16_t reference) ROUTINES;
+void cc_reference_seek(uint16_t reference) ROUTINES;
+void cc_source_seek(SourcePosition position) ROUTINES;
+void cc_source_save(SourceCursor *cursor) ROUTINES;
+void cc_source_restore(const SourceCursor *cursor) ROUTINES;
+uint8_t cc_source_resume(void) ROUTINES;
+void cc_source_include(uint8_t comment) ROUTINES;
+uint8_t cc_sources_prepare(const Source *root,const Sources *buffers) ROUTINES;
+void cc_sources_error(void) ROUTINES;
+uint8_t cc_sources_ready(const Source *root,const Build *build) ROUTINES;
+void cc_map_source(uint16_t bytes) BACKEND;
+void cc_hash_image(const Build *build,uint8_t hash[32]) ROUTINES;
+void cc_hash_map(const Build *build,uint8_t hash[32]) ROUTINES;
 void cc_put(uint16_t p,uint8_t v) FRONTEND;
 uint8_t cc_code_get(uint16_t address) FRONTEND;
 void cc_word(uint16_t p,uint16_t v) FRONTEND;
@@ -151,7 +182,7 @@ int16_t cc_named_type(void) FRONTEND;
 int16_t cc_predefined_type(void) FRONTEND;
 void cc_declarations(void) FRONTEND;
 void cc_typed_storage(uint16_t first) FRONTEND;
-uint16_t cc_block(void) ROUTINES;
+SourcePosition cc_block(void) ROUTINES;
 uint8_t cc_invoke(uint16_t id) ROUTINES;
 void cc_routine_address(uint16_t id) ROUTINES;
 void cc_exit(void) ROUTINES;
@@ -161,12 +192,12 @@ uint8_t cc_selection(uint16_t id) BACKEND;
 uint8_t cc_aggregate_actual(uint8_t type) BACKEND;
 void cc_string_statement(uint8_t insert) BACKEND;
 void cc_string_value(void) BACKEND;
-uint16_t cc_statement(void) BACKEND;
+SourcePosition cc_statement(void) BACKEND;
 void cc_labels(void) BACKEND;
 void cc_labels_finish(void) BACKEND;
 uint8_t cc_runtime_statement(void) BACKEND;
 uint8_t cc_reference(uint8_t code) BACKEND;
-void cc_mapping(uint16_t begin,uint16_t end,uint16_t first,uint16_t last) BACKEND;
+void cc_mapping(uint16_t begin,uint16_t end,SourcePosition first,SourcePosition last) BACKEND;
 uint8_t cc_is(const char *s);
 void cc_keyword(const char *s,uint8_t code);
 #define REAL_PI 0x7fffu

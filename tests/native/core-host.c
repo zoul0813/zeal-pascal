@@ -6,17 +6,34 @@
 #include <stdlib.h>
 
 static uint8_t memory[64][PAGE_SIZE],owned[64];
+static uint32_t lifetimes[64],next_lifetime;
 volatile uint32_t page_versions[64];
-static int fail_after=-1;
-static unsigned checks;
+static int fail_after=-1,fail_drop=-1;
+static unsigned checks,allocation_calls;
 uint8_t page_new(uint8_t role) {
     uint8_t i;
+    ++allocation_calls;
     if(fail_after==0) return 255;
     if(fail_after>0) --fail_after;
-    for(i=32;i<64;++i) if(!owned[i]) { owned[i]=role; return i; }
+    for(i=32;i<64;++i) if(!owned[i]) { owned[i]=role;lifetimes[i]=++next_lifetime;return i; }
     return 255;
 }
-uint8_t page_drop(uint8_t p) { assert(p<64&&owned[p]); owned[p]=0; return 1; }
+uint8_t page_drop(uint8_t p) { assert(p<64&&owned[p]);if(p==fail_drop)return 0;owned[p]=0;return 1; }
+uint8_t page_role(uint8_t p) { return p<64?owned[p]:0; }
+uint32_t page_lifetime(uint8_t p) { return p<64&&owned[p]?lifetimes[p]:0; }
+typedef struct {const char *path,*text;} HostSource;
+static const HostSource *disk_sources;
+static unsigned disk_source_count,disk_reads;
+uint8_t read_block(Source *source,const char *name,Diagnostic *diagnostic) {
+    char path[128];unsigned i;
+    strcpy(path,name);memset(diagnostic,0,sizeof(*diagnostic));++disk_reads;
+    for(i=0;i<disk_source_count;++i)if(!strcmp(path,disk_sources[i].path)) {
+        if(!source_new(source,path)){diagnostic->code=98;return 0;}
+        if(source_import(source,(const uint8_t*)disk_sources[i].text,(uint16_t)strlen(disk_sources[i].text),diagnostic))return 1;
+        source_close(source);return 0;
+    }
+    return 0;
+}
 uint8_t pages_used(void) { uint8_t n=0,i; for(i=32;i<64;++i) n+=owned[i]!=0; return n; }
 void page_initialized(uint8_t p,uint16_t n) { assert(p<64&&owned[p]&&n<=PAGE_SIZE); }
 uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); return memory[p][at]; }
@@ -134,6 +151,110 @@ static void index_modes(void) {
         }
     }
 }
+static void source_catalog_cases(void) {
+    Sources set,stale,next;Source origin,snapshot,view,other;
+    uint8_t before=pages_used(),old,hash[32],expected[32];
+    check(source_new(&origin,"H:/origin.pas"));
+    check(source_import(&origin,(const uint8_t*)"begin end.",10,&d));
+    check(sources_new(&set));check(source_snapshot(&origin,&snapshot));
+    check(sources_take(&set,&snapshot,&origin)==0);check(set.count==1);
+    check(sources_ready(&set,0)&&sources_resident(&set,0));
+    check(sources_find(&set,"H:/origin.pas")==0&&sources_find(&set,"H:/ORIGIN.PAS")==-1);
+    check(sources_get(&set,0,&view)&&view.page==snapshot.page&&view.length==10);
+    source_hash(&origin,expected);check(sources_hash(&set,0,hash)&&!memcmp(hash,expected,32));
+    check(sources_byte(&set,0,0)=='b'&&sources_byte(&set,0,10)==0);
+    old=far_get(origin.page,0);far_set(origin.page,0,'B');check(!sources_ready(&set,0));
+    far_set(origin.page,0,old);check(!sources_ready(&set,0));
+    check(sources_take(&set,&snapshot,&origin)==0&&sources_ready(&set,0));
+    fail_drop=snapshot.page;check(!sources_remove(&set,0)&&set.count==1);
+    check(!sources_close(&set)&&set.count==1&&page_role(snapshot.page)==PAGE_SNAPSHOT);fail_drop=-1;
+    check(source_new(&other,"H:/second.pas"));
+    check(source_import(&other,(const uint8_t*)"var n:integer;",14,&d));
+    check(sources_take(&set,&other,&other)==1);
+    strcpy(view.path,"H:/second.pas");fail_drop=other.page;
+    check(sources_take(&set,&view,&origin)<0&&set.count==2&&sources_ready(&set,1));
+    fail_drop=-1;check(sources_take(&set,&view,&origin)==0&&set.count==1);
+    check(!page_role(other.page)&&sources_find(&set,"H:/origin.pas")==-1);
+    strcpy(view.path,"H:/renamed.pas");check(sources_take(&set,&view,&origin)==0&&set.count==1);
+    check(sources_find(&set,"H:/origin.pas")==-1&&sources_find(&set,"H:/renamed.pas")==0);
+    check(source_new(&other,"H:/second.pas"));check(sources_take(&set,&other,&other)==1);
+    view=other;strcpy(view.path,"H:/renamed.pas");fail_drop=snapshot.page;
+    check(sources_take(&set,&view,&view)<0&&set.count==2&&sources_ready(&set,0));
+    fail_drop=-1;check(sources_take(&set,&view,&view)==0&&set.count==1);
+    check(sources_get(&set,0,&view)&&view.page==other.page&&!page_role(snapshot.page));
+    stale=set;check(sources_close(&set)&&set.page==255);check(!sources_valid(&stale));
+    check(sources_new(&next));check(next.page==stale.page&&!sources_valid(&stale));check(sources_close(&next));
+    source_close(&origin);check(pages_used()==before);
+}
+static void include_cases(void) {
+    HostSource files[]={
+        {"H:/PART.INC","const greeting='included';number=-1.25;\ntype link=^node;node=record value:integer;next:link end;\nconst table:array[1..2]of integer=(1,2);\nvar n:integer;\nprocedure part;begin n:=table[1];writeln(greeting,number)end;"},
+        {"H:/more.inc","procedure more;begin part;n:=n+table[2]end;"},
+        {"H:/values.inc","11,22"},
+        {"H:/arg.inc","Input"},
+        {"H:/bad.inc","const broken=32768;"},
+        {"H:/scope.PAS","{$A-,I-,R+,V-,W0,X-,B-}const local=1;"},
+        {"H:/nested.inc","{$I values.inc}"},
+        {"H:/runtime.inc","n:=7 div 0;"}
+    };
+    uint8_t i,file,found=0,digest[32];uint16_t at,n,position;unsigned reads;Sha256 hash;
+    Sources buffers;Source root,override,snapshot;
+    disk_sources=files;disk_source_count=sizeof(files)/sizeof(files[0]);disk_reads=0;
+    files[2].text="const across:array[1..2]of integer=(11,";
+    files[1].text="const later=1;";
+    load("{$I values.inc}\n22);\n{$I more.inc}\nbegin writeln(across[1],across[2])end.");
+    check(compile(&s,&b,&d));build_close(&b);
+    files[2].text="11,22";
+    files[1].text="procedure more;begin part;n:=n+table[2]end;";
+    source_catalog_cases();
+    load("program Main;\n{$IPART.INC}\n{$I more.inc}\nbegin more;writeln(greeting,number,table[2])end.");
+    check(compile(&s,&b,&d));check(b.sources.count==3);check(map_word(8)==3);
+    check(sources_find(&b.sources,"H:/PART.INC")==1&&sources_find(&b.sources,"H:/more.inc")==2);
+    at=96;
+    for(i=0;i<3;++i){check(map_word(at)==i);n=map_word(at+2);check(n&&n<=127);at+=40+n;}
+    check(at==96+map_word(84));
+    for(at=96+map_word(84);at<b.map_length;at+=16) {
+        n=map_word(at+4);check(n<3);found|=(uint8_t)(1u<<n);
+        check(build_location(&s,&b,map_word(at),&file,&position)&&file==n&&position==map_word(at+8));
+        if(n)check(!build_locate(&s,&b,map_word(at),&position));
+    }
+    check(found==7&&build_ready(&s,&b));reads=disk_reads;
+    files[1].text="procedure more;begin n:=99 end;";check(!build_ready(&s,&b)&&disk_reads>reads);
+    files[1].text="procedure more;begin part;n:=n+table[2]end;";check(build_check(&s,&b));
+    disk_source_count=0;check(!build_ready(&s,&b));disk_source_count=sizeof(files)/sizeof(files[0]);
+    build_close(&b);check(pages_used()==1);
+    load("{$R-,X+}\n{$I scope}\nbegin end.");check(compile(&s,&b,&d));
+    check(cc.absolute_mode&&cc.io_check&&!cc.range_check&&cc.var_strict&&cc.with_limit==4&&cc.index_speed&&!cc.input_fresh);
+    build_close(&b);
+    load("const data:array[1..2]of integer=(\n{$I values.inc}\n);\nbegin writeln(data[1])end.");
+    check(compile(&s,&b,&d)&&b.sources.count==2);build_close(&b);
+    load("var n:integer;begin read(\n{$I arg.inc}\n,n)end.");
+    check(compile(&s,&b,&d)&&b.sources.count==2&&cc.temporaries==0);build_close(&b);
+    load("program P;\n{$I bad.inc}\nbegin end.");check(!compile(&s,&b,&d)&&d.code==56);
+    check(!strcmp(compile_error_path(),"H:/bad.inc")&&d.start==13&&pages_used()==1);
+    sha_init(&hash);for(at=0;files[4].text[at];++at)sha_byte(&hash,(uint8_t)files[4].text[at]);sha_end(&hash,digest);
+    check(compile_error_hash()&&!memcmp(compile_error_hash(),digest,32));
+    load("{$I missing}\nbegin end.");check(!compile(&s,&b,&d)&&d.code==90);
+    check(!strcmp(compile_error_path(),"H:/missing.PAS")&&!compile_error_hash()&&pages_used()==1);
+    invalid("{$I nested.inc}\nbegin end.",93);check(!strcmp(compile_error_path(),"H:/nested.inc"));
+    invalid("{$I SLICE.PAS}\nbegin end.",93);
+    invalid("begin {$I values.inc}end.",93);
+    check(source_new(&root,"H:/project/main.pas"));
+    check(source_import(&root,(const uint8_t*)"{$I ../unsaved.inc}\nbegin writeln(answer)end.",45,&d));
+    check(source_new(&override,"H:/unsaved.inc"));
+    check(source_import(&override,(const uint8_t*)"const answer=42;",16,&d));
+    check(sources_new(&buffers));check(sources_take(&buffers,&root,&root)==0);
+    check(sources_take(&buffers,&override,&override)==1);reads=disk_reads;
+    check(compile_project(&root,&buffers,&b,&d));check(b.sources.count==2&&disk_reads==reads);
+    check(build_ready(&root,&b));check(sources_get(&b.sources,1,&snapshot));
+    check(snapshot.page!=override.page&&snapshot.length==override.length);
+    check(source_replace(&override,override.length,override.length,(const uint8_t*)" ",1));
+    check(!build_ready(&root,&b));build_close(&b);
+    check(sources_take(&buffers,&override,&override)==1);
+    check(compile_project(&root,&buffers,&b,&d)&&build_ready(&root,&b));build_close(&b);
+    check(sources_close(&buffers)&&pages_used()==1);
+    disk_sources=0;disk_source_count=0;
+}
 int main(int argc,char **argv) {
     unsigned i;
     uint16_t position;
@@ -145,6 +266,7 @@ int main(int argc,char **argv) {
     bridge_corpus();
     hook_corpus();
     index_modes();
+    include_cases();
     load("begin  \r\nend. \r\n\032padding"); check(s.length==11);
     check(source_replace(&s,0,0,NULL,0)&&!s.dirty);
     {
@@ -471,9 +593,9 @@ int main(int argc,char **argv) {
     invalid("begin readln()end.",41);
     invalid("begin read()end.",41);
     invalid("begin {$B?}end.",93);
-    invalid("begin {$I?}end.",93);
-    invalid("begin {$I}end.",93);
-    invalid("begin {$I0}end.",93);
+    invalid("begin {$I?}end.",90);
+    invalid("begin {$I}end.",90);
+    invalid("begin {$I0}end.",90);
     invalid("begin {$J+}end.",93);
     load("var n:integer;begin {$I-}write(1);{$I+}write(2);read(n);n:=ioresult end.");
     check(compile(&s,&b,&d));ordered_map();
@@ -570,11 +692,16 @@ int main(int argc,char **argv) {
     load("var writeln: integer; begin writeln:=1 end.");
     check(compile(&s,&b,&d)); build_close(&b);
     load("program Slice;\nvar n: integer;\nbegin n:=-32768; writeln('N=',n,',',7 div -3,',',7 mod -3) end.");
-    for(i=0;i<6;++i) {
+    {
+    unsigned before_allocations=allocation_calls,required;
+    check(compile(&s,&b,&d));required=allocation_calls-before_allocations;build_close(&b);
+    check(required==8);
+    for(i=0;i<required;++i) {
         fail_after=(int)i;
         check(!compile(&s,&b,&d)&&d.code==98); check(pages_used()==1);
     }
     fail_after=-1;
+    }
     check(compile(&s,&b,&d)); check(build_check(&s,&b)); check(build_ready(&s,&b));
     old=far_get(b.map_page,b.map_length-1);
     far_set(b.map_page,b.map_length-1,old^1);
@@ -646,7 +773,7 @@ int main(int argc,char **argv) {
                 }
                 ordered_map(); build_close(&b);
                 if(!strcmp(fixtures[fixture],"textedges")) {
-                    for(i=0;i<7;++i) {
+                    for(i=0;i<9;++i) {
                         fail_after=(int)i;
                         check(!compile(&s,&b,&d)&&d.code==98);
                         check(pages_used()==1&&cc.stage_page==255);

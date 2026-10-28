@@ -13,7 +13,7 @@ static uint16_t new_field(uint8_t type,uint8_t root) {
     if(cc.token!=T_ID) { cc_fail(53); return 0; }
     if(cc_field_lookup(root)>=0) { cc_fail(43); return 0; }
     id=metadata(S_FIELD,type);
-    cc.symbols[id].name_start=cc.token_start; cc.symbols[id].name_length=(uint8_t)strlen(cc.name);
+    cc.symbols[id].name_start=cc_source_reference(cc.token_start); cc.symbols[id].name_length=(uint8_t)strlen(cc.name);
     cc.symbols[id].type=255;
     return id;
 }
@@ -22,7 +22,8 @@ static void extend_record(uint8_t type,uint16_t bytes) {
     else cc.types[type].width+=bytes;
 }
 static void field_list(uint8_t type,uint8_t root) {
-    uint16_t first,last,i,marker,tag=0xffffu,label,value,saved_start;
+    uint16_t first,last,i,marker,tag=0xffffu,label,value;
+    SourceCursor tag_cursor;
     uint16_t largest=0;
     uint8_t field_type,actual,child;
     int16_t named;
@@ -39,9 +40,9 @@ static void field_list(uint8_t type,uint8_t root) {
         cc_next();
     }
     if(cc_is("case")&&!cc.error->code) {
-        cc_next(); named=cc_named_type(); saved_start=cc.token_start; cc_next();
+        cc_next();named=cc_named_type();cc_source_save(&tag_cursor);cc_next();
         if(cc.token==':') {
-            cc.scan=saved_start; cc_next(); tag=new_field(type,root); cc_next(); cc_expect(':',2);
+            cc_source_restore(&tag_cursor);tag=new_field(type,root); cc_next(); cc_expect(':',2);
             named=cc_named_type(); cc_next();
         }
         if(named<0) cc_fail(tag==0xffffu?2:41);
@@ -94,7 +95,7 @@ static uint8_t parse_type_body(uint8_t allow_forward) {
         if(cc.token!=T_ID) { cc_fail(42); return K_INTEGER; }
         id=allow_forward?-1:cc_named_type();
         if(!allow_forward&&id<0) { cc_fail(42); return K_INTEGER; }
-        result=cc_new_type(K_POINTER,2,(int16_t)cc.token_start,allow_forward,cc.scope);
+        result=cc_new_type(K_POINTER,2,(int16_t)cc_source_reference(cc.token_start),allow_forward,cc.scope);
         cc.types[result].element=allow_forward?255:(uint8_t)id; cc_next(); return result;
     }
     if(cc_is("packed")) { cc_next(); return parse_type(allow_forward); }
@@ -254,15 +255,16 @@ static void initializer(uint8_t type,uint8_t emit) {
 }
 static void resolve_pointers(void) {
     uint8_t i;
-    uint16_t start=cc.token_start;
+    SourceCursor cursor;
     int16_t target;
+    cc_source_save(&cursor);
     for(i=5;i<cc.type_count&&!cc.error->code;++i)
         if(cc.types[i].family==K_POINTER&&cc.types[i].high&&cc.types[i].capacity==cc.scope) {
-            cc.scan=(uint16_t)cc.types[i].low; cc_next(); target=cc_named_type();
+            cc_source_seek(cc_reference_position((uint16_t)cc.types[i].low));cc_next();target=cc_named_type();
             if(target<0) { cc_fail(42); return; }
             cc.types[i].element=(uint8_t)target; cc.types[i].high=0;
         }
-    cc.scan=start; cc_next();
+    cc_source_restore(&cursor);
 }
 void cc_declarations(void) FRONTEND {
     uint16_t id,first,count,i,value,total;
@@ -305,7 +307,7 @@ void cc_declarations(void) FRONTEND {
                     if(cc_family(type)==K_POINTER||cc_family(type)==K_FILE) cc_fail(61);
                     cc_expect('=',6);
                     if(cc_aggregate(type)||cc_family(type)==K_SET) {
-                        value=cc.token_start; initializer(type,0); initial=255;
+                        value=cc_source_reference(cc.token_start);initializer(type,0); initial=255;
                     } else cc_constant(&initial,&value);
                     if(cc_aggregate(type)||cc_family(type)==K_SET) {
                         cc.symbols[id].type=type; cc.symbols[id].role=S_TYPED;
@@ -333,22 +335,15 @@ void cc_declarations(void) FRONTEND {
     }
 }
 void cc_typed_storage(uint16_t first) FRONTEND {
-    uint16_t i,j,value,jump=0,saved_scan,saved_token,start,end;
-    uint8_t range,absolute,strict,limit;
+    uint16_t i,j,value,jump=0;
+    SourceCursor cursor;
     for(i=first;i<cc.symbol_count&&!cc.error->code;++i) if(cc.symbols[i].role==S_TYPED) {
         if(!jump) jump=cc_forward(0xc3);
         value=cc.symbols[i].address; cc.symbols[i].address=cc.emitted;
         if(cc_aggregate(cc.symbols[i].type)||cc_family(cc.symbols[i].type)==K_SET) {
-            saved_scan=cc.scan; saved_token=cc.token; start=cc.token_start; end=cc.token_end;
-            range=cc.range_check; absolute=cc.absolute_mode; strict=cc.var_strict;
-            limit=cc.with_limit;
-            cc.scan=value; cc_next(); initializer(cc.symbols[i].type,1);
-            /* cc_next needs the token's start, not its following scan. Restore
-             * by re-lexing that token so name/literal metadata are coherent. */
-            cc.scan=start; cc_next();
-            cc.scan=saved_scan; cc.token=saved_token; cc.token_start=start; cc.token_end=end;
-            cc.range_check=range; cc.absolute_mode=absolute; cc.var_strict=strict;
-            cc.with_limit=limit;
+            cc_source_save(&cursor);
+            cc_reference_seek(value);cc_next();initializer(cc.symbols[i].type,1);
+            cc_source_restore(&cursor);
         } else if(cc_family(cc.symbols[i].type)==K_REAL) {
             cc_real_constant(cc.symbols[i].initial_type,value);
             for(j=0;j<6;++j) cc_emit(zr_result[j]);

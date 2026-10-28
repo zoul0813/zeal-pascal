@@ -49,6 +49,8 @@ def main():
              ROOT/'build/stringabi.zpl',ROOT/'build/realabi.zpl']
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()}
     marker=sym['_bridge_guard_marker']
+    runtime=n.symbols('pascal_runtime');module=n.symbols('file_runtime')
+    assert marker>=runtime['s__CODE']+runtime['l__CODE'] and marker>=module['s__DATA']
     commands=['run 100000000']+n.program_launch(target)+[
         f"bp 0x{sym['_test_stop']:x}",f'bp 0x{marker:x}','run 30000000000',f'bc 0x{marker:x}']
     # Enter each disposable child before enabling the fixed native external

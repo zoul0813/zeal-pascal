@@ -290,12 +290,13 @@ int16_t cc_file_function(void) FRONTEND {
  * shared suppressed parser validates its type; re-lexing restores literal/name
  * state before the ordinary expression or file-argument parse. */
 uint8_t cc_file_prefix(void) FRONTEND {
-    uint16_t start=cc.token_start,before=cc.temporaries;
+    uint16_t before=cc.temporaries;
+    SourceCursor cursor;
     uint8_t type,suppress=cc.suppress;
     int16_t id=cc.token==T_ID?cc_lookup():-1;
     if(!cc_variable(id)||cc.symbols[id].role==S_RESULT) return 0;
-    ++cc.suppress; type=cc_selection((uint16_t)id);
-    cc.suppress=suppress; cc.temporaries=before; cc.scan=start; cc_next();
+    cc_source_save(&cursor);++cc.suppress;type=cc_selection((uint16_t)id);
+    cc.suppress=suppress;cc.temporaries=before;cc_source_restore(&cursor);
     return cc_family(type)==K_FILE;
 }
 void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND {

@@ -1,15 +1,9 @@
 #ifdef __SDCC
 #define compile compiler_compile
-#define build_close compiler_build_close
-#define build_check compiler_build_check
-#define build_ready compiler_build_ready
-#define build_locate compiler_build_locate
-#define image_get compiler_image_get
+#define compile_project compiler_compile_project
 #endif
 #include "compiler.h"
 
-
-uint8_t image_get(const Build *b,uint16_t p) { return far_get(b->pages[p/PAGE_SIZE],p%PAGE_SIZE); }
 
 static void map8(uint16_t p,uint8_t v) { far_set(cc.image->map_page,p,v); }
 
@@ -19,20 +13,31 @@ static void map32(uint16_t p,uint32_t v) { uint8_t i; for(i=0;i<4;++i) map8(p+i,
 
 static uint16_t pc(void) { return cc.emitted-CC_CODE_BASE; }
 
-static void mapping(uint16_t begin,uint16_t end,uint16_t first,uint16_t last) {
+static void mapping(uint16_t begin,uint16_t end,SourcePosition first,SourcePosition last) {
     uint16_t offset=96+cc.file_bytes+cc.entries*16;
+    uint16_t file=(uint16_t)(first>>16),start=(uint16_t)first,finish=(uint16_t)last;
+    Source source;
     if(begin==end||cc.error->code) return;
     if(offset>PAGE_SIZE-16) { cc_fail(99); return; }
-    map16(offset,begin); map16(offset+2,end); map16(offset+4,0); map16(offset+6,0);
-    map32(offset+8,first); map32(offset+12,last); ++cc.entries;
+    if(!sources_get(&cc.image->sources,(uint8_t)file,&source)||start>source.length){cc_fail(99);return;}
+    if((last>>16)!=file)finish=start<source.length?start+1:start;
+    if(finish<start||finish>source.length){cc_fail(99);return;}
+    map16(offset,begin);map16(offset+2,end);map16(offset+4,file);map16(offset+6,0);
+    map32(offset+8,start);map32(offset+12,finish);++cc.entries;
 }
-void cc_mapping(uint16_t begin,uint16_t end,uint16_t first,uint16_t last) BACKEND { mapping(begin,end,first,last); }
+void cc_mapping(uint16_t begin,uint16_t end,SourcePosition first,SourcePosition last) BACKEND { mapping(begin,end,first,last); }
+void cc_map_source(uint16_t bytes) BACKEND {
+    uint16_t i,first=96+cc.file_bytes,end=first+cc.entries*16;
+    if((uint32_t)end+bytes>PAGE_SIZE){cc_fail(99);return;}
+    i=end;while(i>first){--i;map8(i+bytes,far_get(cc.image->map_page,i));}
+    cc.file_bytes+=bytes;
+}
 static uint16_t condition(void) {
     if(cc_family(cc_expression())!=K_BOOLEAN) cc_fail(20);
     cc_emit(0x7c); cc_emit(0xb5); /* A = H | L; false has Z set */
     return cc_forward(0xca);
 }
-static uint16_t statement(void);
+static SourcePosition statement(void);
 /* Labels share the lexical namespace, but With fields never capture a Goto.
  * Numeric names use their source spelling, rather than an Integer value. */
 static int16_t label_lookup(void) {
@@ -106,7 +111,7 @@ static void goto_statement(void) {
     else cc.symbols[id].address=at;
     cc_next();
 }
-static void with_statement(uint16_t start,uint16_t code) {
+static void with_statement(SourcePosition start,uint16_t code) {
     uint8_t saved=cc.with_depth,type;
     int16_t id;
     cc_next();
@@ -147,7 +152,7 @@ static void case_compare(uint16_t value) {
     cc_emit(0xd1); cc_emit(0xd5); /* retain the selector only while dispatching */
     cc_op16(0x21,value); cc_call(RT_COMPARE);
 }
-static void case_statement(uint16_t start,uint16_t code) {
+static void case_statement(SourcePosition start,uint16_t code) {
     uint8_t selector;
     uint16_t matches,exits=0,miss,skip,lo,hi;
     uint16_t before=cc.temporaries;
@@ -195,8 +200,9 @@ static void case_statement(uint16_t start,uint16_t code) {
     }
     cc_keyword("end",14); patch_jumps(exits);
 }
-static uint16_t statement(void) {
-    uint16_t start=cc.token_start, code=pc(),branch,other,loop,body,head_end;
+static SourcePosition statement(void) {
+    SourcePosition start=cc.token_start,head_end;
+    uint16_t code=pc(),branch,other,loop,body;
     int16_t id;
     uint8_t newline,kind,target,indexed;
     uint16_t before=cc.temporaries;
@@ -343,157 +349,97 @@ static uint16_t statement(void) {
     --cc.depth;
     return start;
 }
-uint16_t cc_statement(void) BACKEND { return statement(); }
-void build_close(Build *b) {
-    uint8_t i;
-    b->valid=0;
-    for(i=0;i<3;++i) if(b->pages[i]!=255&&page_drop(b->pages[i])) b->pages[i]=255;
-    if(b->map_page!=255&&page_drop(b->map_page)) b->map_page=255;
-}
-static void hash_image(const Build *b,uint8_t out[32]) {
-    Sha256 hash; uint16_t i;
-    sha_init(&hash);
-    for(i=0;i<b->length;++i) sha_byte(&hash,i>=36&&i<68?0:image_get(b,i));
-    sha_end(&hash,out);
-}
-static void hash_map(const Build *b,uint8_t out[32]) {
-    Sha256 hash; uint16_t i;
-    sha_init(&hash);
-    for(i=0;i<b->map_length;++i) sha_byte(&hash,i>=20&&i<52?0:far_get(b->map_page,i));
-    sha_end(&hash,out);
-}
+SourcePosition cc_statement(void) BACKEND { return statement(); }
 uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
-    uint16_t i,j;
-    uint8_t digest[32];
+    return compile_project(s,0,b,d);
+}
+uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnostic *d) {
+    uint16_t i,j,at;
+    uint8_t file,digest[32];
+    SourcePosition begin;
+    Source active;
+    CompilerSources sources;
     Sha256 hash;
-    cc.image=b; cc.error=d;
-    cc.workspace=255; cc.stage_page=255;
-    memset(d,0,sizeof(*d));
-    memset(b,0,sizeof(*b)); memset(b->pages,255,3); b->map_page=255;
-    if(!source_snapshot(s,&cc.snapshot)) { d->code=98; return 0; }
-    cc.input=&cc.snapshot;
+    memset(&cc,0,sizeof(cc));memset(&sources,0,sizeof(sources));
+    sources.refs_page=255;sources.root=s;
+    cc.input=&active;cc.sources=&sources;cc.image=b;cc.error=d;
+    cc.workspace=255;cc.stage_page=255;
+    memset(d,0,sizeof(*d));memset(b,0,sizeof(*b));
+    memset(b->pages,255,3);b->map_page=255;b->sources.page=255;
+    if(!cc_sources_prepare(s,buffers))goto failed;
     for(i=0;i<3;++i) {
         b->pages[i]=page_new(PAGE_IMAGE);
-        if(b->pages[i]==255) { d->code=98; goto failed; }
-        for(j=0;j<PAGE_SIZE;++j) far_set(b->pages[i],j,0);
+        if(b->pages[i]==255){d->code=98;goto failed;}
+        for(j=0;j<PAGE_SIZE;++j)far_set(b->pages[i],j,0);
         page_initialized(b->pages[i],PAGE_SIZE);
     }
     b->map_page=page_new(PAGE_MAP);
-    if(b->map_page==255) { d->code=98; goto failed; }
+    if(b->map_page==255){d->code=98;goto failed;}
     cc.workspace=page_new(PAGE_COMPILER);
-    if(cc.workspace==255) { d->code=98; goto failed; }
-    for(i=0;i<96;++i) map8(i,0);
-    for(i=0;i<cc_runtime_size();++i) cc_put(i,cc_runtime_get(i));
-    cc.scan=0; cc.symbol_count=0; cc.depth=0; cc.entries=0; cc.range_check=0; cc.type_count=0; cc.relocations=0;
-    cc.scope=0; cc.routine_count=0; cc.absolute_mode=1; cc.var_strict=1; cc.index_speed=1; cc.nesting=0; cc.suppress=0; cc.with_depth=0; cc.with_limit=4;
-    cc.temporaries=0; cc.for_depth=0; cc.input_fresh=1; cc.io_check=1;
-    cc.random_entry=0; cc.random_state=0;
-    cc.text_type=255;
-    cc.parameter_entry=0;
-    cc.file_entry=0;
-    cc.standard_table_operand=0;
-    cc.keyboard_entry=0; cc.keyboard_poll=0; cc.keyboard_status=0;
-    memset(cc.hook_variables,0,sizeof(cc.hook_variables));
-    memset(cc.hook_defaults,0,sizeof(cc.hook_defaults));
-    cc.hook_output_calls=0; cc.hook_mask_call=0;
-    cc.hook_character=0; cc.hook_echo=0; cc.hook_open=0;
+    if(cc.workspace==255){d->code=98;goto failed;}
+    for(i=0;i<96;++i)map8(i,0);
+    for(i=0;i<cc_runtime_size();++i)cc_put(i,cc_runtime_get(i));
+    cc.absolute_mode=1;cc.var_strict=1;cc.index_speed=1;cc.with_limit=4;
+    cc.input_fresh=1;cc.io_check=1;cc.text_type=255;
     cc_new_type(K_INTEGER,2,-32768,32767,0);
-    cc_new_type(K_STRING,0,0,0,0); /* expression/literal string, not a storage type */
+    cc_new_type(K_STRING,0,0,0,0);
     cc_new_type(K_BOOLEAN,1,0,1,0);
     cc_new_type(K_CHAR,1,0,255,0);
-    cc_new_type(K_INTEGER,1,0,255,0); /* Byte shares the Integer family */
+    cc_new_type(K_INTEGER,1,0,255,0);
     cc_new_type(K_REAL,6,0,0,0);
     cc_system_init();
     cc.file_bytes=40+(uint16_t)strlen(s->path);
     cc_next();
     if(cc_is("program")) {
-        cc_next(); cc_expect(T_ID,53);
-        if(cc.token=='(') { cc_next(); cc_expect(T_ID,53); while(cc.token==',') { cc_next(); cc_expect(T_ID,53); } cc_expect(')',5); }
+        cc_next();cc_expect(T_ID,53);
+        if(cc.token=='('){cc_next();cc_expect(T_ID,53);while(cc.token==','){cc_next();cc_expect(T_ID,53);}cc_expect(')',5);}
         cc_expect(';',1);
     }
-    b->code_origin=CC_CODE_BASE;
-    cc.emitted=CC_CODE_BASE;
-    i=cc_block();
-    j=pc();
-    cc_expect('.',10);
-    if(cc.token!=T_EOF) cc_fail(58);
-    cc_finish(RT_DONE);
-    mapping(j,pc(),i,i);
-    cc_hooks_finish(); cc_file_finish();
-    if(d->code) goto failed;
-    if(!cc_place_code()) goto failed;
+    b->code_origin=CC_CODE_BASE;cc.emitted=CC_CODE_BASE;
+    begin=cc_block();j=pc();cc_expect('.',10);
+    if(cc.token!=T_EOF)cc_fail(58);
+    cc_finish(RT_DONE);mapping(j,pc(),begin,begin);
+    cc_hooks_finish();cc_file_finish();
+    if(d->code||!cc_place_code())goto failed;
     if(cc.stage_page!=255) {
-        if(page_drop(cc.stage_page)) cc.stage_page=255;
-        else { d->code=98; goto failed; }
+        if(page_drop(cc.stage_page))cc.stage_page=255;
+        else {d->code=98;goto failed;}
     }
-    if(page_drop(cc.workspace)) cc.workspace=255;
-    else { d->code=98; goto failed; }
-    b->revision=s->revision;
-    source_hash(s,b->source_hash);
-    /* ZMAP: one canonical resident source, deterministic half-open mappings. */
-    for(i=0;i<4;++i) map8(i,"ZMAP"[i]);
-    map8(4,1); map16(6,96); map16(8,1); map16(10,b->code_origin); map16(12,b->code_bytes);
-    map16(14,1); map32(16,cc.entries); map32(84,cc.file_bytes); map32(88,(uint32_t)cc.entries*16);
-    map16(96,0); map16(98,(uint16_t)strlen(s->path)); map32(100,cc.snapshot.length);
-    for(i=0;i<32;++i) map8(104+i,b->source_hash[i]);
-    for(i=0;i<strlen(s->path);++i) map8(136+i,(uint8_t)s->path[i]);
+    if(page_drop(cc.workspace))cc.workspace=255;
+    else {d->code=98;goto failed;}
+    if(page_drop(sources.refs_page))sources.refs_page=255;
+    else {d->code=98;goto failed;}
+    b->revision=s->revision;sources_hash(&b->sources,0,b->source_hash);
+    for(i=0;i<4;++i)map8(i,"ZMAP"[i]);
+    map8(4,1);map16(6,96);map16(8,b->sources.count);map16(10,b->code_origin);map16(12,b->code_bytes);
+    map16(14,1);map32(16,cc.entries);map32(84,cc.file_bytes);map32(88,(uint32_t)cc.entries*16);
+    at=96;
+    for(file=0;file<b->sources.count;++file) {
+        if(!sources_get(&b->sources,file,&active)||!sources_hash(&b->sources,file,digest)){cc_fail(99);goto failed;}
+        j=(uint16_t)strlen(active.path);
+        map16(at,file);map16(at+2,j);map32(at+4,active.length);
+        for(i=0;i<32;++i)map8(at+8+i,digest[i]);
+        for(i=0;i<j;++i)map8(at+40+i,(uint8_t)active.path[i]);
+        at+=40+j;
+    }
+    if(at!=96+cc.file_bytes){cc_fail(99);goto failed;}
     sha_init(&hash);
-    for(i=96;i<96+cc.file_bytes;++i) sha_byte(&hash,far_get(b->map_page,i));
+    for(i=96;i<at;++i)sha_byte(&hash,far_get(b->map_page,i));
     sha_end(&hash,digest);
-    for(i=0;i<32;++i) { cc_put(68+i,digest[i]); map8(52+i,digest[i]); }
-    b->map_length=96+cc.file_bytes+cc.entries*16;
-    page_initialized(b->map_page,b->map_length);
-    hash_map(b,digest);
-    for(i=0;i<32;++i) cc_put(100+i,digest[i]);
-    cc_word(10,b->length); cc_word(20,b->code_origin); cc_word(22,b->code_bytes);
-    cc_word(24,GLOBAL_BASE); cc_word(26,b->globals_bytes); cc_word(28,0x4000u+b->length);
-    hash_image(b,b->id);
-    for(i=0;i<32;++i) { cc_put(36+i,b->id[i]); map8(20+i,b->id[i]); }
-    for(i=0;i<3;++i) b->versions[i]=page_versions[b->pages[i]];
-    b->versions[3]=page_versions[b->map_page]; b->versions[4]=page_versions[s->page];
-    b->valid=1;
-    source_close(&cc.snapshot);
-    return 1;
+    for(i=0;i<32;++i){cc_put(68+i,digest[i]);map8(52+i,digest[i]);}
+    b->map_length=at+cc.entries*16;page_initialized(b->map_page,b->map_length);
+    cc_hash_map(b,digest);for(i=0;i<32;++i)cc_put(100+i,digest[i]);
+    cc_word(10,b->length);cc_word(20,b->code_origin);cc_word(22,b->code_bytes);
+    cc_word(24,GLOBAL_BASE);cc_word(26,b->globals_bytes);cc_word(28,0x4000u+b->length);
+    cc_hash_image(b,b->id);
+    for(i=0;i<32;++i){cc_put(36+i,b->id[i]);map8(20+i,b->id[i]);}
+    for(i=0;i<3;++i)b->versions[i]=page_versions[b->pages[i]];
+    b->versions[3]=page_versions[b->map_page];b->versions[4]=page_versions[s->page];
+    b->valid=1;return 1;
 failed:
-    if(cc.stage_page!=255&&page_drop(cc.stage_page)) cc.stage_page=255;
-    if(cc.workspace!=255&&page_drop(cc.workspace)) cc.workspace=255;
-    d->start=source_editor_offset(s,d->start);
-    d->end=source_editor_offset(s,d->end);
-    source_close(&cc.snapshot);
-    build_close(b);
-    return 0;
-}
-uint8_t build_check(const Source *s,const Build *b) {
-    uint8_t hash[32], expected[32], i;
-    if(!b->valid||b->revision!=s->revision) return 0;
-    source_hash(s,hash); if(memcmp(hash,b->source_hash,32)) return 0;
-    hash_image(b,hash); if(memcmp(hash,b->id,32)) return 0;
-    hash_map(b,hash);
-    for(i=0;i<32;++i) expected[i]=image_get(b,100+i);
-    return !memcmp(hash,expected,32);
-}
-uint8_t build_ready(const Source *s,const Build *b) {
-    uint8_t i;
-    if(!b->valid||b->revision!=s->revision) return 0;
-    /* Compiler-sealed pages are private and immutable. RAM execution copies
-     * them. The single far-store core detects every subsequent modification;
-     * changed versions require the full cryptographic check again. */
-    for(i=0;i<3;++i) if(b->versions[i]!=page_versions[b->pages[i]]) return build_check(s,b);
-    if(b->versions[3]!=page_versions[b->map_page]||b->versions[4]!=page_versions[s->page]) return build_check(s,b);
-    return 1;
-}
-static uint16_t read16(uint8_t p,uint16_t offset) { return far_get(p,offset)|((uint16_t)far_get(p,offset+1)<<8); }
-uint8_t build_locate(const Source *s,const Build *b,uint16_t pc,uint16_t *position) {
-    uint16_t i, start, end, n;
-    if(!build_ready(s,b)||pc>=b->code_bytes) return 0;
-    n=read16(b->map_page,84);
-    for(i=96+n;i+16<=b->map_length;i+=16) {
-        start=read16(b->map_page,i); end=read16(b->map_page,i+2);
-        if(pc>=start&&pc<end) {
-            start=read16(b->map_page,i+8);
-            if(start>s->length||read16(b->map_page,i+10)!=0) return 0;
-            *position=source_editor_offset(s,start); return 1;
-        }
-    }
-    return 0;
+    cc_sources_error();
+    if(sources.refs_page!=255&&page_drop(sources.refs_page))sources.refs_page=255;
+    if(cc.stage_page!=255&&page_drop(cc.stage_page))cc.stage_page=255;
+    if(cc.workspace!=255&&page_drop(cc.workspace))cc.workspace=255;
+    build_close(b);return 0;
 }

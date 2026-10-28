@@ -11,6 +11,7 @@
 #endif
 #include "zp.h"
 #include "path.h"
+#include "sources.h"
 #include <zos_vfs.h>
 #include <zos_errors.h>
 #include <zos_sys.h>
@@ -233,9 +234,12 @@ uint8_t save_build(const Source *s,const Build *b) {
     uint8_t i,e,members=3; /* NEW.COM / NEW.ZMP, then optional OLD pair */
     zos_stat_t *info=(zos_stat_t*)(console_scratch+128);
     platform_error=0;
+    if(!build_ready(s,b)) { platform_error=ERR_FAILURE; return 0; }
     if(!paths(s)) { platform_error=ERR_INVALID_PATH; return 0; }
     if(!strcmp(s->path,destinations[0])||!strcmp(s->path,destinations[1])) { platform_error=ERR_INVALID_PATH; return 0; }
-    if(!build_ready(s,b)) { platform_error=ERR_FAILURE; return 0; }
+    if(sources_find(&b->sources,destinations[0])>=0||sources_find(&b->sources,destinations[1])>=0) {
+        platform_error=ERR_INVALID_PATH;return 0;
+    }
     if(!parent_dirs(transaction,1)) return 0;
     if(!create_transaction()) return 0;
     /* Finish both new outputs and every old recovery copy before truncating
@@ -265,9 +269,9 @@ uint8_t save_build(const Source *s,const Build *b) {
 uint8_t run_saved(const Source *s,const Build *b,uint8_t *status) {
     uint8_t e;
     platform_error=0;
+    if(!build_ready(s,b)) { platform_error=ERR_FAILURE; return 0; }
     if(!paths(s)) { platform_error=ERR_INVALID_PATH; return 0; }
     if(!strcmp(s->path,destinations[0])||!strcmp(s->path,destinations[1])) { platform_error=ERR_INVALID_PATH; return 0; }
-    if(!build_ready(s,b)) { platform_error=ERR_FAILURE; return 0; }
     if(!verify(b->pages,b->length,destinations[0])||
        !verify(&b->map_page,b->map_length,destinations[1])) return 0;
     strcpy((char*)console_scratch,destinations[0]);
@@ -327,29 +331,19 @@ cleanup:
     if(ok) { s->dirty=0; cleanup_success(1,1u|(exists?2u:0u)|(backup?4u:0u)); }
     return ok;
 }
-static uint8_t canonical_path(const char *name,char *out) {
-    uint16_t w,base,j;
-    uint8_t extension=0;
+uint8_t source_path(const char *name,char *out) SOURCE_BLOCK_CALL {
     console_scratch[0]=0;
     if(strlen(name)<2||name[1]!=':') {
         platform_error=curdir((char*)console_scratch);
         if(platform_error) return 0;
     }
-    if(!path_resolve(name,(char*)console_scratch,out)) return 0;
-    w=(uint16_t)strlen(out); base=w;
-    while(base>3&&out[base-1]!='/') --base;
-    for(j=base;j<w;++j) if(out[j]=='.') extension=1;
-    if(!extension) {
-        if(w+4>127||w-base+4>15) return 0;
-        strcpy(out+w,".PAS");
-    }
-    return 1;
+    return sources_path(name,(char*)console_scratch,out);
 }
 uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup) {
     Source candidate;
     memcpy(&candidate,s,sizeof(candidate));
     platform_error=0;
-    if(!canonical_path(name,candidate.path)) { if(!platform_error) platform_error=ERR_INVALID_PATH; return 0; }
+    if(!source_path(name,candidate.path)) { if(!platform_error) platform_error=ERR_INVALID_PATH; return 0; }
     /* Publish from the same RAM page. Adopt the new identity only after the
      * ordinary verified save succeeds; failure leaves the entire Source intact. */
     if(!save_source(&candidate,replace_backup)) return 0;
@@ -362,7 +356,7 @@ static uint8_t read_source(Source *s,const char *name,Diagnostic *d,uint8_t requ
     uint16_t n,i;
     int8_t fd;
     memset(d,0,sizeof(*d)); platform_error=0;
-    if(!canonical_path(name,destinations[0])) { if(!platform_error) platform_error=ERR_INVALID_PATH; return 0; }
+    if(!source_path(name,destinations[0])) { if(!platform_error) platform_error=ERR_INVALID_PATH; return 0; }
     if(!parent_dirs(destinations[0],0)) return 0;
     if(!ordinary_file(destinations[0],&exists)) return 0;
     if(!exists) {
@@ -398,7 +392,7 @@ uint8_t save_block(const Source *s,uint16_t a,uint16_t z,const char *name,uint8_
     uint16_t base;
     platform_error=0; transaction_owned=0; transaction[0]=0;
     if(a>=z||z>s->length) { platform_error=ERR_INVALID_PARAMETER; return 0; }
-    if(!canonical_path(name,destinations[0])) {
+    if(!source_path(name,destinations[0])) {
         if(!platform_error) platform_error=ERR_INVALID_PATH;
         return 0;
     }

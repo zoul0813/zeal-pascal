@@ -30,6 +30,9 @@ uint8_t page_drop(uint8_t p) {
 uint8_t page_role(uint8_t p) {
     return p>=32&&p<64?ledger[p].role:0;
 }
+uint32_t page_lifetime(uint8_t p) {
+    return p>=32&&p<64&&ledger[p].role?ledger[p].lifetime:0;
+}
 uint8_t pages_used(void) {
     extern uint8_t code_owned;
     uint8_t i,n=code_owned; /* Bootstrap owns immutable code pages separately. */

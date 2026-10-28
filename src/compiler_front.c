@@ -37,10 +37,16 @@ void cc_system_init(void) FRONTEND {
 
 static uint8_t get(uint16_t p) { return p<cc.input->length ? far_get(cc.input->page,p) : 0; }
 static uint8_t lower(uint8_t c) { return c>='A'&&c<='Z' ? c+32 : c; }
+static uint8_t name_byte(uint16_t reference,uint8_t offset) {
+    return lower(cc_source_byte(cc_reference_position(reference)+offset));
+}
 static uint8_t letter(uint8_t c) { c=lower(c); return (c>='a'&&c<='z')||c=='_'; }
 static uint8_t digit(uint8_t c) { return c>='0'&&c<='9'; }
 void cc_fail(uint8_t code) FRONTEND {
-    if(!cc.error->code) { cc.error->code=code; cc.error->start=cc.token_start; cc.error->end=cc.token_end; }
+    if(!cc.error->code) {
+        cc.error->code=code;cc.error->start=(uint16_t)cc.token_start;cc.error->end=(uint16_t)cc.token_end;
+        cc.sources->error_file=(uint8_t)(cc.token_start>>16);
+    }
 }
 
 void cc_put(uint16_t p,uint8_t v) FRONTEND {
@@ -203,10 +209,10 @@ static void literal(void) {
             }
             c=get(cc.scan);
         } while(!cc.error->code&&(c=='\''||c=='#'||c=='^'));
-    cc.token=T_STRING; cc.token_end=cc.scan;
+    cc.token=T_STRING; cc.token_end=cc_source_position();
 }
 void cc_control_literal(void) FRONTEND {
-    cc.scan=cc.token_start; cc.literal_length=0; literal();
+    cc.scan=(uint16_t)cc.token_start; cc.literal_length=0; literal();
 }
 void cc_next(void) FRONTEND {
     uint8_t c,q,base,value;
@@ -214,12 +220,18 @@ void cc_next(void) FRONTEND {
     uint32_t wide;
     if(cc.error->code) { cc.token=T_EOF; return; }
     for(;;) {
+        if(cc_source_resume())continue;
         c=get(cc.scan);
         if(cc.scan<cc.input->length && c<=32) { ++cc.scan; continue; }
         if(c=='{' || (c=='('&&get(cc.scan+1)=='*')) {
             q=c; cc.scan+=q=='{' ? 1 : 2;
             if(get(cc.scan)=='$') {
-                cc.token_start=cc.scan; cc.token_end=cc.scan+1; ++cc.scan;
+                cc.token_start=cc_source_position();cc.token_end=cc.token_start+1;++cc.scan;
+                if(lower(get(cc.scan))=='i'&&get(cc.scan+1)!='+'&&get(cc.scan+1)!='-') {
+                    cc_source_include(q);
+                    if(cc.error->code){cc.token=T_EOF;return;}
+                    continue;
+                }
                 do {
                     c=lower(get(cc.scan)); value=get(cc.scan+1)=='+';
                     if(c=='w'&&digit(get(cc.scan+1))) cc.with_limit=get(cc.scan+1)-'0';
@@ -242,13 +254,13 @@ void cc_next(void) FRONTEND {
                 }
             }
             while(cc.scan<cc.input->length && !(q=='{' ? get(cc.scan)=='}' : get(cc.scan)=='*'&&get(cc.scan+1)==')')) ++cc.scan;
-            if(cc.scan==cc.input->length) { cc.token_start=cc.scan; cc.token_end=cc.scan; cc_fail(91); cc.token=T_EOF; return; }
+            if(cc.scan==cc.input->length) { cc.token_start=cc_source_position();cc.token_end=cc.token_start;cc_fail(91);cc.token=T_EOF;return; }
             cc.scan+=q=='{' ? 1 : 2; continue;
         }
         break;
     }
-    cc.token_start=cc.scan; cc.token_end=cc.scan+1; cc.hexadecimal=0; cc.number_overflow=0; cc.literal_length=0;
-    if(cc.scan==cc.input->length) { cc.token=T_EOF; cc.token_end=cc.scan; return; }
+    cc.token_start=cc_source_position();cc.token_end=cc.token_start+1;cc.hexadecimal=0;cc.number_overflow=0;cc.literal_length=0;
+    if(cc.scan==cc.input->length) { cc.token=T_EOF; cc.token_end=cc.token_start; return; }
     if(letter(c)) {
         while(letter(get(cc.scan))||digit(get(cc.scan))) {
             if(n<127) cc.name[n++]=lower(get(cc.scan));
@@ -301,7 +313,7 @@ void cc_next(void) FRONTEND {
         if(c=='('&&get(cc.scan)=='.') { ++cc.scan; cc.token='['; }
         if(c=='.'&&get(cc.scan)==')') { ++cc.scan; cc.token=']'; }
     }
-    cc.token_end=cc.scan;
+    cc.token_end=cc_source_position();
 }
 
 void cc_expect(uint16_t t,uint8_t code) FRONTEND { if(cc.token!=t) cc_fail(code); else cc_next(); }
@@ -331,7 +343,7 @@ int16_t cc_lookup(void) FRONTEND {
                 continue;
             }
             if(cc.symbols[i].name_length!=n) continue;
-            for(j=0;j<n;++j) if(cc.name[j]!=lower(get(cc.symbols[i].name_start+j))) break;
+            for(j=0;j<n;++j) if(cc.name[j]!=name_byte(cc.symbols[i].name_start,j)) break;
             if(j==n) return (int16_t)i;
         }
         if(!scope) break;
@@ -347,7 +359,7 @@ static int16_t find_field(uint8_t type,uint16_t field) {
         if(field!=0xffffu) { if(field!=i) continue; }
         else {
             if(cc.symbols[i].name_length!=n) continue;
-            for(j=0;j<n;++j) if(cc.name[j]!=lower(get(cc.symbols[i].name_start+j))) break;
+            for(j=0;j<n;++j) if(cc.name[j]!=name_byte(cc.symbols[i].name_start,j)) break;
             if(j!=n) continue;
         }
         cc.field_offset=cc.symbols[i].address; return (int16_t)i;
@@ -392,7 +404,7 @@ uint16_t cc_new_symbol(uint8_t role) FRONTEND {
     else if(id==SYMBOL_LIMIT) cc_fail(98);
     if(cc.error->code) return 0;
     memset(&cc.symbols[id],0,sizeof(Symbol));
-    cc.symbols[id].name_start=cc.token_start; cc.symbols[id].name_length=(uint8_t)strlen(cc.name);
+    cc.symbols[id].name_start=cc_source_reference(cc.token_start);cc.symbols[id].name_length=(uint8_t)strlen(cc.name);
     cc.symbols[id].role=role; cc.symbols[id].owner=cc.scope; ++cc.symbol_count;
     return id;
 }
@@ -556,7 +568,7 @@ void cc_result_symbol(uint16_t routine) FRONTEND {
     Symbol *s=&cc.symbols[routine];
     for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].role<S_FIELD&&cc.symbols[i].owner==cc.scope&&cc.symbols[i].name_length==s->name_length) {
         for(j=0;j<s->name_length;++j)
-            if(lower(get(cc.symbols[i].name_start+j))!=lower(get(s->name_start+j))) break;
+            if(name_byte(cc.symbols[i].name_start,j)!=name_byte(s->name_start,j)) break;
         if(j==s->name_length) { cc_fail(43); return; }
     }
     if(cc.symbol_count==SYMBOL_LIMIT) { cc_fail(98); return; }
@@ -590,9 +602,14 @@ uint8_t cc_text_value(uint8_t type) FRONTEND {
 /* String constants retain their source location, not a pointer into compiler
  * scratch memory. Re-decode only that literal while preserving parser state. */
 void cc_constant_literal(uint16_t at) FRONTEND {
-    uint16_t saved_scan=cc.scan,saved_token=cc.token,first=cc.token_start,last=cc.token_end;
-    cc.scan=at; cc_next(); if(cc.token=='^') cc_control_literal();
-    cc.scan=saved_scan; cc.token=saved_token; cc.token_start=first; cc.token_end=last;
+    SourceCursor cursor;
+    cc_source_save(&cursor);cc_source_seek(cc_reference_position(at));
+    cc_next();if(cc.token=='^')cc_control_literal();
+    /* Preserve the decoded literal result; re-lexing the caller would replace
+     * it. Reading one literal cannot change directives or the include frame. */
+    if(cc.error->code)return;
+    cc_source_seek(((SourcePosition)cursor.file<<16)|cursor.scan);
+    cc.token=cursor.token;cc.token_start=cursor.first;cc.token_end=cursor.last;
 }
 void cc_emit_literal(void) FRONTEND {
     uint16_t i,address=cc.emitted+3;
@@ -623,10 +640,10 @@ void cc_constant(uint8_t *type,uint16_t *value) FRONTEND {
         if(cc.number_overflow||(!cc.hexadecimal&&cc.magnitude>32767u&&sign!=2)) cc_fail(56);
         *value=cc.magnitude;
     } else if(cc.token==T_REAL) {
-        *type=K_REAL; *value=cc.token_start; cc_real_literal(*value);
+        *type=K_REAL;*value=cc_source_reference(cc.token_start);cc_real_literal(*value);
     } else if(cc.token==T_STRING&&!sign) {
         *type=cc.literal_length==1?K_CHAR:K_STRING;
-        *value=cc.literal_length==1?cc.literal[0]:cc.token_start;
+        *value=cc.literal_length==1?cc.literal[0]:cc_source_reference(cc.token_start);
     } else if(cc.token==T_ID) {
         id=cc_lookup();
         if(id>=0&&cc.symbols[id].role==S_CONSTANT) { *type=cc.symbols[id].type; *value=cc.symbols[id].address; }

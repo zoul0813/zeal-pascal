@@ -322,7 +322,7 @@ static uint8_t factor(void) {
         if(cc.number_overflow||(!cc.hexadecimal&&cc.magnitude>32767u)) cc_fail(56);
         cc_op16(0x21,cc.magnitude); cc_next();
     } else if(cc.token==T_REAL) {
-        cc_real_emit(cc.token_start); kind=K_REAL; cc_next();
+        cc_real_emit(cc_source_reference(cc.token_start)); kind=K_REAL; cc_next();
     } else if(cc.token==T_STRING) {
         if(cc.literal_length==1) { cc_op16(0x21,cc.literal[0]); kind=K_CHAR; }
         else { cc_emit_literal(); kind=K_STRING; }

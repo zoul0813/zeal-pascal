@@ -25,6 +25,8 @@ python3 tools/test-console.py
 python3 tools/test-devices.py
 python3 tools/test-hooks.py
 python3 tools/test-language.py
+python3 tools/test-sources.py
+python3 tools/test-ide-sources.py
 python3 tools/test-bridges.py
 python3 tools/test-bridges.py --corpus routines
 python3 tools/test-bridges.py --corpus real
@@ -79,6 +81,7 @@ speed for library loading and verification before the IDE prompt appears.
 | Key | Operation |
 | --- | --- |
 | W | Open/select a work file by name; default extension PAS |
+| M | Set Main, the compilation root; an empty field uses Work |
 | E | Edit; Ctrl-K,D returns to the menu with text retained in RAM |
 | S | Save source through verified temporary/recovery copies |
 | A | Save current source under another filename; Escape cancels |
@@ -100,6 +103,21 @@ the current text and cursor. A verified successful save adopts the new path;
 failure or cancellation retains the old path and RAM contents. W opens a file
 and should not be used to rename unsaved source. Changing the source path
 invalidates an existing build so its source map cannot retain the old filename.
+
+Source includes accept `{$I parts/name.inc}` (also `(*$I ...*)`), on a
+line of their own. Relative paths use the containing source's directory; a
+missing extension defaults to PAS, and native filename case is preserved.
+One include level is supported, as in the recovered dialect; nested and
+self-inclusion are rejected. Repeated includes share one source identity.
+
+Main stays the compilation root when an error selects an included Work file.
+Compile and direct-run errors verify source identity before opening the actual
+file and positioning its cursor. Automatic navigation retains unsaved buffers;
+repairing an include in RAM and pressing R recompiles Main with those edits.
+W can restore a parked dirty buffer. Its dirty-current prompt still offers
+save/discard/cancel; N explicitly discards that current buffer on successful
+replacement. Quit resolves every retained dirty buffer. Compilation never
+silently saves these sources. Saved COM/ZMP output names follow Main when set.
 
 In Com-file mode, compiling the default source writes
 `T:/src/pascal/UNTITLED.COM` and `T:/src/pascal/UNTITLED.ZMP`.

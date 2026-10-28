@@ -9,10 +9,12 @@ extern uint8_t code_select(uint8_t bank) NATIVE;
 extern void code_restore(uint8_t page) NATIVE;
 extern int app_main(void);
 uint8_t compiler_compile(const Source *s,Build *b,Diagnostic *d);
+uint8_t compiler_compile_project(const Source *root,const Sources *buffers,Build *b,Diagnostic *d);
 void compiler_build_close(Build *b);
 uint8_t compiler_build_check(const Source *s,const Build *b);
 uint8_t compiler_build_ready(const Source *s,const Build *b);
 uint8_t compiler_build_locate(const Source *s,const Build *b,uint16_t pc,uint16_t *position);
+uint8_t compiler_build_location(const Source *s,const Build *b,uint16_t pc,uint8_t *file,uint16_t *position);
 uint8_t compiler_image_get(const Build *b,uint16_t offset);
 uint8_t files_save_build(const Source *s,const Build *b);
 uint8_t files_save_source(Source *s,uint8_t replace_backup);
@@ -56,23 +58,31 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     uint8_t old=code_select(1),ok=compiler_compile(s,b,d);
     code_restore(old); return ok;
 }
+uint8_t compile_project(const Source *root,const Sources *buffers,Build *b,Diagnostic *d) {
+    uint8_t old=code_select(1),ok=compiler_compile_project(root,buffers,b,d);
+    code_restore(old);return ok;
+}
 void build_close(Build *b) {
-    uint8_t old=code_select(1); compiler_build_close(b); code_restore(old);
+    uint8_t old=code_select(6); compiler_build_close(b); code_restore(old);
 }
 uint8_t build_check(const Source *s,const Build *b) {
-    uint8_t old=code_select(1),ok=compiler_build_check(s,b);
+    uint8_t old=code_select(6),ok=compiler_build_check(s,b);
     code_restore(old); return ok;
 }
 uint8_t build_ready(const Source *s,const Build *b) {
-    uint8_t old=code_select(1),ok=compiler_build_ready(s,b);
+    uint8_t old=code_select(6),ok=compiler_build_ready(s,b);
     code_restore(old); return ok;
 }
 uint8_t build_locate(const Source *s,const Build *b,uint16_t pc,uint16_t *position) {
-    uint8_t old=code_select(1),ok=compiler_build_locate(s,b,pc,position);
+    uint8_t old=code_select(6),ok=compiler_build_locate(s,b,pc,position);
     code_restore(old); return ok;
 }
+uint8_t build_location(const Source *s,const Build *b,uint16_t pc,uint8_t *file,uint16_t *position) {
+    uint8_t old=code_select(6),ok=compiler_build_location(s,b,pc,file,position);
+    code_restore(old);return ok;
+}
 uint8_t image_get(const Build *b,uint16_t offset) {
-    uint8_t old=code_select(1),value=compiler_image_get(b,offset);
+    uint8_t old=code_select(6),value=compiler_image_get(b,offset);
     code_restore(old); return value;
 }
 uint8_t save_build(const Source *s,const Build *b) {
