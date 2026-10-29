@@ -29,13 +29,13 @@ def main():
     expected=b'INDEX-MODES-OK\r\n'*2+b'INDEX-WRAP-OK\r\n'*2
     checks={
         'native completion':m.get(sym['_test_done'])==255 and word('_test_stage')==6,
-        'RAM/saved checked bounds, error source, stack, mappings, IFF and page ownership':
-            word('_test_failed')==0 and word('_test_passed')>=60,
+        'RAM/saved checked bounds, Memory overlay diagnostic/source, stack, mappings, IFF and page ownership':
+            word('_test_failed')==0 and word('_test_passed')>=78,
         'speed/size modes preserve dense, power, zero, signed, nested, aliased and unchecked indexing':
             (disk/'LANGUAGE.TXT').is_file()and(disk/'LANGUAGE.TXT').read_bytes()==expected,
         'all source/build/platform inputs unchanged':all(n.sha(Path(p))==h for p,h in hashes.items()),
     }
-    report={'scope':__doc__+' X+/X- array indexing only; other language/IDE gaps remain.',
+    report={'scope':__doc__+' X+/X- indexing and Memory overlay rejection; disk overlay compilation remains pending.',
             'passed':all(checks.values()),'native_assertions_passed':word('_test_passed'),
             'native_assertions_failed':word('_test_failed'),'capture_directory':str(n.RUN.relative_to(ROOT)),
             'input_sha256':hashes,'checks':checks}

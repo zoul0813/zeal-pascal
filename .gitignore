@@ -53,6 +53,7 @@
 !/tools/test-compiled-startup.py
 !/tools/test-chain-files.py
 !/tools/test-transfer.py
+!/tools/test-overlays.py
 !/tools/test-real.py
 !/tools/package-native.py
 !/tools/package-tf.py

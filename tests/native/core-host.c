@@ -71,6 +71,31 @@ static void invalid(const char *text,uint8_t code) {
     if(ok||d.code!=code) fprintf(stderr,"expected diagnostic %u: %s\n",code,text);
     check(!ok&&d.code==code); check(pages_used()==1);
 }
+static void memory_overlays(void) {
+    const char *cases[]={
+        "program Test;\noverlay procedure One; begin end; begin One end.",
+        "overlay function One:integer; begin One:=1 end; begin writeln(One) end.",
+        "procedure Outer;\noverlay procedure Inner; begin end; begin Inner end; begin Outer end."};
+    unsigned i;
+    for(i=0;i<sizeof(cases)/sizeof(cases[0]);++i) {
+        invalid(cases[i],77);
+        check(d.start==(uint16_t)(strstr(cases[i],"overlay")-cases[i]));
+        check(!b.valid&&b.pages[0]==255&&b.pages[1]==255&&b.pages[2]==255&&b.map_page==255);
+    }
+    {
+        HostSource include={"H:/OVER.INC","{part}\noverlay procedure One; begin end;"};
+        CompileOptions options={0,0xfbffu,COMPILE_PROGRAM};
+        disk_sources=&include;disk_source_count=1;
+        for(i=0;i<3;++i) {
+            options.kind=i==2?COMPILE_CHAIN:COMPILE_PROGRAM;
+            load("program Include;\n{$I OVER.INC}\nbegin end.");
+            check(!compile_project(&s,0,&b,&d,0,i?&options:0));
+            check(d.code==(i?12:77)&&d.start==7&&!strcmp(cc.name,include.path));
+            check(!b.valid&&pages_used()==1);
+        }
+        disk_sources=0;disk_source_count=0;
+    }
+}
 static void compile_cancellation(void) {
     Source before;uint8_t content[128],stage,result,hash[32];unsigned calls;
     load("{unsaved}\nprogram Cancel;\nvar n:integer;\nbegin n:=7;writeln(n) end.\n");
@@ -840,6 +865,7 @@ int main(int argc,char **argv) {
     FILE *file;
     check(argc==2);
     check(source_new(&s,"H:/SLICE.PAS"));
+    memory_overlays();
     keyboard_corpus();
     interruption_corpus();
     compile_cancellation();

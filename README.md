@@ -717,6 +717,13 @@ lookup are implemented. CP/M BIOS/BDOS services are intentionally
 unavailable on Zeal; explicit unsupported-target diagnostics for them are still
 pending. These gaps are separate from the editor's display functions.
 
+Overlay declarations in Memory mode now report compiler error77 at the
+`overlay` keyword, retaining source and releasing the failed build. Native
+ZOVR group validation and selected-member staging are tested as a
+separate component with `python3 tools/test-overlays.py` and its `--native`
+mode after `zde cmake`. This does not yet enable disk overlay declarations,
+OvrDrive, runtime cache/trampoline handling or overlay source navigation.
+
 The editor now supports character/word/line movement, smooth scrolling, paging,
 virtual columns through128 and horizontal scrolling. Arrow keys, Home/End and
 Page Up/Down provide physical-key shortcuts. Ctrl-H moves left without deleting;

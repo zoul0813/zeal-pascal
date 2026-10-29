@@ -311,6 +311,22 @@ target_compile_options(zchainloadtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;
 set_property(SOURCE src/chain.c tests/native/chain-load.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/chain.h ${CMAKE_SOURCE_DIR}/src/chain_abi.h ${CMAKE_SOURCE_DIR}/src/native_image.h ${CMAKE_SOURCE_DIR}/src/sha256.h ${CMAKE_SOURCE_DIR}/src/execute_handoff.h)
 add_dependencies(zchainloadtest execute_entry_bin)
 zos_add_outputs(zchainloadtest)
+# Standalone overlay staging proof; compiler/publication/runtime integration
+# remains separate and the production image decoder still rejects overlays.
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/overlay-fixtures/overlay-fixtures.h
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/test-overlays.py --fixtures ${CMAKE_BINARY_DIR}/overlay-fixtures
+    DEPENDS ${CMAKE_SOURCE_DIR}/tools/test-overlays.py VERBATIM)
+add_custom_target(overlay_fixtures DEPENDS ${CMAKE_BINARY_DIR}/overlay-fixtures/overlay-fixtures.h)
+add_executable(zoverlaytest ${CMAKE_BINARY_DIR}/test_sdk_startup.asm src/overlay.c src/chain_native.asm
+    src/sha256.c src/sha_z80.asm tests/native/overlay-native.c)
+target_include_directories(zoverlaytest PRIVATE src ${CMAKE_BINARY_DIR}/overlay-fixtures)
+target_compile_options(zoverlaytest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+set_property(SOURCE src/overlay.c tests/native/overlay-native.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/overlay.h ${CMAKE_SOURCE_DIR}/src/chain.h ${CMAKE_SOURCE_DIR}/src/sha256.h)
+set_property(SOURCE tests/native/overlay-native.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_BINARY_DIR}/overlay-fixtures/overlay-fixtures.h)
+add_dependencies(zoverlaytest overlay_fixtures)
+zos_add_outputs(zoverlaytest)
 add_executable(zexecuteprobe tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm src/chain.c src/chain_native.asm
     src/execute_native.asm src/native_image.c src/sha256.c src/sha_z80.asm
     tests/native/execute-probe.c tests/native/execute-probe.asm tests/native/machine.asm
