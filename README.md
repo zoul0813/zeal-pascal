@@ -41,6 +41,7 @@ python3 tools/test-options.py --ide
 python3 tools/test-chain.py
 python3 tools/test-chain-loader.py
 python3 tools/test-chain-loader.py --native
+python3 tools/test-runtime-profile.py
 python3 tools/test-chain-files.py
 python3 tools/test-chain-files.py --native
 python3 tools/test-bridges.py
@@ -164,6 +165,13 @@ they cannot run directly from ZShell or R. The production Pascal `Chain` loader
 is still pending, and R explains that limitation while retaining the compiled
 file. CHN source lookup through O,F is available. Switching output kinds
 invalidates the cached build; it does not save source.
+
+The staged loader also requires an exact private-runtime fingerprint. CHN entry
+code occupies96 bytes, followed by32 fingerprint bytes that execution jumps
+over. The fingerprint binds the runtime prefix, private helper addresses, file
+module and file gate; public ABI1 alone cannot establish their compatibility.
+Older experimental CHN files must be recompiled. Rejection leaves caller code,
+globals and heap unchanged. This validation does not enable Pascal `Chain` yet.
 
 Ctrl-U cancels compilation, including image preparation, scanning, code
 placement and final hashing. It also cancels source, Save As, block and executable/

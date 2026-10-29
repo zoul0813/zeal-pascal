@@ -26,7 +26,7 @@ static void store_word(uint16_t *at,uint16_t target,uint16_t value) {
     put(at,0x21);word(at,value);put(at,0x22);word(at,target);
 }
 void cc_activation_place(void) FRONTEND {
-    uint16_t at=cc.image->code_origin-0x4000u,end=at+CC_ACTIVATION_BYTES,site;
+    uint16_t at=cc.image->code_origin-0x4000u,end=at+CHAIN_ENTRY_BYTES,site;
     uint8_t i;
     for(i=0;i<5;++i) {
         if(!cc_poll())return;
@@ -47,4 +47,5 @@ void cc_activation_place(void) FRONTEND {
     if(at>end-3) {cc_fail(99);return;}
     while(at<end-3)put(&at,0);
     put(&at,0xc3);word(&at,cc.image->code_origin+CC_ACTIVATION_BYTES);
+    for(i=0;i<CHAIN_PROFILE_BYTES;++i)put(&at,cc_runtime_profile_get(i));
 }

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Host checks of the shared front end; does not replace native acceptance."""
 import argparse
+import hashlib
+import struct
 import subprocess
 from pathlib import Path
 
@@ -13,13 +15,21 @@ args = parser.parse_args()
 flags = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-g'] if args.sanitize else []
 sdk = ROOT.parent / 'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
 runtime = (ROOT / 'build/pascal_runtime.zpl').read_bytes()
-# Host linker alias mirrors the target assembly's two blob-boundary symbols.
+# Independent framing check: generated CHN activation must identify all private
+# runtime/file assets, not just the public ABI or one module's code addresses.
+framed=b'ZP80-private-chain-v1\0'
+for name in ('pascal_runtime.zpl','pascal_runtime.private','file_runtime.zpl','file_gate.zpl'):
+    data=(ROOT/'build'/name).read_bytes()
+    framed+=name.encode('ascii')+b'\0'+struct.pack('<I',len(data))+data
+assert (ROOT/'build/pascal_runtime.profile').read_bytes()==hashlib.sha256(framed).digest()
+# Mirror the target's contiguous prefix/private/profile bank and blob boundary.
+private=(ROOT/'build/pascal_runtime.private').read_bytes()
+profile=(ROOT/'build/pascal_runtime.profile').read_bytes()
 (OUT / 'asset.c').write_text('const unsigned char runtime_start[] = {' +
-    ','.join(str(x) for x in runtime) + '};\n' +
+    ','.join(str(x) for x in runtime+private+profile) + '};\n' +
     '__asm__(".globl _runtime_end\\n_runtime_end = _runtime_start + ' + str(len(runtime)) + '");\n')
 with (OUT/'asset.c').open('a') as asset:
-    data=(ROOT/'build/pascal_runtime.private').read_bytes()
-    asset.write('const unsigned char runtime_private[] = {'+','.join(map(str,data))+'};\n')
+    asset.write('__asm__(".globl _runtime_private\\n_runtime_private = _runtime_start + '+str(len(runtime))+'");\n')
     for start,end,name in (('file_start','file_end','file_runtime'),('file_gate_start','file_gate_end','file_gate')):
         data=(ROOT/f'build/{name}.zpl').read_bytes()
         asset.write('const unsigned char '+start+'[] = {'+','.join(map(str,data))+'};\n')

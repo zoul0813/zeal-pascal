@@ -56,12 +56,14 @@ void chain_user_store(uint16_t at,uint16_t value) {check(load.ready);user[at]=(u
 void chain_user_copy(uint16_t at,uint16_t bytes) {check(load.ready&&at>=load.origin&&(uint32_t)at+bytes<=(uint32_t)load.origin+load.bytes);memcpy(user+at,chain_buffer,bytes);}
 static void put(uint16_t at,uint16_t value) {user[at]=(uint8_t)value;user[at+1]=(uint8_t)(value>>8);}
 static void setup(uint8_t heap) {
+    uint8_t i;
     check(!handle&&!count());++scenarios;chain_init(&load);
     opens=reads=closes=allocs=drops=0;
     fail_open=fail_read=fail_close=fail_alloc=zero_read=oversize_read=0;fail_drop=-1;short_limit=0;
     memset(user,0xa5,sizeof(user));
     caller.origin=0x9000;caller.bytes=0x20;caller.globals=23;caller.end=0xfbff;
     caller.heap_floor=caller.heap_frontier=0x9020;caller.stack_pointer=0xf800;
+    for(i=0;i<CHAIN_PROFILE_BYTES;++i)caller.profile[i]=(uint8_t)((CHAIN_ENTRY_BYTES+i)*7+3);
     if(heap) {
         caller.heap_frontier=0xe020;
         put(0x9020,0x8000u|(0xe000-0x9020-2));put(0xe000,30);
@@ -87,7 +89,7 @@ static void installed(const char *path) {
 int main(int argc,char **argv) {
     unsigned i,total_reads,total_allocs;uint16_t floor;
     check(argc==2);snprintf(directory,sizeof(directory),"%s",argv[1]);
-    setup(0);accepted("H:/small.CHN");check(load.floor==0x9020&&load.frontier==0x9020&&!load.trim_at&&count()==1);installed("H:/small.CHN");
+    setup(0);accepted("H:/small.CHN");check(load.floor==0x9080&&load.frontier==0x9080&&!load.trim_at&&count()==1);installed("H:/small.CHN");
     setup(0);accepted("H:/grow.CHN");check(load.floor==0xd800&&load.frontier==0xd800&&count()==2);installed("H:/grow.CHN");
     setup(1);accepted("H:/grow.CHN");check(load.floor==0xd800&&load.frontier==0xe020&&load.trim_at==0xd800&&load.trim_value==(0x8000u|0x7fe));installed("H:/grow.CHN");
     setup(1);accepted("H:/odd.CHN");check(load.floor==0xd802&&load.trim_at==0xd802&&load.trim_value==(0x8000u|0x7fc));installed("H:/odd.CHN");
@@ -96,7 +98,7 @@ int main(int argc,char **argv) {
         if(floor<0xd800)rejected("H:/grow.CHN");
         else {accepted("H:/grow.CHN");check(load.trim_at==(floor==0xd802?0xd800:0));installed("H:/grow.CHN");}
     }
-    setup(1);accepted("H:/short.CHN");check(load.floor==0x9020&&!load.trim_at&&load.frontier==0xe020);installed("H:/short.CHN");
+    setup(1);accepted("H:/short.CHN");check(load.floor==0x9080&&load.trim_at==0x9080&&load.frontier==0xe020);installed("H:/short.CHN");
     /* Every free-block boundary and both sides of every live header matter. */
     for(floor=0x9020;floor<0xd900;floor+=128) {
         setup(0);caller.heap_frontier=floor+4;put(0x9020,0x8000u|(floor-0x9020));put(floor+2,0);
@@ -114,8 +116,13 @@ int main(int argc,char **argv) {
     setup(0);caller.bytes=0xffff;rejected("H:/small.CHN");
     setup(0);caller.globals=0x1001;rejected("H:/small.CHN");
     setup(0);rejected("H:/missing.CHN");check(load.error==1);
-    {const char *bad[]={"abi","origin","end","globals","truncated","trailing","hash","reserved","overlay","empty"};
+    {const char *bad[]={"abi","origin","end","globals","truncated","trailing","hash","reserved","overlay","empty","legacy","entry-short","unprofiled"};
      char path[48];for(i=0;i<sizeof(bad)/sizeof(*bad);++i){setup(1);snprintf(path,sizeof(path),"H:/%s.CHN",bad[i]);rejected(path);}}
+    for(i=0;i<CHAIN_PROFILE_BYTES;++i) {
+        char path[48];setup(1);snprintf(path,sizeof(path),"H:/profile-%u.CHN",i);rejected(path);
+        check(load.error==0x20&&allocs==1&&closes==1);
+        setup(1);caller.profile[i]^=1;rejected("H:/grow.CHN");check(load.error==0x20&&allocs==2&&closes==1);
+    }
     setup(1);accepted("H:/grow.CHN");total_reads=reads;total_allocs=allocs;check(chain_discard(&load));
     for(i=1;i<=total_reads;++i) {
         setup(1);fail_read=i;rejected("H:/grow.CHN");check(load.error==0x99&&load.detail==ERR_FAILURE);
@@ -128,5 +135,6 @@ int main(int argc,char **argv) {
     setup(1);short_limit=1;accepted("H:/grow.CHN");installed("H:/grow.CHN");
     setup(1);accepted("H:/grow.CHN");fail_drop=32;check(!chain_discard(&load)&&count()==1&&load.pages[0]==32&&load.pages[1]==255);unchanged();fail_drop=-1;accepted("H:/small.CHN");installed("H:/small.CHN");
     setup(1);fail_drop=32;check(!chain_prepare(&load,"H:/hash.CHN",&caller));check(load.error==0x20&&count()==1&&!handle);unchanged();fail_drop=-1;check(chain_discard(&load)&&!count());
+    setup(1);fail_drop=32;check(!chain_prepare(&load,"H:/profile-0.CHN",&caller));check(load.error==0x20&&load.detail==ERR_ENTRY_CORRUPTED&&count()==1&&!handle);unchanged();fail_drop=-1;check(chain_discard(&load)&&!count());
     printf("PASS: %u chain staging/heap/identity/commit assertions across %u scenarios\n",checks,scenarios);return 0;
 }

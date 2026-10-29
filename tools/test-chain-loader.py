@@ -12,19 +12,23 @@ ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'analysis/chain-loader/host'
 put=lambda b,at,v:struct.pack_into('<H',b,at,v)
 sha=lambda b:hashlib.sha256(b).digest()
-def fixture(size=32):
+def fixture(size=128):
     image=bytearray(96)+bytearray((i*7+3)&255 for i in range(size));image[:5]=b'ZCHN\1'
     for at,value in [(6,96),(8,1),(10,0x9000),(12,size),(14,0x8000),(16,64),(18,0xfbff)]:put(image,at,value)
     image[52:84]=sha(b'independently authored map identity');return image
 def seal(image):image[20:52]=bytes(32);image[20:52]=sha(image)
 def fixtures():
     result={}
-    for name,size in [('small',32),('grow',0x4800),('odd',0x4801),('short',16)]:
+    for name,size in [('small',128),('grow',0x4800),('odd',0x4801),('short',128),('legacy',96),('entry-short',127)]:
         b=fixture(size);seal(b);result[name+'.CHN']=bytes(b)
     for name,at,value in [('abi',8,2),('origin',10,0x9100),('end',18,0xfaff),('globals',16,0x1001),('reserved',92,1),('overlay',84,1),('empty',12,0)]:
         b=fixture();put(b,at,value);seal(b);result[name+'.CHN']=bytes(b)
     b=fixture(0x4800);seal(b);b[-1]^=1;result['hash.CHN']=bytes(b)
     b=fixture();seal(b);result['truncated.CHN']=bytes(b[:-1]);result['trailing.CHN']=bytes(b)+b'x'
+    # Structurally valid, correctly hashed files with an incompatible profile.
+    for i in range(32):
+        b=fixture();b[96+96+i]^=1;seal(b);result[f'profile-{i}.CHN']=bytes(b)
+    b=fixture(256);b[96+96:96+128]=bytes(32);seal(b);result['unprofiled.CHN']=bytes(b)
     return result
 def host():
     OUT.mkdir(parents=True,exist_ok=True)

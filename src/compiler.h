@@ -3,6 +3,7 @@
 #include "zp.h"
 #include "real.h"
 #include "sources.h"
+#include "chain_abi.h"
 #ifdef __SDCC
 #define FRONTEND __banked
 #define ROUTINES __banked
@@ -40,7 +41,7 @@ enum { SYMBOL_LIMIT=512,TYPE_LIMIT=64 };
 /* Preferred code addresses never wrap through zero. The final image reserves
  * the specified2 KiB initial stack below FC00; globals share this static span. */
 #define CC_CODE_BASE 0x8000u
-#define CC_ACTIVATION_BYTES 96u
+#define CC_ACTIVATION_BYTES CHAIN_ACTIVATION_BYTES
 #define CC_STATIC_LIMIT 0xf400u
 typedef uint32_t SourcePosition; /* file ID in high word, canonical offset in low */
 typedef struct {
@@ -148,8 +149,10 @@ enum { RP_INPUT_READY,RP_INPUT_ADVANCE,RP_LINE_NEXT,RP_LINE_REMAINING,RP_LINE_EO
        RP_INPUT_KEY,RP_INPUT_RAW_KEY,RP_INPUT_MODE,RP_INPUT_CLEANUP,RP_INPUT_FAIL,RP_IO_ERROR,RP_ECHO_FD,
        RP_INPUT_SOURCE,RP_INPUT_OPEN,RP_INPUT_ECHO,RP_INPUT_CLOSE,RP_USER_BREAK,
        RP_INPUT_MODE_VALUE,RP_INPUT_BREAK,RP_INPUT_CONSOLE_AREA,
-       RP_NORMAL_ERROR,RP_ERROR_CODE,RP_ERROR_NAMESPACE };
+       RP_NORMAL_ERROR,RP_ERROR_CODE,RP_ERROR_NAMESPACE,RP_COUNT };
 uint16_t cc_runtime_private(uint8_t entry);
+/* Profile follows the private table in the same immutable BANK8 asset. */
+#define cc_runtime_profile_get(offset) cc_runtime_get(cc_runtime_size()+2u*RP_COUNT+(offset))
 void cc_keypressed(void) FRONTEND;
 void cc_logical_stream(void) FRONTEND;
 void cc_keyboard_engine(void) FRONTEND;

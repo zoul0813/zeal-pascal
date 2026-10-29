@@ -179,13 +179,14 @@ static void chain_cases(void) {
             if(op==0)continue;
             if(op==0x3e){a=caller[ip++];continue;}
             if(op==0x21){hl=caller[ip]|((uint16_t)caller[ip+1]<<8);ip+=2;continue;}
-            if(op==0xc3){check(ip==first+CC_ACTIVATION_BYTES-2);target=caller[ip]|((uint16_t)caller[ip+1]<<8);check(target==first+CC_ACTIVATION_BYTES);ip=target;break;}
+            if(op==0xc3){check(ip==first+CHAIN_ENTRY_BYTES-2);target=caller[ip]|((uint16_t)caller[ip+1]<<8);check(target==first+CC_ACTIVATION_BYTES);ip=target;break;}
             check(op==0x32||op==0x22);address=caller[ip]|((uint16_t)caller[ip+1]<<8);ip+=2;
             check(address<GLOBAL_BASE||address>=GLOBAL_BASE+2);
             caller[address]=op==0x32?a:(uint8_t)hl;writes[address]=1;
             if(op==0x22){caller[address+1]=(uint8_t)(hl>>8);writes[address+1]=1;}
         }
         check(ip==first+CC_ACTIVATION_BYTES&&caller[GLOBAL_BASE]==0xa5&&caller[GLOBAL_BASE+1]==0xa5);
+        for(i=0;i<CHAIN_PROFILE_BYTES;++i)check(caller[first+CHAIN_ENTRY_BYTES+i]==cc_runtime_profile_get(i)&&!writes[first+CHAIN_ENTRY_BYTES+i]);
         sites[0]=cc_runtime_private(RP_INPUT_KEY);sites[1]=cc_runtime_get(RT_CHAR-0x4000u+1)|((uint16_t)cc_runtime_get(RT_CHAR-0x4000u+2)<<8);
         sites[2]=cc_runtime_private(RP_INPUT_ECHO);sites[3]=cc_runtime_private(RP_INPUT_OPEN);sites[4]=cc_runtime_private(RP_NORMAL_ERROR);
         for(i=0;i<5;++i) {

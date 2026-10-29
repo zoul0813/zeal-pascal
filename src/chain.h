@@ -1,6 +1,7 @@
 #ifndef ZP_CHAIN_H
 #define ZP_CHAIN_H
 #include <stdint.h>
+#include "chain_abi.h"
 #ifdef __SDCC
 #define CHAIN_CALL __sdcccall(1)
 #else
@@ -10,6 +11,7 @@
  * A caller supplies validated runtime extents before lending the prefix bank. */
 typedef struct {
     uint16_t origin,bytes,globals,end,heap_floor,heap_frontier,stack_pointer;
+    uint8_t profile[CHAIN_PROFILE_BYTES];
 } ChainCaller;
 typedef struct {
     uint8_t pages[2],ready;

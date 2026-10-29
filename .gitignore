@@ -37,6 +37,7 @@
 !/tools/test-file-runtime.py
 !/tools/test-file-gate.py
 !/tools/test-runtime-layout.py
+!/tools/test-runtime-profile.py
 !/tools/test-params.py
 !/tools/test-workers.py
 !/tools/test-math.py

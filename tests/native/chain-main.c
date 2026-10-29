@@ -29,6 +29,8 @@ int app_main(void) {
         check(word(14)==GLOBAL_BASE&&word(16)==b.globals_bytes&&word(18)==0xfbffu);
         for(i=0;i<96;++i)header[i]=image_get(&b,i);
         check(native_header(header,1,&identity)==0&&!memcmp(identity.id,b.id,32));
+        check(image_get(&b,96+CHAIN_ENTRY_BYTES-3)==0xc3&&word(96+CHAIN_ENTRY_BYTES-2)==b.code_origin+CC_ACTIVATION_BYTES);
+        for(i=0;i<CHAIN_PROFILE_BYTES;++i)check(image_get(&b,96+CHAIN_ENTRY_BYTES+i)==cc_runtime_profile_get(i));
         owned=pages_used();check(build_ready(&s,&b)&&build_check(&s,&b));
         check(!run_build(&s,&b)&&platform_error==ERR_NOT_SUPPORTED&&pages_used()==owned);
         status=55;check(!run_saved(&s,&b,&status)&&platform_error==ERR_NOT_SUPPORTED&&status==55);

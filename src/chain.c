@@ -94,7 +94,7 @@ uint8_t chain_prepare(ChainLoad *load,const char *path,const ChainCaller *caller
     error=native_decode(header,1,&id);
     if(error) {fail(load,0x20,error);goto failed;}
     load->origin=id.origin;load->bytes=id.bytes;load->globals=word(header+16);load->end=word(header+18);
-    if(load->origin!=caller->origin||load->end!=caller->end) {corrupt(load);goto failed;}
+    if(load->bytes<CHAIN_ACTIVATION_BYTES||load->origin!=caller->origin||load->end!=caller->end) {corrupt(load);goto failed;}
     memcpy(load->id,id.id,32);memcpy(load->map,id.map,32);
     sha_init(&hash);
     for(i=0;i<96;++i)sha_byte(&hash,i>=20&&i<52?0:header[i]);
@@ -115,6 +115,10 @@ uint8_t chain_prepare(ChainLoad *load,const char *path,const ChainCaller *caller
     if(memcmp(digest,load->id,32)) {corrupt(load);goto failed;}
     error=close(load->fd);load->fd=-1;
     if(error) {io_error(load,error);goto failed;}
+    /* Hash authentication alone cannot establish private-helper compatibility.
+     * Read from the authenticated staging page, never mutable caller code. */
+    chain_store=0;chain_page_io(load->pages[0],CHAIN_ENTRY_BYTES,CHAIN_PROFILE_BYTES);
+    if(memcmp(chain_buffer,caller->profile,CHAIN_PROFILE_BYTES)) {corrupt(load);goto failed;}
     if(!heap_plan(load,caller))goto failed;
     load->ready=1;return 1;
 failed:

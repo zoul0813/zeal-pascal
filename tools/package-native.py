@@ -40,6 +40,16 @@ def read_symbols(path):
         r'^\s+([0-9A-F]{8})\s+([_\w]+)\s', path.with_suffix('.map').read_text(), re.M)}
 
 
+def runtime_profile(directory):
+    """Bind generated private calls and retained file protocols to exact assets."""
+    digest = hashlib.sha256(b'ZP80-private-chain-v1\0')
+    for name in ('pascal_runtime.zpl', 'pascal_runtime.private',
+                 'file_runtime.zpl', 'file_gate.zpl'):
+        data = (directory/name).read_bytes()
+        digest.update(name.encode('ascii')+b'\0'+struct.pack('<I', len(data))+data)
+    return digest.digest()
+
+
 def validate_runtime(path):
     memory=read_hex(path)
     symbols=read_symbols(path)
@@ -214,13 +224,15 @@ def package(path):
     private=runtime.with_suffix('.private').read_bytes()
     template=runtime.read_bytes()
     metadata=json.loads(runtime.with_suffix('.runtime.json').read_text())
+    profile=runtime_profile(path.parent)
     if (metadata['sha256']!=hashlib.sha256(template).hexdigest() or
             metadata['private_sha256']!=hashlib.sha256(private).hexdigest() or
             private!=struct.pack('<24H',*metadata['private_input_addresses']) or
             symbols['_runtime_start']!=0x88000 or
             symbols['_runtime_end']!=0x88000+len(template) or
-            payloads[7]!=template+private):
-        raise ValueError('embedded runtime/private input metadata is stale or mismatched')
+            runtime.with_suffix('.profile').read_bytes()!=profile or
+            payloads[7]!=template+private+profile):
+        raise ValueError('embedded runtime/private metadata or Chain profile is stale or mismatched')
     header_bytes = 16 + 2 * len(banks)
     total = header_bytes + sum(map(len, payloads))
     library = (struct.pack('<4sBBHII', b'ZPL1', 1, len(banks), header_bytes, total, 0)
@@ -252,4 +264,6 @@ if __name__ == '__main__':
     elif sys.argv[1]=='--trampoline':validate_trampoline(Path(sys.argv[2]))
     elif sys.argv[1]=='--file-runtime':validate_file_runtime(Path(sys.argv[2]))
     elif sys.argv[1]=='--file-gate':validate_file_gate(Path(sys.argv[2]))
+    elif sys.argv[1]=='--runtime-profile':
+        path=Path(sys.argv[2]);path.write_bytes(runtime_profile(path.parent))
     else:package(Path(sys.argv[1]))

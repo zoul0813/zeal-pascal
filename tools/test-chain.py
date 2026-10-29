@@ -80,9 +80,10 @@ def activation(folder):
         if op==0:continue
         if op==0x3e:a=code[at];at+=1;continue
         if op==0x21:hl=u16(code,at);at+=2;continue
-        if op==0xc3:assert at==94 and u16(code,at)==origin+96;break
+        if op==0xc3:assert at==94 and u16(code,at)==origin+128;break
         assert op in (0x32,0x22);address=u16(code,at);at+=2
         bindings[address]=bytes([a])if op==0x32 else hl.to_bytes(2,'little')
+    assert chain[192:224]==(ROOT/'build/pascal_runtime.profile').read_bytes()
     allowed={0x4152}|{address+i for address in sites for i in range(3)}
     assert all(all(address+i in allowed or 0x8017<=address+i<0x8000+globals for i in range(len(data)))for address,data in bindings.items())
     ready=n.symbols('zchainreplay')['_replay_ready']
@@ -118,7 +119,8 @@ def ide():
     clear=n.kernel_symbols()['_video_vram_set'];labels.append(('run-message',clear))
     commands+=[f'bp 0x{clear:x}','tap ESC','run 100000000','regs','mmu']
     commands += [f'rb 0x{0x4000+at:x} 128'for at in range(0,640,128)]+[f'bc 0x{clear:x}','run 100000000']
-    commands+=typed('of0060')+state('found',['tap ENTER'])+state('found-source',['tap ESC'],100000000)
+    # Enter the first Pascal PC, beyond the96-byte entry and32-byte profile.
+    commands+=typed('of0080')+state('found',['tap ENTER'])+state('found-source',['tap ESC'],100000000)
     commands+=n.control('K')+typed('docq')+state('ordinary-mode',['tap SPACE'],100000000)
     commands+=['run 100000000']+typed('qn')+['quit']
     raw=n.execute('chain-ide',commands,{'project/main.pas':source},timeout=900)
@@ -138,6 +140,7 @@ def ide():
             'Main identity and dirty source survive all mode/recovery transitions':all(read(label,work+1,1)==b'\1'and read(label,sym['_main_file'],128).split(b'\0')[0]==b'H:/project/main.pas'for label in ['compiled','direct-run-rejected','found','found-source','ordinary-mode'])})
     folder=n.RUN/'chain-ide/hostfs';chain=(folder/'project/main.CHN').read_bytes();mapping=(folder/'project/main.ZMP').read_bytes()
     identity(chain,mapping,True)
+    checks['F input PC belongs to the first Pascal statement after activation']=u16(mapping,96+struct.unpack_from('<I',mapping,84)[0])==0x80
     checks['CHN/map authenticate the exact unsaved canonical source']=mapping[104:136]==sha(prefix+source)
     checks['no implicit PAS save or COM creation']=(folder/'project/main.pas').read_bytes()==source and not(folder/'project/main.COM').exists()
     return checks
@@ -148,7 +151,7 @@ def main():
     inputs=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',n.EMULATOR,n.ROM]
     inputs+=list((ROOT/'src').glob('*'))+[ROOT/'tests/native/chain-entry.pas',ROOT/'tests/native/chain-main.c',ROOT/'tests/native/chain-replay.c',ROOT/'build/zchainreplay.bin']
     inputs+=[ROOT/f'build/{target}.{ext}'for target in ('zpascal','zchaintest')for ext in ('bin','zpl','map','banks.json')]
-    inputs+=[ROOT/'build/pascal_runtime.private',ROOT/'build/pascal_runtime.zpl']
+    inputs+=[ROOT/'build'/name for name in ('pascal_runtime.private','pascal_runtime.zpl','pascal_runtime.profile')]
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()};checks={};details={}
     if not args.ide_only:
         checks,folder,details=component();checks.update(activation(folder))

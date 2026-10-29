@@ -34,6 +34,7 @@ target_link_options(pascal_runtime PRIVATE "SHELL:-b _REAL_ADAPTER=0x4c73"
     "SHELL:-b _TEXT=0x4bd6" "SHELL:-b _CODE=0x77cd")
 zos_add_outputs(pascal_runtime WITH_EXTENSION zpl)
 add_custom_command(TARGET pascal_runtime_bin POST_BUILD
+    BYPRODUCTS ${CMAKE_BINARY_DIR}/pascal_runtime.private ${CMAKE_BINARY_DIR}/pascal_runtime.runtime.json
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --runtime
         ${CMAKE_BINARY_DIR}/pascal_runtime.ihx VERBATIM)
 add_executable(ram_trampoline src/trampoline.asm)
@@ -57,9 +58,9 @@ target_compile_options(zfilegatetest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;-
 add_dependencies(zfilegatetest file_gate_bin)
 zos_add_outputs(zfilegatetest)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/runtime_asset.asm CONTENT
-".area _BANK8\n.globl _runtime_start\n.globl _runtime_end\n.globl _trampoline_start\n.globl _trampoline_end\n_runtime_start:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.zpl\"\n_runtime_end:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.private\"\n.area _RODATA\n_trampoline_start:\n.incbin \"${CMAKE_BINARY_DIR}/ram_trampoline.zpl\"\n_trampoline_end:\n")
+".area _BANK8\n.globl _runtime_start\n.globl _runtime_end\n.globl _trampoline_start\n.globl _trampoline_end\n_runtime_start:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.zpl\"\n_runtime_end:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.private\"\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.profile\"\n.area _RODATA\n_trampoline_start:\n.incbin \"${CMAKE_BINARY_DIR}/ram_trampoline.zpl\"\n_trampoline_end:\n")
 set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES
-    OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/pascal_runtime.zpl;${CMAKE_BINARY_DIR}/pascal_runtime.private;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
+    OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/pascal_runtime.zpl;${CMAKE_BINARY_DIR}/pascal_runtime.private;${CMAKE_BINARY_DIR}/pascal_runtime.profile;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
 set(PASCAL_CORE src/source.c src/sources.c src/sources_storage.c src/compiler_sources.c src/source_hash.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/compiler_expr.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_file.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_state.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/saved_map.c src/native.asm
     ${CMAKE_BINARY_DIR}/runtime_asset.asm ${CMAKE_BINARY_DIR}/file_asset.asm)
 # This SDK disables compiler depfiles. Keep shared ABI/header changes from
@@ -70,6 +71,7 @@ foreach(source IN LISTS PASCAL_CORE)
     endif()
     if(source MATCHES "src/compiler.*\\.c$")
         set_property(SOURCE ${source} APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h)
+        set_property(SOURCE ${source} APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/chain_abi.h)
         set_property(SOURCE ${source} APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/real.h)
     endif()
 endforeach()
@@ -211,6 +213,9 @@ target_compile_options(zchaintest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 set_source_files_properties(tests/native/chain-main.c PROPERTIES COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 set_property(SOURCE tests/native/chain-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/saved_map.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 set_property(SOURCE tests/native/options-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/saved_map.h)
+set_property(SOURCE tests/native/chain-main.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/chain_abi.h
+    ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/saved_map.h ${CMAKE_SOURCE_DIR}/src/image.h)
 add_executable(zworkertest src/startup.asm src/banks.c tests/native/worker-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 target_include_directories(zworkertest PRIVATE src)
 target_compile_options(zworkertest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
@@ -260,7 +265,7 @@ zos_add_outputs(zchainreplay)
 add_executable(zchainloadtest ${CMAKE_BINARY_DIR}/test_sdk_startup.asm src/chain.c src/chain_native.asm src/native_image.c src/sha256.c src/sha_z80.asm tests/native/chain-load.c)
 target_include_directories(zchainloadtest PRIVATE src)
 target_compile_options(zchainloadtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
-set_property(SOURCE src/chain.c tests/native/chain-load.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/chain.h ${CMAKE_SOURCE_DIR}/src/native_image.h ${CMAKE_SOURCE_DIR}/src/sha256.h)
+set_property(SOURCE src/chain.c tests/native/chain-load.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/chain.h ${CMAKE_SOURCE_DIR}/src/chain_abi.h ${CMAKE_SOURCE_DIR}/src/native_image.h ${CMAKE_SOURCE_DIR}/src/sha256.h)
 zos_add_outputs(zchainloadtest)
 # Independent test-only native procedure bytes; not deployed with the product.
 add_executable(stringabi tests/native/stringabi.asm)
@@ -298,6 +303,15 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/file_asset.asm CONTENT
 set_source_files_properties(${CMAKE_BINARY_DIR}/file_asset.asm PROPERTIES
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/file_runtime.zpl;${CMAKE_BINARY_DIR}/file_gate.zpl")
 add_dependencies(zp_core file_runtime_bin file_gate_bin)
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/pascal_runtime.profile
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --runtime-profile
+        ${CMAKE_BINARY_DIR}/pascal_runtime.profile
+    DEPENDS pascal_runtime_bin file_runtime_bin file_gate_bin
+        ${CMAKE_BINARY_DIR}/pascal_runtime.zpl ${CMAKE_BINARY_DIR}/pascal_runtime.private
+        ${CMAKE_BINARY_DIR}/file_runtime.zpl ${CMAKE_BINARY_DIR}/file_gate.zpl
+        ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+add_custom_target(runtime_profile DEPENDS ${CMAKE_BINARY_DIR}/pascal_runtime.profile)
+add_dependencies(zp_core runtime_profile)
 add_executable(zfilecoretest tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
     tests/native/file-core.c tests/native/file-probe.asm tests/native/machine.asm $<TARGET_OBJECTS:file_runtime_core>)
 target_include_directories(zfilecoretest PRIVATE src)
