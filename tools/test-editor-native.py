@@ -36,7 +36,8 @@ def component():
 
 class IDE:
     """Queue a key only after the preceding redraw reaches the real reader."""
-    def __init__(self, filename, setup=()):
+    def __init__(self, filename, setup=(), cycles=1000000000):
+        self.cycles = cycles
         self.sym = n.symbols('zpascal')
         self.reader = self.sym['_key_read']
         self.commands = ['run 100000000']
@@ -58,7 +59,7 @@ class IDE:
             self.commands += ['release SHIFT']
         if ctrl:
             self.commands += ['release CTRL']
-        self.commands += ['run 1000000000']
+        self.commands += [f'run {self.cycles}']
 
     def quick(self, name):
         self.key('Q', ctrl=True)
@@ -77,7 +78,7 @@ class IDE:
         self.frames.append((label, 'state'))
         self.commands += ['regs', 'mmu']
         for symbol, size in (('_work', 140), ('_editor', 223), ('_ide_state', 1),
-                             ('_build', 83), ('_ram_result', 128)):
+                             ('_build', n.BUILD_BYTES), ('_buffers', n.SOURCES_BYTES), ('_ram_result', 128)):
             self.commands += [f'rb 0x{self.sym[symbol]:x} {size}']
 
     def screen(self, label, source_rows=39):
@@ -100,9 +101,9 @@ class IDE:
         self.commands += [f'bc 0x{cursor:x}', f'bp 0x{self.reader:x}', 's', 'run 1000000000']
         self.key('SLASH', shift=True)  # Unknown Q,? clears the probe's prefix.
 
-    def finish(self, name, fixtures, tf_image=None):
+    def finish(self, name, fixtures, tf_image=None, timeout=240):
         self.commands += ['quit']
-        raw = n.execute(name, self.commands, fixtures, tf_image=tf_image, timeout=240)
+        raw = n.execute(name, self.commands, fixtures, tf_image=tf_image, timeout=timeout)
         parts = re.split(r'\[DBG\] PC=', raw)[1:]
         if len(parts) != len(self.frames):
             raise RuntimeError(f'{name}: expected {len(self.frames)} debugger checkpoints, got {len(parts)}')
@@ -124,6 +125,7 @@ class IDE:
                 result[label] = int(match[1], 16) if match else None
             else:
                 result[label] = m
+                result[label+' pc'] = int(part.split(' ', 1)[0], 16)
         return result
 
 
@@ -309,6 +311,83 @@ def block_checks():
     }
 
 
+def block_catalog_checks():
+    """Replacement pages remain owned through compile, publication and quit."""
+    comment = b'{tag}\n'
+    original = comment + b"var f:text;n:integer;\nbegin\nassign(f,'H:/RESULT.TXT');reset(f);readln(f,n);close(f);\nrewrite(f);writeln(f,n+1);close(f)\nend.\n"
+    inserted = b'{read}\n'
+    ide = IDE('CATALOG.PAS', cycles=8000000000)
+    kernel = n.kernel_symbols()
+    shell_reads = ['regs', 'mmu'] + [f'rb 0x{kernel[name]:x} {size}' for name, size in
+        (('_page_owners', 32), ('_zos_user_page_1', 3), ('kb_mode', 1), ('mmu_bitmap', 4))]
+    ide.frames.insert(0, ('shell before', 'state'))
+    ide.commands[1:1] = [f"bp 0x{kernel['keyboard_read']:x}", 'run 100000000'] + shell_reads + [f"bc 0x{kernel['keyboard_read']:x}"]
+    ide.state('original')
+    ide.key('SPACE'); ide.state('ordinary')
+    ide.key('BACKSPACE'); ide.state('before copy')
+    # Select a whole comment, then copy it to EOF; both programs are valid.
+    ide.block('B'); ide.key('DOWN'); ide.key('HOME'); ide.block('K')
+    ide.quick('C'); ide.block('C'); ide.state('copy')
+    def compile_run(label):
+        ide.block('D'); ide.key('C'); ide.state(label+' compiled')
+        ide.key('R'); ide.state(label+' run'); ide.key('ESC'); ide.key('E')
+    compile_run('copy')
+    # The copied comment remains selected after editor reentry.
+    ide.quick('R'); ide.state('before move'); ide.block('V'); ide.state('move')
+    compile_run('move')
+    ide.quick('R'); ide.state('before read'); ide.block('R'); ide.text('H:/INPUT.PAS\n'); ide.state('read')
+    compile_run('read')
+    ide.block('D'); ide.key('S'); ide.key('ESC'); ide.state('saved')
+    ide.key('O'); ide.key('C'); ide.key('Q'); ide.key('C'); ide.state('disk compiled')
+    ide.key('ESC'); ide.key('R'); ide.state('disk run'); ide.key('ESC')
+    ide.commands += [f'bc 0x{ide.reader:x}', f"bp 0x{kernel['zos_loader_exit']:x}"]
+    ide.key('Q'); ide.state('quit')
+    ide.commands += [f"rb 0x{kernel['_page_owners']:x} 32",
+                     f"bc 0x{kernel['zos_loader_exit']:x}", f"bp 0x{kernel['keyboard_read']:x}", 's', 'run 100000000']
+    ide.frames.append(('shell after', 'state')); ide.commands += shell_reads
+    frames = ide.finish('editor-block-catalog', {'CATALOG.PAS': original, 'INPUT.PAS': inserted, 'RESULT.TXT': b'0\r\n'}, timeout=600)
+    work, build = ide.sym['_work'], ide.sym['_build']
+    expected = {'copy': original+comment, 'move': comment+original,
+                'read': inserted+comment+original}
+    catalog_version = lambda frame: bytes(frame.get(ide.sym['_buffers']+6+i, 0) for i in range(4))
+    checks = {'ordinary typing leaves catalog version unchanged':
+              catalog_version(frames['ordinary']) == catalog_version(frames['original'])}
+    prior = frames['original'][work]
+    for label, source in expected.items():
+        edit, compiled, run = (frames[label+suffix] for suffix in ('', ' compiled', ' run'))
+        checks[label+' immediately updates catalog before leaving editor'] = (
+            catalog_version(edit) != catalog_version(frames['before '+label]))
+        checks[label+' replaces source page and remains editable'] = (
+            edit.get(work) != prior and edit.get(work+1) == 1
+            and word(edit, work+2) == len(source) and edit.get(ide.sym['_ide_state']) == 2)
+        checks[label+' compiles exact dirty source and executes successfully'] = (
+            compiled.get(build+4) == 1
+            and bytes(compiled.get(build+51+i, 0) for i in range(32)) == hashlib.sha256(source).digest()
+            and run.get(ide.sym['_ram_result']+26) == 1 and run.get(work+1) == 1)
+        prior = edit.get(work)
+    host = n.RUN/'editor-block-catalog/hostfs'
+    checks['save publishes exact final PAS and original BAK'] = (
+        (host/'CATALOG.PAS').read_bytes() == expected['read']
+        and (host/'CATALOG.BAK').read_bytes() == original and frames['saved'].get(work+1) == 0)
+    checks['disk compile and saved execution retain source identity'] = (
+        frames['disk compiled'].get(build+4) == 1
+        and frames['disk run'].get(work+1) == 0
+        and (host/'CATALOG.COM').is_file() and (host/'CATALOG.ZMP').is_file()
+        and (host/'RESULT.TXT').read_bytes() == b'4\r\n\x1a')
+    owners = bytes(frames['quit'].get(kernel['_page_owners']+i, 255) for i in range(32))
+    checks['quit releases editor, snapshot, catalog and compiler owners'] = (
+        frames['quit pc'] == kernel['zos_loader_exit'] and owners.count(2) == 3 and len([owner for owner in owners if owner not in (0, 1, 2)]) == 0)
+    checks['workflow checkpoints reach the actual IDE reader'] = all(
+        frames[label+' pc'] == ide.reader for label, _ in ide.frames
+        if label not in ('shell before', 'shell after', 'quit'))
+    checks['normal return restores shell pages, keyboard and allocation inventory'] = (
+        frames['shell before pc'] == frames['shell after pc'] == kernel['keyboard_read']
+        and frames['shell after'].get(kernel['kb_mode']) == 4
+        and all(frames['shell before'].get(kernel[name]+i) == frames['shell after'].get(kernel[name]+i)
+                for name, size in (('_page_owners', 32), ('_zos_user_page_1', 3), ('mmu_bitmap', 4)) for i in range(size)))
+    return checks
+
+
 def block_file_checks():
     original = b'alpha beta\ngamma delta\n  indented\nlast\n'
     ide = IDE('BFILE.PAS', setup=('H:/mkdir H:/ZP0000', 'H:/cp H:/KEEP.PAS H:/ZP0000/KEEP.PAS'))
@@ -450,6 +529,7 @@ def find_checks():
     f=ide.finish('editor-find',{'FIND.PAS':source});s=ide.sym['_work'];e=ide.sym['_editor']
     cursor=lambda label:word(f[label],s+4)
     revision=bytes(f['initial'].get(s+8+i,0)for i in range(4))
+    states=[f[label] for label,kind in ide.frames if kind=='state']
     return {
         'actual Find/repeat/previous-position original recipe':cursor('first')==10
             and cursor('repeat')==35 and cursor('previous')==10,
@@ -465,7 +545,7 @@ def find_checks():
             and bytes(f['empty retains search'].get(e+154+i,0)for i in range(4))==b'beta',
         'Find operations do not edit or save source':all(frame.get(s+1)==0
             and word(frame,s+2)==len(source) and bytes(frame.get(s+8+i,0)for i in range(4))==revision
-            for frame in f.values()) and (n.RUN/'editor-find/hostfs/FIND.PAS').read_bytes()==source,
+            for frame in states) and (n.RUN/'editor-find/hostfs/FIND.PAS').read_bytes()==source,
     }
 
 
@@ -545,6 +625,7 @@ def main():
     checks.update(editing_checks())
     checks.update(source_error_checks())
     checks.update(block_checks())
+    checks.update(block_catalog_checks())
     checks.update(block_file_checks())
     checks.update(block_cancel_checks())
     checks.update(control_block_checks())

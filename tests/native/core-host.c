@@ -475,6 +475,82 @@ static void source_catalog_cases(void) {
     check(sources_new(&next));check(next.page==stale.page&&!sources_valid(&stale));check(sources_close(&next));
     source_close(&origin);check(pages_used()==before);
 }
+static void replaced_source_cases(void) {
+    Sources set;Source work,view,other;
+    uint8_t before=pages_used(),prior,foreign,scenario;
+    uint32_t lifetime;
+    for(scenario=0;scenario<3;++scenario) {
+        check(source_new(&work,"H:/edited.pas"));
+        check(source_import(&work,(const uint8_t*)"abc",3,&d));
+        check(sources_new(&set)&&sources_take(&set,&work,&work)==0);
+        prior=work.page;
+        if(scenario==1) check(source_move(&work,0,1,3,0));
+        else check(source_insert_from(&work,3,&work,0,1,0));
+        check(work.page!=prior&&!page_role(prior)&&!sources_ready(&set,0));
+        foreign=255;
+        if(scenario==2) {
+            foreign=page_new(PAGE_COMPILER);check(foreign==prior);
+            lifetime=page_lifetime(foreign);far_set(foreign,0,0xa5);
+            check(sources_byte(&set,0,0)==0); /* never expose the new owner */
+        }
+        check(sources_take(&set,&work,&work)==0&&sources_ready(&set,0));
+        check(sources_get(&set,0,&view)&&view.page==work.page&&view.length==work.length);
+        check(sources_byte(&set,0,0)==(scenario==1?'b':'a'));
+        check(sources_close(&set));
+        if(foreign!=255) {
+            check(page_role(foreign)==PAGE_COMPILER&&page_lifetime(foreign)==lifetime&&far_get(foreign,0)==0xa5);
+            check(page_drop(foreign));
+        }
+        check(pages_used()==before);
+    }
+    /* A reused page number cannot rename an unrelated stale catalog record. */
+    check(source_new(&work,"H:/stale.pas"));check(sources_new(&set));
+    check(sources_take(&set,&work,&work)==0);prior=work.page;source_close(&work);
+    check(source_new(&other,"H:/fresh.pas")&&other.page==prior);
+    check(sources_take(&set,&other,&other)==1&&set.count==2);
+    check(sources_remove(&set,0)&&sources_ready(&set,0));
+    check(sources_find(&set,"H:/fresh.pas")==0&&sources_find(&set,"H:/stale.pas")<0);
+    check(sources_close(&set)&&pages_used()==before);
+
+    /* Reopening the same path on the same page is a new allocation too. */
+    check(source_new(&work,"H:/reopened.pas"));check(sources_new(&set));
+    check(sources_take(&set,&work,&work)==0);prior=work.page;source_close(&work);
+    check(source_new(&other,"H:/reopened.pas")&&other.page==prior);
+    lifetime=page_lifetime(other.page);
+    check(sources_take(&set,&other,&other)==0&&set.count==1&&sources_ready(&set,0));
+    check(page_lifetime(other.page)==lifetime&&sources_close(&set)&&pages_used()==before);
+
+    /* Packed metadata stays authenticated while a stale include is removed. */
+    check(source_new(&work,"H:/packed.pas"));check(source_snapshot(&work,&view));
+    check(source_new(&other,"H:/packed.inc"));check(sources_new(&set));
+    check(sources_take(&set,&view,&work)==0&&sources_take(&set,&other,0)==1);
+    check(sources_pack(&set)&&set.base&&sources_valid(&set));
+    prior=other.page;source_close(&other);foreign=page_new(PAGE_RUN);check(foreign==prior);
+    lifetime=page_lifetime(foreign);
+    check(!sources_ready(&set,1)&&sources_remove(&set,1)&&sources_ready(&set,0));
+    check(sources_close(&set)&&page_lifetime(foreign)==lifetime&&page_drop(foreign));
+    source_close(&work);check(pages_used()==before);
+
+    /* Removal/close may forget a released record, but never free its reuse. */
+    for(scenario=0;scenario<2;++scenario) {
+        check(source_new(&work,"H:/removed.pas"));check(sources_new(&set));
+        check(sources_take(&set,&work,&work)==0);prior=work.page;source_close(&work);
+        foreign=255;
+        if(scenario) {foreign=page_new(PAGE_RUN);check(foreign==prior);lifetime=page_lifetime(foreign);}
+        check(sources_remove(&set,0)&&set.count==0&&sources_close(&set));
+        if(foreign!=255) {check(page_role(foreign)==PAGE_RUN&&page_lifetime(foreign)==lifetime);check(page_drop(foreign));}
+        check(pages_used()==before);
+    }
+    /* Save As also authenticates the destination owner's lifetime. */
+    check(source_new(&work,"H:/destination.pas"));check(sources_new(&set));
+    check(sources_take(&set,&work,&work)==0);prior=work.page;source_close(&work);
+    foreign=page_new(PAGE_RUN);check(foreign==prior);lifetime=page_lifetime(foreign);
+    check(source_new(&other,"H:/renamed.pas"));check(sources_take(&set,&other,&other)==1);
+    view=other;strcpy(view.path,"H:/destination.pas");
+    check(sources_take(&set,&view,&view)==0&&set.count==1&&sources_ready(&set,0));
+    check(page_role(foreign)==PAGE_RUN&&page_lifetime(foreign)==lifetime);
+    check(sources_close(&set)&&page_drop(foreign)&&pages_used()==before);
+}
 static void packed_catalog_cases(void) {
     static uint8_t text[PAGE_SIZE];
     const uint16_t lengths[]={0,10,PAGE_SIZE-190,PAGE_SIZE-189,SOURCE_LIMIT};
@@ -570,6 +646,7 @@ static void include_cases(void) {
     files[2].text="11,22";
     files[1].text="procedure more;begin part;n:=n+table[2]end;";
     source_catalog_cases();
+    replaced_source_cases();
     packed_catalog_cases();
     load("program Main;\n{$IPART.INC}\n{$I more.inc}\nbegin more;writeln(greeting,number,table[2])end.");
     check(compile(&s,&b,&d));check(b.sources.count==3);check(map_word(8)==1);check(map_word(14)==3);

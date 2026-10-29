@@ -8,11 +8,24 @@ uint8_t sources_directory(const char *name,const char *directory,char *out) SOUR
     return path_directory(name,directory,out);
 }
 
+
 static uint32_t word32(const Sources *set,uint16_t at) {
     uint8_t i;uint32_t value=0;
     for(i=0;i<4;++i)value|=(uint32_t)far_get(set->page,at+i)<<(i*8);
     return value;
 }
+/* Callers authenticate the catalog before mutating it. Page numbers alone
+ * cannot identify an owner once a block edit has released its old page. */
+static uint8_t sources_owned(const Sources *set,uint8_t id,uint8_t page) {
+    uint16_t at=set->base+(uint16_t)id*RECORD_BYTES;
+    return far_get(set->page,at)==page&&page_lifetime(page)&&
+        page_lifetime(page)==word32(set,at+OWN_LIFETIME);
+}
+static uint8_t sources_release(const Sources *set,uint8_t id) {
+    uint8_t page=far_get(set->page,set->base+(uint16_t)id*RECORD_BYTES);
+    return !sources_owned(set,id,page)||page_drop(page);
+}
+
 static void put32(Sources *set,uint16_t at,uint32_t value) {
     uint8_t i;
     for(i=0;i<4;++i)far_set(set->page,at+i,(uint8_t)(value>>(i*8)));
@@ -56,13 +69,13 @@ static void forget_record(Sources *set,uint8_t id) {
     --set->count;
 }
 int16_t sources_take(Sources *set,const Source *source,const Source *origin) SOURCE_BLOCK_CALL {
-    uint16_t at,i;int16_t id,owner=-1;uint8_t prior,hash[32],role=page_role(source->page);
+    uint16_t at,i;int16_t id,owner=-1;uint8_t hash[32],role=page_role(source->page);
     if(!sources_valid(set)||strlen(source->path)>127||source->length>SOURCE_LIMIT||
        (role!=PAGE_SOURCE&&role!=PAGE_SNAPSHOT)||
        (origin&&!page_lifetime(origin->page)))return -1;
     id=sources_find(set,source->path);
     for(i=0;i<set->count;++i)
-        if(far_get(set->page,set->base+i*RECORD_BYTES)==source->page)owner=(int16_t)i;
+        if(sources_owned(set,(uint8_t)i,source->page))owner=(int16_t)i;
     if(id<0&&owner<0&&set->count==SOURCE_COUNT)return -1;
     /* Keep the packed root alive while its catalog is in its tail. Replacing
      * it, or growing beyond the tail, first separates the catalog. */
@@ -74,7 +87,7 @@ int16_t sources_take(Sources *set,const Source *source,const Source *origin) SOU
         if(id>=0&&id!=owner) {
             /* Save As replaces the destination owner only after its caller
              * resolves any dirty-buffer conflict. Failure preserves both. */
-            if(!page_drop(far_get(set->page,set->base+(uint16_t)id*RECORD_BYTES)))return -1;
+            if(!sources_release(set,(uint8_t)id))return -1;
             forget_record(set,(uint8_t)id);
             if(owner>id)--owner;
         }
@@ -82,8 +95,7 @@ int16_t sources_take(Sources *set,const Source *source,const Source *origin) SOU
     }
     if(id<0&&set->count==SOURCE_COUNT)return -1;
     if(id>=0) {
-        prior=far_get(set->page,set->base+(uint16_t)id*RECORD_BYTES);
-        if(prior!=source->page&&!page_drop(prior))return -1;
+        if(id!=owner&&!sources_release(set,(uint8_t)id))return -1;
     } else id=set->count++;
     at=set->base+(uint16_t)id*RECORD_BYTES;
     for(i=0;i<sizeof(*source);++i)far_set(set->page,at+i,((const uint8_t *)source)[i]);
@@ -97,13 +109,11 @@ int16_t sources_take(Sources *set,const Source *source,const Source *origin) SOU
     page_initialized(set->page,set->base+(uint16_t)set->count*RECORD_BYTES);return id;
 }
 uint8_t sources_remove(Sources *set,uint8_t id) SOURCE_BLOCK_CALL {
-    uint16_t at=set->base+(uint16_t)id*RECORD_BYTES;uint8_t page;
     if(!sources_valid(set)||id>=set->count)return 0;
     /* The root owns the packed catalog itself. It must outlive all other
      * records, including when a prior include-page release has failed. */
     if(set->base&&!id&&set->count!=1)return 0;
-    page=far_get(set->page,at);
-    if(!page_drop(page))return 0;
+    if(!sources_release(set,id))return 0;
     if(set->base&&!id) {
         memset(set,0,sizeof(*set));set->page=255;return 1;
     }
@@ -140,6 +150,7 @@ uint8_t sources_ready(const Sources *set,uint8_t id) SOURCE_BLOCK_CALL {
     return page==255||(page_lifetime(page)&&page_lifetime(page)==word32(set,at+ORIGIN_LIFETIME)&&
         page_versions[page]==word32(set,at+ORIGIN_VERSION));
 }
+
 uint8_t sources_resident(const Sources *set,uint8_t id) SOURCE_BLOCK_CALL {
     return sources_valid(set)&&id<set->count&&
         far_get(set->page,set->base+(uint16_t)id*RECORD_BYTES+ORIGIN)!=255;
@@ -152,7 +163,7 @@ uint8_t sources_byte(const Sources *set,uint8_t id,uint16_t offset) SOURCE_BLOCK
     uint16_t at=set->base+(uint16_t)id*RECORD_BYTES,length;uint8_t page;
     if(!sources_valid(set)||id>=set->count)return 0;
     page=far_get(set->page,at);length=far_get(set->page,at+2)|((uint16_t)far_get(set->page,at+3)<<8);
-    if(offset>=length||length>SOURCE_LIMIT||!page_lifetime(page))return 0;
+    if(offset>=length||length>SOURCE_LIMIT||!sources_owned(set,id,page))return 0;
     return far_get(page,offset);
 }
 uint8_t sources_path(const char *name,const char *directory,char *out) SOURCE_BLOCK_CALL {

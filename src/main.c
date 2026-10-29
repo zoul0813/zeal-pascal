@@ -138,14 +138,17 @@ static uint8_t confirmation_key(void) {
 }
 static void edit(uint8_t at_error) {
     uint8_t result;
-    uint32_t revision;
+    uint32_t revision,lifetime;
     editor_begin(&work,at_error,screen_width,screen_height); ide_state=2;
     for(;;) {
-        redraw(); revision=work.revision;
+        redraw(); revision=work.revision; lifetime=page_lifetime(work.page);
         result=editor_key(key_read());
         if(result==EDITOR_READ_BLOCK||result==EDITOR_WRITE_BLOCK) block_io(result);
         if(result==EDITOR_FIND||result==EDITOR_REPLACE||result==EDITOR_REPEAT) search_command(result);
-        if(work.revision!=revision) invalidate();
+        if(work.revision!=revision) {
+            invalidate();
+            if(page_lifetime(work.page)!=lifetime&&!sync_work())lookup_failure();
+        }
         if(result==EDITOR_DONE) return;
         if(result==EDITOR_REJECT||result==EDITOR_ABORT) {
             screen_at(0,screen_height-1);
