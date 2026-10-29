@@ -160,8 +160,8 @@ In Com-file mode, compiling the default source writes
 Run `T:/src/pascal/UNTITLED.COM` from ZShell. These are native Zeal Z80
 executables. Source must be saved separately with S.
 Saved runs release their cached image/map pages while the child runs, then reload
-and authenticate that cache. Source buffers stay in RAM. Changed disk artifacts
-or a failed cache reload invalidate the cache; the next R recompiles.
+and authenticate that cache. Source buffers stay in RAM. A failed or
+unauthenticated cache reload invalidates the cache; the next R recompiles.
 
 H cHn-file mode writes a compact `.CHN` code payload and its `.ZMP` source map.
 It omits the ordinary executable's runtime, globals and placement gaps. It uses
