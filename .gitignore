@@ -49,6 +49,7 @@
 !/tools/test-chain-call.py
 !/tools/test-chain-loader.py
 !/tools/test-execute-override.py
+!/tools/test-execute-handoff.py
 !/tools/test-chain-files.py
 !/tools/test-transfer.py
 !/tools/test-real.py

@@ -4,6 +4,9 @@
 #include <string.h>
 #include <zos_sys.h>
 #include <zos_vfs.h>
+#ifndef ZP_CHAIN_ONLY
+#include "execute_handoff.h"
+#endif
 
 uint8_t chain_buffer[128],chain_store;
 static uint8_t header[96];
@@ -145,6 +148,20 @@ void chain_install(ImageLoad *load) {
     load->ready=0;
 }
 #ifndef ZP_CHAIN_ONLY
+static uint8_t handoff_capable(ImageLoad *load) {
+    uint16_t at,i,n,done=0;
+    if(load->entry<0x8000u||execute_entry_length>load->length||
+       load->entry-0x4000u>load->length-execute_entry_length)return 0;
+    at=load->entry-0x4000u;
+    while(done<execute_entry_length) {
+        n=execute_entry_length-done;if(n>128)n=128;
+        if(n>16384u-at%16384u)n=16384u-at%16384u;
+        chain_store=0;chain_page_io(load->pages[at/16384u],at%16384u,n);
+        for(i=0;i<n;++i)if(chain_buffer[i]!=execute_entry_start[done+i])return 0;
+        done+=n;at+=n;
+    }
+    return 1;
+}
 uint8_t execute_prepare(ImageLoad *load,const char *path) {
     uint8_t executable[160],digest[32],error;
     NativeImage id;Sha256 hash;
@@ -160,7 +177,7 @@ uint8_t execute_prepare(ImageLoad *load,const char *path) {
     }
     error=native_decode(executable,0,&id);
     if(error){fail(load,0x20,error);goto failed;}
-    load->length=id.length;load->origin=id.origin;load->bytes=id.bytes;
+    load->length=id.length;load->entry=word(executable+12);load->origin=id.origin;load->bytes=id.bytes;
     load->globals=word(executable+26);load->end=word(executable+30);
     memcpy(load->id,id.id,32);memcpy(load->map,id.map,32);
     sha_init(&hash);
@@ -186,7 +203,7 @@ uint8_t execute_prepare(ImageLoad *load,const char *path) {
     if(memcmp(digest,load->id,32)){corrupt(load);goto failed;}
     error=close(load->fd);load->fd=-1;
     if(error){io_error(load,error);goto failed;}
-    load->ready=1;return 1;
+    load->handoff=handoff_capable(load);load->ready=1;return 1;
 failed:
     chain_discard(load);return 0;
 }
@@ -243,7 +260,7 @@ static uint8_t override_originals[3];
 static char override_path[128];
 uint8_t execute_override(ImageLoad *load,const char *path,const uint8_t originals[3]) {
     uint16_t i;
-    if(!load->ready||load->kind!=IMAGE_EXECUTABLE||load->fd>=0)return corrupt(load);
+    if(!load->ready||load->kind!=IMAGE_EXECUTABLE||load->fd>=0||!load->handoff)return corrupt(load);
     /* Copy caller-owned arguments before the original stack is frozen. The
      * retained module must reserve its alias-stack area outside code/data. */
     for(i=0;i<sizeof(override_path);++i) {override_path[i]=path[i];if(!path[i])break;}
@@ -255,11 +272,24 @@ uint8_t execute_override(ImageLoad *load,const char *path,const uint8_t original
  * syscall dispatcher preserves these entry mappings on failure even while
  * the loader overwrites the OS's original allocation pages. */
 void execute_attempt(void) {
-    uint8_t error;
+    uint8_t error,record[EXECUTE_HANDOFF_BYTES],i;
     if(!execute_snapshot(override_load,override_originals))return;
+    memset(record,0,sizeof(record));memcpy(record,"ZEX1",4);
+    record[EXECUTE_HANDOFF_COUNT]=4;
+    memcpy(record+EXECUTE_HANDOFF_ORIGINALS,override_originals,3);
+    record[EXECUTE_HANDOFF_LENGTH]=(uint8_t)override_load->length;
+    record[EXECUTE_HANDOFF_LENGTH+1]=(uint8_t)(override_load->length>>8);
+    memcpy(record+EXECUTE_HANDOFF_ID,override_load->id,32);
+    record[EXECUTE_HANDOFF_PAGES]=execute_code_page();
+    memcpy(record+EXECUTE_HANDOFF_PAGES+1,override_load->pages,3);
+    for(i=0;i<sizeof(record)-1;++i)record[sizeof(record)-1]^=record[i];
+    memcpy(chain_buffer,record,sizeof(record));chain_store=1;
+    chain_page_io(override_originals[2],EXECUTE_HANDOFF_ADDRESS-0xc000u,sizeof(record));
     error=execute_os_override(override_path);
     io_error(override_load,error?error:ERR_FAILURE); /* override cannot return success */
     if(!execute_restore(override_load))execute_abandon(); /* never resume damaged RAM */
+    memset(chain_buffer,0,sizeof(record));chain_store=1;
+    chain_page_io(override_originals[2],EXECUTE_HANDOFF_ADDRESS-0xc000u,sizeof(record));
 }
 #endif
 #ifndef ZP_CHAIN_HOST

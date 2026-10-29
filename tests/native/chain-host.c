@@ -1,6 +1,7 @@
 /* Actual loader against a deterministic SDK; caller memory is independent of
  * the staged pages and must remain byte-identical until authenticated commit. */
 #include "chain.h"
+#include "execute_handoff.h"
 #include <zos_vfs.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,8 +29,12 @@ void execute_switch(void) {
     execute_attempt();check(stack_page==code_page);stack_page=saved;
 }
 uint8_t execute_os_override(const char *path) {
-    unsigned i;check(!strcmp(path,"H:/checked.COM")&&load.ready&&load.kind==IMAGE_ROLLBACK);
+    unsigned i;uint8_t sum=0,*record=pages[load.originals[2]]+0x3c00;
+    check(!strcmp(path,"H:/checked.COM")&&load.ready&&load.kind==IMAGE_ROLLBACK);
     check(stack_page==code_page);++override_calls;
+    check(!memcmp(record,"ZEX1",4)&&record[4]==4&&record[42]==code_page);
+    check(!memcmp(record+5,load.originals,3)&&!memcmp(record+10,load.id,32)&&!memcmp(record+43,load.pages,3));
+    for(i=0;i<EXECUTE_HANDOFF_BYTES;++i)sum^=record[i];check(!sum);
     for(i=0;i<3;++i)memset(pages[load.originals[i]],0x6a,16384);
     return override_error;
 }
@@ -246,7 +251,9 @@ static void override_cases(void) {
     static const uint8_t errors[]={ERR_NO_SUCH_ENTRY,ERR_ENTRY_CORRUPTED,ERR_FAILURE,0};
     static const uint16_t expected[]={1,0x99,0x99,0x99};
     for(i=0;i<sizeof(errors);++i) {
-        setup(0);check(execute_prepare(&load,"H:/x-max.COM"));borrowed(originals);
+        setup(0);check(execute_prepare(&load,"H:/x-ready.COM")&&load.handoff);borrowed(originals);
+        memset(pages[originals[2]]+0x3c00,0,EXECUTE_HANDOFF_BYTES);
+        memset(rollback_expected[2]+0x3c00,0,EXECUTE_HANDOFF_BYTES);
         stack_page=originals[2];override_calls=switch_calls=0;override_error=errors[i];
         check(!execute_override(&load,"H:/checked.COM",originals));
         check(override_calls==1&&switch_calls==1&&stack_page==originals[2]);
@@ -254,13 +261,13 @@ static void override_cases(void) {
         check(!load.ready&&load.kind==IMAGE_ROLLBACK&&count()==6);borrowed_unchanged();
         stack_page=62;check(chain_discard(&load)&&count()==3);release_borrowed();
     }
-    setup(0);check(execute_prepare(&load,"H:/x-small.COM"));borrowed(originals);
+    setup(0);check(execute_prepare(&load,"H:/x-readys.COM"));borrowed(originals);
     override_calls=switch_calls=0;stack_page=originals[2];fail_alloc=allocs+1;
     check(!execute_override(&load,"H:/checked.COM",originals));
     check(!override_calls&&switch_calls==1&&stack_page==originals[2]&&load.ready&&load.kind==IMAGE_EXECUTABLE);
     check(load.error==0x1ff);borrowed_unchanged();
     stack_page=62;check(chain_discard(&load)&&count()==3);release_borrowed();
-    setup(0);check(execute_prepare(&load,"H:/x-small.COM"));borrowed(originals);
+    setup(0);check(execute_prepare(&load,"H:/x-readys.COM"));borrowed(originals);
     override_calls=switch_calls=0;
     check(!execute_override(&load,"",originals)&&!switch_calls&&!override_calls&&load.ready);
     {
@@ -268,6 +275,25 @@ static void override_cases(void) {
         check(!execute_override(&load,path,originals)&&!switch_calls&&!override_calls&&load.ready);
     }
     check(chain_discard(&load)&&count()==3);release_borrowed();
+    setup(0);check(execute_prepare(&load,"H:/x-small.COM")&&!load.handoff);
+    override_calls=switch_calls=0;
+    check(!execute_override(&load,"H:/checked.COM",originals)&&!switch_calls&&!override_calls&&load.ready);
+    check(load.error==0x20&&chain_discard(&load)&&!count());
+}
+static void handoff_cases(void) {
+    unsigned i;char path[48];uint8_t originals[3]={40,41,42};
+    for(i=0;i<execute_entry_length;++i) {
+        setup(0);snprintf(path,sizeof(path),"H:/x-h%u.COM",i);
+        check(execute_prepare(&load,path)&&load.ready&&!load.error&&!load.handoff);
+        override_calls=switch_calls=0;
+        check(!execute_override(&load,"H:/checked.COM",originals)&&!override_calls&&!switch_calls);
+        check(load.error==0x20&&chain_discard(&load)&&!count());
+    }
+    for(i=0xbfff;i<=0xc001;++i) {
+        setup(0);snprintf(path,sizeof(path),"H:/x-h%x.COM",i);
+        check(execute_prepare(&load,path)&&load.ready&&load.handoff&&load.entry==i);
+        check(chain_discard(&load)&&!count());
+    }
 }
 int main(int argc,char **argv) {
     unsigned i,total_reads,total_allocs;uint16_t floor;
@@ -322,5 +348,6 @@ int main(int argc,char **argv) {
     executable_cases();
     rollback_cases();
     override_cases();
+    handoff_cases();
     printf("PASS: %u image staging/heap/identity/commit assertions across %u scenarios\n",checks,scenarios);return 0;
 }

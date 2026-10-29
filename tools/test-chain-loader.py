@@ -27,6 +27,12 @@ def executable(length):
     image[100:132]=sha(b'independent COM source map')
     return image
 def seal_executable(image):image[36:68]=bytes(32);image[36:68]=sha(image)
+def handoff_executable(length,normal=0x8003):
+    b=executable(length);entry=(ROOT/'build/execute_entry.zpl').read_bytes()
+    assert length>=normal-0x4000+len(entry)
+    put(b,1,normal);put(b,12,normal)
+    b[16384]=0xc3;put(b,16385,normal+len(entry))
+    b[normal-0x4000:normal-0x4000+len(entry)]=entry;seal_executable(b);return b
 def fixtures():
     result={}
     for name,size in [('small',128),('grow',0x4800),('odd',0x4801),('short',128),('legacy',96),('entry-short',127)]:
@@ -50,14 +56,24 @@ def fixtures():
     b=executable(46080);seal_executable(b);b[-1]^=1;result['x-hash.COM']=bytes(b)
     b=executable(16512);seal_executable(b)
     result['x-truncated.COM']=bytes(b[:-1]);result['x-trailing.COM']=bytes(b)+b'x'
+    result['x-ready.COM']=bytes(handoff_executable(46080))
+    result['x-readys.COM']=bytes(handoff_executable(17000))
+    for normal in (0xbfff,0xc000,0xc001):
+        result[f'x-h{normal:x}.COM']=bytes(handoff_executable(34000,normal))
     return result
 def host():
     OUT.mkdir(parents=True,exist_ok=True)
     for name,b in fixtures().items():(OUT/name).write_bytes(b)
+    entry=(ROOT/'build/execute_entry.zpl').read_bytes()
+    for i in range(len(entry)):
+        b=handoff_executable(17000);b[16387+i]^=1;seal_executable(b)
+        (OUT/f'x-h{i}.COM').write_bytes(b)
+    asset=OUT/'execute-entry.c'
+    asset.write_text('#include <stdint.h>\nconst uint8_t execute_entry_start[]={'+','.join(str(b)for b in entry)+'};\nconst uint16_t execute_entry_length='+str(len(entry))+';\n')
     sdk=ROOT.parent/'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
     cmd=['cc','-std=c99','-Wall','-Wextra','-Werror','-fno-builtin-exit','-fsanitize=address,undefined','-fno-sanitize-recover=all','-g','-DZP_CHAIN_HOST','-D__SDCC_VERSION_MAJOR=4','-D__SDCC_VERSION_MINOR=2','-D__sdcccall(x)=','-Isrc','-I'+str(sdk)]
     cmd+=['-D'+name+'=chain_model_'+name for name in ('open','read','close','palloc','pfree')]
-    cmd+=['src/chain.c','src/native_image.c','src/sha256.c','tests/native/chain-host.c','-o',str(OUT/'chain-host')]
+    cmd+=['src/chain.c','src/native_image.c','src/sha256.c','tests/native/chain-host.c',str(asset),'-o',str(OUT/'chain-host')]
     subprocess.run(cmd,cwd=ROOT,check=True);subprocess.run([str(OUT/'chain-host'),str(OUT)],cwd=ROOT,check=True)
 def native():
     spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py')

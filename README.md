@@ -42,6 +42,7 @@ python3 tools/test-chain.py
 python3 tools/test-chain-loader.py
 python3 tools/test-chain-loader.py --native
 python3 tools/test-execute-override.py
+python3 tools/test-execute-handoff.py
 python3 tools/test-transfer.py
 python3 tools/test-transfer.py --native
 python3 tools/test-runtime-profile.py

@@ -29,6 +29,8 @@ typedef struct {
 #ifndef ZP_CHAIN_ONLY
     uint8_t kind;
     uint16_t length;
+    uint16_t entry;
+    uint8_t handoff;
     uint8_t originals[3]; /* borrowed caller pages, never freed by this ledger */
 #endif
 } ImageLoad;

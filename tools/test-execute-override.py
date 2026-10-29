@@ -47,7 +47,7 @@ def main():
     assert len(binary)<0x3800
     for area in ('DATA','BSS','INITIALIZED'):
         assert sym['s__'+area]+sym['l__'+area]<=0x7800
-    image=f.fixtures()['x-max.COM'];disk=corrupt_tf(n,image)
+    image=bytes(f.handoff_executable(46080));disk=corrupt_tf(n,image)
     inputs=[Path(__file__),ROOT/'tools/test-native.py',ROOT/'tools/test-chain-loader.py',ROOT/'CMakeLists.txt',n.EMULATOR,n.ROM]
     inputs+=list((ROOT/'src').glob('*'))+list((ROOT/'tests/native').glob('execute-probe.*'))
     inputs+=[ROOT/'tests/native/file-start.asm',ROOT/'tests/native/machine.asm']
