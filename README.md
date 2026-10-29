@@ -7,6 +7,11 @@ full language, editor and runtime conformance is still in progress.
 The current priority is language and IDE completion, followed by performance
 work, then the remaining Turbo Pascal runtime/library services.
 
+Explore [six self-contained applications](examples/README.md): a text adventure,
+persistent stock database, loan calculator, concordance, Life simulation and
+heap-backed task manager. Each includes a standalone `.bin`, source, run
+instructions and a short demo.
+
 Build using the existing Zeal development environment:
 
 ```sh

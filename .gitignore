@@ -57,3 +57,15 @@
 !/tools/package-native.py
 !/tools/package-tf.py
 /.review-workflow/
+
+# Self-contained Pascal application demonstrations.
+!/examples/
+!/tools/test-examples.py
+# Local IDE byproducts; the shipped .bin images remain tracked.
+/examples/**/*.COM
+/examples/**/*.ZMP
+/examples/**/*.BAK
+/examples/**/*.com
+/examples/**/*.zmp
+/examples/**/*.bak
+/examples/partsbin/parts.dat

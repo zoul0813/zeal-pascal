@@ -1,0 +1,4 @@
+Pascal makes a small machine useful.
+A small machine can keep records, explore worlds, and count words.
+Write a program. Read a program. Change a program.
+The machine is small. The possibilities are wide.
