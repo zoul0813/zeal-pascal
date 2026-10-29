@@ -5,8 +5,10 @@
  * The OS's valid native image extent ends before F400, leaving this intact.
  * Byte XOR of all72 bytes is zero. Unused page slots participate in the XOR
  * but are not owners. Page0 is the retained module, then all other old owners.
- * Startup validates every owner before freeing any, and proves module ownership
- * first through the OS's checked pfree. It never executes retained old code. */
+ * Startup excludes all mapped pages before a checked module-page retirement:
+ * an unowned candidate is stale cold-start state. An owned candidate belongs
+ * to the ending program. The full record/page plan is checked before any other
+ * release. Startup never executes retained old code. */
 #define EXECUTE_HANDOFF_ADDRESS 0xfc00u
 #define EXECUTE_HANDOFF_BYTES 72u
 #define EXECUTE_HANDOFF_COUNT 4u

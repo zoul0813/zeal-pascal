@@ -32,7 +32,7 @@ def upper_probe():
     opcode=bytes([0xcd,source&255,source>>8])
     calls=[at for at in range(max(0xc000,origin),origin+size-2)if image[at-0x4000:at-0x4000+3]==opcode]
     assert len(calls)==1 and calls[0]+3<0xf400,calls
-    padding=int(re.search(rb'padding:array\[1\.\.(\d+)\]',(ROOT/'tests/native/conupper.pas').read_bytes())[1])
+    padding=int(re.search(rb'const padsize=(\d+)',(ROOT/'tests/native/conupper.pas').read_bytes())[1])
     return image,calls[0],0x8000+padding-1
 
 

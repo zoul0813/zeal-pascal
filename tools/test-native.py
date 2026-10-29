@@ -203,9 +203,11 @@ def artifact_checks(directory):
     normalized = bytearray(mapping)
     normalized[20:52] = bytes(32)
     assert hashlib.sha256(normalized).digest() == binary[100:132]
-    assert binary[:3] == b'\xc3\xa0\x40' and binary[3:8] == b'ZP80\x01'
+    assert binary[0] == 0xc3 and word(binary,1)==word(binary,12) and binary[3:8] == b'ZP80\x01'
     assert word(binary, 8) == 160 and word(binary, 10) == len(binary)
-    assert word(binary, 12) == 0x40a0 and word(binary, 14) == 0x40a3
+    entry=(ROOT/'build/execute_entry.zpl').read_bytes()
+    assert word(binary,12)==0x4000+len(binary)-len(entry) and binary[-len(entry):]==entry
+    assert word(binary,14)==0x40a3
     assert word(binary, 16) == 1 and word(binary, 18) == 0
     origin, code_bytes = word(binary, 20), word(binary, 22)
     assert word(binary, 24) == 0x8000 and word(binary, 26) == 2
@@ -323,7 +325,7 @@ def user_break_checks():
     sym, kernel = symbols('zpascal'), kernel_symbols()
     typed = lambda text: type_text(text, ticks=2000000)
     source = b'var s:string[8];\nbegin\nreadln(s)\nend.'
-    reader, setter = kernel['keyboard_read_raw'], kernel['keyboard_ioctl']
+    reader, setter = kernel['keyboard_next_key'], kernel['keyboard_ioctl']
     cleanup = symbols('pascal_runtime')['input_cleanup']
     work, build, result = sym['_work'], sym['_build'], sym['_ram_result']
     def probe():
@@ -331,7 +333,10 @@ def user_break_checks():
                 f'rb 0x{work:x} 12', f'rb 0x{build:x} 83', f'rb 0x{result:x} 128']
     commands = ['run 100000000'] + program_launch() + ['run 10000000']
     commands += typed('ne') + typed(source.decode()) + control('K') + typed('d')
-    commands += [f'bp 0x{reader:x}', 'tap R', 'run 4000000000', f'bc 0x{reader:x}',
+    # Compiler cancellation polling also enters the keyboard reader. Gate on
+    # RAM entry first so Ctrl-C belongs to the generated ReadLn invocation.
+    commands += [f"bp 0x{sym['_ram_enter']:x}", 'tap R', 'run 12000000000',
+                 f"bc 0x{sym['_ram_enter']:x}", f'bp 0x{reader:x}', 'run 12000000000', f'bc 0x{reader:x}',
                  f'bp 0x{cleanup:x}', 'press CTRL', 'tap C', 'release CTRL', 'run 1000000000',
                  f'bc 0x{cleanup:x}', f'bp 0x{setter:x}', 'run 100000000']
     commands += ['s'] * 12
@@ -408,9 +413,8 @@ def file_workflow_checks():
 def bank_lifecycle_checks():
     sym = symbols('zpascal')
     probe = ['regs', 'mmu', f"rb 0x{sym['_code_owned']:x} 1"]
-    commands = ['run 100000000'] + type_text('H:/zpascal.bin H:/zpascal.zpl')
-    commands += ['tap ENTER', 'run 1250000', f"bp 0x{sym['_code_ready']:x}", 'run 2000000000'] + probe
-    commands += [f"bc 0x{sym['_code_ready']:x}", f"bp 0x{sym['_fflush_stdout']:x}", 'run 100000000']
+    commands = ['run 100000000'] + program_launch() + probe
+    commands += [f"bp 0x{sym['_fflush_stdout']:x}", 'run 100000000']
     commands += type_text('nq', ticks=2000000) + probe + ['quit']
     text = execute('bank-lifecycle', commands)
     parts = re.split(r'\[DBG\] PC=', text)[1:]
@@ -647,37 +651,38 @@ def main():
     if sym['_test_stop'] != 0xfc00:
         raise RuntimeError('completion stop must be the supervisor-only FC00 marker')
     kernel = kernel_symbols()
-    reader, mode = kernel['keyboard_read_raw'], kernel['kb_mode']
+    reader, mode = kernel['keyboard_next_key'], kernel['kb_mode']
     keyboard_ioctl = kernel['keyboard_ioctl']
+    cleanup = symbols('pascal_runtime')['input_cleanup']
     commands = ['run 100000000'] + program_launch('zptest')
     commands += ['run 100000000', f"bp 0x{sym['_test_stop']:x}"]
-    # Wait for the actual first raw read. Observe the restoration ioctl while
-    # kernel RAM is mapped: reading kb_mode from user C000 would inspect an
-    # unrelated user page. The pinned setter takes 12 instructions through RET.
-    commands += [f'bp 0x{reader:x}', 'run 12000000000', f'bc 0x{reader:x}']
-    for _ in range(2):
-        commands += [f'bp 0x{keyboard_ioctl:x}']
-        commands += type_text('Adx\ba\n', ticks=2000000)
-        commands += ['s'] * 12
-        commands += ['regs', 'mmu', f'rb 0x{mode:x} 1', f'bc 0x{keyboard_ioctl:x}']
-        commands += type_text('abcdefghi\n\n', ticks=2000000)
-        commands += ['run 1000000000']
+    # A raw-reader entry may still consume a previous key/release or belong to
+    # the compiler. The inner blocking wait owns each new physical line. Keep
+    # Enter held through RAM/COM transitions, releasing it at the next wait.
     enter_held = False
-    for _ in range(2):
-        commands += [f'bp 0x{reader:x}', 'run 120000000000', f'bc 0x{reader:x}']
+    def physical_line(value, inspect_mode=False):
+        nonlocal enter_held
+        commands.extend([f'bp 0x{reader:x}', 'run 120000000000', f'bc 0x{reader:x}'])
         if enter_held:
-            commands += ['release ENTER', 'run 2000000']
-        for at, line in enumerate(READ_INPUT_LINES):
-            commands += type_text(line, ticks=2000000)
-            if at+1 < len(READ_INPUT_LINES):
-                commands += ['tap ENTER', 'run 100000000']
-            else:
-                commands += ['press ENTER']
-                enter_held = True
+            commands.extend(['release ENTER', 'run 2000000'])
+        commands.extend(type_text(value, ticks=2000000))
+        if inspect_mode:commands.append(f'bp 0x{cleanup:x}')
+        commands.extend(['press ENTER', 'run 100000000'])
+        enter_held = True
+        if inspect_mode:
+            # Echo borrows keyboard mode too. Only the cleanup setter owns
+            # restoration of the caller's RAM/saved execution convention.
+            commands.extend([f'bc 0x{cleanup:x}', f'bp 0x{keyboard_ioctl:x}', 'run 100000000'])
+            # Observe the completed setter while kernel RAM is still mapped.
+            commands.extend(['s']*12+['regs','mmu',f'rb 0x{mode:x} 1',f'bc 0x{keyboard_ioctl:x}'])
+    for _ in range(2):
+        physical_line('Adx\ba', True)
+        physical_line('abcdefghi')
+        physical_line('')
+    for _ in range(2):
+        for line in READ_INPUT_LINES:physical_line(line)
     # Invalid numeric input must report I/O10 and return to its ReadLn source.
-    commands += [f'bp 0x{reader:x}', 'run 120000000000', f'bc 0x{reader:x}']
-    commands += ['release ENTER', 'run 2000000']
-    commands += type_text('12x', ticks=2000000) + ['tap ENTER']
+    physical_line('12x')
     # The completion breakpoint is mandatory; this bounded budget includes the
     # RAM/COM control/routine/string corpora and source-recovery executions.
     commands += ['run 120000000000', 's', 'regs', 'mmu']

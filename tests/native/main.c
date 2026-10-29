@@ -329,10 +329,17 @@ static void media_tests(void) {
         if(attempt<2) build_close(&b);
     }
     strcpy(s.path,"B:/UNTITLED.COM");
+    /* Renaming invalidates the source catalog before path validation. Test
+     * that guard separately, then bind a fresh build to the colliding path. */
+    check(!save_build(&s,&b,0)&&platform_error==ERR_FAILURE);
+    build_close(&b);
+    check(compile(&s,&b,&d));
     check(!save_build(&s,&b,0)&&platform_error==ERR_INVALID_PATH);
     strcpy(s.path,"B:/UNTITLED.BAK");
     check(!save_source(&s,1,0)&&platform_error==ERR_INVALID_PATH);
     strcpy(s.path,"B:/UNTITLED.PAS");
+    build_close(&b);
+    check(compile(&s,&b,&d));
     status=255; check(run_saved(&s,&b,&status)&&status==0);
     build_close(&b);
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }

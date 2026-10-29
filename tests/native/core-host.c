@@ -277,6 +277,31 @@ static void chain_call_cases(void) {
     }
 }
 
+static void startup_cases(void) {
+    extern const uint8_t transfer_start[];
+    CompileOptions options={0,0xfbffu,COMPILE_PROGRAM};
+    uint16_t bytes,entry,at,i;uint8_t header[160];NativeImage identity;
+    static const uint16_t entries[]={0xbfff,0xc000,0xc001,0xf100};
+    load("var s:string[80];begin s:='entry' end.");
+    check(compile(&s,&b,&d));bytes=b.code_bytes;build_close(&b);
+    for(at=0;at<sizeof(entries)/sizeof(*entries);++at) {
+        options.start=entries[at]-(bytes-EXECUTE_ENTRY_BYTES);
+        check(compile_project(&s,0,&b,&d,0,&options)&&b.code_bytes==bytes&&build_check(&s,&b));
+        for(i=0;i<160;++i)header[i]=image_get(&b,i);
+        entry=header[12]|((uint16_t)header[13]<<8);
+        check(entry==entries[at]&&header[1]==header[12]&&header[2]==header[13]);
+        check((header[14]|((uint16_t)header[15]<<8))==0x40a3);
+        check(native_header(header,0,&identity)==0&&identity.origin==options.start);
+        for(i=0;i<EXECUTE_ENTRY_BYTES;++i)
+            check(image_get(&b,entry-0x4000u+i)==transfer_start[TRANSFER_MODULE_BYTES+TRANSFER_GATE_BYTES+TRANSFER_CALL_BYTES+i]);
+        build_close(&b);check(pages_used()==1);
+    }
+    options.start=0;options.kind=COMPILE_CHAIN;
+    check(compile_project(&s,0,&b,&d,0,&options)&&build_check(&s,&b));
+    check(b.code_bytes==bytes-EXECUTE_ENTRY_BYTES+CC_ACTIVATION_BYTES);
+    build_close(&b);check(pages_used()==1);
+}
+
 static void keyboard_corpus(void) {
     const char *names[]={"kbdread","kbdbind","kbdlife","kbdupper","kbdfail","conread","conbind","conoutput","conupper","conoutfail","confail","trmread","trmfail","devoutput","devfail"};
     char path[80],text[16384];
@@ -709,6 +734,7 @@ int main(int argc,char **argv) {
     compilation_options();
     chain_cases();
     chain_call_cases();
+    startup_cases();
     console_boundary();
     bridge_corpus();
     hook_corpus();

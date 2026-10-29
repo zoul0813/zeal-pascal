@@ -11,6 +11,3 @@ uint8_t build_image_identity(const Build *b) SOURCE_BLOCK_CALL {
         far_get(b->map_page,20+i)!=b->id[i])return 0;
     return 1;
 }
-uint8_t native_header(const uint8_t *h,uint8_t chain,NativeImage *id) SOURCE_BLOCK_CALL {
-    return native_decode(h,chain,id);
-}

@@ -44,7 +44,8 @@ def runtime_profile(directory):
     """Bind generated private calls and retained file protocols to exact assets."""
     digest = hashlib.sha256(b'ZP80-private-chain-v1\0')
     for name in ('pascal_runtime.zpl', 'pascal_runtime.private',
-                 'file_runtime.zpl', 'file_gate.zpl', 'transfer_runtime.zpl', 'transfer_gate.zpl'):
+                 'file_runtime.zpl', 'file_gate.zpl', 'transfer_runtime.zpl', 'transfer_gate.zpl',
+                 'execute_entry.zpl'):
         data = (directory/name).read_bytes()
         digest.update(name.encode('ascii')+b'\0'+struct.pack('<I', len(data))+data)
     return digest.digest()
@@ -94,7 +95,7 @@ def validate_transfer_call(path):
 
 
 def transfer_assets(directory):
-    names=('transfer_runtime.zpl','transfer_gate.zpl','transfer_call.zpl')
+    names=('transfer_runtime.zpl','transfer_gate.zpl','transfer_call.zpl','execute_entry.zpl')
     blobs=[(directory/name).read_bytes()for name in names]
     metadata=json.loads((directory/'transfer_call.call.json').read_text())
     if hashlib.sha256(blobs[2]).hexdigest()!=metadata['sha256']:
@@ -103,14 +104,15 @@ def transfer_assets(directory):
     header=['#ifndef ZP_TRANSFER_ASSET_H','#define ZP_TRANSFER_ASSET_H',
             '#define TRANSFER_MODULE_BYTES '+str(len(blobs[0]))+'u',
             '#define TRANSFER_GATE_BYTES '+str(len(blobs[1]))+'u',
-            '#define TRANSFER_CALL_BYTES '+str(len(blobs[2]))+'u']
+            '#define TRANSFER_CALL_BYTES '+str(len(blobs[2]))+'u',
+            '#define EXECUTE_ENTRY_BYTES '+str(len(blobs[3]))+'u']
     for key in ('reloc_offset','reloc_count','module_operand','gate_operand','file_operand'):
         header.append('#define TRANSFER_CALL_'+key.upper()+' '+str(metadata[key])+'u')
     (directory/'transfer_asset.h').write_text('\n'.join(header+['#endif','']))
     # IDE/editor targets have a free resident tail; compiler-only acceptance
     # programs instead have an unused part of their existing BANK13.
     layouts={'ide':[(0,1440),(1,1700),(4,700),(5,450),(6,1600),
-                    (9,500),(10,1650),(11,394),(12,1156),(13,751)],
+                    (9,500),(10,1650),(11,394),(12,950),(13,751)],
              'test':[(13,12000)]}
     for name,slots in layouts.items():
         parts=[];at=0
@@ -132,7 +134,7 @@ def transfer_assets(directory):
 
 def validate_transfer_assets(memory,symbols,directory,resident_end,banks):
     expected=b''.join((directory/name).read_bytes()for name in
-                     ('transfer_runtime.zpl','transfer_gate.zpl','transfer_call.zpl'))
+                     ('transfer_runtime.zpl','transfer_gate.zpl','transfer_call.zpl','execute_entry.zpl'))
     count=memory.get(symbols['_transfer_asset_count'],0)
     row=symbols['_transfer_asset_rows'];first=0;actual=bytearray()
     for i in range(count):
@@ -298,6 +300,8 @@ def validate_file_gate(path, transfer=False):
 def package(path):
     memory = read_hex(path)
     symbols = read_symbols(path)
+    if symbols['_native_header'] >> 16 != symbols['_native_decode'] >> 16:
+        raise ValueError('native header adapter and near decoder must share a code bank')
     # Every loaded byte belongs to exactly one segment. In particular no C
     # data, library, or constant may silently live in the switchable window.
     banks = sorted({at >> 16 for at in memory if at >= 0x10000})

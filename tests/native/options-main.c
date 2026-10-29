@@ -8,6 +8,25 @@ volatile uint16_t test_failures[64],test_index;
 volatile uint8_t test_hash[32];
 Source s;Build b;Diagnostic d;
 void test_complete(void);
+extern const uint8_t trampoline_start[],trampoline_end[];
+
+/* The supervisor's immutable return template must survive every operation.
+ * Stop before copying a damaged template into another RAM child. The host
+ * qualification also binds these bytes to the assembled trampoline asset. */
+static uint16_t trampoline_checksum(void) {
+    const uint8_t *at=trampoline_start;
+    uint16_t value=0;
+    while(at!=trampoline_end) {
+        value=(value<<5)|(value>>11);value^=*at++;
+    }
+    return value;
+}
+static void immutable(uint8_t phase) {
+    uint16_t expected=test_hash[0]|((uint16_t)test_hash[1]<<8);
+    uint8_t ok=trampoline_checksum()==expected;
+    check(ok);
+    if(!ok) {test_stage=100+phase;test_done=255;test_complete();}
+}
 
 static void put16(uint16_t at,uint16_t value) {
     far_set(b.pages[at/PAGE_SIZE],at%PAGE_SIZE,(uint8_t)value);
@@ -26,15 +45,19 @@ static void run(void) {
     uint16_t at,pc,position;SavedLocation found;
     test_machine(before);
     check(run_build(&s,&b)&&ram_result[26]==1);
+    immutable(1);
     test_machine(after);check(!memcmp(before,after,7));
     check(pages_used()==owned&&build_check(&s,&b));
-    check(save_build(&s,&b,0));check(run_saved(&s,&b,&status)&&status==0);
+    immutable(2);
+    check(save_build(&s,&b,0));immutable(3);
+    check(run_saved(&s,&b,&status)&&status==0);immutable(4);
     test_machine(after);check(!memcmp(before,after,7));
     check(pages_used()==owned&&build_check(&s,&b));
     at=96+far_get(b.map_page,84)+((uint16_t)far_get(b.map_page,85)<<8);
     pc=far_get(b.map_page,at)|((uint16_t)far_get(b.map_page,at+1)<<8);
     position=far_get(b.map_page,at+8)|((uint16_t)far_get(b.map_page,at+9)<<8);
     check(saved_location(s.path,0,pc,&found));
+    immutable(5);
     check(!strcmp(found.path,s.path)&&found.position==position&&!memcmp(found.hash,b.source_hash,32));
     check(pages_used()==owned&&build_check(&s,&b));
 }
@@ -47,6 +70,7 @@ int app_main(void) {
     uint16_t i,at,bytes=0,globals=0,origin;
     uint8_t gap,status,owned;
     int8_t capture;
+    at=trampoline_checksum();test_hash[0]=(uint8_t)at;test_hash[1]=(uint8_t)(at>>8);
     if(!console_open())return 1;
     check(source_new(&s,"H:/OBASE.PAS"));
     capture=open("H:/OPTIONS.TXT",O_WRONLY|O_CREAT|O_TRUNC);check(capture>=0);
@@ -59,6 +83,7 @@ int app_main(void) {
             check(compile_limits(globals,bytes,&options,&limits));options.start=limits.maximum_start;
         }
         check(compile_project(&s,0,&b,&d,0,&options));
+        immutable(6);
         if(!b.valid)continue;
         bytes=b.code_bytes;globals=b.globals_bytes;
         origin=options.start?options.start:GLOBAL_BASE+globals;

@@ -1,4 +1,5 @@
 #include "compiler.h"
+#include "transfer_asset.h"
 
 const char *compile_error_path(void) SOURCE_BLOCK_CALL { return cc.name; }
 const uint8_t *compile_error_hash(void) SOURCE_BLOCK_CALL { return cc.literal_length==32?cc.literal:0; }
@@ -75,6 +76,10 @@ uint8_t cc_seal(const Source *s,const CompileOptions *options) FRONTEND {
     cc_word(24,GLOBAL_BASE);cc_word(26,b->globals_bytes);cc_word(28,0x4000u+b->length);
     cc_word(30,options?options->end:0xfbffu);
     if(options&&options->kind==COMPILE_CHAIN)chain_image();
+    else {
+        at=0x4000u+b->length-EXECUTE_ENTRY_BYTES;
+        cc_word(1,at);cc_word(12,at);
+    }
     if(d->code)return 0;
     cc_hash_image(b,b->id);
     if(d->code||!cc_poll())return 0;

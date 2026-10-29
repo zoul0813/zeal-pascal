@@ -18,7 +18,7 @@ target_compile_options(real_runtime PRIVATE --std-c99 --opt-code-size "SHELL:--c
     "SHELL:--constseg REAL" "SHELL:--dataseg REAL_DATA")
 add_library(real_compiler OBJECT src/real.c src/transcendental.c)
 target_compile_options(real_compiler PRIVATE --std-c99 --opt-code-size "SHELL:--codeseg BANK9" "SHELL:--constseg BANK9")
-add_library(image_compiler OBJECT src/native_image.c)
+add_library(image_compiler OBJECT src/native_image.c src/compiler_image.c)
 target_include_directories(image_compiler PRIVATE src)
 target_compile_options(image_compiler PRIVATE --std-c99 "SHELL:--codeseg BANK2" "SHELL:--constseg BANK2")
 add_library(key_runtime OBJECT src/keys.c)
@@ -106,8 +106,8 @@ set_property(SOURCE src/output.c src/saved_map.c src/main.c APPEND PROPERTY OBJE
     ${CMAKE_SOURCE_DIR}/src/saved_map.h ${CMAKE_SOURCE_DIR}/src/sources.h)
 set_property(SOURCE src/output.c src/output_transport.c src/banks.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/output_transport.h)
-set_property(SOURCE src/image.c src/compiler_build.c src/saved_map.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/image.h)
-set_property(SOURCE src/image.c src/native_image.c src/saved_map.c tests/native/chain-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/native_image.h)
+set_property(SOURCE src/image.c src/compiler_image.c src/compiler_build.c src/saved_map.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/image.h)
+set_property(SOURCE src/image.c src/compiler_image.c src/native_image.c src/saved_map.c tests/native/chain-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/native_image.h)
 set_property(SOURCE src/sha256.c src/source_hash.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sha256.h)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/sdk_glue.asm CONTENT
     ".globl _fflush_stdout\n.include \"$ENV{ZOS_PATH}/sdk/sdcc/src/zeal8bitos.asm\"\n")
@@ -117,7 +117,7 @@ target_compile_definitions(zp_core PRIVATE ZP_IDE_PATHS)
 add_dependencies(zp_core pascal_runtime_bin ram_trampoline_bin)
 target_include_directories(zp_core PRIVATE src)
 target_include_directories(zp_core PRIVATE ${CMAKE_BINARY_DIR})
-set_property(SOURCE src/compiler_chain.c src/compiler_transfer_asset.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/transfer_asset.h)
+set_property(SOURCE src/compiler_chain.c src/compiler_transfer_asset.c src/compiler_artifact.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/transfer_asset.h)
 target_compile_options(zp_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 # These ordinary C entry points are reached only through resident banks.c.
 set_source_files_properties(src/main.c tests/native/main.c tests/native/input-main.c tests/native/math-main.c tests/native/io-main.c tests/native/file-main.c tests/native/text-main.c tests/native/standard-main.c tests/native/keyboard-main.c tests/native/logical-main.c tests/native/console-main.c tests/native/control-main.c tests/native/devices-main.c tests/native/bridges-main.c tests/native/hooks-main.c tests/native/language-main.c tests/native/sources-main.c tests/native/inline-main.c tests/native/params-main.c tests/native/options-main.c tests/native/worker-main.c tests/native/saved-main.c PROPERTIES
@@ -142,7 +142,8 @@ set_source_files_properties(src/editor.c src/source_blocks.c src/output_transpor
     COMPILE_OPTIONS "--codeseg;BANK13;--constseg;BANK13")
 set_source_files_properties(src/compiler_activation.c src/sources_storage.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK2;--constseg;BANK2")
-# Keep cached-image identity checks beside the native format decoder.
+# Cached-image checks are banked entry points; the decoder's near-call adapter
+# is built in image_compiler, in the same bank as native_decode.
 set_source_files_properties(src/image.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK11;--constseg;BANK11")
 set_source_files_properties(src/compiler_files.c src/compiler_io.c PROPERTIES
@@ -371,17 +372,19 @@ add_custom_command(TARGET transfer_runtime_bin POST_BUILD
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/pascal_runtime.profile
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --runtime-profile
         ${CMAKE_BINARY_DIR}/pascal_runtime.profile
-    DEPENDS pascal_runtime_bin file_runtime_bin file_gate_bin transfer_runtime_bin transfer_gate_bin
+    DEPENDS pascal_runtime_bin file_runtime_bin file_gate_bin transfer_runtime_bin transfer_gate_bin execute_entry_bin
         ${CMAKE_BINARY_DIR}/pascal_runtime.zpl ${CMAKE_BINARY_DIR}/pascal_runtime.private
         ${CMAKE_BINARY_DIR}/file_runtime.zpl ${CMAKE_BINARY_DIR}/file_gate.zpl
         ${CMAKE_BINARY_DIR}/transfer_runtime.zpl ${CMAKE_BINARY_DIR}/transfer_gate.zpl
+        ${CMAKE_BINARY_DIR}/execute_entry.zpl
         ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 add_custom_target(runtime_profile DEPENDS ${CMAKE_BINARY_DIR}/pascal_runtime.profile)
 add_dependencies(zp_core runtime_profile)
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/transfer_call_data.inc
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --transfer-call-data ${CMAKE_BINARY_DIR}
     DEPENDS runtime_profile ${CMAKE_BINARY_DIR}/pascal_runtime.profile ${CMAKE_BINARY_DIR}/pascal_runtime.private
-        ${CMAKE_BINARY_DIR}/transfer_runtime.zpl ${CMAKE_BINARY_DIR}/transfer_gate.zpl ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+        ${CMAKE_BINARY_DIR}/transfer_runtime.zpl ${CMAKE_BINARY_DIR}/transfer_gate.zpl
+        ${CMAKE_BINARY_DIR}/execute_entry.zpl ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 add_custom_target(transfer_call_data DEPENDS ${CMAKE_BINARY_DIR}/transfer_call_data.inc)
 add_executable(transfer_call src/transfer_call.asm)
 add_dependencies(transfer_call transfer_call_data)
@@ -392,7 +395,8 @@ add_custom_command(TARGET transfer_call_bin POST_BUILD BYPRODUCTS ${CMAKE_BINARY
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm ${CMAKE_BINARY_DIR}/transfer_test_asset.asm ${CMAKE_BINARY_DIR}/transfer_asset.h
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --transfer-assets ${CMAKE_BINARY_DIR}
     DEPENDS transfer_call_bin ${CMAKE_BINARY_DIR}/transfer_call.zpl ${CMAKE_BINARY_DIR}/transfer_call.call.json
-        ${CMAKE_BINARY_DIR}/transfer_runtime.zpl ${CMAKE_BINARY_DIR}/transfer_gate.zpl ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+        ${CMAKE_BINARY_DIR}/transfer_runtime.zpl ${CMAKE_BINARY_DIR}/transfer_gate.zpl
+        ${CMAKE_BINARY_DIR}/execute_entry.zpl ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 add_custom_target(transfer_assets DEPENDS ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm ${CMAKE_BINARY_DIR}/transfer_test_asset.asm ${CMAKE_BINARY_DIR}/transfer_asset.h)
 add_dependencies(zp_core transfer_assets)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/transfer_driver_asset.asm CONTENT

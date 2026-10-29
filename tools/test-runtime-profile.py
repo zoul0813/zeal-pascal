@@ -3,6 +3,7 @@
 import contextlib
 import importlib.util
 import io
+import re
 from pathlib import Path
 import tempfile
 
@@ -30,7 +31,7 @@ def flip_hex(text, address):
 
 def main():
     assets = ('pascal_runtime.zpl', 'pascal_runtime.private', 'file_runtime.zpl', 'file_gate.zpl',
-              'transfer_runtime.zpl', 'transfer_gate.zpl')
+              'transfer_runtime.zpl', 'transfer_gate.zpl', 'execute_entry.zpl')
     names = (*assets, 'transfer_call.zpl', 'pascal_runtime.profile', 'pascal_runtime.runtime.json',
              'zpascal.ihx', 'zpascal.map', 'zpascal.bin', 'zpascal.zpl')
     original = {name: (ROOT/'build'/name).read_bytes() for name in names}
@@ -74,6 +75,12 @@ def main():
         image.write_text(flip_hex(original['zpascal.ihx'].decode(), address+31));rejected()
         image.write_bytes(original['zpascal.ihx'])
         symbols=package.read_symbols(image)
+        changed_map,count=re.subn(r'(?m)^(\s+)([0-9A-F]{8})(\s+_native_decode\s)',
+            lambda m:m[1]+f'{int(m[2],16)+0x10000:08X}'+m[3],original['zpascal.map'].decode())
+        assert count==1
+        image.with_suffix('.map').write_text(changed_map)
+        rejected('native header adapter')
+        image.with_suffix('.map').write_bytes(original['zpascal.map'])
         memory=package.read_hex(image)
         row=symbols['_transfer_asset_rows']
         count=memory[symbols['_transfer_asset_count']]

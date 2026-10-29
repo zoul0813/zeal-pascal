@@ -37,6 +37,8 @@ def component():
     checks={
         'native completion':memory.get(sym['_test_done'])==255 and word('_test_stage')==6,
         'RAM/saved execution and saved-PC lookup retain caller stack, MMU, IFF, source and owned pages':word('_test_failed')==0 and word('_test_passed')>=160,
+        'resident RAM return template survives compilation, RAM/saved runs, validation and saved-PC lookup':
+            word('_test_stage')==6 and word('_test_failed')==0,
         'every valid layout executes the selected initial stack and recursive VAR/static code correctly':
             (disk/'OPTIONS.TXT').is_file()and(disk/'OPTIONS.TXT').read_bytes()==b'OPTIONS-OK\r\n'*18,
         'all fixture sources remain unchanged':all((disk/(name+'.PAS')).read_bytes()==source for name in names),
@@ -59,7 +61,7 @@ def component():
         checks['maximum Start exactly fills the permitted static image extent']=True
     except(OSError,AssertionError,ValueError,struct.error)as error:
         checks['independent artifact validation']=False;artifacts['error']=repr(error)
-    return checks,{'native_assertions_passed':word('_test_passed'),'native_assertions_failed':word('_test_failed'),'artifacts':artifacts,
+    return checks,{'native_assertions_passed':word('_test_passed'),'native_assertions_failed':word('_test_failed'),'native_stage':word('_test_stage'),'artifacts':artifacts,
         'expected_startup_failures':['End FFFF','minimum stack2047','End CFFE','insufficient aligned heap headroom','heap FFFF alignment overflow','minimum stack FFFF subtraction overflow']}
 
 

@@ -1,6 +1,6 @@
 .module execute_entry
 .globl execute_entry_start,execute_entry_end
-.globl execute_entry_release
+.globl execute_entry_probe,execute_entry_release
 .area _HEADER (ABS)
 .org 0x8000
 ; Position independent normal-entry template. Only native startup's BC/DE argv
@@ -21,10 +21,46 @@ execute_entry_start::
     sbc hl,de
     jr z,present
 cold:
+    xor a
+    ld (0xfc00),a
     pop de
     pop bc
     jp 0x40a0
 present:
+    ; Magic can be left in arbitrary cold-start RAM. A fresh OS child owns
+    ; only its three mapped pages. An owned, unmapped page identifies ending
+    ; transfer state; retiring that page is safe even if its record is damaged.
+    ld a,(0xfc2a)
+    cp #32
+    jr c,cold
+    cp #64
+    jr nc,cold
+    ld d,a
+    ld a,#0x40
+    in a,(0xf1)
+    cp d
+    jr z,cold
+    ld a,#0x80
+    in a,(0xf2)
+    cp d
+    jr z,cold
+    ld a,#0xc0
+    in a,(0xf3)
+    cp d
+    jr z,cold
+execute_entry_probe::
+    ld b,d
+    ld l,#26
+    rst 8
+    or a
+    jr z,active
+    cp #6                    ; pfree rejects a page not owned by this program
+    jr z,cold
+    ld hl,#0x010f
+    rst 8
+probe_stopped:
+    jr probe_stopped
+active:
     ld hl,#0xfc00
     ld b,#72
     xor a
@@ -123,13 +159,7 @@ owners_stopped:
 release:
 execute_entry_release::
     xor a
-    ld (0xfc00),a             ; consume before the first destructive operation
-    ld a,(0xfc2a)
-    ld b,a
-    ld l,#26
-    rst 8                    ; prove retained module ownership before other frees
-    or a
-    jr nz,bad_release
+    ld (0xfc00),a             ; full record validated before any other owner free
     ld ix,#0xfc2b
     ld a,(0xfc04)
     dec a

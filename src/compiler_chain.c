@@ -2,11 +2,18 @@
 #include "file_runtime.h"
 #include "transfer_asset.h"
 
+uint16_t cc_transfer_asset_size(uint8_t kind) FRONTEND {
+    return kind==0?TRANSFER_MODULE_BYTES:kind==1?TRANSFER_GATE_BYTES:
+        kind==2?TRANSFER_CALL_BYTES:EXECUTE_ENTRY_BYTES;
+}
 static uint16_t asset(uint8_t kind) {
     uint16_t at=cc.emitted,i,n=cc_transfer_asset_size(kind);
     for(i=0;i<n;++i)cc_emit(cc_transfer_asset_get(kind,i));
     return at;
 }
+/* The template contains only relative branches and fixed native ABI addresses.
+ * Appending it leaves all Pascal/source-map entries and the root entry intact. */
+void cc_startup_finish(void) FRONTEND {asset(3);}
 static void patch(uint16_t at,uint16_t value) {
     cc_word(at,value);cc_relocate(at);
 }

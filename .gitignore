@@ -50,8 +50,10 @@
 !/tools/test-chain-loader.py
 !/tools/test-execute-override.py
 !/tools/test-execute-handoff.py
+!/tools/test-compiled-startup.py
 !/tools/test-chain-files.py
 !/tools/test-transfer.py
 !/tools/test-real.py
 !/tools/package-native.py
 !/tools/package-tf.py
+/.review-workflow/

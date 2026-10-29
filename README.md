@@ -35,7 +35,7 @@ python3 tools/test-ide-directory.py
 python3 tools/test-inline.py
 python3 tools/test-ide-sources.py --inline
 python3 tools/test-ide-interrupt.py
-python3 tools/test-compile-interrupt.py --seal-poll 293
+python3 tools/test-compile-interrupt.py --seal-poll 295
 python3 tools/test-options.py
 python3 tools/test-options.py --ide
 python3 tools/test-chain.py
@@ -43,6 +43,7 @@ python3 tools/test-chain-loader.py
 python3 tools/test-chain-loader.py --native
 python3 tools/test-execute-override.py
 python3 tools/test-execute-handoff.py
+python3 tools/test-compiled-startup.py
 python3 tools/test-transfer.py
 python3 tools/test-transfer.py --native
 python3 tools/test-runtime-profile.py

@@ -7,12 +7,10 @@ extern const uint8_t transfer_asset_count,transfer_asset_rows[];
 extern const uint8_t transfer_start[];
 #endif
 
-uint16_t cc_transfer_asset_size(uint8_t kind) FRONTEND {
-    return kind==0?TRANSFER_MODULE_BYTES:kind==1?TRANSFER_GATE_BYTES:TRANSFER_CALL_BYTES;
-}
 uint8_t cc_transfer_asset_get(uint8_t kind,uint16_t offset) FRONTEND {
     if(kind)offset+=TRANSFER_MODULE_BYTES;
     if(kind>1)offset+=TRANSFER_GATE_BYTES;
+    if(kind>2)offset+=TRANSFER_CALL_BYTES;
 #ifdef __SDCC
     uint8_t i,bank;
     uint16_t first=0,end,source;

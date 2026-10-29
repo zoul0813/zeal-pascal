@@ -30,8 +30,7 @@ class Code:
 
 def body(origin,warm,tail=b''):
     c=Code(origin)
-    if warm:
-        c.emit(0x3a,0,0xfc,0xb7);c.jump('fail',0xc2) # record consumed before user code
+    c.emit(0x3a,0,0xfc,0xb7);c.jump('fail',0xc2) # consume/clear context before user code
     if tail is not None:
         c.emit(0x3a,0,0xff,0xfe,len(tail));c.jump('fail',0xc2)
         for i,value in enumerate(tail):
@@ -55,15 +54,16 @@ def body(origin,warm,tail=b''):
 
 def bootstrap(origin,entry,variant):
     c=Code(origin);c.emit(0x31,0,0xfc)
-    if variant in (13,14):c.emit(0x1a,0x32,0x70,0xfc)
+    if variant in (13,14,15):c.emit(0x1a,0x32,0x70,0xfc)
     c.emit(0x21,0,0xfc,0x11,1,0xfc,0x01,71,0,0x36,0,0xed,0xb0)
     c.emit(0x21,0x5a,0x45,0x22,0,0xfc,0x21,0x58,0x31,0x22,2,0xfc,0x3e,4,0x32,4,0xfc)
     for value,port,offset in ((0x40,0xf1,5),(0x80,0xf2,6),(0xc0,0xf3,7)):
         c.emit(0x3e,value,0xdb,port,0x32,offset,0xfc)
     c.emit(0x2a,10,0x40,0x22,8,0xfc,0x21,36,0x40,0x11,10,0xfc,0x01,32,0,0xed,0xb0)
-    c.emit(0xdd,0x21,42,0xfc,0x0e,4);c.mark('allocate')
-    c.emit(0xc5,0x2e,25,0xcf,0xb7);c.jump('fail_pop',0xc2)
-    c.emit(0x78,0xc1,0xdd,0x77,0,0xdd,0x23,0x0d);c.jump('allocate',0xc2)
+    if variant<15:
+        c.emit(0xdd,0x21,42,0xfc,0x0e,4);c.mark('allocate')
+        c.emit(0xc5,0x2e,25,0xcf,0xb7);c.jump('fail_pop',0xc2)
+        c.emit(0x78,0xc1,0xdd,0x77,0,0xdd,0x23,0x0d);c.jump('allocate',0xc2)
     if variant in (2,3):c.emit(0x3e,3 if variant==2 else 30,0x32,4,0xfc)
     elif variant==4:c.emit(0x2a,8,0xfc,0x23,0x22,8,0xfc)
     elif variant in (5,6):
@@ -72,9 +72,15 @@ def bootstrap(origin,entry,variant):
     elif variant in (9,10,11,12):
         c.emit(0x3a,{9:5,10:6,11:7,12:42}[variant],0xfc,0x32,43,0xfc)
     elif variant in (13,14):c.emit(0x3a,0x70,0xfc,0x32,42 if variant==13 else 43,0xfc)
+    elif variant>=15:
+        c.emit(0x3e,3,0x32,4,0xfc)
+        if variant==15:c.emit(0x3a,0x70,0xfc)
+        elif variant<=18:c.emit(0x3a,variant-11,0xfc)
+        else:c.emit(0x3e,{19:0,20:31,21:64,22:255}[variant])
+        c.emit(0x32,42,0xfc)
     c.emit(0x21,0,0xfc,0x06,72,0xaf);c.mark('checksum')
     c.emit(0xae,0x23,0x05);c.jump('checksum',0xc2);c.emit(0x32,71,0xfc)
-    if variant==1:c.emit(0x3a,71,0xfc,0xee,1,0x32,71,0xfc)
+    if variant==1 or variant>=15:c.emit(0x3a,71,0xfc,0xee,1,0x32,71,0xfc)
     c.emit(0xc3);c.word(entry)
     c.mark('fail_pop');c.emit(0xc1,0x21,15,1,0xcf,0x18,0xfe)
     return c.finish()
@@ -107,16 +113,18 @@ def main():
     inputs += [ROOT/'build/execute_entry.zpl',ROOT/'build/pascal_runtime.zpl']
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()};cases={}
     configurations=[('override',None,0x8003,0),('cold',None,0x8003,1),('cold-cross',None,0xbfff,1)]
-    configurations += [('record-'+str(i),i,0x8003,2 if i in (13,14)else 0)for i in range(15)]
+    configurations += [('record-'+str(i),i,0x8003,2 if i==14 else 0)for i in range(15)if i!=13]
+    configurations += [('cold-foreign',13,0x8003,2)]
+    configurations += [('cold-stale-'+str(i),i,0x8003,2 if i==15 else 0)for i in range(15,23)]
     for label,variant,normal,arguments in configurations:
-        cold=label.startswith('cold');expected=1 if variant not in (None,0)else 0
-        target,body_at=image(f,normal,not cold,variant,b'HELLO'if cold else None if variant in (13,14)else b'')
+        cold=label.startswith('cold');expected=0 if cold or variant in (None,0)else 1
+        target,body_at=image(f,normal,not cold,variant,b'HELLO'if cold and variant is None else None if variant in (13,14,15)else b'')
         child='zexecuteprobe.bin'if label=='override'else 'TARGET.COM'
         fixtures={parent+'.bin':parent_bytes,'zexecuteprobe.bin':caller,'TARGET.COM':target,
                   'x-max.COM':target,'CASE.TXT':b'H:/TARGET.COM',
                   'PARENT.TXT':bytes([expected,arguments])+('H:/'+child).encode()}
         release=normal+template['execute_entry_release']-0x8000
-        plan_valid=not cold and variant in (None,0,13,14)
+        plan_valid=not cold and variant in (None,0,14)
         commands=['run 100000000']+n.type_text('H:/'+parent+'.bin',ticks=2000000)
         commands+=['bp 0x4000','tap ENTER','run 1000000000','bc 0x4000',
                    f'bp 0x{release:x}',f"bp 0x{sym['_execute_parent_stop']:x}",'s','run 10000000000','regs','mmu','rb 0xfc00 72']
@@ -131,7 +139,7 @@ def main():
         checks={'expected native checkpoints reached':len(frames)==(2 if plan_valid else 1),
                 'supervisor observes expected replacement status, foreign-page preservation and exact page inventory':
                     bool(frames)and frames[-1].startswith(f"{sym['_execute_parent_stop']:04x} ")and state.get(sym['_test_done'])==255 and word(sym['_test_failed'])==0,
-                'only validated records reach first owner release':bool(frames)and frames[0].startswith(f'{release if plan_valid else sym["_execute_parent_stop"]:04x} '),
+                'only validated records reach remaining-owner release':bool(frames)and frames[0].startswith(f'{release if plan_valid else sym["_execute_parent_stop"]:04x} '),
                 'user code runs only after successful cleanup, with command tail preserved':
                     (directory/'hostfs/RESULT.TXT').read_bytes()==(b''if expected else b'EXEC-COLD-OK\r\n'if cold else b'EXEC-HANDOFF-OK\r\n'),
                 'all inputs unchanged':all(n.sha(Path(p))==value for p,value in hashes.items()),

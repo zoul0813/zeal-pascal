@@ -94,6 +94,7 @@ extern Compiler cc;
 uint8_t cc_poll(void);
 void cc_activation_begin(void) FRONTEND;
 void cc_activation_place(void) FRONTEND;
+void cc_startup_finish(void) FRONTEND;
 uint8_t cc_seal(const Source *root,const CompileOptions *options) FRONTEND;
 
 void cc_fail(uint8_t code) FRONTEND;
