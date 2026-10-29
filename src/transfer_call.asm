@@ -1,7 +1,9 @@
 .module transfer_call
 .globl transfer_call_start,transfer_call_end,transfer_call_relocs,transfer_call_relocs_end
 .globl transfer_call_module_operand,transfer_call_gate_operand,transfer_call_file_operand
-.globl transfer_call_input_operand,zt_profile,zt_module_size,zt_gate_size
+.globl transfer_call_input_operand
+.globl transfer_call_loaded
+.globl zt_profile,zt_module_size,zt_gate_size
 .area _HEADER (ABS)
 .org 0x8000
 ; HL is the once-evaluated ordinary FileJob. The compiler reserves256 bytes
@@ -50,7 +52,8 @@ rel_path: .dw finish
 path_ready:
     ld a,(0xfe75)
     or a
-    jr nz,module_ready
+    .db 0xc2
+rel_existing_ready: .dw module_ready
     ld l,#25
     rst 8                     ; native caller owns its palloc page
     or a
@@ -77,8 +80,85 @@ allocated:
     .db 0x21
 transfer_call_module_operand:: .dw 0
     ld de,#0x4000
-    ld bc,#zt_module_size
-    ldir
+; This private compiler constant is fully checked by packaging before it
+; enters a program, including all token extents and exact linked-module bytes.
+; IY uses the not-yet-initialized caller-owned TransferJob as scratch; its old
+; value is already saved. The generated program owns the full destination.
+unpack:
+    ld iy,#0
+    add iy,sp
+    push ix
+    ld c,(hl)
+    inc hl
+    ld b,(hl)
+    inc hl
+    push bc
+    pop ix                    ; exact decoded length
+unpack_flags:
+    ld a,(hl)
+    inc hl
+    ld 0(iy),a
+    ld 1(iy),#8
+unpack_token:
+    srl 0(iy)
+    jr c,unpack_match
+    ld a,(hl)
+    inc hl
+    ld (de),a
+    inc de
+    dec ix
+    jr unpack_next
+unpack_match:
+    ld a,(hl)
+    inc hl
+    ld 2(iy),a
+    ld a,(hl)
+    inc hl
+    push hl                   ; compressed source
+    ld h,a
+    ld l,2(iy)
+    ld a,l
+    and #15
+    add a,#3
+    ld c,a
+    ld b,#0                   ; match length
+    push hl
+    push ix
+    pop hl
+    or a
+    sbc hl,bc
+    push hl
+    pop ix
+    pop hl
+    srl h
+    rr l
+    srl h
+    rr l
+    srl h
+    rr l
+    srl h
+    rr l
+    inc hl                    ; match distance
+    push de
+    ex de,hl
+    or a
+    sbc hl,de
+    pop de
+    ldir                      ; overlapping copies are intentional
+    pop hl
+unpack_next:
+    push ix
+    pop bc
+    ld a,b
+    or c
+    jr z,unpack_done
+    dec 1(iy)
+    jr nz,unpack_token
+    jr unpack_flags
+unpack_done:
+    pop ix
+transfer_call_loaded::
+module_loaded:
     ld a,(0xfe76)
     out (0xf1),a
     .db 0x21
@@ -95,6 +175,16 @@ module_ready:
     pop iy                    ; caller-owned TransferJob, exact54-byte shape
     ld 0(iy),#0
     ld 1(iy),#0
+    ld hl,#182
+    add hl,sp
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    ld a,(de)                 ; FileJob operation, once-evaluated original
+    cp #33                    ; ZF_TRANSFER_EXECUTE
+    jr nz,prepared_kind
+    ld 0(iy),#3               ; ZT_PREPARE_EXECUTE
+prepared_kind:
     ld hl,(0x4014)
     ld 2(iy),l
     ld 3(iy),h
@@ -193,5 +283,6 @@ dispatch:
 .include "transfer_call_data.inc"
 transfer_call_relocs::
     .dw rel_path,rel_alloc,rel_profile,rel_prepare,rel_discard,rel_commit
+    .dw rel_existing_ready
 transfer_call_relocs_end::
 transfer_call_end::

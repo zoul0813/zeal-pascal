@@ -216,21 +216,21 @@ static void chain_cases(void) {
  * Module/gate bytes are private fixed-address assets, never Pascal relocations. */
 static void chain_call_cases(void) {
     CompileOptions options={0x8100,0xfbffu,COMPILE_PROGRAM};
-    uint16_t i,j,entry,module,offset,actual,expected,at,one_bytes=0;
+    uint16_t i,j,entry,module,offset,actual,expected,at,calls,one_bytes=0;
     uint8_t kind,repeated,expected_byte;
     for(kind=0;kind<2;++kind)for(repeated=0;repeated<2;++repeated) {
         options.kind=kind?COMPILE_CHAIN:COMPILE_PROGRAM;
         options.start=kind?0x8200:0x8100;
         load(repeated?"var f:file;begin Chain(f);Chain(f)end.":"var f:file;begin Chain(f)end.");
         check(compile_project(&s,0,&b,&d,0,&options));
-        check(cc.chain_entry&&cc.file_entry&&cc.temporaries==0&&build_check(&s,&b));
+        check(cc.transfer_entry&&cc.file_entry&&cc.temporaries==0&&build_check(&s,&b));
         at=kind?20:36;expected_byte=image_get(&b,at);
         far_set(b.pages[0],at,expected_byte^1);check(!build_check(&s,&b));
         far_set(b.pages[0],at,expected_byte);check(build_check(&s,&b));
         expected_byte=far_get(b.map_page,20);
         far_set(b.map_page,20,expected_byte^1);check(!build_check(&s,&b));
         far_set(b.map_page,20,expected_byte);check(build_check(&s,&b));
-        entry=cc.chain_entry;module=entry-TRANSFER_MODULE_BYTES-TRANSFER_GATE_BYTES;
+        entry=cc.transfer_entry;module=entry-TRANSFER_MODULE_BYTES-TRANSFER_GATE_BYTES;
         offset=kind?96:b.code_origin-0x4000;
         for(i=0;i<TRANSFER_MODULE_BYTES+TRANSFER_GATE_BYTES;++i) {
             expected_byte=i<TRANSFER_MODULE_BYTES?cc_transfer_asset_get(0,i):
@@ -238,6 +238,13 @@ static void chain_call_cases(void) {
             check(image_get(&b,offset+module-CC_CODE_BASE+i)==expected_byte);
         }
         actual=entry+b.code_origin-CC_CODE_BASE;
+        calls=0;
+        for(i=0;i+6<=b.code_bytes;++i)
+            if(image_get(&b,offset+i)==0xcd&&image_get(&b,offset+i+1)==(uint8_t)RT_IOCALL&&
+               image_get(&b,offset+i+2)==(uint8_t)(RT_IOCALL>>8)&&
+               image_get(&b,offset+i+3)==(uint8_t)actual&&image_get(&b,offset+i+4)==(uint8_t)(actual>>8)&&
+               image_get(&b,offset+i+5)==1)++calls;
+        check(calls==(repeated?2:1));
         for(i=0;i<TRANSFER_CALL_BYTES;++i) {
             expected_byte=cc_transfer_asset_get(2,i);
             for(j=0;j<TRANSFER_CALL_RELOC_COUNT+3;++j) {
@@ -250,7 +257,7 @@ static void chain_call_cases(void) {
                     at=TRANSFER_CALL_MODULE_OPERAND;expected=module+b.code_origin-CC_CODE_BASE;
                 } else if(j==TRANSFER_CALL_RELOC_COUNT+1) {
                     at=TRANSFER_CALL_GATE_OPERAND;expected=actual-TRANSFER_GATE_BYTES;
-                } else {
+                } else if(j==TRANSFER_CALL_RELOC_COUNT+2) {
                     at=TRANSFER_CALL_FILE_OPERAND;expected=cc.file_entry+b.code_origin-CC_CODE_BASE;
                 }
                 if(i==at)expected_byte=(uint8_t)expected;
@@ -262,18 +269,46 @@ static void chain_call_cases(void) {
         else check(b.code_bytes>one_bytes&&b.code_bytes-one_bytes<256);
         build_close(&b);check(pages_used()==1);
     }
+    /* Pure disk transfer programs need no logical Text adapters. A Text
+     * type first encountered in a later routine must still resolve the one
+     * file engine that an earlier routine already requested. */
+    load("var f:file;begin Execute(f)end.");
+    check(compile(&s,&b,&d)&&cc.file_entry&&cc.transfer_entry&&cc.text_type==255);
+    at=b.code_origin-CC_CODE_BASE+cc.file_stream_operand-0x4000;
+    check(!image_get(&b,at)&&!image_get(&b,at+1)&&!image_get(&b,at+2)&&!cc.keyboard_entry);
+    build_close(&b);
+    load("var f:file;procedure first;begin Assign(f,'H:/first')end;\n"
+         "procedure later;var t:Text;begin Assign(t,'H:/later');Rewrite(t);Writeln(t,42);Close(t)end;\n"
+         "begin first;later end.");
+    check(compile(&s,&b,&d)&&cc.file_entry&&cc.text_type!=255&&cc.keyboard_entry);
+    at=b.code_origin-CC_CODE_BASE+cc.file_stream_operand-0x4000;
+    check(image_get(&b,at)==0xcd);build_close(&b);
+    load("var f:file;procedure Execute(n:integer);begin end;begin Execute(1);Chain(f)end.");
+    check(compile(&s,&b,&d)&&cc.transfer_entry!=0);build_close(&b);
+    load("var f:file;begin {$I-}Chain(f);Execute(f)end.");
+    check(compile(&s,&b,&d)&&cc.transfer_entry!=0);build_close(&b);
     load("procedure Chain(n:integer);begin end;begin Chain(1)end.");
-    check(compile(&s,&b,&d)&&!cc.chain_entry&&!cc.file_entry);build_close(&b);
+    check(compile(&s,&b,&d)&&!cc.transfer_entry&&!cc.file_entry);build_close(&b);
+    load("procedure Execute(n:integer);begin end;begin Execute(1)end.");
+    check(compile(&s,&b,&d)&&!cc.transfer_entry&&!cc.file_entry);build_close(&b);
     invalid("var n:integer;begin Chain(n)end.",21);
     invalid("begin Chain('NEXT.CHN')end.",21);
-    for(kind=0;kind<3;++kind) {
+    for(kind=0;kind<10;++kind) {
+        static const char * const names[]={"chain-call","chain-next","chain-cleanup",
+            "execute-call","execute-target","execute-retry","execute-chain","execute-chain-next",
+            "execute-failure","execute-checked"};
         char text[4096];size_t length;
-        FILE *file=fopen(kind==1?"tests/native/chain-next.pas":kind==2?"tests/native/chain-cleanup.pas":"tests/native/chain-call.pas","rb");
+        char path[128];FILE *file;
+        snprintf(path,sizeof(path),"tests/native/%s.pas",names[kind]);file=fopen(path,"rb");
         check(file!=NULL);length=fread(text,1,sizeof(text),file);
         check(feof(file)&&!ferror(file)&&fclose(file)==0);
         check(source_import(&s,(const uint8_t*)text,(uint16_t)length,&d));
-        options.kind=kind==1?COMPILE_CHAIN:COMPILE_PROGRAM;options.start=0x8040;
-        check(compile_project(&s,0,&b,&d,0,&options));build_close(&b);
+        options.kind=kind==1||kind==7?COMPILE_CHAIN:COMPILE_PROGRAM;
+        options.start=kind<3||kind==4?0x8040:0x8080;
+        if(!compile_project(&s,0,&b,&d,0,&options)) {
+            fprintf(stderr,"transfer fixture %s\n",path);check(0);
+        }
+        build_close(&b);
     }
 }
 

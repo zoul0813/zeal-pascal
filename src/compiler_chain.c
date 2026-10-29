@@ -17,25 +17,29 @@ void cc_startup_finish(void) FRONTEND {asset(3);}
 static void patch(uint16_t at,uint16_t value) {
     cc_word(at,value);cc_relocate(at);
 }
-void cc_chain_statement(uint16_t base) FRONTEND {
-    uint16_t skip,module,gate,entry,i,offset,at,value;
+void cc_transfer_statement(uint16_t base) FRONTEND {
+    uint16_t at;
     if(cc.suppress||cc.error->code)return;
-    if(!cc.chain_entry) {
-        skip=cc_forward(0xc3);
-        module=asset(0);gate=asset(1);entry=asset(2);cc.chain_entry=entry;
-        for(i=0;i<TRANSFER_CALL_RELOC_COUNT;++i) {
-            at=TRANSFER_CALL_RELOC_OFFSET+2*i;
-            offset=(cc_transfer_asset_get(2,at)|((uint16_t)cc_transfer_asset_get(2,at+1)<<8))-CC_CODE_BASE;
-            at=entry+offset;value=cc_code_get(at)|((uint16_t)cc_code_get(at+1)<<8);
-            patch(at,value+entry-CC_CODE_BASE);
-        }
-        patch(entry+TRANSFER_CALL_MODULE_OPERAND,module);
-        patch(entry+TRANSFER_CALL_GATE_OPERAND,gate);
-        patch(entry+TRANSFER_CALL_FILE_OPERAND,cc.file_entry);
-        cc_patch(skip);
-    }
     cc_reserve(256);
     cc_op16(0x21,cc.temporaries-base-ZF_JOB_BYTES);cc_emit(0x39);
-    cc_op16(0xcd,RT_IOCALL);cc_relocate(cc.emitted);
-    cc_emit((uint8_t)cc.chain_entry);cc_emit((uint8_t)(cc.chain_entry>>8));cc_emit(cc.io_check);
+    cc_op16(0xcd,RT_IOCALL);at=cc.emitted;cc_relocate(at);
+    cc_emit((uint8_t)cc.transfer_entry);cc_emit((uint8_t)(cc.transfer_entry>>8));cc_emit(cc.io_check);
+    cc.transfer_entry=at;
+}
+/* Share one packed coordinator across Chain and Execute. Forward operands
+ * share the compiler's existing fixup-chain and relocation mechanisms. */
+void cc_transfer_finish(void) FRONTEND {
+    uint16_t module,gate,entry,i,offset,at,value,head=cc.transfer_entry;
+    if(!head||cc.error->code)return;
+    module=asset(0);gate=asset(1);entry=asset(2);
+    for(i=0;i<TRANSFER_CALL_RELOC_COUNT;++i) {
+        at=TRANSFER_CALL_RELOC_OFFSET+2*i;
+        offset=(cc_transfer_asset_get(2,at)|((uint16_t)cc_transfer_asset_get(2,at+1)<<8))-CC_CODE_BASE;
+        at=entry+offset;value=cc_code_get(at)|((uint16_t)cc_code_get(at+1)<<8);
+        patch(at,value+entry-CC_CODE_BASE);
+    }
+    patch(entry+TRANSFER_CALL_MODULE_OPERAND,module);
+    patch(entry+TRANSFER_CALL_GATE_OPERAND,gate);
+    patch(entry+TRANSFER_CALL_FILE_OPERAND,cc.file_entry);
+    cc_patch_chain(head,entry);cc.transfer_entry=entry;
 }

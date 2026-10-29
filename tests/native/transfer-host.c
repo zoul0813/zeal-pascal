@@ -39,13 +39,32 @@ uint8_t chain_prepare(ImageLoad *load,const char *path,const ChainCaller *caller
     load->floor=0xd800;load->frontier=0xe020;
     owned[32]=owned[33]=1;load->pages[0]=32;load->pages[1]=33;load->ready=1;return 1;
 }
+#ifndef ZP_CHAIN_ONLY
+static unsigned overrides;
+static uint8_t handoff_supported=1;
+uint8_t execute_prepare(ImageLoad *load,const char *path) {
+    uint8_t ok=chain_prepare(load,path,&(ChainCaller){.origin=0x9000,.end=0xfbff,.profile={[31]=0x91}});
+    if(ok){load->kind=IMAGE_EXECUTABLE;load->handoff=handoff_supported;}
+    return ok;
+}
+void transfer_original_pages(uint8_t originals[3]) {originals[0]=40;originals[1]=41;originals[2]=42;}
+uint8_t execute_override(ImageLoad *load,const char *path,const uint8_t originals[3],
+                         const uint8_t *owners,uint8_t owner_count) {
+    ++overrides;check(load->ready&&load->kind==IMAGE_EXECUTABLE&&!strcmp(path,"H:/CHAIN.CHN"));
+    check(originals[0]==40&&originals[1]==41&&originals[2]==42);
+    check(owner_count==(transfer_memory[ZT_FILE]?1:0));
+    if(owner_count)check(owners[0]==35&&owned[35]);
+    load->error=1;load->detail=ERR_NO_SUCH_ENTRY;return 0;
+}
+#endif
 void chain_install(ImageLoad *load) {check(load->ready);++installs;load->ready=0;}
 void transfer_commit(void) {++commits;transfer_install();}
 void transfer_file_call(uint8_t mode,void *pointer) {
     FileCleanup *job=pointer;
     ++file_calls;check(mode==1&&transfer_memory[ZT_FILE]==35);
-    check(job->operation==ZF_END_PROGRAM||job->operation==ZF_END_CHAIN);
+    check(job->operation==ZF_END_PROGRAM||job->operation==ZF_END_CHAIN||job->operation==ZF_END_EXECUTE);
     if(job->operation==ZF_END_CHAIN)check(job->owner==0x9000&&job->end==0xe020);
+    if(job->operation==ZF_END_EXECUTE)((FileExecuteCleanup*)job)->count=0;
     job->error=file_error;job->detail=file_detail;
 }
 static uint16_t word(uint16_t at) {return transfer_memory[at]|((uint16_t)transfer_memory[at+1]<<8);}
@@ -53,6 +72,9 @@ static void setup(TransferJob *job,uint8_t files) {
     memset(owned,0,sizeof(owned));memset(drops,0,sizeof(drops));memset(transfer_memory,0,sizeof(transfer_memory));
     chain_init(&transfer_load);memset(job,0,sizeof(*job));
     bad_page=255;file_error=file_detail=0;prepares=installs=commits=file_calls=0;
+#ifndef ZP_CHAIN_ONLY
+    handoff_supported=1;
+#endif
     transfer_memory[ZT_PAGE]=34;owned[34]=1;
     if(files){transfer_memory[ZT_FILE]=35;owned[35]=1;}
     job->caller.origin=0x9000;job->caller.bytes=32;job->caller.globals=23;
@@ -107,10 +129,24 @@ int main(void) {
      for(i=0;i<sizeof(expected)/sizeof(*expected);++i)check(word(0xfc30+2*i)==expected[i]);}
     bad_page=255;clean(&ending);check(!transfer_cleanup(&ending)&&!ending.error&&!owned[32]&&!owned[35]&&owned[34]);
 #ifndef ZP_CHAIN_ONLY
-    setup(&job,0);prepare(&job);transfer_load.kind=IMAGE_EXECUTABLE;
-    job.action=ZT_COMMIT;transfer_dispatch(&job);
-    check(job.error==0x20&&!commits&&!installs&&owned[32]&&owned[33]);
+    setup(&job,1);handoff_supported=0;job.action=ZT_PREPARE_EXECUTE;
+    transfer_dispatch(&job);
+    check(job.error==0x20&&job.detail==ERR_ENTRY_CORRUPTED&&!file_calls&&!transfer_load.ready);
+    check(!owned[32]&&!owned[33]&&owned[34]&&owned[35]);
     clean(&ending);check(!transfer_cleanup(&ending));
+    for(i=0;i<2;++i) {
+        setup(&job,(uint8_t)i);overrides=0;job.action=ZT_PREPARE_EXECUTE;
+        transfer_dispatch(&job);check(!job.error&&transfer_load.kind==IMAGE_EXECUTABLE);
+        job.action=ZT_COMMIT;transfer_dispatch(&job);
+        check(job.error==1&&job.detail==ERR_NO_SUCH_ENTRY&&overrides==1&&!commits&&!installs);
+        check(!owned[32]&&!owned[33]&&owned[34]&&owned[35]==(i!=0));
+        clean(&ending);check(!transfer_cleanup(&ending));
+    }
+    setup(&job,1);overrides=0;job.action=ZT_PREPARE_EXECUTE;
+    transfer_dispatch(&job);file_error=0xf0;file_detail=ERR_FAILURE;
+    job.action=ZT_COMMIT;transfer_dispatch(&job);
+    check(job.error==0xf0&&job.detail==ERR_FAILURE&&!overrides&&!owned[32]&&!owned[33]&&owned[35]);
+    file_error=0;clean(&ending);check(!transfer_cleanup(&ending));
     setup(&job,0);prepare(&job);transfer_load.pages[2]=36;owned[36]=1;bad_page=36;
     clean(&ending);check(transfer_cleanup(&ending)&&ending.error==0x1ff&&owned[36]&&!owned[32]&&!owned[33]);
     bad_page=255;clean(&ending);check(!transfer_cleanup(&ending)&&!ending.error&&drops[36]==2&&owned[34]);

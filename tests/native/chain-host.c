@@ -21,6 +21,7 @@ static uint8_t code_page=63,stack_page=62;
 static uint8_t rollback_expected[3][16384],staged_expected[3][16384];
 static uint8_t override_error;
 static unsigned override_calls,switch_calls;
+static uint8_t expected_owners[25],expected_owner_count;
 uint8_t execute_code_page(void) {return code_page;}
 uint8_t execute_stack_page(void) {return stack_page;}
 #define check(x) do {++checks;if(!(x)){fprintf(stderr,"chain check at line %u (scenario %u, error %u/%u)\n",__LINE__,scenarios,load.error,load.detail);abort();}}while(0)
@@ -32,8 +33,10 @@ uint8_t execute_os_override(const char *path) {
     unsigned i;uint8_t sum=0,*record=pages[load.originals[2]]+0x3c00;
     check(!strcmp(path,"H:/checked.COM")&&load.ready&&load.kind==IMAGE_ROLLBACK);
     check(stack_page==code_page);++override_calls;
-    check(!memcmp(record,"ZEX1",4)&&record[4]==4&&record[42]==code_page);
+    check(!memcmp(record,"ZEX1",4)&&record[4]==4+expected_owner_count&&record[42]==code_page);
     check(!memcmp(record+5,load.originals,3)&&!memcmp(record+10,load.id,32)&&!memcmp(record+43,load.pages,3));
+    check(!memcmp(record+46,expected_owners,expected_owner_count));
+    for(i=0;i<expected_owner_count;++i)check(owned[expected_owners[i]]);
     for(i=0;i<EXECUTE_HANDOFF_BYTES;++i)sum^=record[i];check(!sum);
     for(i=0;i<3;++i)memset(pages[load.originals[i]],0x6a,16384);
     return override_error;
@@ -80,7 +83,7 @@ static void put(uint16_t at,uint16_t value) {user[at]=(uint8_t)value;user[at+1]=
 static void setup(uint8_t heap) {
     uint8_t i;
     check(!handle&&!count());++scenarios;chain_init(&load);
-    opens=reads=closes=allocs=drops=0;
+    opens=reads=closes=allocs=drops=0;expected_owner_count=0;
     fail_open=fail_read=fail_close=fail_alloc=zero_read=oversize_read=0;fail_drop=-1;short_limit=0;
     memset(user,0xa5,sizeof(user));
     caller.origin=0x9000;caller.bytes=0x20;caller.globals=23;caller.end=0xfbff;
@@ -255,7 +258,7 @@ static void override_cases(void) {
         memset(pages[originals[2]]+0x3c00,0,EXECUTE_HANDOFF_BYTES);
         memset(rollback_expected[2]+0x3c00,0,EXECUTE_HANDOFF_BYTES);
         stack_page=originals[2];override_calls=switch_calls=0;override_error=errors[i];
-        check(!execute_override(&load,"H:/checked.COM",originals));
+        check(!execute_override(&load,"H:/checked.COM",originals,0,0));
         check(override_calls==1&&switch_calls==1&&stack_page==originals[2]);
         check(load.error==expected[i]&&load.detail==(errors[i]?errors[i]:ERR_FAILURE));
         check(!load.ready&&load.kind==IMAGE_ROLLBACK&&count()==6);borrowed_unchanged();
@@ -263,22 +266,56 @@ static void override_cases(void) {
     }
     setup(0);check(execute_prepare(&load,"H:/x-readys.COM"));borrowed(originals);
     override_calls=switch_calls=0;stack_page=originals[2];fail_alloc=allocs+1;
-    check(!execute_override(&load,"H:/checked.COM",originals));
+    check(!execute_override(&load,"H:/checked.COM",originals,0,0));
     check(!override_calls&&switch_calls==1&&stack_page==originals[2]&&load.ready&&load.kind==IMAGE_EXECUTABLE);
     check(load.error==0x1ff);borrowed_unchanged();
     stack_page=62;check(chain_discard(&load)&&count()==3);release_borrowed();
     setup(0);check(execute_prepare(&load,"H:/x-readys.COM"));borrowed(originals);
     override_calls=switch_calls=0;
-    check(!execute_override(&load,"",originals)&&!switch_calls&&!override_calls&&load.ready);
+    check(!execute_override(&load,"",originals,0,0)&&!switch_calls&&!override_calls&&load.ready);
     {
         char path[129];memset(path,'x',128);path[128]=0;
-        check(!execute_override(&load,path,originals)&&!switch_calls&&!override_calls&&load.ready);
+        check(!execute_override(&load,path,originals,0,0)&&!switch_calls&&!override_calls&&load.ready);
     }
     check(chain_discard(&load)&&count()==3);release_borrowed();
     setup(0);check(execute_prepare(&load,"H:/x-small.COM")&&!load.handoff);
     override_calls=switch_calls=0;
-    check(!execute_override(&load,"H:/checked.COM",originals)&&!switch_calls&&!override_calls&&load.ready);
+    check(!execute_override(&load,"H:/checked.COM",originals,0,0)&&!switch_calls&&!override_calls&&load.ready);
     check(load.error==0x20&&chain_discard(&load)&&!count());
+}
+static void extra_owner_cases(void) {
+    uint8_t originals[3],owners[26],i;unsigned scenario;
+    /* On actual OS failure, extra owners remain live and the caller pages
+     * are restored. Only replacement startup may retire this page list. */
+    setup(0);check(execute_prepare(&load,"H:/x-ready.COM"));borrowed(originals);
+    check(!palloc(owners)&&!palloc(owners+1));
+    expected_owner_count=2;memcpy(expected_owners,owners,2);
+    memset(pages[originals[2]]+0x3c00,0,EXECUTE_HANDOFF_BYTES);
+    memset(rollback_expected[2]+0x3c00,0,EXECUTE_HANDOFF_BYTES);
+    override_calls=switch_calls=0;stack_page=originals[2];override_error=ERR_FAILURE;
+    check(!execute_override(&load,"H:/checked.COM",originals,owners,2));
+    check(override_calls==1&&load.error==0x99&&owned[owners[0]]&&owned[owners[1]]);
+    borrowed_unchanged();stack_page=62;
+    check(chain_discard(&load)&&count()==5);
+    check(!pfree(owners[0])&&!pfree(owners[1]));release_borrowed();
+    for(scenario=0;scenario<9;++scenario) {
+        setup(0);check(execute_prepare(&load,"H:/x-ready.COM"));borrowed(originals);
+        owners[0]=40;owners[1]=40;
+        if(scenario<3)owners[0]=originals[scenario];
+        else if(scenario<6)owners[0]=load.pages[scenario-3];
+        else if(scenario==6)owners[0]=code_page;
+        else if(scenario==7)owners[0]=31;
+        override_calls=switch_calls=0;
+        check(!execute_override(&load,"H:/checked.COM",originals,owners,scenario==8?2:1));
+        check(load.error==0x20&&load.ready&&!override_calls&&!switch_calls);
+        borrowed_unchanged();check(chain_discard(&load)&&count()==3);release_borrowed();
+    }
+    setup(0);check(execute_prepare(&load,"H:/x-ready.COM"));borrowed(originals);
+    override_calls=switch_calls=0;
+    for(i=0;i<26;++i)owners[i]=32+i;
+    check(!execute_override(&load,"H:/checked.COM",originals,owners,26)&&!switch_calls);
+    check(!execute_override(&load,"H:/checked.COM",originals,0,1)&&!switch_calls);
+    check(chain_discard(&load)&&count()==3);release_borrowed();
 }
 static void handoff_cases(void) {
     unsigned i;char path[48];uint8_t originals[3]={40,41,42};
@@ -286,7 +323,7 @@ static void handoff_cases(void) {
         setup(0);snprintf(path,sizeof(path),"H:/x-h%u.COM",i);
         check(execute_prepare(&load,path)&&load.ready&&!load.error&&!load.handoff);
         override_calls=switch_calls=0;
-        check(!execute_override(&load,"H:/checked.COM",originals)&&!override_calls&&!switch_calls);
+        check(!execute_override(&load,"H:/checked.COM",originals,0,0)&&!override_calls&&!switch_calls);
         check(load.error==0x20&&chain_discard(&load)&&!count());
     }
     for(i=0xbfff;i<=0xc001;++i) {
@@ -347,7 +384,7 @@ int main(int argc,char **argv) {
     setup(1);fail_drop=32;check(!chain_prepare(&load,"H:/profile-0.CHN",&caller));check(load.error==0x20&&load.detail==ERR_ENTRY_CORRUPTED&&count()==1&&!handle);unchanged();fail_drop=-1;check(chain_discard(&load)&&!count());
     executable_cases();
     rollback_cases();
-    override_cases();
+    override_cases();extra_owner_cases();
     handoff_cases();
     printf("PASS: %u image staging/heap/identity/commit assertions across %u scenarios\n",checks,scenarios);return 0;
 }

@@ -112,6 +112,35 @@ static void path_cases(void) {
     check(call(ZF_ASSIGN)==0);job.data=0xd000;job.count=128;
     check(call(ZF_TRANSFER_PATH)==0x20&&!job.stream); /* logical devices are not code files */
 }
+static void execute_files(void) {
+    struct {FileExecuteCleanup job;uint8_t guard[8];} executing;
+    uint16_t i;
+    uint8_t before[16];
+    memcpy(before,VM(0xc000),16);memset(&executing,0xa5,sizeof(executing));
+    memset(&executing.job.result,0,sizeof(FileCleanup));
+    executing.job.result.operation=ZF_END_EXECUTE;
+#ifdef __SDCC
+    file_probe(1,&executing.job);check(file_probe_ok&&!memcmp(file_probe_before,file_probe_after,7));
+    check(file_probe_pending==1);
+#else
+    check(zf_cleanup(&executing.job.result)==1);
+#endif
+    check(!executing.job.result.error&&executing.job.count==1&&
+        executing.job.pages[0]>=32&&executing.job.pages[0]<64);
+    for(i=1;i<ZF_EXECUTE_PAGES;++i)if(executing.job.pages[i]!=0xa5)break;
+    check(i==ZF_EXECUTE_PAGES&&!memcmp(before,VM(0xc000),16));
+    for(i=0;i<8;++i)if(executing.guard[i]!=0xa5)break;
+    check(i==8);
+    /* Failed override can reopen every exact association, including frame
+     * and heap owners. Typed headers were finalized and no token was retired. */
+    for(i=0;i<5;++i) {
+        uint16_t object=i==0?0xc000:i==1?0xe402:i==2?0xc300:i==3?0xf650:0xc060;
+        select(object);check(call(ZF_RESET)==0);
+        job.data=0xc500;job.count=128;
+        check(call(ZF_TRANSFER_PATH)==0&&VM(0xc500)[0]=='H');
+    }
+    check(cleanup(ZF_END_PROGRAM)==0);
+}
 static void child(void) {
     uint16_t old_generation=get(0xc064);
     memcpy(token,VM(0xc000),16);
@@ -182,6 +211,17 @@ static void faults(void) {
     model_free_error=0;
     check(zf_cleanup(&ending)==0&&!ending.error&&!ending.detail);
     check(model_pages==0&&model_handles==0&&model_close_calls==i);
+    for(i=0;i<2;++i) {
+        parent();memcpy(token,VM(0xc000),16);
+        if(i)model_write_error=ERR_FAILURE;else model_close_error=ERR_FAILURE;
+        {FileExecuteCleanup executing;
+         memset(&executing,0,sizeof(executing));executing.result.operation=ZF_END_EXECUTE;
+         check(zf_cleanup(&executing.result)==1&&executing.result.error==0xf0&&executing.result.detail==ERR_FAILURE);}
+        check(model_handles==0&&model_pages==1&&!memcmp(token,VM(0xc000),16));
+        model_write_error=model_close_error=0;
+        select(0xc000);check(call(ZF_RESET)==0); /* still assigned after failure */
+        check(cleanup(ZF_END_PROGRAM)==0&&model_handles==0&&model_pages==0);
+    }
     parent();model_free_error=model_close_error=ERR_FAILURE;
     check(zf_cleanup(&ending)==1&&ending.error==0xf0&&ending.detail==ERR_FAILURE);
     check(model_pages==1&&model_handles==0);i=model_close_calls;
@@ -190,6 +230,7 @@ static void faults(void) {
 }
 #endif
 int main(void) {
+    parent();execute_files();
     parent();path_cases();child();results();
 #ifndef __SDCC
     faults();check(model_pages==0&&model_handles==0);

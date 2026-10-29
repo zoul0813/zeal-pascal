@@ -19,7 +19,7 @@ runtime = (ROOT / 'build/pascal_runtime.zpl').read_bytes()
 # runtime/file assets, not just the public ABI or one module's code addresses.
 framed=b'ZP80-private-chain-v1\0'
 for name in ('pascal_runtime.zpl','pascal_runtime.private','file_runtime.zpl','file_gate.zpl',
-             'transfer_runtime.zpl','transfer_gate.zpl','execute_entry.zpl'):
+             'transfer_runtime.zpl','transfer_gate.zpl','execute_entry.zpl','transfer_runtime.packed'):
     data=(ROOT/'build'/name).read_bytes()
     framed+=name.encode('ascii')+b'\0'+struct.pack('<I',len(data))+data
 assert (ROOT/'build/pascal_runtime.profile').read_bytes()==hashlib.sha256(framed).digest()
@@ -35,10 +35,10 @@ with (OUT/'asset.c').open('a') as asset:
         data=(ROOT/f'build/{name}.zpl').read_bytes()
         asset.write('const unsigned char '+start+'[] = {'+','.join(map(str,data))+'};\n')
         asset.write('__asm__(".globl _'+end+'\\n_'+end+' = _'+start+' + '+str(len(data))+'");\n')
-    data=b''.join((ROOT/'build'/name).read_bytes()for name in ('transfer_runtime.zpl','transfer_gate.zpl','transfer_call.zpl','execute_entry.zpl'))
+    data=b''.join((ROOT/'build'/name).read_bytes()for name in ('transfer_runtime.packed','transfer_gate.zpl','transfer_call.zpl','execute_entry.zpl'))
     asset.write('const unsigned char transfer_start[] = {'+','.join(map(str,data))+'};\n')
 subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', *flags, '-Isrc', '-Ibuild', '-I'+str(sdk),
-                'src/source.c', 'src/source_blocks.c', 'src/sources.c', 'src/sources_storage.c', 'src/path.c', 'src/compiler_sources.c', 'src/sha256.c','src/source_hash.c', 'src/compiler.c', 'src/compiler_artifact.c', 'src/image.c','src/native_image.c','src/compiler_image.c', 'src/compiler_activation.c', 'src/compiler_build.c', 'src/compiler_expr.c', 'src/compiler_types.c', 'src/compiler_inline.c', 'src/compiler_front.c', 'src/compiler_routines.c', 'src/compiler_hooks.c', 'src/compiler_real.c', 'src/compiler_io.c', 'src/compiler_random.c', 'src/compiler_params.c', 'src/compiler_file.c', 'src/compiler_files.c', 'src/compiler_keyboard.c', 'src/compiler_interrupt.c', 'src/compiler_console.c', 'src/real.c', 'src/transcendental.c', 'src/compiler_state.c', 'src/compiler_asset.c',
+                'src/source.c', 'src/source_blocks.c', 'src/sources.c', 'src/sources_storage.c', 'src/path.c', 'src/compiler_sources.c', 'src/sha256.c','src/source_hash.c', 'src/compiler.c', 'src/compiler_artifact.c', 'src/image.c','src/native_image.c','src/compiler_image.c', 'src/compiler_activation.c', 'src/compiler_build.c', 'src/compiler_expr.c', 'src/compiler_types.c', 'src/compiler_inline.c', 'src/compiler_front.c', 'src/compiler_routines.c', 'src/compiler_hooks.c', 'src/compiler_real.c', 'src/compiler_io.c', 'src/compiler_random.c', 'src/compiler_params.c', 'src/compiler_file.c', 'src/compiler_files.c', 'src/compiler_keyboard.c', 'src/compiler_interrupt.c', 'src/compiler_console.c', 'src/real.c', 'src/transcendental.c', 'src/compiler_state.c', 'src/compiler_predicates.c', 'src/compiler_asset.c',
                 'src/compiler_chain.c','src/compiler_transfer_asset.c','tests/native/core-host.c', str(OUT / 'asset.c'), '-o', str(OUT / 'core')], cwd=ROOT, check=True)
 subprocess.run([str(OUT / 'core'), str(OUT / 'image.bin')], cwd=ROOT, check=True)
 sdk = ROOT.parent / 'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'

@@ -336,7 +336,7 @@ class DebugConsole:
         (self.directory/'console.txt').write_text(''.join(self.acceptance))
 
 
-def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, timeout=180):
+def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, timeout=180, after_command=None):
     directory = RUN / name
     directory.mkdir(parents=True, exist_ok=False)
     hostfs = directory / 'hostfs'
@@ -354,7 +354,7 @@ def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, tim
     (directory / 'tf.img').write_bytes(tf_image if tf_image is not None else bytes(1024 * 1024))
     (directory / 'eeprom.img').write_bytes(eeprom_image if eeprom_image is not None else bytes(65536))
     (directory / 'zeal.ini').write_text('')
-    live = any(isinstance(command, PhysicalLine) for command in commands)
+    live = after_command is not None or any(isinstance(command, PhysicalLine) for command in commands)
     if not live: (directory / 'commands.txt').write_text('\n'.join(commands) + '\n')
     cmd = [str(EMULATOR), '--console', '--debug', '--rom', str(directory / 'rom.img'),
            '--hostfs', str(hostfs), '-c', str(directory / 'zeal.ini'),
@@ -374,7 +374,11 @@ def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, tim
                     active_line = command
                     console.physical_line(command)
                     active_line = None
-                else: console.command(command, capture=True)
+                else:
+                    response=console.command(command, capture=True)
+                    # Media-fault tests change a disposable backing file only
+                    # after verifying a real stopped native checkpoint.
+                    if after_command is not None:after_command(command,response,directory)
             code = console.process.wait(timeout=5)
             if code: raise RuntimeError(f'{name}: emulator exit {code}')
         except Exception as error:

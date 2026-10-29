@@ -5,6 +5,7 @@ import hashlib
 import re
 import struct
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 
@@ -45,10 +46,64 @@ def runtime_profile(directory):
     digest = hashlib.sha256(b'ZP80-private-chain-v1\0')
     for name in ('pascal_runtime.zpl', 'pascal_runtime.private',
                  'file_runtime.zpl', 'file_gate.zpl', 'transfer_runtime.zpl', 'transfer_gate.zpl',
-                 'execute_entry.zpl'):
+                 'execute_entry.zpl','transfer_runtime.packed'):
         data = (directory/name).read_bytes()
         digest.update(name.encode('ascii')+b'\0'+struct.pack('<I', len(data))+data)
     return digest.digest()
+
+
+def pack_transfer(payload):
+    """Private compiler constant: size:u16, flag groups, literals/backrefs.
+
+    A set flag encodes ((distance-1)<<4)|(length-3) as a little-endian word;
+    distance is1..4096 and length3..18. The native template consumes only these
+    build-verified constants, never an external compressed file or user buffer.
+    """
+    if not 16<=len(payload)<=0x3800:
+        raise ValueError('packed transfer module exceeds its retained window')
+    output=bytearray(struct.pack('<H',len(payload)));positions=defaultdict(list);at=0
+    while at<len(payload):
+        flag=len(output);output.append(0)
+        for bit in range(8):
+            if at==len(payload):break
+            length=0;distance=0
+            for previous in reversed(positions[payload[at:at+3]]):
+                if at-previous>4096:break
+                count=3
+                while count<18 and at+count<len(payload) and payload[previous+count]==payload[at+count]:count+=1
+                if count>length:length=count;distance=at-previous
+                if length==18:break
+            if length:
+                output[flag]|=1<<bit
+                output+=struct.pack('<H',((distance-1)<<4)|(length-3));count=length
+            else:output.append(payload[at]);count=1
+            for previous in range(at,at+count):positions[payload[previous:previous+3]].append(previous)
+            at+=count
+    return bytes(output)
+
+
+def unpack_transfer(payload):
+    """Validate all extents before the trusted constant enters a program."""
+    if len(payload)<3:raise ValueError('short packed transfer constant')
+    size=struct.unpack_from('<H',payload)[0];at=2;output=bytearray()
+    if not 16<=size<=0x3800:raise ValueError('invalid packed transfer extent')
+    while len(output)<size:
+        if at==len(payload):raise ValueError('missing transfer flag')
+        flags=payload[at];at+=1
+        for bit in range(8):
+            if len(output)==size:
+                if flags>>bit:raise ValueError('unused transfer flags')
+                break
+            count=2 if flags&(1<<bit) else 1
+            if at+count>len(payload):raise ValueError('short transfer token')
+            if count==1:output.append(payload[at])
+            else:
+                word=struct.unpack_from('<H',payload,at)[0];distance=(word>>4)+1;length=(word&15)+3
+                if distance>len(output) or len(output)+length>size:raise ValueError('invalid transfer backref')
+                for _ in range(length):output.append(output[-distance])
+            at+=count
+    if at!=len(payload):raise ValueError('trailing transfer data')
+    return bytes(output)
 
 
 def transfer_call_data(directory):
@@ -95,8 +150,10 @@ def validate_transfer_call(path):
 
 
 def transfer_assets(directory):
-    names=('transfer_runtime.zpl','transfer_gate.zpl','transfer_call.zpl','execute_entry.zpl')
+    names=('transfer_runtime.packed','transfer_gate.zpl','transfer_call.zpl','execute_entry.zpl')
     blobs=[(directory/name).read_bytes()for name in names]
+    if unpack_transfer(blobs[0])!=(directory/'transfer_runtime.zpl').read_bytes():
+        raise ValueError('packed transfer constant differs from its checked module')
     metadata=json.loads((directory/'transfer_call.call.json').read_text())
     if hashlib.sha256(blobs[2]).hexdigest()!=metadata['sha256']:
         raise ValueError('transfer caller metadata does not match its bytes')
@@ -111,8 +168,8 @@ def transfer_assets(directory):
     (directory/'transfer_asset.h').write_text('\n'.join(header+['#endif','']))
     # IDE/editor targets have a free resident tail; compiler-only acceptance
     # programs instead have an unused part of their existing BANK13.
-    layouts={'ide':[(0,1440),(1,1700),(4,700),(5,450),(6,1600),
-                    (9,500),(10,1650),(11,394),(12,950),(13,751)],
+    layouts={'ide':[(0,1440),(1,1700),(3,136),(4,600),(5,450),(6,1500),
+                    (7,460),(9,400),(10,650),(11,800),(12,950),(13,500)],
              'test':[(13,12000)]}
     for name,slots in layouts.items():
         parts=[];at=0
@@ -134,7 +191,7 @@ def transfer_assets(directory):
 
 def validate_transfer_assets(memory,symbols,directory,resident_end,banks):
     expected=b''.join((directory/name).read_bytes()for name in
-                     ('transfer_runtime.zpl','transfer_gate.zpl','transfer_call.zpl','execute_entry.zpl'))
+                     ('transfer_runtime.packed','transfer_gate.zpl','transfer_call.zpl','execute_entry.zpl'))
     count=memory.get(symbols['_transfer_asset_count'],0)
     row=symbols['_transfer_asset_rows'];first=0;actual=bytearray()
     for i in range(count):
@@ -254,14 +311,15 @@ def validate_trampoline(path):
 
 def validate_file_runtime(path, transfer=False):
     memory, symbols = read_hex(path), read_symbols(path)
-    if not memory or min(memory) != 0x4000 or max(memory) >= 0x8000:
-        raise ValueError('file runtime exceeds its owned module page')
+    limit=0x7800 if transfer else 0x8000
+    if not memory or min(memory) != 0x4000 or max(memory) >= limit:
+        raise ValueError('file runtime exceeds its owned code/data extent')
     entries=('_transfer_dispatch','_transfer_cleanup')if transfer else('_zf_dispatch','_zf_cleanup')
     for entry, name in zip((0x4000,0x4003),entries):
         if bytes(memory.get(entry+i, 0) for i in range(3)) != b'\xc3'+struct.pack('<H', symbols[name]):
             raise ValueError('file module entry misplaced: '+name)
     if transfer:
-        if bytes(memory.get(0x400a+i,0)for i in range(6))!=b'ZTRN\x01\0':
+        if bytes(memory.get(0x400a+i,0)for i in range(6))!=b'ZTRN\x01\x03':
             raise ValueError('transfer module header mismatch')
         gate=(path.parent/'file_gate.zpl').read_bytes()
         pointer=symbols['_transfer_file_gate']
@@ -273,11 +331,15 @@ def validate_file_runtime(path, transfer=False):
         raise ValueError('file module header mismatch')
     for area in ('HEADER', 'SYSTEM', 'TEXT', 'INITIALIZED', 'DATA', 'BSS'):
         at, size = symbols['s__'+area], symbols['l__'+area]
-        if size and not 0x4000 <= at <= at+size <= 0x8000:
-            raise ValueError('file module '+area+' exceeds its owned page')
+        if size and not 0x4000 <= at <= at+size <= limit:
+            raise ValueError('file module '+area+' exceeds its owned code/data extent')
     payload = bytes(memory.get(at, 0) for at in range(0x4000, max(memory)+1))
     if path.with_suffix('.zpl').read_bytes() != payload:
         raise ValueError('file runtime binary differs from its checked link image')
+    if transfer and path.stem=='transfer_runtime':
+        packed=pack_transfer(payload)
+        if unpack_transfer(packed)!=payload:raise ValueError('transfer packing roundtrip failed')
+        path.with_suffix('.packed').write_bytes(packed)
     report = {'passed': True, 'module_bytes': len(payload),
               'data_end': max(symbols['s__'+a]+symbols['l__'+a] for a in ('DATA', 'BSS')),
               'sha256': hashlib.sha256(payload).hexdigest()}

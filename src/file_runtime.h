@@ -15,9 +15,9 @@ enum {
     ZF_SEEK, ZF_POSITION, ZF_SIZE, ZF_EOF, ZF_FLUSH, ZF_ERASE,
     ZF_BLOCKREAD, ZF_BLOCKREAD_PARTIAL, ZF_BLOCKWRITE, ZF_BLOCKWRITE_PARTIAL
 };
-enum { ZF_END_FRAME=16, ZF_END_OBJECT, ZF_END_RANGE, ZF_END_PROGRAM, ZF_END_CHAIN=31 };
+enum { ZF_END_FRAME=16, ZF_END_OBJECT, ZF_END_RANGE, ZF_END_PROGRAM, ZF_END_CHAIN=31, ZF_END_EXECUTE=32 };
 enum { ZF_TEXT_READ=20,ZF_TEXT_WRITE,ZF_TEXT_READLN,ZF_TEXT_WRITELN,
-       ZF_EOLN,ZF_SEEKEOF,ZF_SEEKEOLN,ZF_RENAME,ZF_TEXT_BEGIN,ZF_STREAM_RETURN,ZF_TRANSFER_PATH };
+       ZF_EOLN,ZF_SEEKEOF,ZF_SEEKEOLN,ZF_RENAME,ZF_TEXT_BEGIN,ZF_STREAM_RETURN,ZF_TRANSFER_PATH,ZF_TRANSFER_EXECUTE=33 };
 enum { ZF_STANDARD_INPUT=1,ZF_STANDARD_OUTPUT,ZF_STANDARD_KBD,ZF_STANDARD_CON,ZF_STANDARD_TRM,
        ZF_STANDARD_LST,ZF_STANDARD_AUX,ZF_STANDARD_USR };
 enum { ZF_OUTPUT_OVERRIDES=0x4000,ZF_OUTPUT_NATIVE=0x8000,
@@ -43,9 +43,17 @@ typedef struct {
 } FileJob;
 /* END_CHAIN: owner is the old code origin, end is the validated old heap
  * frontier. Retain global/heap owners; retire standard, code and frame owners.
+ * END_EXECUTE closes ordinary files without retiring associations or registry
+ * pages. It receives FileExecuteCleanup, whose inline bounded output reports
+ * the registry owners. Reject excessive ownership before closing any file.
  * TRANSFER_PATH writes a NUL-terminated canonical name to data/count without
  * opening, closing, moving or flushing the associated ordinary file. */
 typedef struct { uint16_t operation,owner,end,error,detail; } FileCleanup;
+enum { ZF_EXECUTE_PAGES=24 };
+/* Cleanup prefix stays ABI-compatible with terminal/scope callers. Only
+ * END_EXECUTE accepts this larger caller-owned result; no arbitrary output
+ * address or forged caller list can acquire authority over registry pages. */
+typedef struct { FileCleanup result; uint16_t count; uint8_t pages[ZF_EXECUTE_PAGES]; } FileExecuteCleanup;
 void zf_dispatch(FileJob *job) ZFILE_CALL;
 /* Return the number of still-owned registry pages, including on failure.
  * The terminal gate must retain this module until that ledger is empty. */

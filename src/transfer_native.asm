@@ -1,5 +1,5 @@
 .module transfer_native
-.globl _transfer_file_call,_transfer_commit,_transfer_install
+.globl _transfer_file_call,_transfer_commit,_transfer_install,_transfer_original_pages
 .globl transfer_commit_start,transfer_commit_end
 .area _TEXT
 ; A=file operation mode, DE=stack job. Save the enclosing transport's prefix,
@@ -28,6 +28,22 @@ _transfer_file_call::
     pop af
     ld (0xfe74),a
     pop af
+    ret
+
+; Capture the original prefix saved by the outer gate, plus the two caller
+; mappings, while the original stack is still active. The ending coordinator
+; itself is mapped at4000 and must never be mistaken for an original page.
+_transfer_original_pages::
+    ld a,(0xfe76)
+    ld (hl),a
+    inc hl
+    ld a,#0x80
+    in a,(0xf2)
+    ld (hl),a
+    inc hl
+    ld a,#0xc0
+    in a,(0xf3)
+    ld (hl),a
     ret
 
 _transfer_commit::

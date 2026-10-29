@@ -46,6 +46,9 @@ uint8_t transfer_cleanup(FileCleanup *job) CHAIN_CALL {
 void transfer_dispatch(TransferJob *job) CHAIN_CALL {
     FileCleanup files;
     uint16_t i;
+#ifndef ZP_CHAIN_ONLY
+    FileExecuteCleanup executing;uint8_t originals[3],owners[ZF_EXECUTE_PAGES+1],owner_count;
+#endif
 #ifndef ZP_TRANSFER_HOST
     if((uint16_t)job<0xc800u||(uint16_t)job>0xfc00u-sizeof(*job)) {
         BYTE(0xfe7f)=ERR_ENTRY_CORRUPTED;return;
@@ -57,7 +60,11 @@ void transfer_dispatch(TransferJob *job) CHAIN_CALL {
     if(job->action==ZT_DISCARD) {
         transfer_load.error=0;transfer_load.detail=0;
         chain_discard(&transfer_load);
-    } else if(job->action==ZT_PREPARE) {
+    } else if(job->action==ZT_PREPARE
+#ifndef ZP_CHAIN_ONLY
+              ||job->action==ZT_PREPARE_EXECUTE
+#endif
+    ) {
         transfer_load.ready=0; /* a rejected new request cannot commit old code */
         if(job->path<0xc800u||job->path>0xfb80u||
            job->caller.stack_pointer<0xcc00u||
@@ -68,12 +75,45 @@ void transfer_dispatch(TransferJob *job) CHAIN_CALL {
         if(i==sizeof(path)) {job->error=0x20;job->detail=ERR_ENTRY_CORRUPTED;return;}
         caller=job->caller;
         transfer_load.error=0;transfer_load.detail=0;
-        chain_prepare(&transfer_load,path,&caller);
-    } else if(job->action==ZT_COMMIT&&transfer_load.ready
 #ifndef ZP_CHAIN_ONLY
-              &&transfer_load.kind==IMAGE_CHAIN
+        if(job->action==ZT_PREPARE_EXECUTE) {
+            if(execute_prepare(&transfer_load,path)&&!transfer_load.handoff) {
+                /* Known incompatibility belongs to preflight. In particular,
+                 * do not close an ordinary file for an impossible override. */
+                transfer_load.error=0x20;transfer_load.detail=ERR_ENTRY_CORRUPTED;
+                chain_discard(&transfer_load);
+            }
+        }
+        else
 #endif
-    ) {
+        chain_prepare(&transfer_load,path,&caller);
+    } else if(job->action==ZT_COMMIT&&transfer_load.ready) {
+#ifndef ZP_CHAIN_ONLY
+        if(transfer_load.kind==IMAGE_EXECUTABLE) {
+            memset(&executing,0,sizeof(executing));executing.result.operation=ZF_END_EXECUTE;
+            owner_count=0;
+            if(BYTE(ZT_FILE)) {
+                transfer_file_call(1,&executing);
+                if(!executing.result.error) {
+                    if(executing.count>ZF_EXECUTE_PAGES) {
+                        executing.result.error=0x20;executing.result.detail=ERR_ENTRY_CORRUPTED;
+                    } else {
+                        owner_count=(uint8_t)executing.count;
+                        memcpy(owners,executing.pages,owner_count);owners[owner_count++]=BYTE(ZT_FILE);
+                    }
+                }
+            }
+            if(!executing.result.error) {
+                transfer_original_pages(originals);
+                execute_override(&transfer_load,path,originals,owners,owner_count);
+            } else {transfer_load.error=executing.result.error;transfer_load.detail=(uint8_t)executing.result.detail;}
+            chain_discard(&transfer_load);
+            job->error=transfer_load.error;job->detail=transfer_load.detail;return;
+        }
+        if(transfer_load.kind!=IMAGE_CHAIN) {
+            job->error=0x20;job->detail=ERR_ENTRY_CORRUPTED;return;
+        }
+#endif
         memset(&files,0,sizeof(files));files.operation=ZF_END_CHAIN;
         files.owner=caller.origin;files.end=caller.heap_frontier;
         if(BYTE(ZT_FILE))transfer_file_call(1,&files);

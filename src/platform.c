@@ -8,7 +8,7 @@
 
 extern uint8_t console_scratch[256];
 extern uint8_t key_raw[32];
-static struct { uint8_t role; uint16_t initialized; uint32_t lifetime; } ledger[64];
+static struct { uint8_t role; uint16_t initialized; uint32_t lifetime; } ledger[32];
 static uint32_t next_lifetime;
 static uint8_t active, old_x,old_y;
 static uint8_t raw_at,raw_count,typeahead[32],key_head,key_count,key_hold;
@@ -18,30 +18,30 @@ uint8_t page_new(uint8_t role) {
     uint8_t p=255;
     platform_error=palloc(&p);
     if(platform_error) return 255;
-    if(p<32||p>=64||ledger[p].role) { platform_error=ERR_INVALID_PARAMETER; return 255; }
-    ledger[p].role=role; ledger[p].initialized=0; ledger[p].lifetime=++next_lifetime;
+    if(p<32||p>=64||ledger[p-32].role) { platform_error=ERR_INVALID_PARAMETER; return 255; }
+    ledger[p-32].role=role; ledger[p-32].initialized=0; ledger[p-32].lifetime=++next_lifetime;
     return p;
 }
 uint8_t page_drop(uint8_t p) {
-    if(p<32||p>=64||!ledger[p].role) { platform_error=ERR_INVALID_PARAMETER; return 0; }
+    if(p<32||p>=64||!ledger[p-32].role) { platform_error=ERR_INVALID_PARAMETER; return 0; }
     platform_error=pfree(p);
     if(platform_error) return 0;
-    memset(&ledger[p],0,sizeof(ledger[p])); return 1;
+    memset(&ledger[p-32],0,sizeof(ledger[p-32])); return 1;
 }
 uint8_t page_role(uint8_t p) {
-    return p>=32&&p<64?ledger[p].role:0;
+    return p>=32&&p<64?ledger[p-32].role:0;
 }
 uint32_t page_lifetime(uint8_t p) {
-    return p>=32&&p<64&&ledger[p].role?ledger[p].lifetime:0;
+    return p>=32&&p<64&&ledger[p-32].role?ledger[p-32].lifetime:0;
 }
 uint8_t pages_used(void) {
     extern uint8_t code_owned;
     uint8_t i,n=code_owned; /* Bootstrap owns immutable code pages separately. */
-    for(i=32;i<64;++i) if(ledger[i].role) ++n;
+    for(i=0;i<32;++i) if(ledger[i].role) ++n;
     return n;
 }
 void page_initialized(uint8_t p,uint16_t extent) {
-    if(p>=32&&p<64&&ledger[p].role&&extent<=PAGE_SIZE) ledger[p].initialized=extent;
+    if(p>=32&&p<64&&ledger[p-32].role&&extent<=PAGE_SIZE) ledger[p-32].initialized=extent;
 }
 uint8_t platform_supported(void) {
     const zos_config_t *config=kernel_config();

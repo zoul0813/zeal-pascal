@@ -173,7 +173,9 @@ static void engine(void) {
     index_store(0x75,32); index_store(0x74,33);
     cc.hook_mask_call=cc.emitted; cc_op16(0xcd,0);
     cc_emit(0xe1); cc_emit(0xe5); cc_emit(0xaf); cc_op16(0xcd,0xfe90);
-    stream_result();
+    /* Finalize stream support after every source/routine has been parsed.
+     * Typed and untyped disk files cannot become logical Text streams. */
+    cc.file_stream_operand=cc.emitted;cc_emit(0);cc_emit(0);cc_emit(0);
     index_store(0x6e,24); index_store(0x66,25); cc_op16(0x22,0xfe7a);
     index_store(0x5e,22); index_store(0x56,23);
     cc_emit(0xe1); cc_emit(0xfd); cc_emit(0xe1); /* restore With before any nonlocal error */
@@ -252,7 +254,7 @@ uint8_t cc_file_statement(void) FRONTEND {
     operation=cc_is("assign")?ZF_ASSIGN:cc_is("reset")?ZF_RESET:cc_is("rewrite")?ZF_REWRITE:
         cc_is("close")?ZF_CLOSE:cc_is("seek")?ZF_SEEK:cc_is("flush")?ZF_FLUSH:
         cc_is("erase")?ZF_ERASE:cc_is("rename")?ZF_RENAME:
-        cc_is("chain")?ZF_TRANSFER_PATH:
+        cc_is("chain")?ZF_TRANSFER_PATH:cc_is("execute")?ZF_TRANSFER_EXECUTE:
         cc_is("blockread")?ZF_BLOCKREAD:cc_is("blockwrite")?ZF_BLOCKWRITE:255;
     if(operation==255) return 0;
     cc_next(); cc_expect('(',4); base=job_start(operation); file_argument(base);
@@ -270,7 +272,7 @@ uint8_t cc_file_statement(void) FRONTEND {
         }
     }
     cc_expect(')',5);
-    if(operation==ZF_TRANSFER_PATH) {engine();cc_chain_statement(base);cc_release(base);return 1;}
+    if(operation==ZF_TRANSFER_PATH||operation==ZF_TRANSFER_EXECUTE) {engine();cc_transfer_statement(base);cc_release(base);return 1;}
     invoke(base);
     if(actual) {
         result(base,10); cc_emit(0xeb); cc_emit(0xe1); cc.temporaries-=2;
@@ -359,6 +361,14 @@ void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND {
         store(6,0); invoke(base);
     }
     cc_expect(')',5); cc_release(base);
+}
+void cc_file_stream_finish(void) FRONTEND {
+    /* AuxOutPtr's default adapter creates a Text binding during hook finish. */
+    if(cc.hook_variables[HOOK_AUX_OUT]&&!cc.file_entry)engine();
+    if(!cc.file_entry||cc.error->code||
+       (cc.text_type==255&&!cc.hook_variables[HOOK_AUX_OUT]))return;
+    cc_put(cc.file_stream_operand,0xcd);cc_word(cc.file_stream_operand+1,cc.emitted);
+    cc_relocate(cc.file_stream_operand+1);stream_result();cc_emit(0xc9);
 }
 void cc_file_finish(void) FRONTEND {
     uint16_t i,count=0;

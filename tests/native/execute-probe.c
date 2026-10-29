@@ -37,7 +37,7 @@ void probe_entry(void) {
         ((uint16_t*)0xf000)[0]=0xffff;return;
     }
     memset((void*)0x7800,0xa7,1024); /* lower guard and measured retained stack */
-    execute_override(&load,target,originals);
+    execute_override(&load,target,originals,0,0);
     error=load.error;detail=load.detail;
     for(page=0;page<3;++page) {
         limit=page==2?0x3400:0x4000;

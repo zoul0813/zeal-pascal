@@ -5,7 +5,7 @@
     jp _transfer_cleanup
     .dw _transfer_file_gate,_transfer_file_gate_bytes
     .ascii "ZTRN"
-    .db 1,0
+    .db 1,3
 .area _SYSTEM
 .area _TEXT
 .area _INITIALIZED

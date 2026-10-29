@@ -409,7 +409,7 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     begin=cc_block();j=pc();cc_expect('.',10);
     if(cc.token!=T_EOF)cc_fail(58);
     cc_finish(RT_DONE);cc_mapping(j,pc(),begin,begin);
-    cc_hooks_finish();cc_console_finish();cc_file_finish();cc_error_finish();
+    cc_transfer_finish();cc_file_stream_finish();cc_hooks_finish();cc_console_finish();cc_file_finish();cc_error_finish();
     if(!options||options->kind!=COMPILE_CHAIN)cc_startup_finish();
     if(d->code||!cc_place_code())goto failed;
     if(cc.stage_page!=255) {

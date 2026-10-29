@@ -20,7 +20,7 @@ typedef struct {
 enum { IMAGE_EXECUTABLE,IMAGE_CHAIN,IMAGE_ROLLBACK };
 #endif
 /* One ownership ledger serves authenticated CHN payloads and whole ZP80 COM
- * images. The deployed Chain-only module omits the unused Execute reader. */
+ * images. ZP_CHAIN_ONLY is a component-test variant; the product handles both. */
 typedef struct {
     uint8_t pages[IMAGE_LOAD_PAGES],ready;
     int8_t fd;
@@ -57,8 +57,11 @@ uint8_t execute_stack_page(void) CHAIN_CALL;
  * originals are the OS program's three allocation pages, not the retained
  * mappings. Success never returns. Failure restores the complete caller and
  * returns zero with load->error/detail, retaining backup owners for discard.
- * Caller input/file cleanup and successful-handoff retirement are separate. */
-uint8_t execute_override(ImageLoad *load,const char *path,const uint8_t originals[3]);
+ * Additional owners are copied into the retained handoff, never freed on
+ * failed override. Their complete nonaliasing page plan is checked before
+ * snapshot. Caller input/file cleanup remains a separate owner. */
+uint8_t execute_override(ImageLoad *load,const char *path,const uint8_t originals[3],
+                         const uint8_t *owners,uint8_t owner_count);
 void execute_switch(void);
 void execute_attempt(void);
 uint8_t execute_os_override(const char *path) CHAIN_CALL;

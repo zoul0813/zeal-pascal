@@ -3,7 +3,7 @@
 #include "chain.h"
 #include "file_runtime.h"
 #include <stddef.h>
-enum { ZT_PREPARE,ZT_COMMIT,ZT_DISCARD };
+enum { ZT_PREPARE,ZT_COMMIT,ZT_DISCARD,ZT_PREPARE_EXECUTE };
 /* Caller-owned stack job. Path is already authenticated by TRANSFER_PATH;
  * prepare snapshots it and the expected profile before lending any mappings.
  * After prepare, the caller restores native input ownership before commit. */
@@ -23,4 +23,5 @@ void transfer_file_call(uint8_t mode,void *job) CHAIN_CALL;
 /* Assembly abandons the old stack before install and never returns. */
 void transfer_commit(void);
 void transfer_install(void);
+void transfer_original_pages(uint8_t originals[3]) CHAIN_CALL;
 #endif

@@ -27,7 +27,8 @@ uint16_t zf_service_value;
 static uint8_t pages[REGISTRY_PAGES],page_count;
 static uint16_t slot;
 static FileJob *job;
-static Record *record;
+/* The record scratch buffer has one fixed owner/address in this module. */
+#define record ((Record *)zf_record)
 static uint8_t bytes[128];
 /* Open requests finish before Rename begins comparing its streams. Both
  * buffers belong to this synchronous transport phase; no callback or retained
@@ -704,7 +705,6 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
     if(job->operation!=ZF_STREAM_RETURN) {
         job->error=0; job->detail=0; job->result=0; job->actual=0; job->stream=0; job->lookahead=0;
     }
-    record=(Record *)zf_record;
     if(job->static_end<0x8000u||job->static_end>job->heap_floor||
        job->heap_floor>job->heap_frontier||job->heap_frontier>job->stack_pointer||
        job->stack_pointer<0xc800u||job->stack_pointer>0xfc00u||
@@ -756,7 +756,7 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
     }
     if(record->device) { logical_stream(); return; }
     switch(job->operation) {
-    case ZF_TRANSFER_PATH:
+    case ZF_TRANSFER_PATH: case ZF_TRANSFER_EXECUTE:
         width=(uint16_t)strlen(record->path)+1;
         if(job->count<width||!readable(job->data,width)) fail(0x20,0);
         else {memcpy(USER(job->data),record->path,width);job->actual=width-1;}
@@ -817,20 +817,35 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
     }
     save_record(slot);
 }
+/* Only the private registry determines which bindings end with a scope. Keep
+ * this decision together instead of hoisting a separate flag for every scope
+ * across the registry traversal on the target's small register set. */
+static uint8_t ending_record(const FileCleanup *ending) {
+    switch(ending->operation) {
+    case ZF_END_PROGRAM: case ZF_END_EXECUTE: return 1;
+    case ZF_END_FRAME: case ZF_END_OBJECT: return record->owner==ending->owner;
+    case ZF_END_RANGE: return record->owner>=ending->owner&&record->owner<ending->end;
+    case ZF_END_CHAIN: return record->standard||record->owner>=ending->end||
+        (!record->owner&&record->object>=ending->owner);
+    default: return 0;
+    }
+}
+static uint8_t execute_owners(FileExecuteCleanup *ending) {
+    if(page_count>ZF_EXECUTE_PAGES) {fail(0x1ff,ERR_NO_MORE_MEMORY);return 0;}
+    memcpy(ending->pages,pages,page_count);ending->count=page_count;return 1;
+}
 uint8_t zf_cleanup(FileCleanup *ending) ZFILE_CALL {
     FileJob result;
     uint16_t i;
-    uint8_t selected,error;
-    memset(&result,0,sizeof(result)); job=&result; record=(Record *)zf_record;
+    uint8_t error;
+    memset(&result,0,sizeof(result)); job=&result;
+    if(ending->operation==ZF_END_EXECUTE&&!execute_owners((FileExecuteCleanup*)ending))goto done;
     for(i=1;i<=(uint16_t)page_count*RECORDS_PER_PAGE;++i) {
         load_record(i);
-        selected=ending->operation==ZF_END_PROGRAM||
-            ((ending->operation==ZF_END_FRAME||ending->operation==ZF_END_OBJECT)&&record->owner==ending->owner)||
-            (ending->operation==ZF_END_RANGE&&record->owner>=ending->owner&&record->owner<ending->end)||
-            (ending->operation==ZF_END_CHAIN&&(record->standard||record->owner>=ending->end||
-                (!record->owner&&record->object>=ending->owner)));
-        if(record->object&&selected) {
-            close_record(); record->object=0; save_record(i);
+        if(record->object&&ending_record(ending)) {
+            close_record();
+            if(ending->operation!=ZF_END_EXECUTE)record->object=0;
+            save_record(i);
         }
     }
     if(ending->operation==ZF_END_PROGRAM) {
@@ -840,6 +855,7 @@ uint8_t zf_cleanup(FileCleanup *ending) ZFILE_CALL {
             --page_count;
         }
     }
+done:
     ending->error=result.error; ending->detail=result.detail;
     job=0;
     return page_count;

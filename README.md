@@ -44,6 +44,8 @@ python3 tools/test-compile-interrupt.py --seal-poll 295
 python3 tools/test-options.py
 python3 tools/test-options.py --ide
 python3 tools/test-chain.py
+python3 tools/test-chain-call.py --ide
+python3 tools/test-chain-call.py --execute
 python3 tools/test-chain-loader.py
 python3 tools/test-chain-loader.py --native
 python3 tools/test-execute-override.py
@@ -184,6 +186,16 @@ R explains the required caller while retaining the compiled CHN file.
 CHN source lookup through O,F is available. Switching output kinds
 invalidates the cached build; it does not save source.
 
+Saved programs can replace themselves with another compiled Pascal program:
+`Assign(next,'T:/NEXT.COM'); Execute(next)`. Success never returns to the caller.
+The replacement uses its own runtime, globals and Start/End settings. Memory
+mode reports I/O21. `$I-`/IOResult handles ordinary load failures. Incompatible
+images are rejected before closing files; an attempted OS replacement closes
+ordinary files but retains their filename associations if it fails, so Reset
+can reopen them. Replacement targets require the current sealed startup; rebuild
+older experimental COM files. Executing a saved caller through R returns to the
+IDE after the replacement exits, preserving source and the authenticated cache.
+
 The staged loader also requires an exact private-runtime fingerprint. CHN entry
 code occupies96 bytes, followed by32 fingerprint bytes that execution jumps
 over. The fingerprint binds the runtime prefix, private helper addresses, file
@@ -191,8 +203,9 @@ module/gate and transfer module/gate; public ABI1 alone cannot establish their c
 Older experimental CHN files must be recompiled. Rejection leaves caller code,
 globals and heap unchanged.
 
-The compiler embeds the transfer coordinator, gate and acquisition helper once
-when a program uses Chain. Saved programs acquire their own module page and do
+The compiler embeds one packed transfer coordinator, gate and acquisition helper
+when a program uses Chain or Execute. The coordinator expands into its owned page
+when first needed and is shared across Chain replacements. Saved programs do
 not need separate installed runtime libraries. Existing file support and the
 transfer assets leave limited room for caller code within the generated-program
 size limit. The runtime terminal path can retain/retry coordinator, staged-page
@@ -699,8 +712,8 @@ polling restores the borrowed input mode and echo descriptor.
 The implemented directives are A, B, C, I checking, R, U, V, W and X.
 Pascal CRT calls (ClrScr, ClrEol, GotoXY, InsLine, DelLine, CrtInit/CrtExit,
 LowVideo/NormVideo/HighVideo and Delay), replacement input/error callbacks,
-Pascal Execute loading and overlays remain pending; Chain, CHN compilation and
-source-map lookup are implemented. CP/M BIOS/BDOS services are intentionally
+and overlays remain pending; Chain/Execute, CHN compilation and source-map
+lookup are implemented. CP/M BIOS/BDOS services are intentionally
 unavailable on Zeal; explicit unsupported-target diagnostics for them are still
 pending. These gaps are separate from the editor's display functions.
 

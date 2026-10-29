@@ -18,7 +18,7 @@ int app_main(void) {
         check(compile_project(&s,0,&b,&d,0,&options));
         if(b.valid) {
             check(build_check(&s,&b)&&b.code_origin==options.start);
-            check(i==1?build_is_chain(&b):cc.chain_entry!=0);
+            check(i==1?build_is_chain(&b):cc.transfer_entry!=0);
             check(save_build(&s,&b,0));build_close(&b);
         }
     }

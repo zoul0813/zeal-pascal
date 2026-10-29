@@ -58,7 +58,6 @@ void cc_formatted_value(void) FRONTEND {
     cc_op16(0x21,0); cc_emit(0x39);
 }
 void cc_write(uint8_t newline) FRONTEND {
-    cc.console_used=1;
     uint16_t before=cc.temporaries,offset;
     cc_next();
     if(cc.token=='(') {
@@ -72,6 +71,7 @@ void cc_write(uint8_t newline) FRONTEND {
         } while(!cc.error->code);
         cc_expect(')',5);
     } else if(!newline) cc_fail(4);
+    cc.console_used=1;
     if(newline) {
         cc_emit(0x3e);cc_emit(13);io_call(RT_CHAR,0);
         cc_emit(0x3e);cc_emit(10);io_call(RT_CHAR,0);
@@ -109,7 +109,6 @@ void cc_val(void) FRONTEND {
     cc_reserve(256);cc_op16(0xcd,RT_VAL);cc_release(before);
 }
 void cc_read(uint8_t newline) FRONTEND {
-    cc.console_used=1;
     uint16_t before=cc.temporaries;
     uint8_t fresh=cc.input_fresh,type,kind;
     cc_next();
@@ -119,6 +118,7 @@ void cc_read(uint8_t newline) FRONTEND {
         if(cc_file_prefix()) { cc_file_transfer(0,newline); return; }
         cc_source_restore(&cursor);
     }
+    cc.console_used=1;
     cc_emit(0x3e);cc_emit(fresh|((cc.token!='('&&!newline)?2:0));
     io_call(RT_INPUT_BEGIN,64);
     if(cc.token=='(') {

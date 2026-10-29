@@ -18,7 +18,7 @@ static uint32_t available(void) {
     while(n<32&&!palloc(held+n)){mask|=1UL<<(held[n]-32);++n;}
     for(i=0;i<n;++i)check(!pfree(held[i]));return mask;
 }
-void execute_parent_stop(void) {__asm nop __endasm;}
+void execute_parent_stop(void);
 int main(void) {
     uint32_t baseline=available();int8_t fd,output;uint16_t n=sizeof(control)-1;
     uint8_t foreign,status=255,error;char tail[2];const char *arguments[1];
