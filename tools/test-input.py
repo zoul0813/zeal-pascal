@@ -16,7 +16,8 @@ def main():
     reader = n.kernel_symbols()['keyboard_next_key']
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(), ROOT/'tools/test-native.py',
               ROOT/'tools/package-native.py', n.EMULATOR, n.ROM]
-    inputs += sorted((ROOT/'src').glob('*')) + sorted((ROOT/'tests/native').glob('*'))
+    inputs += sorted((ROOT/'src').glob('*')) + sorted((ROOT/'tests/native').glob('*.pas'))
+    inputs += [ROOT/'tests/native'/name for name in ('input-main.c', 'harness.c', 'harness.h', 'machine.asm')]
     inputs += [ROOT/f'build/{target}.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}
     assert sym['_test_stop'] == 0xfc00
@@ -48,9 +49,12 @@ def main():
     # Hold Enter until the next wait, including across RAM/COM transitions.
     enter_held = False
     for pass_index, lines in enumerate(passes):
-        for line in lines:
+        for line_index, line in enumerate(lines):
+            if pass_index < 2:
+                commands += [n.PhysicalLine(n.READ_INPUT_LINES[line_index], 'READINPUT.COM', 1-pass_index)]
+                continue
             commands += [f'bp 0x{reader:x}', 'run 12000000000', f'bc 0x{reader:x}']
-            if enter_held:
+            if enter_held or (pass_index == 2 and line_index == 0):
                 commands += ['release ENTER', 'run 2000000']
                 enter_held = False
             commands += line
@@ -71,7 +75,13 @@ def main():
         p = sym[name]
         return memory.get(p, 0) | (memory.get(p+1, 0) << 8)
     output = n.RUN/'input-component/hostfs/READ.TXT'
+    receipt_file = n.RUN/'input-component/input-lines.json'
+    receipts = json.loads(receipt_file.read_text()) if receipt_file.exists() else []
+    error_file = n.RUN/'input-component/input-error.json'
+    input_error = json.loads(error_file.read_text()) if error_file.exists() else None
     checks = {
+        '46 numeric lines delivered to the intended invocation and verified before Enter': len(receipts) == 46,
+        'input delivery completed without an observer/protocol error': input_error is None,
         'actual native completion': memory.get(sym['_test_done']) == 255,
         'shared RAM/COM ownership, ABI, source and execution assertions':
             word('_test_failed') == 0 and word('_test_passed') >= 95,
@@ -87,6 +97,8 @@ def main():
               'passed': all(checks.values()), 'capture_directory': str(n.RUN.relative_to(ROOT)),
               'native_assertions_passed': word('_test_passed'),
               'native_assertions_failed': word('_test_failed'),
+              'input_delivery_error': input_error,
+              'input_keyboard_retries': sum(line['keyboard_retries'] for line in receipts),
               'input_sha256': hashes, 'checks': checks}
     (n.RUN/'input-report.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))

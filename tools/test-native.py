@@ -9,10 +9,12 @@ import gzip
 from datetime import datetime, timezone
 import json
 import re
+import select
 import shutil
 import struct
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -146,6 +148,194 @@ def code_banks(target='zpascal'):
     return len(json.loads((ROOT / f'build/{target}.banks.json').read_text())['bank_bytes'])
 
 
+class PhysicalLine:
+    """One human-paced line submitted to an authenticated Pascal reader."""
+    def __init__(self, value, program, memory_mode, inspect_mode=False, source=None):
+        self.value, self.program, self.memory_mode = value, program, memory_mode
+        self.inspect_mode, self.source = inspect_mode, source
+
+
+def input_layout():
+    """Bind private observer addresses to the assembled runtime instructions."""
+    runtime = symbols('pascal_runtime')
+    first = runtime['line_remaining']
+    buffer, length = first + 4, first + 134
+    prefix = (ROOT/'build/pascal_runtime.zpl').read_bytes()
+    word = lambda n: struct.pack('<H', n)
+    finished = b'\x21'+word(buffer)+b'\x22'+word(runtime['line_next'])+b'\x3a'+word(length)
+    if not (0x4000 <= buffer < buffer+129 <= 0x8000 and 0x4000 <= length < 0x8000):
+        raise RuntimeError('input observers must remain in the fixed prefix')
+    if prefix.count(finished) != 1 or b'\xaf\x32'+word(length)+b'\x32'+word(first+2) not in prefix:
+        raise RuntimeError('assembled input observer layout changed')
+    return {'buffer': buffer, 'length': length, 'finished': 0x4000+prefix.index(finished),
+            'mode': runtime['memory_mode'], 'cleanup': runtime['input_cleanup'], 'pattern': finished}
+
+
+class DebugConsole:
+    """Supported console protocol; keep raw and acceptance journals separate."""
+    def __init__(self, command, directory, timeout):
+        self.directory, self.deadline = directory, time.monotonic()+timeout
+        self.pending, self.acceptance, self.held_enter, self.lines = b'', [], False, []
+        self.raw = (directory/'console-all.txt').open('wb')
+        self.journal = (directory/'commands.txt').open('w')
+        self.process = subprocess.Popen(command, cwd=directory, stdin=subprocess.PIPE,
+                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
+        try: self.acceptance.append(self.response())
+        except BaseException:
+            self.close()
+            raise
+
+    def response(self, quitting=False):
+        while b'debug> ' not in self.pending:
+            left = self.deadline-time.monotonic()
+            if left <= 0 or not select.select([self.process.stdout], [], [], max(0, left))[0]:
+                raise RuntimeError('emulator console timed out; see console-all.txt')
+            data = self.process.stdout.read(65536)
+            if not data:
+                if not quitting: raise RuntimeError('emulator closed before its prompt; see console-all.txt')
+                result, self.pending = self.pending, b''
+                return result.decode(errors='replace')
+            self.raw.write(data); self.raw.flush(); self.pending += data
+        result, self.pending = self.pending.split(b'debug> ', 1)
+        return (result+b'debug> ').decode(errors='replace')
+
+    def command(self, command, capture=False):
+        self.journal.write(command+'\n'); self.journal.flush()
+        self.process.stdin.write((command+'\n').encode()); self.process.stdin.flush()
+        result = self.response(command == 'quit')
+        if capture: self.acceptance.append(result)
+        return result
+
+    def observe(self):
+        layout = input_layout()
+        self.last_observation = (self.command('regs')+self.command('mmu')+self.command('rb 0x4000 160')+
+                                 self.command(f'rb 0x{layout["finished"]:x} {len(layout["pattern"])}'))
+        return self.last_observation
+
+    def identity(self, line):
+        if line.source is not None:
+            path, source = line.source; path = path.encode()
+            table = struct.pack('<HHI', 0, len(path), len(source))+hashlib.sha256(source).digest()+path
+            return hashlib.sha256(table).digest(), 68
+        image = (self.directory/'hostfs'/line.program).read_bytes()
+        if image[3:8] != b'ZP80\x01' or len(image) != int.from_bytes(image[10:12], 'little'):
+            raise RuntimeError('invalid input program header/extent')
+        normalized = bytearray(image); normalized[36:68] = bytes(32)
+        if hashlib.sha256(normalized).digest() != image[36:68]:
+            raise RuntimeError('unsealed input program')
+        layout = input_layout(); offset = layout['finished']-0x4000
+        if image[offset:offset+len(layout['pattern'])] != layout['pattern']:
+            raise RuntimeError('input program uses a different runtime observer layout')
+        return image[36:68], 36
+
+    def matches(self, frame, line):
+        try: expected, offset = self.identity(line)
+        except FileNotFoundError: return False
+        data = memory(frame)
+        actual = bytes(data.get(0x4000+offset+i, 0) for i in range(32))
+        layout = input_layout()
+        return (actual == expected and bytes(data.get(0x4003+i, 0) for i in range(5)) == b'ZP80\x01'
+                and bytes(data.get(layout['finished']+i, 0) for i in range(len(layout['pattern']))) == layout['pattern'])
+
+    def ready(self, line, layout, reader, mode):
+        expired, polls, pending = 0, 0, 0
+        fifo = kernel_symbols()['kb_fifo_size']
+        while expired <= 120 and polls <= 10000 and pending <= 1000:
+            self.command(f'bp 0x{reader:x}'); self.command('run 2000000000')
+            frame = self.observe(); self.command(f'bc 0x{reader:x}')
+            match = re.search(r'\[DBG\] PC=([0-9a-fA-F]+)', frame)
+            if not match: raise RuntimeError('missing emulator PC observation')
+            pc = int(match[1], 16)
+            if pc == reader:
+                if '[DBG] c000 -> 088000' not in frame:
+                    raise RuntimeError('keyboard stop does not map pinned kernel data')
+                observed = memory(self.command(f'rb 0x{mode:x} 1')+
+                                  self.command(f'rb 0x{layout["mode"]:x} 1')+
+                                  self.command(f'rb 0x{fifo:x} 1'))
+                if observed.get(mode) == 0 and self.matches(frame, line):
+                    if observed.get(layout['mode']) != line.memory_mode:
+                        raise RuntimeError('intended invocation ended or advanced before its next input (RAM/saved mode changed)')
+                    if observed.get(fifo) == 0:
+                        return {'expired_chunks': expired, 'poll_stops': polls, 'pending_event_stops': pending}
+                    pending += 1
+                    self.command('s')
+                    continue
+                if observed.get(mode) == 0:
+                    raise RuntimeError('intended invocation ended or advanced; a different program requests input')
+                polls += 1
+                self.command('s')
+            elif pc in (0xfc00, 0xfc01):
+                raise RuntimeError('native test completed before expected input; possible earlier product failure')
+            else: expired += 1
+        raise RuntimeError(f'input readiness exhausted: {expired} cycle chunks, {polls} polls, {pending} pending-event stops; no keys submitted')
+
+    def text(self, layout):
+        data = memory(self.command(f'rb 0x{layout["length"]:x} 1')+
+                      self.command(f'rb 0x{layout["buffer"]:x} 128'))
+        size = data.get(layout['length'], 255)
+        if size > 127: raise RuntimeError('invalid console line length')
+        return bytes(data.get(layout['buffer']+i, 0) for i in range(size))
+
+    def physical_line(self, line):
+        layout, kernel = input_layout(), kernel_symbols()
+        reader, mode = kernel['keyboard_next_key'], kernel['kb_mode']
+        waits = self.ready(line, layout, reader, mode)
+        if self.held_enter:
+            self.command('release ENTER'); self.command('run 4000000'); self.held_enter = False
+            more = self.ready(line, layout, reader, mode)
+            waits = {key: waits[key]+more[key] for key in waits}
+        if self.text(layout):
+            raise RuntimeError('new input line already contains text; refusing to repair runtime/editor state')
+        expected = bytearray()
+        for char in line.value:
+            if char == '\b': expected = expected[:-1]
+            else: expected.extend(char.encode('ascii'))
+        for retry in range(3):
+            if retry:
+                for command in control('X'): self.command(command)
+                self.ready(line, layout, reader, mode)
+                if self.text(layout): raise RuntimeError('Ctrl-X did not clear the physical input line')
+            for command in type_text(line.value, ticks=4000000*(retry+1)): self.command(command)
+            self.ready(line, layout, reader, mode)
+            accepted = self.text(layout)
+            if accepted == expected: break
+            # Plain text may be repaired only if characters were dropped.
+            # Editing/modifier errors and extra/wrong bytes must remain visible.
+            remaining = iter(expected)
+            dropped_only = all(any(candidate == char for candidate in remaining) for char in accepted)
+            if '\b' in line.value or not dropped_only:
+                raise RuntimeError(f'input editor/decoder mismatch: expected {bytes(expected)!r}, received {accepted!r}; no retry')
+        else:
+            raise RuntimeError(f'keyboard could not enter {bytes(expected)!r}; received {accepted!r}; Enter withheld')
+        self.command(f'bp 0x{layout["finished"]:x}')
+        self.command('press ENTER'); self.command('run 100000000')
+        frame = self.observe()
+        if not re.search(rf'\[DBG\] PC={layout["finished"]:04x}\b', frame) or not self.matches(frame, line):
+            raise RuntimeError('Enter did not finish the intended Pascal line; see console-all.txt')
+        received = self.text(layout)
+        if received != expected: raise RuntimeError('accepted line differs from submitted text; no retry after Enter')
+        self.command(f'bc 0x{layout["finished"]:x}'); self.held_enter = True
+        self.lines.append({'program': line.program, 'memory_mode': line.memory_mode,
+                           'text': received.decode(), 'keyboard_retries': retry, 'readiness': waits})
+        (self.directory/'input-lines.json').write_text(json.dumps(self.lines, indent=2)+'\n')
+        if line.inspect_mode:
+            cleanup, setter = layout['cleanup'], kernel['keyboard_ioctl']
+            self.command(f'bp 0x{cleanup:x}'); self.command('run 100000000')
+            self.command(f'bc 0x{cleanup:x}'); self.command(f'bp 0x{setter:x}'); self.command('run 100000000')
+            for _ in range(12): self.command('s', capture=True)
+            for command in ('regs', 'mmu', f'rb 0x{mode:x} 1'): self.command(command, capture=True)
+            self.command(f'bc 0x{setter:x}')
+        else: self.command('run 100000000')
+
+    def close(self):
+        if self.process.poll() is None: self.process.terminate()
+        try: self.process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.process.kill(); self.process.wait()
+        self.process.stdin.close(); self.process.stdout.close(); self.raw.close(); self.journal.close()
+        (self.directory/'console.txt').write_text(''.join(self.acceptance))
+
+
 def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, timeout=180):
     directory = RUN / name
     directory.mkdir(parents=True, exist_ok=False)
@@ -164,7 +354,8 @@ def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, tim
     (directory / 'tf.img').write_bytes(tf_image if tf_image is not None else bytes(1024 * 1024))
     (directory / 'eeprom.img').write_bytes(eeprom_image if eeprom_image is not None else bytes(65536))
     (directory / 'zeal.ini').write_text('')
-    (directory / 'commands.txt').write_text('\n'.join(commands) + '\n')
+    live = any(isinstance(command, PhysicalLine) for command in commands)
+    if not live: (directory / 'commands.txt').write_text('\n'.join(commands) + '\n')
     cmd = [str(EMULATOR), '--console', '--debug', '--rom', str(directory / 'rom.img'),
            '--hostfs', str(hostfs), '-c', str(directory / 'zeal.ini'),
            '-t', str(directory / 'tf.img'), '-e', str(directory / 'eeprom.img')]
@@ -174,6 +365,29 @@ def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, tim
     # The emulator requires an R/W HostFS root even when only reading files.
     # Keep installation files read-only and assert that Memory mode creates
     # no outputs; do not represent this as a read-only-volume test.
+    if live:
+        console = DebugConsole(cmd, directory, timeout)
+        active_line = None
+        try:
+            for command in commands:
+                if isinstance(command, PhysicalLine):
+                    active_line = command
+                    console.physical_line(command)
+                    active_line = None
+                else: console.command(command, capture=True)
+            code = console.process.wait(timeout=5)
+            if code: raise RuntimeError(f'{name}: emulator exit {code}')
+        except Exception as error:
+            # Leave exact-output and completion checks available even if a
+            # program advanced, halted, or failed before the next input line.
+            failure = {'kind': type(error).__name__, 'message': str(error),
+                       'line': len(console.lines)+1,
+                       'program': active_line.program if active_line else None,
+                       'memory_mode': active_line.memory_mode if active_line else None,
+                       'last_observation': getattr(console, 'last_observation', '')}
+            (directory/'input-error.json').write_text(json.dumps(failure, indent=2)+'\n')
+        finally: console.close()
+        return (directory/'console.txt').read_text()
     try:
         # Keep a live journal: a long run or a failed checkpoint must remain
         # inspectable before the subprocess exits, including on timeout.
@@ -615,7 +829,8 @@ def default_library_checks():
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     inputs = [ROOT / 'CMakeLists.txt', ROOT / 'tools/package-native.py', Path(__file__).resolve()]
-    inputs += sorted((ROOT / 'src').glob('*')) + sorted((ROOT / 'tests/native').glob('*'))
+    inputs += sorted((ROOT / 'src').glob('*')) + sorted((ROOT / 'tests/native').glob('*.pas'))
+    inputs += [ROOT/'tests/native'/name for name in ('main.c', 'harness.c', 'harness.h', 'machine.asm', 'startup-fail.c')]
     input_hashes = {str(p.relative_to(ROOT)): sha(p) for p in inputs if p.is_file()}
     checks = []
     checks.extend(library_failure_checks())
@@ -650,39 +865,19 @@ def main():
     sym = symbols('zptest')
     if sym['_test_stop'] != 0xfc00:
         raise RuntimeError('completion stop must be the supervisor-only FC00 marker')
-    kernel = kernel_symbols()
-    reader, mode = kernel['keyboard_next_key'], kernel['kb_mode']
-    keyboard_ioctl = kernel['keyboard_ioctl']
-    cleanup = symbols('pascal_runtime')['input_cleanup']
+    mode = kernel_symbols()['kb_mode']
     commands = ['run 100000000'] + program_launch('zptest')
     commands += ['run 100000000', f"bp 0x{sym['_test_stop']:x}"]
-    # A raw-reader entry may still consume a previous key/release or belong to
-    # the compiler. The inner blocking wait owns each new physical line. Keep
-    # Enter held through RAM/COM transitions, releasing it at the next wait.
-    enter_held = False
-    def physical_line(value, inspect_mode=False):
-        nonlocal enter_held
-        commands.extend([f'bp 0x{reader:x}', 'run 120000000000', f'bc 0x{reader:x}'])
-        if enter_held:
-            commands.extend(['release ENTER', 'run 2000000'])
-        commands.extend(type_text(value, ticks=2000000))
-        if inspect_mode:commands.append(f'bp 0x{cleanup:x}')
-        commands.extend(['press ENTER', 'run 100000000'])
-        enter_held = True
-        if inspect_mode:
-            # Echo borrows keyboard mode too. Only the cleanup setter owns
-            # restoration of the caller's RAM/saved execution convention.
-            commands.extend([f'bc 0x{cleanup:x}', f'bp 0x{keyboard_ioctl:x}', 'run 100000000'])
-            # Observe the completed setter while kernel RAM is still mapped.
-            commands.extend(['s']*12+['regs','mmu',f'rb 0x{mode:x} 1',f'bc 0x{keyboard_ioctl:x}'])
-    for _ in range(2):
-        physical_line('Adx\ba', True)
-        physical_line('abcdefghi')
-        physical_line('')
-    for _ in range(2):
-        for line in READ_INPUT_LINES:physical_line(line)
-    # Invalid numeric input must report I/O10 and return to its ReadLn source.
-    physical_line('12x')
+    for memory_mode in (1, 0):
+        commands += [PhysicalLine('Adx\ba', 'NAME.COM', memory_mode, inspect_mode=True),
+                     PhysicalLine('abcdefghi', 'NAME.COM', memory_mode),
+                     PhysicalLine('', 'NAME.COM', memory_mode)]
+    for memory_mode in (1, 0):
+        commands += [PhysicalLine(value, 'READINPUT.COM', memory_mode) for value in READ_INPUT_LINES]
+    # Bind the unsaved error fixture to its source manifest, too. It must
+    # receive 12x itself, after the two successful numeric-input executions.
+    commands += [PhysicalLine('12x', 'invalid-readln', 1,
+                             source=('H:/READINPUT.PAS', b'var n:integer;begin\nreadln(n)end.'))]
     # The completion breakpoint is mandatory; this bounded budget includes the
     # RAM/COM control/routine/string corpora and source-recovery executions.
     commands += ['run 120000000000', 's', 'regs', 'mmu']
@@ -698,13 +893,20 @@ def main():
     # This growing native corpus includes repeated disk publication and RAM/COM
     # routine execution. Retain both a cycle bound and mandatory completion;
     # allow its measured workload more wall time than the small UI scenarios.
-    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=1050)
+    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=1800)
     mem = memory(text)
     def word(name):
         p = sym[name]
         return mem.get(p, 0) | (mem.get(p + 1, 0) << 8)
     checks.append(('native test completion marker', mem.get(sym['_test_done']) == 255))
     checks.append(('native assertions', word('_test_failed') == 0 and word('_test_passed') >= 40))
+    receipt_file = RUN/'core/input-lines.json'
+    receipts = json.loads(receipt_file.read_text()) if receipt_file.exists() else []
+    error_file = RUN/'core/input-error.json'
+    input_error = json.loads(error_file.read_text()) if error_file.exists() else None
+    checks.append(('input delivery completed without an observer/protocol error', input_error is None))
+    checks.append(('all 53 input lines reached their intended program and were verified before submission',
+                   len(receipts) == 53))
     frames = re.split(r'\[DBG\] PC=', text)[1:]
     checks.append(('ReadLn restores blocking raw in RAM and nonblocking raw in shell exec',
                    len(frames) == 3 and memory(frames[0]).get(mode) == 0
@@ -968,6 +1170,9 @@ def main():
         'native_assertions_passed': word('_test_passed'),
         'native_assertions_failed': word('_test_failed'),
         'native_stage': word('_test_stage'),
+        'input_delivery_error': input_error,
+        'input_keyboard_retries': sum(line['keyboard_retries'] for line in receipts),
+        'input_readiness': [line['readiness'] for line in receipts],
         'native_completion_tstates_including_boot':
             int(re.findall(r'cyc=(\d+)', text)[-1]) if re.findall(r'cyc=(\d+)', text) else None,
         'artifacts': {str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p): sha(p)
