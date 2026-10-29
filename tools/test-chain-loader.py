@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CHN loader component staging/heap proof; production nonreturning handoff is separate."""
+"""Retained CHN staging/install and whole COM staging; Execute override is not enabled."""
 import argparse
 import hashlib
 import importlib.util
@@ -17,6 +17,16 @@ def fixture(size=128):
     for at,value in [(6,96),(8,1),(10,0x9000),(12,size),(14,0x8000),(16,64),(18,0xfbff)]:put(image,at,value)
     image[52:84]=sha(b'independently authored map identity');return image
 def seal(image):image[20:52]=bytes(32);image[20:52]=sha(image)
+def executable(length):
+    image=bytearray((i*13+5)&255 for i in range(length));image[:160]=bytes(160)
+    image[0]=0xc3;image[3:8]=b'ZP80\1'
+    for at,value in [(1,0x40a0),(8,160),(10,length),(12,0x40a0),(14,0x40a3),
+                     (16,1),(18,1),(20,0x8000),(22,length-16384),(24,0x8000),
+                     (28,0x4000+length),(30,0xfbff),(32,2048),(132,16384)]:put(image,at,value)
+    image[68:100]=sha(b'independent source manifest')
+    image[100:132]=sha(b'independent COM source map')
+    return image
+def seal_executable(image):image[36:68]=bytes(32);image[36:68]=sha(image)
 def fixtures():
     result={}
     for name,size in [('small',128),('grow',0x4800),('odd',0x4801),('short',128),('legacy',96),('entry-short',127)]:
@@ -29,6 +39,17 @@ def fixtures():
     for i in range(32):
         b=fixture();b[96+96+i]^=1;seal(b);result[f'profile-{i}.CHN']=bytes(b)
     b=fixture(256);b[96+96:96+128]=bytes(32);seal(b);result['unprofiled.CHN']=bytes(b)
+    for name,length in [('tiny',16385),('small',16512),('boundary',32768),('three',32769),('max',46080)]:
+        b=executable(length);seal_executable(b);result['x-'+name+'.COM']=bytes(b)
+    for name,at,value in [('abi',16,2),('entry',1,0x40a1),('length',10,16511),
+                          ('origin',20,0x7fff),('globals',26,1),('end',30,0xcfff),
+                          ('stack',32,2047),('reserved',140,1),('overlay',134,1)]:
+        b=executable(16512);put(b,at,value)
+        if name=='end':put(b,28,0xf400) # inconsistent extent, rejected before staging
+        seal_executable(b);result['x-'+name+'.COM']=bytes(b)
+    b=executable(46080);seal_executable(b);b[-1]^=1;result['x-hash.COM']=bytes(b)
+    b=executable(16512);seal_executable(b)
+    result['x-truncated.COM']=bytes(b[:-1]);result['x-trailing.COM']=bytes(b)+b'x'
     return result
 def host():
     OUT.mkdir(parents=True,exist_ok=True)
@@ -59,8 +80,8 @@ def native():
     raw=n.execute('chain-loader',commands,media,timeout=600);memory=n.memory(raw)
     word=lambda name:memory.get(symbols[name],0)|(memory.get(symbols[name]+1,0)<<8)
     checks={'component reaches its retained-prefix completion':memory.get(symbols['_test_done'])==255 and f"PC={symbols['_chain_stop']:04x} "in raw,
-        'real native staging, two-page copy, globals/live heap, rejection and physical-page inventory':word('_test_failed')==0 and word('_test_passed')>=70,
-        'independent CHN fixture files remain unchanged':all((n.RUN/'chain-loader/hostfs'/name).read_bytes()==value for name,value in media.items()),
+        'native CHN install, whole three-page COM bytes, rejection and physical-page inventory':word('_test_failed')==0 and word('_test_passed')>=2000,
+        'independent CHN and COM fixture files remain unchanged':all((n.RUN/'chain-loader/hostfs'/name).read_bytes()==value for name,value in media.items()),
         'all qualification inputs unchanged':all(n.sha(Path(p))==value for p,value in hashes.items())}
     report={'passed':all(checks.values()),'scope':__doc__,'checks':checks,'native_assertions':word('_test_passed'),'failed':word('_test_failed'),'input_sha256':hashes,'capture_directory':str(n.RUN.relative_to(ROOT))}
     (n.RUN/'chain-loader-report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2));assert report['passed']

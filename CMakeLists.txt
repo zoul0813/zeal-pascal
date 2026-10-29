@@ -335,6 +335,7 @@ add_executable(transfer_runtime src/transfer_module.asm src/transfer.c src/trans
     src/chain.c src/chain_native.asm src/native_image.c src/sha256.c src/sha_z80.asm
     ${CMAKE_BINARY_DIR}/sdk_glue.asm ${CMAKE_BINARY_DIR}/transfer_file_gate.asm)
 target_include_directories(transfer_runtime PRIVATE src)
+target_compile_definitions(transfer_runtime PRIVATE ZP_CHAIN_ONLY)
 target_compile_options(transfer_runtime PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
 set_property(SOURCE src/transfer.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/transfer.h ${CMAKE_SOURCE_DIR}/src/chain.h

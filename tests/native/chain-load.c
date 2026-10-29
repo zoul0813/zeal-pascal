@@ -1,12 +1,13 @@
-/* Runs the actual loader from the retained prefix, outside its caller window.
- * This qualifies staging/install, not the future Pascal nonreturning gate. */
+/* Retained CHN staging/install and whole COM staging. This component does not
+ * qualify Execute's OS override/rollback or enable Pascal Execute(F). */
 #include "chain.h"
 #include <string.h>
 #include <zos_sys.h>
+#include <zos_vfs.h>
 
 volatile uint16_t test_passed,test_failed,test_failures[64],test_index;
 volatile uint8_t test_done;
-static ChainLoad load;
+static ImageLoad load;
 static ChainCaller caller;
 static uint8_t held[32];
 static uint16_t i;
@@ -44,6 +45,36 @@ static void unchanged(void) {
     for(i=0x9000;i<0x9020;++i)if(*((uint8_t*)i)!=0xa5)break;
     check(i==0x9020);
 }
+static void all_unchanged(void) {
+    unchanged();
+    for(i=0x800d;i<0xe020;++i)if(*((uint8_t*)i)!=0xa5)break;
+    check(i==0xe020);
+}
+static void executable_case(const char *path,uint16_t length) {
+    uint16_t at,n,expected,j;uint8_t bytes[128],mapping=chain_mapping();int8_t fd;
+    setup(0);
+    check(execute_prepare(&load,path));
+    check(load.ready&&!load.error&&load.kind==IMAGE_EXECUTABLE&&load.length==length);
+    check(load.pages[0]!=255&&load.pages[1]!=255&&((load.pages[2]!=255)==(length>32768u)));
+    all_unchanged();check(chain_mapping()==mapping);
+    fd=open(path,O_RDONLY);check(fd>=0);
+    if(fd>=0) {
+        for(at=0;at<length;at+=n) {
+            expected=length-at;if(expected>128)expected=128;
+            if(expected>16384u-at%16384u)expected=16384u-at%16384u;
+            n=expected;
+            check(!read(fd,bytes,&n)&&n==expected);
+            if(n!=expected)break;
+            chain_store=0;chain_page_io(load.pages[at/16384u],at%16384u,n);
+            for(j=0;j<n;++j)if(chain_buffer[j]!=bytes[j])break;
+            check(j==n&&chain_mapping()==mapping);
+        }
+        check(at==length);check(!close(fd));
+    }
+    chain_install(&load);check(load.ready);all_unchanged();
+    check(chain_discard(&load)&&!load.ready);
+    check(load.pages[0]==255&&load.pages[1]==255&&load.pages[2]==255);
+}
 int main(void) {
     uint32_t baseline=available();uint8_t mapping=chain_mapping(),j;
     setup(1);
@@ -79,6 +110,22 @@ int main(void) {
         setup(1);caller.profile[j]^=1;
         check(!chain_prepare(&load,"H:/small.CHN",&caller)&&load.error==0x20);
         unchanged();check(load.pages[0]==255&&load.pages[1]==255&&chain_mapping()==mapping);
+    }
+    executable_case("H:/x-tiny.COM",16385);
+    executable_case("H:/x-small.COM",16512);
+    executable_case("H:/x-boundary.COM",32768u);
+    executable_case("H:/x-three.COM",32769u);
+    executable_case("H:/x-max.COM",46080u);
+    {
+        static const char *bad[]={"H:/x-abi.COM","H:/x-entry.COM","H:/x-length.COM",
+            "H:/x-origin.COM","H:/x-globals.COM","H:/x-end.COM","H:/x-stack.COM",
+            "H:/x-reserved.COM","H:/x-overlay.COM","H:/x-hash.COM",
+            "H:/x-truncated.COM","H:/x-trailing.COM","H:/small.CHN","H:/absent.COM"};
+        for(j=0;j<sizeof(bad)/sizeof(*bad);++j) {
+            setup(0);check(!execute_prepare(&load,bad[j])&&load.error&&!load.ready);
+            all_unchanged();check(chain_mapping()==mapping);
+            check(load.pages[0]==255&&load.pages[1]==255&&load.pages[2]==255);
+        }
     }
     check(available()==baseline);
     test_done=255;chain_stop();return 0;

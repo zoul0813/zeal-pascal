@@ -9,7 +9,7 @@ extern uint8_t transfer_memory[65536];
 #define PTR(at) ((uint8_t *)(at))
 #endif
 #define BYTE(at) (*PTR(at))
-ChainLoad transfer_load;
+ImageLoad transfer_load;
 static ChainCaller caller;
 static char path[128];
 static uint8_t initialized;
@@ -37,7 +37,11 @@ uint8_t transfer_cleanup(FileCleanup *job) CHAIN_CALL {
             if(error)first(job,0x1ff,error);else BYTE(ZT_FILE)=0;
         }
     }
-    return transfer_load.pages[0]!=255||transfer_load.pages[1]!=255||BYTE(ZT_FILE)!=0;
+    return transfer_load.pages[0]!=255||transfer_load.pages[1]!=255||
+#ifndef ZP_CHAIN_ONLY
+        transfer_load.pages[2]!=255||
+#endif
+        BYTE(ZT_FILE)!=0;
 }
 void transfer_dispatch(TransferJob *job) CHAIN_CALL {
     FileCleanup files;
@@ -65,7 +69,11 @@ void transfer_dispatch(TransferJob *job) CHAIN_CALL {
         caller=job->caller;
         transfer_load.error=0;transfer_load.detail=0;
         chain_prepare(&transfer_load,path,&caller);
-    } else if(job->action==ZT_COMMIT&&transfer_load.ready) {
+    } else if(job->action==ZT_COMMIT&&transfer_load.ready
+#ifndef ZP_CHAIN_ONLY
+              &&transfer_load.kind==IMAGE_CHAIN
+#endif
+    ) {
         memset(&files,0,sizeof(files));files.operation=ZF_END_CHAIN;
         files.owner=caller.origin;files.end=caller.heap_frontier;
         if(BYTE(ZT_FILE))transfer_file_call(1,&files);

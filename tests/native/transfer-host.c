@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 uint8_t transfer_memory[65536];
-extern ChainLoad transfer_load;
+extern ImageLoad transfer_load;
 static uint8_t owned[64],bad_page=255,file_error,file_detail;
 static unsigned checks,prepares,installs,commits,file_calls,drops[64];
 #define check(x) do {++checks;if(!(x)){fprintf(stderr,"transfer model line %u\n",__LINE__);abort();}}while(0)
@@ -15,20 +15,23 @@ zos_err_t pfree(uint8_t page) {
     if(page==bad_page)return ERR_FAILURE;
     owned[page]=0;return 0;
 }
-void chain_init(ChainLoad *load) {
+void chain_init(ImageLoad *load) {
     memset(load,0,sizeof(*load));load->pages[0]=load->pages[1]=255;load->fd=-1;
+#ifndef ZP_CHAIN_ONLY
+    load->pages[2]=255;load->kind=IMAGE_CHAIN;
+#endif
 }
-uint8_t chain_discard(ChainLoad *load) {
+uint8_t chain_discard(ImageLoad *load) {
     unsigned i;uint8_t ok=1;
     load->ready=0;
-    for(i=0;i<2;++i)if(load->pages[i]!=255) {
+    for(i=0;i<IMAGE_LOAD_PAGES;++i)if(load->pages[i]!=255) {
         if(pfree(load->pages[i])) {
             if(!load->error){load->error=0x1ff;load->detail=ERR_FAILURE;}ok=0;
         } else load->pages[i]=255;
     }
     return ok;
 }
-uint8_t chain_prepare(ChainLoad *load,const char *path,const ChainCaller *caller) {
+uint8_t chain_prepare(ImageLoad *load,const char *path,const ChainCaller *caller) {
     ++prepares;check(!strcmp(path,"H:/CHAIN.CHN"));check(caller->profile[31]==0x91);
     if(!chain_discard(load))return 0;
     chain_init(load);load->origin=caller->origin;load->globals=64;
@@ -36,7 +39,7 @@ uint8_t chain_prepare(ChainLoad *load,const char *path,const ChainCaller *caller
     load->floor=0xd800;load->frontier=0xe020;
     owned[32]=owned[33]=1;load->pages[0]=32;load->pages[1]=33;load->ready=1;return 1;
 }
-void chain_install(ChainLoad *load) {check(load->ready);++installs;load->ready=0;}
+void chain_install(ImageLoad *load) {check(load->ready);++installs;load->ready=0;}
 void transfer_commit(void) {++commits;transfer_install();}
 void transfer_file_call(uint8_t mode,void *pointer) {
     FileCleanup *job=pointer;
@@ -103,5 +106,14 @@ int main(void) {
         0x412e,0xf800,0x415c,0xd800,0x4164,0,0x4165,0,0x40be,0};
      for(i=0;i<sizeof(expected)/sizeof(*expected);++i)check(word(0xfc30+2*i)==expected[i]);}
     bad_page=255;clean(&ending);check(!transfer_cleanup(&ending)&&!ending.error&&!owned[32]&&!owned[35]&&owned[34]);
+#ifndef ZP_CHAIN_ONLY
+    setup(&job,0);prepare(&job);transfer_load.kind=IMAGE_EXECUTABLE;
+    job.action=ZT_COMMIT;transfer_dispatch(&job);
+    check(job.error==0x20&&!commits&&!installs&&owned[32]&&owned[33]);
+    clean(&ending);check(!transfer_cleanup(&ending));
+    setup(&job,0);prepare(&job);transfer_load.pages[2]=36;owned[36]=1;bad_page=36;
+    clean(&ending);check(transfer_cleanup(&ending)&&ending.error==0x1ff&&owned[36]&&!owned[32]&&!owned[33]);
+    bad_page=255;clean(&ending);check(!transfer_cleanup(&ending)&&!ending.error&&drops[36]==2&&owned[34]);
+#endif
     printf("PASS: %u transfer coordinator ownership/control/fault assertions\n",checks);return 0;
 }

@@ -14,7 +14,7 @@ static unsigned checks,scenarios,opens,reads,closes,allocs,drops;
 static unsigned fail_open,fail_read,fail_close,fail_alloc,zero_read,oversize_read;
 static int fail_drop=-1;
 static uint16_t short_limit;
-static ChainLoad load;
+static ImageLoad load;
 static ChainCaller caller;
 #define check(x) do {++checks;if(!(x)){fprintf(stderr,"chain check at line %u (scenario %u, error %u/%u)\n",__LINE__,scenarios,load.error,load.detail);abort();}}while(0)
 static unsigned count(void) {unsigned i,n=0;for(i=0;i<64;++i)n+=owned[i]!=0;return n;}
@@ -86,6 +86,55 @@ static void installed(const char *path) {
     if(load.trim_at) {before[load.trim_at]=(uint8_t)load.trim_value;before[load.trim_at+1]=(uint8_t)(load.trim_value>>8);}
     unchanged();check(chain_discard(&load)&&!count());
 }
+static void executable_accepted(const char *path) {
+    char name[1200];uint8_t expected[46081];size_t bytes;unsigned at;FILE *f;
+    check(execute_prepare(&load,path));
+    check(load.ready&&!load.error&&load.kind==IMAGE_EXECUTABLE&&!handle);unchanged();
+    snprintf(name,sizeof(name),"%s/%s",directory,path+3);f=fopen(name,"rb");check(f!=0);
+    bytes=fread(expected,1,sizeof(expected),f);check(feof(f)&&!ferror(f)&&!fclose(f));
+    check(bytes==load.length&&count()==(bytes+16383)/16384);
+    for(at=0;at<bytes;++at)check(pages[load.pages[at/16384]][at%16384]==expected[at]);
+    chain_install(&load);check(load.ready);unchanged(); /* wrong installer cannot commit a COM */
+}
+static void executable_rejected(const char *path) {
+    check(!execute_prepare(&load,path)&&load.error&&!load.ready&&!handle&&!count());unchanged();
+}
+static void executable_cases(void) {
+    const char *valid[]={"tiny","small","boundary","three","max"};
+    const char *bad[]={"abi","entry","length","origin","globals","end","stack","reserved","overlay","hash","truncated","trailing"};
+    char path[64];unsigned i,total_reads,total_allocs,j;
+    for(i=0;i<sizeof(valid)/sizeof(*valid);++i) {
+        setup(0);snprintf(path,sizeof(path),"H:/x-%s.COM",valid[i]);executable_accepted(path);
+        check(chain_discard(&load)&&!count());
+    }
+    for(i=0;i<sizeof(bad)/sizeof(*bad);++i) {
+        setup(0);snprintf(path,sizeof(path),"H:/x-%s.COM",bad[i]);executable_rejected(path);
+    }
+    setup(0);executable_rejected("H:/small.CHN");
+    setup(0);executable_rejected("H:/missing.COM");check(load.error==1);
+    setup(0);executable_accepted("H:/x-max.COM");total_reads=reads;total_allocs=allocs;
+    check(total_allocs==3&&chain_discard(&load));
+    for(i=1;i<=total_reads;++i) {
+        setup(0);fail_read=i;executable_rejected("H:/x-max.COM");check(load.error==0x99);
+        setup(0);oversize_read=i;executable_rejected("H:/x-max.COM");
+        if(i<total_reads){setup(0);zero_read=i;executable_rejected("H:/x-max.COM");}
+    }
+    for(i=1;i<=total_allocs;++i) {
+        setup(0);fail_alloc=i;executable_rejected("H:/x-max.COM");check(load.error==0x1ff);
+    }
+    setup(0);fail_open=1;executable_rejected("H:/x-max.COM");
+    setup(0);fail_close=1;executable_rejected("H:/x-max.COM");
+    setup(0);short_limit=1;executable_accepted("H:/x-max.COM");check(chain_discard(&load));
+    for(j=32;j<35;++j) {
+        setup(0);fail_drop=(int)j;check(!execute_prepare(&load,"H:/x-hash.COM"));
+        check(load.error==0x20&&count()==1&&!load.ready&&!handle&&load.pages[j-32]==j);unchanged();
+        check(!chain_prepare(&load,"H:/small.CHN",&caller)&&!load.ready&&count()==1);
+        fail_drop=-1;check(chain_discard(&load)&&!count());
+    }
+    setup(0);accepted("H:/small.CHN");executable_accepted("H:/x-max.COM");
+    check(chain_prepare(&load,"H:/small.CHN",&caller)&&load.kind==IMAGE_CHAIN&&count()==1);
+    installed("H:/small.CHN");
+}
 int main(int argc,char **argv) {
     unsigned i,total_reads,total_allocs;uint16_t floor;
     check(argc==2);snprintf(directory,sizeof(directory),"%s",argv[1]);
@@ -136,5 +185,6 @@ int main(int argc,char **argv) {
     setup(1);accepted("H:/grow.CHN");fail_drop=32;check(!chain_discard(&load)&&count()==1&&load.pages[0]==32&&load.pages[1]==255);unchanged();fail_drop=-1;accepted("H:/small.CHN");installed("H:/small.CHN");
     setup(1);fail_drop=32;check(!chain_prepare(&load,"H:/hash.CHN",&caller));check(load.error==0x20&&count()==1&&!handle);unchanged();fail_drop=-1;check(chain_discard(&load)&&!count());
     setup(1);fail_drop=32;check(!chain_prepare(&load,"H:/profile-0.CHN",&caller));check(load.error==0x20&&load.detail==ERR_ENTRY_CORRUPTED&&count()==1&&!handle);unchanged();fail_drop=-1;check(chain_discard(&load)&&!count());
-    printf("PASS: %u chain staging/heap/identity/commit assertions across %u scenarios\n",checks,scenarios);return 0;
+    executable_cases();
+    printf("PASS: %u image staging/heap/identity/commit assertions across %u scenarios\n",checks,scenarios);return 0;
 }
