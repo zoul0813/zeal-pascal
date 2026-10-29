@@ -31,7 +31,7 @@ def flip_hex(text, address):
 def main():
     assets = ('pascal_runtime.zpl', 'pascal_runtime.private', 'file_runtime.zpl', 'file_gate.zpl',
               'transfer_runtime.zpl', 'transfer_gate.zpl')
-    names = (*assets, 'pascal_runtime.profile', 'pascal_runtime.runtime.json',
+    names = (*assets, 'transfer_call.zpl', 'pascal_runtime.profile', 'pascal_runtime.runtime.json',
              'zpascal.ihx', 'zpascal.map', 'zpascal.bin', 'zpascal.zpl')
     original = {name: (ROOT/'build'/name).read_bytes() for name in names}
     checks = 0
@@ -45,12 +45,12 @@ def main():
         assert all((directory/name).read_bytes() == data for name, data in pair.items())
         checks += 1
 
-        def rejected():
+        def rejected(message='metadata or Chain profile'):
             nonlocal checks
             try:
                 package.package(image)
             except ValueError as error:
-                assert 'metadata or Chain profile' in str(error), str(error)
+                assert message in str(error), str(error)
             else:
                 raise AssertionError('mixed private-runtime assets were accepted')
             assert all((directory/name).read_bytes() == data for name, data in pair.items())
@@ -72,6 +72,29 @@ def main():
         (directory/'pascal_runtime.profile').write_bytes(original['pascal_runtime.profile'])
         address = 0x88000+len(original['pascal_runtime.zpl'])+len(original['pascal_runtime.private'])
         image.write_text(flip_hex(original['zpascal.ihx'].decode(), address+31));rejected()
+        image.write_bytes(original['zpascal.ihx'])
+        symbols=package.read_symbols(image)
+        memory=package.read_hex(image)
+        row=symbols['_transfer_asset_rows']
+        count=memory[symbols['_transfer_asset_count']]
+        # The product layout spans resident bytes and multiple code banks.
+        # Mutate each assembled extent and its metadata independently.
+        addresses=[symbols['_transfer_asset_count']]
+        banks=set()
+        for i in range(count):
+            at=row+5*i
+            source=memory[at+2]|(memory[at+3]<<8);bank=memory[at+4]
+            banks.add(bank)
+            addresses.extend((at,at+2,at+4,(bank<<16)|source))
+        assert 0 in banks and len(banks)>2
+        for address in addresses:
+            image.write_text(flip_hex(original['zpascal.ihx'].decode(),address))
+            rejected('embedded transfer assets')
+        image.write_bytes(original['zpascal.ihx'])
+        changed=bytearray(original['transfer_call.zpl']);changed[0]^=1
+        (directory/'transfer_call.zpl').write_bytes(changed)
+        rejected('embedded transfer assets')
+        (directory/'transfer_call.zpl').write_bytes(original['transfer_call.zpl'])
 
     assert all((ROOT/'build'/name).read_bytes() == data for name, data in original.items())
     checks += 1

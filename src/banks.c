@@ -23,7 +23,7 @@ uint8_t files_save_source_as(Source *s,const char *name,uint8_t replace_backup,u
 uint8_t files_load_source(Source *s,const char *name,Diagnostic *d);
 uint8_t files_read_block(Source *block,const char *name,Diagnostic *d);
 uint8_t files_save_block(const Source *s,uint16_t first,uint16_t last,const char *name,uint8_t replace,uint8_t interruptible);
-uint8_t files_run_saved(const Source *s,const Build *b,uint8_t *status);
+uint8_t files_run_saved(const Source *s,Build *b,uint8_t *status);
 static uint8_t capture_path(char *out,const char *name);
 uint8_t files_worker_control(uint8_t mode);
 
@@ -110,7 +110,7 @@ uint8_t load_source(Source *s,const char *name,Diagnostic *d) {
     old=code_select(2); ok=files_load_source(s,path,d);
     code_restore(old); return ok;
 }
-uint8_t run_saved(const Source *s,const Build *b,uint8_t *status) {
+uint8_t run_saved(const Source *s,Build *b,uint8_t *status) {
     uint8_t old=code_select(2),ok=files_run_saved(s,b,status);
     code_restore(old); return ok;
 }

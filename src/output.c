@@ -205,8 +205,9 @@ failed:
         restore_file(destinations[i],members&(1u<<(i+2))?(i?"OLD.ZMP":chain?"OLD.CHN":"OLD.COM"):0,touched[i]);
     return 0;
 }
-uint8_t run_saved(const Source *s,const Build *b,uint8_t *status) {
-    uint8_t e;
+uint8_t run_saved(const Source *s,Build *b,uint8_t *status) {
+    uint8_t e,i;
+    uint16_t n;
     platform_error=0;
     if(!build_ready(s,b)) { platform_error=ERR_FAILURE; return 0; }
     if(build_is_chain(b)) {platform_error=ERR_NOT_SUPPORTED;return 0;}
@@ -214,8 +215,36 @@ uint8_t run_saved(const Source *s,const Build *b,uint8_t *status) {
     if(!strcmp(s->path,destinations[0])||!strcmp(s->path,destinations[1])) { platform_error=ERR_INVALID_PATH; return 0; }
     if(!verify(b->pages,b->length,destinations[0])||
        !verify(&b->map_page,b->map_length,destinations[1])) return 0;
+    /* The verified pair on disk backs this idle cache while the child runs.
+     * Retain sources and their editor state; lend only image/map pages. */
+    if(!page_drop(b->map_page))return 0;
+    b->valid=0;b->map_page=255;
+    for(i=0;i<3;++i)if(b->pages[i]!=255) {
+        if(!page_drop(b->pages[i]))return 0;
+        b->pages[i]=255;
+    }
     strcpy((char*)console_scratch,destinations[0]);
     e=exec(EXEC_PRESERVE_PROGRAM,(char*)console_scratch,0,status);
+    for(i=0;i<3;++i)if((uint16_t)i*PAGE_SIZE<b->length) {
+        b->pages[i]=page_new(PAGE_IMAGE);
+        if(b->pages[i]==255)goto cache_failed;
+    }
+    if(!output_restore_range(b->pages,0,b->length,destinations[0]))goto cache_failed;
+    for(i=0;i<3;++i)if(b->pages[i]!=255) {
+        n=b->length-(uint16_t)i*PAGE_SIZE;if(n>PAGE_SIZE)n=PAGE_SIZE;
+        page_initialized(b->pages[i],n);b->versions[i]=page_versions[b->pages[i]];
+    }
+    b->map_page=page_new(PAGE_MAP);
+    if(b->map_page==255||!output_restore_range(&b->map_page,0,b->map_length,destinations[1]))goto cache_failed;
+    page_initialized(b->map_page,b->map_length);
+    b->versions[3]=page_versions[b->map_page];b->valid=1;
+    if(build_check(s,b))goto returned;
+cache_failed:
+    build_close(b);
+returned:
+    /* A failed cache reload only requires recompilation. It cannot change
+     * the child's exit result or authorize an unauthenticated cached map. */
+    platform_error=0;
     if(e) { platform_error=e; return 0; }
     return 1;
 }

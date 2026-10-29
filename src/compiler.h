@@ -88,6 +88,7 @@ typedef struct {
     uint16_t hook_output_calls,hook_mask_call;
     uint16_t hook_character,hook_echo,hook_open;
     uint16_t error_entry;
+    uint16_t chain_entry;
 } Compiler;
 extern Compiler cc;
 uint8_t cc_poll(void);
@@ -166,6 +167,9 @@ void cc_hooks_place(uint16_t delta) ROUTINES;
 uint16_t cc_file_default_output(void) FRONTEND;
 uint16_t cc_file_asset_size(uint8_t gate);
 uint8_t cc_file_asset_get(uint8_t gate,uint16_t offset);
+uint16_t cc_transfer_asset_size(uint8_t kind) FRONTEND;
+uint8_t cc_transfer_asset_get(uint8_t kind,uint16_t offset) FRONTEND;
+void cc_chain_statement(uint16_t base) FRONTEND;
 void cc_expect(uint16_t t,uint8_t code) FRONTEND;
 int16_t cc_lookup(void) FRONTEND;
 void cc_system_init(void) FRONTEND;

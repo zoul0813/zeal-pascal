@@ -7,6 +7,7 @@
 #define image_get compiler_image_get
 #endif
 #include "compiler.h"
+#include "image.h"
 
 /* Build ownership, sealing and source lookup share a code bank. Compiler
  * emission reaches these through banked helpers or the resident public API. */
@@ -101,7 +102,7 @@ uint8_t build_check(const Source *s,const Build *b) {
     uint8_t hash[32], expected[32], i;
     if(!b->valid||!image_layout(b)||b->revision!=s->revision||!cc_sources_ready(s,b)) return 0;
     source_hash(s,hash); if(memcmp(hash,b->source_hash,32)) return 0;
-    cc_hash_image(b,hash); if(memcmp(hash,b->id,32)) return 0;
+    cc_hash_image(b,hash); if(memcmp(hash,b->id,32)||!build_image_identity(b)) return 0;
     cc_hash_map(b,hash);
     for(i=0;i<32;++i) expected[i]=image_get(b,(build_is_chain(b)?52:100)+i);
     return !memcmp(hash,expected,32);

@@ -737,7 +737,7 @@ int app_main(void) {
             if((!build.valid||!sources_get(&build.sources,0,&root)||!build_ready(&root,&build))&&!compile_work())continue;
             if(!sources_get(&build.sources,0,&root)) { lookup_failure();continue; }
             if(saved_mode==2) {
-                screen_clear();search_ack("CHN requires Chain activation; Chain support is pending");continue;
+                screen_clear();search_ack("Run CHN files with Chain(F) from a saved Pascal program");continue;
             }
             screen_clear(); output("Validating and preparing program...\n");
             if(saved_mode) {

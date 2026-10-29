@@ -5,6 +5,12 @@ uint8_t build_is_chain(const Build *b) SOURCE_BLOCK_CALL {
     for(i=0;i<4;++i)if(far_get(b->pages[0],i)!=(uint8_t)"ZCHN"[i])return 0;
     return 1;
 }
+uint8_t build_image_identity(const Build *b) SOURCE_BLOCK_CALL {
+    uint8_t i,first=build_is_chain(b)?20:36;
+    for(i=0;i<32;++i)if(far_get(b->pages[0],first+i)!=b->id[i]||
+        far_get(b->map_page,20+i)!=b->id[i])return 0;
+    return 1;
+}
 uint8_t native_header(const uint8_t *h,uint8_t chain,NativeImage *id) SOURCE_BLOCK_CALL {
     return native_decode(h,chain,id);
 }

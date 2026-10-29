@@ -252,6 +252,7 @@ uint8_t cc_file_statement(void) FRONTEND {
     operation=cc_is("assign")?ZF_ASSIGN:cc_is("reset")?ZF_RESET:cc_is("rewrite")?ZF_REWRITE:
         cc_is("close")?ZF_CLOSE:cc_is("seek")?ZF_SEEK:cc_is("flush")?ZF_FLUSH:
         cc_is("erase")?ZF_ERASE:cc_is("rename")?ZF_RENAME:
+        cc_is("chain")?ZF_TRANSFER_PATH:
         cc_is("blockread")?ZF_BLOCKREAD:cc_is("blockwrite")?ZF_BLOCKWRITE:255;
     if(operation==255) return 0;
     cc_next(); cc_expect('(',4); base=job_start(operation); file_argument(base);
@@ -268,7 +269,9 @@ uint8_t cc_file_statement(void) FRONTEND {
             actual=1; cc_op16(0x21,operation+1); store(0,2);
         }
     }
-    cc_expect(')',5); invoke(base);
+    cc_expect(')',5);
+    if(operation==ZF_TRANSFER_PATH) {engine();cc_chain_statement(base);cc_release(base);return 1;}
+    invoke(base);
     if(actual) {
         result(base,10); cc_emit(0xeb); cc_emit(0xe1); cc.temporaries-=2;
         cc_emit(0x73); cc_emit(0x23); cc_emit(0x72);

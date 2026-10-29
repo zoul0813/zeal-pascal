@@ -56,7 +56,7 @@ uint8_t output_store_range(const uint8_t *pages,uint16_t first,uint16_t total,co
     }
     return output_finish(fd,ok);
 }
-uint8_t output_verify_range(const uint8_t *pages,uint16_t first,uint16_t total,const char *path) SOURCE_BLOCK_CALL {
+static uint8_t read_range(const uint8_t *pages,uint16_t first,uint16_t total,const char *path,uint8_t restore) {
     uint16_t p=0,n,i,requested;
     int8_t fd=output_open_path(path,O_RDONLY);
     uint8_t ok=1;
@@ -67,12 +67,21 @@ uint8_t output_verify_range(const uint8_t *pages,uint16_t first,uint16_t total,c
         platform_error=read(fd,console_scratch,&n);
         if(platform_error) { ok=0; break; }
         if(!n||n>requested) { ok=0; break; }
-        for(i=0;i<n;++i) if(console_scratch[i]!=stream_byte(pages,first+p+i)) ok=0;
+        for(i=0;i<n;++i) {
+            if(restore)far_set(pages[(first+p+i)/PAGE_SIZE],(first+p+i)%PAGE_SIZE,console_scratch[i]);
+            else if(console_scratch[i]!=stream_byte(pages,first+p+i))ok=0;
+        }
         p+=n;
     }
     if(ok) { n=1; platform_error=read(fd,console_scratch,&n); if(platform_error||n) ok=0; }
     if(!ok&&!platform_error&&!(interruptible&&interrupted)) platform_error=ERR_FAILURE;
     return output_finish(fd,ok);
+}
+uint8_t output_verify_range(const uint8_t *pages,uint16_t first,uint16_t total,const char *path) SOURCE_BLOCK_CALL {
+    return read_range(pages,first,total,path,0);
+}
+uint8_t output_restore_range(const uint8_t *pages,uint16_t first,uint16_t total,const char *path) SOURCE_BLOCK_CALL {
+    return read_range(pages,first,total,path,1);
 }
 uint8_t output_copy_file(const char *from,const char *to) SOURCE_BLOCK_CALL {
     int8_t input=output_open_path(from,O_RDONLY),out;

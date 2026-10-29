@@ -21,6 +21,9 @@ static unsigned assertions,scenarios,events,polls,fail_at,cancel_at;
 static uint8_t shorts,cancel_reason=1,rollback_fault,bad_io;
 static unsigned writes,reads,fail_write,fail_read;
 static unsigned case_kind,case_old;
+static int drop_failure=-1;
+static uint8_t allocation_failure,exec_allocation_failure,exec_corrupt_map,exec_corrupt_image,exec_error,exec_finished;
+static unsigned exec_calls,cache_checks,cache_closes;
 static Source source,before;
 static Build build;
 static const char *target[2];
@@ -42,8 +45,8 @@ static void seed(const char *path,const uint8_t *data,unsigned n) {int i=make(pa
 static int fault(void) {return ++events==fail_at;}
 static unsigned opened(void) {unsigned i,n=0;for(i=2;i<12;++i)n+=fds[i].used;return n;}
 static unsigned owned(void) {unsigned i,n=0;for(i=0;i<16;++i)n+=roles[i]!=0;return n;}
-uint8_t page_new(uint8_t role) {uint8_t i;for(i=0;i<16;++i)if(!roles[i]){roles[i]=role;memset(memory[i],0xa5,PAGE_SIZE);return i;}return 255;}
-uint8_t page_drop(uint8_t p) {assert(p<16&&roles[p]);roles[p]=0;return 1;}
+uint8_t page_new(uint8_t role) {uint8_t i;if(allocation_failure)return 255;for(i=0;i<16;++i)if(!roles[i]){roles[i]=role;memset(memory[i],0xa5,PAGE_SIZE);return i;}return 255;}
+uint8_t page_drop(uint8_t p) {assert(p<16&&roles[p]);if(p==drop_failure){platform_error=ERR_FAILURE;return 0;}roles[p]=0;return 1;}
 uint8_t page_role(uint8_t p) {return p<16?roles[p]:0;}
 uint32_t page_lifetime(uint8_t p) {return page_role(p)?1:0;}
 uint8_t far_get(uint8_t p,uint16_t at) {assert(p<16&&roles[p]&&at<PAGE_SIZE);return memory[p][at];}
@@ -51,9 +54,30 @@ void far_set(uint8_t p,uint16_t at,uint8_t b) {assert(p<16&&roles[p]&&at<PAGE_SI
 void page_initialized(uint8_t p,uint16_t n) {assert(page_role(p)&&n<=PAGE_SIZE);}
 uint8_t key_interrupt(void) {platform_error=0;return ++polls==cancel_at?cancel_reason:0;}
 uint8_t build_ready(const Source *s,const Build *b) {return s->page==source.page&&b==&build;}
+/* This VFS model verifies cache policy, not the compiler's cryptography. Native
+ * execution and shared-front-end tests use the actual image/map authenticator. */
+uint8_t build_check(const Source *s,const Build *b) {
+    unsigned i;++cache_checks;
+    if(!build_ready(s,b)||!b->valid||page_role(b->map_page)!=PAGE_MAP)return 0;
+    for(i=0;i<b->map_length;++i)if(far_get(b->map_page,i)!=(uint8_t)(i*13+1))return 0;
+    for(i=0;i<b->length;++i)if(far_get(b->pages[i/PAGE_SIZE],i%PAGE_SIZE)!=(uint8_t)(i*11+3))return 0;
+    return 1;
+}
+void build_close(Build *b) {
+    unsigned i;++cache_closes;b->valid=0;
+    for(i=0;i<3;++i)if(b->pages[i]!=255&&page_drop(b->pages[i]))b->pages[i]=255;
+    if(b->map_page!=255&&page_drop(b->map_page))b->map_page=255;
+}
 zos_err_t curdir(char *path) {strcpy(path,"T:/");return 0;}
 zos_err_t exec(zos_exec_mode_t mode,const char *path,const char *args[],uint8_t *status) {
-    (void)mode;(void)path;(void)args;*status=0;return 0;
+    (void)args;++exec_calls;
+    check(mode==EXEC_PRESERVE_PROGRAM&&!strcmp(path,target[0]));
+    check(!build.valid&&build.map_page==255&&owned()==1);
+    if(fault()||exec_error)return exec_error?exec_error:ERR_FAILURE;
+    if(exec_corrupt_map)files[find(target[1])].bytes[0]^=1;
+    if(exec_corrupt_image)files[find(target[0])].bytes[0]^=1;
+    if(exec_allocation_failure)allocation_failure=1;
+    exec_finished=1;*status=7;return 0;
 }
 zos_dev_t open(const char *path,uint8_t flags) {
     int f=find(path),fd;
@@ -167,6 +191,46 @@ static void prove(uint8_t success,unsigned pages,uint8_t restore_failed) {
         }
     }
 }
+static void run_setup(void) {
+    unsigned i;int f;
+    fail_at=cancel_at=rollback_fault=shorts=bad_io=fail_read=fail_write=0;
+    drop_failure=-1;allocation_failure=exec_allocation_failure=exec_corrupt_map=exec_corrupt_image=exec_error=exec_finished=0;
+    exec_calls=cache_checks=cache_closes=0;
+    setup(3,0);build.valid=1;
+    f=make(target[0],0);files[f].length=build.length;
+    for(i=0;i<build.length;++i)files[f].bytes[i]=far_get(build.pages[i/PAGE_SIZE],i%PAGE_SIZE);
+    seed(target[1],memory[build.map_page],build.map_length);
+    output_job_begin(0);events=reads=0;
+}
+static void saved_cache(void) {
+    unsigned total,i;uint8_t status,ok;
+    run_setup();status=255;
+    check(run_saved(&source,&build,&status)&&status==7&&build.valid);
+    check(cache_checks==1&&!cache_closes&&owned()==4&&!opened());total=events;
+    for(i=1;i<=total;++i) {
+        run_setup();fail_at=i;status=255;ok=run_saved(&source,&build,&status);
+        check(ok==exec_finished&&status==(exec_finished?7:255));
+        check(!memcmp(&source,&before,sizeof(source))&&!memcmp(memory[source.page],fresh,sizeof(fresh))&&!opened());
+        check(owned()==(build.valid?4u:1u));
+        if(!ok)check(platform_error&&build.valid);
+        if(build.valid)check(build.versions[3]==page_versions[build.map_page]||!exec_calls);
+        else check(cache_closes==1&&build.map_page==255);
+    }
+    run_setup();exec_corrupt_map=1;status=255;
+    check(run_saved(&source,&build,&status)&&status==7&&!build.valid&&cache_checks==1&&cache_closes==1&&owned()==1);
+    run_setup();exec_corrupt_image=1;status=255;
+    check(run_saved(&source,&build,&status)&&status==7&&!build.valid&&cache_checks==1&&cache_closes==1&&owned()==1);
+    run_setup();exec_allocation_failure=1;status=255;
+    check(run_saved(&source,&build,&status)&&status==7&&!build.valid&&cache_closes==1&&owned()==1);
+    run_setup();exec_error=ERR_NOT_SUPPORTED;status=255;
+    check(!run_saved(&source,&build,&status)&&status==255&&platform_error==ERR_NOT_SUPPORTED&&build.valid&&owned()==4);
+    run_setup();drop_failure=build.map_page;status=255;
+    check(!run_saved(&source,&build,&status)&&status==255&&!exec_calls&&build.valid&&owned()==4);
+    drop_failure=-1;
+    run_setup();drop_failure=build.pages[0];status=255;
+    check(!run_saved(&source,&build,&status)&&status==255&&!exec_calls&&!build.valid&&owned()==3);
+    drop_failure=-1;build_close(&build);check(owned()==1);
+}
 int main(void) {
     unsigned kind,mask,pages,total_events,total_polls,i;uint8_t ok;
     for(kind=0;kind<5;++kind)for(mask=0;mask<(kind==2?2u:4u);++mask) {
@@ -210,6 +274,7 @@ int main(void) {
     bad_io=fail_write=fail_read=0;setup(0,3);pages=owned();check(!save_source(&source,0,1)&&platform_error==ERR_ALREADY_EXIST);check(!polls&&!*output_recovery());prove(0,pages,0);
     /* Loading a missing path never creates it. */
     {Diagnostic d;setup(0,0);pages=owned();check(load_source(&source,"T:/absent/path/file.pas",&d));check(find("T:/absent")<0&&owned()==pages);}
+    saved_cache();
     printf("PASS: %u output assertions across %u publication/fault/cancellation scenarios\n",assertions,scenarios);
     return 0;
 }

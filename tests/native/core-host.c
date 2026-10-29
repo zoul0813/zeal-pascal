@@ -2,6 +2,7 @@
  * These are deliberately not counted as native execution tests. */
 #include "compiler.h"
 #include "image.h"
+#include "transfer_asset.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -209,6 +210,71 @@ static void chain_cases(void) {
         build_close(&b);check(pages_used()==1);
     }
     options.kind=2;load("begin end.");check(!compile_project(&s,0,&b,&d,0,&options)&&d.code==99&&!b.valid&&pages_used()==1);
+}
+
+/* Compare every embedded byte, rebasing only the caller's declared operands.
+ * Module/gate bytes are private fixed-address assets, never Pascal relocations. */
+static void chain_call_cases(void) {
+    CompileOptions options={0x8100,0xfbffu,COMPILE_PROGRAM};
+    uint16_t i,j,entry,module,offset,actual,expected,at,one_bytes=0;
+    uint8_t kind,repeated,expected_byte;
+    for(kind=0;kind<2;++kind)for(repeated=0;repeated<2;++repeated) {
+        options.kind=kind?COMPILE_CHAIN:COMPILE_PROGRAM;
+        options.start=kind?0x8200:0x8100;
+        load(repeated?"var f:file;begin Chain(f);Chain(f)end.":"var f:file;begin Chain(f)end.");
+        check(compile_project(&s,0,&b,&d,0,&options));
+        check(cc.chain_entry&&cc.file_entry&&cc.temporaries==0&&build_check(&s,&b));
+        at=kind?20:36;expected_byte=image_get(&b,at);
+        far_set(b.pages[0],at,expected_byte^1);check(!build_check(&s,&b));
+        far_set(b.pages[0],at,expected_byte);check(build_check(&s,&b));
+        expected_byte=far_get(b.map_page,20);
+        far_set(b.map_page,20,expected_byte^1);check(!build_check(&s,&b));
+        far_set(b.map_page,20,expected_byte);check(build_check(&s,&b));
+        entry=cc.chain_entry;module=entry-TRANSFER_MODULE_BYTES-TRANSFER_GATE_BYTES;
+        offset=kind?96:b.code_origin-0x4000;
+        for(i=0;i<TRANSFER_MODULE_BYTES+TRANSFER_GATE_BYTES;++i) {
+            expected_byte=i<TRANSFER_MODULE_BYTES?cc_transfer_asset_get(0,i):
+                cc_transfer_asset_get(1,i-TRANSFER_MODULE_BYTES);
+            check(image_get(&b,offset+module-CC_CODE_BASE+i)==expected_byte);
+        }
+        actual=entry+b.code_origin-CC_CODE_BASE;
+        for(i=0;i<TRANSFER_CALL_BYTES;++i) {
+            expected_byte=cc_transfer_asset_get(2,i);
+            for(j=0;j<TRANSFER_CALL_RELOC_COUNT+3;++j) {
+                if(j<TRANSFER_CALL_RELOC_COUNT) {
+                    at=TRANSFER_CALL_RELOC_OFFSET+2*j;
+                    at=(cc_transfer_asset_get(2,at)|((uint16_t)cc_transfer_asset_get(2,at+1)<<8))-CC_CODE_BASE;
+                    expected=cc_transfer_asset_get(2,at)|((uint16_t)cc_transfer_asset_get(2,at+1)<<8);
+                    expected+=actual-CC_CODE_BASE;
+                } else if(j==TRANSFER_CALL_RELOC_COUNT) {
+                    at=TRANSFER_CALL_MODULE_OPERAND;expected=module+b.code_origin-CC_CODE_BASE;
+                } else if(j==TRANSFER_CALL_RELOC_COUNT+1) {
+                    at=TRANSFER_CALL_GATE_OPERAND;expected=actual-TRANSFER_GATE_BYTES;
+                } else {
+                    at=TRANSFER_CALL_FILE_OPERAND;expected=cc.file_entry+b.code_origin-CC_CODE_BASE;
+                }
+                if(i==at)expected_byte=(uint8_t)expected;
+                if(i==at+1)expected_byte=(uint8_t)(expected>>8);
+            }
+            check(image_get(&b,offset+entry-CC_CODE_BASE+i)==expected_byte);
+        }
+        if(!repeated)one_bytes=b.code_bytes;
+        else check(b.code_bytes>one_bytes&&b.code_bytes-one_bytes<256);
+        build_close(&b);check(pages_used()==1);
+    }
+    load("procedure Chain(n:integer);begin end;begin Chain(1)end.");
+    check(compile(&s,&b,&d)&&!cc.chain_entry&&!cc.file_entry);build_close(&b);
+    invalid("var n:integer;begin Chain(n)end.",21);
+    invalid("begin Chain('NEXT.CHN')end.",21);
+    for(kind=0;kind<3;++kind) {
+        char text[4096];size_t length;
+        FILE *file=fopen(kind==1?"tests/native/chain-next.pas":kind==2?"tests/native/chain-cleanup.pas":"tests/native/chain-call.pas","rb");
+        check(file!=NULL);length=fread(text,1,sizeof(text),file);
+        check(feof(file)&&!ferror(file)&&fclose(file)==0);
+        check(source_import(&s,(const uint8_t*)text,(uint16_t)length,&d));
+        options.kind=kind==1?COMPILE_CHAIN:COMPILE_PROGRAM;options.start=0x8040;
+        check(compile_project(&s,0,&b,&d,0,&options));build_close(&b);
+    }
 }
 
 static void keyboard_corpus(void) {
@@ -642,6 +708,7 @@ int main(int argc,char **argv) {
     compile_cancellation();
     compilation_options();
     chain_cases();
+    chain_call_cases();
     console_boundary();
     bridge_corpus();
     hook_corpus();

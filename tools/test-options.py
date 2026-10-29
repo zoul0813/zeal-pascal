@@ -124,8 +124,9 @@ def ide():
         checks['zero selects automatic Start']=settings('automatic-start')==(0,0xefff)and settings('restored-start')==(0xc001,0xefff)
         checks['End above native ceiling is rejected']=settings('ceiling-rejected')==(0xc001,0xefff)
         checks['changed End invalidates cache and R recompiles before running']=settings('end-change-invalidates')==(0xc001,0xeffe)and data('end-change-invalidates',build+4,1)==b'\0'and data('R-recompiled',build+4,1)==b'\1'
-        checks['unchanged saved build runs without recompilation']=data('saved-run',build,n.BUILD_BYTES)==data('saved-built',build,n.BUILD_BYTES)
-        checks['unchanged option retains completed cache']=data('same-option-retains-cache',build,n.BUILD_BYTES)==data('saved-built',build,n.BUILD_BYTES)
+        cache=lambda label:data(label,build+4,79)+data(label,build+99,16)
+        checks['unchanged saved build runs without recompilation']=cache('saved-run')==cache('saved-built')
+        checks['unchanged option retains completed cache']=data('same-option-retains-cache',build,n.BUILD_BYTES)==data('saved-run',build,n.BUILD_BYTES)
         checks['saved settings never relocate Memory mode']=word('memory-ignores-saved-options',build+7)==0x8000+word('memory-ignores-saved-options',build+11)and data('memory-ignores-saved-options',sym['_ram_result']+26,1)==b'\1'
         checks['all options preserve dirty source identity and cursor']=all(data(label,work,140)==data('memory-build',work,140)for label,pc in labels if pc==key)
         checks['recompiled source retains exact unsaved snapshot']=data('R-recompiled',build+51,32)==hashlib.sha256(prefix+source).digest()

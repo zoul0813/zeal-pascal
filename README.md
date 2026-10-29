@@ -159,13 +159,21 @@ In Com-file mode, compiling the default source writes
 `T:/src/pascal/UNTITLED.COM` and `T:/src/pascal/UNTITLED.ZMP`.
 Run `T:/src/pascal/UNTITLED.COM` from ZShell. These are native Zeal Z80
 executables. Source must be saved separately with S.
+Saved runs release their cached image/map pages while the child runs, then reload
+and authenticate that cache. Source buffers stay in RAM. Changed disk artifacts
+or a failed cache reload invalidate the cache; the next R recompiles.
 
 H cHn-file mode writes a compact `.CHN` code payload and its `.ZMP` source map.
 It omits the ordinary executable's runtime, globals and placement gaps. It uses
 the same verified save/recovery protocol. CHN files require a compatible caller;
-they cannot run directly from ZShell or R. The production Pascal `Chain` loader
-is still pending, and R explains that limitation while retaining the compiled
-file. CHN source lookup through O,F is available. Switching output kinds
+they cannot run directly from ZShell or R. A saved Pascal program can activate
+one with `Assign(next,'T:/NEXT.CHN'); Chain(next)`, where `next` is a File variable.
+Compile the caller in Com-file mode and the replacement in cHn-file mode with
+the same explicit Start and End addresses. Matching initial global declarations
+share their storage and open-file position. Successful Chain never returns to
+the caller. Failed loads support `$I-`/IOResult; Memory mode reports I/O21.
+R explains the required caller while retaining the compiled CHN file.
+CHN source lookup through O,F is available. Switching output kinds
 invalidates the cached build; it does not save source.
 
 The staged loader also requires an exact private-runtime fingerprint. CHN entry
@@ -173,12 +181,15 @@ code occupies96 bytes, followed by32 fingerprint bytes that execution jumps
 over. The fingerprint binds the runtime prefix, private helper addresses, file
 module/gate and transfer module/gate; public ABI1 alone cannot establish their compatibility.
 Older experimental CHN files must be recompiled. Rejection leaves caller code,
-globals and heap unchanged. This validation does not enable Pascal `Chain` yet.
+globals and heap unchanged.
 
-The retained transfer coordinator and nonreturning gate have a separate native
-acceptance fixture. Its test-only bootstrap supplies the module to a saved Pascal
-caller; production compiler acquisition/embedding is still pending. The runtime
-terminal path can retain/retry coordinator, staged-page and file-module owners.
+The compiler embeds the transfer coordinator, gate and acquisition helper once
+when a program uses Chain. Saved programs acquire their own module page and do
+not need separate installed runtime libraries. Existing file support and the
+transfer assets leave limited room for caller code within the generated-program
+size limit. The runtime terminal path can retain/retry coordinator, staged-page
+and file-module owners. Native acceptance includes an unmodified saved Pascal
+caller; the older test-bootstrap fixture remains separate component evidence.
 
 Ctrl-U cancels compilation, including image preparation, scanning, code
 placement and final hashing. It also cancels source, Save As, block and executable/
@@ -680,7 +691,7 @@ polling restores the borrowed input mode and echo descriptor.
 The implemented directives are A, B, C, I checking, R, U, V, W and X.
 Pascal CRT calls (ClrScr, ClrEol, GotoXY, InsLine, DelLine, CrtInit/CrtExit,
 LowVideo/NormVideo/HighVideo and Delay), replacement input/error callbacks,
-Pascal Chain/Execute loading and overlays remain pending; CHN compilation and
+Pascal Execute loading and overlays remain pending; Chain, CHN compilation and
 source-map lookup are implemented. CP/M BIOS/BDOS services are intentionally
 unavailable on Zeal; explicit unsupported-target diagnostics for them are still
 pending. These gaps are separate from the editor's display functions.

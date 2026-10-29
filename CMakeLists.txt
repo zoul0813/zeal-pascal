@@ -63,6 +63,8 @@ set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/pascal_runtime.zpl;${CMAKE_BINARY_DIR}/pascal_runtime.private;${CMAKE_BINARY_DIR}/pascal_runtime.profile;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
 set(PASCAL_CORE src/source.c src/sources.c src/sources_storage.c src/compiler_sources.c src/source_hash.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/compiler_expr.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_file.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_state.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/saved_map.c src/native.asm
     ${CMAKE_BINARY_DIR}/runtime_asset.asm ${CMAKE_BINARY_DIR}/file_asset.asm)
+list(APPEND PASCAL_CORE src/compiler_chain.c src/compiler_transfer_asset.c)
+set_source_files_properties(${CMAKE_BINARY_DIR}/transfer_ide_asset.asm ${CMAKE_BINARY_DIR}/transfer_test_asset.asm PROPERTIES GENERATED TRUE)
 # This SDK disables compiler depfiles. Keep shared ABI/header changes from
 # leaving stale objects in another compiler bank during incremental ZDE builds.
 foreach(source IN LISTS PASCAL_CORE)
@@ -104,7 +106,7 @@ set_property(SOURCE src/output.c src/saved_map.c src/main.c APPEND PROPERTY OBJE
     ${CMAKE_SOURCE_DIR}/src/saved_map.h ${CMAKE_SOURCE_DIR}/src/sources.h)
 set_property(SOURCE src/output.c src/output_transport.c src/banks.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/output_transport.h)
-set_property(SOURCE src/image.c src/saved_map.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/image.h)
+set_property(SOURCE src/image.c src/compiler_build.c src/saved_map.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/image.h)
 set_property(SOURCE src/image.c src/native_image.c src/saved_map.c tests/native/chain-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/native_image.h)
 set_property(SOURCE src/sha256.c src/source_hash.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sha256.h)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/sdk_glue.asm CONTENT
@@ -114,6 +116,8 @@ add_library(zp_core OBJECT ${PASCAL_CORE})
 target_compile_definitions(zp_core PRIVATE ZP_IDE_PATHS)
 add_dependencies(zp_core pascal_runtime_bin ram_trampoline_bin)
 target_include_directories(zp_core PRIVATE src)
+target_include_directories(zp_core PRIVATE ${CMAKE_BINARY_DIR})
+set_property(SOURCE src/compiler_chain.c src/compiler_transfer_asset.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/transfer_asset.h)
 target_compile_options(zp_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 # These ordinary C entry points are reached only through resident banks.c.
 set_source_files_properties(src/main.c tests/native/main.c tests/native/input-main.c tests/native/math-main.c tests/native/io-main.c tests/native/file-main.c tests/native/text-main.c tests/native/standard-main.c tests/native/keyboard-main.c tests/native/logical-main.c tests/native/console-main.c tests/native/control-main.c tests/native/devices-main.c tests/native/bridges-main.c tests/native/hooks-main.c tests/native/language-main.c tests/native/sources-main.c tests/native/inline-main.c tests/native/params-main.c tests/native/options-main.c tests/native/worker-main.c tests/native/saved-main.c PROPERTIES
@@ -136,10 +140,15 @@ set_source_files_properties(src/compiler_console.c src/compiler_keyboard.c src/s
     COMPILE_OPTIONS "--codeseg;BANK12;--constseg;BANK12")
 set_source_files_properties(src/editor.c src/source_blocks.c src/output_transport.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK13;--constseg;BANK13")
-set_source_files_properties(src/compiler_activation.c src/sources_storage.c src/image.c PROPERTIES
+set_source_files_properties(src/compiler_activation.c src/sources_storage.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK2;--constseg;BANK2")
+# Keep cached-image identity checks beside the native format decoder.
+set_source_files_properties(src/image.c PROPERTIES
+    COMPILE_OPTIONS "--codeseg;BANK11;--constseg;BANK11")
 set_source_files_properties(src/compiler_files.c src/compiler_io.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK10;--constseg;BANK10")
+set_source_files_properties(src/compiler_chain.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK10;--constseg;BANK10")
+set_source_files_properties(src/compiler_transfer_asset.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK3;--constseg;BANK3")
 # Our startup and the installed SDK use the same command-tail ABI. The launcher
 # initializes C data, then verifies/loads its library before entering a bank.
 set(CMAKE_C_LINK_EXECUTABLE "<CMAKE_LINKER> <LINK_FLAGS> <LINK_LIBRARIES> <TARGET> <OBJECTS>")
@@ -210,6 +219,11 @@ target_compile_options(zoptionstest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_executable(zchaintest src/startup.asm src/banks.c tests/native/chain-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 target_include_directories(zchaintest PRIVATE src)
 target_compile_options(zchaintest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+add_executable(zchaincalltest src/startup.asm src/banks.c tests/native/chain-call-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
+target_include_directories(zchaincalltest PRIVATE src)
+target_compile_options(zchaincalltest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+set_source_files_properties(tests/native/chain-call-main.c PROPERTIES COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
+set_property(SOURCE tests/native/chain-call-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 set_source_files_properties(tests/native/chain-main.c PROPERTIES COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 set_property(SOURCE tests/native/chain-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/saved_map.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 set_property(SOURCE tests/native/options-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/saved_map.h)
@@ -230,7 +244,13 @@ target_include_directories(test_hash PRIVATE src)
 target_compile_options(test_hash PRIVATE --std-c99 "SHELL:--codeseg BANK12" "SHELL:--constseg BANK12")
 set_property(SOURCE tests/native/code-hash.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/tests/native/harness.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h ${CMAKE_SOURCE_DIR}/src/library.h)
-foreach(target zpascal zptest zinputtest zmathtest ziotest zfiletest ztexttest zstdtest zkeytest zkbdtest zcontest zcontroltest zmaptest zdevtest zbridgetest zhooktest zlangtest zsrctest zinlinetest zparamtest zoptionstest zchaintest zworkertest zedittest)
+foreach(target zpascal zptest zinputtest zmathtest ziotest zfiletest ztexttest zstdtest zkeytest zkbdtest zcontest zcontroltest zmaptest zdevtest zbridgetest zhooktest zlangtest zsrctest zinlinetest zparamtest zoptionstest zchaintest zchaincalltest zworkertest zedittest)
+    if(target STREQUAL "zpascal" OR target STREQUAL "zedittest")
+        target_sources(${target} PRIVATE ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm)
+    else()
+        target_sources(${target} PRIVATE ${CMAKE_BINARY_DIR}/transfer_test_asset.asm)
+    endif()
+    add_dependencies(${target} transfer_assets)
     if(NOT target STREQUAL "zpascal" AND NOT target STREQUAL "zedittest")
         target_sources(${target} PRIVATE $<TARGET_OBJECTS:test_hash>)
     endif()
@@ -289,7 +309,7 @@ target_include_directories(file_runtime_core PRIVATE src)
 target_compile_options(file_runtime_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
 set_property(SOURCE src/path.c src/output.c src/sources.c src/file_runtime.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/path.h)
-set_property(SOURCE src/file_runtime.c src/compiler_files.c src/compiler_keyboard.c src/compiler_hooks.c APPEND PROPERTY OBJECT_DEPENDS
+set_property(SOURCE src/file_runtime.c src/compiler_files.c src/compiler_chain.c src/compiler_keyboard.c src/compiler_hooks.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/file_runtime.h)
 add_executable(file_runtime src/file_module.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
     $<TARGET_OBJECTS:file_runtime_core>)
@@ -335,6 +355,23 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/pascal_runtime.profile
         ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 add_custom_target(runtime_profile DEPENDS ${CMAKE_BINARY_DIR}/pascal_runtime.profile)
 add_dependencies(zp_core runtime_profile)
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/transfer_call_data.inc
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --transfer-call-data ${CMAKE_BINARY_DIR}
+    DEPENDS runtime_profile ${CMAKE_BINARY_DIR}/pascal_runtime.profile ${CMAKE_BINARY_DIR}/pascal_runtime.private
+        ${CMAKE_BINARY_DIR}/transfer_runtime.zpl ${CMAKE_BINARY_DIR}/transfer_gate.zpl ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+add_custom_target(transfer_call_data DEPENDS ${CMAKE_BINARY_DIR}/transfer_call_data.inc)
+add_executable(transfer_call src/transfer_call.asm)
+add_dependencies(transfer_call transfer_call_data)
+set_property(SOURCE src/transfer_call.asm APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/transfer_call_data.inc)
+zos_add_outputs(transfer_call WITH_EXTENSION zpl)
+add_custom_command(TARGET transfer_call_bin POST_BUILD BYPRODUCTS ${CMAKE_BINARY_DIR}/transfer_call.call.json
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --transfer-call ${CMAKE_BINARY_DIR}/transfer_call.ihx VERBATIM)
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm ${CMAKE_BINARY_DIR}/transfer_test_asset.asm ${CMAKE_BINARY_DIR}/transfer_asset.h
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --transfer-assets ${CMAKE_BINARY_DIR}
+    DEPENDS transfer_call_bin ${CMAKE_BINARY_DIR}/transfer_call.zpl ${CMAKE_BINARY_DIR}/transfer_call.call.json
+        ${CMAKE_BINARY_DIR}/transfer_runtime.zpl ${CMAKE_BINARY_DIR}/transfer_gate.zpl ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+add_custom_target(transfer_assets DEPENDS ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm ${CMAKE_BINARY_DIR}/transfer_test_asset.asm ${CMAKE_BINARY_DIR}/transfer_asset.h)
+add_dependencies(zp_core transfer_assets)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/transfer_driver_asset.asm CONTENT
     ".area _HEADER (ABS)\n.org 0x8c00\n.globl _driver_gate,_driver_gate_bytes,_driver_profile,_driver_private\n_driver_gate:\n.incbin \"${CMAKE_BINARY_DIR}/transfer_gate.zpl\"\n_driver_gate_bytes = .-_driver_gate\n_driver_profile:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.profile\"\n_driver_private:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.private\"\n")
 set_source_files_properties(${CMAKE_BINARY_DIR}/transfer_driver_asset.asm PROPERTIES OBJECT_DEPENDS
@@ -347,6 +384,9 @@ target_include_directories(ztransferparent PRIVATE src)
 target_compile_options(ztransferparent PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
 set_property(SOURCE tests/native/transfer-parent.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/chain.h)
 zos_add_outputs(ztransferparent)
+add_executable(zchaincallparent ${CMAKE_BINARY_DIR}/test_sdk_startup.asm tests/native/chain-call-parent.c tests/native/transfer-stop.asm)
+target_compile_options(zchaincallparent PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+zos_add_outputs(zchaincallparent)
 add_executable(zfilecoretest tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
     tests/native/file-core.c tests/native/file-probe.asm tests/native/machine.asm $<TARGET_OBJECTS:file_runtime_core>)
 target_include_directories(zfilecoretest PRIVATE src)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Native CHN compiler/publication/lookup and entry binding; Chain loader is pending."""
+"""Native CHN compiler/publication/lookup and entry binding."""
 import argparse
 import hashlib
 import importlib.util
@@ -133,7 +133,7 @@ def ide():
             'H selects CHN and invalidates an old cache':read('chain-mode',opts+4,1)==b'\1'and read('chain-mode',build+4,1)==b'\0',
             'compile saves a valid compact chain without saving dirty source':read('compiled',build+4,1)==b'\1'and word('compiled',build+5)==96+word('compiled',build+9)and read('compiled',work+1,1)==b'\1',
             'R retains the completed CHN cache and never enters a guest':read('compiled',build,n.BUILD_BYTES)==read('direct-run-rejected',build,n.BUILD_BYTES)and read('direct-run-rejected',sym['_ram_result'],128)==bytes(128),
-            'physical VRAM explains direct-run rejection':b'Chain support is pending' in read('run-message',0x4000,640),
+            'physical VRAM explains direct-run rejection':b'Run CHN files with Chain(F)' in read('run-message',0x4000,640),
             'H-mode F finds the selected CHN using matching unsaved source':read('found',sym['_ide_state'],1)==b'\3'and read('found',work+1,1)==b'\1',
             'F returns to the exact chain statement in the editor':read('found-source',sym['_ide_state'],1)==b'\2'and word('found-source',work+4)==(prefix+source).index(b'n:=7'),
             'C restores ordinary output kind and discards the CHN cache':read('ordinary-mode',opts+4,1)==b'\0'and read('ordinary-mode',build+4,1)==b'\0',

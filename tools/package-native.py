@@ -50,6 +50,103 @@ def runtime_profile(directory):
     return digest.digest()
 
 
+def transfer_call_data(directory):
+    private=(directory/'pascal_runtime.private').read_bytes()
+    lines=['.equ zt_module_size, '+str(len((directory/'transfer_runtime.zpl').read_bytes())),
+           '.equ zt_gate_size, '+str(len((directory/'transfer_gate.zpl').read_bytes())),
+           '.equ zt_input_cleanup, '+str(struct.unpack_from('<H',private,18)[0]),'zt_profile::']
+    lines.append('.db '+','.join(str(v)for v in (directory/'pascal_runtime.profile').read_bytes()))
+    (directory/'transfer_call_data.inc').write_text('\n'.join(lines)+'\n')
+
+
+def validate_transfer_call(path):
+    memory,symbols=read_hex(path),read_symbols(path)
+    first=0x8000;end=symbols['transfer_call_end']
+    if not memory or min(memory)!=first or max(memory)>=end or not first<end<=0x9000:
+        raise ValueError('transfer caller exceeds its template extent')
+    payload=bytes(memory.get(at,0)for at in range(first,end))
+    if path.with_suffix('.zpl').read_bytes()!=payload:
+        raise ValueError('transfer caller differs from its link image')
+    profile=(path.parent/'pascal_runtime.profile').read_bytes()
+    at=symbols['zt_profile']-first
+    if payload[at:at+32]!=profile:
+        raise ValueError('transfer caller profile is stale')
+    private=(path.parent/'pascal_runtime.private').read_bytes()
+    if (payload[symbols['transfer_call_input_operand']-first:][:2]!=private[18:20] or
+        symbols['zt_module_size']!=len((path.parent/'transfer_runtime.zpl').read_bytes()) or
+        symbols['zt_gate_size']!=len((path.parent/'transfer_gate.zpl').read_bytes())):
+        raise ValueError('transfer caller bindings are stale')
+    offset=symbols['transfer_call_relocs']-first
+    count=(symbols['transfer_call_relocs_end']-symbols['transfer_call_relocs'])//2
+    relocations=struct.unpack_from('<'+'H'*count,payload,offset)
+    if len(set(relocations))!=count or any(not first<=p<first+offset-1 or
+            not first<=struct.unpack_from('<H',payload,p-first)[0]<first+offset for p in relocations):
+        raise ValueError('transfer caller relocation outside owned template')
+    report={'bytes':len(payload),'sha256':hashlib.sha256(payload).hexdigest(),
+            'reloc_offset':offset,'reloc_count':count}
+    for name in ('module','gate','file'):
+        p=symbols['transfer_call_'+name+'_operand']-first
+        if not 0<=p<len(payload)-1 or payload[p:p+2]!=b'\0\0' or first+p in relocations:
+            raise ValueError('transfer caller external binding misplaced')
+        report[name+'_operand']=p
+    path.with_suffix('.call.json').write_text(json.dumps(report,indent=2)+'\n')
+    print('transfer caller:',report)
+
+
+def transfer_assets(directory):
+    names=('transfer_runtime.zpl','transfer_gate.zpl','transfer_call.zpl')
+    blobs=[(directory/name).read_bytes()for name in names]
+    metadata=json.loads((directory/'transfer_call.call.json').read_text())
+    if hashlib.sha256(blobs[2]).hexdigest()!=metadata['sha256']:
+        raise ValueError('transfer caller metadata does not match its bytes')
+    data=b''.join(blobs)
+    header=['#ifndef ZP_TRANSFER_ASSET_H','#define ZP_TRANSFER_ASSET_H',
+            '#define TRANSFER_MODULE_BYTES '+str(len(blobs[0]))+'u',
+            '#define TRANSFER_GATE_BYTES '+str(len(blobs[1]))+'u',
+            '#define TRANSFER_CALL_BYTES '+str(len(blobs[2]))+'u']
+    for key in ('reloc_offset','reloc_count','module_operand','gate_operand','file_operand'):
+        header.append('#define TRANSFER_CALL_'+key.upper()+' '+str(metadata[key])+'u')
+    (directory/'transfer_asset.h').write_text('\n'.join(header+['#endif','']))
+    # IDE/editor targets have a free resident tail; compiler-only acceptance
+    # programs instead have an unused part of their existing BANK13.
+    layouts={'ide':[(0,1440),(1,1700),(4,700),(5,450),(6,1600),
+                    (9,500),(10,1650),(11,394),(12,1156),(13,751)],
+             'test':[(13,12000)]}
+    for name,slots in layouts.items():
+        parts=[];at=0
+        for bank,capacity in slots:
+            if at==len(data):break
+            chunk=data[at:at+capacity];filename=f'transfer_{name}_{len(parts)}.zpl'
+            (directory/filename).write_bytes(chunk)
+            parts.append((bank,at+len(chunk),filename));at+=len(chunk)
+        if at!=len(data):raise ValueError('transfer assets exceed existing '+name+' bank capacity')
+        lines=['.area _BANK3','.globl _transfer_asset_count,_transfer_asset_rows',
+               '_transfer_asset_count::','.db '+str(len(parts)),'_transfer_asset_rows::']
+        for i,(bank,end,_)in enumerate(parts):
+            lines+=['.dw '+str(end)+', _transfer_part_'+str(i),'.db '+str(bank)]
+        for i,(bank,_,filename)in enumerate(parts):
+            lines+=['.area '+('_BANK'+str(bank)if bank else'_RODATA'),
+                    '_transfer_part_'+str(i)+'::','.incbin "'+str(directory/filename)+'"']
+        (directory/('transfer_'+name+'_asset.asm')).write_text('\n'.join(lines)+'\n')
+
+
+def validate_transfer_assets(memory,symbols,directory,resident_end,banks):
+    expected=b''.join((directory/name).read_bytes()for name in
+                     ('transfer_runtime.zpl','transfer_gate.zpl','transfer_call.zpl'))
+    count=memory.get(symbols['_transfer_asset_count'],0)
+    row=symbols['_transfer_asset_rows'];first=0;actual=bytearray()
+    for i in range(count):
+        values=bytes(memory.get(row+5*i+j,0)for j in range(5))
+        end,source,bank=struct.unpack('<HHB',values)
+        size=end-first
+        if not 0<size<=len(expected)-first or (bank and(bank not in banks or not 0x8000<=source<source+size<=0xc000)) or (not bank and not 0x4000<=source<source+size<=resident_end):
+            raise ValueError('embedded transfer assets have malformed bounds')
+        at=(bank<<16|source)if bank else source
+        actual+=bytes(memory.get(at+j,0)for j in range(size));first=end
+    if not count or first!=len(expected)or actual!=expected:
+        raise ValueError('embedded transfer assets are stale or malformed')
+
+
 def validate_runtime(path):
     memory=read_hex(path)
     symbols=read_symbols(path)
@@ -245,6 +342,7 @@ def package(path):
             runtime.with_suffix('.profile').read_bytes()!=profile or
             payloads[7]!=template+private+profile):
         raise ValueError('embedded runtime/private metadata or Chain profile is stale or mismatched')
+    validate_transfer_assets(memory,symbols,path.parent,resident_end,banks)
     header_bytes = 16 + 2 * len(banks)
     total = header_bytes + sum(map(len, payloads))
     library = (struct.pack('<4sBBHII', b'ZPL1', 1, len(banks), header_bytes, total, 0)
@@ -278,6 +376,9 @@ if __name__ == '__main__':
     elif sys.argv[1]=='--file-gate':validate_file_gate(Path(sys.argv[2]))
     elif sys.argv[1]=='--transfer-runtime':validate_file_runtime(Path(sys.argv[2]),True)
     elif sys.argv[1]=='--transfer-gate':validate_file_gate(Path(sys.argv[2]),True)
+    elif sys.argv[1]=='--transfer-call-data':transfer_call_data(Path(sys.argv[2]))
+    elif sys.argv[1]=='--transfer-call':validate_transfer_call(Path(sys.argv[2]))
+    elif sys.argv[1]=='--transfer-assets':transfer_assets(Path(sys.argv[2]))
     elif sys.argv[1]=='--runtime-profile':
         path=Path(sys.argv[2]);path.write_bytes(runtime_profile(path.parent))
     else:package(Path(sys.argv[1]))
