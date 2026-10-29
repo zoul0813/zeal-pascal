@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Retained CHN staging/install and whole COM staging; Execute override is not enabled."""
+"""Retained CHN staging/install, COM staging and page rollback; OS Execute is not enabled."""
 import argparse
 import hashlib
 import importlib.util
@@ -75,12 +75,17 @@ def native():
     commands+=['bp 0x4000','tap ENTER','run 1000000000','bc 0x4000',f"bp 0x{symbols['_chain_stop']:x}",'s','run 30000000000','regs','mmu']
     for name in ('_test_done','_test_passed','_test_failed'):
         commands += [f'rb 0x{symbols[name]:x} 2']
-    commands += [f"rb 0x{symbols['_test_failures']:x} 128",'quit']
+    commands += [f"rb 0x{symbols['_test_failures']:x} 128",f"rb 0x{symbols['_test_mappings']:x} 6",'quit']
     media=fixtures();media[target+'.bin']=binary
     raw=n.execute('chain-loader',commands,media,timeout=600);memory=n.memory(raw)
     word=lambda name:memory.get(symbols[name],0)|(memory.get(symbols[name]+1,0)<<8)
+    mappings={int(window,16):int(physical,16)//16384 for window,physical in
+              re.findall(r'\[DBG\] (4000|8000|c000) -> ([0-9a-fA-F]{6})',raw)}
+    observed=bytes(memory.get(symbols['_test_mappings']+i,0)for i in range(6))
+    expected=bytes(mappings.get(window,255)for window in (0x4000,0x8000,0xc000))
     checks={'component reaches its retained-prefix completion':memory.get(symbols['_test_done'])==255 and f"PC={symbols['_chain_stop']:04x} "in raw,
-        'native CHN install, whole three-page COM bytes, rejection and physical-page inventory':word('_test_failed')==0 and word('_test_passed')>=2000,
+        'native CHN install, COM bytes, full caller-page rollback, rejection and physical-page inventory':word('_test_failed')==0 and word('_test_passed')>=8000,
+        'code and actual stack queries match independent MMU debugger state before and after':255 not in expected and observed==expected*2,
         'independent CHN and COM fixture files remain unchanged':all((n.RUN/'chain-loader/hostfs'/name).read_bytes()==value for name,value in media.items()),
         'all qualification inputs unchanged':all(n.sha(Path(p))==value for p,value in hashes.items())}
     report={'passed':all(checks.values()),'scope':__doc__,'checks':checks,'native_assertions':word('_test_passed'),'failed':word('_test_failed'),'input_sha256':hashes,'capture_directory':str(n.RUN.relative_to(ROOT))}

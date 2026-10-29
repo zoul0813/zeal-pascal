@@ -282,7 +282,7 @@ target_compile_options(zchainreplay PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 zos_add_outputs(zchainreplay)
 # Loader component executes entirely below8000; its synthetic caller window
 # is disposable test memory. Production Pascal handoff is a separate gate.
-add_executable(zchainloadtest ${CMAKE_BINARY_DIR}/test_sdk_startup.asm src/chain.c src/chain_native.asm src/native_image.c src/sha256.c src/sha_z80.asm tests/native/chain-load.c)
+add_executable(zchainloadtest ${CMAKE_BINARY_DIR}/test_sdk_startup.asm src/chain.c src/chain_native.asm src/execute_native.asm src/native_image.c src/sha256.c src/sha_z80.asm tests/native/chain-load.c)
 target_include_directories(zchainloadtest PRIVATE src)
 target_compile_options(zchainloadtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
 set_property(SOURCE src/chain.c tests/native/chain-load.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/chain.h ${CMAKE_SOURCE_DIR}/src/chain_abi.h ${CMAKE_SOURCE_DIR}/src/native_image.h ${CMAKE_SOURCE_DIR}/src/sha256.h)

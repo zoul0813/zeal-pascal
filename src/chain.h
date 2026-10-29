@@ -17,7 +17,7 @@ typedef struct {
 #define IMAGE_LOAD_PAGES 2
 #else
 #define IMAGE_LOAD_PAGES 3
-enum { IMAGE_EXECUTABLE,IMAGE_CHAIN };
+enum { IMAGE_EXECUTABLE,IMAGE_CHAIN,IMAGE_ROLLBACK };
 #endif
 /* One ownership ledger serves authenticated CHN payloads and whole ZP80 COM
  * images. The deployed Chain-only module omits the unused Execute reader. */
@@ -29,6 +29,7 @@ typedef struct {
 #ifndef ZP_CHAIN_ONLY
     uint8_t kind;
     uint16_t length;
+    uint8_t originals[3]; /* borrowed caller pages, never freed by this ledger */
 #endif
 } ImageLoad;
 void chain_init(ImageLoad *load);
@@ -39,6 +40,16 @@ uint8_t chain_prepare(ImageLoad *load,const char *path,const ChainCaller *caller
 /* Fully stage a standalone native Pascal image without changing caller RAM.
  * This validates/stages only; OS override and rollback are separate owners. */
 uint8_t execute_prepare(ImageLoad *load,const char *path);
+/* After validation, reuse staging pages for a complete caller rollback copy.
+ * Both calls must run in retained code on an isolated stack: no original or
+ * backup page may contain the current code or stack. Capture consumes the
+ * staged target bytes; the OS subsequently loads the checked path itself.
+ * Failed capture validation/allocation leaves the staged image untouched.
+ * Restore consumes readiness only on success and preserves the OS error. */
+uint8_t execute_snapshot(ImageLoad *load,const uint8_t originals[3]);
+uint8_t execute_restore(ImageLoad *load);
+uint8_t execute_code_page(void) CHAIN_CALL;
+uint8_t execute_stack_page(void) CHAIN_CALL;
 #endif
 uint8_t chain_discard(ImageLoad *load);
 /* Internal commit: only after switching to a retained loader and a safe stack.

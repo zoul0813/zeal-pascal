@@ -190,6 +190,54 @@ uint8_t execute_prepare(ImageLoad *load,const char *path) {
 failed:
     chain_discard(load);return 0;
 }
+/* This component and its buffer/ledger live in the retained prefix. Neither
+ * capture nor restore may alias it or the live stack. Validate the whole plan
+ * before the first write; borrowed originals never enter the owned ledger. */
+static uint8_t rollback_plan(ImageLoad *load,const uint8_t *originals,uint8_t count) {
+    uint8_t i,j,code=execute_code_page(),stack=execute_stack_page();
+    for(i=0;i<3;++i) {
+        if(originals[i]<32||originals[i]>=64||originals[i]==code||originals[i]==stack)
+            return corrupt(load);
+        for(j=0;j<i;++j)if(originals[i]==originals[j])return corrupt(load);
+    }
+    for(i=0;i<count;++i) {
+        if(load->pages[i]<32||load->pages[i]>=64||load->pages[i]==code||load->pages[i]==stack)
+            return corrupt(load);
+        for(j=0;j<i;++j)if(load->pages[i]==load->pages[j])return corrupt(load);
+        for(j=0;j<3;++j)if(load->pages[i]==originals[j])return corrupt(load);
+    }
+    return 1;
+}
+static void rollback_copy(uint8_t from,uint8_t to) {
+    uint16_t at;
+    for(at=0;at<16384u;at+=sizeof(chain_buffer)) {
+        chain_store=0;chain_page_io(from,at,sizeof(chain_buffer));
+        chain_store=1;chain_page_io(to,at,sizeof(chain_buffer));
+    }
+}
+uint8_t execute_snapshot(ImageLoad *load,const uint8_t originals[3]) {
+    uint8_t i,error,count;
+    if(!load->ready||load->kind!=IMAGE_EXECUTABLE||load->fd>=0||
+       load->length<=16384u||load->length>46080u||
+       (load->length>32768u&&load->pages[2]==255))return corrupt(load);
+    count=load->pages[2]==255?2:3;
+    if(!rollback_plan(load,originals,count))return 0;
+    if(count==2) {
+        error=palloc(&load->pages[2]);
+        if(error) {load->pages[2]=255;return fail(load,0x1ff,error);}
+        if(!rollback_plan(load,originals,3))return 0;
+    }
+    memcpy(load->originals,originals,3);
+    for(i=0;i<3;++i)rollback_copy(load->originals[i],load->pages[i]);
+    load->kind=IMAGE_ROLLBACK;return 1;
+}
+uint8_t execute_restore(ImageLoad *load) {
+    uint8_t i;
+    if(!load->ready||load->kind!=IMAGE_ROLLBACK||load->fd>=0)return corrupt(load);
+    if(!rollback_plan(load,load->originals,3))return 0;
+    for(i=0;i<3;++i)rollback_copy(load->pages[i],load->originals[i]);
+    load->ready=0;return 1;
+}
 #endif
 #ifndef ZP_CHAIN_HOST
 uint16_t chain_user_word(uint16_t at) {return ((uint8_t*)at)[0]|((uint16_t)((uint8_t*)at)[1]<<8);}

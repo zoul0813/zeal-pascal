@@ -1,5 +1,5 @@
-/* Retained CHN staging/install and whole COM staging. This component does not
- * qualify Execute's OS override/rollback or enable Pascal Execute(F). */
+/* Retained CHN staging/install, whole COM staging and caller-page rollback.
+ * Does not qualify OS override/stack switching or enable Pascal Execute(F). */
 #include "chain.h"
 #include <string.h>
 #include <zos_sys.h>
@@ -7,6 +7,7 @@
 
 volatile uint16_t test_passed,test_failed,test_failures[64],test_index;
 volatile uint8_t test_done;
+volatile uint8_t test_mappings[6];
 static ImageLoad load;
 static ChainCaller caller;
 static uint8_t held[32];
@@ -50,6 +51,59 @@ static void all_unchanged(void) {
     for(i=0x800d;i<0xe020;++i)if(*((uint8_t*)i)!=0xa5)break;
     check(i==0xe020);
 }
+static uint8_t pattern(uint8_t page,uint16_t at) {
+    return (uint8_t)(page*71+at*13+(at>>8));
+}
+static void rollback_case(void) {
+    uint8_t originals[3]={255,255,255},backups[3],j,k,code=execute_code_page();
+    uint8_t stack=execute_stack_page(),mapping=chain_mapping(),saved;
+    uint16_t at;uint8_t allocated=0;
+    for(j=0;j<3;++j) {
+        if(palloc(originals+j))break;
+        ++allocated;
+        for(at=0;at<16384u;at+=128) {
+            for(k=0;k<128;++k)chain_buffer[k]=pattern(j,at+k);
+            chain_store=1;chain_page_io(originals[j],at,128);
+        }
+    }
+    check(allocated==3);
+    if(allocated==3) {
+        saved=originals[2];originals[2]=stack;
+        check(!execute_snapshot(&load,originals)&&load.ready&&load.kind==IMAGE_EXECUTABLE);
+        originals[2]=saved;load.error=0;load.detail=0;
+        check(execute_snapshot(&load,originals)&&load.ready&&load.kind==IMAGE_ROLLBACK);
+        memcpy(backups,load.pages,3);
+        for(j=0;j<3;++j) {
+            check(load.originals[j]==originals[j]);
+            for(at=0;at<16384u;at+=128) {
+                chain_store=0;chain_page_io(backups[j],at,128);
+                for(k=0;k<128;++k)if(chain_buffer[k]!=pattern(j,at+k))break;
+                check(k==128);
+                memset(chain_buffer,0x6a,128);chain_store=1;chain_page_io(originals[j],at,128);
+            }
+        }
+        check(!execute_snapshot(&load,originals)&&load.ready&&load.kind==IMAGE_ROLLBACK);
+        load.error=0x99;load.detail=ERR_FAILURE;
+        load.originals[2]=stack;check(!execute_restore(&load)&&load.ready);
+        load.originals[2]=code;check(!execute_restore(&load)&&load.ready);
+        load.originals[2]=originals[2];
+        for(j=0;j<3;++j)for(at=0;at<16384u;at+=128) {
+            chain_store=0;chain_page_io(originals[j],at,128);
+            for(k=0;k<128;++k)if(chain_buffer[k]!=0x6a)break;
+            check(k==128);
+        }
+        check(execute_restore(&load)&&!load.ready&&load.error==0x99&&load.detail==ERR_FAILURE);
+        check(!execute_restore(&load));
+        check(execute_code_page()==code&&execute_stack_page()==stack&&chain_mapping()==mapping);
+        check(chain_discard(&load));
+        for(j=0;j<3;++j)for(at=0;at<16384u;at+=128) {
+            chain_store=0;chain_page_io(originals[j],at,128);
+            for(k=0;k<128;++k)if(chain_buffer[k]!=pattern(j,at+k))break;
+            check(k==128); /* borrowed originals survive backup disposal */
+        }
+    }
+    for(j=0;j<allocated;++j)check(!pfree(originals[j]));
+}
 static void executable_case(const char *path,uint16_t length) {
     uint16_t at,n,expected,j;uint8_t bytes[128],mapping=chain_mapping();int8_t fd;
     setup(0);
@@ -72,11 +126,13 @@ static void executable_case(const char *path,uint16_t length) {
         check(at==length);check(!close(fd));
     }
     chain_install(&load);check(load.ready);all_unchanged();
+    rollback_case();all_unchanged();
     check(chain_discard(&load)&&!load.ready);
     check(load.pages[0]==255&&load.pages[1]==255&&load.pages[2]==255);
 }
 int main(void) {
     uint32_t baseline=available();uint8_t mapping=chain_mapping(),j;
+    test_mappings[0]=execute_code_page();test_mappings[1]=mapping;test_mappings[2]=execute_stack_page();
     setup(1);
     check(chain_prepare(&load,"H:/grow.CHN",&caller));
     check(load.ready&&!load.error&&load.pages[0]!=255&&load.pages[1]!=255);
@@ -128,5 +184,6 @@ int main(void) {
         }
     }
     check(available()==baseline);
+    test_mappings[3]=execute_code_page();test_mappings[4]=chain_mapping();test_mappings[5]=execute_stack_page();
     test_done=255;chain_stop();return 0;
 }

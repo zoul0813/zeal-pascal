@@ -16,6 +16,10 @@ static int fail_drop=-1;
 static uint16_t short_limit;
 static ImageLoad load;
 static ChainCaller caller;
+static uint8_t code_page=63,stack_page=62;
+static uint8_t rollback_expected[3][16384],staged_expected[3][16384];
+uint8_t execute_code_page(void) {return code_page;}
+uint8_t execute_stack_page(void) {return stack_page;}
 #define check(x) do {++checks;if(!(x)){fprintf(stderr,"chain check at line %u (scenario %u, error %u/%u)\n",__LINE__,scenarios,load.error,load.detail);abort();}}while(0)
 static unsigned count(void) {unsigned i,n=0;for(i=0;i<64;++i)n+=owned[i]!=0;return n;}
 zos_err_t palloc(uint8_t *page) {
@@ -135,6 +139,95 @@ static void executable_cases(void) {
     check(chain_prepare(&load,"H:/small.CHN",&caller)&&load.kind==IMAGE_CHAIN&&count()==1);
     installed("H:/small.CHN");
 }
+static void borrowed(uint8_t originals[3]) {
+    unsigned i,at;
+    for(i=0;i<3;++i) {
+        originals[i]=(uint8_t)(40+i);check(!owned[40+i]);owned[40+i]=1;
+        for(at=0;at<16384;++at)pages[40+i][at]=(uint8_t)(i*71+at*13+(at>>8));
+        memcpy(rollback_expected[i],pages[40+i],16384);
+    }
+}
+static void borrowed_unchanged(void) {
+    unsigned i;for(i=0;i<3;++i)check(!memcmp(pages[40+i],rollback_expected[i],16384));
+}
+static void release_borrowed(void) {
+    unsigned i;for(i=40;i<43;++i)check(!pfree((uint8_t)i));check(!count());
+}
+static void rollback_cases(void) {
+    uint8_t originals[3],saved[3],identity[32],kind,ready;unsigned i,j,at,allocated;
+    /* Two-page target grows by exactly one page, three-page target reuses all
+     * three; every byte of caller code/data/stack is captured and restored. */
+    for(i=0;i<2;++i) {
+        setup(0);check(execute_prepare(&load,i?"H:/x-max.COM":"H:/x-small.COM"));
+        allocated=allocs;memcpy(identity,load.id,32);borrowed(originals);
+        check(execute_snapshot(&load,originals)&&load.ready&&load.kind==IMAGE_ROLLBACK);
+        check(allocs==allocated+!i&&count()==6&&!memcmp(identity,load.id,32));
+        for(j=0;j<3;++j) {
+            for(at=0;at<16384;++at)check(pages[load.pages[j]][at]==rollback_expected[j][at]);
+            memset(pages[originals[j]],0x6a,16384);
+        }
+        check(!execute_snapshot(&load,originals)&&load.ready&&load.kind==IMAGE_ROLLBACK);
+        load.error=0x99;load.detail=ERR_FAILURE;stack_page=originals[2];
+        check(!execute_restore(&load)&&load.ready&&load.error==0x99&&load.detail==ERR_FAILURE);
+        for(j=0;j<3;++j)for(at=0;at<16384;++at)check(pages[originals[j]][at]==0x6a);
+        stack_page=62;check(execute_restore(&load)&&!load.ready);
+        check(load.error==0x99&&load.detail==ERR_FAILURE);borrowed_unchanged();
+        check(!execute_restore(&load));borrowed_unchanged();
+        check(chain_discard(&load)&&count()==3);borrowed_unchanged();release_borrowed();
+    }
+    /* Reject every alias/invalid mapping before changing any page. An invalid
+     * request must preserve both an authenticated image and a ready backup. */
+    for(i=0;i<2;++i)for(j=0;j<18;++j) {
+        setup(0);check(execute_prepare(&load,"H:/x-max.COM"));borrowed(originals);
+        if(i)check(execute_snapshot(&load,originals));
+        memcpy(saved,load.pages,3);kind=load.kind;ready=load.ready;
+        for(at=0;at<3;++at)memcpy(staged_expected[at],pages[saved[at]],16384);
+        switch(j) {
+        case 0: originals[0]=31;break;
+        case 1: originals[1]=64;break;
+        case 2: originals[2]=255;break;
+        case 3: originals[2]=originals[0];break;
+        case 4: originals[1]=saved[0];break;
+        case 5: code_page=originals[0];break;
+        case 6: stack_page=originals[1];break;
+        case 7: load.pages[0]=31;break;
+        case 8: load.pages[1]=64;break;
+        case 9: load.pages[2]=255;break;
+        case 10: load.pages[1]=saved[0];break;
+        case 11: load.pages[2]=originals[2];break;
+        case 12: code_page=saved[1];break;
+        case 13: stack_page=saved[2];break;
+        case 14: load.kind=IMAGE_CHAIN;break;
+        case 15: load.ready=0;break;
+        case 16: load.fd=2;break;
+        case 17: load.pages[0]=255;break;
+        }
+        if(i)memcpy(load.originals,originals,3);
+        /* A missing third slot is a valid small-image allocation request;
+         * this max image has no legitimate missing page. */
+        check(!(i?execute_restore(&load):execute_snapshot(&load,originals)));
+        check(load.error==0x20&&load.ready==(j==15?0:ready));borrowed_unchanged();
+        for(at=0;at<3;++at)check(!memcmp(staged_expected[at],pages[saved[at]],16384));
+        memcpy(load.pages,saved,3);load.kind=kind;load.fd=-1;code_page=63;stack_page=62;
+        check(chain_discard(&load)&&count()==3);release_borrowed();
+    }
+    setup(0);check(execute_prepare(&load,"H:/x-small.COM"));borrowed(originals);
+    for(i=0;i<2;++i)memcpy(staged_expected[i],pages[load.pages[i]],16384);
+    fail_alloc=allocs+1;check(!execute_snapshot(&load,originals));
+    check(load.error==0x1ff&&load.detail==ERR_FAILURE&&load.ready&&load.kind==IMAGE_EXECUTABLE&&load.pages[2]==255);
+    for(i=0;i<2;++i)check(!memcmp(staged_expected[i],pages[load.pages[i]],16384));
+    borrowed_unchanged();
+    fail_alloc=0;check(execute_snapshot(&load,originals));
+    check(execute_restore(&load)&&load.error==0x1ff&&load.detail==ERR_FAILURE);
+    check(chain_discard(&load)&&count()==3);release_borrowed();
+    for(i=0;i<3;++i) {
+        setup(0);check(execute_prepare(&load,"H:/x-small.COM"));borrowed(originals);
+        check(execute_snapshot(&load,originals));fail_drop=load.pages[i];
+        check(!chain_discard(&load)&&count()==4&&load.pages[i]==fail_drop&&!load.ready);
+        check(!execute_restore(&load));borrowed_unchanged();fail_drop=-1;
+        check(chain_discard(&load)&&count()==3);borrowed_unchanged();release_borrowed();
+    }
+}
 int main(int argc,char **argv) {
     unsigned i,total_reads,total_allocs;uint16_t floor;
     check(argc==2);snprintf(directory,sizeof(directory),"%s",argv[1]);
@@ -186,5 +279,6 @@ int main(int argc,char **argv) {
     setup(1);fail_drop=32;check(!chain_prepare(&load,"H:/hash.CHN",&caller));check(load.error==0x20&&count()==1&&!handle);unchanged();fail_drop=-1;check(chain_discard(&load)&&!count());
     setup(1);fail_drop=32;check(!chain_prepare(&load,"H:/profile-0.CHN",&caller));check(load.error==0x20&&load.detail==ERR_ENTRY_CORRUPTED&&count()==1&&!handle);unchanged();fail_drop=-1;check(chain_discard(&load)&&!count());
     executable_cases();
+    rollback_cases();
     printf("PASS: %u image staging/heap/identity/commit assertions across %u scenarios\n",checks,scenarios);return 0;
 }
