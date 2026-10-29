@@ -40,6 +40,24 @@ static uint8_t output_write_all(int8_t fd,uint16_t n) {
     }
     return 1;
 }
+uint8_t output_write_buffer(int8_t fd,const uint8_t *buffer,uint16_t size) SOURCE_BLOCK_CALL {
+    if(size>128) { platform_error=ERR_INVALID_PARAMETER; return 0; }
+    if(!output_poll()) return 0;
+    memcpy(console_scratch,buffer,size);
+    return output_write_all(fd,size);
+}
+uint8_t output_read_buffer(int8_t fd,uint8_t *buffer,uint16_t size) SOURCE_BLOCK_CALL {
+    uint16_t at=0,n;
+    if(size>128) { platform_error=ERR_INVALID_PARAMETER; return 0; }
+    while(at<size) {
+        if(!output_poll()) return 0;
+        n=size-at; platform_error=read(fd,console_scratch,&n);
+        if(platform_error) return 0;
+        if(!n||n>size-at) { platform_error=ERR_FAILURE; return 0; }
+        memcpy(buffer+at,console_scratch,n); at+=n;
+    }
+    return 1;
+}
 static uint8_t stream_byte(const uint8_t *pages,uint16_t p) {
     return far_get(pages[p/PAGE_SIZE],p%PAGE_SIZE);
 }

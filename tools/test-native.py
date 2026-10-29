@@ -155,6 +155,12 @@ class PhysicalLine:
         self.inspect_mode, self.source = inspect_mode, source
 
 
+class ImageStop:
+    """A logical breakpoint qualified by the expected resident image."""
+    def __init__(self, address, program):
+        self.address, self.program = address, program
+
+
 def input_layout():
     """Bind private observer addresses to the assembled runtime instructions."""
     runtime = symbols('pascal_runtime')
@@ -205,6 +211,25 @@ class DebugConsole:
         result = self.response(command == 'quit')
         if capture: self.acceptance.append(result)
         return result
+
+    def image_stop(self, stop):
+        # Logical addresses are reused by Pascal children and service modules.
+        # Never mistake their instructions for an IDE reader at the same PC.
+        expected = (self.directory/'hostfs'/stop.program).read_bytes()[:32]
+        self.command(f'bp 0x{stop.address:x}')
+        try:
+            for _ in range(1000):
+                self.command('run 2000000000')
+                frame = self.command('regs')
+                observed = memory(self.command('rb 0x4000 32'))
+                if (f'PC={stop.address:04x} ' in frame and
+                        bytes(observed.get(0x4000+i, 0) for i in range(32)) == expected):
+                    self.acceptance.append(frame)
+                    return
+                self.command('s')
+            raise RuntimeError('resident image breakpoint not reached; see console-all.txt')
+        finally:
+            self.command(f'bc 0x{stop.address:x}')
 
     def observe(self):
         layout = input_layout()
@@ -354,7 +379,7 @@ def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, tim
     (directory / 'tf.img').write_bytes(tf_image if tf_image is not None else bytes(1024 * 1024))
     (directory / 'eeprom.img').write_bytes(eeprom_image if eeprom_image is not None else bytes(65536))
     (directory / 'zeal.ini').write_text('')
-    live = after_command is not None or any(isinstance(command, PhysicalLine) for command in commands)
+    live = after_command is not None or any(isinstance(command, (PhysicalLine, ImageStop)) for command in commands)
     if not live: (directory / 'commands.txt').write_text('\n'.join(commands) + '\n')
     cmd = [str(EMULATOR), '--console', '--debug', '--rom', str(directory / 'rom.img'),
            '--hostfs', str(hostfs), '-c', str(directory / 'zeal.ini'),
@@ -370,7 +395,9 @@ def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, tim
         active_line = None
         try:
             for command in commands:
-                if isinstance(command, PhysicalLine):
+                if isinstance(command, ImageStop):
+                    console.image_stop(command)
+                elif isinstance(command, PhysicalLine):
                     active_line = command
                     console.physical_line(command)
                     active_line = None

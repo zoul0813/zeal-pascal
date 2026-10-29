@@ -444,6 +444,10 @@ static uint8_t compile_work(void) {
     if(temporary)source_close(&root);
     if(!ok) {
         build.code_bytes=build.globals_bytes=0;
+        if(d.code==COMPILE_PLATFORM_FAILURE) {
+            file_error("Compiler library unavailable, native error ",platform_error);
+            search_ack("Source retained");return 0;
+        }
         if(d.code==COMPILE_INTERRUPTED) {
             ide_state=3;
             search_ack(compile_interrupt_reason()==2?"Compile interrupted: typeahead full":"*** COMPILE INTERRUPTED");return 0;
@@ -569,8 +573,7 @@ static void execute_work(void) {
             strcpy(directory,(char*)console_scratch);
             error=ioctl(DEV_STDIN,KB_CMD_SET_MODE,(void*)(KB_MODE_RAW|KB_READ_NON_BLOCK));
             if(!error) {
-                strcpy((char*)console_scratch,path);
-                error=exec(EXEC_PRESERVE_PROGRAM,(char*)console_scratch,0,&status);
+                error=execute_native(path,&status);
                 if(!error) {
                     strcpy((char*)console_scratch,directory);
                     restore=chdir((char*)console_scratch);

@@ -1,6 +1,7 @@
 #include "zp.h"
 #include "keys.h"
 #include "worker.h"
+#include "library.h"
 #include <zos_sys.h>
 #include <zos_vfs.h>
 #include <zos_video.h>
@@ -35,8 +36,9 @@ uint32_t page_lifetime(uint8_t p) {
     return p>=32&&p<64&&ledger[p-32].role?ledger[p-32].lifetime:0;
 }
 uint8_t pages_used(void) {
-    extern uint8_t code_owned;
-    uint8_t i,n=code_owned; /* Bootstrap owns immutable code pages separately. */
+    uint8_t i,n=0; /* Parked compiler-phase slots own no physical page. */
+    for(i=0;i<code_owned;++i)if(code_pages[i]!=255)++n;
+    for(i=CODE_PHASE_FIRST;i<code_owned;++i)if(code_phase_pending[i-CODE_PHASE_FIRST]!=255)++n;
     for(i=0;i<32;++i) if(ledger[i].role) ++n;
     return n;
 }
@@ -174,7 +176,8 @@ uint8_t run_build(const Source *s,const Build *b) {
     ram_io_detail=0; ram_cleanup_detail=0;
     if(!build_ready(s,b)) return 0;
     if(build_is_chain(b)) { platform_error=ERR_NOT_SUPPORTED;return 0; }
-    if(!worker_control(WORKER_START)) return 0;
+    if(!code_phase_park()) {code_phase_return();return 0;}
+    if(!worker_control(WORKER_START)) {code_phase_return();return 0;}
     for(i=0;i<3;++i) {
         child[i]=page_new(PAGE_RUN);
         if(child[i]==255) goto cleanup;
@@ -224,5 +227,6 @@ cleanup:
         ok=0; if(!failure) failure=platform_error;
     }
     if(failure) platform_error=failure;
+    code_phase_return();
     return ok;
 }

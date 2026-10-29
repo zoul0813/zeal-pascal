@@ -10,7 +10,7 @@ cmd=['cc','-std=c99','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
      '-fno-builtin-exit','-fno-sanitize-recover=all','-g','-D__SDCC_VERSION_MAJOR=4','-D__SDCC_VERSION_MINOR=2',
      '-D__sdcccall(x)=','-Isrc','-I'+str(sdk),'-ffunction-sections','-fdata-sections',
      'src/source.c','src/sources.c','src/sources_storage.c','src/path.c','src/sha256.c','src/source_hash.c','src/saved_map.c','src/image.c','src/native_image.c','src/compiler_image.c',
-     'src/output.c','src/output_transport.c','tests/native/output-host.c',
+     'src/output.c','src/output_transport.c','src/compiler_members.c','src/compiler_groups.c','src/library.c','src/library_phase.c','tests/native/output-host.c',
      '-Wl,-dead_strip','-o',str(OUT/'output-host')]
 subprocess.run(cmd,cwd=ROOT,check=True)
 subprocess.run([str(OUT/'output-host')],cwd=ROOT,check=True)

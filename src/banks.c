@@ -9,7 +9,6 @@
 extern uint8_t code_select(uint8_t bank) NATIVE;
 extern void code_restore(uint8_t page) NATIVE;
 extern int app_main(void);
-uint8_t compiler_compile(const Source *s,Build *b,Diagnostic *d);
 uint8_t compiler_compile_project(const Source *root,const Sources *buffers,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options);
 void compiler_build_close(Build *b);
 uint8_t compiler_build_check(const Source *s,const Build *b);
@@ -54,11 +53,12 @@ int main(int argc,char **argv) {
     return result;
 }
 uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
-    uint8_t old=code_select(1),ok=compiler_compile(s,b,d);
-    code_restore(old); return ok;
+    return compile_project(s,0,b,d,0,0);
 }
 uint8_t compile_project(const Source *root,const Sources *buffers,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options) {
-    uint8_t old=code_select(1),ok=compiler_compile_project(root,buffers,b,d,interruptible,options);
+    uint8_t old,ok;
+    if(!code_phase_restore()) {memset(d,0,sizeof(*d));d->code=COMPILE_PLATFORM_FAILURE;return 0;}
+    old=code_select(CODE_PHASE_FIRST);ok=compiler_compile_project(root,buffers,b,d,interruptible,options);
     code_restore(old);return ok;
 }
 void build_close(Build *b) {

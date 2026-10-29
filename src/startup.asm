@@ -9,6 +9,7 @@
 .globl _code_sizes, _code_pages, _code_owned, _boot_error
 .globl _code_select, _code_restore, _code_release
 .globl _code_required, _code_digest
+.globl _code_phase_fd, _code_phase_cleanup, _close
 .globl get_bank, set_bank
 
 ; SDK-compatible command-tail entry; application code loads the library after
@@ -89,22 +90,48 @@ _code_restore::                ; A=previous physical page
     ret
 _code_release::
     ld a,(_code_owned)
+    cp #14
+    jr c,release_loop
+    ld a,(_code_phase_fd)
+    bit 7,a
+    jr nz,release_loop          ; a failed initial load never executes its banks
+    call _code_phase_cleanup
     or a
-    ret z
+    ret z                      ; failed pending-page release keeps every owner
+release_loop:
+    ld a,(_code_owned)
+    or a
+    jr z,release_library
     dec a
     ld e,a
     ld d,#0
     ld hl,#_code_pages
     add hl,de
     ld a,(hl)
+    cp #255
+    jr z,release_next
     call _pfree
     or a
     jr nz,release_failed
+release_next:
     ld hl,#_code_owned
     dec (hl)
-    jr _code_release
+    jr release_loop
 release_failed:
     ld (_boot_error),a           ; retain ownership if pfree did not succeed
+    ret
+release_library:
+    ld a,(_code_phase_fd)
+    bit 7,a
+    ret nz
+    push af
+    ld a,#255
+    ld (_code_phase_fd),a
+    pop af
+    call _close
+    or a
+    ret z
+    ld (_boot_error),a
     ret
 ; The SDK's standard banked-call trampoline calls these callbacks. Logical
 ; bank IDs are 1..16; saved tokens are actual RAM pages 32..63. Both callbacks

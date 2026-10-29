@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+"""Native completed-member spooling and nested group ownership; not Pascal overlays."""
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+import re
+import struct
+
+ROOT = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location('native', ROOT/'tools/test-native.py')
+n = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(n)
+
+
+def main():
+    target = 'zmemberstest'
+    sym = n.symbols(target)
+    assert sym['_compiler_compile_project'] >> 16 == 14
+    assert sym['_code_phase_restore'] >> 16 < 14
+    inputs = [Path(__file__), ROOT/'CMakeLists.txt', ROOT/'tools/test-native.py',
+              ROOT/'tools/package-native.py', n.EMULATOR, n.ROM]
+    inputs += sorted((ROOT/'src').glob('*'))
+    inputs += [ROOT/'tests/native'/name for name in ('members-main.c', 'members-probe.asm', 'harness.c', 'harness.h', 'machine.asm')]
+    inputs += [ROOT/f'build/{target}.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
+    hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}
+    commands = ['run 100000000'] + n.program_launch(target)
+    commands += [f"bp 0x{sym['_test_stop']:x}", 'run 60000000000', 's', 'regs', 'mmu']
+    for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage'):
+        commands += [f'rb 0x{sym[name]:x} 2']
+    commands += [f"rb 0x{sym['_test_hash']:x} 32", f"rb 0x{sym['_test_group_hash']:x} 32",
+                 f"rb 0x{sym['_test_phase_hash']:x} 32",
+                 f"rb 0x{sym['_test_failures']:x} 128", 'quit']
+    fixtures = {f'{target}.{ext}': (ROOT/f'build/{target}.{ext}').read_bytes() for ext in ('bin', 'zpl')}
+    raw = n.execute('member-spool', commands, fixtures, timeout=600)
+    memory = n.memory(raw)
+    word = lambda name: memory.get(sym[name], 0) | memory.get(sym[name]+1, 0) << 8
+    spool = n.RUN/'member-spool/hostfs/MEMBERS.SPL'
+    data = spool.read_bytes() if spool.exists() else b''
+    # Independent serialization oracle. Keep no product emitter/hash code in
+    # the expected section framing, offset calculation or byte patterns.
+    header = b'ZPMS\1\0' + struct.pack('<6H', 24, 0xbff1, 528, 15, 3, 4) + bytes(6)
+    code = bytes(((at-0x8000)*3+9 if at < 0xc000 else (at-0xc000)*5+1) & 255
+                 for at in range(0xbff1, 0xc201))
+    maps = bytes((at*7+3) & 255 for at in range(199, 247))
+    relocs = bytes((at*11+5) & 255 for at in range(12, 28))
+    expected = header + code + maps + relocs
+    digest = bytes(memory.get(sym['_test_hash']+i, 0) for i in range(32))
+    def frame(origin, entry, code, first_map, maps, first_reloc, relocs):
+        return (b'ZPMS\1\0'+struct.pack('<6H', 24, origin, len(code), entry-origin, maps, relocs)+bytes(6)
+                +code+bytes((at*7+3)&255 for at in range(96+71+first_map*16, 96+71+(first_map+maps)*16))
+                +bytes((at*11+5)&255 for at in range(first_reloc*4, (first_reloc+relocs)*4)))
+    nested_first = frame(0xbff8, 0xbffc, bytes(range(0x30, 0x30+20)), 3, 2, 4, 2)
+    nested_second = frame(0xbff8, 0xc000, bytes(range(0x40, 0x40+40)), 3, 1, 4, 1)
+    parent = frame(0xbff0, 0xc020, bytes(range(0x10, 0x18))+bytes(40)+bytes(range(0x60, 0x68)), 2, 2, 3, 2)
+    sibling = frame(0xbff0, 0xbff0, bytes(range(0x70, 0x70+24)), 2, 1, 3, 1)
+    grouped = n.RUN/'member-spool/hostfs/GROUPS.SPL'
+    group_data = grouped.read_bytes() if grouped.exists() else b''
+    group_digest = bytes(memory.get(sym['_test_group_hash']+i, 0) for i in range(32))
+    library = fixtures[target+'.zpl']
+    assert library[5] == 14
+    payload_hash = hashlib.sha256(library[16+2*library[5]:]).digest()
+    phase_hash = bytes(memory.get(sym['_test_phase_hash']+i, 0) for i in range(32))
+    checks = {
+        'native completion': memory.get(sym['_test_done']) == 255 and word('_test_stage') == 6,
+        'native group ownership, phase parking, compile, RAM/saved Run and MMU assertions': word('_test_failed') == 0 and word('_test_passed') >= 59,
+        'exact independently framed two-member spool': data == expected*2,
+        'trusted catalog digest matches independent disk hash': hashlib.sha256(expected).digest() == digest,
+        'nested member extents, zero parent gaps and immutable suffixes match independent disk framing': group_data == nested_first+nested_second+parent+sibling,
+        'parent catalog identity binds its reserved nested area': hashlib.sha256(parent).digest() == group_digest,
+        'restored compiler pages match the independently hashed original library payload': phase_hash == payload_hash,
+    }
+    marker=sym['_test_phase_restore_marker']
+    assert 0x4000<=marker<0x8000
+    def probes():
+        result=['regs','mmu']
+        for name,size in (('_test_done',1),('_test_passed',2),('_test_failed',2),('_test_stage',2),
+                          ('_code_owned',1),('_code_phase_fd',1),('_code_pages',16),('_code_phase_pending',3),
+                          ('_test_phase_hash',32),('_test_failures',128)):
+            result += [f'rb 0x{sym[name]:x} {size}']
+        return result
+    altered=[]
+    sizes=struct.unpack_from('<14H',library,16)
+    offset=16+28+sum(sizes[:13])
+    def alter_on_marker(command,response,directory):
+        if command!='regs' or f'PC={marker:04x} ' not in response:return
+        path=directory/'hostfs'/f'{target}.zpl'
+        assert len(altered)<2
+        with path.open('r+b') as stream:
+            stream.seek(offset)
+            before=stream.read(1)
+            expected=bytes([library[offset]^(1 if altered else 0)])
+            assert before==expected
+            stream.seek(offset);stream.write(bytes([before[0]^1]))
+        altered.append({'operation':'repair' if altered else 'corrupt','offset':offset,'sha256':n.sha(path)})
+    negative=['run 100000000']+n.program_launch(target)+[f'bp 0x{marker:x}',f"bp 0x{sym['_test_stop']:x}",
+              'run 60000000000']+probes()+['s','run 60000000000']+probes()
+    negative += [f'bc 0x{marker:x}','s','run 60000000000']+probes()+['quit']
+    negative_fixtures={**fixtures,'PHASE.BAD':b'1'}
+    negative_raw=n.execute('member-phase-corrupt',negative,negative_fixtures,timeout=600,after_command=alter_on_marker)
+    negative_state=n.memory(negative_raw)
+    value=lambda name:negative_state.get(sym[name],0)|(negative_state.get(sym[name]+1,0)<<8)
+    checks['real post-startup library corruption rejects compilation, preserves source/build, and repairs on retry']=(
+        len(altered)==2 and negative_state.get(sym['_test_done'])==255 and value('_test_failed')==0 and value('_test_passed')>=62
+        and bytes(negative_state.get(sym['_test_phase_hash']+i,0)for i in range(32))==payload_hash
+        and (n.RUN/f'member-phase-corrupt/hostfs/{target}.zpl').read_bytes()==library)
+    release,exit_pc,close_pc=sym['_code_release'],sym['_exit'],sym['_close']
+    kernel=n.kernel_symbols();owners=kernel['_page_owners'];kernel_exit=kernel['zos_loader_exit']
+    natural=['run 100000000']+n.program_launch(target)+[f'bp 0x{release:x}',f'bp 0x{exit_pc:x}',
+             'run 60000000000']+probes()+[f'rb 0x{owners:x} 32',f'bc 0x{release:x}',f'bp 0x{close_pc:x}',
+             's','run 1000000000']+probes()+[f'bc 0x{close_pc:x}','s','run 1000000000']+probes()+[
+             f"rb 0x{sym['_boot_error']:x} 1",f'bc 0x{exit_pc:x}',f'bp 0x{kernel_exit:x}',
+             's','run 1000000000','regs','mmu',f'rb 0x{owners:x} 32','quit']
+    natural_raw=n.execute('member-phase-terminal',natural,{**fixtures,'RETURN.TEST':b'1'},timeout=600)
+    frames=re.split(r'\[DBG\] PC=',natural_raw)[1:]
+    selected=[]
+    for address in (release,close_pc,exit_pc,kernel_exit):
+        matching=[frame for frame in frames if frame.startswith(f'{address:04x} ')]
+        selected.append(matching[-1] if matching else '')
+    cleanup_ok=False
+    if all(selected):
+        start,closing,ended,released=map(n.memory,selected)
+        pages=[start.get(sym['_code_pages']+i,255)for i in range(14)]
+        fd=start.get(sym['_code_phase_fd'],255)
+        final_word=lambda name:ended.get(sym[name],0)|(ended.get(sym[name]+1,0)<<8)
+        cleanup_ok=(start.get(sym['_code_owned'])==14 and len(set(pages))==14 and all(32<=p<64 for p in pages)
+            # At resident user entries C000 contains app data, not the kernel
+            # page table. Inspect only the kernel's exit entry, before its own
+            # automatic process cleanup can conceal an application leak.
+            and 'c000 -> 088000' in selected[3]
+            and all(released.get(owners+p-32,255)==0 for p in pages)
+            and fd<128 and int(re.search(r'\bAF=([0-9a-fA-F]{4})',selected[1])[1],16)>>8==fd
+            and closing.get(sym['_code_owned'])==0 and ended.get(sym['_code_owned'])==0
+            and ended.get(sym['_code_phase_fd'])==255 and ended.get(sym['_boot_error'])==0
+            and ended.get(sym['_test_done'])==255 and final_word('_test_failed')==0)
+    checks['real terminal cleanup frees all code pages and closes the retained library before OS exit']=cleanup_ok
+    checks['input artifacts unchanged']=all(n.sha(Path(p))==value for p,value in hashes.items())
+    report = {'scope': __doc__, 'passed': all(checks.values()), 'checks': checks,
+              'native_assertions_passed': word('_test_passed'), 'native_assertions_failed': word('_test_failed'),
+              'capture_directory': str(n.RUN.relative_to(ROOT)), 'input_sha256': hashes,
+              'library_mutations':altered,'negative_assertions':value('_test_passed')}
+    (n.RUN/'member-spool-report.json').write_text(json.dumps(report, indent=2)+'\n')
+    print(json.dumps(report, indent=2))
+    assert report['passed']
+
+
+if __name__ == '__main__':
+    main()

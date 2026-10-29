@@ -218,6 +218,7 @@ void cc_typed_storage(uint16_t first) FRONTEND;
 SourcePosition cc_block(void) ROUTINES;
 uint8_t cc_invoke(uint16_t id) ROUTINES;
 void cc_routine_address(uint16_t id) ROUTINES;
+void cc_entry_reference(uint8_t opcode,uint8_t scope) ROUTINES;
 void cc_exit(void) ROUTINES;
 uint8_t cc_expression(void) BACKEND;
 uint8_t cc_index(uint8_t type) BACKEND;

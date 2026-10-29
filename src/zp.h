@@ -104,8 +104,9 @@ typedef struct {
     uint8_t code;
     uint16_t start, end;
 } Diagnostic;
-/* Cancellation is a job outcome, never a Pascal syntax diagnostic. */
+/* Private job outcomes, never Pascal syntax diagnostics. */
 #define COMPILE_INTERRUPTED 255u
+#define COMPILE_PLATFORM_FAILURE 254u
 /* Start zero selects the computed minimum. NULL options mean these defaults. */
 enum { COMPILE_PROGRAM,COMPILE_CHAIN };
 typedef struct { uint16_t start,end; uint8_t kind; } CompileOptions;
@@ -184,6 +185,7 @@ uint8_t load_source(Source *s,const char *path,Diagnostic *d);
 uint8_t read_block(Source *block,const char *path,Diagnostic *d);
 uint8_t save_block(const Source *s,uint16_t first,uint16_t last,const char *path,uint8_t replace,uint8_t interruptible);
 uint8_t run_saved(const Source *s,Build *b,uint8_t *status);
+uint8_t execute_native(const char *path,uint8_t *status) SOURCE_BLOCK_CALL;
 const char *output_path(void) SOURCE_BLOCK_CALL;
 const char *output_recovery(void) SOURCE_BLOCK_CALL;
 /* Private job reason: 1 Ctrl-U/keyboard error, 2 retained typeahead full. */

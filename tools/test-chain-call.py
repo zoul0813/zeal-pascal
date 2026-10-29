@@ -17,7 +17,7 @@ def ide(n,executables=None):
     labels=[]
     def state(label,trigger,cycles=10000000000):
         labels.append((label,key))
-        return [f'bp 0x{key:x}']+trigger+[f'run {cycles}','regs','mmu',f'rb 0x{build:x} {n.BUILD_BYTES}',
+        return trigger+[n.ImageStop(key,'zpascal.bin'),'mmu',f'rb 0x{build:x} {n.BUILD_BYTES}',
             f'rb 0x{opts:x} 5',f"rb 0x{sym['_work']:x} 140",f"rb 0x{sym['_buffers']:x} 12",
             f"rb 0x{sym['_ide_state']:x} 1",f'bc 0x{key:x}']
     commands=['run 100000000']+n.program_launch()+['run 10000000']

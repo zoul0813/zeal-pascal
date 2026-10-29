@@ -66,6 +66,7 @@ python3 tools/test-params.py
 python3 tools/test-math.py
 python3 tools/test-output.py
 python3 tools/test-output-host.py
+python3 tools/test-members.py
 python3 tools/test-output-interrupt.py
 python3 tools/test-startup-path.py
 python3 tools/test-real.py --host --sanitize --native
@@ -103,6 +104,10 @@ The launcher verifies the complete library before entering any application
 bank. A missing, damaged or mismatched library returns to the shell. The editor,
 compiler, file operations and compiler front end use separate owned RAM banks.
 Routine, expression and type compilation use additional code banks.
+Compiler phase banks are released while a program runs. The IDE retains the
+original library handle and authenticates reloaded phase bytes before compiling
+again, so the library must remain available while using the IDE. A reload error
+retains the source and reports that the compiler library is unavailable.
 The runtime template occupies a verified library bank; the RAM trampoline
 remains in the launcher. Internal `pascal_runtime.zpl` and `ram_trampoline.zpl`
 build products require no separate deployment. Generated Pascal COM
@@ -216,8 +221,9 @@ File-module acquisition and Chain/Execute share one private decoder per generate
 program. Both modules are stored as checked packed constants, expanded only into
 their owned pages. Packaging verifies exact linked module/template bytes before
 publishing the IDE, and their identities are part of the private CHN fingerprint.
-This keeps the IDE at13 banks while leaving compiler-bank space for overlays;
-it does not enable Pascal overlay compilation yet.
+The overlay compiler phase occupies an additional bank; it is parked during
+Run/Execute to retain the previous thirteen-bank execution memory budget.
+This does not enable Pascal overlay compilation yet.
 
 Ctrl-U cancels compilation, including image preparation, scanning, code
 placement and final hashing. It also cancels source, Save As, block and executable/
@@ -730,6 +736,13 @@ ZOVR group validation and selected-member staging are tested as a
 separate component with `python3 tools/test-overlays.py` and its `--native`
 mode after `zde cmake`. This does not yet enable disk overlay declarations,
 OvrDrive, runtime cache/trampoline handling or overlay source navigation.
+Completed-member compiler spooling is also tested independently: it appends
+only a member's code and map/relocation suffixes, verifies the disk bytes, and
+preserves the parent's staging state on failure. `tools/test-members.py` checks
+the native serialization; `tools/test-output-host.py` covers transfer faults and
+cancellation. Group ownership also covers nested reservations, shared member
+origins, zeroed parent gaps and cleanup retries. Parser, late-helper and final
+linker/runtime integration are still pending.
 
 The editor now supports character/word/line movement, smooth scrolling, paging,
 virtual columns through128 and horizontal scrolling. Arrow keys, Home/End and

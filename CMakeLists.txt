@@ -63,7 +63,7 @@ set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/pascal_runtime.zpl;${CMAKE_BINARY_DIR}/pascal_runtime.private;${CMAKE_BINARY_DIR}/pascal_runtime.profile;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
 set(PASCAL_CORE src/source.c src/sources.c src/sources_storage.c src/compiler_sources.c src/source_hash.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/compiler_expr.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_file.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_state.c src/compiler_predicates.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/saved_map.c src/native.asm
     ${CMAKE_BINARY_DIR}/runtime_asset.asm ${CMAKE_BINARY_DIR}/file_asset.asm)
-list(APPEND PASCAL_CORE src/compiler_chain.c src/compiler_transfer_asset.c src/compiler_module.c)
+list(APPEND PASCAL_CORE src/compiler_chain.c src/compiler_transfer_asset.c src/compiler_module.c src/compiler_bridges.c src/library_phase.c src/compiler_members.c src/compiler_groups.c src/compiler_compile.c)
 set_source_files_properties(${CMAKE_BINARY_DIR}/transfer_ide_asset.asm ${CMAKE_BINARY_DIR}/transfer_test_asset.asm PROPERTIES GENERATED TRUE)
 # This SDK disables compiler depfiles. Keep shared ABI/header changes from
 # leaving stale objects in another compiler bank during incremental ZDE builds.
@@ -77,7 +77,7 @@ foreach(source IN LISTS PASCAL_CORE)
         set_property(SOURCE ${source} APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/real.h)
     endif()
 endforeach()
-set_property(SOURCE src/library.c src/banks.c tests/native/main.c APPEND PROPERTY
+set_property(SOURCE src/library.c src/library_phase.c src/platform.c src/banks.c src/compiler.c tests/native/main.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/library.h)
 set_property(SOURCE src/banks.c src/main.c tests/native/main.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h)
@@ -108,6 +108,13 @@ set_property(SOURCE src/output.c src/saved_map.c src/main.c APPEND PROPERTY OBJE
     ${CMAKE_SOURCE_DIR}/src/saved_map.h ${CMAKE_SOURCE_DIR}/src/sources.h)
 set_property(SOURCE src/output.c src/output_transport.c src/banks.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/output_transport.h)
+set_property(SOURCE src/compiler_members.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/compiler_members.h ${CMAKE_SOURCE_DIR}/src/output_transport.h)
+set_property(SOURCE src/compiler_groups.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/compiler_groups.h ${CMAKE_SOURCE_DIR}/src/compiler_members.h ${CMAKE_SOURCE_DIR}/src/output_transport.h)
+set_property(SOURCE src/compiler_members.c src/compiler_groups.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h
+    ${CMAKE_SOURCE_DIR}/src/chain_abi.h ${CMAKE_SOURCE_DIR}/src/real.h)
 set_property(SOURCE src/image.c src/compiler_image.c src/compiler_build.c src/saved_map.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/image.h)
 set_property(SOURCE src/image.c src/compiler_image.c src/native_image.c src/saved_map.c tests/native/chain-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/native_image.h)
 set_property(SOURCE src/sha256.c src/source_hash.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sha256.h)
@@ -140,8 +147,18 @@ set_source_files_properties(src/output.c src/worker.c src/sources.c src/compiler
     COMPILE_OPTIONS "--codeseg;BANK3;--constseg;BANK3")
 set_source_files_properties(src/compiler_console.c src/compiler_keyboard.c src/saved_map.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK12;--constseg;BANK12")
-set_source_files_properties(src/editor.c src/source_blocks.c src/output_transport.c PROPERTIES
+set_source_files_properties(src/editor.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK13;--constseg;BANK13")
+set_source_files_properties(src/source_blocks.c PROPERTIES
+    COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK13;--constseg;BANK13")
+# Compiler-only phases are parked while running a program and authenticated
+# again before compiling, preserving the existing thirteen-bank Run budget.
+set_source_files_properties(src/compiler_members.c src/compiler_groups.c src/compiler_compile.c PROPERTIES
+    COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK14;--constseg;BANK14")
+set_source_files_properties(src/library_phase.c PROPERTIES
+    COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK5;--constseg;BANK5")
+set_source_files_properties(src/output_transport.c PROPERTIES
+    COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK13;--constseg;BANK13")
 set_source_files_properties(src/compiler_activation.c src/sources_storage.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK2;--constseg;BANK2")
 # Cached-image checks are banked entry points; the decoder's near-call adapter
@@ -154,6 +171,7 @@ set_source_files_properties(src/platform.c PROPERTIES COMPILE_OPTIONS "--opt-cod
 set_source_files_properties(src/compiler_chain.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK7;--constseg;BANK7")
 set_source_files_properties(src/compiler_predicates.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK11;--constseg;BANK11")
 set_source_files_properties(src/compiler_module.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK11;--constseg;BANK11")
+set_source_files_properties(src/compiler_bridges.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK11;--constseg;BANK11")
 set_source_files_properties(src/compiler_inline.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK10;--constseg;BANK10")
 set_source_files_properties(src/compiler_transfer_asset.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK3;--constseg;BANK3")
 # Our startup and the installed SDK use the same command-tail ABI. The launcher
@@ -261,8 +279,16 @@ set_source_files_properties(tests/native/execute-call-main.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 set_property(SOURCE tests/native/execute-call-main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
+add_executable(zmemberstest src/startup.asm src/banks.c tests/native/members-main.c tests/native/members-probe.asm tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
+target_include_directories(zmemberstest PRIVATE src)
+target_compile_options(zmemberstest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+set_source_files_properties(tests/native/members-main.c PROPERTIES
+    COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
+set_property(SOURCE tests/native/members-main.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/compiler_members.h ${CMAKE_SOURCE_DIR}/src/compiler_groups.h ${CMAKE_SOURCE_DIR}/src/output_transport.h
+    ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 
-foreach(target zexecutecalltest zpascal zptest zinputtest zmathtest ziotest zfiletest ztexttest zstdtest zkeytest zkbdtest zcontest zcontroltest zmaptest zdevtest zbridgetest zhooktest zlangtest zexampletest zsrctest zinlinetest zparamtest zoptionstest zchaintest zchaincalltest zworkertest zedittest)
+foreach(target zmemberstest zexecutecalltest zpascal zptest zinputtest zmathtest ziotest zfiletest ztexttest zstdtest zkeytest zkbdtest zcontest zcontroltest zmaptest zdevtest zbridgetest zhooktest zlangtest zexampletest zsrctest zinlinetest zparamtest zoptionstest zchaintest zchaincalltest zworkertest zedittest)
     if(target STREQUAL "zpascal" OR target STREQUAL "zedittest")
         target_sources(${target} PRIVATE ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm)
     else()
@@ -277,6 +303,7 @@ foreach(target zexecutecalltest zpascal zptest zinputtest zmathtest ziotest zfil
     target_link_options(${target} PRIVATE "SHELL:-b _BANK11=0xb8000")
     target_link_options(${target} PRIVATE "SHELL:-b _BANK12=0xc8000")
     target_link_options(${target} PRIVATE "SHELL:-b _BANK13=0xd8000")
+    target_link_options(${target} PRIVATE "SHELL:-b _BANK14=0xe8000")
     add_custom_target(${target}_bin ALL
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py $<TARGET_FILE:${target}>
         DEPENDS ${target} ${CMAKE_SOURCE_DIR}/tools/package-native.py

@@ -224,7 +224,7 @@ uint8_t run_saved(const Source *s,Build *b,uint8_t *status) {
         b->pages[i]=255;
     }
     strcpy((char*)console_scratch,destinations[0]);
-    e=exec(EXEC_PRESERVE_PROGRAM,(char*)console_scratch,0,status);
+    e=execute_native((char*)console_scratch,status);
     for(i=0;i<3;++i)if((uint16_t)i*PAGE_SIZE<b->length) {
         b->pages[i]=page_new(PAGE_IMAGE);
         if(b->pages[i]==255)goto cache_failed;

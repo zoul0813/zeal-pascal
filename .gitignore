@@ -55,6 +55,7 @@
 !/tools/test-transfer.py
 !/tools/test-overlays.py
 !/tools/test-module-unpack.py
+!/tools/test-members.py
 !/tools/test-real.py
 !/tools/package-native.py
 !/tools/package-tf.py
