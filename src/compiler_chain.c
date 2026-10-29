@@ -1,4 +1,4 @@
-#include "compiler.h"
+#include "compiler_late.h"
 #include "file_runtime.h"
 #include "transfer_asset.h"
 
@@ -30,7 +30,7 @@ void cc_transfer_statement(uint16_t base) FRONTEND {
  * share the compiler's existing fixup-chain and relocation mechanisms. */
 void cc_transfer_finish(void) FRONTEND {
     uint16_t module,gate,entry,i,offset,at,value,head=cc.transfer_entry;
-    if(!head||cc.error->code)return;
+    if(cc.error->code||(!head&&!cc_root_pending(LATE_ROOT,LATE_TRANSFER)))return;
     module=asset(0);gate=asset(1);entry=asset(2);
     for(i=0;i<TRANSFER_CALL_RELOC_COUNT;++i) {
         at=TRANSFER_CALL_RELOC_OFFSET+2*i;
@@ -42,5 +42,5 @@ void cc_transfer_finish(void) FRONTEND {
     patch(entry+TRANSFER_CALL_GATE_OPERAND,gate);
     patch(entry+TRANSFER_CALL_FILE_OPERAND,cc.file_entry);
     cc_unpack_reference(entry+TRANSFER_CALL_UNPACK_OPERAND);
-    cc_patch_chain(head,entry);cc.transfer_entry=entry;
+    cc_patch_chain(head,entry);cc.transfer_entry=entry;cc_root_bind(LATE_ROOT,LATE_TRANSFER,entry);
 }

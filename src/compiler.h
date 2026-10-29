@@ -44,6 +44,7 @@ enum { SYMBOL_LIMIT=512,TYPE_LIMIT=64 };
 #define CC_ACTIVATION_BYTES CHAIN_ACTIVATION_BYTES
 #define CC_STATIC_LIMIT 0xf400u
 typedef uint32_t SourcePosition; /* file ID in high word, canonical offset in low */
+struct CompilerGroups;
 typedef struct {
     const Source *root;
     const Sources *buffers;
@@ -51,6 +52,7 @@ typedef struct {
     uint16_t refs,parent_scan;
     uint8_t parent_flags,parent_limit;
     const CompileOptions *options;
+    struct CompilerGroups *groups; /* Invocation-owned; NULL without overlays. */
 } CompilerSources;
 typedef struct {
     SourcePosition first,last;
@@ -159,9 +161,15 @@ uint16_t cc_runtime_private(uint8_t entry);
 void cc_keypressed(void) FRONTEND;
 void cc_logical_stream(void) FRONTEND;
 void cc_keyboard_engine(void) FRONTEND;
+void cc_keyboard_finish(void) FRONTEND;
+void cc_interrupt_finish(void) FRONTEND;
+void cc_file_engine_finish(void) FRONTEND;
+void cc_initializer_finish(void) FRONTEND;
 void cc_user_interrupt(void) FRONTEND;
 void cc_console_finish(void) FRONTEND;
 void cc_error_finish(void) FRONTEND;
+void cc_params_finish(void) FRONTEND;
+void cc_random_finish(void) FRONTEND;
 void cc_hook_variable(uint16_t id) ROUTINES;
 void cc_hook_output(void) ROUTINES;
 void cc_hooks_finish(void) ROUTINES;

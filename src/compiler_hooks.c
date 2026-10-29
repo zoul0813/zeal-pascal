@@ -1,4 +1,4 @@
-#include "compiler.h"
+#include "compiler_late.h"
 #include "file_runtime.h"
 
 /* Hooks belong to each generated program. Defaults are genuine Pascal ABI
@@ -131,11 +131,11 @@ static void mask(void) {
     cc_emit(0xe1); cc_emit(0xd1); cc_emit(0xc1); cc_emit(0xc9);
 }
 void cc_hooks_finish(void) ROUTINES {
-    uint16_t open=0,echo=0,output=0,invoke=0,poll,entry,skip;
-    uint8_t k,needed=0;
+    uint16_t open=0,echo=0,output=0,invoke=0,poll,entry,skip,deferred;
+    uint8_t k,needed=0,pending=cc_root_pending(LATE_ROOT,LATE_OUTPUT);
     if(cc.error->code) return;
     for(k=HOOK_CON_OUT;k<HOOK_COUNT;++k) if(cc.hook_variables[k]) needed=1;
-    if(needed||cc.hook_output_calls) {
+    if(needed||cc.hook_output_calls||pending) {
         open=cc_runtime_private(RP_INPUT_OPEN); echo=cc_runtime_private(RP_INPUT_ECHO);
         if(cc.hook_variables[HOOK_CON_OUT]) { open=cc_original_entry(open,0); echo=cc_original_entry(echo,0); }
         output=physical(open,echo); invoke=invocation(0);
@@ -150,7 +150,8 @@ void cc_hooks_finish(void) ROUTINES {
             entry=cc_original_entry(character(),0); cc.hook_character=console(0,entry,invoke);
             cc.hook_echo=console(1,echo,invoke); cc.hook_open=console(2,open,invoke);
         }
-        if(cc.hook_output_calls) {
+        if(cc.hook_output_calls||pending) {
+            deferred=cc.emitted;
             cc_patch_chain(cc.hook_output_calls,cc.emitted);
             cc_capture_guard(512,1); cc_emit(0xe5); cc_emit(0xf5);
             job_index(0x7e,34); cc_emit(0xfe); cc_emit(ZF_STANDARD_USR); skip=cc_forward(0xc2);
@@ -166,6 +167,7 @@ void cc_hooks_finish(void) ROUTINES {
             target(HOOK_CON_OUT,output);
             cc_patch(entry); if(poll) cc_patch(poll); if(open) cc_patch(open);
             cc_emit(0xf1); cc_address(0xcd,invoke); cc_emit(0xe1); cc_emit(0xc9);
+            cc_root_bind(LATE_ROOT,LATE_OUTPUT,deferred);
         }
     }
     if(cc.hook_variables[HOOK_STATUS]) {

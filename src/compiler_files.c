@@ -1,4 +1,4 @@
-#include "compiler.h"
+#include "compiler_late.h"
 #include "file_runtime.h"
 typedef char text_kinds_match[(K_INTEGER==ZF_TEXT_INTEGER&&K_STRING==ZF_TEXT_STRING&&
     K_CHAR==ZF_TEXT_CHAR&&K_BYTE==ZF_TEXT_BYTE&&K_REAL==ZF_TEXT_REAL)?1:-1];
@@ -119,6 +119,7 @@ static void engine(void) {
     uint16_t skip,asset,gate,bootstrap,ready,normal,allocated,i;
     uint16_t packed_bytes=cc_file_asset_size(0),gate_bytes=cc_file_asset_size(1);
     if(cc.file_entry||cc.suppress||cc.error->code) return;
+    if(cc_root_member()) {cc_root_request(LATE_ROOT,LATE_FILE);return;}
     skip=cc_forward(0xc3);
     asset=cc.emitted;
     for(i=0;i<packed_bytes;++i) cc_emit(cc_file_asset_get(0,i));
@@ -183,6 +184,7 @@ static void engine(void) {
     cc_emit(0x7b); cc_emit(0x06); cc_emit(2); cc_op16(0xc3,RT_ERROR);
     cc_patch(ready); cc_emit(0x7b); cc_emit(0xb7); cc_emit(0xc8); cc_op16(0xc3,RT_IOFAIL);
     cc_patch(skip);
+    cc_root_bind(LATE_ROOT,LATE_FILE,cc.file_entry);
 }
 static void store(uint8_t offset,uint16_t extra) {
     cc_emit(0x44); cc_emit(0x4d); cc_op16(0x21,offset+extra); cc_emit(0x39);
@@ -213,8 +215,7 @@ static uint8_t file_argument(uint16_t base) {
 static void invoke(uint16_t base) {
     engine();
     cc_reserve(64); cc_op16(0x21,cc.temporaries-base-ZF_JOB_BYTES); cc_emit(0x39);
-    cc_op16(0xcd,RT_IOCALL); cc_relocate(cc.emitted);
-    cc_emit((uint8_t)cc.file_entry); cc_emit((uint8_t)(cc.file_entry>>8)); cc_emit(cc.io_check);
+    cc_op16(0xcd,RT_IOCALL); cc_root_operand(LATE_ROOT,LATE_FILE,cc.file_entry,0); cc_emit(cc.io_check);
 }
 /* Native Pascal procedure(Char), independent of any current output override.
  * The complete ordinary file owner handles SER0 mode/descriptor cleanup. */
@@ -232,8 +233,7 @@ uint16_t cc_file_default_output(void) FRONTEND {
     cc_op16(0x21,ZF_JOB_BYTES+2); cc_emit(0x39); cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56);
     cc_emit(0xeb); cc_op16(0x22,RT_PC);
     engine(); guard(64); cc_op16(0x21,0); cc_emit(0x39);
-    cc_op16(0xcd,RT_IOCALL); cc_relocate(cc.emitted);
-    cc_emit((uint8_t)cc.file_entry); cc_emit((uint8_t)(cc.file_entry>>8)); cc_emit(0);
+    cc_op16(0xcd,RT_IOCALL); cc_root_operand(LATE_ROOT,LATE_FILE,cc.file_entry,0); cc_emit(0);
     cc_release(base); /* the two-byte short string remains */
     cc_release(0); cc_emit(0xe1); cc_op16(0x22,RT_PC);
     cc_emit(0xd1); cc_emit(0xc1); cc_emit(0xd5);
@@ -362,6 +362,7 @@ void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND {
     }
     cc_expect(')',5); cc_release(base);
 }
+void cc_file_engine_finish(void) FRONTEND {if(cc_root_pending(LATE_ROOT,LATE_FILE))engine();}
 void cc_file_stream_finish(void) FRONTEND {
     /* AuxOutPtr's default adapter creates a Text binding during hook finish. */
     if(cc.hook_variables[HOOK_AUX_OUT]&&!cc.file_entry)engine();

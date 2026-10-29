@@ -1,4 +1,4 @@
-#include "compiler.h"
+#include "compiler_late.h"
 
 /* A fresh object's file fields have no binding authority. Globals/static
  * locals use lifetime zero; recursive locals use their live frame identity;
@@ -70,10 +70,10 @@ static void field_call(uint8_t type,uint16_t offset) {
  * alternates. AF/BC are scratch. They allocate no pages, paths or handles.
  * Calls share the normal generated-code relocation ledger. Type.high is
  * otherwise unused for these three non-ordinal families. */
-static void init_call(uint8_t type) {
+static void initializer(uint8_t type) {
     uint16_t skip,i,loop,width;
     uint8_t family=cc_family(type),arm;
-    if(!cc.types[type].high) {
+    if(!cc.types[type].high&&!cc_root_member()) {
         skip=cc_forward(0xc3);
         cc.types[type].high=(int16_t)(cc.emitted);
         if(family==K_FILE) {
@@ -97,8 +97,16 @@ static void init_call(uint8_t type) {
             if(arm!=255) field_call(arm,cc.symbols[(uint16_t)cc.types[type].low].address);
         }
         cc_emit(0xc9); cc_patch(skip);
+        cc_root_bind(LATE_INITIALIZER,type,(uint16_t)cc.types[type].high);
     }
-    cc_address(0xcd,(uint16_t)cc.types[type].high);
+}
+static void init_call(uint8_t type) {
+    initializer(type);cc_root_address(0xcd,LATE_INITIALIZER,type,(uint16_t)cc.types[type].high,0);
+}
+void cc_initializer_finish(void) FRONTEND {
+    uint8_t type;
+    for(type=0;type<cc.type_count&&!cc.error->code;++type)
+        if(cc_root_pending(LATE_INITIALIZER,type))initializer(type);
 }
 void cc_file_initialize(uint8_t type) FRONTEND {
     if(cc.error->code||cc.suppress||!contains(type)) return;

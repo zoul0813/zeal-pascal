@@ -10,6 +10,7 @@
 static uint8_t memory[64][PAGE_SIZE],owned[64];
 static uint32_t lifetimes[64],next_lifetime;
 volatile uint32_t page_versions[64];
+uint8_t platform_error;
 static int fail_after=-1,fail_drop=-1;
 static unsigned checks,allocation_calls;
 static uint8_t cancel_stage,cancel_result;

@@ -1,4 +1,4 @@
-#include "compiler.h"
+#include "compiler_late.h"
 
 /* Captured callback descriptors and their emitted native frames share one
  * owner. Routine declarations/calls use the banked entry reference below. */
@@ -122,6 +122,10 @@ void cc_routine_address(uint16_t id) ROUTINES {
     uint16_t descriptor,slot,locals;
     if(!parent) { cc_entry_reference(0x21,scope); return; }
     if(cc.suppress||cc.error->code) return;
+    /* Overlay parsing remains disabled. Until resident bridge deferral is
+     * connected, never cache a nested callback descriptor in an evictable
+     * member. Fail internally before allocating thunks or emitting bytes. */
+    if(cc_root_member()) {cc_fail(99);return;}
     dynamic=cc_frame_required(parent);
     descriptor=cc_rget(scope,R_DESCRIPTOR);
     if(!descriptor) {

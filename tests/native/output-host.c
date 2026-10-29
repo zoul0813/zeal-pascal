@@ -5,6 +5,7 @@
 #include "compiler_members.h"
 #include "compiler_groups.h"
 #include "library.h"
+#include "file_runtime.h"
 #include <zos_vfs.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,6 +36,22 @@ static unsigned exec_calls,cache_checks,cache_closes;
 static Source source,before;
 static Build build;
 Compiler cc;
+/* This component fixture does not scan Pascal or enable compiler polling.
+ * Emission/word/chain operations below use the real shared front end. */
+uint8_t cc_poll(void) {return 1;}
+static Diagnostic late_diagnostic;
+static CompilerSources late_sources;
+/* Mutate an owner at an actual streaming SDK boundary, after its initial
+ * preflight. This models invalidation during writes, verification or seeks. */
+static CompilerLate *stream_late;
+static uint8_t stream_page,stream_seal;
+static unsigned stream_mutate_at;
+static void stream_mutate(void) {
+    if(!stream_mutate_at||events!=stream_mutate_at)return;
+    stream_mutate_at=0;
+    if(stream_seal)stream_late->sealed=1;
+    else ++page_versions[stream_page];
+}
 static const char *target[2];
 static uint8_t old[2][401],fresh[401];
 static unsigned old_length[2]={273,401};
@@ -117,6 +134,7 @@ zos_err_t read(zos_dev_t fd,void *out,uint16_t *size) {
     unsigned n=*size,left;int f;
     assert(fd>=2&&fd<12&&fds[(uint8_t)fd].used);f=fds[(uint8_t)fd].file;
     if(fault())return ERR_FAILURE;
+    stream_mutate();
     if(++reads==fail_read&&bad_io==3){++*size;return 0;}
     if(reads==fail_read&&bad_io==4){*size=0;return 0;}
     left=files[f].length-fds[(uint8_t)fd].pos;
@@ -131,6 +149,7 @@ zos_err_t write(zos_dev_t fd,const void *in,uint16_t *size) {
     assert(fd>=2&&fd<12&&fds[(uint8_t)fd].used);f=fds[(uint8_t)fd].file;
     assert((fds[(uint8_t)fd].flags&3)!=O_RDONLY);
     error=fault();
+    stream_mutate();
     if(rollback_fault&&output_interrupt_reason()&&(!strcmp(files[f].path,target[0])||!strcmp(files[f].path,target[1])))error=1;
     if(++writes==fail_write) {
         if(bad_io==1){*size=0;return 0;}
@@ -151,6 +170,7 @@ zos_err_t seek(zos_dev_t fd,int32_t *at,zos_whence_t whence) {
     int f;int64_t next;
     assert(fd>=2&&fd<12&&fds[(uint8_t)fd].used);f=fds[(uint8_t)fd].file;
     if(fault())return ERR_FAILURE;
+    stream_mutate();
     next=*at;if(whence==SEEK_END)next+=files[f].length;
     else if(whence==SEEK_CUR)next+=fds[(uint8_t)fd].pos;
     if(next<0)next=0;if(next>files[f].length)next=files[f].length;
@@ -272,6 +292,7 @@ static int8_t member_fd;
 static void member_setup(void) {
     unsigned i;
     fail_at=cancel_at=rollback_fault=shorts=bad_io=fail_read=fail_write=0;
+    stream_mutate_at=0;
     setup(0,0);memset(&cc,0,sizeof(cc));memset(&member_record,0x5a,sizeof(member_record));
     build.pages[2]=page_new(PAGE_IMAGE);build.map_page=page_new(PAGE_MAP);
     cc.stage_page=page_new(PAGE_COMPILER);cc.workspace=page_new(PAGE_COMPILER);
@@ -302,11 +323,11 @@ static void member_spool(void) {
     member_setup();prior=member_record;
     memcpy(snapshot[0],memory[build.pages[2]],PAGE_SIZE);memcpy(snapshot[1],memory[cc.stage_page],PAGE_SIZE);
     memcpy(snapshot[2],memory[build.map_page],PAGE_SIZE);memcpy(snapshot[3],memory[cc.workspace],PAGE_SIZE);
-    check(cc_members_flush(&member_store,&member_record));ops=events;poll_count=polls;
+    check(cc_members_flush(&member_store,&member_record,0,0));ops=events;poll_count=polls;
     check(!member_store.failed&&member_record.offset==0&&member_record.bytes==528&&member_record.maps==3&&member_record.relocs==4);
     n=24+528+48+16;check(member_store.length==n);
     file=find("T:/PRIVATE.SPL");check(files[file].length==n);
-    check(!memcmp(files[file].bytes,"ZPMS\1\0\30\0",8));
+    check(!memcmp(files[file].bytes,"ZPMS\2\0\30\0",8));
     check(files[file].bytes[8]==0xf1&&files[file].bytes[9]==0xbf&&files[file].bytes[12]==15);
     at=24;
     for(i=0xbff1;i<0xc201;++i)check(files[file].bytes[at++]==(i<0xc000?memory[build.pages[2]][i-0x8000]:memory[cc.stage_page][i-0xc000]));
@@ -316,28 +337,28 @@ static void member_spool(void) {
     check(!memcmp(digest,member_record.hash,32));
     check(!memcmp(snapshot[0],memory[build.pages[2]],PAGE_SIZE)&&!memcmp(snapshot[1],memory[cc.stage_page],PAGE_SIZE)&&
           !memcmp(snapshot[2],memory[build.map_page],PAGE_SIZE)&&!memcmp(snapshot[3],memory[cc.workspace],PAGE_SIZE));
-    first=member_record;check(cc_members_flush(&member_store,&member_record));
+    first=member_record;check(cc_members_flush(&member_store,&member_record,0,0));
     check(member_record.offset==n&&member_store.length==2*n&&!memcmp(first.hash,member_record.hash,32));
     check(!memcmp(files[file].bytes,files[file].bytes+n,n));member_close();
     for(i=1;i<=ops;++i) {
         member_setup();prior=member_record;fail_at=i;
-        check(!cc_members_flush(&member_store,&member_record)&&platform_error&&member_store.failed&&!member_store.length);
+        check(!cc_members_flush(&member_store,&member_record,0,0)&&platform_error&&member_store.failed&&!member_store.length);
         member_unchanged(&prior);poisoned=member_store;
-        at=events;check(!cc_members_flush(&member_store,&member_record)&&events==at&&!memcmp(&poisoned,&member_store,sizeof(poisoned)));
+        at=events;check(!cc_members_flush(&member_store,&member_record,0,0)&&events==at&&!memcmp(&poisoned,&member_store,sizeof(poisoned)));
         member_close();
     }
     for(i=1;i<=poll_count;++i) {
         member_setup();prior=member_record;cancel_at=i;
-        check(!cc_members_flush(&member_store,&member_record)&&output_interrupt_reason()==1&&member_store.failed);
+        check(!cc_members_flush(&member_store,&member_record,0,0)&&output_interrupt_reason()==1&&member_store.failed);
         member_unchanged(&prior);member_close();
     }
-    member_setup();shorts=1;check(cc_members_flush(&member_store,&member_record));member_close();
+    member_setup();shorts=1;check(cc_members_flush(&member_store,&member_record,0,0));member_close();
     member_setup();check(page_drop(cc.stage_page));cc.stage_page=255;cc.emitted=0xb101;
     member_record.origin=0xb000;member_record.entry=0xb000;
-    check(cc_members_flush(&member_store,&member_record)&&member_record.bytes==257);member_close();
+    check(cc_members_flush(&member_store,&member_record,0,0)&&member_record.bytes==257);member_close();
     for(i=1;i<=5;++i) {
         member_setup();prior=member_record;bad_io=i;fail_write=fail_read=1;
-        check(!cc_members_flush(&member_store,&member_record)&&platform_error&&member_store.failed);
+        check(!cc_members_flush(&member_store,&member_record,0,0)&&platform_error&&member_store.failed);
         member_unchanged(&prior);member_close();
     }
     /* Only the member suffix belongs on disk, even with maximal retained
@@ -345,15 +366,15 @@ static void member_spool(void) {
     member_setup();member_record.origin=0x8000;member_record.entry=0x8000;cc.emitted=CC_STATIC_LIMIT;
     cc.entries=(PAGE_SIZE-96-cc.file_bytes)/16;member_record.map_first=cc.entries;
     cc.relocations=(PAGE_SIZE-cc.routine_count*ROUTINE_BYTES)/RELOCATION_BYTES;member_record.reloc_first=cc.relocations;
-    check(cc_members_flush(&member_store,&member_record)&&member_record.bytes==0x7400&&!member_record.maps&&!member_record.relocs);
-    check(cc_members_flush(&member_store,&member_record));check(cc_members_flush(&member_store,&member_record));
+    check(cc_members_flush(&member_store,&member_record,0,0)&&member_record.bytes==0x7400&&!member_record.maps&&!member_record.relocs);
+    check(cc_members_flush(&member_store,&member_record,0,0));check(cc_members_flush(&member_store,&member_record,0,0));
     check(member_record.offset>0xffffu||member_store.length>0xffffu);member_close();
     member_setup();prior=member_record;member_record.origin=0x7fff;prior=member_record;at=events;
-    check(!cc_members_flush(&member_store,&member_record)&&events==at&&member_store.failed);member_unchanged(&prior);member_close();
+    check(!cc_members_flush(&member_store,&member_record,0,0)&&events==at&&member_store.failed);member_unchanged(&prior);member_close();
     member_setup();files[find("T:/PRIVATE.SPL")].length=1;prior=member_record;
-    check(!cc_members_flush(&member_store,&member_record)&&member_store.failed&&!member_store.length);member_unchanged(&prior);member_close();
+    check(!cc_members_flush(&member_store,&member_record,0,0)&&member_store.failed&&!member_store.length);member_unchanged(&prior);member_close();
     member_setup();member_store.length=0x7ffffffful;prior=member_record;at=events;
-    check(!cc_members_flush(&member_store,&member_record)&&member_store.failed&&events==at);member_unchanged(&prior);member_close();
+    check(!cc_members_flush(&member_store,&member_record,0,0)&&member_store.failed&&events==at);member_unchanged(&prior);member_close();
     member_setup();member_close();member_fd=open("T:/PRIVATE.SPL",O_RDWR);check(member_fd>=0);
     files[find("T:/PRIVATE.SPL")].length=1;
     check(!cc_members_begin(&member_store,member_fd)&&member_store.failed);member_close();
@@ -364,8 +385,8 @@ static void group_setup(void) {
     cc_groups_init(&groups);check(cc_groups_begin(&groups,member_fd));
 }
 static void group_cleanup(void) {
-    unsigned pages=owned();output_job_end();fail_at=0;
-    check(cc_groups_discard(&groups));check(!opened()&&owned()+1==pages);
+    unsigned pages=owned(),released=1+(groups.late.page!=255);output_job_end();fail_at=0;
+    check(cc_groups_discard(&groups));check(!opened()&&owned()+released==pages);
     check(groups.page==255&&groups.store.fd==-1&&!groups.lifetime);
 }
 static void group_code(unsigned bytes,uint8_t value,unsigned maps,unsigned relocs) {
@@ -516,6 +537,135 @@ static void phase_cleanup(void) {
     if(code_phase_fd>=0) {check(!close(code_phase_fd));code_phase_fd=-1;}
     check(!raw_owned()&&!opened());
 }
+/* Shared cases use the production emitter, not a second word/chain model. */
+#include "late-cases.h"
+static void late_spool(void) {
+    char path[]="H:/LATE.SPL",helpers[]="H:/HELPERS.SPL",owners[]="H:/OWNERS.SPL";uint8_t digest[32];
+    member_setup();late_cases(path,&late_diagnostic,digest);
+    check(files[find(path)].length==97);
+    check(files[find(path)].bytes[18]==2&&files[find(path)].bytes[19]==0);
+    check(!memcmp(files[find(path)].bytes+24,"\xcd\0\0\0\0\0\0\xcd\0\0",10));
+    root_helper_cases(helpers,&late_diagnostic);
+    remaining_helper_cases(owners,&late_diagnostic,digest);
+    member_address_guard(&late_diagnostic);
+    member_close();
+}
+static uint16_t late_setup(CompilerLate *late) {
+    member_setup();memset(&late_diagnostic,0,sizeof(late_diagnostic));memset(&late_sources,0,sizeof(late_sources));
+    cc.error=&late_diagnostic;cc.sources=&late_sources;cc.type_count=TYPE_LIMIT;
+    cc_late_init(late);return cc_late_symbol(late,LATE_ROOT,LATE_PARAMETERS,0);
+}
+static void late_close(CompilerLate *late) {
+    check(cc_late_discard(late)&&late->page==255);member_close();
+}
+static void late_failures(void) {
+    CompilerLate late;CompilerMember prior;
+    uint16_t symbol,other,parent,page,i,before_refs;unsigned ops,j;uint8_t copy[4];
+    static uint8_t snapshot[PAGE_SIZE];
+    symbol=late_setup(&late);check(symbol==0);
+    check(cc_late_reference(&late,0xbfff,symbol,1,0));
+    check(cc_members_flush(&member_store,&member_record,&late,0)&&member_record.lates==1);ops=events;
+    check(late.references==1);late_close(&late);
+    /* Every real stream fault preserves the reference suffix and the parent
+     * emitter; only the verified group commit may retire either of them. */
+    for(j=1;j<=ops;++j) {
+        symbol=late_setup(&late);check(cc_late_reference(&late,0xbfff,symbol,1,0));
+        prior=member_record;fail_at=j;
+        check(!cc_members_flush(&member_store,&member_record,&late,0)&&member_store.failed&&late.references==1);
+        member_unchanged(&prior);fail_at=0;late_close(&late);
+    }
+    /* Invalidating the journal on ANY write/read/seek must prevent flush
+     * success, including the final seek after all bytes verified correctly. */
+    for(j=1;j<=ops;++j) {
+        symbol=late_setup(&late);check(cc_late_reference(&late,0xbfff,symbol,1,0));
+        prior=member_record;stream_page=late.page;stream_seal=0;stream_mutate_at=j;
+        check(!cc_members_flush(&member_store,&member_record,&late,0)&&!stream_mutate_at&&
+              member_store.failed&&late.failed&&late.references==1&&!member_store.length);
+        member_unchanged(&prior);late_close(&late);
+    }
+    symbol=late_setup(&late);other=cc_late_symbol(&late,LATE_ROOT,LATE_RANDOM,0);
+    check(cc_late_bind(&late,symbol,0,0xc100));
+    memcpy(copy,memory[build.pages[2]]+0x3ffe,2);memcpy(copy+2,memory[cc.stage_page],2);
+    check(cc_late_reference(&late,0xbfff,symbol,65535u,0));
+    check(cc_late_reference(&late,0xc000,other,1,1));
+    check(!cc_late_finish(&late)&&late.failed); /* missing owner: no first patch */
+    check(!memcmp(copy,memory[build.pages[2]]+0x3ffe,2)&&!memcmp(copy+2,memory[cc.stage_page],2));late_close(&late);
+    symbol=late_setup(&late);check(cc_late_bind(&late,symbol,0,0xc100));
+    i=memory[build.pages[2]][0x3fff]|((uint16_t)memory[cc.stage_page][0]<<8);
+    check(cc_late_reference(&late,0xbfff,symbol,65535u,0)&&cc_late_finish(&late));
+    check((memory[build.pages[2]][0x3fff]|((uint16_t)memory[cc.stage_page][0]<<8))==(uint16_t)(i-0xc100u));late_close(&late);
+    for(j=0;j<2;++j) {
+        symbol=late_setup(&late);
+        for(i=0;i<2047;++i)check(cc_late_reference(&late,0xbfff,symbol,1,0));
+        check(cc_late_symbol(&late,LATE_ROOT,LATE_PARAMETERS,0)==symbol&&late.symbols==1&&late.references==2047);
+        memcpy(snapshot,memory[late.page],PAGE_SIZE);
+        check(j?cc_late_symbol(&late,LATE_ROOT,LATE_RANDOM,0)==LATE_NONE:!cc_late_reference(&late,0xbfff,symbol,1,0));
+        check(late.failed&&platform_error==ERR_NO_MORE_MEMORY&&late.symbols==1&&late.references==2047&&
+              !memcmp(snapshot,memory[late.page],PAGE_SIZE));late_close(&late);
+    }
+    symbol=late_setup(&late);parent=0x1234;
+    /* Cyclic, forward and escaped chain links must be rejected before any
+     * operand is zeroed or any suffix record is appended. */
+    for(j=0;j<3;++j) {
+        if(j) {late_close(&late);symbol=late_setup(&late);}
+        cc_word(0xbfff,j==0?0xbfff:j==1?0xc001:0x7fff);
+        memcpy(snapshot,memory[build.pages[2]],PAGE_SIZE);before_refs=late.references;
+        check(!cc_late_chain(&late,0xbff0,0xbfff,symbol,&parent)&&parent==0x1234&&late.references==before_refs);
+        check(!memcmp(snapshot,memory[build.pages[2]],PAGE_SIZE));
+    }
+    late_close(&late);
+    symbol=late_setup(&late);page=late.page;far_set((uint8_t)page,7,1);
+    check(!cc_late_reference(&late,0xbfff,symbol,1,0)&&late.failed);late_close(&late);
+    symbol=late_setup(&late);page=late.page;check(page_drop((uint8_t)page));
+    check(page_new(PAGE_COMPILER)==page&&!cc_late_discard(&late)&&page_role((uint8_t)page)==PAGE_COMPILER);
+    check(page_drop((uint8_t)page));cc_late_init(&late);member_close();
+    symbol=late_setup(&late);page=late.page;drop_failure=page;
+    check(!cc_late_discard(&late)&&late.page==page&&page_role((uint8_t)page)==PAGE_COMPILER);
+    drop_failure=-1;late_close(&late);
+    member_setup();cc_late_init(&late);allocation_failure=1;
+    check(cc_late_symbol(&late,LATE_ROOT,LATE_PARAMETERS,0)==LATE_NONE&&late.failed&&late.page==255);
+    allocation_failure=0;late_close(&late);
+    group_setup();symbol=cc_late_symbol(&groups.late,LATE_ROOT,LATE_PARAMETERS,0);
+    check(cc_group_open(&groups,0)==0&&cc_group_member_begin(&groups,0,1));
+    group_code(24,0x55,1,1);check(cc_late_reference(&groups.late,0xbff1,symbol,1,0));
+    bad_io=1;fail_write=1;writes=0;
+    check(!cc_group_member_end(&groups,0,1,0xbff0)&&groups.store.failed&&groups.active==1&&
+          cc.emitted==0xc008&&cc.entries==3&&cc.relocations==4&&groups.late.references==1&&!groups.store.length);
+    group_cleanup();
+    group_setup();memset(&late_diagnostic,0,sizeof(late_diagnostic));memset(&late_sources,0,sizeof(late_sources));
+    cc.error=&late_diagnostic;cc.sources=&late_sources;
+    cc_hook_output();parent=cc.hook_output_calls;
+    check(cc_group_open(&groups,0)==0&&cc_group_member_begin(&groups,0,1));
+    cc_hook_output();other=cc.hook_output_calls;bad_io=1;fail_write=1;writes=0;
+    check(!cc_group_member_end(&groups,0,1,0xbff3)&&groups.store.failed&&groups.active==1&&
+          groups.late.references==1&&cc.hook_output_calls==other&&cc.emitted==0xbff6);
+    check(cc_code_get(parent)==0&&cc_code_get(parent+1)==0);group_cleanup();
+    /* Catalog invalidation or a sealed journal can happen while I/O succeeds.
+     * Neither can publish a committed member, adopt chain heads or retire code. */
+    for(j=0;j<2;++j) {
+        group_setup();memset(&late_diagnostic,0,sizeof(late_diagnostic));memset(&late_sources,0,sizeof(late_sources));
+        cc.error=&late_diagnostic;cc.sources=&late_sources;
+        check(cc_group_open(&groups,0)==0&&cc_group_member_begin(&groups,0,1));
+        cc_hook_output();parent=cc.hook_output_calls;
+        stream_page=groups.page;stream_late=&groups.late;stream_seal=(uint8_t)j;stream_mutate_at=events+2;
+        memcpy(snapshot,memory[groups.page],PAGE_SIZE);
+        check(!cc_group_member_end(&groups,0,1,0xbff0)&&!stream_mutate_at&&groups.store.failed&&groups.active==1&&
+              groups.late.references==1&&cc.hook_output_calls==parent&&cc.emitted==0xbff3&&
+              !memcmp(snapshot,memory[groups.page],PAGE_SIZE));
+        group_cleanup();
+    }
+    symbol=late_setup(&late);check(cc_late_reference(&late,0xbfff,symbol,1,0));
+    late.sealed=1;
+    check(!cc_late_retire(&late,0)&&late.failed&&late.references==1);late_close(&late);
+    symbol=late_setup(&late);
+    check(cc_late_symbol(&late,LATE_BRIDGE,2,1)==LATE_NONE&&late.failed);late_close(&late);
+    group_setup();memset(&late_diagnostic,0,sizeof(late_diagnostic));cc.error=&late_diagnostic;cc.sources=&late_sources;
+    check(cc_group_open(&groups,0)==0&&cc_group_member_begin(&groups,0,1));
+    cc_hook_output();parent=cc.hook_output_calls;cc_word(parent,parent);
+    check(!cc_group_member_end(&groups,0,1,0xbff0)&&groups.store.failed&&groups.active==1&&
+          !groups.late.references&&cc.hook_output_calls==parent&&cc.emitted==0xbff3);
+    check((cc_code_get(parent)|((uint16_t)cc_code_get(parent+1)<<8))==parent);group_cleanup();
+}
 static void phase_cache(void) {
     unsigned i,total,at;int f;uint8_t status;
     phase_setup();check(code_phase_park()&&raw_owned()==13&&code_pages[13]==255&&code_pages[14]==255);
@@ -610,6 +760,8 @@ int main(void) {
     saved_cache();
     member_spool();
     group_spool();
+    late_spool();
+    late_failures();
     phase_cache();
     printf("PASS: %u output assertions across %u publication/fault/cancellation scenarios\n",assertions,scenarios);
     return 0;

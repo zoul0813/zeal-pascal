@@ -21,7 +21,7 @@ def main():
     inputs = [Path(__file__), ROOT/'CMakeLists.txt', ROOT/'tools/test-native.py',
               ROOT/'tools/package-native.py', n.EMULATOR, n.ROM]
     inputs += sorted((ROOT/'src').glob('*'))
-    inputs += [ROOT/'tests/native'/name for name in ('members-main.c', 'members-probe.asm', 'harness.c', 'harness.h', 'machine.asm')]
+    inputs += [ROOT/'tests/native'/name for name in ('members-main.c', 'members-probe.asm', 'late-cases.h', 'harness.c', 'harness.h', 'machine.asm')]
     inputs += [ROOT/f'build/{target}.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}
     commands = ['run 100000000'] + n.program_launch(target)
@@ -30,6 +30,8 @@ def main():
         commands += [f'rb 0x{sym[name]:x} 2']
     commands += [f"rb 0x{sym['_test_hash']:x} 32", f"rb 0x{sym['_test_group_hash']:x} 32",
                  f"rb 0x{sym['_test_phase_hash']:x} 32",
+                 f"rb 0x{sym['_test_late_hash']:x} 32",
+                 f"rb 0x{sym['_test_owner_hash']:x} 32",
                  f"rb 0x{sym['_test_failures']:x} 128", 'quit']
     fixtures = {f'{target}.{ext}': (ROOT/f'build/{target}.{ext}').read_bytes() for ext in ('bin', 'zpl')}
     raw = n.execute('member-spool', commands, fixtures, timeout=600)
@@ -39,7 +41,7 @@ def main():
     data = spool.read_bytes() if spool.exists() else b''
     # Independent serialization oracle. Keep no product emitter/hash code in
     # the expected section framing, offset calculation or byte patterns.
-    header = b'ZPMS\1\0' + struct.pack('<6H', 24, 0xbff1, 528, 15, 3, 4) + bytes(6)
+    header = b'ZPMS\2\0' + struct.pack('<6H', 24, 0xbff1, 528, 15, 3, 4) + bytes(6)
     code = bytes(((at-0x8000)*3+9 if at < 0xc000 else (at-0xc000)*5+1) & 255
                  for at in range(0xbff1, 0xc201))
     maps = bytes((at*7+3) & 255 for at in range(199, 247))
@@ -47,7 +49,7 @@ def main():
     expected = header + code + maps + relocs
     digest = bytes(memory.get(sym['_test_hash']+i, 0) for i in range(32))
     def frame(origin, entry, code, first_map, maps, first_reloc, relocs):
-        return (b'ZPMS\1\0'+struct.pack('<6H', 24, origin, len(code), entry-origin, maps, relocs)+bytes(6)
+        return (b'ZPMS\2\0'+struct.pack('<6H', 24, origin, len(code), entry-origin, maps, relocs)+bytes(6)
                 +code+bytes((at*7+3)&255 for at in range(96+71+first_map*16, 96+71+(first_map+maps)*16))
                 +bytes((at*11+5)&255 for at in range(first_reloc*4, (first_reloc+relocs)*4)))
     nested_first = frame(0xbff8, 0xbffc, bytes(range(0x30, 0x30+20)), 3, 2, 4, 2)
@@ -61,14 +63,57 @@ def main():
     assert library[5] == 14
     payload_hash = hashlib.sha256(library[16+2*library[5]:]).digest()
     phase_hash = bytes(memory.get(sym['_test_phase_hash']+i, 0) for i in range(32))
+    late_first = (b'ZPMS\2\0'+struct.pack('<7H',24,0xbffa,10,0,0,2,2)+bytes(4)
+                  +b'\xcd\0\0'+bytes(4)+b'\xcd\0\0'
+                  +struct.pack('<4H',0x3ffb,1,0x4002,1)
+                  +struct.pack('<4H',0xc002,5,1,0)+struct.pack('<4H',0xbffb,5,1,0))
+    late_second = (b'ZPMS\2\0'+struct.pack('<7H',24,0xbffa,3,0,0,1,1)+bytes(4)
+                   +b'\x21\x03\0'+struct.pack('<2H',0x3ffb,1)+struct.pack('<4H',0xbffb,2,1,0))
+    late_spool=n.RUN/'member-spool/hostfs/LATE.SPL'
+    late_digest=bytes(memory.get(sym['_test_late_hash']+i,0)for i in range(32))
+    def records_from(name):
+        path=n.RUN/('member-spool/hostfs/'+name)
+        if not path.is_file():return []
+        payload=path.read_bytes();records=[];offset=0
+        while offset+24<=len(payload):
+            h=payload[offset:offset+24]
+            header_bytes,origin,code_bytes,entry,maps,relocs,lates=struct.unpack_from('<7H',h,6)
+            end=offset+24+code_bytes+maps*16+relocs*4+lates*8
+            if (h[:6]!=b'ZPMS\2\0' or header_bytes!=24 or maps or end>len(payload)
+                    or not code_bytes or entry>=code_bytes or h[20:24]!=bytes(4)):return []
+            code=payload[offset+24:offset+24+code_bytes]
+            journal=payload[end-lates*8:end] if lates else b''
+            terms=[struct.unpack_from('<4H',journal,i)for i in range(0,len(journal),8)]
+            if not all(coefficient==1 and flags==0 and origin<=site<origin+len(code)-1
+                       for site,key,coefficient,flags in terms):return []
+            records.append((origin,code,terms,payload[offset:end]));offset=end
+        return records if offset==len(payload) else []
+    helpers=records_from('HELPERS.SPL')
+    helper_ok=False
+    if len(helpers)==2:
+        origin,code,terms,_=helpers[0]
+        helper_ok=([key for site,key,coefficient,flags in terms]==[0,1,2,2,1,1]
+                   and [int.from_bytes(code[site-origin:site-origin+2],'little')for site,key,coefficient,flags in terms]==[0,0,0,2,0,0]
+                   and not helpers[1][2] and helpers[1][0]>=origin+len(code))
+    owners=records_from('OWNERS.SPL');owner_ok=False
+    owner_digest=bytes(memory.get(sym['_test_owner_hash']+i,0)for i in range(32))
+    if len(owners)==2:
+        origin,code,terms,frame=owners[0]
+        owner_ok=([key for site,key,coefficient,flags in terms]==[1,2,3,4,6,7,8]
+                  and all(code[site-origin:site-origin+2]==b'\0\0'for site,key,coefficient,flags in terms)
+                  and not owners[1][2] and owners[1][0]>=origin+len(code)
+                  and hashlib.sha256(frame).digest()==owner_digest)
     checks = {
         'native completion': memory.get(sym['_test_done']) == 255 and word('_test_stage') == 6,
-        'native group ownership, phase parking, compile, RAM/saved Run and MMU assertions': word('_test_failed') == 0 and word('_test_passed') >= 59,
+        'native group/journal ownership, scalar/byte/multiple-symbol fixups, phase parking, compile, RAM/saved Run and MMU assertions': word('_test_failed') == 0 and word('_test_passed') >= 147,
         'exact independently framed two-member spool': data == expected*2,
         'trusted catalog digest matches independent disk hash': hashlib.sha256(expected).digest() == digest,
         'nested member extents, zero parent gaps and immutable suffixes match independent disk framing': group_data == nested_first+nested_second+parent+sibling,
         'parent catalog identity binds its reserved nested area': hashlib.sha256(parent).digest() == group_digest,
         'restored compiler pages match the independently hashed original library payload': phase_hash == payload_hash,
+        'member late chains and bridge references match independent framing and hash': late_spool.is_file() and late_spool.read_bytes()==late_first+late_second and late_digest==hashlib.sha256(late_first).digest(),
+        'production parameter/random factories defer to root and later members reuse them': helper_ok,
+        'keyboard/interrupt/file/record-array-file initializers and all root chains bind outside member reservations': owner_ok,
     }
     marker=sym['_test_phase_restore_marker']
     assert 0x4000<=marker<0x8000
@@ -101,7 +146,7 @@ def main():
     negative_state=n.memory(negative_raw)
     value=lambda name:negative_state.get(sym[name],0)|(negative_state.get(sym[name]+1,0)<<8)
     checks['real post-startup library corruption rejects compilation, preserves source/build, and repairs on retry']=(
-        len(altered)==2 and negative_state.get(sym['_test_done'])==255 and value('_test_failed')==0 and value('_test_passed')>=62
+        len(altered)==2 and negative_state.get(sym['_test_done'])==255 and value('_test_failed')==0 and value('_test_passed')>=150
         and bytes(negative_state.get(sym['_test_phase_hash']+i,0)for i in range(32))==payload_hash
         and (n.RUN/f'member-phase-corrupt/hostfs/{target}.zpl').read_bytes()==library)
     release,exit_pc,close_pc=sym['_code_release'],sym['_exit'],sym['_close']

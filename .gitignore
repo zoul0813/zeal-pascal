@@ -11,6 +11,7 @@
 /tools/*
 !/tools/test-native.py
 !/tools/test-native-host.py
+!/tools/host_assets.py
 !/tools/test-editor-native.py
 !/tools/test-input.py
 !/tools/test-io.py

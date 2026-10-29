@@ -2,6 +2,7 @@
 #include "compiler_members.h"
 #include "compiler_groups.h"
 #include "output_transport.h"
+#include "file_runtime.h"
 
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done;
@@ -9,9 +10,12 @@ volatile uint16_t test_failures[64],test_index;
 volatile uint8_t test_hash[32];
 volatile uint8_t test_group_hash[32];
 volatile uint8_t test_phase_hash[32];
+volatile uint8_t test_late_hash[32];
+volatile uint8_t test_owner_hash[32];
 Source s;Build b;Diagnostic d;
 void test_complete(void);
 void test_phase_restore_marker(void) NATIVE;
+#include "late-cases.h"
 
 static void group_code(uint16_t bytes,uint8_t value,uint16_t maps,uint16_t relocs) {
     uint16_t i,p;
@@ -102,7 +106,7 @@ int app_main(void) {
     CompilerMember member,first;
     uint16_t i;
     uint8_t before[7],after[7],owned,exit_mode=0,released;
-    char path[]="H:/MEMBERS.SPL";
+    char path[]="H:/MEMBERS.SPL",late_path[]="H:/LATE.SPL",helper_path[]="H:/HELPERS.SPL",owner_path[]="H:/OWNERS.SPL";
     int8_t fd;
     if(!console_open())return 1;
     fd=open("H:/RETURN.TEST",O_RDONLY);if(fd>=0) {exit_mode=1;check(!close(fd));}
@@ -121,10 +125,10 @@ int app_main(void) {
     fd=output_open_path(path,O_RDWR|O_CREAT|O_TRUNC);check(fd>=0);
     if(fd<0)goto done;
     check(cc_members_begin(&store,fd));test_stage=1;
-    check(cc_members_flush(&store,&member));
+    check(cc_members_flush(&store,&member,0,0));
     check(!store.failed&&store.length==616&&member.offset==0&&member.bytes==528&&member.maps==3&&member.relocs==4);
     memcpy((void*)test_hash,member.hash,32);first=member;
-    check(cc_members_flush(&store,&member));
+    check(cc_members_flush(&store,&member,0,0));
     check(!store.failed&&store.length==1232&&member.offset==616&&!memcmp(first.hash,member.hash,32));
     check(cc.emitted==0xc201&&cc.entries==5&&cc.relocations==7&&cc.routine_count==2);
     check(output_finish(fd,1));test_stage=2;
@@ -139,7 +143,10 @@ int app_main(void) {
         check(!cc_members_begin(&store,fd)&&store.failed&&platform_error);
         check(output_finish(fd,1));
     }
-    test_stage=3;group_cases();
+    test_stage=3;group_cases();late_cases(late_path,&d,(uint8_t*)test_late_hash);
+    root_helper_cases(helper_path,&d);
+    remaining_helper_cases(owner_path,&d,(uint8_t*)test_owner_hash);
+    member_address_guard(&d);
 done:
     if(b.pages[2]!=255) {released=page_drop(b.pages[2]);check(released);if(released)b.pages[2]=255;}
     if(b.map_page!=255) {released=page_drop(b.map_page);check(released);if(released)b.map_page=255;}

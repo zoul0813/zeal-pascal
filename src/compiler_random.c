@@ -1,4 +1,4 @@
-#include "compiler.h"
+#include "compiler_late.h"
 
 /* Private helpers belong to this image's relocatable code/static payload.
  * They share the ordinary relocation ledger and never grow the fixed runtime
@@ -29,10 +29,10 @@ static void shift_xor(uint8_t count,uint8_t right) {
     cc_emit(0x10); cc_emit((uint8_t)(loop-cc.emitted-1));
     xor_saved();
 }
-static void draw(void) {
+static void engine(void) {
     uint16_t skip;
     if(cc.error->code||cc.suppress) return;
-    if(!cc.random_entry) {
+    if(!cc.random_entry&&!cc_root_member()) {
         /* The initial jump skips both writable state and callable code. A
          * later call, even from another routine, reuses this one definition. */
         skip=cc_forward(0xc3);
@@ -47,8 +47,12 @@ static void draw(void) {
         cc_emit(0xed); cc_address(0x53,cc.random_state+2);
         cc_emit(0xc9);
         cc_patch(skip);
+        cc_root_bind(LATE_ROOT,LATE_RANDOM,cc.random_entry);cc_root_bind(LATE_ROOT,LATE_RANDOM_STATE,cc.random_state);
     }
-    cc_address(0xcd,cc.random_entry); /* caller reserved the complete stack use */
+}
+static void draw(void) {engine();cc_root_address(0xcd,LATE_ROOT,LATE_RANDOM,cc.random_entry,0);}
+void cc_random_finish(void) FRONTEND {
+    if(cc_root_pending(LATE_ROOT,LATE_RANDOM)||cc_root_pending(LATE_ROOT,LATE_RANDOM_STATE))engine();
 }
 void cc_random(uint8_t bounded) FRONTEND {
     uint16_t loop,retry,ready;
@@ -109,6 +113,6 @@ void cc_randomize(void) FRONTEND {
     nonzero=cc_forward(0xc2);
     cc_emit(0x23); /* xorshift's one excluded state must never be installed */
     cc_patch(nonzero);
-    cc_address(0x22,cc.random_state);
-    cc_emit(0xed); cc_address(0x53,cc.random_state+2);
+    cc_root_address(0x22,LATE_ROOT,LATE_RANDOM_STATE,cc.random_state,0);
+    cc_emit(0xed); cc_root_address(0x53,LATE_ROOT,LATE_RANDOM_STATE,cc.random_state,2);
 }

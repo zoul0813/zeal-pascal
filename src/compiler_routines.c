@@ -1,4 +1,4 @@
-#include "compiler.h"
+#include "compiler_groups.h"
 
 /* The compiler owns one workspace page. Relocations grow upward; these
  * routine records grow downward. Only resident/scalar arguments
@@ -12,6 +12,7 @@ static uint8_t new_scope(uint16_t symbol) {
     for(i=0;i<ROUTINE_BYTES;++i) far_set(cc.workspace,PAGE_SIZE-(uint16_t)scope*ROUTINE_BYTES+i,0);
     cc_rput(scope,R_PARENT,cc.scope); cc_rput(scope,R_SYMBOL,symbol);
     cc_rput(scope,R_FLAGS,cc.absolute_mode?0:RF_RECURSIVE);
+    if(cc.sources->groups&&!cc_groups_scope(cc.sources->groups,scope)) {cc_fail(99);return 0;}
     return scope;
 }
 static void indexed(uint8_t opcode,uint8_t offset) { cc_emit(0xdd); cc_emit(opcode); cc_emit(offset); }

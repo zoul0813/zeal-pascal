@@ -21,7 +21,7 @@ static void word(uint8_t *header,uint8_t at,uint16_t value) {
 }
 /* Only completed member suffixes are streamed. The parent stays frozen at
  * origin, so all addresses retain the existing scalar relocation meaning. */
-static uint8_t member_byte(const CompilerMember *m,const uint8_t *header,uint32_t at) {
+static uint8_t member_byte(const CompilerMember *m,const uint8_t *header,CompilerLate *late,uint16_t first,uint32_t at) {
     uint16_t p;
     if(at<MEMBER_HEADER)return header[(uint8_t)at];
     at-=MEMBER_HEADER;
@@ -33,9 +33,12 @@ static uint8_t member_byte(const CompilerMember *m,const uint8_t *header,uint32_
     if(at<(uint32_t)m->maps*16u)
         return far_get(cc.image->map_page,96+cc.file_bytes+m->map_first*16u+(uint16_t)at);
     at-=(uint32_t)m->maps*16u;
-    return far_get(cc.workspace,m->reloc_first*RELOCATION_BYTES+(uint16_t)at);
+    if(at<(uint32_t)m->relocs*RELOCATION_BYTES)
+        return far_get(cc.workspace,m->reloc_first*RELOCATION_BYTES+(uint16_t)at);
+    at-=(uint32_t)m->relocs*RELOCATION_BYTES;
+    return cc_late_byte(late,first+(uint16_t)(at/LATE_REFERENCE_BYTES),(uint8_t)(at%LATE_REFERENCE_BYTES));
 }
-uint8_t cc_members_flush(CompilerMemberStore *store,CompilerMember *member) ROUTINES {
+uint8_t cc_members_flush(CompilerMemberStore *store,CompilerMember *member,CompilerLate *late,uint16_t first) ROUTINES {
     CompilerMember next;
     uint8_t header[MEMBER_HEADER],buffer[128],digest[32];
     Sha256 hash;
@@ -56,7 +59,11 @@ uint8_t cc_members_flush(CompilerMemberStore *store,CompilerMember *member) ROUT
        (cc.emitted>0xc000u&&page_role(cc.stage_page)!=PAGE_COMPILER))return failed();
     next.offset=store->length;next.bytes=cc.emitted-next.origin;
     next.maps=cc.entries-next.map_first;next.relocs=cc.relocations-next.reloc_first;
-    total=MEMBER_HEADER+(uint32_t)next.bytes+(uint32_t)next.maps*16u+(uint32_t)next.relocs*RELOCATION_BYTES;
+    if(late&&!cc_late_range(late,first,next.origin,cc.emitted))return 0;
+    if(!late&&first)return failed();
+    next.lates=late?late->references-first:0;
+    total=MEMBER_HEADER+(uint32_t)next.bytes+(uint32_t)next.maps*16u+
+        (uint32_t)next.relocs*RELOCATION_BYTES+(uint32_t)next.lates*LATE_REFERENCE_BYTES;
     if(store->length>0x7ffffffful-total)return failed();
     /* SEEK_END returns the actual file size. Refuse unexpected appended data
      * rather than overwriting it. The transaction owns the opened file. */
@@ -66,13 +73,15 @@ uint8_t cc_members_flush(CompilerMemberStore *store,CompilerMember *member) ROUT
         if(platform_error||(uint32_t)end!=store->length)return failed();
     }
     memset(header,0,sizeof(header));memcpy(header,"ZPMS",4);
-    header[4]=1;word(header,6,MEMBER_HEADER);word(header,8,next.origin);
+    header[4]=2;word(header,6,MEMBER_HEADER);word(header,8,next.origin);
     word(header,10,next.bytes);word(header,12,next.entry-next.origin);
     word(header,14,next.maps);word(header,16,next.relocs);
+    word(header,18,next.lates);
     sha_init(&hash);
     for(at=0;at<total;at+=n) {
         n=total-at>128?128:(uint16_t)(total-at);
-        for(i=0;i<n;++i) {buffer[i]=member_byte(&next,header,at+i);sha_byte(&hash,buffer[i]);}
+        for(i=0;i<n;++i) {buffer[i]=member_byte(&next,header,late,first,at+i);sha_byte(&hash,buffer[i]);}
+        if(late&&late->failed)return 0;
         if(!output_write_buffer(store->fd,buffer,n))return 0;
     }
     sha_end(&hash,next.hash);
@@ -90,5 +99,9 @@ uint8_t cc_members_flush(CompilerMemberStore *store,CompilerMember *member) ROUT
         platform_error=seek(store->fd,&end,SEEK_END);
         if(platform_error||(uint32_t)end!=next.offset+total)return failed();
     }
+    /* I/O callbacks may invalidate the journal after its last serialized byte,
+     * including during read-back or the final seek. Disk equality is not an
+     * ownership check. Publish metadata only while the source is still valid. */
+    if(late&&!cc_late_range(late,first,next.origin,cc.emitted))return 0;
     *member=next;store->length+=total;store->failed=0;return 1;
 }

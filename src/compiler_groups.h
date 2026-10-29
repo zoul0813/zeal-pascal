@@ -6,8 +6,9 @@
  * supplied private spool handle transfers to this owner on a fresh begin,
  * including on a subsequent allocation/I/O failure. Directory/file removal
  * remains the output transaction owner's responsibility. */
-typedef struct {
+typedef struct CompilerGroups {
     CompilerMemberStore store;
+    CompilerLate late;
     uint32_t lifetime,version;
     uint8_t page,groups,active;
 } CompilerGroups;
@@ -18,6 +19,11 @@ typedef struct {
 void cc_groups_init(CompilerGroups *groups) ROUTINES;
 uint8_t cc_groups_begin(CompilerGroups *groups,int8_t fd) ROUTINES;
 uint8_t cc_groups_discard(CompilerGroups *groups) ROUTINES;
+/* Record a newly declared routine's code domain, not its lexical parent.
+ * Scopes predating the first overlay belong to resident domain0. The full
+ * 0..255 domain range remains valid, independently of group numbering. */
+uint8_t cc_groups_scope(CompilerGroups *groups,uint8_t scope) ROUTINES;
+uint8_t cc_groups_domain(CompilerGroups *groups,uint8_t scope,uint8_t *domain) ROUTINES;
 /* Group ID255 means failure. An open group's parent emits no code until
  * close. The caller owns routine stubs, late-symbol journals and helper
  * deferral; close reserves/zeros the shared area before those are emitted. */

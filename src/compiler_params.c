@@ -1,13 +1,13 @@
-#include "compiler.h"
+#include "compiler_late.h"
 
 /* Parse the already-owned command tail; no kernel pointer, syscall or shared
  * result buffer escapes. Like Random, the private helper is emitted once into
  * relocatable Pascal code. A=0 counts; A=1..127 selects a parameter. Returns
  * A=count on a miss, HL=first byte and BC=length on a hit, BC=0 on a miss.
  * Only spaces/tabs separate words. Quotes are ordinary parameter bytes. */
-static void scan(void) {
+static void engine(void) {
     uint16_t skip,word,space,selected,ready,missing,loop,separator;
-    if(!cc.parameter_entry) {
+    if(!cc.parameter_entry&&!cc_root_member()) {
         skip=cc_forward(0xc3);
         cc.parameter_entry=cc.emitted;
         cc_emit(0x57);                       /* D=requested index */
@@ -36,9 +36,11 @@ static void scan(void) {
         cc_patch(ready); cc_patch(space);
         cc_emit(0xe1); cc_emit(0x06); cc_emit(0); cc_emit(0xc9);
         cc_patch(skip);
+        cc_root_bind(LATE_ROOT,LATE_PARAMETERS,cc.parameter_entry);
     }
-    cc_address(0xcd,cc.parameter_entry);
 }
+static void scan(void) {engine();cc_root_address(0xcd,LATE_ROOT,LATE_PARAMETERS,cc.parameter_entry,0);}
+void cc_params_finish(void) FRONTEND {if(cc_root_pending(LATE_ROOT,LATE_PARAMETERS))engine();}
 void cc_params(uint8_t string_result) FRONTEND {
     uint16_t high,zero,large,empty,done;
     if(cc.error->code||cc.suppress) return;
