@@ -303,15 +303,50 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/file_asset.asm CONTENT
 set_source_files_properties(${CMAKE_BINARY_DIR}/file_asset.asm PROPERTIES
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/file_runtime.zpl;${CMAKE_BINARY_DIR}/file_gate.zpl")
 add_dependencies(zp_core file_runtime_bin file_gate_bin)
+add_executable(transfer_gate src/transfer_gate.asm)
+zos_add_outputs(transfer_gate WITH_EXTENSION zpl)
+add_custom_command(TARGET transfer_gate_bin POST_BUILD
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --transfer-gate
+        ${CMAKE_BINARY_DIR}/transfer_gate.ihx VERBATIM)
+file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/transfer_file_gate.asm CONTENT
+    ".area _TEXT\n.globl _transfer_file_gate,_transfer_file_gate_bytes\n_transfer_file_gate:\n.incbin \"${CMAKE_BINARY_DIR}/file_gate.zpl\"\n_transfer_file_gate_bytes = .-_transfer_file_gate\n")
+set_source_files_properties(${CMAKE_BINARY_DIR}/transfer_file_gate.asm PROPERTIES OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/file_gate.zpl)
+add_executable(transfer_runtime src/transfer_module.asm src/transfer.c src/transfer_native.asm
+    src/chain.c src/chain_native.asm src/native_image.c src/sha256.c src/sha_z80.asm
+    ${CMAKE_BINARY_DIR}/sdk_glue.asm ${CMAKE_BINARY_DIR}/transfer_file_gate.asm)
+target_include_directories(transfer_runtime PRIVATE src)
+target_compile_options(transfer_runtime PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+set_property(SOURCE src/transfer.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/transfer.h ${CMAKE_SOURCE_DIR}/src/chain.h
+    ${CMAKE_SOURCE_DIR}/src/chain_abi.h ${CMAKE_SOURCE_DIR}/src/file_runtime.h)
+add_dependencies(transfer_runtime file_gate_bin)
+set_target_properties(transfer_runtime PROPERTIES LINKER_LANGUAGE ASM)
+zos_add_outputs(transfer_runtime WITH_EXTENSION zpl)
+add_custom_command(TARGET transfer_runtime_bin POST_BUILD
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --transfer-runtime
+        ${CMAKE_BINARY_DIR}/transfer_runtime.ihx VERBATIM)
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/pascal_runtime.profile
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --runtime-profile
         ${CMAKE_BINARY_DIR}/pascal_runtime.profile
-    DEPENDS pascal_runtime_bin file_runtime_bin file_gate_bin
+    DEPENDS pascal_runtime_bin file_runtime_bin file_gate_bin transfer_runtime_bin transfer_gate_bin
         ${CMAKE_BINARY_DIR}/pascal_runtime.zpl ${CMAKE_BINARY_DIR}/pascal_runtime.private
         ${CMAKE_BINARY_DIR}/file_runtime.zpl ${CMAKE_BINARY_DIR}/file_gate.zpl
+        ${CMAKE_BINARY_DIR}/transfer_runtime.zpl ${CMAKE_BINARY_DIR}/transfer_gate.zpl
         ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 add_custom_target(runtime_profile DEPENDS ${CMAKE_BINARY_DIR}/pascal_runtime.profile)
 add_dependencies(zp_core runtime_profile)
+file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/transfer_driver_asset.asm CONTENT
+    ".area _HEADER (ABS)\n.org 0x8c00\n.globl _driver_gate,_driver_gate_bytes,_driver_profile,_driver_private\n_driver_gate:\n.incbin \"${CMAKE_BINARY_DIR}/transfer_gate.zpl\"\n_driver_gate_bytes = .-_driver_gate\n_driver_profile:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.profile\"\n_driver_private:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.private\"\n")
+set_source_files_properties(${CMAKE_BINARY_DIR}/transfer_driver_asset.asm PROPERTIES OBJECT_DEPENDS
+    "${CMAKE_BINARY_DIR}/transfer_gate.zpl;${CMAKE_BINARY_DIR}/pascal_runtime.profile;${CMAKE_BINARY_DIR}/pascal_runtime.private")
+add_executable(ztransferdriver tests/native/transfer-driver.asm ${CMAKE_BINARY_DIR}/transfer_driver_asset.asm)
+add_dependencies(ztransferdriver runtime_profile)
+zos_add_outputs(ztransferdriver WITH_EXTENSION zpl)
+add_executable(ztransferparent ${CMAKE_BINARY_DIR}/test_sdk_startup.asm tests/native/transfer-parent.c tests/native/transfer-stop.asm src/chain_native.asm)
+target_include_directories(ztransferparent PRIVATE src)
+target_compile_options(ztransferparent PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+set_property(SOURCE tests/native/transfer-parent.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/chain.h)
+zos_add_outputs(ztransferparent)
 add_executable(zfilecoretest tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
     tests/native/file-core.c tests/native/file-probe.asm tests/native/machine.asm $<TARGET_OBJECTS:file_runtime_core>)
 target_include_directories(zfilecoretest PRIVATE src)

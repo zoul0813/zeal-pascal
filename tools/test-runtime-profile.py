@@ -29,7 +29,8 @@ def flip_hex(text, address):
 
 
 def main():
-    assets = ('pascal_runtime.zpl', 'pascal_runtime.private', 'file_runtime.zpl', 'file_gate.zpl')
+    assets = ('pascal_runtime.zpl', 'pascal_runtime.private', 'file_runtime.zpl', 'file_gate.zpl',
+              'transfer_runtime.zpl', 'transfer_gate.zpl')
     names = (*assets, 'pascal_runtime.profile', 'pascal_runtime.runtime.json',
              'zpascal.ihx', 'zpascal.map', 'zpascal.bin', 'zpascal.zpl')
     original = {name: (ROOT/'build'/name).read_bytes() for name in names}

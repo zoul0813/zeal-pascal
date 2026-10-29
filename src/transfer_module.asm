@@ -1,0 +1,13 @@
+.module transfer_module
+.globl _transfer_dispatch,_transfer_cleanup,_transfer_file_gate,_transfer_file_gate_bytes
+.area _HEADER
+    jp _transfer_dispatch
+    jp _transfer_cleanup
+    .dw _transfer_file_gate,_transfer_file_gate_bytes
+    .ascii "ZTRN"
+    .db 1,0
+.area _SYSTEM
+.area _TEXT
+.area _INITIALIZED
+.area _DATA
+.area _BSS

@@ -44,7 +44,7 @@ def runtime_profile(directory):
     """Bind generated private calls and retained file protocols to exact assets."""
     digest = hashlib.sha256(b'ZP80-private-chain-v1\0')
     for name in ('pascal_runtime.zpl', 'pascal_runtime.private',
-                 'file_runtime.zpl', 'file_gate.zpl'):
+                 'file_runtime.zpl', 'file_gate.zpl', 'transfer_runtime.zpl', 'transfer_gate.zpl'):
         data = (directory/name).read_bytes()
         digest.update(name.encode('ascii')+b'\0'+struct.pack('<I', len(data))+data)
     return digest.digest()
@@ -153,14 +153,24 @@ def validate_trampoline(path):
     print('RAM transition:', len(payload), 'bytes; checked program and service gates')
 
 
-def validate_file_runtime(path):
+def validate_file_runtime(path, transfer=False):
     memory, symbols = read_hex(path), read_symbols(path)
     if not memory or min(memory) != 0x4000 or max(memory) >= 0x8000:
         raise ValueError('file runtime exceeds its owned module page')
-    for entry, name in ((0x4000, '_zf_dispatch'), (0x4003, '_zf_cleanup')):
+    entries=('_transfer_dispatch','_transfer_cleanup')if transfer else('_zf_dispatch','_zf_cleanup')
+    for entry, name in zip((0x4000,0x4003),entries):
         if bytes(memory.get(entry+i, 0) for i in range(3)) != b'\xc3'+struct.pack('<H', symbols[name]):
             raise ValueError('file module entry misplaced: '+name)
-    if bytes(memory.get(0x4006+i, 0) for i in range(10)) != b'ZFIL\x01\0\x10\0\0\0':
+    if transfer:
+        if bytes(memory.get(0x400a+i,0)for i in range(6))!=b'ZTRN\x01\0':
+            raise ValueError('transfer module header mismatch')
+        gate=(path.parent/'file_gate.zpl').read_bytes()
+        pointer=symbols['_transfer_file_gate']
+        if (bytes(memory.get(0x4006+i,0)for i in range(4))!=struct.pack('<HH',pointer,len(gate)) or
+                bytes(memory.get(pointer+i,0)for i in range(len(gate)))!=gate or
+                not 0<symbols['transfer_commit_end']-symbols['transfer_commit_start']<=48):
+            raise ValueError('transfer transport or commit stub is stale/out of bounds')
+    elif bytes(memory.get(0x4006+i, 0) for i in range(10)) != b'ZFIL\x01\0\x10\0\0\0':
         raise ValueError('file module header mismatch')
     for area in ('HEADER', 'SYSTEM', 'TEXT', 'INITIALIZED', 'DATA', 'BSS'):
         at, size = symbols['s__'+area], symbols['l__'+area]
@@ -176,11 +186,13 @@ def validate_file_runtime(path):
     print('file runtime:', report)
 
 
-def validate_file_gate(path):
+def validate_file_gate(path, transfer=False):
     memory, symbols=read_hex(path),read_symbols(path)
-    if not memory or min(memory)!=0xfe90 or max(memory)>=0xff00 or symbols['file_gate_end']>0xff00:
+    first=0xfc80 if transfer else 0xfe90;last=0xfd00 if transfer else 0xff00
+    end='transfer_gate_end'if transfer else'file_gate_end'
+    if not memory or min(memory)!=first or max(memory)>=last or symbols[end]>last:
         raise ValueError('file module gate overlaps transition data or cached command tail')
-    payload=bytes(memory.get(at,0) for at in range(0xfe90,max(memory)+1))
+    payload=bytes(memory.get(at,0) for at in range(first,max(memory)+1))
     if path.with_suffix('.zpl').read_bytes()!=payload:
         raise ValueError('file module gate differs from its checked link image')
     print('file gate:',len(payload),'bytes; bounded below command-tail cache')
@@ -264,6 +276,8 @@ if __name__ == '__main__':
     elif sys.argv[1]=='--trampoline':validate_trampoline(Path(sys.argv[2]))
     elif sys.argv[1]=='--file-runtime':validate_file_runtime(Path(sys.argv[2]))
     elif sys.argv[1]=='--file-gate':validate_file_gate(Path(sys.argv[2]))
+    elif sys.argv[1]=='--transfer-runtime':validate_file_runtime(Path(sys.argv[2]),True)
+    elif sys.argv[1]=='--transfer-gate':validate_file_gate(Path(sys.argv[2]),True)
     elif sys.argv[1]=='--runtime-profile':
         path=Path(sys.argv[2]);path.write_bytes(runtime_profile(path.parent))
     else:package(Path(sys.argv[1]))

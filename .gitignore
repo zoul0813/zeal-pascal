@@ -48,6 +48,7 @@
 !/tools/test-chain.py
 !/tools/test-chain-loader.py
 !/tools/test-chain-files.py
+!/tools/test-transfer.py
 !/tools/test-real.py
 !/tools/package-native.py
 !/tools/package-tf.py

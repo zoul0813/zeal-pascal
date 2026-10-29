@@ -18,7 +18,8 @@ runtime = (ROOT / 'build/pascal_runtime.zpl').read_bytes()
 # Independent framing check: generated CHN activation must identify all private
 # runtime/file assets, not just the public ABI or one module's code addresses.
 framed=b'ZP80-private-chain-v1\0'
-for name in ('pascal_runtime.zpl','pascal_runtime.private','file_runtime.zpl','file_gate.zpl'):
+for name in ('pascal_runtime.zpl','pascal_runtime.private','file_runtime.zpl','file_gate.zpl',
+             'transfer_runtime.zpl','transfer_gate.zpl'):
     data=(ROOT/'build'/name).read_bytes()
     framed+=name.encode('ascii')+b'\0'+struct.pack('<I',len(data))+data
 assert (ROOT/'build/pascal_runtime.profile').read_bytes()==hashlib.sha256(framed).digest()

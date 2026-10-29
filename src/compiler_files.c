@@ -151,6 +151,12 @@ static void engine(void) {
     cc_op16(0x3a,0xfe76); cc_emit(0xd3); cc_emit(0xf1);
     cc_address(0x21,gate); cc_op16(0x11,0xfe90); cc_op16(0x01,gate_bytes);
     cc_emit(0xed); cc_emit(0xb0);
+    /* Preserve an installed transfer coordinator. Otherwise scoped/terminal
+     * cleanup uses the ordinary file gate through its retained entry. */
+    cc_op16(0x3a,0xfe75); cc_emit(0xb7); bootstrap=cc_forward(0xc2);
+    cc_emit(0x3e); cc_emit(0xc3); cc_op16(0x32,0xfc80);
+    cc_op16(0x21,0xfe90); cc_op16(0x22,0xfc81);
+    cc_patch(bootstrap);
     cc_op16(0x21,1024); cc_op16(0x22,0xfe7c);
     cc_patch(ready);
     guard(64);

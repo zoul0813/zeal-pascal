@@ -1799,7 +1799,11 @@ file_cleanup::
     ld c,a
     ld a,(0xfe74)
     or a
+    jr nz,file_cleanup_owned
+    ld a,(0xfe75)
+    or a
     ret z
+file_cleanup_owned:
     ld a,c
     push bc                    ; checking policy and operation
     ld bc,#0
@@ -1817,7 +1821,7 @@ file_cleanup::
     jr nz,file_cleanup_call
     inc a                      ; terminal cleanup also releases module backing
 file_cleanup_call:
-    call 0xfe90
+    call 0xfc80
     pop bc
     pop de
     pop hl
