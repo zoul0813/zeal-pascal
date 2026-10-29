@@ -117,11 +117,11 @@ static void stream_result(void) {
 }
 static void engine(void) {
     uint16_t skip,asset,gate,bootstrap,ready,normal,allocated,i;
-    uint16_t module_bytes=cc_file_asset_size(0),gate_bytes=cc_file_asset_size(1);
+    uint16_t packed_bytes=cc_file_asset_size(0),gate_bytes=cc_file_asset_size(1);
     if(cc.file_entry||cc.suppress||cc.error->code) return;
     skip=cc_forward(0xc3);
     asset=cc.emitted;
-    for(i=0;i<module_bytes;++i) cc_emit(cc_file_asset_get(0,i));
+    for(i=0;i<packed_bytes;++i) cc_emit(cc_file_asset_get(0,i));
     gate=cc.emitted;
     for(i=0;i<gate_bytes;++i) cc_emit(cc_file_asset_get(1,i));
     cc.file_entry=cc.emitted;
@@ -146,8 +146,8 @@ static void engine(void) {
     cc_emit(0x7b); cc_op16(0x32,0xfe74); cc_emit(0xd3); cc_emit(0xf1);
     cc_op16(0x21,0x4000); cc_op16(0x11,0x4001); cc_op16(0x01,0x3fff);
     cc_emit(0x36); cc_emit(0); cc_emit(0xed); cc_emit(0xb0);
-    cc_address(0x21,asset); cc_op16(0x11,0x4000); cc_op16(0x01,module_bytes);
-    cc_emit(0xed); cc_emit(0xb0);
+    cc_address(0x21,asset); cc_op16(0x11,0x4000);
+    cc_op16(0xcd,0);cc_unpack_reference(cc.emitted-2);
     cc_op16(0x3a,0xfe76); cc_emit(0xd3); cc_emit(0xf1);
     cc_address(0x21,gate); cc_op16(0x11,0xfe90); cc_op16(0x01,gate_bytes);
     cc_emit(0xed); cc_emit(0xb0);

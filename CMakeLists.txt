@@ -63,7 +63,7 @@ set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/pascal_runtime.zpl;${CMAKE_BINARY_DIR}/pascal_runtime.private;${CMAKE_BINARY_DIR}/pascal_runtime.profile;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
 set(PASCAL_CORE src/source.c src/sources.c src/sources_storage.c src/compiler_sources.c src/source_hash.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/compiler_expr.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_file.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_state.c src/compiler_predicates.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/saved_map.c src/native.asm
     ${CMAKE_BINARY_DIR}/runtime_asset.asm ${CMAKE_BINARY_DIR}/file_asset.asm)
-list(APPEND PASCAL_CORE src/compiler_chain.c src/compiler_transfer_asset.c)
+list(APPEND PASCAL_CORE src/compiler_chain.c src/compiler_transfer_asset.c src/compiler_module.c)
 set_source_files_properties(${CMAKE_BINARY_DIR}/transfer_ide_asset.asm ${CMAKE_BINARY_DIR}/transfer_test_asset.asm PROPERTIES GENERATED TRUE)
 # This SDK disables compiler depfiles. Keep shared ABI/header changes from
 # leaving stale objects in another compiler bank during incremental ZDE builds.
@@ -153,6 +153,7 @@ set_source_files_properties(src/compiler_files.c src/compiler_io.c PROPERTIES
 set_source_files_properties(src/platform.c PROPERTIES COMPILE_OPTIONS "--opt-code-size")
 set_source_files_properties(src/compiler_chain.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK7;--constseg;BANK7")
 set_source_files_properties(src/compiler_predicates.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK11;--constseg;BANK11")
+set_source_files_properties(src/compiler_module.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK11;--constseg;BANK11")
 set_source_files_properties(src/compiler_inline.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK10;--constseg;BANK10")
 set_source_files_properties(src/compiler_transfer_asset.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK3;--constseg;BANK3")
 # Our startup and the installed SDK use the same command-tail ABI. The launcher
@@ -370,14 +371,34 @@ add_executable(file_runtime src/file_module.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
     $<TARGET_OBJECTS:file_runtime_core>)
 set_target_properties(file_runtime PROPERTIES LINKER_LANGUAGE ASM)
 zos_add_outputs(file_runtime WITH_EXTENSION zpl)
-add_custom_command(TARGET file_runtime_bin POST_BUILD
+add_custom_command(TARGET file_runtime_bin POST_BUILD BYPRODUCTS ${CMAKE_BINARY_DIR}/file_runtime.packed
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --file-runtime
         ${CMAKE_BINARY_DIR}/file_runtime.ihx VERBATIM)
+add_executable(module_unpack src/module_unpack.asm)
+zos_add_outputs(module_unpack WITH_EXTENSION zpl)
+add_custom_command(TARGET module_unpack_bin POST_BUILD
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --module-unpack
+        ${CMAKE_BINARY_DIR}/module_unpack.ihx VERBATIM)
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/unpack-fixtures/unpack-fixtures.h ${CMAKE_BINARY_DIR}/unpack-fixtures/unpack-assets.asm
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/test-module-unpack.py --assets ${CMAKE_BINARY_DIR}/unpack-fixtures
+    DEPENDS module_unpack_bin file_runtime_bin transfer_runtime_bin
+        ${CMAKE_BINARY_DIR}/module_unpack.zpl ${CMAKE_BINARY_DIR}/file_runtime.packed
+        ${CMAKE_BINARY_DIR}/transfer_runtime.packed ${CMAKE_SOURCE_DIR}/tools/test-module-unpack.py
+        ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+add_custom_target(unpack_fixtures DEPENDS ${CMAKE_BINARY_DIR}/unpack-fixtures/unpack-fixtures.h ${CMAKE_BINARY_DIR}/unpack-fixtures/unpack-assets.asm)
+add_executable(zunpacktest ${CMAKE_BINARY_DIR}/test_sdk_startup.asm tests/native/unpack-native.c
+    tests/native/unpack-probe.asm src/chain_native.asm ${CMAKE_BINARY_DIR}/unpack-fixtures/unpack-assets.asm)
+target_include_directories(zunpacktest PRIVATE src ${CMAKE_BINARY_DIR}/unpack-fixtures)
+target_compile_options(zunpacktest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+set_property(SOURCE tests/native/unpack-native.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_BINARY_DIR}/unpack-fixtures/unpack-fixtures.h ${CMAKE_SOURCE_DIR}/src/chain.h)
+add_dependencies(zunpacktest unpack_fixtures)
+zos_add_outputs(zunpacktest)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/file_asset.asm CONTENT
-".area _BANK11\n.globl _file_start,_file_end,_file_gate_start,_file_gate_end\n_file_start:\n.incbin \"${CMAKE_BINARY_DIR}/file_runtime.zpl\"\n_file_end:\n_file_gate_start:\n.incbin \"${CMAKE_BINARY_DIR}/file_gate.zpl\"\n_file_gate_end:\n")
+".area _BANK11\n.globl _file_start,_file_end,_file_gate_start,_file_gate_end,_unpack_start,_unpack_end\n_file_start:\n.incbin \"${CMAKE_BINARY_DIR}/file_runtime.packed\"\n_file_end:\n_file_gate_start:\n.incbin \"${CMAKE_BINARY_DIR}/file_gate.zpl\"\n_file_gate_end:\n_unpack_start:\n.incbin \"${CMAKE_BINARY_DIR}/module_unpack.zpl\"\n_unpack_end:\n")
 set_source_files_properties(${CMAKE_BINARY_DIR}/file_asset.asm PROPERTIES
-    OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/file_runtime.zpl;${CMAKE_BINARY_DIR}/file_gate.zpl")
-add_dependencies(zp_core file_runtime_bin file_gate_bin)
+    OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/file_runtime.packed;${CMAKE_BINARY_DIR}/file_gate.zpl;${CMAKE_BINARY_DIR}/module_unpack.zpl")
+add_dependencies(zp_core file_runtime_bin file_gate_bin module_unpack_bin)
 add_executable(transfer_gate src/transfer_gate.asm)
 zos_add_outputs(transfer_gate WITH_EXTENSION zpl)
 add_custom_command(TARGET transfer_gate_bin POST_BUILD
@@ -404,11 +425,12 @@ add_custom_command(TARGET transfer_runtime_bin POST_BUILD BYPRODUCTS ${CMAKE_BIN
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/pascal_runtime.profile
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --runtime-profile
         ${CMAKE_BINARY_DIR}/pascal_runtime.profile
-    DEPENDS pascal_runtime_bin file_runtime_bin file_gate_bin transfer_runtime_bin transfer_gate_bin execute_entry_bin
+    DEPENDS pascal_runtime_bin file_runtime_bin file_gate_bin transfer_runtime_bin transfer_gate_bin execute_entry_bin module_unpack_bin
         ${CMAKE_BINARY_DIR}/pascal_runtime.zpl ${CMAKE_BINARY_DIR}/pascal_runtime.private
         ${CMAKE_BINARY_DIR}/file_runtime.zpl ${CMAKE_BINARY_DIR}/file_gate.zpl
         ${CMAKE_BINARY_DIR}/transfer_runtime.zpl ${CMAKE_BINARY_DIR}/transfer_gate.zpl
         ${CMAKE_BINARY_DIR}/execute_entry.zpl ${CMAKE_BINARY_DIR}/transfer_runtime.packed
+        ${CMAKE_BINARY_DIR}/file_runtime.packed ${CMAKE_BINARY_DIR}/module_unpack.zpl
         ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 add_custom_target(runtime_profile DEPENDS ${CMAKE_BINARY_DIR}/pascal_runtime.profile)
 add_dependencies(zp_core runtime_profile)

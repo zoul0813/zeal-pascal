@@ -17,7 +17,7 @@ def main():
             ROOT/'tools/package-native.py',n.EMULATOR,n.ROM]
     inputs+=sorted((ROOT/'src').glob('*'))+sorted((ROOT/'tests/native').glob('*'))
     inputs+=[ROOT/f'build/{target}.{ext}' for ext in ('bin','zpl','map','banks.json')]
-    inputs+=[ROOT/'build/file_runtime.zpl',ROOT/'build/file_gate.zpl']
+    inputs+=[ROOT/'build/file_runtime.zpl',ROOT/'build/file_runtime.packed',ROOT/'build/file_gate.zpl',ROOT/'build/module_unpack.zpl']
     hashes={str(p):n.sha(p) for p in inputs if p.is_file()}
     assert sym['_test_stop']==0xfc00
     commands=['run 100000000']+n.program_launch(target)
@@ -67,8 +67,9 @@ def main():
     checks['Rename removes old names only after verified publication and suppresses pending transfers']=all(
         not (disk/name).exists() for name in ('RNOLD.TXT','RNINT.OLD','RNNEST.OLD','RNOPEN.NEW','RNSKIPPED','RNNOTMADE'))
     image=(disk/'TEXTDISK.COM').read_bytes() if (disk/'TEXTDISK.COM').is_file() else b''
-    checks['standalone Text executable embeds the exact private component']=(
-        (ROOT/'build/file_runtime.zpl').read_bytes() in image and
+    checks['standalone Text executable embeds exact packed component and one shared decoder']=(
+        (ROOT/'build/file_runtime.packed').read_bytes() in image and
+        image.count((ROOT/'build/module_unpack.zpl').read_bytes())==1 and
         (ROOT/'build/file_gate.zpl').read_bytes() in image)
     report={'scope':'Ordinary disk Text: scalar/string reads, shared formatting, CRLF/Ctrl-Z, lookahead/seek predicates, cleanup and nested I/O; preassigned/logical streams and full conformance remain pending',
             'passed':all(checks.values()),'capture_directory':str(n.RUN.relative_to(ROOT)),

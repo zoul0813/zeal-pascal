@@ -33,23 +33,23 @@ def main():
     # Independently authored streams pin literal flags, overlapping matches,
     # the maximum12-bit distance, and rejection before compiler publication.
     checks=0
-    assert package.unpack_transfer(bytes([16,0,2,0,12,0]))==bytes(16)
+    assert package.unpack_module(bytes([16,0,2,0,12,0]))==bytes(16)
     checks+=1
     literals=bytes([16,0,0])+bytes(range(8))+bytes([0])+bytes(range(8,16))
-    assert package.unpack_transfer(literals)==bytes(range(16));checks+=1
+    assert package.unpack_module(literals)==bytes(range(16));checks+=1
     prefix=b''.join(bytes([0])+bytes((j+i)&255 for j in range(8)) for i in range(0,4096,8))
-    assert package.unpack_transfer(bytes([18,16])+prefix+bytes([1,255,255]))==bytes(range(256))*16+bytes(range(18))
+    assert package.unpack_module(bytes([18,16])+prefix+bytes([1,255,255]))==bytes(range(256))*16+bytes(range(18))
     checks+=1
-    for size in (16,17,18,19,127,128,129,4096,4097,0x3800):
+    for size in (16,17,18,19,127,128,129,4096,4097,0x3800,0x4000):
         for data in (bytes(size),bytes((i*37+i//59)&255 for i in range(size))):
-            assert package.unpack_transfer(package.pack_transfer(data))==data;checks+=1
+            assert package.unpack_module(package.pack_module(data))==data;checks+=1
     for data in (b'',b'\x10\0',bytes([16,0,1,0,0]),bytes([16,0,2,0,15,0]),
                  literals[:-1],literals+b'x',bytes([16,0,6,0,12,0])):
-        try:package.unpack_transfer(data)
+        try:package.unpack_module(data)
         except ValueError:checks+=1
         else:raise AssertionError('invalid transfer constant accepted')
     assets = ('pascal_runtime.zpl', 'pascal_runtime.private', 'file_runtime.zpl', 'file_gate.zpl',
-              'transfer_runtime.zpl', 'transfer_gate.zpl', 'execute_entry.zpl','transfer_runtime.packed')
+              'transfer_runtime.zpl', 'transfer_gate.zpl', 'execute_entry.zpl','transfer_runtime.packed','file_runtime.packed','module_unpack.zpl')
     names = (*assets, 'transfer_call.zpl', 'pascal_runtime.profile', 'pascal_runtime.runtime.json',
              'zpascal.ihx', 'zpascal.map', 'zpascal.bin', 'zpascal.zpl')
     original = {name: (ROOT/'build'/name).read_bytes() for name in names}
@@ -114,6 +114,10 @@ def main():
         for address in addresses:
             image.write_text(flip_hex(original['zpascal.ihx'].decode(),address))
             rejected('embedded transfer assets')
+        image.write_bytes(original['zpascal.ihx'])
+        for name in ('_file_start','_file_gate_start','_unpack_start'):
+            image.write_text(flip_hex(original['zpascal.ihx'].decode(),symbols[name]))
+            rejected('embedded file/unpack assets')
         image.write_bytes(original['zpascal.ihx'])
         changed=bytearray(original['transfer_call.zpl']);changed[0]^=1
         (directory/'transfer_call.zpl').write_bytes(changed)

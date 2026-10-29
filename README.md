@@ -212,6 +212,13 @@ size limit. The runtime terminal path can retain/retry coordinator, staged-page
 and file-module owners. Native acceptance includes an unmodified saved Pascal
 caller; the older test-bootstrap fixture remains separate component evidence.
 
+File-module acquisition and Chain/Execute share one private decoder per generated
+program. Both modules are stored as checked packed constants, expanded only into
+their owned pages. Packaging verifies exact linked module/template bytes before
+publishing the IDE, and their identities are part of the private CHN fingerprint.
+This keeps the IDE at13 banks while leaving compiler-bank space for overlays;
+it does not enable Pascal overlay compilation yet.
+
 Ctrl-U cancels compilation, including image preparation, scanning, code
 placement and final hashing. It also cancels source, Save As, block and executable/
 map publication between transfer chunks. Escape acknowledges the interruption;

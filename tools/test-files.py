@@ -62,7 +62,7 @@ def main():
     inputs += sorted((ROOT/'src').glob('*')) + sorted((ROOT/'tests/native').glob('*'))
     for name in (target,'zpascal'):
         inputs += [ROOT/f'build/{name}.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
-    inputs += [ROOT/'build/file_runtime.zpl',ROOT/'build/file_gate.zpl']
+    inputs += [ROOT/'build/file_runtime.zpl',ROOT/'build/file_runtime.packed',ROOT/'build/file_gate.zpl',ROOT/'build/module_unpack.zpl']
     inputs += [ROOT/'build/diskabi.zpl']
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}
     assert sym['_test_stop'] == 0xfc00
@@ -130,8 +130,9 @@ def main():
         checks['exact native disk bytes '+name]=(disk/name).is_file() and (disk/name).read_bytes()==data
     checks['zero-component safety creates no disk file']=not (disk/'ZERO.DAT').exists()
     image=(disk/'DISKFILES.COM').read_bytes() if (disk/'DISKFILES.COM').is_file() else b''
-    checks['self-contained executable embeds exact module and gate without installed file libraries']=(
-        (ROOT/'build/file_runtime.zpl').read_bytes() in image and
+    checks['self-contained executable embeds checked packed module, shared decoder and gate without installed file libraries']=(
+        (ROOT/'build/file_runtime.packed').read_bytes() in image and
+        image.count((ROOT/'build/module_unpack.zpl').read_bytes())==1 and
         (ROOT/'build/file_gate.zpl').read_bytes() in image and
         not (disk/'file_runtime.zpl').exists() and not (disk/'file_gate.zpl').exists())
     abi_image=(disk/'DISKABI.COM').read_bytes() if (disk/'DISKABI.COM').exists() else b''

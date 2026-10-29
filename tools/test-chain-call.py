@@ -117,7 +117,8 @@ def execute(n):
     expanded=n.memory(unpack_raw)
     unpack_ok=f'PC={loaded:04x} ' in unpack_raw and bytes(expanded.get(0x4000+i,0) for i in range(len(module)))==module
     raw=n.execute('execute-call-success',commands,media,timeout=900);parts=re.split(r'\[DBG\] PC=',raw)[1:]
-    checks={'production compiler and direct Memory restrictions pass':word('_test_failed')==0 and word('_test_passed')>=35,
+    checks={'one decoder serves file and transfer acquisition':images['EXECALL'].count((ROOT/'build/module_unpack.zpl').read_bytes())==1,
+            'production compiler and direct Memory restrictions pass':word('_test_failed')==0 and word('_test_passed')>=35,
             'native packed module expands byte-for-byte to the checked linked module':unpack_ok,
             'all actual caller/startup/release/child/supervisor checkpoints reached':len(parts)==10}
     if len(parts)==10:
@@ -262,7 +263,8 @@ def main():
            'NEXT.CHN':chain,'SHARED.DAT':data,'INVALID.CHN':b'bad chain'}
     raw=n.execute('chain-call-run',commands,files,timeout=900)
     frames=re.split(r'\[DBG\] PC=',raw)[1:]
-    checks={'all execution checkpoints reached':len(frames)==4}
+    checks={'one decoder serves file and transfer acquisition':caller.count((ROOT/'build/module_unpack.zpl').read_bytes())==1,
+            'all execution checkpoints reached':len(frames)==4}
     if len(frames)==4:
         states=[n.memory(frame)for frame in frames]
         read=lambda k,at,size:bytes(states[k].get(at+i,0)for i in range(size))

@@ -272,7 +272,7 @@ static void chain_call_cases(void) {
         check(calls==(repeated?2:1));
         for(i=0;i<TRANSFER_CALL_BYTES;++i) {
             expected_byte=cc_transfer_asset_get(2,i);
-            for(j=0;j<TRANSFER_CALL_RELOC_COUNT+3;++j) {
+            for(j=0;j<TRANSFER_CALL_RELOC_COUNT+4;++j) {
                 if(j<TRANSFER_CALL_RELOC_COUNT) {
                     at=TRANSFER_CALL_RELOC_OFFSET+2*j;
                     at=(cc_transfer_asset_get(2,at)|((uint16_t)cc_transfer_asset_get(2,at+1)<<8))-CC_CODE_BASE;
@@ -284,6 +284,8 @@ static void chain_call_cases(void) {
                     at=TRANSFER_CALL_GATE_OPERAND;expected=actual-TRANSFER_GATE_BYTES;
                 } else if(j==TRANSFER_CALL_RELOC_COUNT+2) {
                     at=TRANSFER_CALL_FILE_OPERAND;expected=cc.file_entry+b.code_origin-CC_CODE_BASE;
+                } else {
+                    at=TRANSFER_CALL_UNPACK_OPERAND;expected=cc.unpack_entry+b.code_origin-CC_CODE_BASE;
                 }
                 if(i==at)expected_byte=(uint8_t)expected;
                 if(i==at+1)expected_byte=(uint8_t)(expected>>8);

@@ -89,6 +89,7 @@ typedef struct {
     uint16_t hook_character,hook_echo,hook_open;
     uint16_t error_entry;
     uint16_t transfer_entry; /* call fixup head until transfer finish, then entry */
+    uint16_t unpack_entry; /* shared module decoder fixup head, then entry */
 } Compiler;
 extern Compiler cc;
 uint8_t cc_poll(void);
@@ -172,6 +173,8 @@ uint16_t cc_transfer_asset_size(uint8_t kind) FRONTEND;
 uint8_t cc_transfer_asset_get(uint8_t kind,uint16_t offset) FRONTEND;
 void cc_transfer_statement(uint16_t base) FRONTEND;
 void cc_transfer_finish(void) FRONTEND;
+void cc_unpack_reference(uint16_t operand) FRONTEND;
+void cc_unpack_finish(void) FRONTEND;
 void cc_expect(uint16_t t,uint8_t code) FRONTEND;
 int16_t cc_lookup(void) FRONTEND;
 void cc_system_init(void) FRONTEND;

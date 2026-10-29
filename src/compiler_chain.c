@@ -41,5 +41,6 @@ void cc_transfer_finish(void) FRONTEND {
     patch(entry+TRANSFER_CALL_MODULE_OPERAND,module);
     patch(entry+TRANSFER_CALL_GATE_OPERAND,gate);
     patch(entry+TRANSFER_CALL_FILE_OPERAND,cc.file_entry);
+    cc_unpack_reference(entry+TRANSFER_CALL_UNPACK_OPERAND);
     cc_patch_chain(head,entry);cc.transfer_entry=entry;
 }

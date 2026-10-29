@@ -1,6 +1,7 @@
 .module transfer_call
 .globl transfer_call_start,transfer_call_end,transfer_call_relocs,transfer_call_relocs_end
 .globl transfer_call_module_operand,transfer_call_gate_operand,transfer_call_file_operand
+.globl transfer_call_unpack_operand
 .globl transfer_call_input_operand
 .globl transfer_call_loaded
 .globl zt_profile,zt_module_size,zt_gate_size
@@ -80,83 +81,8 @@ allocated:
     .db 0x21
 transfer_call_module_operand:: .dw 0
     ld de,#0x4000
-; This private compiler constant is fully checked by packaging before it
-; enters a program, including all token extents and exact linked-module bytes.
-; IY uses the not-yet-initialized caller-owned TransferJob as scratch; its old
-; value is already saved. The generated program owns the full destination.
-unpack:
-    ld iy,#0
-    add iy,sp
-    push ix
-    ld c,(hl)
-    inc hl
-    ld b,(hl)
-    inc hl
-    push bc
-    pop ix                    ; exact decoded length
-unpack_flags:
-    ld a,(hl)
-    inc hl
-    ld 0(iy),a
-    ld 1(iy),#8
-unpack_token:
-    srl 0(iy)
-    jr c,unpack_match
-    ld a,(hl)
-    inc hl
-    ld (de),a
-    inc de
-    dec ix
-    jr unpack_next
-unpack_match:
-    ld a,(hl)
-    inc hl
-    ld 2(iy),a
-    ld a,(hl)
-    inc hl
-    push hl                   ; compressed source
-    ld h,a
-    ld l,2(iy)
-    ld a,l
-    and #15
-    add a,#3
-    ld c,a
-    ld b,#0                   ; match length
-    push hl
-    push ix
-    pop hl
-    or a
-    sbc hl,bc
-    push hl
-    pop ix
-    pop hl
-    srl h
-    rr l
-    srl h
-    rr l
-    srl h
-    rr l
-    srl h
-    rr l
-    inc hl                    ; match distance
-    push de
-    ex de,hl
-    or a
-    sbc hl,de
-    pop de
-    ldir                      ; overlapping copies are intentional
-    pop hl
-unpack_next:
-    push ix
-    pop bc
-    ld a,b
-    or c
-    jr z,unpack_done
-    dec 1(iy)
-    jr nz,unpack_token
-    jr unpack_flags
-unpack_done:
-    pop ix
+    .db 0xcd
+transfer_call_unpack_operand:: .dw 0
 transfer_call_loaded::
 module_loaded:
     ld a,(0xfe76)

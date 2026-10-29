@@ -46,21 +46,21 @@ def runtime_profile(directory):
     digest = hashlib.sha256(b'ZP80-private-chain-v1\0')
     for name in ('pascal_runtime.zpl', 'pascal_runtime.private',
                  'file_runtime.zpl', 'file_gate.zpl', 'transfer_runtime.zpl', 'transfer_gate.zpl',
-                 'execute_entry.zpl','transfer_runtime.packed'):
+                 'execute_entry.zpl','transfer_runtime.packed','file_runtime.packed','module_unpack.zpl'):
         data = (directory/name).read_bytes()
         digest.update(name.encode('ascii')+b'\0'+struct.pack('<I', len(data))+data)
     return digest.digest()
 
 
-def pack_transfer(payload):
+def pack_module(payload):
     """Private compiler constant: size:u16, flag groups, literals/backrefs.
 
     A set flag encodes ((distance-1)<<4)|(length-3) as a little-endian word;
     distance is1..4096 and length3..18. The native template consumes only these
     build-verified constants, never an external compressed file or user buffer.
     """
-    if not 16<=len(payload)<=0x3800:
-        raise ValueError('packed transfer module exceeds its retained window')
+    if not 16<=len(payload)<=0x4000:
+        raise ValueError('packed module exceeds its owned page')
     output=bytearray(struct.pack('<H',len(payload)));positions=defaultdict(list);at=0
     while at<len(payload):
         flag=len(output);output.append(0)
@@ -82,28 +82,49 @@ def pack_transfer(payload):
     return bytes(output)
 
 
-def unpack_transfer(payload):
+def unpack_module(payload):
     """Validate all extents before the trusted constant enters a program."""
-    if len(payload)<3:raise ValueError('short packed transfer constant')
+    if len(payload)<3:raise ValueError('short packed module constant')
     size=struct.unpack_from('<H',payload)[0];at=2;output=bytearray()
-    if not 16<=size<=0x3800:raise ValueError('invalid packed transfer extent')
+    if not 16<=size<=0x4000:raise ValueError('invalid packed module extent')
     while len(output)<size:
-        if at==len(payload):raise ValueError('missing transfer flag')
+        if at==len(payload):raise ValueError('missing module flag')
         flags=payload[at];at+=1
         for bit in range(8):
             if len(output)==size:
-                if flags>>bit:raise ValueError('unused transfer flags')
+                if flags>>bit:raise ValueError('unused module flags')
                 break
             count=2 if flags&(1<<bit) else 1
-            if at+count>len(payload):raise ValueError('short transfer token')
+            if at+count>len(payload):raise ValueError('short module token')
             if count==1:output.append(payload[at])
             else:
                 word=struct.unpack_from('<H',payload,at)[0];distance=(word>>4)+1;length=(word&15)+3
-                if distance>len(output) or len(output)+length>size:raise ValueError('invalid transfer backref')
+                if distance>len(output) or len(output)+length>size:raise ValueError('invalid module backref')
                 for _ in range(length):output.append(output[-distance])
             at+=count
-    if at!=len(payload):raise ValueError('trailing transfer data')
+    if at!=len(payload):raise ValueError('trailing module data')
     return bytes(output)
+
+
+def validate_module_unpack(path):
+    memory,symbols=read_hex(path),read_symbols(path)
+    first=symbols['module_unpack_start'];end=symbols['module_unpack_end']
+    if first!=0x8000 or not first<end<=0x8100 or min(memory)!=first or max(memory)!=end-1:
+        raise ValueError('module decoder exceeds its position-independent template extent')
+    if path.with_suffix('.zpl').read_bytes()!=bytes(memory[at]for at in range(first,end)):
+        raise ValueError('module decoder differs from its linked bytes')
+
+
+def validate_file_assets(memory,symbols,directory):
+    packed=(directory/'file_runtime.packed').read_bytes()
+    if unpack_module(packed)!=(directory/'file_runtime.zpl').read_bytes():
+        raise ValueError('packed file constant differs from its checked module')
+    for start,end,name in (('_file_start','_file_end','file_runtime.packed'),
+                           ('_file_gate_start','_file_gate_end','file_gate.zpl'),
+                           ('_unpack_start','_unpack_end','module_unpack.zpl')):
+        data=(directory/name).read_bytes();a=symbols[start];z=symbols[end]
+        if not 0xb8000<=a<z<=0xbc000 or z-a!=len(data) or bytes(memory.get(at,0)for at in range(a,z))!=data:
+            raise ValueError('embedded file/unpack assets are stale or out of bounds')
 
 
 def transfer_call_data(directory):
@@ -140,7 +161,7 @@ def validate_transfer_call(path):
         raise ValueError('transfer caller relocation outside owned template')
     report={'bytes':len(payload),'sha256':hashlib.sha256(payload).hexdigest(),
             'reloc_offset':offset,'reloc_count':count}
-    for name in ('module','gate','file'):
+    for name in ('module','gate','file','unpack'):
         p=symbols['transfer_call_'+name+'_operand']-first
         if not 0<=p<len(payload)-1 or payload[p:p+2]!=b'\0\0' or first+p in relocations:
             raise ValueError('transfer caller external binding misplaced')
@@ -152,7 +173,7 @@ def validate_transfer_call(path):
 def transfer_assets(directory):
     names=('transfer_runtime.packed','transfer_gate.zpl','transfer_call.zpl','execute_entry.zpl')
     blobs=[(directory/name).read_bytes()for name in names]
-    if unpack_transfer(blobs[0])!=(directory/'transfer_runtime.zpl').read_bytes():
+    if unpack_module(blobs[0])!=(directory/'transfer_runtime.zpl').read_bytes():
         raise ValueError('packed transfer constant differs from its checked module')
     metadata=json.loads((directory/'transfer_call.call.json').read_text())
     if hashlib.sha256(blobs[2]).hexdigest()!=metadata['sha256']:
@@ -163,7 +184,7 @@ def transfer_assets(directory):
             '#define TRANSFER_GATE_BYTES '+str(len(blobs[1]))+'u',
             '#define TRANSFER_CALL_BYTES '+str(len(blobs[2]))+'u',
             '#define EXECUTE_ENTRY_BYTES '+str(len(blobs[3]))+'u']
-    for key in ('reloc_offset','reloc_count','module_operand','gate_operand','file_operand'):
+    for key in ('reloc_offset','reloc_count','module_operand','gate_operand','file_operand','unpack_operand'):
         header.append('#define TRANSFER_CALL_'+key.upper()+' '+str(metadata[key])+'u')
     (directory/'transfer_asset.h').write_text('\n'.join(header+['#endif','']))
     # IDE/editor targets have a free resident tail; compiler-only acceptance
@@ -336,9 +357,9 @@ def validate_file_runtime(path, transfer=False):
     payload = bytes(memory.get(at, 0) for at in range(0x4000, max(memory)+1))
     if path.with_suffix('.zpl').read_bytes() != payload:
         raise ValueError('file runtime binary differs from its checked link image')
-    if transfer and path.stem=='transfer_runtime':
-        packed=pack_transfer(payload)
-        if unpack_transfer(packed)!=payload:raise ValueError('transfer packing roundtrip failed')
+    if path.stem in ('file_runtime','transfer_runtime'):
+        packed=pack_module(payload)
+        if unpack_module(packed)!=payload:raise ValueError('module packing roundtrip failed')
         path.with_suffix('.packed').write_bytes(packed)
     report = {'passed': True, 'module_bytes': len(payload),
               'data_end': max(symbols['s__'+a]+symbols['l__'+a] for a in ('DATA', 'BSS')),
@@ -409,6 +430,7 @@ def package(path):
             payloads[7]!=template+private+profile):
         raise ValueError('embedded runtime/private metadata or Chain profile is stale or mismatched')
     validate_transfer_assets(memory,symbols,path.parent,resident_end,banks)
+    validate_file_assets(memory,symbols,path.parent)
     header_bytes = 16 + 2 * len(banks)
     total = header_bytes + sum(map(len, payloads))
     library = (struct.pack('<4sBBHII', b'ZPL1', 1, len(banks), header_bytes, total, 0)
@@ -444,6 +466,7 @@ if __name__ == '__main__':
     elif sys.argv[1]=='--transfer-gate':validate_file_gate(Path(sys.argv[2]),True)
     elif sys.argv[1]=='--transfer-call-data':transfer_call_data(Path(sys.argv[2]))
     elif sys.argv[1]=='--transfer-call':validate_transfer_call(Path(sys.argv[2]))
+    elif sys.argv[1]=='--module-unpack':validate_module_unpack(Path(sys.argv[2]))
     elif sys.argv[1]=='--transfer-assets':transfer_assets(Path(sys.argv[2]))
     elif sys.argv[1]=='--runtime-profile':
         path=Path(sys.argv[2]);path.write_bytes(runtime_profile(path.parent))
