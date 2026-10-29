@@ -287,6 +287,16 @@ target_include_directories(zchainloadtest PRIVATE src)
 target_compile_options(zchainloadtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
 set_property(SOURCE src/chain.c tests/native/chain-load.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/chain.h ${CMAKE_SOURCE_DIR}/src/chain_abi.h ${CMAKE_SOURCE_DIR}/src/native_image.h ${CMAKE_SOURCE_DIR}/src/sha256.h)
 zos_add_outputs(zchainloadtest)
+add_executable(zexecuteprobe tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm src/chain.c src/chain_native.asm
+    src/execute_native.asm src/native_image.c src/sha256.c src/sha_z80.asm
+    tests/native/execute-probe.c tests/native/execute-probe.asm tests/native/machine.asm
+    ${CMAKE_BINARY_DIR}/test_file_gate_asset.asm)
+target_include_directories(zexecuteprobe PRIVATE src)
+target_compile_options(zexecuteprobe PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+set_property(SOURCE tests/native/execute-probe.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/chain.h ${CMAKE_SOURCE_DIR}/src/chain_abi.h)
+add_dependencies(zexecuteprobe file_gate_bin)
+zos_add_outputs(zexecuteprobe)
 # Independent test-only native procedure bytes; not deployed with the product.
 add_executable(stringabi tests/native/stringabi.asm)
 zos_add_outputs(stringabi WITH_EXTENSION zpl)

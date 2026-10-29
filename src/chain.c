@@ -238,6 +238,29 @@ uint8_t execute_restore(ImageLoad *load) {
     for(i=0;i<3;++i)rollback_copy(load->pages[i],load->originals[i]);
     load->ready=0;return 1;
 }
+static ImageLoad *override_load;
+static uint8_t override_originals[3];
+static char override_path[128];
+uint8_t execute_override(ImageLoad *load,const char *path,const uint8_t originals[3]) {
+    uint16_t i;
+    if(!load->ready||load->kind!=IMAGE_EXECUTABLE||load->fd>=0)return corrupt(load);
+    /* Copy caller-owned arguments before the original stack is frozen. The
+     * retained module must reserve its alias-stack area outside code/data. */
+    for(i=0;i<sizeof(override_path);++i) {override_path[i]=path[i];if(!path[i])break;}
+    if(!i||i==sizeof(override_path))return corrupt(load);
+    override_load=load;memcpy(override_originals,originals,3);
+    execute_switch();return 0;
+}
+/* Runs with both F1 and F3 mapped to the retained module, SP belowFC00. The
+ * syscall dispatcher preserves these entry mappings on failure even while
+ * the loader overwrites the OS's original allocation pages. */
+void execute_attempt(void) {
+    uint8_t error;
+    if(!execute_snapshot(override_load,override_originals))return;
+    error=execute_os_override(override_path);
+    io_error(override_load,error?error:ERR_FAILURE); /* override cannot return success */
+    if(!execute_restore(override_load))execute_abandon(); /* never resume damaged RAM */
+}
 #endif
 #ifndef ZP_CHAIN_HOST
 uint16_t chain_user_word(uint16_t at) {return ((uint8_t*)at)[0]|((uint16_t)((uint8_t*)at)[1]<<8);}

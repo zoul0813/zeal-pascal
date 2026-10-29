@@ -50,6 +50,17 @@ uint8_t execute_snapshot(ImageLoad *load,const uint8_t originals[3]);
 uint8_t execute_restore(ImageLoad *load);
 uint8_t execute_code_page(void) CHAIN_CALL;
 uint8_t execute_stack_page(void) CHAIN_CALL;
+/* Internal saved-program override. The retained prefix owns load/code/data,
+ * including at least1024 bytes below its aliased FC00 stack top. The supplied
+ * originals are the OS program's three allocation pages, not the retained
+ * mappings. Success never returns. Failure restores the complete caller and
+ * returns zero with load->error/detail, retaining backup owners for discard.
+ * Caller input/file cleanup and successful-handoff retirement are separate. */
+uint8_t execute_override(ImageLoad *load,const char *path,const uint8_t originals[3]);
+void execute_switch(void);
+void execute_attempt(void);
+uint8_t execute_os_override(const char *path) CHAIN_CALL;
+void execute_abandon(void);
 #endif
 uint8_t chain_discard(ImageLoad *load);
 /* Internal commit: only after switching to a retained loader and a safe stack.

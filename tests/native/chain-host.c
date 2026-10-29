@@ -18,9 +18,22 @@ static ImageLoad load;
 static ChainCaller caller;
 static uint8_t code_page=63,stack_page=62;
 static uint8_t rollback_expected[3][16384],staged_expected[3][16384];
+static uint8_t override_error;
+static unsigned override_calls,switch_calls;
 uint8_t execute_code_page(void) {return code_page;}
 uint8_t execute_stack_page(void) {return stack_page;}
 #define check(x) do {++checks;if(!(x)){fprintf(stderr,"chain check at line %u (scenario %u, error %u/%u)\n",__LINE__,scenarios,load.error,load.detail);abort();}}while(0)
+void execute_switch(void) {
+    uint8_t saved=stack_page;++switch_calls;stack_page=code_page;
+    execute_attempt();check(stack_page==code_page);stack_page=saved;
+}
+uint8_t execute_os_override(const char *path) {
+    unsigned i;check(!strcmp(path,"H:/checked.COM")&&load.ready&&load.kind==IMAGE_ROLLBACK);
+    check(stack_page==code_page);++override_calls;
+    for(i=0;i<3;++i)memset(pages[load.originals[i]],0x6a,16384);
+    return override_error;
+}
+void execute_abandon(void) {check(0);}
 static unsigned count(void) {unsigned i,n=0;for(i=0;i<64;++i)n+=owned[i]!=0;return n;}
 zos_err_t palloc(uint8_t *page) {
     uint8_t i;if(++allocs==fail_alloc)return ERR_FAILURE;
@@ -228,6 +241,34 @@ static void rollback_cases(void) {
         check(chain_discard(&load)&&count()==3);borrowed_unchanged();release_borrowed();
     }
 }
+static void override_cases(void) {
+    uint8_t originals[3];unsigned i;
+    static const uint8_t errors[]={ERR_NO_SUCH_ENTRY,ERR_ENTRY_CORRUPTED,ERR_FAILURE,0};
+    static const uint16_t expected[]={1,0x99,0x99,0x99};
+    for(i=0;i<sizeof(errors);++i) {
+        setup(0);check(execute_prepare(&load,"H:/x-max.COM"));borrowed(originals);
+        stack_page=originals[2];override_calls=switch_calls=0;override_error=errors[i];
+        check(!execute_override(&load,"H:/checked.COM",originals));
+        check(override_calls==1&&switch_calls==1&&stack_page==originals[2]);
+        check(load.error==expected[i]&&load.detail==(errors[i]?errors[i]:ERR_FAILURE));
+        check(!load.ready&&load.kind==IMAGE_ROLLBACK&&count()==6);borrowed_unchanged();
+        stack_page=62;check(chain_discard(&load)&&count()==3);release_borrowed();
+    }
+    setup(0);check(execute_prepare(&load,"H:/x-small.COM"));borrowed(originals);
+    override_calls=switch_calls=0;stack_page=originals[2];fail_alloc=allocs+1;
+    check(!execute_override(&load,"H:/checked.COM",originals));
+    check(!override_calls&&switch_calls==1&&stack_page==originals[2]&&load.ready&&load.kind==IMAGE_EXECUTABLE);
+    check(load.error==0x1ff);borrowed_unchanged();
+    stack_page=62;check(chain_discard(&load)&&count()==3);release_borrowed();
+    setup(0);check(execute_prepare(&load,"H:/x-small.COM"));borrowed(originals);
+    override_calls=switch_calls=0;
+    check(!execute_override(&load,"",originals)&&!switch_calls&&!override_calls&&load.ready);
+    {
+        char path[129];memset(path,'x',128);path[128]=0;
+        check(!execute_override(&load,path,originals)&&!switch_calls&&!override_calls&&load.ready);
+    }
+    check(chain_discard(&load)&&count()==3);release_borrowed();
+}
 int main(int argc,char **argv) {
     unsigned i,total_reads,total_allocs;uint16_t floor;
     check(argc==2);snprintf(directory,sizeof(directory),"%s",argv[1]);
@@ -280,5 +321,6 @@ int main(int argc,char **argv) {
     setup(1);fail_drop=32;check(!chain_prepare(&load,"H:/profile-0.CHN",&caller));check(load.error==0x20&&load.detail==ERR_ENTRY_CORRUPTED&&count()==1&&!handle);unchanged();fail_drop=-1;check(chain_discard(&load)&&!count());
     executable_cases();
     rollback_cases();
+    override_cases();
     printf("PASS: %u image staging/heap/identity/commit assertions across %u scenarios\n",checks,scenarios);return 0;
 }

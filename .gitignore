@@ -48,6 +48,7 @@
 !/tools/test-chain.py
 !/tools/test-chain-call.py
 !/tools/test-chain-loader.py
+!/tools/test-execute-override.py
 !/tools/test-chain-files.py
 !/tools/test-transfer.py
 !/tools/test-real.py
