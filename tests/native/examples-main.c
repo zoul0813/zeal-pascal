@@ -29,7 +29,7 @@ static void replay(const char *output_path) {
     capture=open(output_path,O_WRONLY|O_CREAT|O_TRUNC);check(capture>=0);
     if(capture>=0) {
         check(swap(capture,DEV_STDOUT)==0);
-        check(exec(EXEC_PRESERVE_PROGRAM,binary,0,&status)==0&&status==0);
+        check(execute_native(binary,&status)==0&&status==0);
         check(swap(capture,DEV_STDOUT)==0);check(close(capture)==0);
     }
     check(pages_used()==owned);

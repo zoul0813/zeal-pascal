@@ -62,13 +62,18 @@ def activation(folder):
     # It does not implement or qualify the production Chain file/heap loader.
     replay=bytearray(origin-0x4000+size);replay[:0x4000]=base[:0x4000]
     replay[origin-0x4000:]=chain[96:]
+    # BASE's normal entry points into its own generated body, which the CHN
+    # replacement above overwrote. Give this adapter the same position-
+    # independent normal startup template as an ordinary compiler output.
+    normal=origin+size
+    replay.extend((ROOT/'build/execute_entry.zpl').read_bytes())
     globals=u16(chain,16);replay[0x4000:0x4000+globals]=b'\xa5'*globals
     replay[0x4000:0x4009]=b'\x08retained';put16(replay,0x4000+21,1234)
     private=(ROOT/'build/pascal_runtime.private').read_bytes()
     sites=[u16(private,2*6),u16(base,0xad),u16(private,2*15),u16(private,2*14),u16(private,2*21)]
     for at in sites:replay[at-0x4000:at-0x4000+3]=b'\xc3\0\0'
     replay[0x152]=1
-    for at,value in [(10,len(replay)),(20,origin),(22,size),(24,0x8000),(26,globals),(28,origin+size),(30,u16(chain,18))]:put16(replay,at,value)
+    for at,value in [(1,normal),(10,len(replay)),(12,normal),(20,origin),(22,len(replay)+0x4000-origin),(24,0x8000),(26,globals),(28,0x4000+len(replay)),(30,u16(chain,18))]:put16(replay,at,value)
     replay[68:100]=mapping[52:84];replay[100:132]=chain[52:84]
     replay[36:68]=bytes(32);replay[36:68]=sha(replay)
     replay_map=bytearray(mapping);replay_map[20:52]=replay[36:68];identity(replay,replay_map,False)
@@ -151,7 +156,7 @@ def main():
     inputs=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',n.EMULATOR,n.ROM]
     inputs+=list((ROOT/'src').glob('*'))+[ROOT/'tests/native/chain-entry.pas',ROOT/'tests/native/chain-main.c',ROOT/'tests/native/chain-replay.c',ROOT/'build/zchainreplay.bin']
     inputs+=[ROOT/f'build/{target}.{ext}'for target in ('zpascal','zchaintest')for ext in ('bin','zpl','map','banks.json')]
-    inputs+=[ROOT/'build'/name for name in ('pascal_runtime.private','pascal_runtime.zpl','pascal_runtime.profile')]
+    inputs+=[ROOT/'build'/name for name in ('pascal_runtime.private','pascal_runtime.zpl','pascal_runtime.profile','execute_entry.zpl')]
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()};checks={};details={}
     if not args.ide_only:
         checks,folder,details=component();checks.update(activation(folder))

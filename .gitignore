@@ -7,6 +7,7 @@
 !/tests/
 /tests/*
 !/tests/native/
+!/tests/test_runner.py
 !/tools/
 /tools/*
 !/tools/test-native.py

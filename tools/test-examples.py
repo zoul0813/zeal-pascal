@@ -38,7 +38,7 @@ def main():
         transcript = ROOT / 'examples' / transcript
         program = transcript.parent.name + '/' + transcript.parent.name + '.bin'
         commands += [n.PhysicalLine(line, program, 0) for line in transcript.read_text().splitlines()]
-    commands += ['release ENTER', 'run 20000000000', 's', 'regs', 'mmu']
+    commands += ['release ENTER', n.ImageStop(sym['_test_stop'], target+'.bin'), 's', 'regs', 'mmu']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage'):
         commands += [f'rb 0x{sym[name]:x} 2']
     commands += [f"rb 0x{sym['_test_failures']:x} 128", 'quit']

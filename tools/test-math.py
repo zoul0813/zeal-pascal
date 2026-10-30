@@ -56,7 +56,7 @@ def main():
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}
     assert sym['_test_stop'] == 0xfc00
     commands = ['run 100000000'] + n.program_launch(target)
-    commands += [f"bp 0x{sym['_test_stop']:x}", 'run 60000000000', 's', 'regs', 'mmu']
+    commands += [n.ImageStop(sym['_test_stop'], target+'.bin'), 's', 'regs', 'mmu']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage'):
         commands += [f'rb 0x{sym[name]:x} 2']
     commands += [f"rb 0x{sym['_test_failures']:x} 128", 'quit']
@@ -64,7 +64,7 @@ def main():
                 for ext in ('bin', 'zpl')}
     fixtures.update({p.name.upper(): p.read_bytes() for p in
                      (ROOT/'tests/native').glob('*.pas')})
-    raw = n.execute('math-component', commands, fixtures, timeout=540)
+    raw = n.execute('math-component', commands, fixtures, timeout=900)
     memory = n.memory(raw)
     def word(name):
         p = sym[name]

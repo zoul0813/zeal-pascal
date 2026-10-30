@@ -24,8 +24,21 @@ def commands(include_redundant=False):
     return [shlex.split(line) for line in selected]
 
 
+def dependencies(plan, index):
+    """Separate successful prerequisites from shared-output ordering."""
+    command = plan[index-1]
+    required = {1} if index != 1 else set()
+    if '@params' in command:
+        required.update(i for i, cmd in enumerate(plan, 1)
+                        if cmd[0] == 'tools/test-params.py')
+    ordered = {i for i, cmd in enumerate(plan, 1)
+               if i < index and cmd[0] == command[0]}
+    return required, ordered
+
+
 def inputs():
-    paths = [ROOT / 'CMakeLists.txt', PLAN, Path(__file__).resolve()]
+    paths = [ROOT / 'CMakeLists.txt', PLAN, Path(__file__).resolve(),
+             ROOT / 'tests/test_runner.py']
     for folder in ('src', 'tests/native', 'tools', 'examples'):
         paths.extend(p for p in (ROOT / folder).rglob('*')
                      if p.is_file() and '__pycache__' not in p.parts)
@@ -149,21 +162,15 @@ def main():
                     raise KeyboardInterrupt
                 # First run cheap host checks; then schedule independent native
                 # work. Modes of the same script share host output paths.
-                dependencies = {i for i, cmd in enumerate(plan, 1)
-                                if i < index and cmd[0] == original[0]}
-                if index != 1:
-                    dependencies.add(1)
-                if '@params' in original:
-                    dependencies.update(i for i, cmd in enumerate(plan, 1)
-                                        if cmd[0] == 'tools/test-params.py')
-                blocked = dependencies & (failed | skipped)
+                required, ordered = dependencies(plan, index)
+                blocked = required & (failed | skipped)
                 if blocked:
                     skipped.add(index)
                     report['skipped'].append({'index': index, 'blocked_by': sorted(blocked)})
                     pending.remove((index, original))
                     continue
                 slots = min(3, args.jobs) if original[0] == 'tools/test-output-interrupt.py' else 1
-                if not dependencies <= completed:
+                if not required <= completed or not ordered <= (completed | failed | skipped):
                     continue
                 if sum(v['slots'] for v in active.values()) + slots > args.jobs:
                     # Reserve capacity rather than starving a multi-slot suite

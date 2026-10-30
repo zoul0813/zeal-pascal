@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import struct
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,6 +44,8 @@ subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', *flags, '-Isrc'
                 'src/source.c', 'src/source_blocks.c', 'src/editor.c', 'tests/native/editor-core.c', 'tests/native/editor-search.c',
                 'tests/native/editor-host.c', '-o', str(OUT/'editor')], cwd=ROOT, check=True)
 subprocess.run([str(OUT/'editor')], cwd=ROOT, check=True)
+subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests',
+                '-p', 'test_runner.py'], cwd=ROOT, check=True)
 # Progress is mutable; the independently reviewed functional body is not.
 # Together with verify-spec.py's frozen-input hashes, this prevents relocating
 # the historical review from silently exempting later normative changes.
