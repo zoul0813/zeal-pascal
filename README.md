@@ -4,8 +4,9 @@ A native Pascal IDE, compiler and runtime for the MMU Zeal 8-bit Computer.
 This is an incremental implementation of the recovered Turbo Pascal 3 dialect;
 full language, editor and runtime conformance is still in progress.
 
-The current priority is language and IDE completion, followed by performance
-work, then the remaining Turbo Pascal runtime/library services.
+The CP/M-80 Turbo Pascal 3 language and IDE workflows now have bounded native
+acceptance. Next is performance work, then the remaining Turbo Pascal
+runtime/library services. Overlay support remains deferred.
 
 Explore [six self-contained applications](examples/README.md): a text adventure,
 persistent stock database, loan calculator, concordance, Life simulation and
@@ -17,8 +18,10 @@ Build using the existing Zeal development environment:
 ```sh
 zde cmake
 python3 tools/test-native-host.py --sanitize
+python3 tools/test-language-conformance.py
 python3 tools/test-editor-native.py
 python3 tools/test-native.py
+python3 tools/test-native.py --core-only
 python3 tools/test-input.py
 python3 tools/test-io.py
 python3 tools/test-files.py
@@ -74,6 +77,14 @@ python3 tools/test-startup-path.py
 python3 tools/test-real.py --host --sanitize --native
 python3 tools/test-real.py --trig --sanitize --native
 ```
+
+The language conformance runner requires the preserved local reference corpus
+and its recorded original captures. Research stays outside Git; missing inputs
+fail validation. It compares native RAM and saved-program output, compile-error
+numbers, source positions and filenames, with explicit native adaptations.
+`--prepare-only` lists the corpus without running the emulator. The core-only
+regression command runs the existing compiler/runtime corpus without repeating
+the separate IDE/platform workflows.
 
 Deploy the matching `build/zpascal.bin` and `build/zpascal.zpl` from one build.
 Run the BIN from ZShell on the supported video/PS/2 target; its default library

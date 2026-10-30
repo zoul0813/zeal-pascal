@@ -1,0 +1,300 @@
+{
+  "coordinates": "Pinned native zero-based diagnostic starts after newline normalization; importer100 points to the rejected128th byte before pending spaces are trimmed. These are native cursor regressions, not claims of original cursor-byte equivalence.",
+  "cases": {
+    "directivecomment": {
+      "code": 93,
+      "start": 12,
+      "file": "DIRECTIV.PAS"
+    },
+    "enumsize": {
+      "code": 98,
+      "start": 2330,
+      "file": "ENUMSIZE.PAS"
+    },
+    "errchararray": {
+      "code": 44,
+      "start": 71,
+      "file": "ERRCHARA.PAS"
+    },
+    "errconst": {
+      "code": 56,
+      "start": 19,
+      "file": "ERRCONST.PAS"
+    },
+    "errconstbound": {
+      "code": 41,
+      "start": 46,
+      "file": "ERRCONST.PAS"
+    },
+    "errconstexpr": {
+      "code": 1,
+      "start": 20,
+      "file": "ERRCONST.PAS"
+    },
+    "errdup": {
+      "code": 43,
+      "start": 26,
+      "file": "ERRDUP.PAS"
+    },
+    "errfilevalue": {
+      "code": 67,
+      "start": 56,
+      "file": "ERRFILEV.PAS"
+    },
+    "errforward": {
+      "code": 73,
+      "start": 33,
+      "file": "ERRFORWA.PAS"
+    },
+    "errident": {
+      "code": 41,
+      "start": 17,
+      "file": "ERRIDENT.PAS"
+    },
+    "errinclude": {
+      "code": 90,
+      "start": 0,
+      "file": "ABSENT.INC"
+    },
+    "errinline": {
+      "code": 22,
+      "start": 24,
+      "file": "ERRINLIN.PAS"
+    },
+    "errlabel": {
+      "code": 40,
+      "start": 22,
+      "file": "ERRLABEL.PAS"
+    },
+    "errprocparam": {
+      "code": 53,
+      "start": 23,
+      "file": "ERRPROCP.PAS"
+    },
+    "errrange": {
+      "code": 52,
+      "start": 22,
+      "file": "ERRRANGE.PAS"
+    },
+    "errrealindex": {
+      "code": 30,
+      "start": 28,
+      "file": "ERRREALI.PAS"
+    },
+    "errresult": {
+      "code": 48,
+      "start": 53,
+      "file": "ERRRESUL.PAS"
+    },
+    "errsemi": {
+      "code": 1,
+      "start": 10,
+      "file": "ERRSEMI.PAS"
+    },
+    "errset": {
+      "code": 70,
+      "start": 32,
+      "file": "ERRSET.PAS"
+    },
+    "errstring": {
+      "code": 49,
+      "start": 28,
+      "file": "ERRSTRIN.PAS"
+    },
+    "errstringvar": {
+      "code": 44,
+      "start": 93,
+      "file": "ERRSTRIN.PAS"
+    },
+    "errtype": {
+      "code": 44,
+      "start": 41,
+      "file": "ERRTYPE.PAS"
+    },
+    "errvarparam": {
+      "code": 44,
+      "start": 71,
+      "file": "ERRVARPA.PAS"
+    },
+    "errwithdefault": {
+      "code": 97,
+      "start": 235,
+      "file": "ERRWITHD.PAS"
+    },
+    "errwithdepth": {
+      "code": 97,
+      "start": 144,
+      "file": "ERRWITHD.PAS"
+    },
+    "errwithone": {
+      "code": 97,
+      "start": 80,
+      "file": "ERRWITHO.PAS"
+    },
+    "errwithzero": {
+      "code": 97,
+      "start": 67,
+      "file": "ERRWITHZ.PAS"
+    },
+    "id128": {
+      "code": 100,
+      "start": 131,
+      "file": "LONG.INC"
+    },
+    "include-repair": {
+      "code": 56,
+      "start": 8,
+      "file": "BROKEN.INC"
+    },
+    "line124": {
+      "code": 58,
+      "start": 124,
+      "file": "LONG.INC"
+    },
+    "line125": {
+      "code": 58,
+      "start": 125,
+      "file": "LONG.INC"
+    },
+    "line126": {
+      "code": 58,
+      "start": 126,
+      "file": "LONG.INC"
+    },
+    "line127": {
+      "code": 100,
+      "start": 127,
+      "file": "LONG.INC"
+    },
+    "line128": {
+      "code": 100,
+      "start": 127,
+      "file": "LONG.INC"
+    },
+    "line254": {
+      "code": 100,
+      "start": 127,
+      "file": "LONG.INC"
+    },
+    "line255": {
+      "code": 100,
+      "start": 127,
+      "file": "LONG.INC"
+    },
+    "line256": {
+      "code": 100,
+      "start": 127,
+      "file": "LONG.INC"
+    },
+    "literal117": {
+      "code": 100,
+      "start": 127,
+      "file": "LONG.INC"
+    },
+    "literal118": {
+      "code": 100,
+      "start": 127,
+      "file": "LONG.INC"
+    },
+    "literal124": {
+      "code": 100,
+      "start": 127,
+      "file": "LONG.INC"
+    },
+    "literal125": {
+      "code": 100,
+      "start": 127,
+      "file": "LONG.INC"
+    },
+    "literal126": {
+      "code": 100,
+      "start": 127,
+      "file": "LONG.INC"
+    },
+    "literal255": {
+      "code": 100,
+      "start": 127,
+      "file": "LONG.INC"
+    },
+    "literal256": {
+      "code": 100,
+      "start": 127,
+      "file": "LONG.INC"
+    },
+    "setfunction": {
+      "code": 48,
+      "start": 62,
+      "file": "SETFUNCT.PAS"
+    },
+    "DV-SOURCE-001-LINE-128": {
+      "code": 100,
+      "start": 127,
+      "file": "LONG.INC"
+    },
+    "DV-SOURCE-001-ID-128": {
+      "code": 100,
+      "start": 131,
+      "file": "LONG.INC"
+    },
+    "DV-SOURCE-001-WHITESPACE-128": {
+      "code": 100,
+      "start": 141,
+      "file": "MAIN.PAS"
+    },
+    "DV-LANG-001-positive-overflow": {
+      "code": 56,
+      "start": 19,
+      "file": "MAIN.PAS"
+    },
+    "DV-LANG-001-explicit-positive-overflow": {
+      "code": 56,
+      "start": 20,
+      "file": "MAIN.PAS"
+    },
+    "DV-LANG-001-negative-overflow": {
+      "code": 56,
+      "start": 20,
+      "file": "MAIN.PAS"
+    },
+    "DV-LANG-001-parenthesized-positive": {
+      "code": 56,
+      "start": 37,
+      "file": "MAIN.PAS"
+    },
+    "lex-integer-close": {
+      "code": 5,
+      "start": 15,
+      "file": "MAIN.PAS"
+    },
+    "lex-fraction-close": {
+      "code": 57,
+      "start": 14,
+      "file": "MAIN.PAS"
+    },
+    "native-directive-g": {
+      "code": 93,
+      "start": 7,
+      "file": "MAIN.PAS"
+    },
+    "native-directive-p": {
+      "code": 93,
+      "start": 7,
+      "file": "MAIN.PAS"
+    },
+    "native-directive-d": {
+      "code": 93,
+      "start": 7,
+      "file": "MAIN.PAS"
+    },
+    "native-directive-f": {
+      "code": 93,
+      "start": 7,
+      "file": "MAIN.PAS"
+    },
+    "native-directive-k": {
+      "code": 93,
+      "start": 7,
+      "file": "MAIN.PAS"
+    }
+  }
+}

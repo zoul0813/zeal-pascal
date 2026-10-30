@@ -29,6 +29,7 @@
 !/tools/test-bridges.py
 !/tools/test-hooks.py
 !/tools/test-language.py
+!/tools/test-language-conformance.py
 !/tools/test-sources.py
 !/tools/test-ide-sources.py
 !/tools/test-ide-execute.py

@@ -23,8 +23,9 @@ def main():
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()}
     commands=['run 100000000']+n.program_launch(target)+[f"bp 0x{sym['_test_stop']:x}"]
     held=[]
-    def ready():
-        commands.extend([f'bp 0x{reader:x}','run 20000000000',f'bc 0x{reader:x}'])
+    def ready(program=None, memory_mode=None):
+        if program:commands.append(n.ImageStop(reader,program,memory_mode))
+        else:commands.extend([f'bp 0x{reader:x}','run 20000000000',f'bc 0x{reader:x}'])
         for key in held:commands.extend(['release '+key,'run 2000000'])
         held.clear()
     for _ in range(2):
@@ -48,8 +49,13 @@ def main():
     # multiple queued bytes and head wrap, then aborts the four loop forms.
     for _ in range(2):
         ready();commands+=['press CTRL','press C','run 100000000'];held[:]=['C','CTRL']
-    for _ in range(2):
-        ready();commands+=n.type_text(''.join(chr(97+i%26)for i in range(270)),ticks=2000000)
+    for key in held:commands+=['release '+key,'run 2000000']
+    held.clear()
+    for memory_mode in (1,0):
+        # Finish the prior program/phase reload before qualifying the next
+        # reader. A kernel input breakpoint alone can belong to the old child.
+        commands+=['run 4000000000'];ready('KEYUQUEUE.COM',memory_mode)
+        commands+=n.type_text(''.join(chr(97+i%26)for i in range(270)),ticks=2000000)
         commands+=['run 100000000']
     # U- KeyPressed can own Ctrl-C already when a later statement enables U.
     for _ in range(2):
@@ -59,7 +65,7 @@ def main():
             if loop in ('repeat','for'):
                 ready();commands+=n.type_text('X',ticks=2000000)+['run 100000000']
             ready();commands+=['press CTRL','press C','run 100000000'];held[:]=['C','CTRL']
-    commands+=['run 20000000000','s','regs','mmu']
+    commands+=['run 20000000000','s','regs','mmu','rb 0x4000 32']
     for name in ('_test_done','_test_passed','_test_failed','_test_stage'):
         commands+=[f'rb 0x{sym[name]:x} 2']
     commands+=[f"rb 0x{sym['_test_failures']:x} 128",'quit']
@@ -68,13 +74,14 @@ def main():
     raw=n.execute('keyboard-stream',commands,fixtures,timeout=600)
     memory=n.memory(raw)
     word=lambda name:memory.get(sym[name],0)|memory.get(sym[name]+1,0)<<8
+    supervisor=bytes(memory.get(0x4000+i,0)for i in range(32))==(ROOT/f'build/{target}.bin').read_bytes()[:32]
     disk=n.RUN/'keyboard-stream/hostfs'
     private=json.loads((ROOT/'build/pascal_runtime.runtime.json').read_text())['private_input_addresses']
     high=disk/'KEYHIGH.COM'
     high_target=int.from_bytes(high.read_bytes()[private[6]-0x4000+1:private[6]-0x4000+3],'little')if high.exists()else 0
     checks={
-        'native completion':memory.get(sym['_test_done'])==255 and word('_test_stage')==6,
-        'RAM/saved mappings, IFF, stack, ownership and exact break source':word('_test_failed')==0 and word('_test_passed')>=170,
+        'native completion':supervisor and memory.get(sym['_test_done'])==255 and word('_test_stage')==6,
+        'RAM/saved mappings, IFF, stack, ownership and exact break source':supervisor and word('_test_failed')==0 and word('_test_passed')>=170,
         'nondestructive repeated polls, modifiers, buffered tail and callback input':
             (disk/'KEYS.TXT').is_file()and(disk/'KEYS.TXT').read_bytes()==
             b'KEY-ONLY-OK\r\n'*2+b'KEY-BUFFER-OK\r\n'*2+b'KEY-HIGH-OK\r\n'*2+
@@ -84,8 +91,9 @@ def main():
         'all source/build/platform inputs unchanged':all(n.sha(Path(p))==h for p,h in hashes.items()),
     }
     report={'scope':__doc__+' Bounded native acceptance, not complete language/editor conformance.',
-            'passed':all(checks.values()),'native_assertions_passed':word('_test_passed'),
-            'native_assertions_failed':word('_test_failed'),'capture_directory':str(n.RUN.relative_to(ROOT)),
+            'passed':all(checks.values()),'native_assertions_passed':word('_test_passed')if supervisor else None,
+            'native_assertions_failed':word('_test_failed')if supervisor else None,
+            'supervisor_observed':supervisor,'capture_directory':str(n.RUN.relative_to(ROOT)),
             'input_sha256':hashes,'checks':checks}
     (n.RUN/'keyboard-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2));assert report['passed']

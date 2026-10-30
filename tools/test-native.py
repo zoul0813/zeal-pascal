@@ -4,6 +4,7 @@
 Only the supported headless console/debugger and disposable media are used.
 This is emulator acceptance, not hardware conformance or a Pascal interpreter.
 """
+import argparse
 import hashlib
 import gzip
 from datetime import datetime, timezone
@@ -157,8 +158,8 @@ class PhysicalLine:
 
 class ImageStop:
     """A logical breakpoint qualified by the expected resident image."""
-    def __init__(self, address, program):
-        self.address, self.program = address, program
+    def __init__(self, address, program, memory_mode=None):
+        self.address, self.program, self.memory_mode = address, program, memory_mode
 
 
 def input_layout():
@@ -215,15 +216,25 @@ class DebugConsole:
     def image_stop(self, stop):
         # Logical addresses are reused by Pascal children and service modules.
         # Never mistake their instructions for an IDE reader at the same PC.
-        expected = (self.directory/'hostfs'/stop.program).read_bytes()[:32]
+        image = (self.directory/'hostfs'/stop.program).read_bytes()
+        expected = image[:32]
+        pascal = image[3:8] == b'ZP80\x01'
+        if pascal:
+            seal, offset = self.identity(PhysicalLine('', stop.program, stop.memory_mode))
+            layout = input_layout()
         self.command(f'bp 0x{stop.address:x}')
         try:
             for _ in range(1000):
                 self.command('run 2000000000')
                 frame = self.command('regs')
-                observed = memory(self.command('rb 0x4000 32'))
+                observed = memory(self.command('rb 0x4000 68' if pascal else 'rb 0x4000 32'))
+                if pascal:
+                    observed.update(memory(self.command(f'rb 0x{layout["mode"]:x} 1')))
+                qualified = (not pascal or
+                             (bytes(observed.get(0x4000+offset+i, 0) for i in range(32)) == seal and
+                              (stop.memory_mode is None or observed.get(layout['mode']) == stop.memory_mode)))
                 if (f'PC={stop.address:04x} ' in frame and
-                        bytes(observed.get(0x4000+i, 0) for i in range(32)) == expected):
+                        bytes(observed.get(0x4000+i, 0) for i in range(32)) == expected and qualified):
                     self.acceptance.append(frame)
                     return
                 self.command('s')
@@ -265,7 +276,10 @@ class DebugConsole:
     def ready(self, line, layout, reader, mode):
         expired, polls, pending = 0, 0, 0
         fifo = kernel_symbols()['kb_fifo_size']
-        while expired <= 120 and polls <= 10000 and pending <= 1000:
+        # Compilation and bank restoration can span many chunks between input
+        # programs. response() owns the run's wall deadline; counting chunks
+        # here must not expire a still-progressing compiler before that bound.
+        while polls <= 10000 and pending <= 1000:
             self.command(f'bp 0x{reader:x}'); self.command('run 2000000000')
             frame = self.observe(); self.command(f'bc 0x{reader:x}')
             match = re.search(r'\[DBG\] PC=([0-9a-fA-F]+)', frame)
@@ -361,7 +375,7 @@ class DebugConsole:
         (self.directory/'console.txt').write_text(''.join(self.acceptance))
 
 
-def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, timeout=180, after_command=None):
+def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, timeout=180, after_command=None, console_class=None):
     directory = RUN / name
     directory.mkdir(parents=True, exist_ok=False)
     hostfs = directory / 'hostfs'
@@ -391,7 +405,7 @@ def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, tim
     # Keep installation files read-only and assert that Memory mode creates
     # no outputs; do not represent this as a read-only-volume test.
     if live:
-        console = DebugConsole(cmd, directory, timeout)
+        console = (console_class or DebugConsole)(cmd, directory, timeout)
         active_line = None
         try:
             for command in commands:
@@ -858,14 +872,18 @@ def default_library_checks():
 
 
 def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--core-only',action='store_true',help='Run the complete compiler/runtime language corpus without repeating IDE/platform workflows')
+    args=parser.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     inputs = [ROOT / 'CMakeLists.txt', ROOT / 'tools/package-native.py', Path(__file__).resolve()]
     inputs += sorted((ROOT / 'src').glob('*')) + sorted((ROOT / 'tests/native').glob('*.pas'))
     inputs += [ROOT/'tests/native'/name for name in ('main.c', 'harness.c', 'harness.h', 'machine.asm', 'startup-fail.c')]
     input_hashes = {str(p.relative_to(ROOT)): sha(p) for p in inputs if p.is_file()}
     checks = []
-    checks.extend(library_failure_checks())
-    checks.extend(default_library_checks())
+    if not args.core_only:
+        checks.extend(library_failure_checks())
+        checks.extend(default_library_checks())
     for target in ('zpascal', 'zptest'):
         sym = symbols(target)
         checks.append((target + ' retained mapping core/control/scratch in page 1',
@@ -880,24 +898,29 @@ def main():
                            for area in ('HEADER', 'GSINIT', 'GSFINAL', 'INITIALIZER', 'HOME', 'SYSTEM', 'TEXT', 'RODATA'))))
         checks.append((target + ' code banks fit their 16 KiB window',
                        all(0 < sym[f'l__BANK{bank}'] <= 16384 for bank in range(1,code_banks(target)+1))))
-    boot = symbols('zpbootfail')
-    commands = ['run 100000000'] + type_text('H:/zpbootfail.bin\n')
-    # Every partial-allocation case reloads/hashes the available bank prefix.
-    # This is a growing quadratic workload, not one ordinary library launch.
-    commands += [f"bp 0x{boot['_boot_complete']:x}", 'run 120000000000', 'regs',
-                 f"rb 0x{boot['_boot_done']:x} 1", f"rb 0x{boot['_boot_failed']:x} 1", 'quit']
-    boot_text = execute('boot-allocation', commands,
-                        {'zpbootfail.bin': (ROOT / 'build/zpbootfail.bin').read_bytes(),
-                         'BAD.ZPL': b'BAD!' + (ROOT / 'build/zpascal.zpl').read_bytes()[4:]}, timeout=360)
-    boot_memory = memory(boot_text)
-    checks.append(('startup allocation failures release partial/all banks and malformed-library retries close handles',
-                   boot_memory.get(boot['_boot_done']) == 255 and boot_memory.get(boot['_boot_failed']) == 0))
-    checks.extend(bank_lifecycle_checks())
+    if not args.core_only:
+        boot = symbols('zpbootfail')
+        commands = ['run 100000000'] + type_text('H:/zpbootfail.bin\n')
+        # Every partial-allocation case reloads/hashes the available bank prefix.
+        # This is a growing quadratic workload, not one ordinary library launch.
+        commands += [f"bp 0x{boot['_boot_complete']:x}", 'run 120000000000', 'regs',
+                     f"rb 0x{boot['_boot_done']:x} 1", f"rb 0x{boot['_boot_failed']:x} 1", 'quit']
+        boot_text = execute('boot-allocation', commands,
+                            {'zpbootfail.bin': (ROOT / 'build/zpbootfail.bin').read_bytes(),
+                             'BAD.ZPL': b'BAD!' + (ROOT / 'build/zpascal.zpl').read_bytes()[4:]}, timeout=360)
+        boot_memory = memory(boot_text)
+        checks.append(('startup allocation failures release partial/all banks and malformed-library retries close handles',
+                       boot_memory.get(boot['_boot_done']) == 255 and boot_memory.get(boot['_boot_failed']) == 0))
+        checks.extend(bank_lifecycle_checks())
     sym = symbols('zptest')
     if sym['_test_stop'] != 0xfc00:
         raise RuntimeError('completion stop must be the supervisor-only FC00 marker')
     mode = kernel_symbols()['kb_mode']
     commands = ['run 100000000'] + program_launch('zptest')
+    if args.core_only:
+        # program_launch already stops at code_ready. Read that stopped
+        # context directly; resuming would pass the one-time startup marker.
+        commands += ['regs','mmu','rb 0x4000 32']
     commands += ['run 100000000', f"bp 0x{sym['_test_stop']:x}"]
     for memory_mode in (1, 0):
         commands += [PhysicalLine('Adx\ba', 'NAME.COM', memory_mode, inspect_mode=True),
@@ -911,7 +934,7 @@ def main():
                              source=('H:/READINPUT.PAS', b'var n:integer;begin\nreadln(n)end.'))]
     # The completion breakpoint is mandatory; this bounded budget includes the
     # RAM/COM control/routine/string corpora and source-recovery executions.
-    commands += ['run 120000000000', 's', 'regs', 'mmu']
+    commands += ['run 120000000000', 's', 'regs', 'mmu', 'rb 0x4000 32']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage', '_platform_error'):
         commands.append(f"rb 0x{sym[name]:x} 2")
     if '_test_failures' in sym:
@@ -924,13 +947,45 @@ def main():
     # This growing native corpus includes repeated disk publication and RAM/COM
     # routine execution. Retain both a cycle bound and mandatory completion;
     # allow its measured workload more wall time than the small UI scenarios.
-    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=1800)
-    mem = memory(text)
+    class CoreConsole(DebugConsole):
+        """Observe only authenticated supervisor data; never child counters."""
+        def command(self, command, capture=False):
+            frame=super().command(command,capture)
+            if command=='mmu'and not hasattr(self,'data_mapping'):
+                self.data_mapping=re.search(r'\[DBG\] c000 -> ([0-9a-fA-F]+)',frame)[1]
+            return frame
+        def observe(self):
+            frame=super().observe();observed=memory(frame)
+            prefix=bytes(observed.get(0x4000+i,0)for i in range(32))
+            mapping=re.search(r'\[DBG\] c000 -> ([0-9a-fA-F]+)',frame)
+            if prefix==(ROOT/'build/zptest.bin').read_bytes()[:32] and mapping and mapping[1]==self.data_mapping:
+                details=''.join(self.command(f'rb 0x{sym[name]:x} 2')for name in ('_test_stage','_test_passed','_test_failed'))
+                state=memory(details);stage=state.get(sym['_test_stage'],0)|(state.get(sym['_test_stage']+1,0)<<8)
+                self.last_observation+=details
+                if stage!=getattr(self,'core_stage',None):
+                    self.core_stage=stage
+                    passed=state.get(sym['_test_passed'],0)|(state.get(sym['_test_passed']+1,0)<<8)
+                    failed=state.get(sym['_test_failed'],0)|(state.get(sym['_test_failed']+1,0)<<8)
+                    print(f'Native core stage {stage}: {passed} passed, {failed} failed',flush=True)
+            return frame
+    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=5400,
+                   console_class=CoreConsole if args.core_only else None)
+    frames = re.split(r'\[DBG\] PC=', text)[1:]
+    final_frame = frames[-1] if frames else ''
+    mem = memory(final_frame)
     def word(name):
         p = sym[name]
         return mem.get(p, 0) | (mem.get(p + 1, 0) << 8)
-    checks.append(('native test completion marker', mem.get(sym['_test_done']) == 255))
-    checks.append(('native assertions', word('_test_failed') == 0 and word('_test_passed') >= 40))
+    supervisor=bytes(mem.get(0x4000+i,0)for i in range(32))==(ROOT/'build/zptest.bin').read_bytes()[:32]
+    supervisor=supervisor and final_frame.startswith('fc01 ')
+    if args.core_only:
+        first_mapping=re.search(r'\[DBG\] c000 -> ([0-9a-fA-F]+)',frames[0])if frames else None
+        final_mapping=re.search(r'\[DBG\] c000 -> ([0-9a-fA-F]+)',final_frame)
+        startup=memory(frames[0])if frames else {}
+        startup_valid=bool(frames)and frames[0].startswith(f'{sym["_code_ready"]:04x} ')and bytes(startup.get(0x4000+i,0)for i in range(32))==(ROOT/'build/zptest.bin').read_bytes()[:32]
+        supervisor=supervisor and startup_valid and bool(first_mapping and final_mapping and first_mapping[1]==final_mapping[1])
+    checks.append(('native test completion marker', supervisor and mem.get(sym['_test_done']) == 255 and word('_test_stage')==6))
+    checks.append(('native assertions', supervisor and word('_test_failed') == 0 and word('_test_passed') >= 40))
     receipt_file = RUN/'core/input-lines.json'
     receipts = json.loads(receipt_file.read_text()) if receipt_file.exists() else []
     error_file = RUN/'core/input-error.json'
@@ -938,7 +993,7 @@ def main():
     checks.append(('input delivery completed without an observer/protocol error', input_error is None))
     checks.append(('all 53 input lines reached their intended program and were verified before submission',
                    len(receipts) == 53))
-    frames = re.split(r'\[DBG\] PC=', text)[1:]
+    if args.core_only:frames=frames[1:] # The authenticated startup mapping is not an input-mode checkpoint.
     checks.append(('ReadLn restores blocking raw in RAM and nonblocking raw in shell exec',
                    len(frames) == 3 and memory(frames[0]).get(mode) == 0
                    and memory(frames[1]).get(mode) == 4
@@ -1183,7 +1238,7 @@ def main():
                        artifact_checks(RUN / 'core/hostfs')))
     except (OSError, AssertionError, struct.error):
         checks.append(('native-generated image/map/source identities and format bounds', False))
-    if mem.get(sym['_test_done']) == 255 and word('_test_failed') == 0:
+    if not args.core_only and mem.get(sym['_test_done']) == 255 and word('_test_failed') == 0:
         print('Native core passed; driving interactive edit/error/repair workflow...', flush=True)
         checks.extend(interactive_checks())
         checks.extend(user_break_checks())
@@ -1193,14 +1248,15 @@ def main():
     checks.append(('implementation inputs unchanged during native validation',
                    all(sha(ROOT / name) == digest for name, digest in input_hashes.items())))
     report = {
-        'scope': 'First native slice on pinned Zeal emulator/ROM; not full conformance or physical hardware',
+        'scope': ('Complete existing native core language/runtime corpus; IDE/platform workflows excluded' if args.core_only else 'First native slice on pinned Zeal emulator/ROM; not full conformance or physical hardware'),
         'capture_directory': str(RUN.relative_to(ROOT)),
         'build_command': 'zde cmake',
         'input_sha256': input_hashes,
         'passed': all(ok for _, ok in checks),
-        'native_assertions_passed': word('_test_passed'),
-        'native_assertions_failed': word('_test_failed'),
-        'native_stage': word('_test_stage'),
+        'native_assertions_passed': word('_test_passed')if supervisor else None,
+        'native_assertions_failed': word('_test_failed')if supervisor else None,
+        'supervisor_observed':supervisor,
+        'native_stage': word('_test_stage')if supervisor else None,
         'input_delivery_error': input_error,
         'input_keyboard_retries': sum(line['keyboard_retries'] for line in receipts),
         'input_readiness': [line['readiness'] for line in receipts],
