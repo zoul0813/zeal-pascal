@@ -898,6 +898,16 @@ int main(int argc,char **argv) {
     include_cases();
     inline_cases();
     inline_corpus();
+    load("var a:array(.1..2.)of integer;s:string(.3.);t:set of byte;\n"
+         "begin a(.1.):=7;s:='abc';t:=(.1..2.);\n"
+         "if(a(.1.)=7)and(1 in t)then writeln(s(.1.))end.");
+    check(compile(&s,&b,&d));build_close(&b);check(pages_used()==1);
+    invalid("begin writeln(1.)end.",5);
+    check(d.start==15);
+    invalid("begin writeln(1.0.)end.",57);
+    check(d.start==14);
+    load("begin writeln(1. );writeln(1.E1 )end.");
+    check(compile(&s,&b,&d));build_close(&b);check(pages_used()==1);
     load("begin  \r\nend. \r\n\032padding"); check(s.length==11);
     check(source_replace(&s,0,0,NULL,0)&&!s.dirty);
     {

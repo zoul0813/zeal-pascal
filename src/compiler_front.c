@@ -314,7 +314,7 @@ void cc_next(void) FRONTEND {
         if(!n) cc_fail(56);
         cc.name[n<127?n:127]=0;
         cc.magnitude=(uint16_t)wide; cc.token=T_NUMBER;
-        if(base==10&&((get(cc.scan)=='.'&&get(cc.scan+1)!='.')||lower(get(cc.scan))=='e')) {
+        if(base==10&&((get(cc.scan)=='.'&&get(cc.scan+1)!='.'&&get(cc.scan+1)!=')')||lower(get(cc.scan))=='e')) {
             if(get(cc.scan)=='.') {
                 ++cc.scan; while(digit(get(cc.scan))) ++cc.scan;
             }
