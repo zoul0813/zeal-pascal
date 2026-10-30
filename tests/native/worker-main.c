@@ -42,9 +42,11 @@ int app_main(void) {
     uint16_t n;
     if(!console_open()) return 1;
     check(source_new(&s,"H:/WORKERS0.PAS"));
-    capture=open("H:/WORKERS.TXT",O_WRONLY|O_CREAT|O_TRUNC);check(capture==2);
+    capture=open("H:/WORKERS.TXT",O_WRONLY|O_CREAT|O_TRUNC);
+    check(capture>=0&&capture!=code_phase_fd);
     if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
-    borrowed=open("H:/BORROW.DAT",O_RDWR);check(borrowed==3);
+    borrowed=open("H:/BORROW.DAT",O_RDWR);
+    check(borrowed>=0&&borrowed!=capture&&borrowed!=code_phase_fd);
     test_stage=40;code_hash((uint8_t*)test_hash);
     job("H:/WORKERS0.PAS",1,1);
     __asm di __endasm;

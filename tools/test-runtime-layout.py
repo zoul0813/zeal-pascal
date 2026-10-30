@@ -5,6 +5,7 @@ Uses an already native-generated image from test-params. Only the disposable
 child's entry jump/register setup is changed; retained product bytes stay exact.
 """
 import argparse
+import hashlib
 import importlib.util
 import json
 import re
@@ -26,9 +27,26 @@ def main():
     normal = int.from_bytes(binary[0xa1:0xa3], 'little')
     assert len(binary)+0x4000 <= 0xc000
     runtime = (ROOT/'build/pascal_runtime.zpl').read_bytes()
-    assert binary[160:len(runtime)] == runtime[160:]
+    assert len(binary)==int.from_bytes(binary[10:12],'little')
+    sealed=bytearray(binary);sealed[36:68]=bytes(32)
+    assert hashlib.sha256(sealed).digest()==binary[36:68]
+    # The compiler specializes these five dispatches in each owned image.
+    # Permit only valid JP bindings into its generated code; every other
+    # runtime byte must still match the pristine template exactly.
+    specialized=bytearray(runtime);bindings={};code_end=origin+int.from_bytes(binary[22:24],'little')
+    symbols=n.symbols('pascal_runtime')
+    for name in ('character','input_echo','input_open','normal_error','input_key'):
+        at=symbols[name]-0x4000
+        assert 160<=at<len(runtime)-2
+        patch=binary[at:at+3]
+        if patch!=runtime[at:at+3]:
+            target=int.from_bytes(patch[1:],'little')
+            assert patch[0]==0xc3 and origin<=target<code_end
+            specialized[at:at+3]=patch;bindings[name]=target
+    assert binary[160:len(runtime)] == specialized[160:]
     inputs = [Path(__file__).resolve(), ROOT/'tools/test-native.py', ROOT/'src/runtime.asm',
-              ROOT/'src/input.asm', ROOT/'src/zp.h', ROOT/'build/pascal_runtime.zpl',
+              ROOT/'src/input.asm', ROOT/'src/zp.h', ROOT/'src/compiler_hooks.c',
+              ROOT/'src/compiler_build.c', ROOT/'build/pascal_runtime.zpl',ROOT/'build/pascal_runtime.map',
               args.program.resolve(), n.EMULATOR, n.ROM]
     hashes = {str(path): n.sha(path) for path in inputs}
     payload = (b'aB\t'*42)+b'Z'
@@ -57,6 +75,7 @@ def main():
             bool(re.search(r'IX=0000\b', raw)) and f'PC={origin:04x} SP=fc00' in raw)
     checks['retained inputs unchanged'] = all(n.sha(Path(path)) == digest for path, digest in hashes.items())
     report = {'scope': 'Private runtime cache/history relocation and Pascal frame-chain root at native entry',
+              'validated_compiler_dispatches':bindings,
               'passed': all(checks.values()), 'input_sha256': hashes,
               'capture_directory': str(n.RUN.relative_to(ROOT)), 'checks': checks}
     (n.RUN/'layout-report.json').write_text(json.dumps(report, indent=2)+'\n')
