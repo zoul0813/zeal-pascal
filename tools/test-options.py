@@ -141,19 +141,45 @@ def ide():
     return checks,{'checkpoints':labels}
 
 
+def save_paths():
+    target='zoptionstest';sym=n.symbols(target)
+    commands=['run 100000000']+n.program_launch(target)+[
+        f"bp 0x{sym['_test_stop']:x}",'run 100000000000','s','regs','mmu']
+    for name in ('_test_done','_test_stage','_test_passed','_test_failed'):
+        commands += [f'rb 0x{sym[name]:x} 2']
+    commands += [f"rb 0x{sym['_test_failures']:x} 128",'quit']
+    fixtures={f'{target}.{ext}':(ROOT/f'build/{target}.{ext}').read_bytes()for ext in ('bin','zpl')}
+    fixtures['PATHONLY.TEST']=b'1'
+    raw=n.execute('save-path-limits',commands,fixtures,timeout=900)
+    memory=n.memory(raw);word=lambda name:memory.get(sym[name],0)|memory.get(sym[name]+1,0)<<8
+    disk=n.RUN/'save-path-limits/hostfs'
+    checks={'native completion':memory.get(sym['_test_done'])==255 and word('_test_stage')==6,
+        'source/SaveAs/block/COM/CHN boundaries retain source and page ownership':word('_test_failed')==0 and word('_test_passed')>=70}
+    for kind in range(5):
+        parent=disk/f'P{kind}111'
+        matches=list(parent.rglob('x.*'))if parent.is_dir()else[]
+        expected='CHN'if kind==4 else'COM'if kind==3 else'pas'
+        checks[f'accepted boundary produces mode{kind} output']=any(p.suffix=='.'+expected for p in matches)
+        checks[f'rejected mode{kind} creates no parent']=not(disk/f'P{kind}112').exists()
+        checks[f'mode{kind} cleans only its own transaction']=not any(p.name.startswith('ZP')for p in parent.rglob('*'))if parent.exists()else False
+        if kind<2:
+            checks[f'mode{kind} source and backup content match']=any(p.suffix=='.pas'and p.read_bytes()==b'{dirty}\nbegin end.'for p in matches)and any(p.suffix=='.BAK'and p.read_bytes()==b'begin end.'for p in matches)
+    return checks,{'native_assertions_passed':word('_test_passed'),'native_assertions_failed':word('_test_failed')}
+
+
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--ide',action='store_true');args=parser.parse_args()
+    parser=argparse.ArgumentParser(description=__doc__);mode=parser.add_mutually_exclusive_group();mode.add_argument('--ide',action='store_true');mode.add_argument('--paths',action='store_true');args=parser.parse_args()
     target='zpascal'if args.ide else'zoptionstest'
     paths=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),ROOT/'tools/test-native.py',ROOT/'tools/test-sources.py',ROOT/'tools/package-native.py',n.EMULATOR,n.ROM]
     paths+=list((ROOT/'src').glob('*'))+list((ROOT/'tests/native').rglob('*'))
     paths+=[ROOT/f'build/{target}.{ext}'for ext in ('bin','zpl','map','banks.json')]
     paths += [ROOT/'build/pascal_runtime.zpl',ROOT/'build/pascal_runtime.private']
     hashes={str(p):n.sha(p)for p in paths if p.is_file()}
-    checks,details=ide()if args.ide else component()
+    checks,details=ide()if args.ide else save_paths()if args.paths else component()
     checks['all qualification inputs unchanged']=all(n.sha(Path(p))==digest for p,digest in hashes.items())
     report={'passed':all(checks.values()),'scope':__doc__+' Bounded emulator acceptance; CHN/overlays and full conformance remain open.',
         'checks':checks,'capture_directory':str(n.RUN.relative_to(ROOT)),'input_sha256':hashes,**details}
-    (n.RUN/('ide-options-report.json'if args.ide else'options-report.json')).write_text(json.dumps(report,indent=2)+'\n')
+    (n.RUN/('ide-options-report.json'if args.ide else'save-path-report.json'if args.paths else'options-report.json')).write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2));assert report['passed']
 
 

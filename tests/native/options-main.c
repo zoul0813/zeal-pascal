@@ -61,6 +61,7 @@ static void run(void) {
     check(!strcmp(found.path,s.path)&&found.position==position&&!memcmp(found.hash,b.source_hash,32));
     check(pages_used()==owned&&build_check(&s,&b));
 }
+#include "save-path-native.h"
 int app_main(void) {
     const uint16_t starts[]={0,0x9000,0xbfff,0xc000,0xc001,0xd100,0,0};
     const uint16_t ends[]={0xfbff,0xd000,0xefff,0xefff,0xefff,0xfbff,0xcfff,0xfbfe};
@@ -72,6 +73,11 @@ int app_main(void) {
     int8_t capture;
     at=trampoline_checksum();test_hash[0]=(uint8_t)at;test_hash[1]=(uint8_t)(at>>8);
     if(!console_open())return 1;
+    capture=open("H:/PATHONLY.TEST",O_RDONLY);
+    if(capture>=0) {
+        check(!close(capture));native_save_paths();
+        test_stage=6;test_done=255;test_complete();return 0;
+    }
     check(source_new(&s,"H:/OBASE.PAS"));
     capture=open("H:/OPTIONS.TXT",O_WRONLY|O_CREAT|O_TRUNC);check(capture>=0);
     if(capture>=0)check(swap(capture,DEV_STDOUT)==0);

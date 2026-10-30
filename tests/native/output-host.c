@@ -714,7 +714,9 @@ static void phase_cache(void) {
     phase_setup();status=255;exec_error=ERR_NOT_SUPPORTED;
     check(execute_native(target[0],&status)==ERR_NOT_SUPPORTED&&status==255&&raw_owned()==15);phase_cleanup();
 }
+#include "output-path-cases.h"
 int main(void) {
+    output_path_cases();
     unsigned kind,mask,pages,total_events,total_polls,i;uint8_t ok;
     for(kind=0;kind<5;++kind)for(mask=0;mask<(kind==2?2u:4u);++mask) {
         fail_at=cancel_at=rollback_fault=shorts=bad_io=fail_read=fail_write=0;setup(kind,mask);pages=owned();

@@ -20,6 +20,8 @@ extern uint8_t console_scratch[256];
 static char destinations[2][128], transaction[128], member[128];
 static uint16_t serial;
 static uint8_t transaction_owned;
+/* Directory prefix + ZPxxxx + '/' + PRIOR.BAK must fit with its NUL. */
+enum { TRANSACTION_PARENT_LIMIT=sizeof(transaction)-1-6-1-9 };
 static char no_recovery[1]; /* Returned pointers must survive a code-bank switch. */
 const char *output_path(void) SOURCE_BLOCK_CALL { return destinations[0]; }
 const char *output_recovery(void) SOURCE_BLOCK_CALL {
@@ -58,7 +60,7 @@ static uint8_t paths(const Source *s,uint8_t chain) {
     if(strlen(s->path)>123||!saved_paths_kind(s->path,destinations,chain))return 0;
     base=(uint16_t)strlen(destinations[0]);
     while(base&&destinations[0][base-1]!='/')--base;
-    if(base+15>=128)return 0;
+    if(base>TRANSACTION_PARENT_LIMIT)return 0;
     memcpy(transaction,s->path,base); transaction[base]=0;
     return 1;
 }
@@ -88,7 +90,7 @@ static uint8_t create_transaction(void) {
     uint16_t base=(uint16_t)strlen(transaction),attempt,value;
     uint8_t j,e;
     /* Reserve the folder, slash and longest recovery member (PRIOR.BAK). */
-    if(base+16>127) {platform_error=ERR_INVALID_PATH;return 0;}
+    if(base>TRANSACTION_PARENT_LIMIT) {platform_error=ERR_INVALID_PATH;return 0;}
     for(attempt=0;attempt<256;++attempt) {
         if(!output_poll()) return 0;
         value=serial++;
@@ -382,7 +384,7 @@ static uint8_t do_save_block(const Source *s,uint16_t a,uint16_t z,const char *n
     }
     base=(uint16_t)strlen(destinations[0]);
     while(base>3&&destinations[0][base-1]!='/') --base;
-    if(base>121) { platform_error=ERR_INVALID_PATH; return 0; }
+    if(base>TRANSACTION_PARENT_LIMIT) { platform_error=ERR_INVALID_PATH; return 0; }
     memcpy(transaction,destinations[0],base); transaction[base]=0;
     if(!ordinary_file(destinations[0],&exists)) return 0;
     if(exists&&!replace) { platform_error=ERR_ALREADY_EXIST; return 0; }
