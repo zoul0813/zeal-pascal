@@ -582,7 +582,7 @@ set_property(SOURCE src/main.c APPEND PROPERTY COMPILE_OPTIONS --opt-code-size)
 
 
 set_property(SOURCE src/sources.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_job_wire.h)
-set_property(SOURCE src/compiler_sources.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources_internal.h)
+set_property(SOURCE src/compiler_sources.c src/compiler_build.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources_internal.h)
 
 set_property(SOURCE src/platform.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_job.h ${CMAKE_SOURCE_DIR}/src/compiler_job_wire.h)
 

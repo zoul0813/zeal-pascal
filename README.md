@@ -390,14 +390,17 @@ establish full Turbo Pascal conformance.
 
 Generated code and static storage can occupy up to29,696 bytes above the fixed
 16 KiB runtime prefix, leaving at least2 KiB of initial stack space. The compiler
-uses an additional temporary page only when code staging exceeds16 KiB and
-releases it before execution. Source remains limited to16,383 bytes and ordinary
+uses an additional temporary page when code staging exceeds16 KiB during parsing.
+After parsing, late helpers can use an unpacked source catalog's unused tail;
+larger catalogs retain separate staging. All staging ends before execution.
+Source remains limited to16,383 bytes and ordinary
 globals to less than16 KiB; stack/heap checks still apply to actual program use.
 
 Compiler source catalogs share unused root-snapshot space when they fit,
 releasing one physical page during compilation and before Run. Canonical source
 bytes, hashes and error mappings are retained. Larger sources use a separate
-catalog page. Available physical RAM still limits execution and file-registry
+catalog page. Temporary source references share the catalog's tail and spill to
+an owned page if source/catalog growth requires it. Available physical RAM still limits execution and file-registry
 capacity.
 
 Declarations may repeat in any order. Ordinary constants alias literal/constant

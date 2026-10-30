@@ -51,7 +51,7 @@ static void unsaved_override(void) {
     check(!build_ready(&root,&b));build_close(&b);
     check(sources_take(&buffers,&work,&work)==1);
     check(compile_project(&root,&buffers,&b,&d,0,0)&&build_ready(&root,&b));build_close(&b);
-    check(sources_close(&buffers)&&pages_used()==code_required+1);
+    check(sources_close(&buffers)&&pages_used()==code_required);
 }
 int app_main(void) {
     int8_t capture;
@@ -63,8 +63,11 @@ int app_main(void) {
     execution_file("H:/SRCMAIN.PAS",1,0,0);
     execution_file("H:/SRCSTEPS.PAS",1,0,0);
     execution_file("H:/SRCINIT.PAS",1,0,0);
-    included_error();unsaved_override();
+    included_error();
+    /* The following case owns its own root/work buffers. Do not retain an
+     * unrelated previous source against the sixteen-bank RAM budget. */
+    source_close(&s);unsaved_override();
     if(capture>=0){check(swap(capture,DEV_STDOUT)==0);check(close(capture)==0);}
-    source_close(&s);check(pages_used()==code_required);
+    check(pages_used()==code_required);
     test_stage=6;test_done=255;test_complete();return 0;
 }

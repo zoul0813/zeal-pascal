@@ -8,6 +8,7 @@
 #endif
 #include "compiler.h"
 #include "image.h"
+#include "sources_internal.h"
 
 /* Build ownership, sealing and source lookup share a code bank. Compiler
  * emission reaches these through banked helpers or the resident public API. */
@@ -32,6 +33,24 @@ uint8_t cc_image_page(uint8_t index) FRONTEND {
         far_set(cc.image->pages[index],i,0);
     }
     page_initialized(cc.image->pages[index],PAGE_SIZE);return 1;
+}
+static uint16_t stage_offset(uint16_t offset) {
+    if(cc.sources->stage_shared)offset+=(uint16_t)cc.image->sources.count*RECORD_BYTES;
+    if(offset>=PAGE_SIZE){cc_fail(98);return PAGE_SIZE;}
+    return offset;
+}
+void cc_stage_put(uint16_t offset,uint8_t value) FRONTEND {
+    offset=stage_offset(offset);if(cc.error->code)return;
+    if(cc.stage_page==255) {
+        cc.stage_page=page_new(PAGE_COMPILER);
+        if(cc.stage_page==255){cc_fail(98);return;}
+    }
+    far_set(cc.stage_page,offset,value);
+    if(cc.sources->stage_shared)cc.image->sources.version=page_versions[cc.stage_page];
+}
+uint8_t cc_stage_get(uint16_t offset) FRONTEND {
+    offset=stage_offset(offset);
+    return cc.error->code?0:far_get(cc.stage_page,offset);
 }
 /* Final placement and relocation belong with build sealing. Keeping them in
  * this bank also leaves lexer/emission room for cancellable scanning. */

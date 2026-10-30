@@ -72,6 +72,7 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     begin=cc_block();j=pc();cc_expect('.',10);
     if(cc.token!=T_EOF)cc_fail(58);
     cc_finish(RT_DONE);cc_mapping(j,pc(),begin,begin);
+    if(d->code||!cc_sources_finish())goto failed;
     cc_params_finish();cc_random_finish();
     cc_file_engine_finish();cc_keyboard_finish();cc_interrupt_finish();cc_initializer_finish();
     cc_transfer_finish();cc_file_stream_finish();cc_hooks_finish();cc_console_finish();cc_file_finish();cc_error_finish();
@@ -79,17 +80,15 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     if(!options||options->kind!=COMPILE_CHAIN)cc_startup_finish();
     if(d->code||!cc_place_code())goto failed;
     if(cc.stage_page!=255) {
-        if(page_drop(cc.stage_page))cc.stage_page=255;
+        if(sources.stage_shared||page_drop(cc.stage_page))cc.stage_page=255;
         else {d->code=98;goto failed;}
     }
-    if(sources.job||page_drop(sources.refs_page))sources.refs_page=255;
-    else {d->code=98;goto failed;}
     if(!cc_seal(s,options))goto failed;
     return 1;
 failed:
     cc.polling=0;
-    if(sources.refs_page!=255&&(sources.job||page_drop(sources.refs_page)))sources.refs_page=255;
-    if(cc.stage_page!=255&&page_drop(cc.stage_page))cc.stage_page=255;
+    if(sources.refs_owned&&page_drop(sources.refs_page))sources.refs_page=255;
+    if(cc.stage_page!=255&&(sources.stage_shared||page_drop(cc.stage_page)))cc.stage_page=255;
     if(cc.workspace!=255&&page_drop(cc.workspace))cc.workspace=255;
     /* Error replies still need source identities, but not the abandoned
      * executable. Reclaim emission storage before exporting a bounded table. */

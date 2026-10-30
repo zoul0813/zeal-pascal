@@ -55,11 +55,7 @@ void cc_fail(uint8_t code) FRONTEND {
 void cc_put(uint16_t p,uint8_t v) FRONTEND {
     if(cc.error->code) return;
     if(p>=0xc000u) {
-        if(cc.stage_page==255) {
-            cc.stage_page=page_new(PAGE_COMPILER);
-            if(cc.stage_page==255) { cc_fail(98); return; }
-        }
-        far_set(cc.stage_page,p-0xc000u,v);
+        cc_stage_put(p-0xc000u,v);
     } else {
         if(cc.image->pages[p/PAGE_SIZE]==255&&!cc_image_page(p/PAGE_SIZE))return;
         far_set(cc.image->pages[p/PAGE_SIZE],p%PAGE_SIZE,v);
@@ -68,7 +64,7 @@ void cc_put(uint16_t p,uint8_t v) FRONTEND {
 uint8_t cc_code_get(uint16_t address) FRONTEND {
     if(cc.error->code) return 0;
     if(address<CC_CODE_BASE||address>=cc.emitted) { cc_fail(99); return 0; }
-    return address>=0xc000u?far_get(cc.stage_page,address-0xc000u):
+    return address>=0xc000u?cc_stage_get(address-0xc000u):
         far_get(cc.image->pages[2],address-CC_CODE_BASE);
 }
 void cc_word(uint16_t p,uint16_t v) FRONTEND { cc_put(p,(uint8_t)v); cc_put(p+1,(uint8_t)(v>>8)); }

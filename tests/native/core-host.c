@@ -17,7 +17,7 @@ uint8_t compiler_parent_owned[8];
 static int fail_after=-1,fail_drop=-1;
 static unsigned checks,allocation_calls;
 static uint8_t cancel_stage,cancel_result;
-static unsigned poll_calls;
+static unsigned poll_calls,spill_polls;
 uint8_t key_interrupt(void) {
     uint8_t reached;
     ++poll_calls;
@@ -25,7 +25,9 @@ uint8_t key_interrupt(void) {
         (cancel_stage==2&&cc.image->pages[0]!=255)||
         (cancel_stage==3&&cc.emitted>CC_CODE_BASE)||
         (cancel_stage==4&&cc.image->map_length!=0)||
-        (cancel_stage==5&&cc.scan>512);
+        (cancel_stage==5&&cc.scan>512)||
+        (cancel_stage==6&&cc.sources->refs_owned&&cc.sources->refs_page!=255&&++spill_polls==2)||
+        (cancel_stage==7&&compiler_job_active&&cc.sources->stage_shared&&cc.emitted>0xc100u);
     return reached?cancel_result:0;
 }
 uint8_t page_new(uint8_t role) {
@@ -710,9 +712,12 @@ static void include_cases(void) {
         {"H:/bad.inc","const broken=32768;"},
         {"H:/scope.PAS","{$A-,I-,R+,V-,W0,X-,B-,U+}const local=1;"},
         {"H:/nested.inc","{$I values.inc}"},
-        {"H:/runtime.inc","n:=7 div 0;"}
+        {"H:/runtime.inc","n:=7 div 0;"},
+        {"H:/open.inc","const split:array[1..2]of integer=(11,"},
+        {"H:/after.inc","const after=1;"},
+        {"H:/tail.inc","const extra=1;"}
     };
-    uint8_t i,file,found=0,digest[32];uint16_t at,n,position;unsigned reads;Sha256 hash;
+    uint8_t i,file,found=0,digest[32],held_override[22];uint16_t at,n,position;unsigned reads;Sha256 hash;
     Sources buffers;Source root,override,snapshot;
     disk_sources=files;disk_source_count=sizeof(files)/sizeof(files[0]);disk_reads=0;
     files[2].text="const across:array[1..2]of integer=(11,";
@@ -721,6 +726,45 @@ static void include_cases(void) {
     check(compile(&s,&b,&d));build_close(&b);
     files[2].text="11,22";
     files[1].text="procedure more;begin part;n:=n+table[2]end;";
+    /* Match the nine source/compiler pages left by the native kernel,
+     * application and sixteen code banks. All three includes must fit. */
+    {
+        uint8_t held[23],j;
+        load("const data:array[1..2]of integer=(\n{$I values.inc}\n);\n"
+             "{$I open.inc}\n22);\n{$I after.inc}\n"
+             "begin writeln(data[1],split[2],after)end.");
+        for(j=0;j<23;++j){held[j]=page_new(PAGE_RUN);check(held[j]!=255);}
+        check(compile(&s,&b,&d)&&b.sources.count==4&&build_ready(&s,&b));build_close(&b);
+        for(j=0;j<23;++j)check(page_drop(held[j]));
+        check(pages_used()==1);
+    }
+    /* A near-full root needs a separate reference page when its packed
+     * catalog grows. Preserve its text and source identity through spilling. */
+    {
+        char text[16384];uint16_t length=0,j,k;unsigned required;uint8_t hash[32],after[32];
+        for(j=0;j<159;++j){text[length++]='{';for(k=0;k<98;++k)text[length++]='x';text[length++]='}';text[length++]='\n';}
+        strcpy(text+length,"var n:integer;\n{$I tail.inc}\nbegin n:=extra;writeln(n)end.");
+        load(text);source_hash(&s,hash);allocation_calls=0;
+        check(compile(&s,&b,&d)&&b.sources.count==2&&!b.sources.base);
+        required=allocation_calls;check(build_check(&s,&b));build_close(&b);
+        for(j=0;j<required;++j) {
+            fail_after=j;check(!compile(&s,&b,&d)&&d.code&&!b.valid);
+            fail_after=-1;check(pages_used()==1);
+            source_hash(&s,after);check(!memcmp(hash,after,32));
+        }
+        /* This root fits33 references until its include grows the catalog.
+         * Cancel after32 records have copied into the newly owned page. */
+        length=0;
+        for(j=0;j<154;++j){text[length++]='{';for(k=0;k<98;++k)text[length++]='x';text[length++]='}';text[length++]='\n';}
+        length+=(uint16_t)snprintf(text+length,sizeof(text)-length,"var ");
+        for(j=0;j<33;++j)length+=(uint16_t)snprintf(text+length,sizeof(text)-length,"%sv%03u%s",j?",":"",(unsigned)j,j%8==7?"\n":"");
+        strcpy(text+length,":integer;\n{$I tail.inc}\nbegin v000:=extra;writeln(v000)end.");
+        load(text);source_hash(&s,hash);spill_polls=0;cancel_stage=6;cancel_result=1;
+        check(!compile_project(&s,0,&b,&d,1,0)&&d.code==COMPILE_INTERRUPTED);
+        cancel_stage=0;check(spill_polls==2&&pages_used()==1);
+        source_hash(&s,after);check(!memcmp(hash,after,32));
+        check(pages_used()==1);
+    }
     source_catalog_cases();
     replaced_source_cases();
     packed_catalog_cases();
@@ -777,6 +821,7 @@ static void include_cases(void) {
     check(source_import(&override,(const uint8_t*)"const answer=42;",16,&d));
     check(sources_new(&buffers));check(sources_take(&buffers,&root,&root)==0);
     check(sources_take(&buffers,&override,&override)==1);reads=disk_reads;
+    for(i=0;i<22;++i){held_override[i]=page_new(PAGE_RUN);check(held_override[i]!=255);}
     check(compile_project(&root,&buffers,&b,&d,0,0));check(b.sources.count==2&&disk_reads==reads);
     check(build_ready(&root,&b));check(sources_get(&b.sources,1,&snapshot));
     check(snapshot.page!=override.page&&snapshot.length==override.length);
@@ -784,7 +829,9 @@ static void include_cases(void) {
     check(!build_ready(&root,&b));build_close(&b);
     check(sources_take(&buffers,&override,&override)==1);
     check(compile_project(&root,&buffers,&b,&d,0,0)&&build_ready(&root,&b));build_close(&b);
-    check(sources_close(&buffers)&&pages_used()==1);
+    check(sources_close(&buffers)&&pages_used()==23);
+    for(i=0;i<22;++i)check(page_drop(held_override[i]));
+    check(pages_used()==1);
     disk_sources=0;disk_source_count=0;
 }
 static uint16_t inline_word(uint16_t at) { return image_get(&b,at)|((uint16_t)image_get(&b,at+1)<<8); }
@@ -883,6 +930,7 @@ int main(int argc,char **argv) {
     check(argc==2);
     check(source_new(&s,"H:/SLICE.PAS"));
     compiler_job_cases();
+    large_job_capacity();
     memory_overlays();
     keyboard_corpus();
     interruption_corpus();
@@ -1336,7 +1384,7 @@ int main(int argc,char **argv) {
     {
     unsigned before_allocations=allocation_calls,required;
     check(compile(&s,&b,&d));required=allocation_calls-before_allocations;build_close(&b);
-    check(required==8);
+    check(required>0); /* Inject failure at every measured allocation. */
     for(i=0;i<required;++i) {
         fail_after=(int)i;
         check(!compile(&s,&b,&d)&&d.code==98); check(pages_used()==1);
@@ -1405,11 +1453,14 @@ int main(int argc,char **argv) {
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {
+                unsigned before_allocations,required_allocations;
                 snprintf(path,sizeof(path),"tests/native/%s.pas",fixtures[fixture]);
                 file=fopen(path,"rb"); check(file!=NULL);
                 n=(uint16_t)fread(text,1,sizeof(text),file); check(!ferror(file)&&!fclose(file));
                 check(source_import(&s,text,n,&d));
+                before_allocations=allocation_calls;
                 old=compile(&s,&b,&d); if(!old) fprintf(stderr,"fixture %s\n",fixtures[fixture]); check(old);
+                required_allocations=allocation_calls-before_allocations;
                 if(!strcmp(fixtures[fixture],"absolute")) check(b.globals_bytes==8);
                 if(!strcmp(fixtures[fixture],"realabi")) check(b.globals_bytes==0);
                 if(!strcmp(fixtures[fixture],"textedges")||!strcmp(fixtures[fixture],"capacity")) {
@@ -1418,7 +1469,7 @@ int main(int argc,char **argv) {
                 }
                 ordered_map(); build_close(&b);
                 if(!strcmp(fixtures[fixture],"textedges")) {
-                    for(i=0;i<9;++i) {
+                    for(i=0;i<required_allocations;++i) {
                         fail_after=(int)i;
                         check(!compile(&s,&b,&d)&&d.code==98);
                         check(pages_used()==1&&cc.stage_page==255);

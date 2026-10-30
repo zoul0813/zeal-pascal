@@ -73,6 +73,15 @@ int app_main(void) {
     check(compile_request(&item,&buffers,&b,&failure,0,0,s.path));
     check(b.valid&&sources_get(&b.sources,0,&item)&&item.page!=255&&!sources_borrowed(&b.sources,0));
     check(build_check(&item,&b));build_close(&b);check(pages_used()==owned);check(sources_close(&buffers));
+    test_stage=86;
+    check(load_source(&s,"H:/LARGE.PAS",&d));before=s;
+    check(sources_new(&buffers));source_hash(&s,hash);check(sources_borrow(&buffers,&s,hash)==0);
+    options.start=0x8040;owned=pages_used();
+    check(compile_request(&s,&buffers,&b,&failure,1,&options,s.path));
+    check(b.valid&&b.code_bytes>PAGE_SIZE&&build_check(&s,&b));
+    check(!memcmp(&s,&before,sizeof(s))&&sources_ready(&buffers,0));
+    check(save_build(&s,&b,0)&&!*output_recovery());build_close(&b);check(pages_used()==owned);
+    check(sources_close(&buffers));
     source_close(&s);check(pages_used()==code_required);
     test_stage=6;test_done=255;test_complete();return 0;
 }

@@ -17,7 +17,8 @@ commands += [f"rb 0x{sym['_test_failures']:x} 128",'quit']
 fixtures={f'zjobtest.{ext}':(ROOT/f'build/zjobtest.{ext}').read_bytes()for ext in ('bin','zpl')}
 fixtures.update({'JOB.PAS':b'{original disk source retained}\r\n',
     'PART.INC':b'const answer=42;\r\n','BAD.INC':b'const answer=;\r\n',
-    'DISK.PAS':b"begin writeln('DISK-ROOT')end."})
+    'DISK.PAS':b"begin writeln('DISK-ROOT')end.",
+    'LARGE.PAS':(ROOT/'tests/native/chain-call.pas').read_bytes()})
 inputs=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),n.EMULATOR,n.ROM]
 inputs+=list((ROOT/'src').glob('*'))+list((ROOT/'tests/native').glob('*'))
 inputs += [ROOT/f'build/zjobtest.{ext}'for ext in ('bin','zpl','banks.json')]

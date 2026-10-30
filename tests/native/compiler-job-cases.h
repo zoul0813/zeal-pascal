@@ -167,6 +167,35 @@ static void job_capacity(void) {
     check(sources_close(&buffers));for(i=0;i<7;++i)source_close(&extra[i]);
     for(i=0;i<23;++i)check(page_drop(reserved[i]));check(pages_used()==1);
 }
+static void large_job_capacity(void) {
+    char text[4096];FILE *file;size_t length;uint8_t held[23],i,expected[32],hash[32];unsigned required,allocation;
+    Sources buffers;Source before;CompileFailure failure;
+    CompileOptions options={0x8040,0xfbffu,COMPILE_PROGRAM};
+    file=fopen("tests/native/chain-call.pas","rb");check(file!=0);
+    length=fread(text,1,sizeof(text),file);check(!ferror(file)&&length<sizeof(text));check(!fclose(file));
+    check(source_import(&s,(const uint8_t*)text,(uint16_t)length,&d));before=s;
+    check(compile_project(&s,0,&b,&d,0,&options));memcpy(expected,b.id,32);build_close(&b);
+    check(sources_new(&buffers));source_hash(&s,hash);check(sources_borrow(&buffers,&s,hash)==0);
+    for(i=0;i<23;++i){held[i]=page_new(PAGE_RUN);check(held[i]!=255);}
+    /* Exactly nine pages remain, including suspended Work and its catalog,
+     * just as in the sixteen-bank IDE. Match the direct compiler's bytes. */
+    allocation_calls=0;check(compile_request(&s,&buffers,&b,&failure,1,&options,s.path));required=allocation_calls;
+    check(b.valid&&b.code_bytes>PAGE_SIZE&&!memcmp(b.id,expected,32)&&build_check(&s,&b));
+    check(!memcmp(&s,&before,sizeof(s)));build_close(&b);check(cancel_prepared_build());
+    for(allocation=0;allocation<required;++allocation) {
+        fail_after=(int)allocation;
+        check(!compile_request(&s,&buffers,&b,&failure,1,&options,s.path));fail_after=-1;
+        check(pages_used()==25&&!b.valid&&!host_prepared&&!memcmp(&s,&before,sizeof(s)));
+        check(job_zero(compiler_owned,8)&&job_zero(compiler_parent_owned,8)&&sources_ready(&buffers,0));
+    }
+    cancel_stage=7;cancel_result=1;
+    check(!compile_request(&s,&buffers,&b,&failure,1,&options,s.path));cancel_stage=0;
+    check(failure.diagnostic.code==COMPILE_INTERRUPTED&&pages_used()==25&&!b.valid&&!host_prepared);
+    check(!memcmp(&s,&before,sizeof(s))&&sources_ready(&buffers,0));
+    check(sources_ready(&buffers,0)&&sources_close(&buffers));
+    for(i=0;i<23;++i)check(page_drop(held[i]));
+    check(pages_used()==1);
+}
 static void compiler_job_cases(void) {
     CompileFailure failure;Source before,include;Sources buffers;uint8_t hash[32],expected[32],prior;
     unsigned pages,allocation,prepares=host_prepares,cancels=host_cancels;uint8_t stage,reason;
