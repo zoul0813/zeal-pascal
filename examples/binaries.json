@@ -7,38 +7,38 @@
     "concord/concord.bin": {
       "source": "concord/concord.pas",
       "source_sha256": "a93b2e91f5b6fa794af077195388c36d9c9ca2a49462e108e45df8ffda4eae9e",
-      "binary_sha256": "443f6e61697d72d00d2cd7cbcf3a4d8fa1eba66fa03ac875b61b76a1b837c175",
-      "binary_bytes": 45324
+      "binary_sha256": "b8a1531f59790d08de3f70848a7f9937361fb7234fc620a3b35ba212d46b0332",
+      "binary_bytes": 39779
     },
     "life/life.bin": {
       "source": "life/life.pas",
       "source_sha256": "e988cf8b56d2a1ce030361f45c041a42b8aafb7a5d5214382f41ea9576064f03",
-      "binary_sha256": "309de82274c36253ba1e0804d8be1e3c983f5361b2b0bf1dea924ca953f58fb6",
-      "binary_bytes": 42681
+      "binary_sha256": "d2f5b80d9a973fcdcf70c89014d1bc4aa1f942dbc7e170e8382046a830a97c50",
+      "binary_bytes": 37136
     },
     "lighthouse/lighthouse.bin": {
       "source": "lighthouse/lighthouse.pas",
       "source_sha256": "ea593d81f47ba104e8b1d5fdcb1e97d45a8a413824a3b2739b4315142227d70d",
-      "binary_sha256": "a9ffa1041f37e69817abfa83733808862aa2f803d6747ea0b15c246f0755fb0f",
-      "binary_bytes": 43927
+      "binary_sha256": "d6b812303c9a41bc256cdd6b476e01f78b8ef93e7ee7af1c75e625d7e74b2b26",
+      "binary_bytes": 38382
     },
     "loan/loan.bin": {
       "source": "loan/loan.pas",
       "source_sha256": "22b9330902d80d2032a847c6b46bc2980f27368734fa8693e934280fec6971e6",
-      "binary_sha256": "eaa7d573962796688e89f959f589b62797d2f16f1946099879b089b6d6bfba33",
-      "binary_bytes": 45731
+      "binary_sha256": "114d4a94bed6c7a195b552617306faff5bfb0759488a7e36602f821fe126c7d2",
+      "binary_bytes": 40186
     },
     "partsbin/partsbin.bin": {
       "source": "partsbin/partsbin.pas",
       "source_sha256": "80dda07516f8c9cb96b728749578db6c3cb572c80f65fc4ce7759f5194c87c67",
-      "binary_sha256": "802a3135a2ca83236712b9c3100354e396e584f65a73aaa8aad92c68965e556a",
-      "binary_bytes": 44724
+      "binary_sha256": "c2e7b42c3b5257d5eef466cd032fe227052f9ff921571b2c04ba6c2205f2ef4e",
+      "binary_bytes": 39179
     },
     "tasks/tasks.bin": {
       "source": "tasks/tasks.pas",
       "source_sha256": "7f72f520215dd6159692446681046dcf692de729c7402e53dff9f652497c2293",
-      "binary_sha256": "172762d880afa7bfa9e81c50644ff5ea1da76f68fb47d9875d425041620579d0",
-      "binary_bytes": 43111
+      "binary_sha256": "64dae9c7709469ac45aa43bc831a69b4e6d2357a98e6ef009da649012204532c",
+      "binary_bytes": 37566
     }
   }
 }
