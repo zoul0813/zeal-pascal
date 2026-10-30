@@ -83,7 +83,7 @@ uint8_t import_finish(SourceImport *in,Source *s,Diagnostic *d) {
     if(d->code) { page_drop(in->staged.page); return 0; }
     in->staged.length=in->out-in->spaces;
     in->staged.revision=s->revision+1;
-    if(!page_drop(s->page)) { page_drop(in->staged.page); d->code=98; return 0; }
+    if(s->page!=255&&!page_drop(s->page)) { page_drop(in->staged.page); d->code=98; return 0; }
     *s=in->staged; page_initialized(s->page,s->length); return 1;
 }
 uint8_t source_import(Source *s,const uint8_t *bytes,uint16_t n,Diagnostic *d) {

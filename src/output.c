@@ -19,7 +19,7 @@
 extern uint8_t console_scratch[256];
 static char destinations[2][128], transaction[128], member[128];
 static uint16_t serial;
-static uint8_t transaction_owned;
+static uint8_t transaction_owned,build_prepared,prepared_chain;
 /* Directory prefix + ZPxxxx + '/' + PRIOR.BAK must fit with its NUL. */
 enum { TRANSACTION_PARENT_LIMIT=sizeof(transaction)-1-6-1-9 };
 static char no_recovery[1]; /* Returned pointers must survive a code-bank switch. */
@@ -55,6 +55,7 @@ static uint8_t parent_dirs(const char *path,uint8_t create) {
 }
 static uint8_t paths(const Source *s,uint8_t chain) {
     uint16_t base;
+    if(build_prepared)return 0;
     transaction[0]=0;
     transaction_owned=0;
     if(strlen(s->path)>123||!saved_paths_kind(s->path,destinations,chain))return 0;
@@ -165,17 +166,26 @@ static void restore_file(const char *destination,const char *old_name,uint8_t to
 }
 static uint8_t do_save_build(const Source *s,const Build *b) {
     uint8_t chain,i,e,members=3,touched[2]={0,0}; /* NEW.COM / NEW.ZMP, then optional OLD pair */
+    char expected[2][128];
     zos_stat_t *info=(zos_stat_t*)(console_scratch+128);
     platform_error=0;
     if(!build_ready(s,b)) { platform_error=ERR_FAILURE; return 0; }
     chain=build_is_chain(b);
-    if(!paths(s,chain)) { platform_error=ERR_INVALID_PATH; return 0; }
+    if(build_prepared) {
+        if(chain!=prepared_chain||!saved_paths_kind(s->path,expected,chain)||
+           strcmp(expected[0],destinations[0])||strcmp(expected[1],destinations[1])) {
+            platform_error=ERR_INVALID_PATH;return 0;
+        }
+    } else if(!paths(s,chain)) { platform_error=ERR_INVALID_PATH; return 0; }
     if(!strcmp(s->path,destinations[0])||!strcmp(s->path,destinations[1])) { platform_error=ERR_INVALID_PATH; return 0; }
     if(sources_find(&b->sources,destinations[0])>=0||sources_find(&b->sources,destinations[1])>=0) {
         platform_error=ERR_INVALID_PATH;return 0;
     }
-    if(!parent_dirs(transaction,1)) return 0;
-    if(!create_transaction()) return 0;
+    if(!build_prepared) {
+        if(!parent_dirs(transaction,1)) return 0;
+        if(!create_transaction()) return 0;
+    }
+    build_prepared=0;
     /* Finish both new outputs and every old recovery copy before truncating
      * either destination. Failed publication retains the recovery files. */
     for(i=0;i<2;++i) {
@@ -338,20 +348,21 @@ static uint8_t do_save_source_as(Source *s,const char *name,uint8_t replace_back
 }
 static uint8_t read_source(Source *s,const char *name,Diagnostic *d,uint8_t required) {
     SourceImport in;
+    char path[128];
     uint8_t exists,error,ok=1;
     uint16_t n,i;
     int8_t fd;
     memset(d,0,sizeof(*d)); platform_error=0;
-    if(!source_path(name,destinations[0])) { if(!platform_error) platform_error=ERR_INVALID_PATH; return 0; }
-    if(!parent_dirs(destinations[0],0)) return 0;
-    if(!ordinary_file(destinations[0],&exists)) return 0;
+    if(!source_path(name,path)) { if(!platform_error) platform_error=ERR_INVALID_PATH; return 0; }
+    if(!parent_dirs(path,0)) return 0;
+    if(!ordinary_file(path,&exists)) return 0;
     if(!exists) {
         if(required) { platform_error=ERR_NO_SUCH_ENTRY; return 0; }
-        if(!import_begin(&in,destinations[0],d)) return 0;
+        if(!import_begin(&in,path,d)) return 0;
         return import_finish(&in,s,d);
     }
-    fd=output_open_path(destinations[0],O_RDONLY); if(fd<0) return 0;
-    if(!import_begin(&in,destinations[0],d)) { output_finish(fd,0); return 0; }
+    fd=output_open_path(path,O_RDONLY); if(fd<0) return 0;
+    if(!import_begin(&in,path,d)) { output_finish(fd,0); return 0; }
     while(!in.eof) {
         n=128; platform_error=read(fd,console_scratch,&n);
         if(platform_error||n>128) { ok=0; break; }
@@ -369,14 +380,18 @@ uint8_t load_source(Source *s,const char *name,Diagnostic *d) {
 uint8_t read_block(Source *block,const char *name,Diagnostic *d) {
     uint8_t error;
     memset(d,0,sizeof(*d)); platform_error=0;
-    if(!source_new(block,"")) { d->code=98; return 0; }
+    /* A new block has no old buffer to preserve. The streaming importer
+     * acquires its one page; loading an include must not need a dummy page. */
+    memset(block,0,sizeof(*block));block->page=255;
     if(read_source(block,name,d,1)) return 1;
-    error=platform_error; source_close(block); platform_error=error; return 0;
+    error=platform_error;if(block->page!=255)source_close(block);platform_error=error;return 0;
 }
 static uint8_t do_save_block(const Source *s,uint16_t a,uint16_t z,const char *name,uint8_t replace) {
     uint8_t exists,touched=0;
     uint16_t base;
-    platform_error=0; transaction_owned=0; transaction[0]=0;
+    platform_error=0;
+    if(build_prepared) {platform_error=ERR_FAILURE;return 0;}
+    transaction_owned=0; transaction[0]=0;
     if(a>=z||z>s->length) { platform_error=ERR_INVALID_PARAMETER; return 0; }
     if(!source_path(name,destinations[0])) {
         if(!platform_error) platform_error=ERR_INVALID_PATH;
@@ -412,6 +427,38 @@ failed:
 uint8_t save_build(const Source *s,const Build *b,uint8_t interruptible) {
     uint8_t ok;
     output_job_begin(interruptible); ok=do_save_build(s,b); output_job_end(); return ok;
+}
+/* The compiler receives this already-owned directory. Includes are read-only
+ * and use their own path buffer, so they cannot retarget later publication. */
+uint8_t prepare_build(const Source *s,const Sources *buffers,uint8_t chain,uint8_t interruptible) SOURCE_BLOCK_CALL {
+    uint8_t ok=0;
+    output_job_begin(interruptible);
+    if(build_prepared) {platform_error=ERR_FAILURE;goto done;}
+    if(chain>1||!paths(s,chain)||!strcmp(s->path,destinations[0])||!strcmp(s->path,destinations[1])) {
+        platform_error=ERR_INVALID_PATH;goto done;
+    }
+    if(buffers) {
+        if(!sources_valid(buffers)) {platform_error=ERR_ENTRY_CORRUPTED;goto done;}
+        if(sources_find(buffers,destinations[0])>=0||sources_find(buffers,destinations[1])>=0) {
+            platform_error=ERR_INVALID_PATH;goto done;
+        }
+    }
+    if(!parent_dirs(transaction,1)||!create_transaction())goto done;
+    prepared_chain=chain;build_prepared=1;ok=1;
+done:
+    output_job_end();return ok;
+}
+uint8_t cancel_prepared_build(void) SOURCE_BLOCK_CALL {
+    uint8_t e,previous=platform_error;
+    if(!build_prepared)return 1;
+    /* Until publication starts this directory is empty. A foreign/new member
+     * makes rm fail; never enumerate or recursively remove an unknown file. */
+    strcpy((char*)console_scratch,transaction);e=rm((char*)console_scratch);
+    /* A leftover directory is recovery, not an active publication. Keeping
+     * the reservation would prevent every subsequent save of dirty source. */
+    build_prepared=0;
+    if(e) {platform_error=e;return 0;}
+    transaction_owned=0;platform_error=previous;return 1;
 }
 uint8_t save_source(Source *s,uint8_t replace_backup,uint8_t interruptible) {
     uint8_t ok;

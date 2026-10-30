@@ -48,7 +48,7 @@ struct CompilerGroups;
 typedef struct {
     const Source *root;
     const Sources *buffers;
-    uint8_t refs_page,file,error_file,external_error;
+    uint8_t refs_page,file,error_file,external_error,memory,job;
     uint16_t refs,parent_scan;
     uint8_t parent_flags,parent_limit;
     const CompileOptions *options;
@@ -99,6 +99,7 @@ void cc_activation_begin(void) FRONTEND;
 void cc_activation_place(void) FRONTEND;
 void cc_startup_finish(void) FRONTEND;
 uint8_t cc_seal(const Source *root,const CompileOptions *options) FRONTEND;
+void build_discard_image(Build *build) SOURCE_BLOCK_CALL;
 
 void cc_fail(uint8_t code) FRONTEND;
 SourcePosition cc_source_position(void) ROUTINES;
@@ -126,6 +127,7 @@ void cc_address(uint8_t op,uint16_t value) FRONTEND;
 void cc_relocate(uint16_t operand) FRONTEND;
 void cc_relocate_value(uint16_t operand,uint16_t coefficient,uint8_t byte) FRONTEND;
 uint8_t cc_place_code(void) FRONTEND;
+uint8_t cc_image_page(uint8_t index) FRONTEND;
 void cc_symbol_address(uint16_t id) FRONTEND;
 void cc_destination(uint16_t id) FRONTEND;
 uint16_t cc_forward(uint8_t op) FRONTEND;

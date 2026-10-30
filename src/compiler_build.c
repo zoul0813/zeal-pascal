@@ -13,12 +13,25 @@
  * emission reaches these through banked helpers or the resident public API. */
 uint8_t image_get(const Build *b,uint16_t p) { return far_get(b->pages[p/PAGE_SIZE],p%PAGE_SIZE); }
 
-void build_close(Build *b) {
+void build_discard_image(Build *b) SOURCE_BLOCK_CALL {
     uint8_t i;
     b->valid=0;
     for(i=0;i<3;++i) if(b->pages[i]!=255&&page_drop(b->pages[i])) b->pages[i]=255;
     if(b->map_page!=255&&page_drop(b->map_page)) b->map_page=255;
-    sources_close(&b->sources);
+}
+void build_close(Build *b) {
+    build_discard_image(b);sources_close(&b->sources);
+}
+uint8_t cc_image_page(uint8_t index) FRONTEND {
+    uint16_t i;
+    if(cc.image->pages[index]!=255)return 1;
+    cc.image->pages[index]=page_new(PAGE_IMAGE);
+    if(cc.image->pages[index]==255) {cc_fail(98);return 0;}
+    for(i=0;i<PAGE_SIZE;++i) {
+        if(!(i&255)&&!cc_poll())return 0;
+        far_set(cc.image->pages[index],i,0);
+    }
+    page_initialized(cc.image->pages[index],PAGE_SIZE);return 1;
 }
 /* Final placement and relocation belong with build sealing. Keeping them in
  * this bank also leaves lexer/emission room for cancellable scanning. */
@@ -42,6 +55,11 @@ uint8_t cc_place_code(void) FRONTEND {
         value+=(uint16_t)((uint32_t)coefficient*delta);
         if(byte)cc_put(at,(uint8_t)value);else cc_word(at,value);
     }
+    /* Relocation and routine records are dead before final placement. Reuse
+     * their capacity for the middle image page rather than holding both. */
+    if(!page_drop(cc.workspace)) {cc_fail(98);return 0;}
+    cc.workspace=255;
+    if(!cc_image_page(1))return 0;
     /* A higher Start may overlap the first staging page in either direction.
      * Reverse only for an upward overlapping move. The second staging page
      * is separate from all final image pages. Clear gaps after staging dies. */

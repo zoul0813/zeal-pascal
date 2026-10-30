@@ -90,6 +90,9 @@ zos_err_t pfree(uint8_t page) {
 }
 uint8_t key_interrupt(void) {platform_error=0;return ++polls==cancel_at?cancel_reason:0;}
 uint8_t build_ready(const Source *s,const Build *b) {return s->page==source.page&&b==&build;}
+/* Publication/member fixtures preallocate their image pages. Compiler page
+ * materialization is exercised by the shared front-end/native suites. */
+uint8_t cc_image_page(uint8_t index) {(void)index;assert(0);return 0;}
 /* This VFS model verifies cache policy, not the compiler's cryptography. Native
  * execution and shared-front-end tests use the actual image/map authenticator. */
 uint8_t build_check(const Source *s,const Build *b) {
@@ -716,7 +719,7 @@ static void phase_cache(void) {
 }
 #include "output-path-cases.h"
 int main(void) {
-    output_path_cases();
+    output_path_cases();prepared_output_cases();single_page_block_read();
     unsigned kind,mask,pages,total_events,total_polls,i;uint8_t ok;
     for(kind=0;kind<5;++kind)for(mask=0;mask<(kind==2?2u:4u);++mask) {
         fail_at=cancel_at=rollback_fault=shorts=bad_io=fail_read=fail_write=0;setup(kind,mask);pages=owned();

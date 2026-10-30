@@ -2,6 +2,9 @@
 #define compile_project compiler_compile_project
 #endif
 #include "compiler.h"
+#if defined(__SDCC) || defined(ZP_COMPILER_JOBS)
+#include "compiler_job.h"
+#endif
 
 /* Compilation owns transient sources, staging, relocation and sealing until
  * this phase returns. Run may then release its immutable code bank. */
@@ -14,6 +17,11 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     CompilerSources sources;
     memset(&cc,0,sizeof(cc));memset(&sources,0,sizeof(sources));
     sources.refs_page=255;sources.root=s;sources.options=options;
+    sources.memory=!options;
+#if defined(__SDCC) || defined(ZP_COMPILER_JOBS)
+    sources.job=compiler_job_active!=0;
+    if(compiler_job_active)sources.memory=compiler_job_memory;
+#endif
     cc.input=&active;cc.sources=&sources;cc.image=b;cc.error=d;
     cc.workspace=255;cc.stage_page=255;
     memset(d,0,sizeof(*d));memset(b,0,sizeof(*b));
@@ -22,6 +30,10 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     if(!cc_poll())goto failed;
     if(!cc_sources_prepare(s,buffers))goto failed;
     for(i=0;i<3;++i) {
+        /* The middle page holds final globals/code placement, never parser
+         * staging. Materialize it on a global initializer's first write or
+         * after relocation releases its workspace. */
+        if(i==1)continue;
         b->pages[i]=page_new(PAGE_IMAGE);
         if(b->pages[i]==255){d->code=98;goto failed;}
         for(j=0;j<PAGE_SIZE;++j) {
@@ -70,18 +82,24 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
         if(page_drop(cc.stage_page))cc.stage_page=255;
         else {d->code=98;goto failed;}
     }
-    if(page_drop(cc.workspace))cc.workspace=255;
-    else {d->code=98;goto failed;}
-    if(page_drop(sources.refs_page))sources.refs_page=255;
+    if(sources.job||page_drop(sources.refs_page))sources.refs_page=255;
     else {d->code=98;goto failed;}
     if(!cc_seal(s,options))goto failed;
     return 1;
 failed:
-    if(d->code!=COMPILE_INTERRUPTED)cc_sources_error();
     cc.polling=0;
-    if(sources.refs_page!=255&&page_drop(sources.refs_page))sources.refs_page=255;
+    if(sources.refs_page!=255&&(sources.job||page_drop(sources.refs_page)))sources.refs_page=255;
     if(cc.stage_page!=255&&page_drop(cc.stage_page))cc.stage_page=255;
     if(cc.workspace!=255&&page_drop(cc.workspace))cc.workspace=255;
+    /* Error replies still need source identities, but not the abandoned
+     * executable. Reclaim emission storage before exporting a bounded table. */
+    build_discard_image(b);
+    if(d->code!=COMPILE_INTERRUPTED) {
+#if defined(__SDCC) || defined(ZP_COMPILER_JOBS)
+        if(compiler_job_active)compiler_job_failure();else
+#endif
+        cc_sources_error();
+    }
     build_close(b);return 0;
 }
 

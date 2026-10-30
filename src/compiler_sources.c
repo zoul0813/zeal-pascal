@@ -1,4 +1,5 @@
 #include "compiler.h"
+#include "sources_internal.h"
 
 static uint8_t flags(void) {
     return cc.absolute_mode|(cc.var_strict<<1)|(cc.range_check<<2)|
@@ -16,6 +17,9 @@ static void options(uint8_t value,uint8_t limit) {
  * can appear at several include sites; replay must resume the original site,
  * with its options, rather than the last include the scanner happened to read. */
 #define REFERENCE_BYTES 10u
+static uint16_t reference_at(uint16_t id) {
+    return cc.sources->job?PAGE_SIZE-(id+1)*REFERENCE_BYTES:id*REFERENCE_BYTES;
+}
 SourcePosition cc_source_position(void) ROUTINES {
     return ((SourcePosition)cc.sources->file<<16)|cc.scan;
 }
@@ -25,7 +29,7 @@ uint8_t cc_source_byte(SourcePosition position) ROUTINES {
 SourcePosition cc_reference_position(uint16_t reference) ROUTINES {
     uint8_t i;SourcePosition value=0;
     if(reference>=cc.sources->refs){cc_fail(99);return 0;}
-    for(i=0;i<4;++i)value|=(SourcePosition)far_get(cc.sources->refs_page,reference*REFERENCE_BYTES+i)<<(i*8);
+    for(i=0;i<4;++i)value|=(SourcePosition)far_get(cc.sources->refs_page,reference_at(reference)+i)<<(i*8);
     return value;
 }
 uint16_t cc_source_reference(SourcePosition position) ROUTINES {
@@ -35,18 +39,20 @@ uint16_t cc_source_reference(SourcePosition position) ROUTINES {
     context[2]=cc.sources->parent_flags;context[3]=cc.sources->parent_limit;
     context[4]=flags();context[5]=cc.with_limit;
     for(id=0;id<cc.sources->refs;++id)if(cc_reference_position(id)==position) {
-        for(i=0;i<6;++i)if(far_get(cc.sources->refs_page,id*REFERENCE_BYTES+4+i)!=context[i])break;
+        for(i=0;i<6;++i)if(far_get(cc.sources->refs_page,reference_at(id)+4+i)!=context[i])break;
         if(i==6)return id;
     }
-    if(id==PAGE_SIZE/REFERENCE_BYTES){cc_fail(98);return 0;}
-    at=id*REFERENCE_BYTES;
+    if(id==PAGE_SIZE/REFERENCE_BYTES||(cc.sources->job&&
+       (uint32_t)cc.image->sources.count*RECORD_BYTES+(uint32_t)(id+1)*REFERENCE_BYTES>PAGE_SIZE)){cc_fail(98);return 0;}
+    at=reference_at(id);
     for(i=0;i<4;++i)far_set(cc.sources->refs_page,at+i,(uint8_t)(position>>(i*8)));
     for(i=0;i<6;++i)far_set(cc.sources->refs_page,at+4+i,context[i]);
+    if(cc.sources->job)cc.image->sources.version=page_versions[cc.sources->refs_page];
     ++cc.sources->refs;return id;
 }
 void cc_reference_seek(uint16_t reference) ROUTINES {
     SourcePosition position=cc_reference_position(reference);
-    uint16_t at=reference*REFERENCE_BYTES;
+    uint16_t at=reference_at(reference);
     if(cc.error->code)return;
     cc.sources->parent_scan=far_get(cc.sources->refs_page,at+4)|((uint16_t)far_get(cc.sources->refs_page,at+5)<<8);
     cc.sources->parent_flags=far_get(cc.sources->refs_page,at+6);
@@ -78,20 +84,34 @@ void cc_source_restore(const SourceCursor *cursor) ROUTINES {
 }
 uint8_t cc_sources_prepare(const Source *root,const Sources *buffers) ROUTINES {
     const Source *origin=root;
-    uint8_t file;
+    uint8_t file,count,borrowed=0,hash[32];int16_t id=-1;
     cc.sources->root=root;cc.sources->buffers=buffers;
     if(buffers) {
         if(!sources_valid(buffers)){cc_fail(98);return 0;}
-        for(file=0;file<buffers->count;++file)if(!sources_ready(buffers,file)){cc_fail(98);return 0;}
-        if(sources_find(buffers,root->path)<0)origin=0;
+        /* Keep the immutable bound outside the loop: SDCC's size optimizer
+         * otherwise advances the struct-field pointer on each iteration. */
+        count=buffers->count;
+        for(file=0;file<count;++file)if(!sources_ready(buffers,file)){cc_fail(98);return 0;}
+        id=sources_find(buffers,root->path);
+        if(id<0)origin=0;
+        else borrowed=sources_borrowed(buffers,(uint8_t)id);
     }
     if(!sources_new(&cc.image->sources)){cc_fail(98);return 0;}
-    if(!source_snapshot(root,cc.input)){cc_fail(98);return 0;}
-    if(sources_take(&cc.image->sources,cc.input,origin)<0) {
-        source_close(cc.input);cc_fail(98);return 0;
+    if(borrowed||cc.sources->job) {
+        *cc.input=*root;
+        source_hash(root,hash);
+        if(sources_borrow(&cc.image->sources,cc.input,hash)<0) {cc_fail(98);return 0;}
+    } else {
+        if(!source_snapshot(root,cc.input)){cc_fail(98);return 0;}
+        if(sources_take(&cc.image->sources,cc.input,origin)<0) {
+            source_close(cc.input);cc_fail(98);return 0;
+        }
     }
-    if(!sources_pack(&cc.image->sources)){cc_fail(98);return 0;}
-    cc.sources->refs_page=page_new(PAGE_COMPILER);
+    if(cc.sources->job)cc.sources->refs_page=cc.image->sources.page;
+    else {
+        if(!sources_pack(&cc.image->sources)){cc_fail(98);return 0;}
+        cc.sources->refs_page=page_new(PAGE_COMPILER);
+    }
     if(cc.sources->refs_page==255){cc_fail(98);return 0;}
     return 1;
 }
@@ -131,19 +151,27 @@ void cc_source_include(uint8_t comment) ROUTINES {
     id=sources_find(&cc.image->sources,path);
     if(id==0){cc_fail(93);return;}
     if(id<0) {
+        if(cc.sources->job&&(uint32_t)(cc.image->sources.count+1)*RECORD_BYTES+
+           (uint32_t)cc.sources->refs*REFERENCE_BYTES>PAGE_SIZE){cc_fail(98);return;}
         if(cc.sources->buffers)override=sources_find(cc.sources->buffers,path);
+        if(override>=0&&(cc.sources->buffers->base&SOURCES_WIRE_VIEW)&&
+           !sources_resident(cc.sources->buffers,(uint8_t)override))override=-1;
         if(override>=0) {
-            if(!sources_get(cc.sources->buffers,(uint8_t)override,&buffer)||
-               !source_snapshot(&buffer,&loaded)){cc_fail(98);return;}
-            owned=1;
+            if(!sources_get(cc.sources->buffers,(uint8_t)override,&buffer)){cc_fail(98);return;}
+            if(sources_borrowed(cc.sources->buffers,(uint8_t)override)) {loaded=buffer;owned=2;}
+            else {if(!source_snapshot(&buffer,&loaded)){cc_fail(98);return;}owned=1;}
         } else if(read_block(&loaded,path,&diagnostic))owned=1;
         else {
             cc.error->code=diagnostic.code?diagnostic.code:90;
             cc.error->start=diagnostic.start;cc.error->end=diagnostic.end;
             cc.sources->external_error=1;strcpy(cc.input->path,path);return;
         }
-        id=sources_take(&cc.image->sources,&loaded,override>=0?&buffer:0);
-        if(id<0){if(owned)source_close(&loaded);cc_fail(98);return;}
+        if(owned==2) {
+            uint8_t hash[32];
+            if(!sources_hash(cc.sources->buffers,(uint8_t)override,hash)){cc_fail(98);return;}
+            id=sources_borrow(&cc.image->sources,&loaded,hash);
+        } else id=sources_take(&cc.image->sources,&loaded,override>=0?&buffer:0);
+        if(id<0){if(owned==1)source_close(&loaded);cc_fail(98);return;}
         cc_map_source(40+(uint16_t)strlen(path));
         if(cc.error->code)return;
     }

@@ -2,6 +2,7 @@
 #include "sources.h"
 #include "saved_map.h"
 #include "keys.h"
+#include "compiler_job.h"
 #include <zos_sys.h>
 #include <zos_vfs.h>
 #include <zos_keyboard.h>
@@ -50,6 +51,7 @@ static void invalidate(void) {
 }
 static uint8_t sync_work(void) { return sources_take(&buffers,&work,&work)>=0; }
 static void lookup_failure(void) {
+    recovery_notice();
     output("\nSource lookup failed; buffers retained. Press Escape");
     while(key_read()!=27) {}
 }
@@ -178,6 +180,7 @@ static void diagnostic(uint8_t kind,uint16_t code,const char *path,const uint8_t
         output(" Line ");output_number(line);output(" Col ");output_number(col);
     }
     if(messages&&kind==2&&code==2) output(" Division by zero");
+    if(kind==1)recovery_notice();
     output(located?"\nPress Escape to return to source":"\nSource lookup failed; buffers retained. Press Escape");
     while(key_read()!=27) {}
     if(located) { work.cursor=position;edit(1); }
@@ -424,7 +427,7 @@ static void save_as_work(void) {
     if(save_work_as(name)) invalidate();
 }
 static uint8_t compile_work(void) {
-    Diagnostic d;Source root;int16_t id;uint8_t temporary=0,ok;
+    Diagnostic d;CompileFailure failure;Source root;int16_t id;uint8_t ok;
     const char *path=main_file[0]?main_file:work.path;
     invalidate();screen_clear();
     if(!sync_work()) { lookup_failure();return 0; }
@@ -432,33 +435,30 @@ static uint8_t compile_work(void) {
     if(id>=0) {
         if(!sources_get(&buffers,(uint8_t)id,&root)) { lookup_failure();return 0; }
     } else {
-        if(!read_block(&root,path,&d)) {
-            output("Main file unavailable: ");output(path);
-            file_error(" Native/source error ",d.code?d.code:platform_error);
-            output(". Work retained. Press Escape");while(key_read()!=27) {}return 0;
-        }
-        temporary=1;
+        memset(&root,0,sizeof(root));root.page=255;strcpy(root.path,path);
     }
     output(saved_mode==2?"Compiling native CHN (Ctrl-U cancels)...\n":saved_mode?"Compiling to native COM (Ctrl-U cancels)...\n":"Compiling to Memory (Ctrl-U cancels)...\n");
-    ok=compile_project(&root,&buffers,&build,&d,1,saved_mode?&compile_options:0);
-    if(temporary)source_close(&root);
+    ok=compile_request(&root,&buffers,&build,&failure,saved_mode,saved_mode?&compile_options:0,work.path);
+    d=failure.diagnostic;
     if(!ok) {
         build.code_bytes=build.globals_bytes=0;
         if(d.code==COMPILE_PLATFORM_FAILURE) {
-            file_error("Compiler library unavailable, native error ",platform_error);
+            file_error("Compile failed, native error ",platform_error);recovery_notice();
             search_ack("Source retained");return 0;
         }
         if(d.code==COMPILE_INTERRUPTED) {
             ide_state=3;
-            search_ack(compile_interrupt_reason()==2?"Compile interrupted: typeahead full":"*** COMPILE INTERRUPTED");return 0;
+            recovery_notice();
+            search_ack(failure.interrupted==2?"Compile interrupted: typeahead full":"*** COMPILE INTERRUPTED");return 0;
         }
-        if(strcmp(compile_error_path(),root.path)&&!main_file[0])strcpy(main_file,root.path);
-        diagnostic(1,d.code,compile_error_path(),compile_error_hash(),d.start,0,0);return 0;
+        if(strcmp(failure.path,root.path)&&!main_file[0])strcpy(main_file,root.path);
+        diagnostic(1,d.code,failure.path,failure.has_hash?failure.hash:0,d.start,0,0);return 0;
     }
-    if(!sources_get(&build.sources,0,&root)) { lookup_failure();return 0; }
+    if(!sources_get(&build.sources,0,&root)) { cancel_prepared_build();lookup_failure();return 0; }
     if(saved_mode) {
         output("Verifying and saving executable/map (Ctrl-U cancels)...\n");
         if(!save_build(&root,&build,1)) {
+            cancel_prepared_build();
             if(output_interrupt_reason()) {
                 ok=platform_error; invalidate(); platform_error=ok;
                 publication_interrupted(); return 0;

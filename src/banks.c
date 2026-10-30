@@ -1,4 +1,5 @@
 #include "library.h"
+#include "compiler_job.h"
 #include "worker.h"
 #include "output_transport.h"
 #include <zos_errors.h>
@@ -59,6 +60,17 @@ uint8_t compile_project(const Source *root,const Sources *buffers,Build *b,Diagn
     uint8_t old,ok;
     if(!code_phase_restore()) {memset(d,0,sizeof(*d));d->code=COMPILE_PLATFORM_FAILURE;return 0;}
     old=code_select(CODE_PHASE_FIRST);ok=compiler_compile_project(root,buffers,b,d,interruptible,options);
+    code_restore(old);return ok;
+}
+uint8_t compiler_compile_request(const Source *root,const Sources *buffers,Build *build,CompileFailure *failure,
+    uint8_t mode,const CompileOptions *options,const char *work_path);
+uint8_t compile_request(const Source *root,const Sources *buffers,Build *build,CompileFailure *failure,
+    uint8_t mode,const CompileOptions *options,const char *work_path) {
+    uint8_t old,ok;
+    if(!compiler_resources_ready()||!code_phase_restore()) {
+        memset(failure,0,sizeof(*failure));failure->diagnostic.code=COMPILE_PLATFORM_FAILURE;return 0;
+    }
+    old=code_select(15);ok=compiler_compile_request(root,buffers,build,failure,mode,options,work_path);
     code_restore(old);return ok;
 }
 void build_close(Build *b) {

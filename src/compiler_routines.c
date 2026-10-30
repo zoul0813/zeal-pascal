@@ -216,7 +216,7 @@ SourcePosition cc_block(void) ROUTINES {
     cc.with_bound=cc.with_limit;
     start=cc.token_start;
     /* Direct Memory has no output owner for overlay group files. */
-    if(!cc_is("begin")) cc_fail(!cc.sources->options&&cc_is("overlay")?77:12);
+    if(!cc_is("begin")) cc_fail(cc.sources->memory&&cc_is("overlay")?77:12);
     else start=cc_statement();
     cc_labels_finish();
     cc.with_bound=saved_bound;

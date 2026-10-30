@@ -1,6 +1,6 @@
 #include "zp.h"
 
-void source_hash(const Source *s,uint8_t out[32]) {
+void source_hash(const Source *s,uint8_t out[32]) SOURCE_BLOCK_CALL {
     Sha256 hash;
     uint16_t i,a=0,z,trim;
     sha_init(&hash);

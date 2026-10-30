@@ -60,7 +60,10 @@ void cc_put(uint16_t p,uint8_t v) FRONTEND {
             if(cc.stage_page==255) { cc_fail(98); return; }
         }
         far_set(cc.stage_page,p-0xc000u,v);
-    } else far_set(cc.image->pages[p/PAGE_SIZE],p%PAGE_SIZE,v);
+    } else {
+        if(cc.image->pages[p/PAGE_SIZE]==255&&!cc_image_page(p/PAGE_SIZE))return;
+        far_set(cc.image->pages[p/PAGE_SIZE],p%PAGE_SIZE,v);
+    }
 }
 uint8_t cc_code_get(uint16_t address) FRONTEND {
     if(cc.error->code) return 0;

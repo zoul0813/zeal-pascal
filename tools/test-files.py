@@ -67,7 +67,11 @@ def main():
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}
     assert sym['_test_stop'] == 0xfc00
     commands = ['run 100000000'] + n.program_launch(target)
-    commands += [f"bp 0x{sym['_test_stop']:x}", 'run 60000000000', 's', 'regs', 'mmu']
+    # The banked compiler reloads/authenticates its parked phases per run.
+    # The retained 60-billion-cycle capture ended while hashing, with352/0
+    # assertions and an unfinished suite. Stop at real completion, with room
+    # for the full cleanup corpus; partial progress must still fail below.
+    commands += [f"bp 0x{sym['_test_stop']:x}", 'run 150000000000', 's', 'regs', 'mmu']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage'):
         commands += [f'rb 0x{sym[name]:x} 2']
     commands += [f"rb 0x{sym['_test_failures']:x} 128", 'quit']
@@ -98,7 +102,7 @@ def main():
     for name,(checking,scope_exit,program) in scenarios.items():
         fixtures[name+'.PAS']=cleanup.replace('%CHECKING%',checking).replace(
             '%SCOPE_EXIT%',scope_exit).replace('%BODY%',program).encode()
-    raw = n.execute('file-component', commands, fixtures, timeout=540)
+    raw = n.execute('file-component', commands, fixtures, timeout=1500)
     memory = n.memory(raw)
     word = lambda name: memory.get(sym[name], 0) | memory.get(sym[name]+1, 0) << 8
     output = n.RUN/'file-component/hostfs/FILES.TXT'

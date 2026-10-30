@@ -2,6 +2,7 @@
 #include "keys.h"
 #include "worker.h"
 #include "library.h"
+#include "compiler_job.h"
 #include <zos_sys.h>
 #include <zos_vfs.h>
 #include <zos_video.h>
@@ -11,6 +12,9 @@ extern uint8_t console_scratch[256];
 extern uint8_t key_raw[32];
 static struct { uint8_t role; uint16_t initialized; uint32_t lifetime; } ledger[32];
 static uint32_t next_lifetime;
+/* Only the synchronous compiler invocation can add to this authoritative
+ * ledger. A reply cannot turn a borrowed parent page into an output owner. */
+uint8_t compiler_owned[8],compiler_parent_owned[8],compiler_allocating;
 static uint8_t active, old_x,old_y;
 static uint8_t raw_at,raw_count,typeahead[32],key_head,key_count,key_hold;
 uint8_t screen_width,screen_height,platform_error;
@@ -21,13 +25,19 @@ uint8_t page_new(uint8_t role) {
     if(platform_error) return 255;
     if(p<32||p>=64||ledger[p-32].role) { platform_error=ERR_INVALID_PARAMETER; return 255; }
     ledger[p-32].role=role; ledger[p-32].initialized=0; ledger[p-32].lifetime=++next_lifetime;
+    if(compiler_allocating) {
+        uint8_t *owner=compiler_allocating==COMPILER_ALLOC_WORKER?compiler_owned:compiler_parent_owned;
+        owner[p>>3]|=1u<<(p&7);
+    }
     return p;
 }
 uint8_t page_drop(uint8_t p) {
     if(p<32||p>=64||!ledger[p-32].role) { platform_error=ERR_INVALID_PARAMETER; return 0; }
+    if(compiler_allocating==COMPILER_ALLOC_WORKER&&!(compiler_owned[p>>3]&(1u<<(p&7)))) {platform_error=ERR_INVALID_PARAMETER;return 0;}
     platform_error=pfree(p);
     if(platform_error) return 0;
-    memset(&ledger[p-32],0,sizeof(ledger[p-32])); return 1;
+    memset(&ledger[p-32],0,sizeof(ledger[p-32]));compiler_owned[p>>3]&=~(1u<<(p&7));
+    compiler_parent_owned[p>>3]&=~(1u<<(p&7));return 1;
 }
 uint8_t page_role(uint8_t p) {
     return p>=32&&p<64?ledger[p-32].role:0;

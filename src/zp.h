@@ -98,7 +98,8 @@ typedef struct {
 } Source;
 /* An owner of source pages and their identities. Descriptors live in an owned
  * far page; the near handle authenticates its current immutable contents.
- * base0 owns a separate catalog; a nonzero base stores it in the root snapshot. */
+ * base0 owns a separate catalog; a nonzero base stores it in the root snapshot.
+ * Bit15 marks a read-only wire-table view which owns no pages. */
 typedef struct { uint8_t page,count; uint32_t lifetime,version; uint16_t base; } Sources;
 typedef struct {
     uint8_t code;
@@ -159,7 +160,7 @@ void source_location(const Source *s, uint16_t position, uint16_t *line, uint16_
 uint16_t source_rebase(uint16_t position,uint16_t first,uint16_t last,uint16_t inserted,uint8_t right);
 uint8_t source_snapshot(const Source *s, Source *snapshot);
 uint16_t source_editor_offset(const Source *s, uint16_t canonical);
-void source_hash(const Source *s, uint8_t out[32]);
+void source_hash(const Source *s, uint8_t out[32]) SOURCE_BLOCK_CALL;
 uint8_t compile(const Source *s, Build *b, Diagnostic *d);
 uint8_t compile_project(const Source *root,const Sources *buffers,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options);
 uint8_t compile_limits(uint16_t globals,uint16_t code,const CompileOptions *options,CompileLimits *limits) SOURCE_BLOCK_CALL;
@@ -179,6 +180,8 @@ uint8_t build_locate(const Source *s, const Build *b, uint16_t pc, uint16_t *pos
 uint8_t build_location(const Source *root,const Build *b,uint16_t pc,uint8_t *file,uint16_t *position);
 uint8_t run_build(const Source *s, const Build *b);
 uint8_t save_build(const Source *s,const Build *b,uint8_t interruptible);
+uint8_t prepare_build(const Source *s,const Sources *buffers,uint8_t chain,uint8_t interruptible) SOURCE_BLOCK_CALL;
+uint8_t cancel_prepared_build(void) SOURCE_BLOCK_CALL;
 uint8_t save_source(Source *s,uint8_t replace_backup,uint8_t interruptible);
 uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup,uint8_t interruptible);
 uint8_t load_source(Source *s,const char *path,Diagnostic *d);

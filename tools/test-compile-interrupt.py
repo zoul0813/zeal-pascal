@@ -17,10 +17,22 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--seal-poll', type=int, required=True,
                         help='First sealing poll measured by the host cancellation fixture; native state verifies the phase independently')
+    parser.add_argument('--parser-poll', type=int, required=True,
+                        help='First emission poll measured by the host cancellation fixture; native state verifies staging independently')
     args = parser.parse_args()
     sym = n.symbols('zpascal'); kernel = n.kernel_symbols()
     key, poll = sym['_key_read'], sym['_key_interrupt']
     clear = kernel['_video_vram_set']
+    # This is a private observer, derived from the current SDCC output rather
+    # than a frozen C-layout guess. Build remains unpublished in the IDE while
+    # the compiler's invocation-local Build is on its retained stack.
+    assembly=(ROOT/'build/CMakeFiles/zp_core.dir/src/compiler_compile.c.asm').read_text()
+    assignment=assembly.split('cc.input=&active;cc.sources=&sources;cc.image=b;cc.error=d;',1)[1].split(';/',1)[0]
+    image_offsets=re.findall(r'_cc \+ (\d+)',assignment)
+    assert len(image_offsets)==3
+    image_pointer=sym['_cc']+int(image_offsets[2])
+    prefix_polls=4 # Existing project parent, unique directory, initial input, one buffer.
+
     work, build, editor = sym['_work'], sym['_build'], sym['_editor']
     source = b'program Cancel;\nvar n:integer;\nbegin n:=7;writeln(n) end.\n'
     prefix = b'{unsaved}\n'
@@ -37,10 +49,14 @@ def main():
 
     def snapshot(label, expected):
         labels.append((label, expected))
-        return ['regs', 'mmu', f"rb 0x{sym['_ide_state']:x} 1",
+        commands = ['regs', 'mmu', f"rb 0x{sym['_ide_state']:x} 1",
                 f'rb 0x{work:x} 140', f'rb 0x{build:x} {n.BUILD_BYTES}', f'rb 0x{editor:x} 223',
                 f"rb 0x{sym['_main_file']:x} 128", f"rb 0x{sym['_buffers']:x} {n.SOURCES_BYTES}",
                 f"rb 0x{sym['_ram_result']:x} 128", f"rb 0x{kernel['_page_owners']:x} 32"]
+        if label.endswith('-phase'):
+            commands += [f'rb 0x{image_pointer:x} 2']
+            commands += [f'rb 0x{at:x} 128' for at in range(sym['s__HEAP'] & ~127, 65536, 128)]
+        return commands
 
     def state(label, trigger, cycles=4000000000):
         return [f'bp 0x{key:x}']+trigger+[f'run {cycles}']+snapshot(label, key)+[f'bc 0x{key:x}']
@@ -67,7 +83,7 @@ def main():
     commands += typed('ocq')+[f'bp 0x{clear:x}', 'tap SPACE', 'run 100000000']
     commands += snapshot('baseline-kernel', clear)+[f'bc 0x{clear:x}']
     commands += state('baseline', [], 100000000)+['run 100000000']
-    for label, checkpoint in [('entry', 1), ('allocation', 3), ('parser', 260), ('sealing', args.seal_poll)]:
+    for label, checkpoint in [('entry', 1), ('allocation', 3+prefix_polls), ('parser', args.parser_poll+prefix_polls), ('sealing', args.seal_poll+prefix_polls)]:
         commands += cancel(label, checkpoint)
     # Non-control typing remains queued through the fresh Escape acknowledgment:
     # E enters the editor, Z is inserted only after normal editing resumes.
@@ -132,10 +148,14 @@ def main():
         checks['physical video reports compile interruption at every phase'] = all(
             b'*** COMPILE INTERRUPTED' in data(label+'-screen', 0x4000, 640) and
             '4000 -> 100000' in frames[label+'-screen'][1] for label in unchanged)
+        checks['IDE Build remains unpublished throughout compilation'] = all(data(label+'-phase',build,5)==b'\xff'*4+b'\0'for label in unchanged)
         checks['entry cancellation precedes image allocation'] = data('entry-phase', build, 4)==b'\xff'*4
-        checks['allocation cancellation owns a partially initialized image'] = data('allocation-phase', build, 1)!=b'\xff' and data('allocation-phase', build+1, 3)==b'\xff'*3
-        checks['parser cancellation follows runtime and map allocation'] = all(x!=255 for x in data('parser-phase', build, 4)) and word('parser-phase', build+13)==0
-        checks['sealing cancellation follows final map construction'] = word('sealing-phase', build+13)>96 and data('sealing-phase', build+4, 1)==b'\0'
+        checks['allocation cancellation owns a partially initialized image'] = data('allocation-phase', word('allocation-phase',image_pointer), 1)!=b'\xff' and data('allocation-phase', word('allocation-phase',image_pointer)+1, 3)==b'\xff'*3
+        checks['parser cancellation owns runtime, staging and map but defers middle image page'] = (
+            all(data('parser-phase',word('parser-phase',image_pointer)+i,1)!=b'\xff' for i in (0,2,3)) and
+            data('parser-phase',word('parser-phase',image_pointer)+1,1)==b'\xff' and
+            word('parser-phase',word('parser-phase',image_pointer)+13)==0)
+        checks['sealing cancellation follows final map construction'] = word('sealing-phase', word('sealing-phase',image_pointer)+13)>96 and data('sealing-phase', word('sealing-phase',image_pointer)+4, 1)==b'\0'
         length = len(prefix+source)
         checks['acknowledgment retains ordinary typing until editor resumes'] = (
             word('typing-pending', work+2)==length and data('typing-editor', sym['_ide_state'], 1)==b'\2' and

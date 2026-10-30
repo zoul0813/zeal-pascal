@@ -1,6 +1,7 @@
 /* Host structural/failure tests for the exact C front end used on Zeal.
  * These are deliberately not counted as native execution tests. */
 #include "compiler.h"
+#include "compiler_job.h"
 #include "image.h"
 #include "transfer_asset.h"
 #include <assert.h>
@@ -11,6 +12,8 @@ static uint8_t memory[64][PAGE_SIZE],owned[64];
 static uint32_t lifetimes[64],next_lifetime;
 volatile uint32_t page_versions[64];
 uint8_t platform_error;
+uint8_t compiler_owned[8],compiler_allocating;
+uint8_t compiler_parent_owned[8];
 static int fail_after=-1,fail_drop=-1;
 static unsigned checks,allocation_calls;
 static uint8_t cancel_stage,cancel_result;
@@ -30,10 +33,19 @@ uint8_t page_new(uint8_t role) {
     ++allocation_calls;
     if(fail_after==0) return 255;
     if(fail_after>0) --fail_after;
-    for(i=32;i<64;++i) if(!owned[i]) { owned[i]=role;lifetimes[i]=++next_lifetime;return i; }
+    for(i=32;i<64;++i) if(!owned[i]) {
+        owned[i]=role;lifetimes[i]=++next_lifetime;
+        if(compiler_allocating==COMPILER_ALLOC_WORKER)compiler_owned[i>>3]|=1u<<(i&7);
+        if(compiler_allocating==COMPILER_ALLOC_PARENT)compiler_parent_owned[i>>3]|=1u<<(i&7);
+        return i;
+    }
     return 255;
 }
-uint8_t page_drop(uint8_t p) { assert(p<64&&owned[p]);if(p==fail_drop)return 0;owned[p]=0;return 1; }
+uint8_t page_drop(uint8_t p) {
+    assert(p<64&&owned[p]);if(p==fail_drop)return 0;
+    if(compiler_allocating==COMPILER_ALLOC_WORKER&&!(compiler_owned[p>>3]&(1u<<(p&7))))return 0;
+    owned[p]=0;compiler_owned[p>>3]&=~(1u<<(p&7));compiler_parent_owned[p>>3]&=~(1u<<(p&7));return 1;
+}
 uint8_t page_role(uint8_t p) { return p<64?owned[p]:0; }
 uint32_t page_lifetime(uint8_t p) { return p<64&&owned[p]?lifetimes[p]:0; }
 typedef struct {const char *path,*text;} HostSource;
@@ -43,9 +55,9 @@ uint8_t read_block(Source *source,const char *name,Diagnostic *diagnostic) {
     char path[128];unsigned i;
     strcpy(path,name);memset(diagnostic,0,sizeof(*diagnostic));++disk_reads;
     for(i=0;i<disk_source_count;++i)if(!strcmp(path,disk_sources[i].path)) {
-        if(!source_new(source,path)){diagnostic->code=98;return 0;}
+        memset(source,0,sizeof(*source));source->page=255;strcpy(source->path,path);
         if(source_import(source,(const uint8_t*)disk_sources[i].text,(uint16_t)strlen(disk_sources[i].text),diagnostic))return 1;
-        source_close(source);return 0;
+        if(source->page!=255)source_close(source);return 0;
     }
     return 0;
 }
@@ -108,6 +120,7 @@ static void compile_cancellation(void) {
         check(d.code==COMPILE_INTERRUPTED&&compile_interrupt_reason()==result);
         check(poll_calls>0&&!cc.polling&&!b.valid&&pages_used()==1);
         if(stage==4&&result==1)printf("Compile cancellation seal checkpoint: %u\n",poll_calls);
+        if(stage==3&&result==1)printf("Compile cancellation parser checkpoint: %u\n",poll_calls);
         check(!memcmp(&s,&before,sizeof(s))&&!memcmp(content,memory[s.page],s.length));
         check(b.pages[0]==255&&b.pages[1]==255&&b.pages[2]==255&&b.map_page==255&&b.sources.page==255);
         cancel_stage=0;
@@ -861,6 +874,7 @@ static void inline_cases(void) {
     }
     check(pages_used()==1);
 }
+#include "compiler-job-cases.h"
 int main(int argc,char **argv) {
     unsigned i;
     uint16_t position;
@@ -868,6 +882,7 @@ int main(int argc,char **argv) {
     FILE *file;
     check(argc==2);
     check(source_new(&s,"H:/SLICE.PAS"));
+    compiler_job_cases();
     memory_overlays();
     keyboard_corpus();
     interruption_corpus();
