@@ -10,7 +10,7 @@ int main(void) {
     static const struct {uint8_t code;const char *text;} cases[]={
         {1,": ';' expected"},{41,": Unknown identifier or syntax error"},
         {45,": Constant out of range"},{77,": Overlays unavailable in Memory mode"},
-        {90,": Source file unavailable"},{93,": Invalid include placement or nesting"},
+        {90,": Source file unavailable"},{93,": Invalid compiler directive"},
         {98,": Compiler memory or nesting limit exceeded"},{99,": Compiler overflow"},
         {100,": Source line exceeds 127 bytes"},
         {0,""},{16,""},{19,""},{38,""},{39,""},{255,""}

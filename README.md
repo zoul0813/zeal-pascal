@@ -35,6 +35,8 @@ python3 tools/test-sources.py
 python3 tools/test-saved-map.py
 python3 tools/test-saved-map.py --native
 python3 tools/test-ide-sources.py
+python3 tools/test-compiler-job.py
+python3 tools/test-compiler-messages.py --native
 python3 tools/test-ide-execute.py
 python3 tools/test-ide-directory.py
 python3 tools/test-inline.py
@@ -115,6 +117,12 @@ programs contain their own runtime and need no IDE library.
 
 Startup is currently slow: allow roughly 2½ minutes at the target's normal
 speed for library loading and verification before the IDE prompt appears.
+
+At the startup message prompt, Y enables compiler explanations and N keeps
+numeric diagnostics. Missing explanations still leave the error number usable.
+The menu retains the last successful compilation's Main line count and code/data
+sizes. It reports owned RAM pages; free memory and disk capacity are explicitly
+unavailable because the OS provides no capacity query.
 
 | Key | Operation |
 | --- | --- |
@@ -239,6 +247,10 @@ and reports the recovery path; a retry uses a new directory. Source dirty state
 and Save As identity change only after a verified successful save. Filesystem
 calls remain synchronous, and this copy-based protocol cannot promise atomic
 replacement or protection against power loss.
+Record a reported recovery path before starting another save or compile, which
+reuses the path display. The old recovery files remain on disk. If cleanup of a
+pending compiler reservation fails, that compile reports the failure; retrying
+can proceed after the reservation is released.
 
 In Com-file and cHn-file options, S selects the generated code's Start address
 and E selects the program's End address. Enter one to four hexadecimal digits; Start 0 selects
@@ -783,9 +795,10 @@ to EOF. Repeat reuses G too. Quoted Ctrl-A is a one-byte wildcard in the search
 pattern and a literal in replacement. Quoted CR/LF boundaries normalize to LF.
 Replacement counts include N answers; inserted text is not searched again by
 the same operation. A rejected replacement preserves earlier accepted edits.
-The complete physical-control input matrix and full editor replay remain pending.
+The complete native editor replay passes 3,724 component assertions and 83
+workflow checks. The complete physical-control input matrix remains pending.
 
-The editor remains partial. Native tests cover the implemented slice, ownership,
-error recovery and file safety; full reference replay and physical hardware
-acceptance remain open. Research artifacts and evidence are retained locally
+Native tests cover editor workflows, ownership, error recovery and file safety;
+exhaustive reference equivalence and physical hardware acceptance remain open.
+Research artifacts and evidence are retained locally
 but excluded from Git for now.

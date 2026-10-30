@@ -461,7 +461,9 @@ static uint8_t compile_work(void) {
     if(saved_mode) {
         output("Verifying and saving executable/map (Ctrl-U cancels)...\n");
         if(!save_build(&root,&build,1)) {
+            ok=platform_error;
             cancel_prepared_build();
+            if(ok)platform_error=ok;
             if(output_interrupt_reason()) {
                 ok=platform_error; invalidate(); platform_error=ok;
                 publication_interrupted(); return 0;
