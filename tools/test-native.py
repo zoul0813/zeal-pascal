@@ -522,28 +522,25 @@ def interactive_checks():
     commands += typed(source.decode()) + control('K') + typed('d')
     def probe():
         return ['regs', 'mmu', f"rb 0x{sym['_ide_state']:x} 1",
-                f"rb 0x{sym['_work']:x} 12", f"rb 0x{sym['_build']:x} 83",
+                f"rb 0x{sym['_work']:x} 12", f"rb 0x{sym['_build']:x} {BUILD_BYTES}",
                 f"rb 0x{sym['_ram_result']:x} 128"]
-    commands += [f"bp 0x{sym['_key_read']:x}", 'tap R', 'run 2000000000'] + probe()
-    commands += [f"bc 0x{sym['_key_read']:x}"]
-    commands += [f"bp 0x{sym['_key_read']:x}", 'tap ESC', 'run 100000000'] + probe()
-    commands += [f"bc 0x{sym['_key_read']:x}"]
+    def ready(key):
+        return ['tap '+key, ImageStop(sym['_key_read'],'zpascal.bin')]+probe()[1:]
+    commands += ready('R')+ready('ESC')
     # At the faulting statement: EOL, left twice, delete zero, insert three.
     commands += control('Q') + typed('d') + control('S') + control('S') + control('G')
     commands += typed('3') + control('K') + typed('d')
-    commands += [f"bp 0x{sym['_key_read']:x}", 'tap R', 'run 2000000000'] + probe()
+    commands += ready('R')
     # Stay at user-side read entries. A timed sample inside a syscall would
     # inspect the kernel's C000 page once IDE globals have grown into page 3.
-    commands += ['tap ESC', 'run 100000000', 'tap Q', 'run 100000000',
-                 'tap ESC', 'run 100000000'] + probe()
-    commands += [f"bc 0x{sym['_key_read']:x}"]
+    commands += ready('ESC')+ready('Q')+ready('ESC')
     commands += typed('qn') + ['run 10000000', f'bp 0x{keyboard:x}', 'run 100000000',
                                'regs', 'mmu', f'rb 0x{mode:x} 1', f'rb 0x{user_pages:x} 3', 'quit']
-    text = execute('interactive', commands)
+    text = execute('interactive', commands,timeout=360)
     parts = re.split(r'\[DBG\] PC=', text)[1:]
-    if len(parts) != 6:
+    if len(parts) != 8:
         return [('interactive checkpoint count', False)]
-    frames = [memory(part) for part in parts[1:5]]
+    frames = [memory(parts[i]) for i in (1,2,3,6)]
     state = lambda frame: frame.get(sym['_ide_state'])
     get_word = lambda frame, address: frame.get(address, 0) | frame.get(address + 1, 0) << 8
     work = sym['_work']
@@ -554,6 +551,8 @@ def interactive_checks():
     first, last = memory(parts[0]), memory(parts[-1])
     mappings = lambda part: re.findall(r'\[DBG\] ([0-9a-f]{4}) -> ([0-9a-f]{6})', part)
     checks = [
+        ('interactive checkpoints reach the actual IDE reader',
+         all(part.startswith(f"{sym['_key_read']:04x} ")for part in parts[1:-1])),
         ('PS/2 edit -> Memory compile/run -> runtime 02 acknowledgment',
          state(frames[0]) == 3 and frames[0].get(result + 26) == 3
          and frames[0].get(result + 27) == 2 and frames[0].get(result + 28) == 2),
@@ -699,18 +698,21 @@ def full_media_checks():
     disk = bytes(disk)
     typed = lambda text: type_text(text, ticks=2000000)
     commands = ['run 100000000'] + program_launch()
-    commands += ['run 10000000'] + typed('nwB:/UNTITLED.PAS\ne{kept}') + control('K') + typed('docq')
+    commands += ['run 10000000'] + typed('nwB:/UNTITLED.PAS\ne{kept}') + control('K') + typed('doc')
+    commands += ['tap Q',ImageStop(sym['_key_read'],'zpascal.bin')]
     for key in ('C', 'R'):
-        commands += [f"bp 0x{sym['_save_build']:x}", f'tap {key}', 'run 2000000000',
-                     f"bc 0x{sym['_save_build']:x}", f"bp 0x{sym['_output_number']:x}",
-                     'run 2000000000', 'regs', f"rb 0x{sym['_work']:x} 140",
-                     f"bc 0x{sym['_output_number']:x}", f"bp 0x{sym['_key_read']:x}",
-                     'run 100000000', f"bc 0x{sym['_key_read']:x}", 'tap ESC', 'run 2000000']
-    commands += [f"bp 0x{sym['_output_number']:x}"] + typed('sy')
-    commands += ['regs', f"rb 0x{sym['_work']:x} 140", f"bc 0x{sym['_output_number']:x}"]
+        # Saved compilation now prepares its transaction before compiling.
+        # A full disk can fail before save_build is ever called. Observe the
+        # actual error print from the trigger, then acknowledge at real readers.
+        commands += [f'tap {key}',ImageStop(sym['_output_number'],'zpascal.bin'),
+                     f"rb 0x{sym['_work']:x} 140",'s',ImageStop(sym['_key_read'],'zpascal.bin'),
+                     'tap ESC',ImageStop(sym['_key_read'],'zpascal.bin')]
+    commands += ['tap S',ImageStop(sym['_key_read'],'zpascal.bin'),'tap Y',
+                 ImageStop(sym['_output_number'],'zpascal.bin'),f"rb 0x{sym['_work']:x} 140"]
     commands += ['quit']
-    text = execute('full-media', commands, eeprom_image=disk)
-    frames = re.split(r'\[DBG\] PC=', text)[1:]
+    text = execute('full-media', commands, eeprom_image=disk,timeout=360)
+    frames = [frame for frame in re.split(r'\[DBG\] PC=', text)[1:]
+              if frame.startswith(f"{sym['_output_number']:04x} ")]
     work = sym['_work']
     expected = b"{kept}begin\nwriteln('MEDIA')\nend.\n"
     retained = all(memory(f).get(work + 1) == 1 and memory(f).get(work + 2) == len(expected)
