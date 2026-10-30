@@ -4,10 +4,12 @@ A native Pascal IDE, compiler and runtime for the MMU Zeal 8-bit Computer.
 This is an incremental implementation of the recovered Turbo Pascal 3 dialect;
 full language, editor and runtime conformance is still in progress.
 
-The focused CP/M-80 Turbo Pascal 3 language corpus passes. Broader validation
-has unresolved source/include and IDE workflow failures, so language and IDE
-qualification remains open. Optimization follows a passing baseline for that
-scope. Remaining runtime/library services and deferred overlays are separate work.
+The CP/M-80 Turbo Pascal 3 language and native IDE regression matrix is qualified.
+All66 commands have passing results:65 in a frozen parallel run and one host
+publication test after correcting its link setup. Compiler sources and native
+artifacts were unchanged for that correction. This is bounded host/emulator
+acceptance, not exhaustive equivalence or physical hardware qualification.
+Optimization is next; overlays and optional CRT/graphics/library work remain deferred.
 
 Explore [six self-contained applications](examples/README.md): a text adventure,
 persistent stock database, loan calculator, concordance, Life simulation and
