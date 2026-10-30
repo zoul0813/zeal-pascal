@@ -13,7 +13,8 @@ n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--inline',action='store_true',help='Repair raw Inline code through included-source compiler/runtime errors')
-    inline=parser.parse_args().inline
+    parser.add_argument('--messages',action='store_true',help='Exercise include diagnostics with explanatory compile messages enabled')
+    args=parser.parse_args();inline=args.inline;answer='y'if args.messages else'n'
     sym=n.symbols('zpascal');key=sym['_key_read'];work=sym['_work'];build=sym['_build']
     # Settle redraws and file/menu transitions before the next physical key.
     # This gate tests behavior; burst input and latency are separate work.
@@ -38,7 +39,7 @@ def main():
             f"rb 0x{sym['_main_file']:x} 128",f"rb 0x{sym['_buffers']:x} {n.SOURCES_BYTES}",
             f"rb 0x{sym['_ram_result']:x} 128",f'bc 0x{key:x}']
     leave=lambda:control('K')+typed('d')
-    commands=['run 100000000']+n.program_launch()+['run 10000000']+typed('nwH:/project/main.pas\ne')
+    commands=['run 100000000']+n.program_launch()+['run 10000000']+typed(answer+'wH:/project/main.pas\ne')
     commands+=typed(prefix.decode())+leave()
     commands+=checkpoint('compile-error','C')
     commands+=checkpoint('compile-source','ESC',100000000)
@@ -83,7 +84,7 @@ def main():
     checks['Memory compilation never saves either dirty source']=(directory/'project/main.pas').read_bytes()==root and(directory/'project/parts/run.inc').read_bytes()==part
     # An unavailable include must retain the diagnostic and current Work;
     # its offset must never be applied to unrelated text.
-    commands=['run 100000000']+n.program_launch()+['run 10000000']+typed('nwH:/missing.pas\n')
+    commands=['run 100000000']+n.program_launch()+['run 10000000']+typed(answer+'wH:/missing.pas\n')
     commands+=checkpoint('missing-error','C')+checkpoint('missing-return','ESC',100000000)+typed('q')+['quit']
     missing=b'{$I absent.inc}\nbegin end.'
     captured=n.execute('ide-missing-source',commands,{'missing.pas':missing},timeout=300)
@@ -91,7 +92,7 @@ def main():
     checks['missing include retains Work and Escape returns safely']=len(frames)==2 and frames[0].get(sym['_ide_state'])==3 and frames[1].get(sym['_ide_state'])==1 and all(bytes(f.get(work+12+i,0)for i in range(128)).split(b'\0')[0]==b'H:/missing.pas'for f in frames)
     # A Main that is not an editor buffer is loaded only for compilation.
     # RAM and saved execution still use that root after the temporary closes.
-    commands=['run 100000000']+n.program_launch()+['run 10000000']+typed('nwH:/scratch.inc\nmH:/main.pas\n')
+    commands=['run 100000000']+n.program_launch()+['run 10000000']+typed(answer+'wH:/scratch.inc\nmH:/main.pas\n')
     commands+=checkpoint('disk-main-ram','R')+['tap ESC','run 100000000']+typed('ocq')
     commands+=checkpoint('disk-main-save','C')+['tap ESC','run 100000000']
     commands+=checkpoint('disk-main-saved-run','R')+['tap ESC','run 100000000']+typed('q')+['quit']
@@ -101,7 +102,7 @@ def main():
     folder=n.RUN/'ide-disk-main/hostfs'
     checks['disk-only Main runs in RAM and publishes matching saved output']=len(frames)==3 and frames[0].get(sym['_ram_result']+26)==1 and all(f.get(build+4)==1 and bytes(f.get(work+12+i,0)for i in range(128)).split(b'\0')[0]==b'H:/scratch.inc'for f in frames) and (folder/'main.COM').is_file() and (folder/'main.ZMP').is_file() and hashlib.sha256(diskroot).digest()==(folder/'main.ZMP').read_bytes()[104:136]
     checks['all recorded inputs unchanged']=all(n.sha(Path(p))==h for p,h in hashes.items())
-    report={'passed':all(checks.values()),'language_case':'Inline machine code'if inline else'Integer division',
+    report={'passed':all(checks.values()),'language_case':'Inline machine code'if inline else'Integer division','messages_enabled':args.messages,
             'checks':checks,'capture_directory':str(n.RUN.relative_to(ROOT)),
             'input_sha256':hashes,'checkpoints':labels,'scope':__doc__+' Full editor replay, hardware and remaining IDE commands are separate gates.'}
     (n.RUN/'ide-sources-report.json').write_text(json.dumps(report,indent=2)+'\n')

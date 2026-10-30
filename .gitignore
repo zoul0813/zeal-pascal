@@ -12,6 +12,7 @@
 !/tools/test-native.py
 !/tools/test-native-host.py
 !/tools/test-compiler-job.py
+!/tools/test-compiler-messages.py
 !/tools/host_assets.py
 !/tools/test-editor-native.py
 !/tools/test-input.py

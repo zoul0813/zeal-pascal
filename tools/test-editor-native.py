@@ -246,7 +246,9 @@ def editing_checks():
 
 def source_error_checks():
     source = b'begin\nwriteln(7 div 0)\nend.'
-    ide = IDE('ERROR.PAS')
+    # The retained one-billion-cycle checkpoints stopped inside compilation
+    # and phase hashing. Observe the real reader, with room for both phases.
+    ide = IDE('ERROR.PAS', cycles=10000000000)
     ide.key('LEFT_BRACKET', shift=True)
     for key in ('E', 'D', 'I', 'T'):
         ide.key(key)
@@ -258,6 +260,8 @@ def source_error_checks():
     first, last = frames['diagnostic'], frames['source']
     snapshot = b'{edit}'+source
     return {
+        'runtime-error checkpoints reach the actual IDE reader':
+            frames['diagnostic pc']==frames['source pc']==ide.reader,
         'edited source compiles/runs to actual runtime02 diagnostic':
             first.get(ide.sym['_ide_state']) == 3 and first.get(r+26) == 3
             and first.get(r+27) == 2 and first.get(r+28) == 2,

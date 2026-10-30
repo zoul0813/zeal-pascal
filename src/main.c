@@ -3,6 +3,7 @@
 #include "saved_map.h"
 #include "keys.h"
 #include "compiler_job.h"
+#include "compiler_messages.h"
 #include <zos_sys.h>
 #include <zos_vfs.h>
 #include <zos_keyboard.h>
@@ -18,6 +19,7 @@ char main_file[128];
 uint8_t ide_state; /* 1 menu, 2 editor, 3 acknowledgment */
 static uint8_t messages=1;
 static uint8_t saved_mode;
+static uint16_t compiled_main_lines;
 extern uint8_t console_scratch[256];
 static void block_io(uint8_t kind);
 static void search_command(uint8_t kind);
@@ -167,6 +169,7 @@ static void diagnostic(uint8_t kind,uint16_t code,const char *path,const uint8_t
     screen_clear();
     output(kind==0?"User break":kind==1?"Compiler error ":kind==2?"Runtime error ":"I/O error ");
     if(kind==1) output_number(code); else if(kind) output_hex(code,2);
+    if(messages&&kind==1)compiler_message((uint8_t)code);
     if(kind!=1) { output(" PC="); output_hex(pc,4); }
     if(kind==3&&ram_io_detail) { output(" (native error "); output_number(ram_io_detail); output(")"); }
     output("\n");output(path);
@@ -427,7 +430,7 @@ static void save_as_work(void) {
     if(save_work_as(name)) invalidate();
 }
 static uint8_t compile_work(void) {
-    Diagnostic d;CompileFailure failure;Source root;int16_t id;uint8_t ok;
+    Diagnostic d;CompileFailure failure;Source root;int16_t id;uint8_t ok;uint16_t column;
     const char *path=main_file[0]?main_file:work.path;
     invalidate();screen_clear();
     if(!sync_work()) { lookup_failure();return 0; }
@@ -470,8 +473,7 @@ static uint8_t compile_work(void) {
         output("Saved ");output(output_path());output(" and .ZMP");recovery_notice();
         search_ack("Source buffers unchanged");
     }
-    output("Code bytes: ");output_number(build.code_bytes);
-    output(" Data bytes: ");output_number(build.globals_bytes);output("\n");return 1;
+    source_location(&root,root.length,&compiled_main_lines,&column);return 1;
 }
 static uint8_t hexadecimal(const char *text,uint16_t *value) {
     uint8_t i,digit;
@@ -709,7 +711,14 @@ int app_main(void) {
         output(work.dirty?" *\n":"\n");output("Main: ");
         if(main_file[0])output(main_file);else output("(Work)");
         output("\n");output_number(work.length); output(" source bytes; ");
-        output_number(pages_used()); output(" owned pages\nL Logged drive  D Dir  W Open  M Main  E Edit\nS Save  A Save as  C Compile  R Run  X Execute  O Options  Q Quit\n");
+        output_number(pages_used()); output(" owned pages; free memory unavailable\n");
+        if(build.code_bytes) {
+            output("Last compile - main lines: ");output_number(compiled_main_lines);
+            output("\nCode bytes: ");output_number(build.code_bytes);
+            output(" Data bytes: ");output_number(build.globals_bytes);
+            output("\nFree space unavailable\n");
+        }
+        output("L Logged drive  D Dir  W Open  M Main  E Edit\nS Save  A Save as  C Compile  R Run  X Execute  O Options  Q Quit\n");
         c=suffix(key_read());
         if(c=='e') edit(0);
         else if(c=='w') open_work();
