@@ -16,8 +16,22 @@ spec.loader.exec_module(n)
 def main():
     target = 'zmemberstest'
     sym = n.symbols(target)
+    # Bank14 begins the parkable compiler phases; it is not the bank count.
     assert sym['_compiler_compile_project'] >> 16 == 14
     assert sym['_code_phase_restore'] >> 16 < 14
+    phase_first = (sym['_compiler_compile_project'] >> 16)-1
+    bank_count = n.code_banks(target)
+    phase_count = bank_count-phase_first
+    fixtures = {f'{target}.{ext}': (ROOT/f'build/{target}.{ext}').read_bytes() for ext in ('bin', 'zpl')}
+    library = fixtures[target+'.zpl']
+    assert phase_first < bank_count <= 16
+    assert library[:6] == b'ZPL1\x01'+bytes([bank_count])
+    header_bytes = 16+2*bank_count
+    assert int.from_bytes(library[6:8], 'little') == header_bytes
+    sizes = struct.unpack_from(f'<{bank_count}H',library,16)
+    assert all(0 < size <= 16384 for size in sizes)
+    assert len(library) == header_bytes+sum(sizes)
+    assert fixtures[target+'.bin'][sym['_code_required']-0x4000] == bank_count
     inputs = [Path(__file__), ROOT/'CMakeLists.txt', ROOT/'tools/test-native.py',
               ROOT/'tools/package-native.py', n.EMULATOR, n.ROM]
     inputs += sorted((ROOT/'src').glob('*'))
@@ -33,7 +47,6 @@ def main():
                  f"rb 0x{sym['_test_late_hash']:x} 32",
                  f"rb 0x{sym['_test_owner_hash']:x} 32",
                  f"rb 0x{sym['_test_failures']:x} 128", 'quit']
-    fixtures = {f'{target}.{ext}': (ROOT/f'build/{target}.{ext}').read_bytes() for ext in ('bin', 'zpl')}
     raw = n.execute('member-spool', commands, fixtures, timeout=600)
     memory = n.memory(raw)
     word = lambda name: memory.get(sym[name], 0) | memory.get(sym[name]+1, 0) << 8
@@ -59,9 +72,7 @@ def main():
     grouped = n.RUN/'member-spool/hostfs/GROUPS.SPL'
     group_data = grouped.read_bytes() if grouped.exists() else b''
     group_digest = bytes(memory.get(sym['_test_group_hash']+i, 0) for i in range(32))
-    library = fixtures[target+'.zpl']
-    assert library[5] == 14
-    payload_hash = hashlib.sha256(library[16+2*library[5]:]).digest()
+    payload_hash = hashlib.sha256(library[header_bytes:]).digest()
     phase_hash = bytes(memory.get(sym['_test_phase_hash']+i, 0) for i in range(32))
     late_first = (b'ZPMS\2\0'+struct.pack('<7H',24,0xbffa,10,0,0,2,2)+bytes(4)
                   +b'\xcd\0\0'+bytes(4)+b'\xcd\0\0'
@@ -120,13 +131,12 @@ def main():
     def probes():
         result=['regs','mmu']
         for name,size in (('_test_done',1),('_test_passed',2),('_test_failed',2),('_test_stage',2),
-                          ('_code_owned',1),('_code_phase_fd',1),('_code_pages',16),('_code_phase_pending',3),
+                          ('_code_owned',1),('_code_phase_fd',1),('_code_pages',bank_count),('_code_phase_pending',phase_count),
                           ('_test_phase_hash',32),('_test_failures',128)):
             result += [f'rb 0x{sym[name]:x} {size}']
         return result
     altered=[]
-    sizes=struct.unpack_from('<14H',library,16)
-    offset=16+28+sum(sizes[:13])
+    offset=header_bytes+sum(sizes[:phase_first])
     def alter_on_marker(command,response,directory):
         if command!='regs' or f'PC={marker:04x} ' not in response:return
         path=directory/'hostfs'/f'{target}.zpl'
@@ -165,10 +175,10 @@ def main():
     cleanup_ok=False
     if all(selected):
         start,closing,ended,released=map(n.memory,selected)
-        pages=[start.get(sym['_code_pages']+i,255)for i in range(14)]
+        pages=[start.get(sym['_code_pages']+i,255)for i in range(bank_count)]
         fd=start.get(sym['_code_phase_fd'],255)
         final_word=lambda name:ended.get(sym[name],0)|(ended.get(sym[name]+1,0)<<8)
-        cleanup_ok=(start.get(sym['_code_owned'])==14 and len(set(pages))==14 and all(32<=p<64 for p in pages)
+        cleanup_ok=(start.get(sym['_code_owned'])==bank_count and len(set(pages))==bank_count and all(32<=p<64 for p in pages)
             # At resident user entries C000 contains app data, not the kernel
             # page table. Inspect only the kernel's exit entry, before its own
             # automatic process cleanup can conceal an application leak.
@@ -181,6 +191,7 @@ def main():
     checks['real terminal cleanup frees all code pages and closes the retained library before OS exit']=cleanup_ok
     checks['input artifacts unchanged']=all(n.sha(Path(p))==value for p,value in hashes.items())
     report = {'scope': __doc__, 'passed': all(checks.values()), 'checks': checks,
+              'library_bank_count':bank_count,'parked_phase_banks':phase_count,
               'native_assertions_passed': word('_test_passed'), 'native_assertions_failed': word('_test_failed'),
               'capture_directory': str(n.RUN.relative_to(ROOT)), 'input_sha256': hashes,
               'library_mutations':altered,'negative_assertions':value('_test_passed')}

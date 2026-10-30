@@ -72,7 +72,8 @@ static void group_cases(void) {
     check(cc_groups_discard(&groups));check(groups.page==255&&groups.store.fd==-1&&pages_used()==owned);
 }
 static void phase_cases(void) {
-    uint8_t before[32],after[32],machine_before[7],machine_after[7],owned=pages_used(),status=255,bad=0,ok;
+    uint8_t before[32],after[32],machine_before[7],machine_after[7],owned=pages_used(),status=255,bad=0,ok,bank;
+    uint8_t phases=code_required-CODE_PHASE_FIRST;
     Source original;Build prior;
     char path[]="H:/PHASE.PAS",text[]="begin end.";
     int8_t fd;
@@ -81,16 +82,23 @@ static void phase_cases(void) {
     check(source_new(&s,path));if(s.page==255)return;
     check(source_replace(&s,0,0,(const uint8_t*)text,10));original=s;
     code_hash(before);
-    check(code_required==14&&code_phase_fd>=0&&code_phase_park());
-    check(code_pages[13]==255&&code_phase_pending[0]==255&&pages_used()==owned); /* source owns the freed slot's count */
+    check(code_required>CODE_PHASE_FIRST&&code_required<=CODE_BANK_LIMIT);
+    check(code_phase_fd>=0&&code_phase_park());
+    for(bank=CODE_PHASE_FIRST;bank<code_required;++bank)
+        check(code_pages[bank]==255&&code_phase_pending[bank-CODE_PHASE_FIRST]==255);
+    check(pages_used()==owned+1-phases); /* One source page, all phases parked. */
     test_phase_restore_marker();
     if(bad) {
         prior=b;
         check(!compile(&s,&b,&d)&&d.code==COMPILE_PLATFORM_FAILURE&&boot_error==ERR_ENTRY_CORRUPTED);
-        check(!memcmp(&s,&original,sizeof(s))&&!memcmp(&b,&prior,sizeof(b))&&code_pages[13]==255&&code_phase_pending[0]==255&&pages_used()==owned);
+        check(!memcmp(&s,&original,sizeof(s))&&!memcmp(&b,&prior,sizeof(b))&&pages_used()==owned+1-phases);
+        for(bank=CODE_PHASE_FIRST;bank<code_required;++bank)
+            check(code_pages[bank]==255&&code_phase_pending[bank-CODE_PHASE_FIRST]==255);
         test_phase_restore_marker();
     }
-    check(code_phase_restore()&&code_pages[13]!=255&&code_phase_pending[0]==255&&pages_used()==owned+1);
+    check(code_phase_restore()&&pages_used()==owned+1);
+    for(bank=CODE_PHASE_FIRST;bank<code_required;++bank)
+        check(code_pages[bank]!=255&&code_phase_pending[bank-CODE_PHASE_FIRST]==255);
     code_hash(after);check(!memcmp(before,after,32));memcpy((void*)test_phase_hash,after,32);
     ok=compile(&s,&b,&d);check(ok&&b.valid);
     if(ok) {

@@ -312,7 +312,7 @@ target_compile_options(zmemberstest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 set_source_files_properties(tests/native/members-main.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 set_property(SOURCE tests/native/members-main.c APPEND PROPERTY OBJECT_DEPENDS
-    ${CMAKE_SOURCE_DIR}/src/compiler_members.h ${CMAKE_SOURCE_DIR}/src/compiler_groups.h ${CMAKE_SOURCE_DIR}/src/output_transport.h
+    ${CMAKE_SOURCE_DIR}/src/compiler_members.h ${CMAKE_SOURCE_DIR}/src/compiler_groups.h ${CMAKE_SOURCE_DIR}/src/output_transport.h ${CMAKE_SOURCE_DIR}/src/library.h
     ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h
     ${CMAKE_SOURCE_DIR}/tests/native/late-cases.h ${CMAKE_SOURCE_DIR}/src/compiler_late.h ${CMAKE_SOURCE_DIR}/src/file_runtime.h)
 
