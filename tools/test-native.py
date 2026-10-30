@@ -9,6 +9,7 @@ import hashlib
 import gzip
 from datetime import datetime, timezone
 import json
+import os
 import re
 import select
 import shutil
@@ -26,7 +27,7 @@ KERNEL_MAP = ROM.with_name('os.map')
 TF_TEMPLATE = ZEAL / 'zeal-dev-environment/home/tf.base.img.gz'
 COREUTILS = ZEAL / 'zeal-dev-environment/home/zeal-coreutils/bin'
 OUT = ROOT / "analysis/native-slice"
-RUN = OUT / datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
+RUN = OUT / (datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ') + f'-{os.getpid()}')
 # Loading/hashing the complete banked library is deliberately not optimized yet.
 # Stop at the actual breakpoint, with room for the growing native product.
 LIBRARY_READY_CYCLES = 8000000000
@@ -917,10 +918,10 @@ def main():
         raise RuntimeError('completion stop must be the supervisor-only FC00 marker')
     mode = kernel_symbols()['kb_mode']
     commands = ['run 100000000'] + program_launch('zptest')
-    if args.core_only:
-        # program_launch already stops at code_ready. Read that stopped
-        # context directly; resuming would pass the one-time startup marker.
-        commands += ['regs','mmu','rb 0x4000 32']
+    # Both modes authenticate the startup mapping. The focused mode is an
+    # alternative to the full run, not an extra prerequisite for its coverage.
+    # program_launch already stops at code_ready; do not resume past it.
+    commands += ['regs','mmu','rb 0x4000 32']
     commands += ['run 100000000', f"bp 0x{sym['_test_stop']:x}"]
     for memory_mode in (1, 0):
         commands += [PhysicalLine('Adx\ba', 'NAME.COM', memory_mode, inspect_mode=True),
@@ -969,7 +970,7 @@ def main():
                     print(f'Native core stage {stage}: {passed} passed, {failed} failed',flush=True)
             return frame
     text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=5400,
-                   console_class=CoreConsole if args.core_only else None)
+                   console_class=CoreConsole)
     frames = re.split(r'\[DBG\] PC=', text)[1:]
     final_frame = frames[-1] if frames else ''
     mem = memory(final_frame)
@@ -978,12 +979,11 @@ def main():
         return mem.get(p, 0) | (mem.get(p + 1, 0) << 8)
     supervisor=bytes(mem.get(0x4000+i,0)for i in range(32))==(ROOT/'build/zptest.bin').read_bytes()[:32]
     supervisor=supervisor and final_frame.startswith('fc01 ')
-    if args.core_only:
-        first_mapping=re.search(r'\[DBG\] c000 -> ([0-9a-fA-F]+)',frames[0])if frames else None
-        final_mapping=re.search(r'\[DBG\] c000 -> ([0-9a-fA-F]+)',final_frame)
-        startup=memory(frames[0])if frames else {}
-        startup_valid=bool(frames)and frames[0].startswith(f'{sym["_code_ready"]:04x} ')and bytes(startup.get(0x4000+i,0)for i in range(32))==(ROOT/'build/zptest.bin').read_bytes()[:32]
-        supervisor=supervisor and startup_valid and bool(first_mapping and final_mapping and first_mapping[1]==final_mapping[1])
+    first_mapping=re.search(r'\[DBG\] c000 -> ([0-9a-fA-F]+)',frames[0])if frames else None
+    final_mapping=re.search(r'\[DBG\] c000 -> ([0-9a-fA-F]+)',final_frame)
+    startup=memory(frames[0])if frames else {}
+    startup_valid=bool(frames)and frames[0].startswith(f'{sym["_code_ready"]:04x} ')and bytes(startup.get(0x4000+i,0)for i in range(32))==(ROOT/'build/zptest.bin').read_bytes()[:32]
+    supervisor=supervisor and startup_valid and bool(first_mapping and final_mapping and first_mapping[1]==final_mapping[1])
     checks.append(('native test completion marker', supervisor and mem.get(sym['_test_done']) == 255 and word('_test_stage')==6))
     checks.append(('native assertions', supervisor and word('_test_failed') == 0 and word('_test_passed') >= 40))
     receipt_file = RUN/'core/input-lines.json'
@@ -993,7 +993,7 @@ def main():
     checks.append(('input delivery completed without an observer/protocol error', input_error is None))
     checks.append(('all 53 input lines reached their intended program and were verified before submission',
                    len(receipts) == 53))
-    if args.core_only:frames=frames[1:] # The authenticated startup mapping is not an input-mode checkpoint.
+    frames=frames[1:] # The authenticated startup mapping is not an input-mode checkpoint.
     checks.append(('ReadLn restores blocking raw in RAM and nonblocking raw in shell exec',
                    len(frames) == 3 and memory(frames[0]).get(mode) == 0
                    and memory(frames[1]).get(mode) == 4

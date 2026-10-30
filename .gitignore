@@ -10,6 +10,11 @@
 !/tools/
 /tools/*
 !/tools/test-native.py
+!/tools/run-tests.py
+!/tools/test-plan.json
+!/docs/
+/docs/*
+!/docs/test-runtime-audit.md
 !/tools/test-native-host.py
 !/tools/test-compiler-job.py
 !/tools/test-compiler-messages.py

@@ -17,66 +17,67 @@ Build using the existing Zeal development environment:
 
 ```sh
 zde cmake
-python3 tools/test-native-host.py --sanitize
-python3 tools/test-language-conformance.py
-python3 tools/test-editor-native.py
-python3 tools/test-native.py
-python3 tools/test-native.py --core-only
-python3 tools/test-input.py
-python3 tools/test-io.py
-python3 tools/test-files.py
-python3 tools/test-text.py
-python3 tools/test-standard.py
-python3 tools/test-keyboard.py
-python3 tools/test-logical.py
-python3 tools/test-console.py
-python3 tools/test-control.py
-python3 tools/test-devices.py
-python3 tools/test-hooks.py
-python3 tools/test-language.py
-python3 tools/test-sources.py
-python3 tools/test-saved-map.py
-python3 tools/test-saved-map.py --native
-python3 tools/test-ide-sources.py
-python3 tools/test-compiler-job.py
-python3 tools/test-compiler-messages.py --native
-python3 tools/test-ide-execute.py
-python3 tools/test-ide-directory.py
-python3 tools/test-inline.py
-python3 tools/test-ide-sources.py --inline
-python3 tools/test-ide-interrupt.py
-python3 tools/test-compile-interrupt.py --seal-poll 295
-python3 tools/test-options.py
-python3 tools/test-options.py --ide
-python3 tools/test-chain.py
-python3 tools/test-chain-call.py --ide
-python3 tools/test-chain-call.py --execute
-python3 tools/test-chain-loader.py
-python3 tools/test-chain-loader.py --native
-python3 tools/test-execute-override.py
-python3 tools/test-execute-handoff.py
-python3 tools/test-compiled-startup.py
-python3 tools/test-transfer.py
-python3 tools/test-transfer.py --native
-python3 tools/test-runtime-profile.py
-python3 tools/test-chain-files.py
-python3 tools/test-chain-files.py --native
-python3 tools/test-bridges.py
-python3 tools/test-bridges.py --corpus routines
-python3 tools/test-bridges.py --corpus real
-python3 tools/test-file-runtime.py --host --native
-python3 tools/test-file-gate.py
-python3 tools/test-workers.py
-python3 tools/test-params.py
-python3 tools/test-math.py
-python3 tools/test-output.py
-python3 tools/test-output-host.py
-python3 tools/test-members.py
-python3 tools/test-output-interrupt.py
-python3 tools/test-startup-path.py
-python3 tools/test-real.py --host --sanitize --native
-python3 tools/test-real.py --trig --sanitize --native
 ```
+
+Run the complete product validation once, with redundant diagnostic subsets
+excluded:
+
+```sh
+python3 tools/run-tests.py
+```
+
+The explicit [test plan](tools/test-plan.json) contains 66 commands covering all
+52 product test runners and their distinct acceptance modes. Commands are
+suites, not individual assertions; native validation still takes substantial
+time. Four workers run independent commands in parallel by default; use
+`--jobs 6` for six workers or `--jobs 1` for serial diagnostics. Modes sharing a
+runner's output paths are serialized. Cancellation depends on the completed
+host checks, and runtime-layout depends on the completed parameter suite. The
+publication-interruption suite's internal workers count against the same budget.
+Concurrent orchestrators in the same checkout are blocked; do not run individual
+test commands or rebuild that checkout while validation is active.
+
+The runner stops at the first observed failure and cancels outstanding work,
+retains logs and input hashes under
+`analysis/test-runs/`, prints the active command every minute, and stops owned
+emulator processes on interruption. It does not build, cache passes, or resume
+an old run. Cancellation checkpoints come from the host checks in the same run;
+runtime-layout checks use the parameter program produced in that run.
+
+Use `--keep-going` only when collecting failure diagnostics: independent checks
+continue, failed dependencies are explicitly skipped, and any failure still
+fails the whole run. Unexpected leftover child processes also fail a command.
+
+Inspect the plan without running any tests:
+
+```sh
+python3 tools/run-tests.py --list
+```
+
+For additional diagnostics, `--include-redundant` also repeats these subsets:
+
+```sh
+python3 tools/test-native.py --core-only
+python3 tools/test-chain-call.py
+python3 tools/test-compiler-messages.py --publication-error
+```
+
+Each command remains available independently for focused investigation.
+The normal integrated native run includes the core corpus and its startup
+identity/mapping checks; Chain-call `--ide` includes the non-IDE checks; compiler
+messages `--native` includes publication-error checks. Running their subsets
+again adds no distinct acceptance coverage.
+
+For quick feedback while developing, run the sanitized host checks alone:
+
+```sh
+python3 tools/test-native-host.py --sanitize
+```
+
+This is a partial check, not a replacement for native acceptance. See the
+[test runtime audit](docs/test-runtime-audit.md) for the evidence, remaining
+costs and proposed improvements. No test assertions or expected product outputs
+were removed to reduce the default plan.
 
 The language conformance runner requires the preserved local reference corpus
 and its recorded original captures. Research stays outside Git; missing inputs

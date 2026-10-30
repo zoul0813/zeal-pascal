@@ -121,6 +121,8 @@ def run_case(kind,helper,ordinal,typing=False,drive="H"):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--quick',action='store_true')
+    parser.add_argument('--jobs',type=int,choices=range(1,4),default=3,
+                        help='Maximum concurrent emulator cases (default: 3)')
     args=parser.parse_args()
     inputs=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',n.EMULATOR,n.ROM,n.TF_TEMPLATE,n.COREUTILS/'cp',n.COREUTILS/'mkdir']
     inputs+=list((ROOT/'src').glob('*'))+[ROOT/f'build/zpascal.{ext}'for ext in ('bin','zpl','map','banks.json')]
@@ -132,7 +134,7 @@ def main():
         cases+=[('source','_output_verify_range',2,False),('build','_output_verify_range',4,False),
                 ('source','_output_copy_file',4,False,'T'),('build','_output_copy_file',4,False,'T')]
     results=[]
-    with ThreadPoolExecutor(max_workers=3) as pool:
+    with ThreadPoolExecutor(max_workers=args.jobs) as pool:
         for result in pool.map(lambda case:run_case(*case),cases):
             results.append(result);print(json.dumps(result),flush=True)
     report={'passed':all(r['passed']for r in results)and all(n.sha(Path(p))==h for p,h in hashes.items()),
