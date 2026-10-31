@@ -24,5 +24,7 @@ void job_identity(const uint8_t job[128],uint8_t digest[32]) SOURCE_BLOCK_CALL;
 uint8_t job_find_source(const uint8_t job[128],uint16_t id,JobSource *record) SOURCE_BLOCK_CALL;
 uint8_t job_find_path(const uint8_t job[128],const char *path,JobSource *record) SOURCE_BLOCK_CALL;
 uint8_t job_read_stream(const uint8_t *handle,const uint8_t allowed[8],JobStream *stream) SOURCE_BLOCK_CALL;
-void job_hash_stream(const JobStream *stream,uint16_t zero,uint16_t zero_bytes,uint8_t digest[32]) SOURCE_BLOCK_CALL;
+/* Caller authenticates ownership/lifetime first. Digest is written only on
+ * success; failed bounded reads must fail the surrounding job transaction. */
+uint8_t job_hash_stream(const JobStream *stream,uint16_t zero,uint16_t zero_bytes,uint8_t digest[32]) SOURCE_BLOCK_CALL;
 #endif

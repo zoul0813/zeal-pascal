@@ -152,9 +152,3 @@ uint8_t job_read_stream(const uint8_t *h,const uint8_t allowed[8],JobStream *s) 
     }
     return 1;
 }
-void job_hash_stream(const JobStream *s,uint16_t zero,uint16_t zero_bytes,uint8_t digest[32]) SOURCE_BLOCK_CALL {
-    Sha256 hash;uint16_t i;
-    sha_init(&hash);
-    for(i=0;i<s->length;++i)sha_byte(&hash,i>=zero&&i-zero<zero_bytes?0:far_get(s->pages[i/PAGE_SIZE],i%PAGE_SIZE));
-    sha_end(&hash,digest);
-}

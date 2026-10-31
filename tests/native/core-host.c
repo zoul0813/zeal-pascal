@@ -34,6 +34,14 @@ static uint16_t source_edit_extent;
 static uint8_t source_hash_probe,source_hash_page,source_hash_seen[PAGE_SIZE/8];
 static uint16_t source_hash_extent;
 static unsigned long source_hash_reads,source_hash_duplicates,source_hash_writes,source_hash_marks;
+static uint8_t stream_probe,stream_page_index[64],stream_seen[3*PAGE_SIZE/8];
+static uint16_t stream_length,stream_zero,stream_zero_bytes;
+static unsigned long stream_reads,stream_spans;static uint16_t stream_span_max;
+static int stream_read_fail_after=-1;
+static unsigned stream_copy_calls;
+static uint8_t stream_copy_trace,stream_copy_pages[2048];
+static uint16_t stream_copy_offsets[2048],stream_failed_offset;
+static uint8_t stream_failed_page;
 static uint8_t cancel_stage,cancel_result;
 static unsigned poll_calls,spill_polls;
 /* Probe only the initialization fixtures; the existing corpus is unchanged. */
@@ -113,7 +121,7 @@ void page_initialized(uint8_t p,uint16_t n) {
         initialized[p]=1;
     }
 }
-uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(reference_probe&&p==reference_probe_page)++reference_reads; if(capture_probe&&p==capture_probe_page)++capture_reads; if(lexer_probe&&p==lexer_probe_page){assert(at<256);++lexer_reads[at];} if(lookup_probe){++lookup_reads;if(p==lookup_refs_page)++lookup_reference_reads;} if(wire_lookup_probe&&p==wire_lookup_page)++wire_lookup_reads; if(source_edit_probe&&p==source_edit_page)++source_edit_reads; if(source_hash_probe&&p==source_hash_page){assert(at<source_hash_extent);if(source_hash_seen[at>>3]&(1u<<(at&7)))++source_hash_duplicates;source_hash_seen[at>>3]|=(uint8_t)(1u<<(at&7));++source_hash_reads;} return memory[p][at]; }
+uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(reference_probe&&p==reference_probe_page)++reference_reads; if(capture_probe&&p==capture_probe_page)++capture_reads; if(lexer_probe&&p==lexer_probe_page){assert(at<256);++lexer_reads[at];} if(lookup_probe){++lookup_reads;if(p==lookup_refs_page)++lookup_reference_reads;} if(wire_lookup_probe&&p==wire_lookup_page)++wire_lookup_reads; if(source_edit_probe&&p==source_edit_page)++source_edit_reads; if(source_hash_probe&&p==source_hash_page){assert(at<source_hash_extent);if(source_hash_seen[at>>3]&(1u<<(at&7)))++source_hash_duplicates;source_hash_seen[at>>3]|=(uint8_t)(1u<<(at&7));++source_hash_reads;} if(stream_probe&&stream_page_index[p]!=255){uint32_t pos=(uint32_t)stream_page_index[p]*PAGE_SIZE+at;assert(pos<stream_length&&!(pos>=stream_zero&&pos-stream_zero<stream_zero_bytes));assert(!(stream_seen[pos>>3]&(1u<<(pos&7))));stream_seen[pos>>3]|=(uint8_t)(1u<<(pos&7));++stream_reads;} return memory[p][at]; }
 void far_set(uint8_t p,uint16_t at,uint8_t v) {
     assert(p<64&&owned[p]&&at<PAGE_SIZE);++page_versions[p];memory[p][at]=v;
     if(source_edit_probe&&p==source_edit_page)++source_edit_writes;
@@ -130,6 +138,23 @@ void far_set(uint8_t p,uint16_t at,uint8_t v) {
             }
         }
     }
+}
+/* Host model of the already-native-proven read primitive. Near windows and
+ * registers are hardware-only; this model enforces ownership/page extents. */
+uint8_t far_read(uint8_t page,uint16_t offset,uint8_t *out,uint16_t n) {
+    uint16_t i;
+    if(!n)return 1;
+    if(n>FAR_READ_LIMIT||page<32||page>=64||!owned[page]||offset>=PAGE_SIZE||n>PAGE_SIZE-offset||!out)return 0;
+    if(stream_copy_trace) {
+        assert(stream_copy_calls<2048);
+        stream_copy_pages[stream_copy_calls]=page;stream_copy_offsets[stream_copy_calls]=offset;
+    }
+    ++stream_copy_calls;
+    if(stream_read_fail_after==0){stream_failed_page=page;stream_failed_offset=offset;return 0;}
+    if(stream_read_fail_after>0)--stream_read_fail_after;
+    if(stream_probe){++stream_spans;if(n>stream_span_max)stream_span_max=n;assert(n<=64);}
+    for(i=0;i<n;++i)out[i]=far_get(page,offset+i);
+    return 1;
 }
 static Source s;
 static Build b;
@@ -369,6 +394,74 @@ static void source_hash_cases(void) {
     source_hash_case("long-trailing",raw,16000,"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb");
     memset(raw,' ',SOURCE_LIMIT);
     source_hash_case("raw-source-limit",raw,16383,"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+}
+/* Raw stream oracle vectors come from Python hashlib, independently of
+ * either C implementation. Probes forbid reads from normalized zero windows. */
+static uint8_t stream_byte(uint32_t i) {return (uint8_t)(i*29u+(i/PAGE_SIZE)*7u+3u);}
+static void stream_case(const char *label,const uint8_t pages[3],uint16_t length,
+                        uint16_t zero,uint16_t zero_bytes,const char *expected,
+                        uint16_t reads,uint16_t spans) {
+    JobStream stream,before;uint8_t digest[32],j,intact=1;char actual[65];uint16_t i;
+    uint32_t versions[3],lifetimes[3];unsigned allocations=allocation_calls;uint8_t owned_pages=pages_used();
+    memset(&stream,0,sizeof(stream));stream.length=length;stream.count=length?(length+PAGE_SIZE-1u)/PAGE_SIZE:0;
+    memcpy(stream.pages,pages,3);before=stream;
+    memset(stream_page_index,255,sizeof(stream_page_index));
+    for(j=0;j<3;++j){stream_page_index[pages[j]]=j;versions[j]=page_versions[pages[j]];lifetimes[j]=page_lifetime(pages[j]);}
+    stream_length=length;stream_zero=zero;stream_zero_bytes=zero_bytes;
+    memset(stream_seen,0,sizeof(stream_seen));stream_reads=stream_spans=0;stream_span_max=0;stream_probe=1;
+    check(job_hash_stream(&stream,zero,zero_bytes,digest));stream_probe=0;
+    for(i=0;i<32;++i)snprintf(actual+2*i,3,"%02x",digest[i]);
+    check(!strcmp(actual,expected)&&stream_reads==reads);
+    check(!memcmp(&stream,&before,sizeof(stream))&&allocation_calls==allocations&&pages_used()==owned_pages);
+    for(j=0;j<3;++j){
+        check(page_versions[pages[j]]==versions[j]&&page_lifetime(pages[j])==lifetimes[j]);
+        for(i=0;i<PAGE_SIZE;++i)if(memory[pages[j]][i]!=stream_byte((uint32_t)j*PAGE_SIZE+i))intact=0;
+    }
+    check(intact);check(stream_spans==spans&&stream_span_max<=64);
+    printf("PERF11 %s bytes=%u reads=%lu spans=%lu max=%u\n",label,length,stream_reads,stream_spans,stream_span_max);
+}
+static void stream_hash_cases(void) {
+    uint8_t pages[3],j;uint16_t i;unsigned prior=pages_used();
+    for(j=0;j<3;++j){pages[j]=page_new(PAGE_IMAGE);check(pages[j]!=255);for(i=0;i<PAGE_SIZE;++i)far_set(pages[j],i,stream_byte((uint32_t)j*PAGE_SIZE+i));page_initialized(pages[j],PAGE_SIZE);}
+    stream_case("empty",pages,0,0,0,"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",0,0);
+    stream_case("one",pages,1,0,0,"084fed08b978af4d7d196a7446a86b58009e636b611db16211b65a9aadff29c5",1,1);
+    stream_case("raw-55",pages,55,0,0,"c68cdcb6098d4e6b8f496f90b16425b09df4ac7068660de2ddbe41c39dba6c4b",55,1);
+    stream_case("raw-56",pages,56,0,0,"46e33f2b906a6dd98e35898ca8f5420213694109ed1b58818f9462e8775568b2",56,1);
+    stream_case("raw-63",pages,63,0,0,"a6f28405393c193e468b6702780ca882414ccf29dd6925415d40c2ffc6601cf8",63,1);
+    stream_case("raw-64",pages,64,0,0,"3ce444057f0b62607535bf4c7d980854756b87fc42c522bbb4243c8878a275c9",64,1);
+    stream_case("raw-65",pages,65,0,0,"7d33f72234ffc80b34b2e78e344186b8c434519bda30170e294d41f0dae39438",65,2);
+    stream_case("raw-128",pages,128,0,0,"c7c1c41a8b6f4ee193dcf291b8fb5717b0671ad4a1d560b18b8419994e043fcc",128,2);
+    stream_case("raw-129",pages,129,0,0,"ab99cfb193e986c559090f884141792caf332786c9f31f03bcb0c02648afe14e",129,3);
+    stream_case("raw-16383",pages,16383,0,0,"f73c0cd80075394dc0002d01359b0159ff77e047e4713efd009e0cefb1421e81",16383,256);
+    stream_case("raw-16384",pages,16384,0,0,"865aef066298849fa264749479a68ab328451c8f8732f52d4cd51d8c593e2122",16384,256);
+    stream_case("raw-16385",pages,16385,0,0,"c91cbb54d14995be85939e6deef158a3de6a4e969cc4f31344048d6314a8242e",16385,257);
+    stream_case("raw-49152",pages,49152,0,0,"2d64e9f75f9316f18327945f8da8d9c4d925821cd5d3a038c68c9a036c93aed7",49152,768);
+    stream_case("zero-prefix",pages,129,0,32,"2db4778c057d56d46abf7515c83599268b3741644034658e79beaefa5f77c955",97,2);
+    stream_case("zero-suffix",pages,129,97,32,"8ade5217b5e064e3084afc889bd655831f6f586d9aebc990118e96c074a075f4",97,2);
+    stream_case("zero-interior",pages,129,31,66,"912a2c2cd2ce99f9917b2077ba59ee5bd6e681de85cef66f0f5376981e3e227b",63,2);
+    stream_case("zero-block-edge",pages,129,63,2,"9fd481e9b1d5205812cad3ac4a64d4e1b9af682a76f185c3213b139d83185c72",127,2);
+    stream_case("zero-page-edge",pages,32770,16380,64,"cbea304611b917369eaa2d0384c6765df32967e2dd0eb2938e9b83a4519faeec",32706,513);
+    stream_case("zero-middle-page",pages,49152,16384,16384,"bce8c216560337c54f29b0f1ae871041738a7cf8db5a0e39ad33b9326f2812b9",32768,512);
+    stream_case("zero-all",pages,49152,0,65535,"2aae7dc846aaf25f1cadf55f1666862046c6db9d65d84bdc07fa039dac405606",0,0);
+    stream_case("zero-outside",pages,129,65535,65535,"ab99cfb193e986c559090f884141792caf332786c9f31f03bcb0c02648afe14e",129,3);
+    stream_case("zero-end-overflow",pages,49152,32760,65535,"4ea725655fa0a201f13f8cc4653a6c18894d46c7032c43237e4b0353d7574fff",32760,512);
+    stream_case("zero-length-window",pages,129,31,0,"ab99cfb193e986c559090f884141792caf332786c9f31f03bcb0c02648afe14e",129,3);
+    /* Rejected metadata and failed copies never publish a partial digest. */
+    {
+        JobStream stream;uint8_t digest[32],sentinel[32];unsigned k;
+        memset(&stream,0,sizeof(stream));memcpy(stream.pages,pages,3);
+        memset(sentinel,0xa5,sizeof(sentinel));
+        for(k=0;k<6;++k) {
+            stream.length=k==0?49153UL:129;stream.count=k==1?0:1;
+            stream.pages[0]=k==2?255:pages[0];
+            stream_read_fail_after=k>=3?(int)(k-3):-1;
+            memcpy(digest,sentinel,32);
+            check(!job_hash_stream(&stream,0,0,digest));
+            check(!memcmp(digest,sentinel,32));
+            stream_read_fail_after=-1;
+        }
+    }
+    for(j=0;j<3;++j)check(page_drop(pages[j]));check(pages_used()==prior);
 }
 static void source_edit_reset(void) {
     source_edit_page=s.page;source_edit_reads=source_edit_writes=source_edit_marks=source_edit_extent=0;
@@ -1406,6 +1499,7 @@ int main(int argc,char **argv) {
     check(source_new(&s,"H:/SLICE.PAS"));
     source_edit_cases();
     source_hash_cases();
+    stream_hash_cases();
     lookup_cases();
     lexer_cases();
     reference_cases();

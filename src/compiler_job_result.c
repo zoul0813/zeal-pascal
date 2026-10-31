@@ -71,8 +71,8 @@ uint8_t job_validate_success(const uint8_t *job,const uint8_t *c,Build *b,uint16
        identity.bytes!=job_word(result+87)||job_word(h+(kind?16:26))!=job_word(result+89)||
        job_word(h+(kind?18:30))!=job_word(job+20)||(job_word(job+18)&&identity.origin!=job_word(job+18))||
        job_word(result+91)!=job_word(job+20)+1u-((identity.origin+identity.bytes+1u)&~1u))return 0;
-    job_hash_stream(&image,kind?20:36,32,digest);if(memcmp(digest,identity.id,32))return 0;
-    job_hash_stream(&map,20,32,digest);if(memcmp(digest,identity.map,32))return 0;
+    if(!job_hash_stream(&image,kind?20:36,32,digest)||memcmp(digest,identity.id,32))return 0;
+    if(!job_hash_stream(&map,20,32,digest)||memcmp(digest,identity.map,32))return 0;
     if(!job_find_source(job,job_word(job+14),&root)||!saved_paths_kind(root.source.path,paths,kind))return 0;
     for(i=0;i<2;++i) {
         if(job[5]&&job_find_path(job,paths[i],&root))return 0;
@@ -84,7 +84,7 @@ uint8_t job_validate_success(const uint8_t *job,const uint8_t *c,Build *b,uint16
         if(strlen(path)!=n||strcmp(path,paths[i])||job_long(record+8)!=part.length||
            part.length!=(i?map.length:image.length)||part.count!=(i?map.count:image.count))return 0;
         for(j=0;j<part.count;++j)if(part.pages[j]!=(i?map.pages[j]:image.pages[j]))return 0;
-        job_hash_stream(&part,0,0,digest);if(memcmp(digest,record+12,32))return 0;
+        if(!job_hash_stream(&part,0,0,digest)||memcmp(digest,record+12,32))return 0;
     }
     if(at!=bundle.length)return 0;
     memset(b,0,sizeof(*b));memset(b->pages,255,3);b->sources.page=255;

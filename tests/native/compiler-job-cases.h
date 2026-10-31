@@ -330,6 +330,44 @@ static void large_job_capacity(void) {
     for(i=0;i<23;++i)check(page_drop(held[i]));
     check(pages_used()==1);
 }
+/* Independent interval counting selects the first read of each of the six
+ * worker/parent hashes, without coupling fault injection to implementation. */
+static unsigned stream_copy_count(uint16_t length,uint16_t zero,uint16_t bytes) {
+    unsigned count=0;uint32_t i,start,end,page_end;
+    for(i=0;i<length;i=page_end) {
+        page_end=i+PAGE_SIZE;if(page_end>length)page_end=length;
+        end=page_end<zero?page_end:zero;
+        if(end>i)count+=(end-i+63)/64;
+        start=i>(uint32_t)zero+bytes?i:(uint32_t)zero+bytes;
+        if(page_end>start)count+=(page_end-start+63)/64;
+    }
+    return count;
+}
+static void stream_hash_failures(void) {
+    Source before;CompileFailure failure;unsigned spans[6],at=0,k,total=0;
+    load("begin end.");before=s;check(compile(&s,&b,&d));
+    spans[0]=spans[4]=stream_copy_count(b.length,0,0);
+    spans[1]=spans[5]=stream_copy_count(b.map_length,0,0);
+    spans[2]=stream_copy_count(b.length,36,32);
+    spans[3]=stream_copy_count(b.map_length,20,32);build_close(&b);
+    for(k=0;k<6;++k)total+=spans[k];
+    stream_copy_calls=0;stream_copy_trace=1;
+    check(compile_request(&s,0,&b,&failure,0,0,s.path));stream_copy_trace=0;
+    check(stream_copy_calls==total);build_close(&b);check(pages_used()==1);
+    for(k=0;k<6;++k) {
+        check(spans[k]>0&&stream_copy_offsets[at]==0);
+        stream_copy_calls=0;stream_read_fail_after=(int)at;
+        check(!compile_request(&s,0,&b,&failure,0,0,s.path));
+        stream_read_fail_after=-1;
+        check(stream_copy_calls==at+1&&stream_failed_page==stream_copy_pages[at]&&
+              stream_failed_offset==stream_copy_offsets[at]);
+        check(failure.diagnostic.code==COMPILE_PLATFORM_FAILURE&&!b.valid&&!host_prepared);
+        check(pages_used()==1&&!memcmp(&s,&before,sizeof(s)));
+        check(job_zero(compiler_owned,8)&&job_zero(compiler_parent_owned,8)&&
+              job_zero(parent_pending,8)&&compiler_allocating==COMPILER_ALLOC_NONE);
+        at+=spans[k];
+    }
+}
 static void compiler_job_cases(void) {
     CompileFailure failure;Source before,include;Sources buffers;uint8_t hash[32],expected[32],prior;
     unsigned pages,allocation,prepares=host_prepares,cancels=host_cancels;uint8_t stage,reason;
@@ -340,6 +378,7 @@ static void compiler_job_cases(void) {
     check(b.valid&&!memcmp(expected,b.id,32)&&!memcmp(&s,&before,sizeof(s))&&!host_prepared);
     check(build_check(&s,&b)&&sources_resident(&b.sources,0));build_close(&b);check(pages_used()==1);
     hand_constructed_job(expected);wire_mutations();result_mutations();job_capacity();
+    stream_hash_failures();
     check(host_prepares==prepares&&host_cancels==cancels);
     strcpy(s.path,"H:/bad//name.pas");
     check(!compile_request(&s,0,&b,&failure,0,0,s.path)&&failure.diagnostic.code==COMPILE_PLATFORM_FAILURE);

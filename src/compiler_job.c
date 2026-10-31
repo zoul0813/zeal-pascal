@@ -120,7 +120,8 @@ static uint8_t success_reply(const Build *b) {
         memset(record,0,sizeof(record));record[0]=i?2:kind;job_put16(record+2,(uint16_t)strlen(paths[i]));
         stream.length=i?b->map_length:b->length;stream.count=i?1:n;
         if(i)stream.pages[0]=b->map_page;else memcpy(stream.pages,b->pages,n);
-        job_put32(record+8,stream.length);job_hash_stream(&stream,0,0,record+12);
+        job_put32(record+8,stream.length);
+        if(!job_hash_stream(&stream,0,0,record+12))return 0;
         handle(record+44,page,descriptors+(i?12:0));put(page,at,record,48);at+=48;
         put(page,at,(const uint8_t*)paths[i],(uint16_t)strlen(paths[i]));at+=(uint16_t)strlen(paths[i]);
     }
