@@ -36,7 +36,15 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
         if(i==1)continue;
         b->pages[i]=page_new(PAGE_IMAGE);
         if(b->pages[i]==255){d->code=98;goto failed;}
-        for(j=0;j<PAGE_SIZE;++j) {
+        /* Initialize the runtime prefix directly, then clear its tail. Both
+         * loops retain the original page's bounded polling before page2 is
+         * allocated; no byte is marked initialized until it has been stored. */
+        j=0;
+        if(!i)for(;j<cc_runtime_size();++j) {
+            if(!(j&255)&&!cc_poll())goto failed;
+            cc_put(j,cc_runtime_get(j));
+        }
+        for(;j<PAGE_SIZE;++j) {
             if(!(j&255)&&!cc_poll())goto failed;
             far_set(b->pages[i],j,0);
         }
@@ -47,10 +55,6 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     cc.workspace=page_new(PAGE_COMPILER);
     if(cc.workspace==255){d->code=98;goto failed;}
     for(i=0;i<96;++i)far_set(b->map_page,i,0);
-    for(i=0;i<cc_runtime_size();++i) {
-        if(!(i&255)&&!cc_poll())goto failed;
-        cc_put(i,cc_runtime_get(i));
-    }
     cc.absolute_mode=1;cc.var_strict=1;cc.index_speed=1;cc.with_limit=4;
     cc.input_fresh=1;cc.io_check=1;cc.console_control=1;cc.text_type=255;
     cc_new_type(K_INTEGER,2,-32768,32767,0);

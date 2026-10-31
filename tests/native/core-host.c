@@ -18,6 +18,14 @@ static int fail_after=-1,fail_drop=-1;
 static unsigned checks,allocation_calls;
 static uint8_t cancel_stage,cancel_result;
 static unsigned poll_calls,spill_polls;
+/* Probe only the initialization fixtures; the existing corpus is unchanged. */
+static uint8_t initialization_probe,copy_started,copy_complete;
+static uint8_t initialized[64],image_written[64][PAGE_SIZE/8];
+static uint16_t copy_progress;
+static unsigned long image_stores;
+static void initialization_reset(void) {
+    copy_started=copy_complete=0;copy_progress=0;image_stores=0;
+}
 uint8_t key_interrupt(void) {
     uint8_t reached;
     ++poll_calls;
@@ -28,6 +36,7 @@ uint8_t key_interrupt(void) {
         (cancel_stage==5&&cc.scan>512)||
         (cancel_stage==6&&cc.sources->refs_owned&&cc.sources->refs_page!=255&&++spill_polls==2)||
         (cancel_stage==7&&compiler_job_active&&cc.sources->stage_shared&&cc.emitted>0xc100u);
+    if(cancel_stage==8&&initialization_probe&&copy_started&&!copy_complete&&copy_progress>=256)reached=1;
     return reached?cancel_result:0;
 }
 uint8_t page_new(uint8_t role) {
@@ -37,6 +46,9 @@ uint8_t page_new(uint8_t role) {
     if(fail_after>0) --fail_after;
     for(i=32;i<64;++i) if(!owned[i]) {
         owned[i]=role;lifetimes[i]=++next_lifetime;
+        if(initialization_probe&&role==PAGE_IMAGE) {
+            memset(memory[i],0xa5,PAGE_SIZE);memset(image_written[i],0,sizeof(image_written[i]));initialized[i]=0;
+        }
         if(compiler_allocating==COMPILER_ALLOC_WORKER)compiler_owned[i>>3]|=1u<<(i&7);
         if(compiler_allocating==COMPILER_ALLOC_PARENT)compiler_parent_owned[i>>3]|=1u<<(i&7);
         return i;
@@ -64,9 +76,34 @@ uint8_t read_block(Source *source,const char *name,Diagnostic *diagnostic) {
     return 0;
 }
 uint8_t pages_used(void) { uint8_t n=0,i; for(i=32;i<64;++i) n+=owned[i]!=0; return n; }
-void page_initialized(uint8_t p,uint16_t n) { assert(p<64&&owned[p]&&n<=PAGE_SIZE); }
+void page_initialized(uint8_t p,uint16_t n) {
+    uint16_t at;
+    assert(p<64&&owned[p]&&n<=PAGE_SIZE);
+    if(initialization_probe&&owned[p]==PAGE_IMAGE) {
+        for(at=0;at<n;++at)assert(image_written[p][at>>3]&(1u<<(at&7)));
+        if(p==cc.image->pages[0]&&copy_complete) {
+            assert(!memcmp(memory[p],runtime_start,cc_runtime_size()));
+            for(at=cc_runtime_size();at<n;++at)assert(memory[p][at]==0);
+        } else for(at=0;at<n;++at)assert(memory[p][at]==0);
+        initialized[p]=1;
+    }
+}
 uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); return memory[p][at]; }
-void far_set(uint8_t p,uint16_t at,uint8_t v) { assert(p<64&&owned[p]&&at<PAGE_SIZE); ++page_versions[p]; memory[p][at]=v; }
+void far_set(uint8_t p,uint16_t at,uint8_t v) {
+    assert(p<64&&owned[p]&&at<PAGE_SIZE);++page_versions[p];memory[p][at]=v;
+    if(initialization_probe&&owned[p]==PAGE_IMAGE) {
+        ++image_stores;image_written[p][at>>3]|=(uint8_t)(1u<<(at&7));
+        if(p==cc.image->pages[0]&&!copy_complete) {
+            if(at==0&&v==runtime_start[0])copy_started=1;
+            if(copy_started&&at<cc_runtime_size()) {
+                copy_progress=at+1;
+                if(copy_progress==cc_runtime_size()) {
+                    assert(!memcmp(memory[p],runtime_start,cc_runtime_size()));copy_complete=1;
+                }
+            }
+        }
+    }
+}
 static Source s;
 static Build b;
 static Diagnostic d;
@@ -149,6 +186,40 @@ static void compile_cancellation(void) {
         cancel_stage=0;check(compile(&s,&b,&d));build_close(&b);
     }
 }
+/* Nonzero prior-owner bytes, full write coverage, tail/gap zeroing, and
+ * interruption before initialization completes must all preserve ownership. */
+static void runtime_initialization(void) {
+    const char *text="program Init;var pad:array[1..193]of byte;n:integer;const k:integer=17;begin n:=k;writeln(n)end.";
+    CompileOptions options={0,0xfbffu,COMPILE_PROGRAM};Source before;
+    uint8_t contents[256],mode,reason;unsigned before_allocations,required,i;
+    check(cc_runtime_size()>256&&cc_runtime_size()<=PAGE_SIZE&&runtime_start[0]!=0);
+    initialization_probe=1;
+    for(mode=0;mode<3;++mode) {
+        load(text);before=s;memcpy(contents,memory[s.page],s.length);
+        options.kind=mode==2?COMPILE_CHAIN:COMPILE_PROGRAM;
+        initialization_reset();before_allocations=allocation_calls;
+        check(compile_project(&s,0,&b,&d,1,mode?&options:0));required=allocation_calls-before_allocations;
+        check(copy_started&&copy_complete&&initialized[b.pages[0]]&&build_check(&s,&b));
+        printf("PERF01 initialization mode%u: runtime=%u image_stores=%lu allocations=%u\n",mode,cc_runtime_size(),image_stores,required);
+        build_close(&b);check(pages_used()==1);
+        for(i=0;i<required;++i) {
+            initialization_reset();fail_after=(int)i;
+            check(!compile_project(&s,0,&b,&d,1,mode?&options:0)&&d.code==98&&!b.valid);
+            fail_after=-1;check(pages_used()==1&&!memcmp(&s,&before,sizeof(s))&&!memcmp(contents,memory[s.page],s.length));
+        }
+        for(reason=1;reason<=2;++reason) {
+            initialization_reset();cancel_stage=8;cancel_result=reason;
+            check(!compile_project(&s,0,&b,&d,1,mode?&options:0));
+            check(d.code==COMPILE_INTERRUPTED&&compile_interrupt_reason()==reason&&copy_started&&!copy_complete);
+            check(!cc.polling&&!b.valid&&pages_used()==1);
+            check(b.pages[0]==255&&b.pages[1]==255&&b.pages[2]==255&&b.map_page==255&&b.sources.page==255);
+            check(!memcmp(&s,&before,sizeof(s))&&!memcmp(contents,memory[s.page],s.length));
+            cancel_stage=0;
+        }
+    }
+    initialization_probe=0;
+}
+
 static void compilation_options(void) {
     const uint16_t starts[]={0,0x8000,0x8202,0x9000,0xbfff,0xc000,0xc001,0xd000,0xef00,0xf400,0xffff};
     const uint16_t ends[]={0,0xcffe,0xcfff,0xd000,0xe123,0xfbfe,0xfbff,0xfc00,0xffff};
@@ -935,6 +1006,7 @@ int main(int argc,char **argv) {
     keyboard_corpus();
     interruption_corpus();
     compile_cancellation();
+    runtime_initialization();
     compilation_options();
     chain_cases();
     chain_call_cases();

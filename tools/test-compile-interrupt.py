@@ -77,6 +77,21 @@ def main():
         commands += ['run 100000000']
         return commands
 
+    class CancellationConsole(n.DebugConsole):
+        def command(self, command, capture=False):
+            if command != '@capacity-return':
+                return super().command(command, capture)
+            # A full queue can return to the reader on the last injected key.
+            # Do not step past that entry before its unchanged snapshot checks.
+            frame = super().command('regs')
+            pc = int(re.search(r'PC=([0-9a-fA-F]+)', frame)[1], 16)
+            if pc == poll:
+                super().command('s')
+                super().command('run 4000000000')
+            elif pc != key:
+                raise RuntimeError('capacity cancellation stopped outside poll/reader')
+            return 'capacity reader synchronization complete\n'
+
     commands = ['run 100000000']+n.program_launch()+['run 10000000']
     commands += typed('nwH:/project/main.pas\nmH:/project/main.pas\ne')
     commands += typed(prefix.decode())+control('K')+typed('b')+control('K')+typed('d')
@@ -103,7 +118,7 @@ def main():
     # The last injected key can still be waiting at the next polling entry.
     # Let that poll consume it, then observe cancellation at the reader rather
     # than taking a snapshot before the queue-full result has been handled.
-    commands += [f'bc 0x{poll:x}', 's', 'run 4000000000']
+    commands += [f'bc 0x{poll:x}', '@capacity-return']
     commands += snapshot('capacity-cancelled', key)+[f'bc 0x{key:x}']
     commands += [f'bp 0x{clear:x}', 'tap ESC', 'run 100000000']+snapshot('capacity-kernel', clear)+[f'bc 0x{clear:x}']
     commands += state('capacity-pending', [], 100000000)
@@ -114,7 +129,7 @@ def main():
     commands += typed('\b'*31)+control('K')+typed('d')
     commands += typed('omq')+state('completed-run', ['tap R'])
     commands += ['tap ESC', 'run 100000000']+typed('qn')+['quit']
-    raw = n.execute('compile-interrupt', commands, fixtures, eeprom_image=n.blank_eeprom(), timeout=900)
+    raw = n.execute('compile-interrupt', commands, fixtures, eeprom_image=n.blank_eeprom(), timeout=900, console_class=CancellationConsole)
     parts = re.split(r'\[DBG\] PC=', raw)[1:]
     checks = {'all compilation checkpoints reached': len(parts)==len(labels)}
     if len(parts)==len(labels):
