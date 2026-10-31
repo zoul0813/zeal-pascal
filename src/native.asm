@@ -1,5 +1,5 @@
 .module native
-.globl _far_get, _far_set, _ram_enter
+.globl _far_get, _far_set, _far_read, _ram_enter
 .globl _ram_result, _ram_pages, _ram_entry
 .globl _ram_io_detail,_ram_cleanup_detail
 .globl _console_scratch
@@ -9,7 +9,8 @@
 .globl _worker_child_page, _worker_child_prefix, _worker_child_page2, _worker_value
 
 ; Retained low-memory core. The link-map acceptance test checks the entire
-; area (including control data) remains in page 1. C may otherwise use page 2.
+; area (including control data) remains in page 1. C code/literals may use
+; page2; span callers retain their stack in page3.
 .area _HOME
 _far_get::                       ; A=owned physical page, DE=bounded offset
     ld c,a
@@ -64,6 +65,97 @@ version_done:
     ld a,b
     out (0xf2),a
     ret
+
+; Checked span read. A=owned RAM page, DE=offset; out/count are LE16 stack
+; arguments under SDCC call1. IX/IY and caller SP/IFF are preserved. Bounds
+; reject before mapping/stores; zero is a no-op even with sentinel arguments.
+_far_read::
+    push ix
+    ld ix,#0
+    add ix,sp
+    push af                      ; page at -1(IX)
+    push de                      ; offset at -4(IX)
+    ld a,i
+    di
+    push af                      ; incoming IFF in P/V, retained until exit
+    ld c,6(ix)
+    ld b,7(ix)
+    ld a,b
+    or c
+    jr z,read_success            ; never enter LDIR with BC=0
+    ld a,b
+    cp #1
+    jr c,read_count_valid
+    jr nz,read_invalid
+    ld a,c
+    or a
+    jr nz,read_invalid           ; FAR_READ_LIMIT=256 bounds IRQ masking
+read_count_valid:
+    ld a,-1(ix)
+    cp #32
+    jr c,read_invalid
+    cp #64
+    jr nc,read_invalid
+    ld h,d
+    ld l,e
+    add hl,bc                    ; exclusive source end, including carry
+    jr c,read_invalid
+    ld a,h
+    cp #0x40
+    jr c,read_source_valid
+    jr nz,read_invalid
+    ld a,l
+    or a
+    jr nz,read_invalid
+read_source_valid:
+    ld l,4(ix)
+    ld h,5(ix)
+    ld e,l
+    ld d,h                       ; DE retains the destination start
+    ld a,h
+    and #0xc0
+    cp #0x40
+    jr z,read_near_window
+    cp #0xc0
+    jr nz,read_invalid
+read_near_window:
+    dec bc
+    add hl,bc                    ; inclusive last byte permits FFFF
+    jr c,read_invalid
+    xor h
+    and #0xc0                    ; start and last must share retained window
+    jr nz,read_invalid
+    inc bc
+    ld l,-4(ix)
+    ld h,-3(ix)
+    set 7,h
+    ld a,#0x80
+    in a,(0xf2)
+    push af                      ; old page2, never needed across a callback
+    ld a,-1(ix)
+    out (0xf2),a
+    ldir
+    pop af
+    out (0xf2),a                 ; restore before unmasking interrupts
+    jr read_success
+read_invalid:
+    xor a
+    jr read_finish
+read_success:
+    ld a,#1
+read_finish:
+    ld c,a
+    pop af                       ; recover incoming IFF, not validation flags
+    ld a,c
+    ld sp,ix
+    pop ix
+    pop hl                       ; caller return address
+    pop bc                       ; consume out/count per SDCC call1 ABI
+    pop bc
+    jp po,read_return
+    ei
+read_return:
+    jp (hl)
 
 _ram_enter::
     push ix

@@ -15,6 +15,128 @@ void check(uint8_t ok) {
     else {if(test_failed<64)test_failures[test_failed]=test_index;++test_failed;}
 }
 uint8_t load(const char *text) {return source_import(&s,(const uint8_t*)text,(uint16_t)strlen(text),&d);}
+/* PERF10 prerequisite: exercise the real retained primitive before any job
+ * allocates worker pages. Source bytes use an independent affine pattern. */
+/* Naked test-only entry preserves the actual call1 arguments for the probe.
+ * It stays in this job target's BANK1, not every test's shared machine core. */
+uint8_t test_far_read_probe(uint8_t page,uint16_t offset,uint8_t *out,uint16_t n) NATIVE __naked {
+    __asm
+    push ix
+    push iy
+    ld iy,#0
+    add iy,sp
+    push iy
+    ld l,8(iy)
+    ld h,9(iy)
+    push hl                      ; copied count
+    ld l,6(iy)
+    ld h,7(iy)
+    push hl                      ; copied destination
+    ld ix,#0x1357
+    ld iy,#0x2468
+    call _far_read               ; A/DE still contain page/offset
+    push af
+    push ix
+    pop hl
+    ld de,#0x1357
+    or a
+    sbc hl,de
+    jr nz,probe_read_bad
+    push iy
+    pop hl
+    ld de,#0x2468
+    or a
+    sbc hl,de
+    jr nz,probe_read_bad
+    pop af
+    jr probe_read_done
+probe_read_bad:
+    pop af
+    ld a,#255
+probe_read_done:
+    pop iy
+    ld sp,iy
+    pop iy
+    pop ix
+    pop hl
+    pop bc
+    pop bc
+    jp (hl)
+    __endasm;
+}
+volatile uint8_t span_benchmark;
+uint8_t test_far_read_slow(uint8_t page,uint16_t offset,uint8_t *out,uint16_t n) {
+    while(n--)*out++=far_get(page,offset++);
+    return 1;
+}
+static uint8_t span_byte(uint16_t at) {return (uint8_t)(at*73u+19u);}
+static void span_case(uint8_t page,uint16_t offset,uint16_t n,uint8_t expected,uint8_t enabled) {
+    uint8_t out[259],before[7],after[7],result,good=1;uint16_t i;
+    memset(out,0xa5,sizeof(out));
+    if(!enabled) {__asm di __endasm;}
+    test_machine(before);
+    result=test_far_read_probe(page,offset,out+1,n);
+    test_machine(after);
+    if(!enabled) {__asm ei __endasm;}
+    check(result==expected);check(!memcmp(before,after,7));
+    check(before[0]==enabled&&before[2]>=0xc0&&out[0]==0xa5&&out[258]==0xa5);
+    for(i=0;i<257;++i)if(out[i+1]!=(expected&&i<n?span_byte(offset+i):0xa5))good=0;
+    check(good);
+}
+static void span_checks(void) {
+    uint8_t p=page_new(PAGE_SOURCE),mode,before[7],after[7],good;
+    volatile uint8_t result; /* keep both machine snapshots at identical SP */
+    uint8_t out[64],old_bytes[2],new_bytes[2];uint16_t i;uint32_t version,lifetime;uint8_t owned=pages_used();
+    static const struct {uint16_t offset,n;uint8_t ok;} cases[]={
+        {0,0,1},{0,1,1},{16383,1,1},{0,64,1},{16320,64,1},
+        {123,128,1},{0,255,1},{16128,256,1},{16127,257,0},
+        {16384,1,0},{16383,2,0},{65535,1,0},{0,16385,0},{65535,65535,0}};
+    static const uint16_t bad_out[]={0,0x3fff,0x7fff,0x8000,0xbfff,0xffff};
+    check(p!=255);if(p==255)return;
+    for(i=0;i<PAGE_SIZE;++i)far_set(p,i,span_byte(i));
+    version=page_versions[p];lifetime=page_lifetime(p);
+    for(mode=0;mode<2;++mode) {
+        for(i=0;i<sizeof(cases)/sizeof(cases[0]);++i)
+            span_case(p,cases[i].offset,cases[i].n,cases[i].ok,mode);
+        span_case(31,0,1,0,mode);span_case(64,0,1,0,mode);span_case(255,0,1,0,mode);
+        for(i=0;i<sizeof(bad_out)/sizeof(bad_out[0]);++i) {
+            if(!mode) {__asm di __endasm;}
+            old_bytes[0]=*(volatile uint8_t*)bad_out[i];
+            old_bytes[1]=*(volatile uint8_t*)(uint16_t)(bad_out[i]+1);
+            test_machine(before);
+            result=test_far_read_probe(p,0,(uint8_t*)bad_out[i],2);
+            test_machine(after);
+            new_bytes[0]=*(volatile uint8_t*)bad_out[i];
+            new_bytes[1]=*(volatile uint8_t*)(uint16_t)(bad_out[i]+1);
+            if(!mode) {__asm ei __endasm;}
+            check(!result&&!memcmp(before,after,7)&&before[0]==mode&&!memcmp(old_bytes,new_bytes,2));
+        }
+        /* Zero accepts sentinel arguments without touching any address. */
+        if(!mode) {__asm di __endasm;}
+        test_machine(before);result=test_far_read_probe(255,65535,0,0);test_machine(after);
+        if(!mode) {__asm ei __endasm;}
+        check(result==1&&!memcmp(before,after,7)&&before[0]==mode);
+    }
+    /* Existing owned page1 scratch and parent page3 stack are both valid. */
+    memset(console_scratch,0xa5,256);test_machine(before);
+    result=test_far_read_probe(p,16130,console_scratch+1,254);test_machine(after);
+    check(result==1&&!memcmp(before,after,7)&&console_scratch[0]==0xa5&&console_scratch[255]==0xa5);
+    good=1;for(i=0;i<254;++i)if(console_scratch[i+1]!=span_byte(16130+i))good=0;check(good);
+    /* Time copy work with IRQ service excluded; both IFF modes were tested above. */
+    __asm di __endasm;
+    for(mode=0;mode<2;++mode) {
+        span_benchmark=1;check(test_far_read_slow(p,16320,out,64));
+        good=1;for(i=0;i<64;++i)if(out[i]!=span_byte(16320+i))good=0;check(good);
+        memset(out,0,64);span_benchmark=2;check(far_read(p,16320,out,64));
+        good=1;for(i=0;i<64;++i)if(out[i]!=span_byte(16320+i))good=0;check(good);
+    }
+    span_benchmark=0;
+    __asm ei __endasm;
+    check(page_versions[p]==version&&page_lifetime(p)==lifetime&&pages_used()==owned);
+    good=1;for(i=0;i<PAGE_SIZE;++i)if(far_get(p,i)!=span_byte(i))good=0;check(good);
+    check(page_drop(p));
+}
+void test_span_done(void) {__asm nop __endasm;}
 static CompileFailure failure;
 static uint8_t expected[32];
 static uint8_t request(uint8_t mode,const CompileOptions *options) {
@@ -26,6 +148,7 @@ int app_main(void) {
     uint8_t hash[32],status=255,owned;int8_t fd;uint16_t pc,position;
     if(!console_open())return 1;
     check(source_new(&s,"H:/JOB.PAS"));
+    test_stage=79;span_checks();test_span_done();
     fd=open("H:/JOBS.TXT",O_WRONLY|O_CREAT|O_TRUNC);check(fd>=0);if(fd>=0)check(!swap(fd,DEV_STDOUT));
     test_stage=80;
     check(load("program Hello;begin writeln('JOB-OK')end."));s.cursor=8;s.previous=3;s.dirty=1;before=s;

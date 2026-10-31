@@ -111,13 +111,6 @@ void output_number(uint16_t n) {
     do { text[--i]=(char)('0'+n%10); n/=10; } while(n);
     output(text+i);
 }
-void output_hex(uint16_t n,uint8_t digits) {
-    char text[5]; uint8_t i;
-    if(digits!=2&&digits!=4) return;
-    text[digits]=0;
-    for(i=digits;i>0;--i) { text[i-1]="0123456789ABCDEF"[n&15]; n>>=4; }
-    output(text);
-}
 uint8_t key_decode(uint8_t c) {
     uint8_t raw=c;
     c=key_event(c);

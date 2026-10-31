@@ -25,6 +25,13 @@ static void block_io(uint8_t kind);
 static void search_command(uint8_t kind);
 static void search_ack(const char *message);
 
+static void output_hex(uint16_t n,uint8_t digits) {
+    char text[5]; uint8_t i;
+    if(digits!=2&&digits!=4) return;
+    text[digits]=0;
+    for(i=digits;i>0;--i) { text[i-1]="0123456789ABCDEF"[n&15]; n>>=4; }
+    output(text);
+}
 static void file_error(const char *prefix,uint8_t code) {
     /* Console writes themselves update platform_error. Pass the failed job's
      * value by value before any diagnostic output can overwrite it. */

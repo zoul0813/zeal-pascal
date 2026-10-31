@@ -15,6 +15,7 @@
 #endif
 
 #define PAGE_SIZE 16384u
+#define FAR_READ_LIMIT 256u
 #define SOURCE_LIMIT 16383u
 #define PREFIX_BYTES 16384u
 #define GLOBAL_BASE 0x8000u
@@ -129,6 +130,15 @@ typedef struct {
 /* These mapping cores execute in retained page 1, with no window pointers. */
 uint8_t far_get(uint8_t page, uint16_t offset) NATIVE;
 void far_set(uint8_t page, uint16_t offset, uint8_t value) NATIVE;
+/* Copy at most FAR_READ_LIMIT bytes from a caller-owned live RAM page32..63.
+ * The caller keeps its stack in retained page3 (C000..FFFF). Nonzero spans
+ * must fit one physical page and an owned writable near range in4000..7FFF or
+ * C000..FFFF, clear of active call frames. Invalid spans return0 unchanged;
+ * zero returns1 without dereference. Mapping/IFF are restored; allocation,
+ * version and ownership state stay unchanged. Interrupts are masked for at
+ * most256copiedbytes plus checks; stream callers use64-byte chunks and split
+ * multi-page work. */
+uint8_t far_read(uint8_t page,uint16_t offset,uint8_t *out,uint16_t count) NATIVE;
 void ram_enter(void) NATIVE;
 extern uint8_t ram_result[128];
 extern uint16_t ram_io_detail;
@@ -210,6 +220,5 @@ void screen_at(uint8_t x, uint8_t y);
 void screen_mark(uint8_t highlighted);
 void output(const char *text);
 void output_number(uint16_t n);
-void output_hex(uint16_t n,uint8_t digits);
 extern uint8_t screen_width, screen_height, platform_error;
 #endif
