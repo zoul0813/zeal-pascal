@@ -66,12 +66,14 @@ version_done:
     out (0xf2),a
     ret
 
-; Checked span read. A=owned RAM page, DE=offset; out/count are LE16 stack
-; arguments under SDCC call1. IX/IY and caller SP/IFF are preserved. Bounds
+; Checked retained read/fill spans. A=owned RAM page, DE=offset. Read has
+; two LE16 stack arguments; fill has a byte and LE16 count (SDCC call1).
+; IX/IY and caller SP/IFF are preserved. Bounds
 ; reject before mapping/stores; zero is a no-op even with sentinel arguments.
 _far_fill::
-    ; Align byte+word arguments with read's two-word frame. The extra byte
-    ; is below the caller's SP and is consumed by the common four-byte exit.
+    ; Align byte+word arguments with read's two-word frame. With entry SP=S,
+    ; the return moves to S-1 and padding uses S+1 (old return high byte).
+    ; Both lie below the caller's pre-call SP; the exit consumes 3+1 bytes.
     pop hl
     dec sp
     push hl
@@ -158,7 +160,7 @@ span_valid:
     jr nz,span_invalid
     ld a,c
     or a
-    jr nz,span_invalid           ; FAR_READ_LIMIT=256 bounds IRQ masking
+    jr nz,span_invalid           ; FAR_READ_LIMIT=FAR_FILL_LIMIT=256 bounds IRQ masking
 span_count_valid:
     ld a,-1(ix)
     cp #32

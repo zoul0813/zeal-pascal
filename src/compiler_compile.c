@@ -11,7 +11,7 @@
 static uint16_t pc(void) {return cc.emitted-CC_CODE_BASE;}
 
 uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options) {
-    uint16_t i,j;
+    uint16_t i,j,n;
     SourcePosition begin;
     Source active;
     CompilerSources sources;
@@ -44,9 +44,12 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
             if(!(j&255)&&!cc_poll())goto failed;
             cc_put(j,cc_runtime_get(j));
         }
-        for(;j<PAGE_SIZE;++j) {
+        for(;j<PAGE_SIZE;j+=n) {
             if(!(j&255)&&!cc_poll())goto failed;
-            far_set(b->pages[i],j,0);
+            /* End at the next existing polling boundary, including the
+             * partial tail after the verified runtime prefix. */
+            n=256u-(j&255u);
+            if(!far_fill(b->pages[i],j,0,n)){d->code=98;goto failed;}
         }
         page_initialized(b->pages[i],PAGE_SIZE);
     }

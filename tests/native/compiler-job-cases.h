@@ -368,6 +368,25 @@ static void stream_hash_failures(void) {
         at+=spans[k];
     }
 }
+/* Worker initialization failures must retain the reply/parent cleanup path. */
+static void image_fill_failures(void) {
+    static const unsigned failures[]={0,1,32,64,65,96,128};
+    Source before;CompileFailure failure;unsigned i;uint8_t hash[32];
+    load("program Init;var pad:array[1..193]of byte;n:integer;const k:integer=17;begin n:=k;writeln(n)end.");before=s;
+    source_hash(&s,hash);
+    image_fill_total_calls=0;
+    check(compile_request(&s,0,&b,&failure,0,0,s.path));check(image_fill_total_calls==129);
+    build_close(&b);check(pages_used()==1&&!memcmp(&s,&before,sizeof(s)));
+    for(i=0;i<sizeof(failures)/sizeof(failures[0]);++i) {
+        image_fill_total_calls=0;image_fill_fail_after=(int)failures[i];
+        check(!compile_request(&s,0,&b,&failure,0,0,s.path));image_fill_fail_after=-1;
+        check(image_fill_total_calls==failures[i]+1);
+        check(failure.diagnostic.code==98&&!b.valid&&!host_prepared&&pages_used()==1);
+        check(failure.has_hash&&!strcmp(failure.path,s.path)&&!memcmp(failure.hash,hash,32));
+        check(!memcmp(&s,&before,sizeof(s))&&job_zero(compiler_owned,8)&&job_zero(compiler_parent_owned,8)&&job_zero(parent_pending,8));
+        check(compiler_allocating==COMPILER_ALLOC_NONE);
+    }
+}
 static void compiler_job_cases(void) {
     CompileFailure failure;Source before,include;Sources buffers;uint8_t hash[32],expected[32],prior;
     unsigned pages,allocation,prepares=host_prepares,cancels=host_cancels;uint8_t stage,reason;
@@ -378,7 +397,7 @@ static void compiler_job_cases(void) {
     check(b.valid&&!memcmp(expected,b.id,32)&&!memcmp(&s,&before,sizeof(s))&&!host_prepared);
     check(build_check(&s,&b)&&sources_resident(&b.sources,0));build_close(&b);check(pages_used()==1);
     hand_constructed_job(expected);wire_mutations();result_mutations();job_capacity();
-    stream_hash_failures();
+    stream_hash_failures();image_fill_failures();
     check(host_prepares==prepares&&host_cancels==cancels);
     strcpy(s.path,"H:/bad//name.pas");
     check(!compile_request(&s,0,&b,&failure,0,0,s.path)&&failure.diagnostic.code==COMPILE_PLATFORM_FAILURE);

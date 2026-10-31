@@ -49,12 +49,27 @@ static uint8_t initialization_probe,copy_started,copy_complete;
 static uint8_t initialized[64],image_written[64][PAGE_SIZE/8];
 static uint16_t copy_progress;
 static unsigned long image_stores;
+static unsigned image_fill_calls,image_fill_bytes,initialization_polls,image_fill_total_calls,image_fill_last_poll;
+static uint32_t initialization_poll_stores[1024];
+static int image_fill_fail_after=-1;
+static unsigned image_fill_cancel_after;
+static uint8_t image_fill_cancel_index,image_fill_cancel_page;
+static uint8_t image_fill_failed_page,image_fill_failed_bytes[FAR_FILL_LIMIT];
+static uint16_t image_fill_failed_offset,image_fill_failed_count;
+static uint32_t image_fill_failed_version;
+static uint8_t image_fill_indexes[256];
+static uint16_t image_fill_offsets[256],image_fill_counts[256];
 static void initialization_reset(void) {
     copy_started=copy_complete=0;copy_progress=0;image_stores=0;
+    image_fill_calls=image_fill_bytes=initialization_polls=image_fill_last_poll=0;
 }
 uint8_t key_interrupt(void) {
     uint8_t reached;
     ++poll_calls;
+    if(initialization_probe) {
+        assert(initialization_polls<1024);
+        initialization_poll_stores[initialization_polls++]=(uint32_t)image_stores;
+    }
     if(lexer_poll_probe) {
         uint16_t gap=cc.scan-lexer_last_poll;
         if(gap>lexer_max_gap)lexer_max_gap=gap;
@@ -68,6 +83,10 @@ uint8_t key_interrupt(void) {
         (cancel_stage==6&&cc.sources->refs_owned&&cc.sources->refs_page!=255&&++spill_polls==2)||
         (cancel_stage==7&&compiler_job_active&&cc.sources->stage_shared&&cc.emitted>0xc100u);
     if(cancel_stage==8&&initialization_probe&&copy_started&&!copy_complete&&copy_progress>=256)reached=1;
+    if(cancel_stage==9&&initialization_probe&&image_fill_calls>=image_fill_cancel_after&&
+       cc.image->pages[image_fill_cancel_index]!=255&&!initialized[cc.image->pages[image_fill_cancel_index]]) {
+        image_fill_cancel_page=cc.image->pages[image_fill_cancel_index];reached=1;
+    }
     return reached?cancel_result:0;
 }
 uint8_t page_new(uint8_t role) {
@@ -154,6 +173,35 @@ uint8_t far_read(uint8_t page,uint16_t offset,uint8_t *out,uint16_t n) {
     if(stream_read_fail_after>0)--stream_read_fail_after;
     if(stream_probe){++stream_spans;if(n>stream_span_max)stream_span_max=n;assert(n<=64);}
     for(i=0;i<n;++i)out[i]=far_get(page,offset+i);
+    return 1;
+}
+/* Native fill geometry/version behaviour was proved in PERF12. Reuse
+ * far_set here so poison/write/version probes observe every modelled store. */
+uint8_t far_fill(uint8_t page,uint16_t offset,uint8_t value,uint16_t n) {
+    uint16_t i;
+    if(!n)return 1;
+    if(n>FAR_FILL_LIMIT||page<32||page>=64||!owned[page]||offset>=PAGE_SIZE||n>PAGE_SIZE-offset)return 0;
+    if(initialization_probe) {
+        assert(image_fill_calls<256&&owned[page]==PAGE_IMAGE&&value==0);
+        for(i=0;i<3&&cc.image->pages[i]!=page;++i){}
+        assert(i<3);image_fill_indexes[image_fill_calls]=(uint8_t)i;
+        if(i!=0) {
+            assert(initialization_polls>image_fill_last_poll);
+            assert(initialization_poll_stores[initialization_polls-1]==image_stores);
+        }
+        image_fill_last_poll=initialization_polls;
+        image_fill_offsets[image_fill_calls]=offset;image_fill_counts[image_fill_calls]=n;
+        ++image_fill_calls;
+    }
+    ++image_fill_total_calls;
+    if(image_fill_fail_after==0) {
+        image_fill_failed_page=page;image_fill_failed_offset=offset;image_fill_failed_count=n;
+        image_fill_failed_version=page_versions[page];
+        memcpy(image_fill_failed_bytes,memory[page]+offset,n);return 0;
+    }
+    if(image_fill_fail_after>0)--image_fill_fail_after;
+    for(i=0;i<n;++i)far_set(page,offset+i,value);
+    if(initialization_probe)image_fill_bytes+=n;
     return 1;
 }
 static Source s;
@@ -598,11 +646,47 @@ static void runtime_initialization(void) {
         check(compile_project(&s,0,&b,&d,1,mode?&options:0));required=allocation_calls-before_allocations;
         check(copy_started&&copy_complete&&initialized[b.pages[0]]&&build_check(&s,&b));
         printf("PERF01 initialization mode%u: runtime=%u image_stores=%lu allocations=%u\n",mode,cc_runtime_size(),image_stores,required);
+        printf("PERF13 initialization mode%u: fills=%u bytes=%u polls=%u sequence=",mode,image_fill_calls,image_fill_bytes,initialization_polls);
+        for(i=0;i<initialization_polls;++i)printf("%lu,",(unsigned long)initialization_poll_stores[i]);puts("");
+        check(image_fill_calls==129&&image_fill_bytes==3u*PAGE_SIZE-cc_runtime_size());
+        check(initialization_polls==(mode==2?268:322));
+        for(i=0;i<image_fill_calls;++i) {
+            uint8_t index=i==0?0:i<=64?2:1;
+            check(image_fill_indexes[i]==index&&
+                  image_fill_offsets[i]==(i==0?cc_runtime_size():(i-(index==2?1:65))*256u)&&
+                  image_fill_counts[i]==(i==0?PAGE_SIZE-cc_runtime_size():256u));
+        }
         build_close(&b);check(pages_used()==1);
         for(i=0;i<required;++i) {
             initialization_reset();fail_after=(int)i;
             check(!compile_project(&s,0,&b,&d,1,mode?&options:0)&&d.code==98&&!b.valid);
             fail_after=-1;check(pages_used()==1&&!memcmp(&s,&before,sizeof(s))&&!memcmp(contents,memory[s.page],s.length));
+        }
+        {
+            static const unsigned failures[]={0,1,2,32,64,65,66,96,128};
+            static const unsigned cancel_after[]={1,33,64,65,97,128};
+            for(i=0;i<sizeof(failures)/sizeof(failures[0]);++i) {
+                initialization_reset();image_fill_fail_after=(int)failures[i];
+                check(!compile_project(&s,0,&b,&d,1,mode?&options:0)&&d.code==98&&!b.valid);
+                image_fill_fail_after=-1;
+                check(image_fill_calls==failures[i]+1&&!initialized[image_fill_failed_page]);
+                check(!memcmp(memory[image_fill_failed_page]+image_fill_failed_offset,image_fill_failed_bytes,image_fill_failed_count));
+                {
+                    uint16_t at;uint8_t poisoned=1;
+                    for(at=0;at<image_fill_failed_count;++at)if(image_fill_failed_bytes[at]!=0xa5)poisoned=0;
+                    check(poisoned&&page_versions[image_fill_failed_page]==image_fill_failed_version);
+                }
+                check(pages_used()==1&&!cc.polling&&b.pages[0]==255&&b.pages[1]==255&&b.pages[2]==255&&b.map_page==255&&b.sources.page==255);
+                check(!memcmp(&s,&before,sizeof(s))&&!memcmp(contents,memory[s.page],s.length));
+            }
+            for(i=0;i<sizeof(cancel_after)/sizeof(cancel_after[0]);++i)for(reason=1;reason<=2;++reason) {
+                initialization_reset();cancel_stage=9;cancel_result=reason;
+                image_fill_cancel_after=cancel_after[i];image_fill_cancel_index=i<3?2:1;
+                check(!compile_project(&s,0,&b,&d,1,mode?&options:0));cancel_stage=0;
+                check(d.code==COMPILE_INTERRUPTED&&compile_interrupt_reason()==reason&&image_fill_calls==cancel_after[i]);
+                check(!initialized[image_fill_cancel_page]&&!cc.polling&&!b.valid&&pages_used()==1);
+                check(!memcmp(&s,&before,sizeof(s))&&!memcmp(contents,memory[s.page],s.length));
+            }
         }
         for(reason=1;reason<=2;++reason) {
             initialization_reset();cancel_stage=8;cancel_result=reason;

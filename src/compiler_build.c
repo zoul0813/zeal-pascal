@@ -28,9 +28,9 @@ uint8_t cc_image_page(uint8_t index) FRONTEND {
     if(cc.image->pages[index]!=255)return 1;
     cc.image->pages[index]=page_new(PAGE_IMAGE);
     if(cc.image->pages[index]==255) {cc_fail(98);return 0;}
-    for(i=0;i<PAGE_SIZE;++i) {
-        if(!(i&255)&&!cc_poll())return 0;
-        far_set(cc.image->pages[index],i,0);
+    for(i=0;i<PAGE_SIZE;i+=256) {
+        if(!cc_poll())return 0;
+        if(!far_fill(cc.image->pages[index],i,0,256)){cc_fail(98);return 0;}
     }
     page_initialized(cc.image->pages[index],PAGE_SIZE);return 1;
 }
