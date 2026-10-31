@@ -16,6 +16,8 @@ uint8_t job_page(const uint8_t allowed[8],uint8_t page) SOURCE_BLOCK_CALL;
 uint8_t job_handle(const uint8_t *handle,uint16_t bytes,const uint8_t allowed[8]) SOURCE_BLOCK_CALL;
 uint8_t job_read_source(uint8_t page,uint16_t *at,uint16_t end,const uint8_t allowed[8],JobSource *record) SOURCE_BLOCK_CALL;
 uint8_t job_write_source(uint8_t page,uint16_t *at,const JobSource *record) SOURCE_BLOCK_CALL;
+/* Digest is defined only on success (canonical source bytes). */
+uint8_t job_source_digest(const Source *source,uint8_t digest[32]) SOURCE_BLOCK_CALL;
 uint8_t job_source_hash(const JobSource *record) SOURCE_BLOCK_CALL;
 uint8_t job_validate(const uint8_t context[128],const uint8_t job[128],const uint8_t allowed[8]) SOURCE_BLOCK_CALL;
 void job_identity(const uint8_t job[128],uint8_t digest[32]) SOURCE_BLOCK_CALL;

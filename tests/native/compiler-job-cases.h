@@ -23,6 +23,68 @@ static void job_register(uint8_t job[128],uint8_t context[128]) {
 static void job_dispose(void) {
     check(cleanup(0)&&compiler_pages_release(compiler_parent_owned,0));registered_job=0;registered_context=0;compiler_job_active=0;
 }
+/* Exercise the real parent capture without worker/hash traffic in the read
+ * counter. Canonicality and digest results remain checked independently. */
+static void capture_one(const uint8_t *text,uint16_t length,uint8_t may_borrow,
+                        uint8_t canonical,uint16_t normalized) {
+    Source original,before;JobSource record;uint8_t table,allowed[8],expected[32],raw[32],after[32],i;
+    uint16_t at=0,end;unsigned pages=pages_used();Sha256 hash;
+    check(source_new(&original,"H:/CAPTURE.PAS"));
+    for(at=0;at<length;++at)far_set(original.page,at,text[at]);original.length=length;
+    original.dirty=1;original.revision=17;page_initialized(original.page,length);before=original;
+    sha_init(&hash);for(at=0;at<length;++at)sha_byte(&hash,far_get(original.page,at));sha_end(&hash,raw);
+    source_hash(&original,expected);table=page_new(PAGE_WORKER);check(table!=255);bit(parent_pending,table,1);
+    memset(parent_borrowed,0,8);at=0;capture_probe_page=original.page;capture_reads=0;capture_probe=1;
+    check(snapshot_record(table,&at,&original,7,may_borrow));capture_probe=0;end=at;
+    for(i=0;i<8;++i)allowed[i]=parent_pending[i]|parent_borrowed[i];
+    at=0;check(job_read_source(table,&at,end,allowed,&record)&&at==end&&record.id==7&&record.resident);
+    check(record.source.length==normalized&&!memcmp(record.hash,expected,32));
+    check(job_source_hash(&record)==canonical);
+    if(may_borrow&&canonical&&length==normalized) {
+        check(record.source.page==(length?original.page:255));
+        check((parent_borrowed[original.page>>3]&(1u<<(original.page&7)))!=0||!length);
+        check(pages_used()==pages+2);
+    } else {
+        check(record.source.page!=original.page&&job_zero(parent_borrowed,8));
+        check(pages_used()==pages+2+(normalized!=0));
+    }
+    check(!memcmp(&original,&before,sizeof(original)));
+    sha_init(&hash);for(at=0;at<length;++at)sha_byte(&hash,far_get(original.page,at));sha_end(&hash,after);
+    check(!memcmp(raw,after,32));
+    printf("PERF03 capture bytes=%u borrow=%u canonical=%u reads=%lu\n",length,may_borrow,canonical,capture_reads);
+    check(compiler_pages_release(parent_pending,0));memset(parent_borrowed,0,8);
+    source_close(&original);check(pages_used()==pages);
+}
+static void capture_cases(void) {
+    uint8_t text[16000],i;uint16_t at;Source original,before;uint8_t table;uint16_t end;
+    const char *cases[]={"", "begin end.\n", "begin  \nend.  ", " \n  ", "x\ry", "x\032y"};
+    const uint16_t normalized[]={0,11,10,1,3,3};
+    for(i=0;i<sizeof(cases)/sizeof(cases[0]);++i) {
+        capture_one((const uint8_t*)cases[i],(uint16_t)strlen(cases[i]),1,i<4,normalized[i]);
+        capture_one((const uint8_t*)cases[i],(uint16_t)strlen(cases[i]),0,i<4,normalized[i]);
+    }
+    memset(text,'x',128);capture_one(text,127,1,1,127);capture_one(text,128,1,0,128);
+    for(at=0;at<sizeof(text);++at)text[at]=at%100==99?'\n':'x';
+    capture_one(text,sizeof(text),1,1,sizeof(text));
+    capture_one(text,sizeof(text),0,1,sizeof(text));
+    /* A residency-zero source has no byte reads or owned snapshot. */
+    memset(&original,0,sizeof(original));original.page=255;strcpy(original.path,"H:/DISK.PAS");
+    table=page_new(PAGE_WORKER);check(table!=255);end=0;capture_probe=1;capture_reads=0;
+    check(snapshot_record(table,&end,&original,1,1));capture_probe=0;check(!capture_reads);check(page_drop(table));
+    /* Failed fallback allocation preserves the source and ownership ledger. */
+    check(source_new(&original,"H:/FAIL.PAS"));table=page_new(PAGE_WORKER);check(table!=255);end=0;
+    fail_after=0;check(!snapshot_record(table,&end,&original,1,0));fail_after=-1;
+    check(!end&&job_zero(parent_pending,8)&&job_zero(parent_borrowed,8));check(page_drop(table));source_close(&original);
+    /* Failed canonical scan followed by failed fallback must not export the
+     * unfinished digest or alter the editor buffer. */
+    check(source_new(&original,"H:/FAIL.PAS"));
+    check(source_replace(&original,0,0,(const uint8_t*)"x  ",3));before=original;
+    table=page_new(PAGE_WORKER);check(table!=255);end=0;
+    fail_after=0;check(!snapshot_record(table,&end,&original,1,1));fail_after=-1;
+    check(!end&&job_zero(parent_pending,8)&&job_zero(parent_borrowed,8)&&
+          !memcmp(&original,&before,sizeof(original))&&!memcmp(memory[original.page],"x  ",3));
+    check(page_drop(table));source_close(&original);
+}
 static void wire_mutations(void) {
     uint8_t job[128],context[128],copy[128],old,mask[8];uint16_t i,at;unsigned allocations;JobSource r;
     check(prepare_job(job,context,&s,0,0,0,s.path));job_register(job,context);

@@ -18,6 +18,8 @@ static int fail_after=-1,fail_drop=-1;
 static unsigned checks,allocation_calls;
 static uint8_t reference_probe,reference_probe_page;
 static unsigned long reference_reads;
+static uint8_t capture_probe,capture_probe_page;
+static unsigned long capture_reads;
 static uint8_t cancel_stage,cancel_result;
 static unsigned poll_calls,spill_polls;
 /* Probe only the initialization fixtures; the existing corpus is unchanged. */
@@ -90,7 +92,7 @@ void page_initialized(uint8_t p,uint16_t n) {
         initialized[p]=1;
     }
 }
-uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(reference_probe&&p==reference_probe_page)++reference_reads; return memory[p][at]; }
+uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(reference_probe&&p==reference_probe_page)++reference_reads; if(capture_probe&&p==capture_probe_page)++capture_reads; return memory[p][at]; }
 void far_set(uint8_t p,uint16_t at,uint8_t v) {
     assert(p<64&&owned[p]&&at<PAGE_SIZE);++page_versions[p];memory[p][at]=v;
     if(initialization_probe&&owned[p]==PAGE_IMAGE) {
@@ -1069,6 +1071,7 @@ int main(int argc,char **argv) {
     check(argc==2);
     check(source_new(&s,"H:/SLICE.PAS"));
     reference_cases();
+    capture_cases();
     compiler_job_cases();
     large_job_capacity();
     memory_overlays();

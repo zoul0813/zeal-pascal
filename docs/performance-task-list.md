@@ -1,8 +1,8 @@
 # Zeal Pascal performance task list
 
-Created October 30, 2026. Based on the [refreshed optimization audit](optimization-audit-2026-10-30.md) at commit `61e8dd9`. PERF01 and PERF02 are complete under the user-requested focused validation; all remaining product optimization tasks are open. Test infrastructure now has a clean complete baseline with product binaries unchanged from `86e362e`: **146/146 scheduled jobs passed with eight workers in 44m09s**. See [baseline evidence](../analysis/performance/long-chunks-8workers/report.md). PERF01 now initializes the verified runtime prefix directly, with measured gains and unchanged generated artifacts; details are in the results log. Language support is the accepted baseline; overlays remain deferred.
+Created October 30, 2026. Based on the [refreshed optimization audit](optimization-audit-2026-10-30.md) at commit `61e8dd9`. PERF01–PERF03 are complete under the user-requested focused validation; all remaining product optimization tasks are open. Test infrastructure now has a clean complete baseline with product binaries unchanged from `86e362e`: **146/146 scheduled jobs passed with eight workers in 44m09s**. See [baseline evidence](../analysis/performance/long-chunks-8workers/report.md). PERF01 now initializes the verified runtime prefix directly, with measured gains and unchanged generated artifacts; details are in the results log. Language support is the accepted baseline; overlays remain deferred.
 
-The pre-optimization full revised acceptance plan passes. PERF01 and PERF02 are complete. PERF03 is next and has not started. The order ranks expected practical benefit: savings, how often the path runs, confidence, and the size of the change. It is not a numerical sort of unrelated worst-case percentages. Reference-heavy programs may benefit most from PERF02; every successful compile benefits from PERF01. Re-rank after the first four changes have native measurements.
+The pre-optimization full revised acceptance plan passes. PERF01–PERF03 are complete. PERF04 is next and has not started. The order ranks expected practical benefit: savings, how often the path runs, confidence, and the size of the change. It is not a numerical sort of unrelated worst-case percentages. Reference-heavy programs may benefit most from PERF02; every successful compile benefits from PERF01. Re-rank after the first four changes have native measurements.
 
 Savings below are projections for the audit fixtures, not achieved speedups. A million nominal Z80 T states is 0.1 seconds at an illustrative 10 MHz; this excludes SHA time, bank wrappers, C setup and OS waits. Estimates overlap and must not be added.
 
@@ -51,7 +51,7 @@ Done when: repeat includes with different switches, duplicate references, one/tw
 
 ### PERF03 Hash and validate source capture together
 
-- [ ] Produce the raw digest and canonicality result in one capture pass; preserve the snapshot fallback.
+- [x] Produce the raw digest and canonicality result in one capture pass; preserve the snapshot fallback.
 
 Owners: `snapshot_record` in `src/compiler_job.c` and the existing hashing/validation owner in `src/compiler_job_wire.c`. Canonical text must satisfy line limits, CR/byte26 rules and trailing-space rules. Preserve independent worker and post-worker authentication. Limit this task to the adjacent duplicate capture computations.
 
@@ -293,4 +293,16 @@ Baseline is commit `7b1f469` (PERF01 applied). Source-reference lookup now compa
 
 The first candidate benchmark attempt was rejected after a banked return-PC breakpoint hit a different code bank. The research observer now stops at the resident wrapper's final return jump and steps to the same original caller boundary; boundary instructions and completed-build validation remain checked. This changed no regression assertion. The first draft of the new repeated-include fixture used invalid inline include placement; it was corrected to valid standalone directives and passed on the unchanged baseline before comparison. Both failed attempts are retained in the evidence.
 
-Evidence: [PERF02 report](../analysis/performance/perf02-current/report.md), [cycle/artifact comparison](../analysis/performance/perf02-current/benchmark-comparison.json), [source artifacts](../analysis/performance/perf02-current/after/source-artifact-comparison.json), [focused run](../analysis/test-runs/20261031T142210.227679Z/suite.json), [review](../reviews/perf02-reference-lookup.md). PERF03 has not started.
+Evidence: [PERF02 report](../analysis/performance/perf02-current/report.md), [cycle/artifact comparison](../analysis/performance/perf02-current/benchmark-comparison.json), [source artifacts](../analysis/performance/perf02-current/after/source-artifact-comparison.json), [focused run](../analysis/test-runs/20261031T142210.227679Z/suite.json), [review](../reviews/perf02-reference-lookup.md). At PERF02 closeout, PERF03 had not started.
+
+
+## PERF03 completed — measured results (2026-10-31)
+
+Baseline: `9fae1c4`. Parent capture now uses one canonical-byte digest scan; independent worker and post-worker authentication still hash fresh. Snapshot fallback, normalized digests, ownership, version checks, cancellation and existing test expectations are retained.
+
+- **Native compile gain:** **3,521,420,698→3,485,605,787 cycles**, saving **35,814,911 (1.017%)** on the same 96-variable/96-assignment fixture. Two identical trials per version; baseline reused PERF02's final authenticated product measurements. Cold-start and generated-program runtime gains are not claimed.
+- **Canonical 16 KB capture:** **48,000→16,000 original-page reads (66.67% fewer)** and **two→one capture hashes**. No authentication boundary was removed. Forbidden-borrow capture reads fall 64,000→32,000 on the original page; snapshot hashing remains independent.
+- **Size:** bank 15 **16,285→16,309 (+24)**, leaving **75 bytes**; bank 16 **15,539→15,521 (-18)**; total library **+6 bytes**. Resident/static end/reserved stack unchanged. The authentication wrapper adds a banked-call frame; current local frames are 32+206 bytes, but peak stack was not measured.
+- **Proof:** baseline/initial candidate each pass **61,580 sanitized host checks**; final candidate **61,586** includes six stricter allocation-failure checks requested by review. Cases cover canonical/empty/noncanonical text, trailing spaces, CR/byte26, line limits, digests, borrowing/fallback, source immutability and cleanup. **5/5 focused jobs passed in 2m51.82s (171.82s wall)** with eight-worker limit, no skips/leftovers or changed frozen inputs. All **17 native output files**, plus benchmark COM/ZMP artifacts, are byte-identical. No full suite was run. Both Opus review turns completed with no blocker.
+
+Evidence: [report](../analysis/performance/perf03-current/report.md), [summary](../analysis/performance/perf03-current/summary.json), [cycles/artifacts](../analysis/performance/perf03-current/benchmark-comparison.json), [focused suite](../analysis/test-runs/20261031T144901.613297Z/suite.json), [review](../reviews/perf03-capture-digest.md). Separate uncommitted test chunking remains excluded. PERF04 has not started.

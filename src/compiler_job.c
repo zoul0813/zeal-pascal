@@ -185,10 +185,10 @@ static uint8_t snapshot_record(uint8_t table,uint16_t *at,const Source *original
     JobSource r;
     memset(&r,0,sizeof(r));r.id=id;r.source=*original;
     if(original->page==255)return job_write_source(table,at,&r);
-    r.resident=1;source_hash(original,r.hash);
+    r.resident=1;
     /* The editor is suspended for the synchronous job. Already-canonical
      * pages can be borrowed directly; edits later invalidate their versions. */
-    if(may_borrow&&job_source_hash(&r)) {
+    if(may_borrow&&job_source_digest(original,r.hash)) {
         if(original->length)bit(parent_borrowed,original->page,1);
         return job_write_source(table,at,&r);
     }

@@ -54,19 +54,26 @@ uint8_t job_write_source(uint8_t page,uint16_t *at,const JobSource *r) SOURCE_BL
     if(count)far_set(page,position++,r->source.page);
     *at=position;return 1;
 }
-uint8_t job_source_hash(const JobSource *r) SOURCE_BLOCK_CALL {
-    Sha256 hash;uint8_t digest[32],c,previous=0;uint16_t i,line=0;
-    if(!r->resident)return 1;
+/* Capture and authentication share canonical-byte validation, but callers
+ * still perform their own independent scan at each trust boundary. The digest
+ * is usable only when the complete source is canonical. */
+uint8_t job_source_digest(const Source *source,uint8_t digest[32]) SOURCE_BLOCK_CALL {
+    Sha256 hash;uint8_t c,previous=0;uint16_t i,line=0;
     sha_init(&hash);
-    for(i=0;i<r->source.length;++i) {
-        c=far_get(r->source.page,i);
+    for(i=0;i<source->length;++i) {
+        c=far_get(source->page,i);
         if(c=='\r'||c==26)return 0;
         if(c=='\n') {if(previous==' ')return 0;line=0;}
         else if(++line>127)return 0;
         sha_byte(&hash,c);previous=c;
     }
     if(previous==' ')return 0;
-    sha_end(&hash,digest);return !memcmp(digest,r->hash,32);
+    sha_end(&hash,digest);return 1;
+}
+uint8_t job_source_hash(const JobSource *r) SOURCE_BLOCK_CALL {
+    uint8_t digest[32];
+    if(!r->resident)return 1;
+    return job_source_digest(&r->source,digest)&&!memcmp(digest,r->hash,32);
 }
 void job_identity(const uint8_t job[128],uint8_t digest[32]) SOURCE_BLOCK_CALL {
     Sha256 hash;uint16_t i,base=job_word(job+9),bytes=job_word(job+12);
