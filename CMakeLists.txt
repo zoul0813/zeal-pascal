@@ -211,6 +211,13 @@ set_source_files_properties(src/compiler_transfer_asset.c PROPERTIES COMPILE_OPT
 # initializes C data, then verifies/loads its library before entering a bank.
 set(CMAKE_C_LINK_EXECUTABLE "<CMAKE_LINKER> <LINK_FLAGS> <LINK_LIBRARIES> <TARGET> <OBJECTS>")
 add_executable(zpascal src/startup.asm src/banks.c src/main.c src/editor.c src/source_blocks.c $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
+target_sources(zpascal PRIVATE src/main_display.c)
+set_source_files_properties(src/main_display.c PROPERTIES
+    COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK11;--constseg;BANK11")
+set_property(SOURCE src/main.c src/main_display.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/main_display.h)
+set_property(SOURCE src/main_display.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/editor.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 target_include_directories(zpascal PRIVATE src)
 target_compile_options(zpascal PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_executable(zptest src/startup.asm src/banks.c tests/native/main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)

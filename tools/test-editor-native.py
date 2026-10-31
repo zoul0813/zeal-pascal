@@ -102,9 +102,10 @@ class IDE:
         self.commands += [f'bc 0x{cursor:x}', f'bp 0x{self.reader:x}', 's', 'run 1000000000']
         self.key('SLASH', shift=True)  # Unknown Q,? clears the probe's prefix.
 
-    def finish(self, name, fixtures, tf_image=None, timeout=240):
+    def finish(self, name, fixtures, tf_image=None, timeout=240, console_class=None):
         self.commands += ['quit']
-        raw = n.execute(name, self.commands, fixtures, tf_image=tf_image, timeout=timeout)
+        raw = n.execute(name, self.commands, fixtures, tf_image=tf_image, timeout=timeout,
+                        console_class=console_class)
         parts = re.split(r'\[DBG\] PC=', raw)[1:]
         if len(parts) != len(self.frames):
             raise RuntimeError(f'{name}: expected {len(self.frames)} debugger checkpoints, got {len(parts)}')

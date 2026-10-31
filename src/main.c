@@ -1,4 +1,5 @@
 #include "editor.h"
+#include "main_display.h"
 #include "sources.h"
 #include "saved_map.h"
 #include "keys.h"
@@ -83,26 +84,6 @@ static uint8_t select_error_source(const char *path,const uint8_t *expected) {
     if(candidate.page!=work.page)editor_forget();
     work=candidate;return 1;
 }
-static uint8_t digits(uint16_t value) {
-    uint8_t count=1;
-    while(value>=10) { value/=10; ++count; }
-    return count;
-}
-static void draw_status(uint16_t line) {
-    uint16_t n,used,path,available;
-    char text[129];
-    output("Line "); output_number(line); output(" Col "); output_number(editor.column);
-    output(editor.insert?" Insert ":" Overwrite "); output(editor.indent?"Indent ":" ");
-    used=10+digits(line)+digits(editor.column)+(editor.insert?8:11)+(editor.indent?7:1);
-    available=screen_width>used+(work.dirty?2:0)?screen_width-used-(work.dirty?2:0):0;
-    path=(uint16_t)strlen(work.path); n=0;
-    if(path>available&&available>=3) {
-        text[n++]='.'; text[n++]='.'; text[n++]='.';
-        path-=available-3;
-    } else path=0;
-    while(work.path[path]&&n<available&&n<128) text[n++]=work.path[path++];
-    text[n]=0; output(text); if(work.dirty) output(" *");
-}
 static uint16_t draw_line(uint16_t p,uint8_t row,uint8_t selected) {
     char text[129];
     uint8_t n=0,col=0,shown=0,c,style=0,mark;
@@ -127,16 +108,22 @@ static uint16_t draw_line(uint16_t p,uint8_t row,uint8_t selected) {
     text[n]=0; output(text); if(style) screen_mark(0);
     return p;
 }
-static void redraw(void) {
+/* The edit-loop full predicate is the source-row render dependency list.
+ * Keep it in sync with draw_line/redraw when adding render state. */
+static void redraw(uint8_t full) {
     uint16_t line,col,p=editor.top,top_line;
     uint8_t row,selected;
     source_location(&work,work.cursor,&line,&col);
-    screen_mark(0); screen_clear(); draw_status(line);
-    selected=editor.block_visible&&editor.block_marks==3&&editor.block_begin<editor.block_end;
-    for(row=1;row<screen_height;++row) {
-        p=draw_line(p,row,selected);
-        if(p==work.length) break;
-        ++p;
+    screen_mark(0);
+    if(full)screen_clear();else screen_at(0,0);
+    main_draw_status(line,!full);
+    if(full) {
+        selected=editor.block_visible&&editor.block_marks==3&&editor.block_begin<editor.block_end;
+        for(row=1;row<screen_height;++row) {
+            p=draw_line(p,row,selected);
+            if(p==work.length) break;
+            ++p;
+        }
     }
     source_location(&work,editor.top,&top_line,&col);
     screen_at((uint8_t)(editor.column-1-editor.left),(uint8_t)(line-top_line+1));
@@ -148,12 +135,25 @@ static uint8_t confirmation_key(void) {
     uint8_t c=key_read(); return c==21?c:suffix(c);
 }
 static void edit(uint8_t at_error) {
-    uint8_t result;
+    uint8_t result,key,plain,marks,visible,full=1;
+    uint16_t top,left,begin,end;
     uint32_t revision,lifetime;
     editor_begin(&work,at_error,screen_width,screen_height); ide_state=2;
     for(;;) {
-        redraw(); revision=work.revision; lifetime=page_lifetime(work.page);
-        result=editor_key(key_read());
+        redraw(full);
+        key=key_read();
+        revision=work.revision; lifetime=page_lifetime(work.page);
+        top=editor.top; left=editor.left;
+        begin=editor.block_begin; end=editor.block_end;
+        marks=editor.block_marks; visible=editor.block_visible;
+        plain=!editor.prefix&&!editor.quote;
+        result=editor_key(key);
+        /* Prefixes, dialogs and uncertain results keep the full redraw. Only
+         * unchanged text, viewport and selection can reuse the source rows. */
+        full=!(plain&&!editor.prefix&&!editor.quote&&result==EDITOR_OK&&
+            work.revision==revision&&page_lifetime(work.page)==lifetime&&
+            editor.top==top&&editor.left==left&&editor.block_begin==begin&&
+            editor.block_end==end&&editor.block_marks==marks&&editor.block_visible==visible);
         if(result==EDITOR_READ_BLOCK||result==EDITOR_WRITE_BLOCK) block_io(result);
         if(result==EDITOR_FIND||result==EDITOR_REPLACE||result==EDITOR_REPEAT) search_command(result);
         if(work.revision!=revision) {
@@ -312,7 +312,7 @@ static void search_command(uint8_t kind) {
         if(result==SEARCH_MATCH) {
             c='y';
             if(!(job.search.flags&SEARCH_NO_CONFIRM)) {
-                redraw(); screen_at(0,0); output("Replace (Y/N), Ctrl-U aborts: ");
+                redraw(1); screen_at(0,0); output("Replace (Y/N), Ctrl-U aborts: ");
                 do { c=confirmation_key(); } while(c!='y'&&c!='n'&&c!=21&&c!=27);
                 if(c==27) return;
                 if(c==21) { search_ack("*** INTERRUPTED"); return; }
