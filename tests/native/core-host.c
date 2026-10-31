@@ -31,6 +31,9 @@ static uint8_t source_edit_probe,source_edit_page;
 static unsigned long source_edit_reads,source_edit_writes;
 static unsigned source_edit_marks;
 static uint16_t source_edit_extent;
+static uint8_t source_hash_probe,source_hash_page,source_hash_seen[PAGE_SIZE/8];
+static uint16_t source_hash_extent;
+static unsigned long source_hash_reads,source_hash_duplicates,source_hash_writes,source_hash_marks;
 static uint8_t cancel_stage,cancel_result;
 static unsigned poll_calls,spill_polls;
 /* Probe only the initialization fixtures; the existing corpus is unchanged. */
@@ -100,6 +103,7 @@ void page_initialized(uint8_t p,uint16_t n) {
     uint16_t at;
     assert(p<64&&owned[p]&&n<=PAGE_SIZE);
     if(source_edit_probe&&p==source_edit_page){++source_edit_marks;source_edit_extent=n;}
+    if(source_hash_probe&&p==source_hash_page)++source_hash_marks;
     if(initialization_probe&&owned[p]==PAGE_IMAGE) {
         for(at=0;at<n;++at)assert(image_written[p][at>>3]&(1u<<(at&7)));
         if(p==cc.image->pages[0]&&copy_complete) {
@@ -109,10 +113,11 @@ void page_initialized(uint8_t p,uint16_t n) {
         initialized[p]=1;
     }
 }
-uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(reference_probe&&p==reference_probe_page)++reference_reads; if(capture_probe&&p==capture_probe_page)++capture_reads; if(lexer_probe&&p==lexer_probe_page){assert(at<256);++lexer_reads[at];} if(lookup_probe){++lookup_reads;if(p==lookup_refs_page)++lookup_reference_reads;} if(wire_lookup_probe&&p==wire_lookup_page)++wire_lookup_reads; if(source_edit_probe&&p==source_edit_page)++source_edit_reads; return memory[p][at]; }
+uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(reference_probe&&p==reference_probe_page)++reference_reads; if(capture_probe&&p==capture_probe_page)++capture_reads; if(lexer_probe&&p==lexer_probe_page){assert(at<256);++lexer_reads[at];} if(lookup_probe){++lookup_reads;if(p==lookup_refs_page)++lookup_reference_reads;} if(wire_lookup_probe&&p==wire_lookup_page)++wire_lookup_reads; if(source_edit_probe&&p==source_edit_page)++source_edit_reads; if(source_hash_probe&&p==source_hash_page){assert(at<source_hash_extent);if(source_hash_seen[at>>3]&(1u<<(at&7)))++source_hash_duplicates;source_hash_seen[at>>3]|=(uint8_t)(1u<<(at&7));++source_hash_reads;} return memory[p][at]; }
 void far_set(uint8_t p,uint16_t at,uint8_t v) {
     assert(p<64&&owned[p]&&at<PAGE_SIZE);++page_versions[p];memory[p][at]=v;
     if(source_edit_probe&&p==source_edit_page)++source_edit_writes;
+    if(source_hash_probe&&p==source_hash_page)++source_hash_writes;
     if(initialization_probe&&owned[p]==PAGE_IMAGE) {
         ++image_stores;image_written[p][at>>3]|=(uint8_t)(1u<<(at&7));
         if(p==cc.image->pages[0]&&!copy_complete) {
@@ -297,6 +302,73 @@ static void lookup_cases(void) {
     cc.symbols[0].name_length=9;cc.symbols[1].name_length=10;cc_result_symbol(1);check(!d.code&&cc.symbol_count==3);
     check(page_drop(cc.workspace)&&page_drop(refs_page));check(sources_close(&image.sources));source_close(&included);
     check(pages_used()==1);memset(&cc,0,sizeof(cc));
+}
+/* Raw-only hash fixtures bypass import normalization/line limits to preserve
+ * the existing hasher contract for every byte. Expected digests come from
+ * Python hashlib over independently normalized byte strings. */
+static void source_hash_case(const char *label,const uint8_t *raw,uint16_t n,const char *expected) {
+    uint8_t digest[32],original[PAGE_SIZE];char actual[65];uint16_t i;
+    Source before;uint32_t version,lifetime;unsigned allocations;
+    load("");for(i=0;i<n;++i)far_set(s.page,i,raw[i]);s.length=n;page_initialized(s.page,n);
+    s.cursor=n/2;s.previous=n;s.dirty=1;before=s;memcpy(original,memory[s.page],PAGE_SIZE);
+    version=page_versions[s.page];lifetime=page_lifetime(s.page);allocations=allocation_calls;
+    source_hash_page=s.page;source_hash_extent=n;memset(source_hash_seen,0,sizeof(source_hash_seen));
+    source_hash_reads=source_hash_duplicates=source_hash_writes=source_hash_marks=0;source_hash_probe=1;
+    source_hash(&s,digest);source_hash_probe=0;
+    for(i=0;i<32;++i)snprintf(actual+2*i,3,"%02x",digest[i]);
+    check(!strcmp(actual,expected));
+    check(!memcmp(&s,&before,sizeof(s))&&!memcmp(original,memory[s.page],PAGE_SIZE));
+    check(!source_hash_writes&&!source_hash_marks&&page_versions[s.page]==version&&
+        page_lifetime(s.page)==lifetime&&allocation_calls==allocations);
+    check(source_hash_reads==n&&!source_hash_duplicates);
+    printf("PERF09 %s bytes=%u reads=%lu duplicate-reads=%lu\n",label,n,source_hash_reads,source_hash_duplicates);
+}
+static void source_hash_cases(void) {
+    uint8_t raw[SOURCE_LIMIT];uint16_t i;
+    static const uint8_t vector_0[]={0};
+    static const uint8_t vector_1[]={32,32,32};
+    static const uint8_t vector_2[]={32,10,32,32,10,32};
+    static const uint8_t vector_3[]={32,32,97,108,112,104,97,32,98,101,116,97,32,32,32,10,32,103,97,109,109,97,32,32};
+    static const uint8_t vector_4[]={9,32,9,32,32,10,32,9,32};
+    static const uint8_t vector_5[]={128,32,255,32,32,10,32,0,32,13,32,26,32};
+    static const uint8_t vector_6[]={120,32,10};
+    static const uint8_t vector_7[]={120,32};
+    static const uint8_t vector_8[]={32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32};
+    static const uint8_t vector_9[]={32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98};
+    static const uint8_t vector_10[]={32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32};
+    static const uint8_t vector_11[]={32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98};
+    static const uint8_t vector_12[]={32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32,97,32,98,32};
+    static const uint8_t vector_13[]={17,90,163,236,53,126,199,16,89,162,235,52,125,198,15,88,161,234,51,124,197,14,87,160,233,50,123,196,13,86,159,232,49,122,195,12,85,158,231,48,121,194,11,84,157,230,47,120,193,10,83,156,229,46,119,192,9,82,155,228,45,118,191,8,81,154,227,44,117,190,7,80,153,226,43,116,189,6,79,152,225,42,115,188,5,78,151,224,41,114,187,4,77,150,223,40,113,186,3,76,149,222,39,112,185,2,75,148,221,38,111,184,1,74,147,220,37,110,183,0,73,146,219,36,109,182,255,72,145,218,35,108,181,254,71,144,217,34,107,180,253,70,143,216,33,106,179,252,69,142,215,32,105,178,251,68,141,214,31,104,177,250,67,140,213,30,103,176,249,66,139,212,29,102,175,248,65,138,211,28,101,174,247,64,137,210,27,100,173,246,63,136,209,26,99,172,245,62,135,208,25,98,171,244,61,134,207,24,97,170,243,60,133,206,23,96,169,242,59,132,205,22,95,168,241,58,131,204,21,94,167,240,57,130,203,20,93,166,239,56,129,202,19,92,165,238,55,128,201,18,91,164,237,54,127,200,17};
+    static const uint8_t canonical_55[]={97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,32,98};
+    static const uint8_t canonical_63[]={97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,32,98};
+    static const uint8_t canonical_65[]={97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,32,32,32,98};
+    source_hash_case("empty",vector_0,0,"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    source_hash_case("all-space",vector_1,3,"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    source_hash_case("blank-lines",vector_2,6,"75a11da44c802486bc6f65640aa48a730f0f684c5c07a42ba3cd1735eb3fb070");
+    source_hash_case("interior-spaces",vector_3,24,"23429447996324adc4ad60bf1e1de7532337babb3b90bc2bb02dc8776d17ca11");
+    source_hash_case("tabs",vector_4,9,"879fe5d060271e3521dc1e97b1b7f9a6929efe099103d22b3b48c1578ab4abbc");
+    source_hash_case("binary-controls",vector_5,13,"115809f719f6506c6e100ce56cd0dadb942cf290721abd9078c15cd3421fc140");
+    source_hash_case("final-newline",vector_6,3,"73cb3858a687a8494ca3323053016282f3dad39d42cf62ca4e79dda2aac7d9ac");
+    source_hash_case("no-final-newline",vector_7,2,"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881");
+    source_hash_case("block-55",vector_8,55,"8d85ff2bd14eb80625a88055ac6071b48dc0b5748055770f38ff3339b767082a");
+    source_hash_case("block-56",vector_9,56,"5490039aeb46672925c5767230093bc6099f06d66b70976b71dbaed22c5f1824");
+    source_hash_case("block-63",vector_10,63,"440761b008fb221ef0e14bf80b28b2e183a798e3bb88a6de2040a1afe06f1bd8");
+    source_hash_case("block-64",vector_11,64,"3d5bd73950914060a01be61f695b319a57d4bff8542dcf88eefed98dc3c94b4d");
+    source_hash_case("block-65",vector_12,65,"3d5bd73950914060a01be61f695b319a57d4bff8542dcf88eefed98dc3c94b4d");
+    source_hash_case("byte-range",vector_13,257,"0669138e7a4c6b769eb3935c552bffe489453bb4fd1352096ad6a6380c639c55");
+    source_hash_case("canonical-block-55",canonical_55,55,"7467d2f61bd62799ed235992776dd0889feeca1e5598dbe982365f9a5df1429d");
+    source_hash_case("canonical-block-63",canonical_63,63,"c1fb4166308b86d081687d34cc8221bd6939c0ee154651c40b89fc8a30b01309");
+    source_hash_case("canonical-block-65",canonical_65,65,"3ed4e99289e2a0d203a77917b2cd75ffa7295724c357cb4bd11717fe061c40b3");
+    for(i=0;i<16000;++i)raw[i]=i%100==99?'\n':'a';
+    source_hash_case("canonical16000",raw,16000,"0bcd8a336635fc870bd10943c14038278c7e7bbd7225d32541369d3ba9baf5e2");
+    memset(raw,' ',16000);
+    source_hash_case("all-space16000",raw,16000,"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    memset(raw,' ',16000);raw[15999]=255;
+    source_hash_case("long-pending",raw,16000,"fa6e500bb9b9215b384b51c1ecf0a8f0aa92d22db490887276953075e86a9db5");
+    memset(raw,' ',16000);raw[0]='a';
+    source_hash_case("long-trailing",raw,16000,"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb");
+    memset(raw,' ',SOURCE_LIMIT);
+    source_hash_case("raw-source-limit",raw,16383,"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
 }
 static void source_edit_reset(void) {
     source_edit_page=s.page;source_edit_reads=source_edit_writes=source_edit_marks=source_edit_extent=0;
@@ -1333,6 +1405,7 @@ int main(int argc,char **argv) {
     check(argc==2);
     check(source_new(&s,"H:/SLICE.PAS"));
     source_edit_cases();
+    source_hash_cases();
     lookup_cases();
     lexer_cases();
     reference_cases();
