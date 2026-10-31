@@ -1,5 +1,5 @@
 .module native
-.globl _far_get, _far_set, _far_read, _far_fill, _ram_enter
+.globl _far_get, _far_set, _far_read, _far_fill, _far_move, _ram_enter
 .globl _ram_result, _ram_pages, _ram_entry
 .globl _ram_io_detail,_ram_cleanup_detail
 .globl _console_scratch
@@ -66,10 +66,13 @@ version_done:
     out (0xf2),a
     ret
 
-; Checked retained read/fill spans. A=owned RAM page, DE=offset. Read has
-; two LE16 stack arguments; fill has a byte and LE16 count (SDCC call1).
+; Checked retained spans. A=owned RAM page, DE=offset/destination. Read and
+; move have two LE16 stack arguments; fill has a byte and LE16 count (call1).
 ; IX/IY and caller SP/IFF are preserved. Bounds
 ; reject before mapping/stores; zero is a no-op even with sentinel arguments.
+_far_move::
+    cp a                         ; preserve page, saved Z=1/C=0 identifies move
+    jr span_begin
 _far_fill::
     ; Align byte+word arguments with read's two-word frame. With entry SP=S,
     ; the return moves to S-1 and padding uses S+1 (old return high byte).
@@ -90,8 +93,17 @@ span_begin:
     inc ix                       ; usual saved-IX frame; page at -1(IX)
     push de                      ; offset at -4(IX)
     ld a,i
-    di
     push af                      ; incoming IFF in P/V, retained until exit
+    ; Move follows far_get/set: the pinned PIO ISR preserves registers/page2.
+    ; Masking a whole move can outlast the keyboard's active-low IRQ pulse.
+    ; Read/fill retain their existing masked-span contract.
+    bit 0,-2(ix)
+    jr nz,span_mask
+    bit 6,-2(ix)
+    jr nz,span_count
+span_mask:
+    di
+span_count:
     ld c,6(ix)
     ld b,7(ix)
     ld a,b
@@ -102,6 +114,8 @@ span_begin:
 read_source_valid:
     bit 0,-2(ix)                 ; saved entry AF, independent of saved IFF
     jp nz,fill_body
+    bit 6,-2(ix)
+    jp nz,move_body
     ld l,4(ix)
     ld h,5(ix)
     ld e,l
@@ -160,7 +174,7 @@ span_valid:
     jr nz,span_invalid
     ld a,c
     or a
-    jr nz,span_invalid           ; FAR_READ_LIMIT=FAR_FILL_LIMIT=256 bounds IRQ masking
+    jr nz,span_invalid           ; all FAR_*_LIMIT values are256, bounding IRQ masking
 span_count_valid:
     ld a,-1(ix)
     cp #32
@@ -185,7 +199,7 @@ span_invalid:
     scf
     ret
 
-fill_body:
+span_version:
     push de
     ld l,-1(ix)
     ld h,#0
@@ -200,14 +214,18 @@ fill_body:
     ld a,(hl)
     adc a,b
     ld (hl),a
-    jr nc,fill_version_done
+    jr nc,span_version_done
     inc hl
     inc (hl)
-    jr nz,fill_version_done
+    jr nz,span_version_done
     inc hl
     inc (hl)
-fill_version_done:
+span_version_done:
     pop de
+    ret
+
+fill_body:
+    call span_version
     set 7,d
     ld a,#0x80
     in a,(0xf2)
@@ -223,6 +241,53 @@ fill_bytes:
     pop af
     out (0xf2),a
     jp read_success              ; common MMU/IFF/register/argument return
+
+; Common frame: DE=validated destination, source at4/5(IX), count=BC.
+; Interrupt state stays unchanged, as for the existing byte accessors.
+; Both spans are checked before the version change or mapping. One-page
+; memmove direction preserves overlapping bytes; callers order larger chunks.
+move_body:
+    push de
+    ld e,4(ix)
+    ld d,5(ix)
+    call span_valid
+    pop de
+    jp c,read_invalid
+    ld l,4(ix)
+    ld h,5(ix)
+    push hl
+    call span_version
+    pop hl
+    set 7,h
+    set 7,d
+    ld a,#0x80
+    in a,(0xf2)
+    push af
+    ld a,-1(ix)
+    out (0xf2),a
+    ld a,d
+    cp h
+    jr c,move_forward
+    jr nz,move_backward
+    ld a,e
+    cp l
+    jr c,move_forward
+    jr z,move_forward
+move_backward:
+    add hl,bc
+    dec hl
+    ex de,hl
+    add hl,bc
+    dec hl
+    ex de,hl
+    lddr
+    jr move_mapped_done
+move_forward:
+    ldir
+move_mapped_done:
+    pop af
+    out (0xf2),a
+    jp read_success
 
 _ram_enter::
     push ix

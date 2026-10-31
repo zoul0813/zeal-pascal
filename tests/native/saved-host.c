@@ -37,6 +37,8 @@ uint8_t page_role(uint8_t p) {return p<64?roles[p]:0;}
 uint32_t page_lifetime(uint8_t p) {return p<64&&roles[p]?lifetimes[p]:0;}
 uint8_t far_get(uint8_t p,uint16_t at) {assert(p<64&&roles[p]&&at<PAGE_SIZE);return memory[p][at];}
 void far_set(uint8_t p,uint16_t at,uint8_t b) {assert(p<64&&roles[p]&&at<PAGE_SIZE);memory[p][at]=b;++page_versions[p];}
+#include "far-move-model.h"
+uint8_t far_move(uint8_t p,uint16_t to,uint16_t from,uint16_t n) {return model_far_move(p,to,from,n);}
 void page_initialized(uint8_t p,uint16_t n) {assert(p<64&&roles[p]&&n<=PAGE_SIZE);}
 static unsigned owned(void) {unsigned n=0,i;for(i=32;i<64;++i)n+=roles[i]!=0;return n;}
 static unsigned opened(void) {unsigned n=0,i;for(i=2;i<16;++i)n+=handles[i]!=NULL;return n;}

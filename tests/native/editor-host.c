@@ -16,6 +16,8 @@ uint8_t pages_used(void) { return (owned[0]!=0)+(owned[1]!=0)+(owned[2]!=0); }
 void page_initialized(uint8_t p,uint16_t n) { assert(p>=32&&p<35&&owned[p-32]&&n<=PAGE_SIZE); }
 uint8_t far_get(uint8_t p,uint16_t at) { assert(p>=32&&p<35&&owned[p-32]&&at<PAGE_SIZE); return bytes[p-32][at]; }
 void far_set(uint8_t p,uint16_t at,uint8_t b) { assert(p>=32&&p<35&&owned[p-32]&&at<PAGE_SIZE); bytes[p-32][at]=b; ++page_versions[p]; }
+#include "far-move-model.h"
+uint8_t far_move(uint8_t p,uint16_t to,uint16_t from,uint16_t n) {return model_far_move(p,to,from,n);}
 void check(uint8_t ok) { ++assertions; if(!ok) { fprintf(stderr,"editor assertion %u failed: cursor=%u column=%u top=%u\n",assertions,editor.source->cursor,editor.column,editor.top); abort(); } }
 void editor_checks(Source *s);
 int main(void) {

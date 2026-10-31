@@ -64,7 +64,7 @@ set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES
 set(PASCAL_CORE src/source.c src/sources.c src/sources_storage.c src/compiler_sources.c src/source_hash.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/compiler_expr.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_file.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_state.c src/compiler_predicates.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/saved_map.c src/native.asm
     ${CMAKE_BINARY_DIR}/runtime_asset.asm ${CMAKE_BINARY_DIR}/file_asset.asm)
 list(APPEND PASCAL_CORE src/compiler_chain.c src/compiler_transfer_asset.c src/compiler_module.c src/compiler_bridges.c src/library_phase.c src/compiler_members.c src/compiler_groups.c src/compiler_late.c src/compiler_keyboard_engine.c src/compiler_compile.c src/compiler_job.c src/compiler_job_wire.c src/compiler_job_result.c src/compiler_job_pages.c)
-list(APPEND PASCAL_CORE src/compiler_messages.c src/compiler_job_hash.c)
+list(APPEND PASCAL_CORE src/compiler_messages.c src/compiler_job_hash.c src/source_move.c)
 set_property(SOURCE src/main.c src/compiler_messages.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/compiler_messages.h)
 set_source_files_properties(${CMAKE_BINARY_DIR}/transfer_ide_asset.asm ${CMAKE_BINARY_DIR}/transfer_test_asset.asm PROPERTIES GENERATED TRUE)
@@ -167,6 +167,12 @@ set_source_files_properties(src/compiler_sources.c src/compiler_job_wire.c src/c
     COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK15;--constseg;BANK15")
 set_source_files_properties(src/compiler_job.c src/compiler_activation.c src/compiler_messages.c PROPERTIES
     COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK16;--constseg;BANK16")
+# Source-tail chunking is a permanent service; it must remain available while
+# compiler phases are parked, and keeps the retained edit core within budget.
+set_source_files_properties(src/source_move.c PROPERTIES
+    COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK12;--constseg;BANK12")
+set_property(SOURCE src/source.c src/source_move.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/source_move.h)
 set_source_files_properties(src/compiler_keyboard.c src/saved_map.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK12;--constseg;BANK12")
 set_source_files_properties(src/compiler_members.c PROPERTIES

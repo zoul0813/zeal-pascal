@@ -256,6 +256,142 @@ static void fill_checks(void) {
     check(pages_used()==code_required+1);
 }
 
+uint8_t test_far_move_probe(uint8_t page,uint16_t offset,uint16_t source,uint16_t n) NATIVE __naked {
+    __asm
+    push ix
+    push iy
+    ld iy,#0
+    add iy,sp
+    push iy
+    ld l,8(iy)
+    ld h,9(iy)
+    push hl                      ; copied count
+    ld l,6(iy)
+    ld h,7(iy)
+    push hl                      ; copied source offset
+    ld ix,#0x1357
+    ld iy,#0x2468
+    call _far_move               ; A/DE still contain page/offset
+    push af
+    push ix
+    pop hl
+    ld de,#0x1357
+    or a
+    sbc hl,de
+    jr nz,probe_move_bad
+    push iy
+    pop hl
+    ld de,#0x2468
+    or a
+    sbc hl,de
+    jr nz,probe_move_bad
+    pop af
+    jr probe_move_done
+probe_move_bad:
+    pop af
+    ld a,#255
+probe_move_done:
+    pop iy
+    ld sp,iy
+    pop iy
+    pop ix
+    pop hl
+    pop bc
+    pop bc
+    jp (hl)
+    __endasm;
+}
+
+volatile uint8_t move_benchmark;
+uint8_t test_far_move_slow(uint8_t page,uint16_t to,uint16_t from,uint16_t n) {
+    uint16_t i;
+    if(to>from)for(i=n;i;--i)far_set(page,to+i-1,far_get(page,from+i-1));
+    else for(i=0;i<n;++i)far_set(page,to+i,far_get(page,from+i));
+    return 1;
+}
+static uint8_t move_byte(uint16_t at) {return (uint8_t)(at*73u+(at>>8)*17u+19u);}
+static void move_case(uint8_t owned_page,uint8_t page,uint16_t to,uint16_t from,uint16_t n,
+                      uint8_t expected,uint8_t enabled,uint32_t version) {
+    uint8_t before[7],after[7],good=1,other;uint16_t i;
+    volatile uint8_t result;
+    uint32_t versions[64],lifetime=page_lifetime(owned_page);uint8_t owned=pages_used();
+    for(i=0;i<PAGE_SIZE;++i)far_set(owned_page,i,move_byte(i));
+    page_versions[owned_page]=version;
+    for(other=0;other<64;++other)versions[other]=page_versions[other];
+    if(!enabled){__asm di __endasm;}
+    test_machine(before);result=test_far_move_probe(page,to,from,n);test_machine(after);
+    if(!enabled){__asm ei __endasm;}
+    check(result==expected);check(!memcmp(before,after,7)&&before[0]==enabled&&before[2]>=0xc0);
+    check(page_versions[owned_page]==version+(expected?(uint32_t)n:0));
+    check(page_lifetime(owned_page)==lifetime&&page_role(owned_page)==PAGE_SOURCE&&pages_used()==owned);
+    for(other=0;other<64;++other)if(other!=owned_page&&page_versions[other]!=versions[other])good=0;
+    for(i=0;i<PAGE_SIZE;++i)
+        if(far_get(owned_page,i)!=(expected&&i>=to&&i-to<n?move_byte(from+i-to):move_byte(i)))good=0;
+    check(good);
+}
+static void move_checks(void) {
+    static const struct {uint16_t to,from,n;uint8_t ok;} cases[]={
+        {0,0,0,1},{0,1,1,1},{1,0,1,1},{16383,0,1,1},{0,16383,1,1},
+        {0,512,64,1},{512,0,64,1},{0,1,64,1},{1,0,64,1},
+        {1,0,128,1},{0,1,128,1},{63,0,128,1},{0,63,128,1},
+        {0,0,255,1},{1,0,255,1},{0,1,255,1},{16128,0,256,1},{0,16128,256,1},
+        {256,0,256,1},{0,256,256,1},{1,0,256,1},{0,1,256,1},
+        {16129,16128,255,1},{16128,16129,255,1},{16383,16383,1,1},
+        {0,0,257,0},{16384,0,1,0},{0,16384,1,0},{16383,0,2,0},{0,16383,2,0},
+        {65535,0,1,0},{0,65535,1,0},{65535,65535,65535,0}};
+    uint8_t p=page_new(PAGE_SOURCE),mode,good;uint16_t i;
+    check(p!=255);if(p==255)return;
+    for(mode=0;mode<2;++mode) {
+        for(i=0;i<sizeof(cases)/sizeof(cases[0]);++i)
+            move_case(p,p,cases[i].to,cases[i].from,cases[i].n,cases[i].ok,mode,7);
+        move_case(p,31,0,1,1,0,mode,7);move_case(p,64,0,1,1,0,mode,7);
+        move_case(p,255,0,1,1,0,mode,7);move_case(p,255,65535,65535,0,1,mode,7);
+        move_case(p,p,1,0,1,1,mode,0xffUL);
+        move_case(p,p,0,1,255,1,mode,0xffffUL);
+        move_case(p,p,1,0,256,1,mode,0xffffffUL);
+        move_case(p,p,1,0,64,1,mode,0xffffffffUL);
+    }
+    __asm di __endasm;
+    for(mode=0;mode<2;++mode) {
+        move_benchmark=1;check(test_far_move_slow(p,1024,512,64));
+        move_benchmark=2;check(far_move(p,2048,512,64));
+    }
+    move_benchmark=0;__asm ei __endasm;
+    good=1;for(i=0;i<64;++i)if(far_get(p,2048+i)!=far_get(p,512+i))good=0;check(good);
+    check(page_drop(p));
+}
+
+volatile uint8_t tail_probe;
+static uint8_t tail_byte(uint16_t at) {return at<16000?(at%100==99?'\n':'a'):0xa5;}
+static void tail_case(uint8_t shrink,uint8_t enabled) {
+    Source before,wanted;uint8_t text[257],cpu_before[7],cpu_after[7],good=1,c;
+    uint16_t i,z=shrink?8513:8001,n=shrink?0:257;
+    uint32_t version,lifetime=page_lifetime(s.page);uint8_t owned=pages_used();
+    volatile uint8_t result;
+    for(i=0;i<PAGE_SIZE;++i)far_set(s.page,i,tail_byte(i));
+    for(i=0;i<257;++i)text[i]=i&1?'\n':'x';
+    s.length=16000;s.cursor=123;s.previous=12000;s.revision=23;s.dirty=0;
+    page_initialized(s.page,16000);before=s;wanted=before;
+    wanted.length=16000-(z-8000)+n;wanted.cursor=8000+n;
+    wanted.previous=12000-(z-8000)+n;wanted.dirty=1;++wanted.revision;
+    version=page_versions[s.page];
+    if(!enabled){__asm di __endasm;}
+    test_machine(cpu_before);tail_probe=(shrink?2:1)+2*enabled;
+    result=source_replace(&s,8000,z,text,n);tail_probe=0;test_machine(cpu_after);
+    if(!enabled){__asm ei __endasm;}
+    check(result==1);check(!memcmp(cpu_before,cpu_after,7)&&cpu_before[0]==enabled);
+    check(!memcmp(&s,&wanted,sizeof(s)));
+    check(page_versions[s.page]==version+16000-z+n);
+    check(page_lifetime(s.page)==lifetime&&page_role(s.page)==PAGE_SOURCE&&pages_used()==owned);
+    for(i=0;i<PAGE_SIZE;++i) {
+        c=i<wanted.length?(i<8000?tail_byte(i):i<8000+n?text[i-8000]:tail_byte(i-n+z-8000)):tail_byte(i);
+        if(far_get(s.page,i)!=c)good=0;
+    }
+    check(good);
+}
+static void tail_checks(void) {
+    tail_case(0,0);tail_case(1,0);tail_case(0,1);tail_case(1,1);
+}
 void test_span_done(void) {__asm nop __endasm;}
 static CompileFailure failure;
 static uint8_t expected[32];
@@ -268,7 +404,7 @@ int app_main(void) {
     uint8_t hash[32],status=255,owned;int8_t fd;uint16_t pc,position;
     if(!console_open())return 1;
     check(source_new(&s,"H:/JOB.PAS"));
-    test_stage=79;span_checks();fill_checks();test_span_done();
+    test_stage=79;span_checks();fill_checks();move_checks();tail_checks();test_span_done();
     fd=open("H:/JOBS.TXT",O_WRONLY|O_CREAT|O_TRUNC);check(fd>=0);if(fd>=0)check(!swap(fd,DEV_STDOUT));
     test_stage=80;
     check(load("program Hello;begin writeln('JOB-OK')end."));s.cursor=8;s.previous=3;s.dirty=1;before=s;

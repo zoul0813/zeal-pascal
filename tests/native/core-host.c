@@ -2,6 +2,7 @@
  * These are deliberately not counted as native execution tests. */
 #include "compiler.h"
 #include "compiler_job.h"
+#include "source_move.h"
 #include "image.h"
 #include "transfer_asset.h"
 #include <assert.h>
@@ -203,6 +204,17 @@ uint8_t far_fill(uint8_t page,uint16_t offset,uint8_t value,uint16_t n) {
     for(i=0;i<n;++i)far_set(page,offset+i,value);
     if(initialization_probe)image_fill_bytes+=n;
     return 1;
+}
+#include "far-move-model.h"
+static unsigned source_move_calls;
+static uint16_t source_move_from[64],source_move_to[64],source_move_count[64];
+uint8_t far_move(uint8_t page,uint16_t to,uint16_t from,uint16_t count) {
+    if(source_edit_probe) {
+        assert(page==source_edit_page&&source_move_calls<64);
+        source_move_from[source_move_calls]=from;source_move_to[source_move_calls]=to;
+        source_move_count[source_move_calls++]=count;
+    }
+    return model_far_move(page,to,from,count);
 }
 static Source s;
 static Build b;
@@ -511,12 +523,39 @@ static void stream_hash_cases(void) {
     }
     for(j=0;j<3;++j)check(page_drop(pages[j]));check(pages_used()==prior);
 }
+/* Compare the production range chunker with libc's whole-range memmove. */
+static void range_move_case(uint8_t owned_page,uint8_t page,uint16_t to,uint16_t from,uint16_t n,uint8_t ok) {
+    uint8_t expected[PAGE_SIZE];uint16_t i;uint32_t version,lifetime=page_lifetime(owned_page);
+    unsigned allocations=allocation_calls;uint8_t pages=pages_used();
+    for(i=0;i<PAGE_SIZE;++i)far_set(owned_page,i,stream_byte(i));
+    memcpy(expected,memory[owned_page],PAGE_SIZE);
+    if(ok&&n)memmove(expected+to,expected+from,n);
+    version=page_versions[owned_page];source_edit_page=owned_page;
+    source_edit_reads=source_edit_writes=source_edit_marks=source_move_calls=0;source_edit_probe=1;
+    check(source_move_range(page,to,from,n)==ok);source_edit_probe=0;
+    check(!memcmp(expected,memory[owned_page],PAGE_SIZE)&&page_versions[owned_page]==version+(ok?(uint32_t)n:0));
+    check(source_edit_reads==(ok?n:0)&&source_edit_writes==(ok?n:0)&&!source_edit_marks);
+    check(source_move_calls==(ok?(n+FAR_MOVE_LIMIT-1u)/FAR_MOVE_LIMIT:0));
+    check(page_lifetime(owned_page)==lifetime&&allocation_calls==allocations&&pages_used()==pages);
+}
+static void range_move_cases(void) {
+    static const struct {uint16_t to,from,n;uint8_t ok;} cases[]={
+        {0,1,16383,1},{1,0,16383,1},{257,0,16000,1},{0,257,16000,1},
+        {0,0,16384,1},{16000,15999,384,1},{65535,65535,0,1},
+        {16384,0,1,0},{0,16384,1,0},{16383,0,2,0},{0,16383,2,0},
+        {65535,0,1,0},{0,65535,1,0},{0,0,16385,0}};
+    uint8_t p=page_new(PAGE_SOURCE);unsigned i;check(p!=255);
+    for(i=0;i<sizeof(cases)/sizeof(cases[0]);++i)
+        range_move_case(p,p,cases[i].to,cases[i].from,cases[i].n,cases[i].ok);
+    range_move_case(p,31,0,0,1,0);range_move_case(p,64,0,0,1,0);range_move_case(p,255,65535,65535,0,1);
+    check(page_drop(p));
+}
 static void source_edit_reset(void) {
-    source_edit_page=s.page;source_edit_reads=source_edit_writes=source_edit_marks=source_edit_extent=0;
+    source_edit_page=s.page;source_edit_reads=source_edit_writes=source_edit_marks=source_edit_extent=0;source_move_calls=0;
 }
 static void source_edit_case(const char *label,uint16_t a,uint16_t z,const char *replacement,uint16_t n,
                              uint16_t previous,uint16_t expected_previous,unsigned long expected_reads,unsigned long expected_writes) {
-    char initial[16001],expected[16003];uint16_t i,size=16000-(z-a)+n;
+    char initial[16001],expected[SOURCE_LIMIT+1];uint16_t i,size=16000-(z-a)+n;
     Source before,wanted;uint32_t version,lifetime;unsigned allocations;
     for(i=0;i<16000;++i)initial[i]=i%100==99?'\n':'a';initial[16000]=0;
     load(initial);s.cursor=123;s.previous=previous;s.dirty=0;before=s;wanted=before;
@@ -529,10 +568,22 @@ static void source_edit_case(const char *label,uint16_t a,uint16_t z,const char 
     check(page_lifetime(s.page)==lifetime&&allocations==allocation_calls&&source_edit_marks==1&&source_edit_extent==size);
     check((uint32_t)(page_versions[s.page]-version)==source_edit_writes);
     check(source_edit_reads==expected_reads&&source_edit_writes==expected_writes);
+    {
+        uint16_t remaining=16000-z,at=n>z-a?16000:z,span;unsigned call=0;
+        if(n!=z-a)while(remaining) {
+            span=remaining>FAR_MOVE_LIMIT?FAR_MOVE_LIMIT:remaining;
+            if(n>z-a)at-=span;
+            check(call<source_move_calls&&source_move_from[call]==at&&
+                  source_move_to[call]==at+n-(z-a)&&source_move_count[call]==span);
+            if(n<z-a)at+=span;
+            remaining-=span;++call;
+        }
+        check(source_move_calls==call);
+    }
     printf("PERF07 %s reads=%lu writes=%lu\n",label,source_edit_reads,source_edit_writes);
 }
 static void source_edit_cases(void) {
-    char initial[16001];uint8_t too_large[384],bad[3]={'\r',26,'a'};uint16_t i;
+    char initial[16001];uint8_t too_large[384],wide[257],bad[3]={'\r',26,'a'};uint16_t i;
     Source before;uint32_t version;unsigned allocations;
     source_edit_case("middle",8000,8001,"z",1,8000,8001,15999,1);
     source_edit_case("begin",0,1,"z",1,0,1,15999,1);
@@ -542,6 +593,13 @@ static void source_edit_cases(void) {
     source_edit_case("growth",8000,8001,"zz",2,12000,12001,23998,8001);
     source_edit_case("shrink",8000,8002,"z",1,12000,11999,23996,7999);
     source_edit_case("delete",8000,8001,"",0,8000,8000,23998,7999);
+    for(i=0;i<sizeof(wide);++i)wide[i]=i&1?'\n':'x';
+    source_edit_case("wide-growth",8000,8001,(const char*)wide,257,12000,12256,23998,8256);
+    source_edit_case("wide-shrink",8000,8513,"",0,12000,11487,22974,7487);
+    source_edit_case("begin-insert",0,0,(const char*)wide,257,0,257,32000,16257);
+    source_edit_case("end-insert",16000,16000,(const char*)wide,257,65535,16257,16000,257);
+    source_edit_case("late-insert",15998,15998,(const char*)wide,257,15998,16255,16002,259);
+    source_edit_case("begin-delete",0,1,"",0,65535,15999,31998,15999);
     for(i=0;i<16000;++i)initial[i]=i%100==99?'\n':'a';initial[16000]=0;load(initial);
     before=s;version=page_versions[s.page];allocations=allocation_calls;
     for(i=0;i<3;++i) {
@@ -1581,7 +1639,7 @@ int main(int argc,char **argv) {
     FILE *file;
     check(argc==2);
     check(source_new(&s,"H:/SLICE.PAS"));
-    source_edit_cases();
+    source_edit_cases();range_move_cases();
     source_hash_cases();
     stream_hash_cases();
     lookup_cases();

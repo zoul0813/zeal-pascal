@@ -17,6 +17,7 @@
 #define PAGE_SIZE 16384u
 #define FAR_READ_LIMIT 256u
 #define FAR_FILL_LIMIT 256u
+#define FAR_MOVE_LIMIT 256u
 #define SOURCE_LIMIT 16383u
 #define PREFIX_BYTES 16384u
 #define GLOBAL_BASE 0x8000u
@@ -147,6 +148,14 @@ uint8_t far_read(uint8_t page,uint16_t offset,uint8_t *out,uint16_t count) NATIV
  * MMU/SP/IX/IY/IFF, allocation/lifetime/ownership and initialized extent are
  * preserved. IRQs are masked during bounded work; callers split and poll. */
 uint8_t far_fill(uint8_t page,uint16_t offset,uint8_t value,uint16_t count) NATIVE;
+/* Same-page memmove on a caller-owned writable live RAM page32..63. Retain
+ * the parent page3 stack. Count<=FAR_MOVE_LIMIT; both spans fit one page.
+ * Zero accepts sentinel arguments. Invalid spans change no bytes/version.
+ * Valid stores, including identity, advance the version by count modulo2^32.
+ * MMU/SP/IX/IY/IFF and allocation/lifetime/initialized/ownership are preserved.
+ * Like far_get/set, move leaves caller interrupts unchanged; the pinned kernel
+ * PIO ISR preserves registers and page2. No explicit callback/poll/OS call. */
+uint8_t far_move(uint8_t page,uint16_t destination,uint16_t source,uint16_t count) NATIVE;
 void ram_enter(void) NATIVE;
 extern uint8_t ram_result[128];
 extern uint16_t ram_io_detail;

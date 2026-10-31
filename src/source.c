@@ -1,5 +1,6 @@
 #include "zp.h"
 #include "source_internal.h"
+#include "source_move.h"
 
 static uint8_t new_source(Source *s, const char *path,uint8_t role) {
     if(strlen(path)>127) return 0;
@@ -27,26 +28,20 @@ uint16_t source_rebase(uint16_t p,uint16_t a,uint16_t z,uint16_t n,uint8_t right
  * or loses the old buffer on a capacity/line-length error. */
 uint8_t source_replace(Source *s, uint16_t a, uint16_t z,
                        const uint8_t *text, uint16_t n) {
-    uint16_t i, size, previous, line = 0;
-    uint8_t c;
+    uint16_t i, size, previous, line=0;
     uint32_t wide;
     if (a > z || z > s->length) return 0;
     if (a==z && !n) return 1;
     wide = (uint32_t)s->length - (z-a) + n;
     if (wide > SOURCE_LIMIT) return 0;
     size = (uint16_t)wide;
+    /* Validate prefix, replacement and suffix in their proposed order. This
+     * visits every proposed byte once without choosing a region per byte. */
+    for(i=0;i<a;++i)if(!line_byte(far_get(s->page,i),&line))return 0;
+    for(i=0;i<n;++i)if(!line_byte(text[i],&line))return 0;
+    for(i=z;i<s->length;++i)if(!line_byte(far_get(s->page,i),&line))return 0;
     previous=s->previous>s->length?s->length:s->previous;
-    for (i=0; i<size; ++i) {
-        c = i<a ? far_get(s->page,i) : i<a+n ? text[i-a] :
-            far_get(s->page,i-n+z-a);
-        if(!line_byte(c,&line)) return 0;
-    }
-    if (n > z-a) {
-        i=s->length;
-        while (i>z) { --i; far_set(s->page,i+n-(z-a),far_get(s->page,i)); }
-    } else if (n < z-a) {
-        for (i=z;i<s->length;++i) far_set(s->page,i+n-(z-a),far_get(s->page,i));
-    }
+    if(n!=z-a&&!source_move_range(s->page,a+n,z,s->length-z))return 0;
     for (i=0;i<n;++i) far_set(s->page,a+i,text[i]);
     s->length=size;
     page_initialized(s->page,size);
