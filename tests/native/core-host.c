@@ -16,6 +16,8 @@ uint8_t compiler_owned[8],compiler_allocating;
 uint8_t compiler_parent_owned[8];
 static int fail_after=-1,fail_drop=-1;
 static unsigned checks,allocation_calls;
+static uint8_t reference_probe,reference_probe_page;
+static unsigned long reference_reads;
 static uint8_t cancel_stage,cancel_result;
 static unsigned poll_calls,spill_polls;
 /* Probe only the initialization fixtures; the existing corpus is unchanged. */
@@ -88,7 +90,7 @@ void page_initialized(uint8_t p,uint16_t n) {
         initialized[p]=1;
     }
 }
-uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); return memory[p][at]; }
+uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(reference_probe&&p==reference_probe_page)++reference_reads; return memory[p][at]; }
 void far_set(uint8_t p,uint16_t at,uint8_t v) {
     assert(p<64&&owned[p]&&at<PAGE_SIZE);++page_versions[p];memory[p][at]=v;
     if(initialization_probe&&owned[p]==PAGE_IMAGE) {
@@ -774,6 +776,63 @@ static void packed_catalog_cases(void) {
     check(sources_get(&set,0,&view)&&view.page==other.page&&sources_ready(&set,0));
     check(sources_close(&set));source_close(&origin);check(pages_used()==before);
 }
+/* Exercise the production lookup independently of parser/symbol limits. The
+ * job layout shares its catalog page; direct spill storage grows upward. */
+static void reference_cases(void) {
+    CompilerSources state;Build image;Diagnostic error;
+    uint8_t layout,j,page;uint16_t id,limit,catalog,at;
+    unsigned long reads;
+    const SourcePosition positions[]={0x12345678UL,0x12345679UL,0x12345778UL,
+                                      0x12355678UL,0x13345678UL};
+    for(layout=0;layout<3;++layout) {
+        memset(&cc,0,sizeof(cc));memset(&state,0,sizeof(state));
+        memset(&image,0,sizeof(image));memset(&error,0,sizeof(error));
+        cc.sources=&state;cc.image=&image;cc.error=&error;
+        page=page_new(PAGE_COMPILER);check(page!=255);
+        state.refs_page=page;state.job=1;
+        image.sources.page=layout==2?255:page;
+        image.sources.count=layout==1?2:1;
+        catalog=layout==2?0:(uint16_t)image.sources.count*189u;
+        limit=(PAGE_SIZE-catalog)/10u;
+        memset(memory[page],0xa5,PAGE_SIZE);
+        reference_probe_page=page;reference_reads=0;reference_probe=1;
+        for(id=0;id<limit;++id)check(cc_source_reference(id)==id&&!error.code);
+        reads=reference_reads;reference_probe=0;
+        check(state.refs==limit&&state.refs_page==page&&!state.refs_owned);
+        /* A duplicate still succeeds at capacity; a new key must fail. */
+        check(cc_source_reference(limit-1)==limit-1&&!error.code&&state.refs==limit);
+        check(cc_source_reference(limit)==0&&error.code==98&&state.refs==limit);
+        for(id=0;id<catalog;++id)check(memory[page][id]==0xa5);
+        error.code=0;
+        for(id=0;id<limit;++id)check(cc_reference_position(id)==id&&!error.code);
+        printf("PERF02 %s capacity=%u insertion-reads=%lu\n",
+               layout==0?"one-source":layout==1?"two-source":"separate",limit,reads);
+        check(page_drop(page)&&pages_used()==1);
+    }
+    memset(&state,0,sizeof(state));memset(&image,0,sizeof(image));memset(&error,0,sizeof(error));
+    cc.sources=&state;cc.image=&image;cc.error=&error;
+    page=page_new(PAGE_COMPILER);check(page!=255);state.refs_page=page;image.sources.page=255;
+    for(j=0;j<sizeof(positions)/sizeof(positions[0]);++j) {
+        check(cc_source_reference(positions[j])==j&&!error.code);
+        check(cc_reference_position(j)==positions[j]);
+    }
+    /* Each of the six insertion-context bytes distinguishes the same offset. */
+    for(j=0;j<6;++j) {
+        state.parent_scan=j==0?1:j==1?256:0;
+        state.parent_flags=j==2;state.parent_limit=j==3;
+        cc.absolute_mode=j==4;cc.with_limit=j==5;
+        check(cc_source_reference(positions[0])==5+j&&!error.code);
+        check(cc_source_reference(positions[0])==5+j&&state.refs==6+j);
+    }
+    state.parent_scan=0;state.parent_flags=state.parent_limit=0;cc.absolute_mode=cc.with_limit=0;
+    check(cc_source_reference(positions[0])==0&&state.refs==11);
+    /* Even if a duplicate record exists, lookup retains the first ID. */
+    at=state.refs*10u;for(j=0;j<10;++j)far_set(page,at+j,far_get(page,j));++state.refs;
+    check(cc_source_reference(positions[0])==0);
+    error.code=56;id=state.refs;check(cc_source_reference(9)==0&&error.code==56&&state.refs==id);
+    error.code=0;state.refs_page=255;check(cc_source_reference(9)==0&&error.code==99);
+    check(page_drop(page)&&pages_used()==1);memset(&cc,0,sizeof(cc));
+}
 static void include_cases(void) {
     HostSource files[]={
         {"H:/PART.INC","const greeting='included';number=-1.25;\ntype link=^node;node=record value:integer;next:link end;\nconst table:array[1..2]of integer=(1,2);\nvar n:integer;\nprocedure part;begin n:=table[1];writeln(greeting,number)end;"},
@@ -859,6 +918,15 @@ static void include_cases(void) {
     check(cc.absolute_mode&&cc.io_check&&!cc.range_check&&cc.var_strict&&cc.with_limit==4&&cc.index_speed&&!cc.input_fresh&&!cc.user_interrupt);
     build_close(&b);
     load("{$U+}\n{$I scope}\nbegin end.");check(compile(&s,&b,&d)&&cc.user_interrupt&&cc.interrupt_entry);build_close(&b);
+    /* Replay the same initializer offsets from separate include sites, each
+     * with distinct inherited switches and lexical scopes. */
+    files[5].text="const local:array[1..2]of integer=(11,22);";
+    load("procedure first;{$R-,X+}\n{$I scope}\nbegin writeln(local[1])end;\n"
+         "procedure second;{$R+,X-}\n{$I scope}\nbegin writeln(local[2])end;\n"
+         "begin first;second end.");
+    check(compile(&s,&b,&d)&&b.sources.count==2&&build_ready(&s,&b));
+    printf("PERF02 repeated-include image-id=");
+    for(i=0;i<32;++i)printf("%02x",b.id[i]);printf("\n");build_close(&b);
     files[5].text="{$U-}const local=1;";
     load("{$U+}\n{$I scope}\nbegin end.");check(compile(&s,&b,&d)&&cc.user_interrupt&&cc.interrupt_entry);build_close(&b);
     load("{$U+}begin {$U-}end.");check(compile(&s,&b,&d)&&!cc.user_interrupt&&cc.interrupt_entry);build_close(&b);
@@ -1000,6 +1068,7 @@ int main(int argc,char **argv) {
     FILE *file;
     check(argc==2);
     check(source_new(&s,"H:/SLICE.PAS"));
+    reference_cases();
     compiler_job_cases();
     large_job_capacity();
     memory_overlays();

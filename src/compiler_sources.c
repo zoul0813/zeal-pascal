@@ -60,8 +60,12 @@ uint16_t cc_source_reference(SourcePosition position) ROUTINES {
     context[0]=(uint8_t)cc.sources->parent_scan;context[1]=(uint8_t)(cc.sources->parent_scan>>8);
     context[2]=cc.sources->parent_flags;context[3]=cc.sources->parent_limit;
     context[4]=flags();context[5]=cc.with_limit;
-    for(id=0;id<cc.sources->refs;++id)if(cc_reference_position(id)==position) {
-        for(i=0;i<6;++i)if(far_get(cc.sources->refs_page,reference_at(id)+4+i)!=context[i])break;
+    for(id=0;id<cc.sources->refs;++id) {
+        at=reference_at(id);
+        for(i=0;i<4;++i)
+            if(far_get(cc.sources->refs_page,at+i)!=(uint8_t)(position>>(i*8)))break;
+        if(i!=4)continue;
+        for(i=0;i<6;++i)if(far_get(cc.sources->refs_page,at+4+i)!=context[i])break;
         if(i==6)return id;
     }
     if(id==PAGE_SIZE/REFERENCE_BYTES){cc_fail(98);return 0;}
