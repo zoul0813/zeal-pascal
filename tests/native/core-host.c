@@ -25,6 +25,8 @@ static unsigned lexer_reads[256];
 static uint16_t lexer_last_poll,lexer_max_gap;
 static uint8_t lookup_probe,lookup_refs_page;
 static unsigned long lookup_reads,lookup_reference_reads;
+static uint8_t wire_lookup_probe,wire_lookup_page;
+static unsigned long wire_lookup_reads;
 static uint8_t cancel_stage,cancel_result;
 static unsigned poll_calls,spill_polls;
 /* Probe only the initialization fixtures; the existing corpus is unchanged. */
@@ -102,7 +104,7 @@ void page_initialized(uint8_t p,uint16_t n) {
         initialized[p]=1;
     }
 }
-uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(reference_probe&&p==reference_probe_page)++reference_reads; if(capture_probe&&p==capture_probe_page)++capture_reads; if(lexer_probe&&p==lexer_probe_page){assert(at<256);++lexer_reads[at];} if(lookup_probe){++lookup_reads;if(p==lookup_refs_page)++lookup_reference_reads;} return memory[p][at]; }
+uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(reference_probe&&p==reference_probe_page)++reference_reads; if(capture_probe&&p==capture_probe_page)++capture_reads; if(lexer_probe&&p==lexer_probe_page){assert(at<256);++lexer_reads[at];} if(lookup_probe){++lookup_reads;if(p==lookup_refs_page)++lookup_reference_reads;} if(wire_lookup_probe&&p==wire_lookup_page)++wire_lookup_reads; return memory[p][at]; }
 void far_set(uint8_t p,uint16_t at,uint8_t v) {
     assert(p<64&&owned[p]&&at<PAGE_SIZE);++page_versions[p];memory[p][at]=v;
     if(initialization_probe&&owned[p]==PAGE_IMAGE) {
@@ -1237,6 +1239,7 @@ int main(int argc,char **argv) {
     lexer_cases();
     reference_cases();
     capture_cases();
+    wire_lookup_cases();
     compiler_job_cases();
     large_job_capacity();
     memory_overlays();

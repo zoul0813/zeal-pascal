@@ -72,8 +72,13 @@ int16_t sources_find(const Sources *set,const char *path) SOURCE_BLOCK_CALL {
     uint8_t id;uint16_t j,at;
     if(!sources_valid(set))return -1;
     if(set->base&SOURCES_WIRE_VIEW) {
-        JobSource record;
-        for(id=0;id<set->count;++id)if(view_record(set,id,&record)&&!strcmp(record.source.path,path))return id;
+        JobSource record;uint8_t allowed[8];
+        /* This nonpolling lookup owns its cursor only until it returns. */
+        at=set->base&~SOURCES_WIRE_VIEW;memset(allowed,255,8);
+        for(id=0;id<set->count;++id) {
+            if(!job_read_source(set->page,&at,PAGE_SIZE,allowed,&record))break;
+            if(!strcmp(record.source.path,path))return id;
+        }
         return -1;
     }
     for(id=0;id<set->count;++id) {

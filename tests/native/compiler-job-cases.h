@@ -85,6 +85,78 @@ static void capture_cases(void) {
           !memcmp(&original,&before,sizeof(original))&&!memcmp(memory[original.page],"x  ",3));
     check(page_drop(table));source_close(&original);
 }
+static void wire_lookup_meter(const Sources *set,const char *label,const char *path,int16_t expected) {
+    unsigned allocations=allocation_calls;uint32_t version=page_versions[set->page];int16_t found;
+    wire_lookup_page=set->page;wire_lookup_reads=0;wire_lookup_probe=1;
+    found=sources_find(set,path);wire_lookup_probe=0;
+    check(found==expected&&allocations==allocation_calls&&version==page_versions[set->page]);
+    printf("PERF06 %s records=%u reads=%lu\n",label,set->count,wire_lookup_reads);
+}
+/* Packed wire descriptors can outnumber available resident source pages.
+ * These capacity records are deliberately nonresident; each has55bytes. */
+static void wire_lookup_cases(void) {
+    Sources view,stale;JobSource record;Source live;uint8_t table,i,j,old,role;uint16_t at,base=17,middle;
+    const uint8_t offsets[]={0,2,3,4,8,40,42,44,47};
+    const uint8_t values[]={255,2,1,0,1,0,1,0,'/'};
+    unsigned pages=pages_used();
+    table=page_new(PAGE_WORKER);check(table!=255);memset(&record,0,sizeof(record));record.source.page=255;
+    for(i=0;i<2;++i) {
+        uint8_t count=i?86:10;
+        at=base;
+        for(j=0;j<count;++j) {
+            record.id=1000+(uint16_t)j*7;snprintf(record.source.path,sizeof(record.source.path),"H:/F%03u.PAS",j);
+            check(job_write_source(table,&at,&record));
+        }
+        check(at==base+(uint16_t)count*55&&sources_view(&view,table,base,count));
+        wire_lookup_meter(&view,"first","H:/F000.PAS",0);
+        snprintf(record.source.path,sizeof(record.source.path),"H:/F%03u.PAS",count-1);
+        wire_lookup_meter(&view,"last",record.source.path,count-1);
+        wire_lookup_meter(&view,"missing","H:/missing.pas",-1);
+        wire_lookup_meter(&view,"restart","H:/F000.PAS",0);
+    }
+    /* Rebuild the10-record table for malformed/duplicate middle rows. */
+    at=base;
+    for(j=0;j<10;++j){record.id=1000+(uint16_t)j*7;snprintf(record.source.path,sizeof(record.source.path),"H:/F%03u.PAS",j);check(job_write_source(table,&at,&record));}
+    middle=base+4*55;
+    for(i=0;i<sizeof(offsets);++i) {
+        uint16_t position=middle+offsets[i];old=far_get(table,position);far_set(table,position,values[i]);
+        /* A decoded invalid ID is65535; set both bytes for that mutation. */
+        if(!i)far_set(table,middle+1,255);
+        check(sources_view(&view,table,base,10));
+        check(sources_find(&view,"H:/F000.PAS")==0&&sources_find(&view,"H:/F003.PAS")==3);
+        check(sources_find(&view,"H:/F004.PAS")==-1&&sources_find(&view,"H:/F009.PAS")==-1&&sources_find(&view,"H:/missing.pas")==-1);
+        if(i==1)wire_lookup_meter(&view,"malformed-middle","H:/F009.PAS",-1);
+        far_set(table,position,old);if(!i)far_set(table,middle+1,(uint8_t)((1000+4*7)>>8));
+    }
+    far_set(table,base+5*55+44+6,'2');check(sources_view(&view,table,base,10));
+    check(sources_find(&view,"H:/F002.PAS")==2&&sources_find(&view,"H:/F005.PAS")==-1);
+    far_set(table,base+5*55+44+6,'5');check(sources_view(&view,table,base,10));
+    check(sources_find(&view,"H:/f000.PAS")==-1);
+    stale=view;far_set(table,0,0xa5);wire_lookup_meter(&stale,"stale-version","H:/F000.PAS",-1);
+    check(sources_view(&view,table,base,10));stale=view;++stale.lifetime;
+    wire_lookup_meter(&stale,"stale-lifetime","H:/F000.PAS",-1);
+    /* A record ending exactly atPAGE_SIZE is valid; a truncated next row is not. */
+    memset(&record,0,sizeof(record));record.source.page=255;record.id=42;strcpy(record.source.path,"H:/F000.PAS");
+    at=PAGE_SIZE-55;check(job_write_source(table,&at,&record)&&at==PAGE_SIZE);
+    check(sources_view(&view,table,PAGE_SIZE-55,2));
+    check(sources_find(&view,"H:/F000.PAS")==0&&sources_find(&view,"H:/missing.pas")==-1);
+    /* Shift a valid header/path prefix right, leaving the final byte outside
+     * the page; reject by size before reading the incomplete path. */
+    for(j=54;j;--j)far_set(table,PAGE_SIZE-54+j-1,far_get(table,PAGE_SIZE-55+j-1));
+    check(sources_view(&view,table,PAGE_SIZE-54,1));check(sources_find(&view,"H:/F000.PAS")==-1);
+    /* Resident wire descriptors retain page role/liveness validation. */
+    check(source_new(&live,"H:/LIVE.PAS"));check(source_import(&live,(const uint8_t*)"begin end.",10,&d));
+    memset(&record,0,sizeof(record));record.id=37;record.resident=1;record.source=live;source_hash(&live,record.hash);
+    at=base;check(job_write_source(table,&at,&record)&&sources_view(&view,table,base,1));
+    check(sources_find(&view,live.path)==0);role=owned[live.page];owned[live.page]=PAGE_RUN;
+    check(sources_find(&view,live.path)==-1);owned[live.page]=role;
+    old=far_get(table,at-1);far_set(table,at-1,table);check(sources_view(&view,table,base,1));check(sources_find(&view,live.path)==-1);
+    far_set(table,at-1,old);check(sources_view(&view,table,base,1));source_close(&live);
+    check(sources_find(&view,record.source.path)==-1);
+    stale=view;check(page_drop(table));check(sources_find(&stale,"H:/F000.PAS")==-1);
+    table=page_new(PAGE_WORKER);check(table==stale.page);check(sources_find(&stale,"H:/F000.PAS")==-1);
+    check(page_drop(table)&&pages_used()==pages);
+}
 static void wire_mutations(void) {
     uint8_t job[128],context[128],copy[128],old,mask[8];uint16_t i,at;unsigned allocations;JobSource r;
     check(prepare_job(job,context,&s,0,0,0,s.path));job_register(job,context);
