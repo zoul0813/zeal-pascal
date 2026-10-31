@@ -16,6 +16,7 @@
 
 #define PAGE_SIZE 16384u
 #define FAR_READ_LIMIT 256u
+#define FAR_FILL_LIMIT 256u
 #define SOURCE_LIMIT 16383u
 #define PREFIX_BYTES 16384u
 #define GLOBAL_BASE 0x8000u
@@ -139,6 +140,13 @@ void far_set(uint8_t page, uint16_t offset, uint8_t value) NATIVE;
  * most256copiedbytes plus checks; stream callers use64-byte chunks and split
  * multi-page work. */
 uint8_t far_read(uint8_t page,uint16_t offset,uint8_t *out,uint16_t count) NATIVE;
+/* Fill a caller-owned live RAM page with at most FAR_FILL_LIMIT bytes. Caller
+ * retains its page3 stack. Zero succeeds with sentinel arguments; nonzero
+ * spans must fit one page. Invalid spans change nothing. Successful stores
+ * advance page_versions by count modulo 2^32, including identical bytes.
+ * MMU/SP/IX/IY/IFF, allocation/lifetime/ownership and initialized extent are
+ * preserved. IRQs are masked during bounded work; callers split and poll. */
+uint8_t far_fill(uint8_t page,uint16_t offset,uint8_t value,uint16_t count) NATIVE;
 void ram_enter(void) NATIVE;
 extern uint8_t ram_result[128];
 extern uint16_t ram_io_detail;

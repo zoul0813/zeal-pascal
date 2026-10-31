@@ -18,11 +18,10 @@ uint8_t seed(const char *path,const char *text) {
 }
 /* Publication and saved execution must select the same ordinary corpora. */
 static uint8_t saved_corpus(void) {
-    switch(test_stage) {
-    case 9: case 11: case 13: case 15: case 17: case 19:
-    case 21: case 23: case 25: case 27: case 29: case 31: case 33: case 35: case 37: case 39: case 41: case 43: case 45: case 49: case 51: case 53: return 1;
-    default: return 0;
-    }
+    uint16_t stage=test_stage;
+    /* Same odd stages9..53, with47 deliberately excluded. Compact enough
+     * to keep the retained native cores linked in the corpus test image. */
+    return stage>=9&&stage<=53&&(stage&1u)&&stage!=47;
 }
 void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) {
     uint8_t owned;

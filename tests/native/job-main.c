@@ -136,6 +136,126 @@ static void span_checks(void) {
     good=1;for(i=0;i<PAGE_SIZE;++i)if(far_get(p,i)!=span_byte(i))good=0;check(good);
     check(page_drop(p));
 }
+uint8_t test_far_fill_probe(uint8_t page,uint16_t offset,uint8_t value,uint16_t n) NATIVE __naked {
+    __asm
+    push ix
+    push iy
+    ld iy,#0
+    add iy,sp
+    push iy
+    ld l,7(iy)
+    ld h,8(iy)
+    push hl                      ; copied count
+    ld h,6(iy)
+    push hl
+    inc sp                       ; copied packed value byte
+    ld ix,#0x1357
+    ld iy,#0x2468
+    call _far_fill               ; A/DE still contain page/offset
+    push af
+    push ix
+    pop hl
+    ld de,#0x1357
+    or a
+    sbc hl,de
+    jr nz,probe_fill_bad
+    push iy
+    pop hl
+    ld de,#0x2468
+    or a
+    sbc hl,de
+    jr nz,probe_fill_bad
+    pop af
+    jr probe_fill_done
+probe_fill_bad:
+    pop af
+    ld a,#255
+probe_fill_done:
+    pop iy
+    ld sp,iy
+    pop iy
+    pop ix
+    pop hl
+    pop bc
+    inc sp
+    jp (hl)
+    __endasm;
+}
+
+volatile uint8_t fill_benchmark;
+uint8_t test_far_fill_slow(uint8_t page,uint16_t offset,uint8_t value,uint16_t n) {
+    while(n--)far_set(page,offset++,value);
+    return 1;
+}
+static void fill_case(uint8_t owned_page,uint8_t page,uint16_t offset,uint16_t n,
+                      uint8_t value,uint8_t expected,uint8_t enabled,uint32_t version) {
+    uint8_t before[7],after[7],good=1,other;uint16_t i;
+    volatile uint8_t result;
+    uint32_t versions[64],lifetime=page_lifetime(owned_page);uint8_t owned=pages_used();
+    for(i=0;i<PAGE_SIZE;++i)far_set(owned_page,i,span_byte(i));
+    page_versions[owned_page]=version;
+    for(other=0;other<64;++other)versions[other]=page_versions[other];
+    if(!enabled){__asm di __endasm;}
+    test_machine(before);result=test_far_fill_probe(page,offset,value,n);test_machine(after);
+    if(!enabled){__asm ei __endasm;}
+    check(result==expected);check(!memcmp(before,after,7)&&before[0]==enabled&&before[2]>=0xc0);
+    check(page_versions[owned_page]==version+(expected?(uint32_t)n:0));
+    check(page_lifetime(owned_page)==lifetime&&page_role(owned_page)==PAGE_SOURCE&&pages_used()==owned);
+    for(other=0;other<64;++other)if(other!=owned_page&&page_versions[other]!=versions[other])good=0;
+    for(i=0;i<PAGE_SIZE;++i)
+        if(far_get(owned_page,i)!=(expected&&i>=offset&&i-offset<n?value:span_byte(i)))good=0;
+    check(good);
+}
+static void fill_checks(void) {
+    static const struct {uint16_t offset,n;uint8_t ok;} cases[]={
+        {0,0,1},{0,1,1},{16383,1,1},{0,64,1},{16320,64,1},
+        {123,128,1},{0,255,1},{16128,256,1},{16127,257,0},
+        {16384,1,0},{16383,2,0},{65535,1,0},{0,16385,0},{65535,65535,0}};
+    static const uint32_t carry[]={0xffUL,0xffffUL,0xffffffUL,0xffffffffUL};
+    uint8_t p=page_new(PAGE_SOURCE),mode,good;uint16_t i;
+    uint32_t version;
+    check(p!=255);if(p==255)return;
+    for(mode=0;mode<2;++mode) {
+        for(i=0;i<sizeof(cases)/sizeof(cases[0]);++i)
+            fill_case(p,p,cases[i].offset,cases[i].n,i&1?0:255,cases[i].ok,mode,7);
+        fill_case(p,31,0,1,0xa5,0,mode,7);fill_case(p,64,0,1,0xa5,0,mode,7);
+        fill_case(p,255,0,1,0xa5,0,mode,7);
+        fill_case(p,255,65535,0,0xa5,1,mode,7);
+        for(i=0;i<sizeof(carry)/sizeof(carry[0]);++i)fill_case(p,p,137,256,0xa5,1,mode,carry[i]);
+        fill_case(p,p,137,1,0xa5,1,mode,0xffUL);
+        fill_case(p,p,137,1,0xa5,1,mode,0xffffffffUL);
+        fill_case(p,p,137,255,0xa5,1,mode,0x1ffUL);
+        fill_case(p,p,137,255,0xa5,1,mode,0xffffff01UL);
+    }
+    version=page_versions[p];check(far_fill(p,0,0,64));check(far_fill(p,0,0,64));
+    check(page_versions[p]==version+128);good=1;
+    for(i=0;i<64;++i)if(far_get(p,i))good=0;check(good);
+    __asm di __endasm;
+    for(mode=0;mode<2;++mode) {
+        fill_benchmark=1;check(test_far_fill_slow(p,512,0xa5,64));
+        fill_benchmark=2;check(far_fill(p,512,0x5a,64));
+    }
+    fill_benchmark=0;__asm ei __endasm;
+    good=1;for(i=512;i<576;++i)if(far_get(p,i)!=0x5a)good=0;check(good);
+    check(page_drop(p));
+    /* Identical source stores invalidate cached versions without changing
+     * text. Catalog self-stores likewise invalidate its authenticated view. */
+    check(load("begin end."));check(compile(&s,&b,&d));
+    check(build_check(&s,&b));
+    check(far_fill(s.page,0,far_get(s.page,0),1));check(!build_check(&s,&b));build_close(&b);
+    {
+        Sources catalog;uint8_t hash[32];
+        check(sources_new(&catalog));source_hash(&s,hash);check(sources_borrow(&catalog,&s,hash)==0);
+        check(sources_valid(&catalog)&&sources_ready(&catalog,0));
+        check(far_fill(s.page,0,far_get(s.page,0),1));check(!sources_ready(&catalog,0));
+        check(far_fill(catalog.page,0,far_get(catalog.page,0),1));check(!sources_valid(&catalog));
+        /* Borrowed catalog owns no source page; release its stale handle
+         * directly rather than authenticate it as an unchanged catalog. */
+        check(page_drop(catalog.page));
+    }
+    check(pages_used()==code_required+1);
+}
+
 void test_span_done(void) {__asm nop __endasm;}
 static CompileFailure failure;
 static uint8_t expected[32];
@@ -148,7 +268,7 @@ int app_main(void) {
     uint8_t hash[32],status=255,owned;int8_t fd;uint16_t pc,position;
     if(!console_open())return 1;
     check(source_new(&s,"H:/JOB.PAS"));
-    test_stage=79;span_checks();test_span_done();
+    test_stage=79;span_checks();fill_checks();test_span_done();
     fd=open("H:/JOBS.TXT",O_WRONLY|O_CREAT|O_TRUNC);check(fd>=0);if(fd>=0)check(!swap(fd,DEV_STDOUT));
     test_stage=80;
     check(load("program Hello;begin writeln('JOB-OK')end."));s.cursor=8;s.previous=3;s.dirty=1;before=s;

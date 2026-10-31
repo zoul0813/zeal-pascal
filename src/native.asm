@@ -1,5 +1,5 @@
 .module native
-.globl _far_get, _far_set, _far_read, _ram_enter
+.globl _far_get, _far_set, _far_read, _far_fill, _ram_enter
 .globl _ram_result, _ram_pages, _ram_entry
 .globl _ram_io_detail,_ram_cleanup_detail
 .globl _console_scratch
@@ -69,11 +69,23 @@ version_done:
 ; Checked span read. A=owned RAM page, DE=offset; out/count are LE16 stack
 ; arguments under SDCC call1. IX/IY and caller SP/IFF are preserved. Bounds
 ; reject before mapping/stores; zero is a no-op even with sentinel arguments.
+_far_fill::
+    ; Align byte+word arguments with read's two-word frame. The extra byte
+    ; is below the caller's SP and is consumed by the common four-byte exit.
+    pop hl
+    dec sp
+    push hl
+    scf                          ; saved page AF carry identifies fill
+    jr span_begin
 _far_read::
+    or a                         ; clear mode carry without changing page
+span_begin:
     push ix
+    push af                      ; preserve page/mode BEFORE ADD IX changes C
     ld ix,#0
     add ix,sp
-    push af                      ; page at -1(IX)
+    inc ix
+    inc ix                       ; usual saved-IX frame; page at -1(IX)
     push de                      ; offset at -4(IX)
     ld a,i
     di
@@ -83,31 +95,11 @@ _far_read::
     ld a,b
     or c
     jr z,read_success            ; never enter LDIR with BC=0
-    ld a,b
-    cp #1
-    jr c,read_count_valid
-    jr nz,read_invalid
-    ld a,c
-    or a
-    jr nz,read_invalid           ; FAR_READ_LIMIT=256 bounds IRQ masking
-read_count_valid:
-    ld a,-1(ix)
-    cp #32
+    call span_valid
     jr c,read_invalid
-    cp #64
-    jr nc,read_invalid
-    ld h,d
-    ld l,e
-    add hl,bc                    ; exclusive source end, including carry
-    jr c,read_invalid
-    ld a,h
-    cp #0x40
-    jr c,read_source_valid
-    jr nz,read_invalid
-    ld a,l
-    or a
-    jr nz,read_invalid
 read_source_valid:
+    bit 0,-2(ix)                 ; saved entry AF, independent of saved IFF
+    jp nz,fill_body
     ld l,4(ix)
     ld h,5(ix)
     ld e,l
@@ -156,6 +148,79 @@ read_finish:
     ei
 read_return:
     jp (hl)
+
+; Shared count/page/source validation, BC=nonzero, saved page at -1(IX).
+; DE and BC survive; carry means invalid. No mapping or mutation occurs.
+span_valid:
+    ld a,b
+    cp #1
+    jr c,span_count_valid
+    jr nz,span_invalid
+    ld a,c
+    or a
+    jr nz,span_invalid           ; FAR_READ_LIMIT=256 bounds IRQ masking
+span_count_valid:
+    ld a,-1(ix)
+    cp #32
+    jr c,span_invalid
+    cp #64
+    jr nc,span_invalid
+    ld h,d
+    ld l,e
+    add hl,bc                    ; exclusive source end, including carry
+    jr c,span_invalid
+    ld a,h
+    cp #0x40
+    jr c,span_valid_good
+    jr nz,span_invalid
+    ld a,l
+    or a
+    jr nz,span_invalid
+span_valid_good:
+    or a                         ; success clears carry
+    ret
+span_invalid:
+    scf
+    ret
+
+fill_body:
+    push de
+    ld l,-1(ix)
+    ld h,#0
+    add hl,hl
+    add hl,hl
+    ld de,#_page_versions
+    add hl,de
+    ld a,(hl)
+    add a,c
+    ld (hl),a
+    inc hl
+    ld a,(hl)
+    adc a,b
+    ld (hl),a
+    jr nc,fill_version_done
+    inc hl
+    inc (hl)
+    jr nz,fill_version_done
+    inc hl
+    inc (hl)
+fill_version_done:
+    pop de
+    set 7,d
+    ld a,#0x80
+    in a,(0xf2)
+    push af
+    ld a,-1(ix)
+    out (0xf2),a
+    ld b,c                       ; zero lower count encodes validated256
+    ld a,5(ix)                  ; byte after the alignment slot
+fill_bytes:
+    ld (de),a
+    inc de
+    djnz fill_bytes
+    pop af
+    out (0xf2),a
+    jp read_success              ; common MMU/IFF/register/argument return
 
 _ram_enter::
     push ix
