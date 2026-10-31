@@ -286,10 +286,11 @@ void cc_next(void) FRONTEND {
     cc.token_start=cc_source_position();cc.token_end=cc.token_start+1;cc.hexadecimal=0;cc.number_overflow=0;cc.literal_length=0;
     if(cc.scan==cc.input->length) { cc.token=T_EOF; cc.token_end=cc.token_start; return; }
     if(letter(c)) {
-        while(letter(get(cc.scan))||digit(get(cc.scan))) {
-            if(n<127) cc.name[n++]=lower(get(cc.scan));
-            ++cc.scan;
-        }
+        do {
+            if(n<127) cc.name[n++]=lower(c);
+            /* Keep the bounded byte poll in get, including lookahead. */
+            c=get(++cc.scan);
+        } while(letter(c)||digit(c));
         cc.name[n]=0; cc.token=T_ID;
         for(n=0;n<sizeof(reserved)/sizeof(reserved[0]);++n)
             if(!strcmp(cc.name,reserved[n])) { cc.token=T_RESERVED; break; }

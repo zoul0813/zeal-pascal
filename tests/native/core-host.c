@@ -20,6 +20,9 @@ static uint8_t reference_probe,reference_probe_page;
 static unsigned long reference_reads;
 static uint8_t capture_probe,capture_probe_page;
 static unsigned long capture_reads;
+static uint8_t lexer_probe,lexer_probe_page,lexer_poll_probe;
+static unsigned lexer_reads[256];
+static uint16_t lexer_last_poll,lexer_max_gap;
 static uint8_t cancel_stage,cancel_result;
 static unsigned poll_calls,spill_polls;
 /* Probe only the initialization fixtures; the existing corpus is unchanged. */
@@ -33,6 +36,11 @@ static void initialization_reset(void) {
 uint8_t key_interrupt(void) {
     uint8_t reached;
     ++poll_calls;
+    if(lexer_poll_probe) {
+        uint16_t gap=cc.scan-lexer_last_poll;
+        if(gap>lexer_max_gap)lexer_max_gap=gap;
+        lexer_last_poll=cc.scan;
+    }
     reached=cancel_stage==1||
         (cancel_stage==2&&cc.image->pages[0]!=255)||
         (cancel_stage==3&&cc.emitted>CC_CODE_BASE)||
@@ -92,7 +100,7 @@ void page_initialized(uint8_t p,uint16_t n) {
         initialized[p]=1;
     }
 }
-uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(reference_probe&&p==reference_probe_page)++reference_reads; if(capture_probe&&p==capture_probe_page)++capture_reads; return memory[p][at]; }
+uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(reference_probe&&p==reference_probe_page)++reference_reads; if(capture_probe&&p==capture_probe_page)++capture_reads; if(lexer_probe&&p==lexer_probe_page){assert(at<256);++lexer_reads[at];} return memory[p][at]; }
 void far_set(uint8_t p,uint16_t at,uint8_t v) {
     assert(p<64&&owned[p]&&at<PAGE_SIZE);++page_versions[p];memory[p][at]=v;
     if(initialization_probe&&owned[p]==PAGE_IMAGE) {
@@ -126,6 +134,71 @@ static void invalid(const char *text,uint8_t code) {
     load(text); ok=compile(&s,&b,&d);
     if(ok||d.code!=code) fprintf(stderr,"expected diagnostic %u: %s\n",code,text);
     check(!ok&&d.code==code); check(pages_used()==1);
+}
+/* Direct scanner checks isolate identifier source reads from symbol lookup. */
+static void lexer_case(const char *label,const char *text,const char *expected,uint16_t token,uint8_t bracket) {
+    CompilerSources sources;uint16_t i,length=(uint16_t)strlen(expected);unsigned long reads=0,lookahead=0;
+    load(text);memset(&cc,0,sizeof(cc));memset(&sources,0,sizeof(sources));
+    cc.input=&s;cc.error=&d;cc.sources=&sources;
+    lexer_probe_page=s.page;memset(lexer_reads,0,sizeof(lexer_reads));lexer_probe=1;
+    cc_next();lexer_probe=0;
+    check(!d.code&&cc.token==token&&!strcmp(cc.name,expected)&&cc.scan==length&&
+          cc.token_start==0&&cc.token_end==length);
+    for(i=0;i<length;++i){check(lexer_reads[i]!=0);reads+=lexer_reads[i];}
+    for(;i<256;++i)lookahead+=lexer_reads[i];
+    printf("PERF04 %s bytes=%u identifier-reads=%lu lookahead-reads=%lu\n",label,length,reads,lookahead);
+    if(bracket) {
+        uint16_t start=(uint16_t)(strstr(text,".)")-text);
+        cc_next();check(!d.code&&cc.token==']'&&cc.scan==start+2&&cc.token_start==start&&cc.token_end==start+2);
+    }
+    cc_next();check(!d.code&&cc.token==T_EOF&&cc.scan==s.length&&cc.token_start==s.length&&cc.token_end==s.length);
+    memset(&cc,0,sizeof(cc));
+}
+static void lexer_cases(void) {
+    char letters[128],digits[128],expected[128],bracket[131],cancel[640];uint16_t i;uint8_t reason;
+    CompilerSources sources;
+    lexer_case("mixed","Alpha_09.)","alpha_09",T_ID,1);
+    lexer_case("alternating","A0B1_C2","a0b1_c2",T_ID,0);
+    lexer_case("reserved","BeGiN.)","begin",T_RESERVED,1);
+    lexer_case("underscore","_Name0","_name0",T_ID,0);
+    for(i=0;i<127;++i){letters[i]=i&1?'z':'A';expected[i]=i&1?'z':'a';}
+    letters[127]=expected[127]=0;
+    lexer_case("letters127",letters,expected,T_ID,0);
+    memcpy(bracket,letters,127);memcpy(bracket+127,"\n.)",4);
+    lexer_case("letters127-bracket",bracket,expected,T_ID,1);
+    for(i=0;i<127;++i){digits[i]=i?'0'+i%10:'A';expected[i]=i?digits[i]:'a';}
+    digits[127]=expected[127]=0;
+    lexer_case("digits127",digits,expected,T_ID,0);
+    /* Raw scanner-only input deliberately bypasses the public127-column
+     * source guard. Span several full poll intervals and prove that bytes
+     * beyond the name buffer are consumed without extending significance. */
+    load("a");for(i=0;i<1025;++i)far_set(s.page,i,'a');s.length=1025;page_initialized(s.page,s.length);
+    for(reason=0;reason<2;++reason) {
+        if(reason)far_set(s.page,1024,'z');
+        memset(&cc,0,sizeof(cc));memset(&sources,0,sizeof(sources));memset(&d,0,sizeof(d));
+        cc.input=&s;cc.error=&d;cc.sources=&sources;cc.polling=1;
+        lexer_last_poll=lexer_max_gap=0;poll_calls=0;lexer_poll_probe=1;
+        cc_next();lexer_poll_probe=0;
+        check(!d.code&&cc.token==T_ID&&cc.scan==1025&&cc.token_start==0&&cc.token_end==1025&&
+              strlen(cc.name)==127&&poll_calls>=3&&lexer_max_gap<=256);
+        for(i=0;i<127;++i)check(cc.name[i]=='a');
+        printf("PERF04 raw1025 variant=%u polls=%u max-byte-gap=%u\n",reason,poll_calls,lexer_max_gap);
+        cc_next();check(!d.code&&cc.token==T_EOF&&cc.token_start==1025&&cc.token_end==1025);
+        memset(&cc,0,sizeof(cc));
+    }
+    /* Prime the existing byte poll near wrap. Both cancellation reasons must
+     * be observed inside the identifier with a bounded source-byte gap. */
+    memset(cancel,'\n',512);memcpy(cancel+512,letters,128);
+    for(reason=1;reason<=2;++reason) {
+        load(cancel);memset(&cc,0,sizeof(cc));memset(&sources,0,sizeof(sources));
+        cc.input=&s;cc.error=&d;cc.sources=&sources;cc.scan=512;cc.scan_poll=200;cc.polling=1;
+        lexer_last_poll=512;lexer_max_gap=0;poll_calls=0;cancel_stage=5;cancel_result=reason;lexer_poll_probe=1;
+        cc_next();lexer_poll_probe=0;cancel_stage=0;
+        check(d.code==COMPILE_INTERRUPTED&&cc.interrupted==reason&&cc.scan==639&&cc.token_end==639&&
+              poll_calls>=2&&lexer_max_gap>0&&lexer_max_gap<=256);
+        cc_next();check(cc.token==T_EOF&&d.code==COMPILE_INTERRUPTED);
+        memset(&cc,0,sizeof(cc));
+    }
 }
 static void memory_overlays(void) {
     const char *cases[]={
@@ -1070,6 +1143,7 @@ int main(int argc,char **argv) {
     FILE *file;
     check(argc==2);
     check(source_new(&s,"H:/SLICE.PAS"));
+    lexer_cases();
     reference_cases();
     capture_cases();
     compiler_job_cases();
