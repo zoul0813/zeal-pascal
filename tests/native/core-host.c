@@ -27,6 +27,10 @@ static uint8_t lookup_probe,lookup_refs_page;
 static unsigned long lookup_reads,lookup_reference_reads;
 static uint8_t wire_lookup_probe,wire_lookup_page;
 static unsigned long wire_lookup_reads;
+static uint8_t source_edit_probe,source_edit_page;
+static unsigned long source_edit_reads,source_edit_writes;
+static unsigned source_edit_marks;
+static uint16_t source_edit_extent;
 static uint8_t cancel_stage,cancel_result;
 static unsigned poll_calls,spill_polls;
 /* Probe only the initialization fixtures; the existing corpus is unchanged. */
@@ -95,6 +99,7 @@ uint8_t pages_used(void) { uint8_t n=0,i; for(i=32;i<64;++i) n+=owned[i]!=0; ret
 void page_initialized(uint8_t p,uint16_t n) {
     uint16_t at;
     assert(p<64&&owned[p]&&n<=PAGE_SIZE);
+    if(source_edit_probe&&p==source_edit_page){++source_edit_marks;source_edit_extent=n;}
     if(initialization_probe&&owned[p]==PAGE_IMAGE) {
         for(at=0;at<n;++at)assert(image_written[p][at>>3]&(1u<<(at&7)));
         if(p==cc.image->pages[0]&&copy_complete) {
@@ -104,9 +109,10 @@ void page_initialized(uint8_t p,uint16_t n) {
         initialized[p]=1;
     }
 }
-uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(reference_probe&&p==reference_probe_page)++reference_reads; if(capture_probe&&p==capture_probe_page)++capture_reads; if(lexer_probe&&p==lexer_probe_page){assert(at<256);++lexer_reads[at];} if(lookup_probe){++lookup_reads;if(p==lookup_refs_page)++lookup_reference_reads;} if(wire_lookup_probe&&p==wire_lookup_page)++wire_lookup_reads; return memory[p][at]; }
+uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(reference_probe&&p==reference_probe_page)++reference_reads; if(capture_probe&&p==capture_probe_page)++capture_reads; if(lexer_probe&&p==lexer_probe_page){assert(at<256);++lexer_reads[at];} if(lookup_probe){++lookup_reads;if(p==lookup_refs_page)++lookup_reference_reads;} if(wire_lookup_probe&&p==wire_lookup_page)++wire_lookup_reads; if(source_edit_probe&&p==source_edit_page)++source_edit_reads; return memory[p][at]; }
 void far_set(uint8_t p,uint16_t at,uint8_t v) {
     assert(p<64&&owned[p]&&at<PAGE_SIZE);++page_versions[p];memory[p][at]=v;
+    if(source_edit_probe&&p==source_edit_page)++source_edit_writes;
     if(initialization_probe&&owned[p]==PAGE_IMAGE) {
         ++image_stores;image_written[p][at>>3]|=(uint8_t)(1u<<(at&7));
         if(p==cc.image->pages[0]&&!copy_complete) {
@@ -291,6 +297,63 @@ static void lookup_cases(void) {
     cc.symbols[0].name_length=9;cc.symbols[1].name_length=10;cc_result_symbol(1);check(!d.code&&cc.symbol_count==3);
     check(page_drop(cc.workspace)&&page_drop(refs_page));check(sources_close(&image.sources));source_close(&included);
     check(pages_used()==1);memset(&cc,0,sizeof(cc));
+}
+static void source_edit_reset(void) {
+    source_edit_page=s.page;source_edit_reads=source_edit_writes=source_edit_marks=source_edit_extent=0;
+}
+static void source_edit_case(const char *label,uint16_t a,uint16_t z,const char *replacement,uint16_t n,
+                             uint16_t previous,uint16_t expected_previous,unsigned long expected_reads,unsigned long expected_writes) {
+    char initial[16001],expected[16003];uint16_t i,size=16000-(z-a)+n;
+    Source before,wanted;uint32_t version,lifetime;unsigned allocations;
+    for(i=0;i<16000;++i)initial[i]=i%100==99?'\n':'a';initial[16000]=0;
+    load(initial);s.cursor=123;s.previous=previous;s.dirty=0;before=s;wanted=before;
+    memcpy(expected,initial,a);memcpy(expected+a,replacement,n);memcpy(expected+a+n,initial+z,16000-z);
+    wanted.length=size;wanted.cursor=a+n;wanted.previous=expected_previous;wanted.dirty=1;++wanted.revision;
+    version=page_versions[s.page];lifetime=page_lifetime(s.page);allocations=allocation_calls;
+    source_edit_reset();source_edit_probe=1;
+    check(source_replace(&s,a,z,(const uint8_t*)replacement,n));source_edit_probe=0;
+    check(!memcmp(&s,&wanted,sizeof(s))&&!memcmp(memory[s.page],expected,size));
+    check(page_lifetime(s.page)==lifetime&&allocations==allocation_calls&&source_edit_marks==1&&source_edit_extent==size);
+    check((uint32_t)(page_versions[s.page]-version)==source_edit_writes);
+    check(source_edit_reads==expected_reads&&source_edit_writes==expected_writes);
+    printf("PERF07 %s reads=%lu writes=%lu\n",label,source_edit_reads,source_edit_writes);
+}
+static void source_edit_cases(void) {
+    char initial[16001];uint8_t too_large[384],bad[3]={'\r',26,'a'};uint16_t i;
+    Source before;uint32_t version;unsigned allocations;
+    source_edit_case("middle",8000,8001,"z",1,8000,8001,15999,1);
+    source_edit_case("begin",0,1,"z",1,0,1,15999,1);
+    source_edit_case("end",15999,16000,"z",1,65535,16000,15999,1);
+    source_edit_case("wide",8000,8004,"zzzz",4,8002,8004,15996,4);
+    source_edit_case("newline",8000,8001,"\n",1,12000,12000,15999,1);
+    source_edit_case("growth",8000,8001,"zz",2,12000,12001,23998,8001);
+    source_edit_case("shrink",8000,8002,"z",1,12000,11999,23996,7999);
+    source_edit_case("delete",8000,8001,"",0,8000,8000,23998,7999);
+    for(i=0;i<16000;++i)initial[i]=i%100==99?'\n':'a';initial[16000]=0;load(initial);
+    before=s;version=page_versions[s.page];allocations=allocation_calls;
+    for(i=0;i<3;++i) {
+        uint16_t at=i==2?99:8000;
+        source_edit_reset();source_edit_probe=1;
+        check(!source_replace(&s,at,at+1,bad+i,1));source_edit_probe=0;
+        check(!source_edit_writes&&!source_edit_marks&&!memcmp(&s,&before,sizeof(s))&&
+              !memcmp(memory[s.page],initial,16000)&&page_versions[s.page]==version&&allocation_calls==allocations);
+    }
+    memset(too_large,'a',sizeof(too_large));
+    source_edit_reset();source_edit_probe=1;
+    check(!source_replace(&s,0,0,too_large,sizeof(too_large)));source_edit_probe=0;
+    check(!source_edit_reads&&!source_edit_writes&&!source_edit_marks&&!memcmp(&s,&before,sizeof(s)));
+    check(!source_replace(&s,2,1,(const uint8_t*)"x",1));
+    check(!source_replace(&s,16000,16001,(const uint8_t*)"x",1));
+    source_edit_reset();source_edit_probe=1;
+    check(source_replace(&s,8000,8000,0,0));source_edit_probe=0;
+    check(!source_edit_reads&&!source_edit_writes&&!source_edit_marks&&!memcmp(&s,&before,sizeof(s))&&page_versions[s.page]==version);
+    /* Even an identical nonempty overwrite is a mutation for cached builds. */
+    load("begin end.");check(compile(&s,&b,&d)&&build_ready(&s,&b));
+    check(source_replace(&s,0,0,0,0)&&build_ready(&s,&b));
+    version=page_versions[s.page];
+    check(source_replace(&s,0,1,(const uint8_t*)"b",1));check(!build_ready(&s,&b)&&!build_check(&s,&b));
+    check((uint32_t)(page_versions[s.page]-version)==1);
+    build_close(&b);check(pages_used()==1);
 }
 static void memory_overlays(void) {
     const char *cases[]={
@@ -1235,6 +1298,7 @@ int main(int argc,char **argv) {
     FILE *file;
     check(argc==2);
     check(source_new(&s,"H:/SLICE.PAS"));
+    source_edit_cases();
     lookup_cases();
     lexer_cases();
     reference_cases();

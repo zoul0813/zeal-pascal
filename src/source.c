@@ -44,7 +44,7 @@ uint8_t source_replace(Source *s, uint16_t a, uint16_t z,
     if (n > z-a) {
         i=s->length;
         while (i>z) { --i; far_set(s->page,i+n-(z-a),far_get(s->page,i)); }
-    } else {
+    } else if (n < z-a) {
         for (i=z;i<s->length;++i) far_set(s->page,i+n-(z-a),far_get(s->page,i));
     }
     for (i=0;i<n;++i) far_set(s->page,a+i,text[i]);
