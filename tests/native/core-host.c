@@ -23,6 +23,8 @@ static unsigned long capture_reads;
 static uint8_t lexer_probe,lexer_probe_page,lexer_poll_probe;
 static unsigned lexer_reads[256];
 static uint16_t lexer_last_poll,lexer_max_gap;
+static uint8_t lookup_probe,lookup_refs_page;
+static unsigned long lookup_reads,lookup_reference_reads;
 static uint8_t cancel_stage,cancel_result;
 static unsigned poll_calls,spill_polls;
 /* Probe only the initialization fixtures; the existing corpus is unchanged. */
@@ -100,7 +102,7 @@ void page_initialized(uint8_t p,uint16_t n) {
         initialized[p]=1;
     }
 }
-uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(reference_probe&&p==reference_probe_page)++reference_reads; if(capture_probe&&p==capture_probe_page)++capture_reads; if(lexer_probe&&p==lexer_probe_page){assert(at<256);++lexer_reads[at];} return memory[p][at]; }
+uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(reference_probe&&p==reference_probe_page)++reference_reads; if(capture_probe&&p==capture_probe_page)++capture_reads; if(lexer_probe&&p==lexer_probe_page){assert(at<256);++lexer_reads[at];} if(lookup_probe){++lookup_reads;if(p==lookup_refs_page)++lookup_reference_reads;} return memory[p][at]; }
 void far_set(uint8_t p,uint16_t at,uint8_t v) {
     assert(p<64&&owned[p]&&at<PAGE_SIZE);++page_versions[p];memory[p][at]=v;
     if(initialization_probe&&owned[p]==PAGE_IMAGE) {
@@ -199,6 +201,94 @@ static void lexer_cases(void) {
         cc_next();check(cc.token==T_EOF&&d.code==COMPILE_INTERRUPTED);
         memset(&cc,0,sizeof(cc));
     }
+}
+static void lookup_symbol(uint16_t id,uint8_t role,uint8_t owner,uint16_t reference,uint8_t length,uint16_t address) {
+    Symbol *symbol=&cc.symbols[id];memset(symbol,0,sizeof(*symbol));
+    symbol->role=role;symbol->owner=owner;symbol->name_start=reference;symbol->name_length=length;symbol->address=address;
+    if(id>=cc.symbol_count)cc.symbol_count=id+1;
+}
+static void lookup_meter(const char *label,uint8_t field,int16_t expected) {
+    int16_t actual;
+    lookup_reads=lookup_reference_reads=0;lookup_probe=1;
+    actual=field?cc_field_lookup(0):cc_lookup();lookup_probe=0;
+    check(actual==expected&&!d.code);
+    printf("PERF05 %s reads=%lu reference-reads=%lu\n",label,lookup_reads,lookup_reference_reads);
+}
+/* Isolate production name comparisons with real catalog/lifetime checks. */
+static void lookup_cases(void) {
+    CompilerSources state;Build image;Source included;uint8_t hash[32],refs_page;uint16_t refs[6],id;
+    uint32_t version;char text[285];
+    strcpy(text,"AbCdEfGhIj\nAbCdEfGhiK\nInPuT\n");
+    memset(text+28,'a',127);text[154]='x';text[155]='\n';
+    memset(text+156,'a',127);text[282]='y';text[283]='\n';text[284]=0;load(text);
+    memset(&cc,0,sizeof(cc));memset(&state,0,sizeof(state));memset(&image,0,sizeof(image));memset(&d,0,sizeof(d));
+    cc.sources=&state;cc.image=&image;cc.input=&s;cc.error=&d;
+    check(sources_new(&image.sources));source_hash(&s,hash);check(sources_borrow(&image.sources,&s,hash)==0);
+    check(source_new(&included,"H:/PART.INC"));check(source_import(&included,(const uint8_t*)"iNcLuDe999",10,&d));
+    source_hash(&included,hash);check(sources_borrow(&image.sources,&included,hash)==1);
+    refs_page=page_new(PAGE_COMPILER);check(refs_page!=255);state.refs_page=refs_page;
+    refs[0]=cc_source_reference(0);refs[1]=cc_source_reference(11);refs[2]=cc_source_reference(22);
+    refs[3]=cc_source_reference(28);refs[4]=cc_source_reference(156);refs[5]=cc_source_reference(0x10000UL);
+    check(!d.code&&state.refs==6);lookup_refs_page=refs_page;
+    cc.workspace=page_new(PAGE_COMPILER);check(cc.workspace!=255);
+    for(id=PAGE_SIZE-3*ROUTINE_BYTES;id<PAGE_SIZE;++id)far_set(cc.workspace,id,0);
+    cc_rput(1,R_PARENT,0);cc_rput(2,R_PARENT,1);cc_rput(3,R_PARENT,0);
+    cc.token=T_ID;strcpy(cc.name,"abcdefghij");
+    lookup_symbol(0,S_VARIABLE,0,refs[0],10,0);
+    lookup_meter("symbol10",0,0);
+    lookup_symbol(0,S_FIELD,0,refs[0],10,7);cc.types[0].low=-1;
+    lookup_meter("field10",1,0);check(cc.field_offset==7);
+    lookup_symbol(0,S_VARIABLE,0,refs[5],10,0);strcpy(cc.name,"include999");
+    lookup_meter("include10",0,0);
+    strcpy(cc.name,"a");lookup_symbol(0,S_VARIABLE,0,refs[0],1,0);lookup_meter("symbol1",0,0);
+    strcpy(cc.name,"abcdefghij");
+    lookup_symbol(0,S_VARIABLE,0,refs[0],10,0);lookup_symbol(1,S_VARIABLE,1,refs[0],10,0);
+    lookup_symbol(2,S_VARIABLE,2,refs[0],10,0);cc.scope=2;check(cc_lookup()==2&&!d.code);
+    cc.symbols[2].name_start=refs[1];check(cc_lookup()==1&&!d.code);
+    cc.symbols[1].name_start=refs[1];check(cc_lookup()==0&&!d.code);cc.scope=3;check(cc_lookup()==0&&!d.code);
+    cc.scope=0;cc.symbol_count=0;lookup_symbol(0,S_FIELD,0,refs[0],10,7);
+    lookup_symbol(1,S_FIELD,1,refs[0],10,9);lookup_symbol(2,S_VARIABLE,0,refs[0],10,0);
+    cc.types[0].low=cc.types[1].low=-1;cc.with_depth=2;cc.with_types[0]=0;cc.with_types[1]=1;
+    check(cc_lookup()==1&&cc.field_offset==9&&!d.code);
+    cc.symbols[1].name_start=refs[1];check(cc_lookup()==0&&cc.field_offset==7&&!d.code);
+    cc.symbols[1].owner=0;cc.symbols[1].name_start=refs[0];cc.with_depth=0;
+    check(cc_field_lookup(0)==0&&cc.field_offset==7&&!d.code);
+    cc.symbols[1].name_start=state.refs;check(cc_field_path(0,1)==9&&!d.code);
+    /* Variant recursion must retain the selected field and accumulated offset. */
+    cc.symbol_count=0;lookup_symbol(0,S_FIELD,1,refs[0],10,7);lookup_symbol(1,S_VARIABLE,0,0,0,0);
+    lookup_symbol(2,S_VARIANT,0,0,0,4);lookup_symbol(3,S_VLABEL,0,0,0,0);cc.symbols[3].type=1;cc.types[0].low=2;
+    check(cc_field_lookup(0)==0&&cc.field_offset==11&&!d.code);
+    cc.symbols[0].name_start=state.refs;check(cc_field_path(0,0)==11&&!d.code);
+    /* Keep special-name fallback and ordinary shadowing in their original order. */
+    cc.symbol_count=cc.type_count=0;cc.text_type=255;cc.scope=0;cc_system_init();strcpy(cc.name,"input");
+    id=(uint16_t)cc_lookup();check(id<cc.symbol_count&&cc.symbols[id].role==S_STANDARD&&!d.code);
+    id=cc.symbol_count;lookup_symbol(id,S_VARIABLE,0,refs[2],5,0);check(cc_lookup()==id&&!d.code);
+    lookup_symbol(id+1,S_VARIABLE,1,refs[2],5,0);cc.scope=1;check(cc_lookup()==id+1&&!d.code);
+    cc.scope=0;check(cc_lookup()==id&&!d.code);
+    /* Every legal byte remains significant, including the last common-prefix byte. */
+    cc.symbol_count=0;lookup_symbol(0,S_VARIABLE,0,refs[3],127,0);lookup_symbol(1,S_VARIABLE,0,refs[4],127,0);
+    memset(cc.name,'a',126);cc.name[126]='x';cc.name[127]=0;lookup_meter("prefix127",0,0);
+    cc.name[126]='y';check(cc_lookup()==1&&!d.code);cc.name[126]='z';check(cc_lookup()==-1&&!d.code);
+    /* Length mismatch and explicit field paths do not dereference a name. */
+    cc.symbol_count=1;lookup_symbol(0,S_VARIABLE,0,state.refs,9,0);strcpy(cc.name,"abcdefghij");
+    check(cc_lookup()==-1&&!d.code);cc.symbols[0].name_length=10;check(cc_lookup()==0&&d.code==99);d.code=0;
+    state.refs_page=255;cc.symbols[0].name_start=refs[0];check(cc_lookup()==0&&d.code==99);d.code=0;state.refs_page=refs_page;
+    cc.symbols[0].name_length=0;cc.symbols[0].name_start=state.refs;cc.name[0]=0;check(cc_lookup()==0&&!d.code);
+    strcpy(cc.name,"abcdefghij");cc.symbols[0].name_start=refs[0];cc.symbols[0].name_length=10;
+    version=page_versions[image.sources.page];++page_versions[image.sources.page];check(cc_lookup()==-1&&!d.code);
+    page_versions[image.sources.page]=version;
+    /* Function-result collisions compare two stored names, not cc.name. */
+    cc.scope=1;cc.symbol_count=0;lookup_symbol(0,S_VARIABLE,1,refs[0],10,0);lookup_symbol(1,S_FUNCTION,0,refs[0],10,0);
+    cc.types[0].family=K_INTEGER;cc.types[0].width=2;lookup_reads=lookup_reference_reads=0;lookup_probe=1;
+    cc_result_symbol(1);lookup_probe=0;check(d.code==43&&cc.symbol_count==2&&!image.globals_bytes);
+    printf("PERF05 result10 reads=%lu reference-reads=%lu\n",lookup_reads,lookup_reference_reads);d.code=0;
+    cc.symbols[0].name_start=refs[1];cc_result_symbol(1);check(!d.code&&cc.symbol_count==3&&cc.symbols[2].role==S_RESULT&&image.globals_bytes==2);
+    cc.symbol_count=2;image.globals_bytes=0;cc.symbols[0].name_start=state.refs;cc_result_symbol(1);check(d.code==99&&cc.symbol_count==2);d.code=0;
+    cc.symbols[0].name_start=refs[0];cc.symbols[1].name_start=state.refs;cc_result_symbol(1);check(d.code==99&&cc.symbol_count==2);d.code=0;
+    cc.symbols[0].name_length=cc.symbols[1].name_length=0;cc_result_symbol(1);check(d.code==43&&cc.symbol_count==2);d.code=0;
+    cc.symbols[0].name_length=9;cc.symbols[1].name_length=10;cc_result_symbol(1);check(!d.code&&cc.symbol_count==3);
+    check(page_drop(cc.workspace)&&page_drop(refs_page));check(sources_close(&image.sources));source_close(&included);
+    check(pages_used()==1);memset(&cc,0,sizeof(cc));
 }
 static void memory_overlays(void) {
     const char *cases[]={
@@ -1143,6 +1233,7 @@ int main(int argc,char **argv) {
     FILE *file;
     check(argc==2);
     check(source_new(&s,"H:/SLICE.PAS"));
+    lookup_cases();
     lexer_cases();
     reference_cases();
     capture_cases();

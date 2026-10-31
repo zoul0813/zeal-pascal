@@ -40,8 +40,15 @@ static uint8_t get(uint16_t p) {
     return p<cc.input->length ? far_get(cc.input->page,p) : 0;
 }
 static uint8_t lower(uint8_t c) { return c>='A'&&c<='Z' ? c+32 : c; }
-static uint8_t name_byte(uint16_t reference,uint8_t offset) {
-    return lower(cc_source_byte(cc_reference_position(reference)+offset));
+static uint8_t name_byte(SourcePosition position,uint8_t offset) {
+    return lower(cc_source_byte(position+offset));
+}
+static uint8_t name_matches(uint16_t reference,uint8_t length) {
+    SourcePosition position;uint8_t i;
+    if(!length)return 1;
+    position=cc_reference_position(reference);
+    for(i=0;i<length;++i)if(cc.name[i]!=name_byte(position,i))return 0;
+    return 1;
 }
 static uint8_t letter(uint8_t c) { c=lower(c); return (c>='a'&&c<='z')||c=='_'; }
 static uint8_t digit(uint8_t c) { return c>='0'&&c<='9'; }
@@ -368,8 +375,7 @@ int16_t cc_lookup(void) FRONTEND {
                 continue;
             }
             if(cc.symbols[i].name_length!=n) continue;
-            for(j=0;j<n;++j) if(cc.name[j]!=name_byte(cc.symbols[i].name_start,j)) break;
-            if(j==n) return (int16_t)i;
+            if(name_matches(cc.symbols[i].name_start,n)) return (int16_t)i;
         }
         if(!scope) break;
         scope=(uint8_t)cc_rget(scope,R_PARENT);
@@ -378,14 +384,13 @@ int16_t cc_lookup(void) FRONTEND {
 }
 static int16_t find_field(uint8_t type,uint16_t field) {
     uint16_t i,variant;
-    uint8_t j,n=(uint8_t)strlen(cc.name);
+    uint8_t n=(uint8_t)strlen(cc.name);
     int16_t found;
     for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].role==S_FIELD&&cc.symbols[i].owner==type) {
         if(field!=0xffffu) { if(field!=i) continue; }
         else {
             if(cc.symbols[i].name_length!=n) continue;
-            for(j=0;j<n;++j) if(cc.name[j]!=name_byte(cc.symbols[i].name_start,j)) break;
-            if(j!=n) continue;
+            if(!name_matches(cc.symbols[i].name_start,n)) continue;
         }
         cc.field_offset=cc.symbols[i].address; return (int16_t)i;
     }
@@ -594,11 +599,14 @@ void cc_check_range(uint8_t type) FRONTEND {
     cc_op16(0x11,(uint16_t)cc.types[type].low); cc_op16(0x01,(uint16_t)cc.types[type].high); cc_call(RT_RANGE);
 }
 void cc_result_symbol(uint16_t routine) FRONTEND {
-    uint16_t i; uint8_t j;
+    uint16_t i; uint8_t j;SourcePosition left,right;
     Symbol *s=&cc.symbols[routine];
     for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].role<S_FIELD&&cc.symbols[i].owner==cc.scope&&cc.symbols[i].name_length==s->name_length) {
-        for(j=0;j<s->name_length;++j)
-            if(name_byte(cc.symbols[i].name_start,j)!=name_byte(s->name_start,j)) break;
+        j=0;
+        if(s->name_length) {
+            left=cc_reference_position(cc.symbols[i].name_start);right=cc_reference_position(s->name_start);
+            for(;j<s->name_length;++j)if(name_byte(left,j)!=name_byte(right,j)) break;
+        }
         if(j==s->name_length) { cc_fail(43); return; }
     }
     if(cc.symbol_count==SYMBOL_LIMIT) { cc_fail(98); return; }
