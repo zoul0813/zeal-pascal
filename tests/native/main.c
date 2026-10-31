@@ -4,7 +4,7 @@
  * driver reads this bounded result block through the emulator's supported
  * debugger console. No emulated syscall or host Pascal interpreter is used. */
 volatile uint16_t test_passed,test_failed,test_stage;
-volatile uint8_t test_done;
+volatile uint8_t test_done,test_group,test_groups[18];
 volatile uint16_t test_failures[64],test_index;
 volatile uint8_t test_hash[32];
 Source s;
@@ -312,10 +312,10 @@ static void media_tests(void) {
     uint8_t attempt,status;
     int8_t capture;
     test_stage=8;
-    strcpy(s.path,"B:/UNTITLED.PAS");
+    strcpy(s.path,"T:/UNTITLED.PAS");
     check(load("begin\nwriteln('MEDIA')\nend.\n"));
-    check(mkdir("B:/ZP0000")==0);
-    check(seed("B:/ZP0000/KEEP.PAS","unrelated recovery"));
+    check(mkdir("T:/ZP0000")==0);
+    check(seed("T:/ZP0000/KEEP.PAS","unrelated recovery"));
     capture=open("H:/MEDIA.TXT",O_WRONLY|O_CREAT|O_TRUNC);
     check(capture>=0);
     if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
@@ -328,16 +328,16 @@ static void media_tests(void) {
         status=255; check(run_saved(&s,&b,&status)&&status==0);
         if(attempt<2) build_close(&b);
     }
-    strcpy(s.path,"B:/UNTITLED.COM");
+    strcpy(s.path,"T:/UNTITLED.COM");
     /* Renaming invalidates the source catalog before path validation. Test
      * that guard separately, then bind a fresh build to the colliding path. */
     check(!save_build(&s,&b,0)&&platform_error==ERR_FAILURE);
     build_close(&b);
     check(compile(&s,&b,&d));
     check(!save_build(&s,&b,0)&&platform_error==ERR_INVALID_PATH);
-    strcpy(s.path,"B:/UNTITLED.BAK");
+    strcpy(s.path,"T:/UNTITLED.BAK");
     check(!save_source(&s,1,0)&&platform_error==ERR_INVALID_PATH);
-    strcpy(s.path,"B:/UNTITLED.PAS");
+    strcpy(s.path,"T:/UNTITLED.PAS");
     build_close(&b);
     check(compile(&s,&b,&d));
     status=255; check(run_saved(&s,&b,&status)&&status==0);
@@ -345,21 +345,17 @@ static void media_tests(void) {
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
     check(pages_used()==code_required+1);
 }
-int app_main(void) {
+static void basic_tests(void) {
     uint8_t digest[32],expected[32]={
         0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea,0x41,0x41,0x40,0xde,0x5d,0xae,0x22,0x23,
         0xb0,0x03,0x61,0xa3,0x96,0x17,0x7a,0x9c,0xb4,0x10,0xff,0x61,0xf2,0x00,0x15,0xad};
     Sha256 hash;
     uint8_t line[129]; uint16_t i;
     int8_t capture;
-    if(!console_open()) { test_failed=1; test_done=255; for(;;) {} }
-    check(pages_used()==code_required);
-    code_hash(initial_code_hash);
     test_stage=1;
     sha_init(&hash); sha_byte(&hash,'a'); sha_byte(&hash,'b'); sha_byte(&hash,'c'); sha_end(&hash,digest);
     for(i=0;i<32;++i) test_hash[i]=digest[i];
     check(!memcmp(digest,expected,32));
-    check(source_new(&s,"H:/SLICE.PAS"));
     check(load("begin  \r\nend. \r\n\032padding"));
     check(s.length==11&&far_get(s.page,5)=='\n'&&far_get(s.page,10)=='\n');
     for(i=0;i<128;++i) line[i]=' ';
@@ -440,23 +436,34 @@ int app_main(void) {
     if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
     execution("program HelloName;\ntype userrec=record UserName:string[80] end;\nvar user:userrec; a:string[3]; b:string[4];\nbegin with user do begin Write('Your name: '); ReadLn(UserName); WriteLn('Hello, ',UserName,'!');\nReadLn(a,b); WriteLn(a,'/',b); ReadLn(user.UserName); WriteLn('[',UserName,']') end end.",1,0);
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
-    media_tests();
-    control_tests();
-    ordinal_tests();
-    case_tests();
-    routine_tests();
-    string_tests();
-    string_operation_tests();
-    array_tests();
-    record_tests();
-    set_tests();
-    pointer_tests();
-    heap_tests();
-    memory_tests();
-    label_tests();
-    real_tests();
-    format_tests();
-    read_tests();
+}
+/* The optional disposable fixture selects one family; missing means the
+ * original all-family run. No debugger write modifies native code or state. */
+static uint8_t select_group(void) {
+    int8_t fd=open("H:/CORE.GRP",O_RDONLY);
+    uint8_t value[2]={0,0};uint16_t bytes=2,failures=test_failed;
+    if(fd<0)return 1;
+    check(read(fd,value,&bytes)==0&&bytes==1);
+    check(close(fd)==0);
+    check(value[0]<=18);
+    test_group=value[0];
+    return test_failed==failures;
+}
+int app_main(void) {
+    uint8_t digest[32],group;
+    if(!console_open()) { test_failed=1; test_done=255; for(;;) {} }
+    check(pages_used()==code_required);
+    code_hash(initial_code_hash);
+    check(source_new(&s,"H:/SLICE.PAS"));
+    if(select_group())for(group=1;group<=18;++group) {
+        if(test_group&&test_group!=group)continue;
+        switch(group) {
+#define NATIVE_GROUP(id,name,function) case id: function(); break;
+#include "core-groups.h"
+#undef NATIVE_GROUP
+        }
+        test_groups[group-1]=1;
+    }
     source_close(&s); check(pages_used()==code_required);
     code_hash(digest); check(!memcmp(digest,initial_code_hash,32));
     test_stage=6; test_done=255;

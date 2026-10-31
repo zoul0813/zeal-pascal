@@ -1,0 +1,26 @@
+{
+  "legacy_all_assertions": 2106,
+  "selector_assertions": 3,
+  "common_assertions_per_chunk": 7,
+  "families": {
+    "media": 33,
+    "control": 64,
+    "cases": 64,
+    "routines": 75,
+    "basic": 135,
+    "ordinals": 144,
+    "strings": 106,
+    "arrays": 131,
+    "sets": 132,
+    "records": 156,
+    "string-operations": 209,
+    "pointers": 142,
+    "labels": 64,
+    "reals": 143,
+    "memory": 184,
+    "heap": 233,
+    "read": 78,
+    "formats": 135
+  },
+  "reference_run": "analysis/test-runs/20261031T002807.535644Z/suite.json"
+}

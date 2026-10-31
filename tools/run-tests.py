@@ -3,6 +3,7 @@
 import argparse
 from datetime import datetime, timezone
 import fcntl
+import fnmatch
 import hashlib
 import json
 import os
@@ -18,10 +19,61 @@ ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / 'tools/test-plan.json'
 
 
-def commands(include_redundant=False):
-    plan = json.loads(PLAN.read_text())
-    selected = plan['full'] + (plan['redundant'] if include_redundant else [])
-    return [shlex.split(line) for line in selected]
+def test_id(command):
+    base = Path(command[0]).stem.removeprefix('test-')
+    options = [part.lstrip('-') for part in command[1:]
+               if not part.startswith('@') and part not in ('--case', '--shard', '--corpus')]
+    return ':'.join([base, *options])
+
+
+def expand_commands(definition, include_redundant=False, monolithic=False):
+    selected = definition['full'] + (definition['redundant'] if include_redundant else [])
+    chunks = {} if monolithic else definition.get('chunks', {})
+    if not selected or shlex.split(selected[0])[0] != 'tools/test-native-host.py':
+        raise ValueError('Test plan must begin with the host prerequisite')
+    expanded = []
+    for line in selected:
+        suffixes = chunks.get(line, [''])
+        if not suffixes:
+            raise ValueError(f'Empty chunks would omit coverage for {line}')
+        parts = [shlex.split(suffix) for suffix in suffixes]
+        if any('--shard' in part for part in parts):
+            try:
+                if any(len(part) != 2 or part[0] != '--shard' for part in parts):raise ValueError
+                shards = [tuple(map(int, part[1].split('/'))) for part in parts]
+                total = shards[0][1]
+                if not 1 <= total <= 200 or any(len(shard) != 2 or shard[1] != total for shard in shards):raise ValueError
+                if sorted(index for index, count in shards) != list(range(1, total+1)):raise ValueError
+            except (ValueError, IndexError):
+                raise ValueError(f'Chunks for {line} must contain each shard 1/TOTAL through TOTAL/TOTAL exactly once') from None
+        expanded.extend(shlex.split(line) + part for part in parts)
+    return expanded
+
+
+def select_commands(plan, patterns):
+    """Select explicit tests plus the successful prerequisites they consume."""
+    if not patterns:
+        return plan
+    selected = set()
+    for pattern in patterns:
+        matches = {i for i, cmd in enumerate(plan) if
+                   any(fnmatch.fnmatchcase(value, pattern) for value in
+                       (test_id(cmd), test_id(cmd).split(':')[0], cmd[0], Path(cmd[0]).name))}
+        if not matches:
+            raise ValueError(f'No tests match {pattern!r}; inspect --list')
+        selected.update(matches)
+    while True:
+        required = {dep-1 for index in selected for dep in dependencies(plan, index+1)[0]}
+        if required <= selected:
+            return [cmd for index, cmd in enumerate(plan) if index in selected]
+        selected.update(required)
+
+
+def isolated_chunk(command):
+    # These modes only read build inputs and write timestamp+PID capture paths.
+    # Other runners may compile into fixed host directories: keep them ordered.
+    return ((command[0] in ('tools/test-editor-native.py', 'tools/test-native.py') and '--case' in command) or
+            (command[0] == 'tools/test-language-conformance.py' and '--shard' in command))
 
 
 def dependencies(plan, index):
@@ -32,7 +84,8 @@ def dependencies(plan, index):
         required.update(i for i, cmd in enumerate(plan, 1)
                         if cmd[0] == 'tools/test-params.py')
     ordered = {i for i, cmd in enumerate(plan, 1)
-               if i < index and cmd[0] == command[0]}
+               if i < index and cmd[0] == command[0] and
+               not (isolated_chunk(command) and isolated_chunk(cmd))}
     return required, ordered
 
 
@@ -104,13 +157,29 @@ def main():
     parser.add_argument('--include-redundant', action='store_true', help='Also repeat the three diagnostic subsets')
     parser.add_argument('--jobs', type=int, default=4, help='Concurrent worker budget (default: 4; use 1 for serial diagnostics)')
     parser.add_argument('--keep-going', action='store_true', help='Collect independent failures; skip their dependents, never waive failures')
+    parser.add_argument('--only', action='append', default=[], metavar='ID_OR_GLOB',
+                        help='Select a test ID, runner name/path, or quoted glob (repeatable)')
+    parser.add_argument('--group', action='append', default=[], metavar='NAME',
+                        help='Select a named group from test-plan.json (repeatable)')
+    parser.add_argument('--monolithic', action='store_true', help='Use the original unchunked language/editor commands')
     args = parser.parse_args()
     if args.jobs < 1:
         parser.error('--jobs must be positive')
-    plan = commands(args.include_redundant)
+    definition = json.loads(PLAN.read_text())
+    patterns = list(args.only)
+    for group in args.group:
+        if group not in definition.get('groups', {}):
+            parser.error(f'Unknown group {group!r}; choices: {", ".join(definition.get("groups", {}))}')
+        patterns.extend(definition['groups'][group])
+    try:
+        plan = select_commands(expand_commands(definition, args.include_redundant, args.monolithic), patterns)
+    except ValueError as error:
+        parser.error(str(error))
+    scope = 'focused' if args.only or args.group else 'full'
     if args.list:
+        print(f'Scope: {scope}; {len(plan)} commands including prerequisites; groups: {", ".join(definition.get("groups", {}))}')
         for index, command in enumerate(plan, 1):
-            print(f'{index:02}: python3 {shlex.join(command)}')
+            print(f'{index:02}: {test_id(command)} — python3 {shlex.join(command)}')
         return 0
 
     # Fixed host output paths are shared across runs. Only one orchestrator may
@@ -128,6 +197,7 @@ def main():
     directory.mkdir(parents=True)
     frozen = inputs()
     report = {'status': 'running', 'passed': False, 'commands': plan, 'jobs': args.jobs,
+              'scope': scope, 'full_acceptance': False, 'selected_passed': False, 'selection': patterns,
               'input_sha256': frozen, 'results': [], 'skipped': []}
     state = directory / 'suite.json'
 
@@ -228,9 +298,12 @@ def main():
                                           if frozen.get(p) != current.get(p))
         if cancelled:
             raise KeyboardInterrupt
-        report['passed'] = not report['changed_inputs'] and not failed and not skipped
-        report['status'] = 'failed' if failed or skipped else 'passed' if report['passed'] else 'inputs-changed'
-        return 0 if report['passed'] else 1
+        report['selected_passed'] = not report['changed_inputs'] and not failed and not skipped
+        report['full_acceptance'] = report['selected_passed'] and scope == 'full'
+        report['passed'] = report['full_acceptance']
+        report['status'] = ('failed' if failed or skipped else 'inputs-changed' if not report['selected_passed']
+                            else 'passed-focused' if scope == 'focused' else 'passed')
+        return 0 if report['selected_passed'] else 1
     except KeyboardInterrupt:
         report['status'] = 'interrupted'
         return 130

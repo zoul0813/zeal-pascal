@@ -29,12 +29,16 @@ excluded:
 python3 tools/run-tests.py
 ```
 
-The explicit [test plan](tools/test-plan.json) contains 66 commands covering all
-52 product test runners and their distinct acceptance modes. Commands are
-suites, not individual assertions; native validation still takes substantial
-time. Four workers run independent commands in parallel by default; use
+The explicit [test plan](tools/test-plan.json) retains 66 acceptance commands
+covering all 52 product test runners. The default expands language conformance
+into four disjoint shards, editor acceptance into 16 independent workflows,
+and integrated native acceptance into 26 isolated families/workflows:
+109 scheduled chunks with the same checks. `--monolithic` uses the unchunked
+66-command plan. Native validation still takes substantial time. Four workers
+run independent commands in parallel by default; use
 `--jobs 6` for six workers or `--jobs 1` for serial diagnostics. Modes sharing a
-runner's output paths are serialized. Cancellation depends on the completed
+runner's output paths are serialized; isolated native, editor and language chunks may
+overlap. Cancellation depends on the completed
 host checks, and runtime-layout depends on the completed parameter suite. The
 publication-interruption suite's internal workers count against the same budget.
 Concurrent orchestrators in the same checkout are blocked; do not run individual
@@ -56,6 +60,79 @@ Inspect the plan without running any tests:
 ```sh
 python3 tools/run-tests.py --list
 ```
+
+For development, select a runner, a specific chunk, or a named group. Repeat
+`--only` and `--group` to take their union; quote wildcard selectors:
+
+```sh
+python3 tools/run-tests.py --only sources --only compiler-job
+python3 tools/run-tests.py --only editor-native:find
+python3 tools/run-tests.py --only native:strings --only native:heap --jobs 6
+python3 tools/run-tests.py --only 'language-conformance:*' --jobs 6
+python3 tools/run-tests.py --group publication --jobs 6
+python3 tools/run-tests.py --only runtime-layout --list
+```
+
+Runner names select every planned mode/chunk of that runner. Full IDs from
+`--list` select one mode, such as `chain-call:execute` or
+`language-conformance:1/4`. Groups are `host`, `editor`, `compiler`, `publication`,
+`execution`, `runtime`, and `native`; their explicit membership is in the plan. Unknown
+selectors are errors. Required host checks are included once, and selecting
+runtime-layout also includes the parameter suite that produces its input.
+Successful focused results carry `status: passed-focused` and
+`selected_passed: true`; `passed` and `full_acceptance` remain false. They provide
+feedback on the selected area, not complete TP3 acceptance. No passing results
+are cached or inferred from changed filenames.
+
+Individual runners remain usable directly:
+
+```sh
+python3 tools/test-editor-native.py --list-cases
+python3 tools/test-editor-native.py --case find --case replace
+python3 tools/test-language-conformance.py --case enumsize
+python3 tools/test-language-conformance.py --shard 1/4
+```
+
+Editor workflows already used independent sessions, so splitting their Python
+driver adds no emulator boots. Language shards use separate boots, which adds
+some total work while allowing parallel execution. Each shard still validates
+both RAM and saved-program execution plus exact diagnostics for its cases.
+The integrated native driver can also run one family directly:
+
+```sh
+python3 tools/test-native.py --list-cases
+python3 tools/test-native.py --case strings
+python3 tools/run-tests.py --group native --jobs 6
+```
+
+Its 18 compiled families share one verified test binary. Each selected family
+boots independently, owns its source/build/media, proves its requested family
+and completion bitmap, verifies exact per-family assertion totals, output and ABI checks, then checks page
+recovery and immutable compiler banks. The 53 physical input lines partition
+into six basic-I/O lines and 47 numeric-input lines; none are removed. Eight
+additional chunks cover library loading, allocation failures, lifecycle and IDE
+workflows. Full-disk checks are independent of the media compilation family.
+Direct `test-native.py` without `--case` retains the original integrated path;
+`--monolithic` at the main runner uses that path.
+
+Disposable disks copy immutable bases, with APFS cloning when available and a
+normal-copy fallback. Ordinary filesystem checks use T:. The existing compressed
+TF template is expanded once per template hash under `analysis/native-media/`,
+then reused. Three pinned EEPROM states (unformatted, formatted empty and full)
+are in `tests/native/media/`, alongside the original unformatted-card state
+used by unrelated/negative tests; full-disk tests copy the known full image instead
+of regenerating it during setup. Tests never open a base image for writing.
+Prepare the cache explicitly without running an emulator with:
+
+```sh
+python3 tools/test-native.py --prepare-media
+```
+
+The first T: use also prepares a missing cache under a process lock. Cached
+content is verified against its stored digest before reuse. Updating the
+TF template selects a new cache automatically. Explicit custom fault fixtures
+remain supported where a test intentionally changes media contents. The EEPROM
+manifest records full-image provenance and hashes for the known states.
 
 For additional diagnostics, `--include-redundant` also repeats these subsets:
 

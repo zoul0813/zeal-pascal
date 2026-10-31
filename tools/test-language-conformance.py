@@ -26,6 +26,13 @@ def runtime_output(raw):
     output,separator,_=parts[1].partition(b'\x1bB1\x1bC1\r\n>');assert separator
     return output
 
+def select_shard(rows,value):
+    """Partition by stable case ID without changing any case or its oracle."""
+    index,total=map(int,value.split('/'))
+    if not 1<=index<=total<=len(rows):raise ValueError
+    selected={row['id']for row in sorted(rows,key=lambda row:row['id'])[index-1::total]}
+    return [row for row in rows if row['id']in selected]
+
 def cases():
     ledger=json.loads((ROOT/'docs/language-evidence.json').read_text())
     evidence={row['case']:row for row in ledger['cases']}
@@ -119,15 +126,23 @@ def cases():
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--case',action='append',help='Run only a named case (repeatable)')
+    parser.add_argument('--shard',metavar='INDEX/TOTAL',help='Run one deterministic, disjoint partition (1-based)')
     parser.add_argument('--prepare-only',action='store_true',help='Inspect corpus classification without running Zeal')
     args=parser.parse_args();rows,deferred=cases()
     if args.case:
         chosen=set(args.case);rows=[r for r in rows if r['id']in chosen]
         assert {r['id']for r in rows}==chosen,'Unknown case'
+    selected_count=len(rows)
+    if args.shard:
+        try:
+            rows=select_shard(rows,args.shard)
+        except ValueError:
+            parser.error('--shard must be INDEX/TOTAL with 1 <= INDEX <= TOTAL <= selected case count')
     assert 0<len(rows)<=200
     if args.prepare_only:
         print(json.dumps({'cases':len(rows),'compile_failures':sum(bool(r['diagnostic'])for r in rows),
-            'executions_in_each_mode':sum(not r['diagnostic']for r in rows),'separate_physical_cases':deferred},indent=2));return
+            'executions_in_each_mode':sum(not r['diagnostic']for r in rows),'separate_physical_cases':deferred,
+            'case_ids':[r['id']for r in rows],'shard':args.shard},indent=2));return
     module=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py')
     n=importlib.util.module_from_spec(module);module.loader.exec_module(n)
     target='zcorpus';sym=n.symbols(target);checkpoint=sym['_corpus_checkpoint']
@@ -210,6 +225,7 @@ def main():
         'supervisor_observed':supervisor,'native_assertions_passed':word('_test_passed')if supervisor else None,
         'native_assertions_failed':word('_test_failed')if supervisor else None,
         'capture_directory':str(n.RUN.relative_to(ROOT)),'input_sha256':hashes,
+        'shard':args.shard,'selected_case_count_before_sharding':selected_count,
         'full_language_conformance':False,'note':'Physical directive/interrupt and complete requirement audit remain separate gates.'}
     (n.RUN/'language-conformance-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print(n.RUN/'language-conformance-report.json',flush=True)

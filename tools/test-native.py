@@ -7,6 +7,7 @@ This is emulator acceptance, not hardware conformance or a Pascal interpreter.
 import argparse
 import hashlib
 import gzip
+import fcntl
 from datetime import datetime, timezone
 import json
 import os
@@ -17,6 +18,7 @@ import struct
 import subprocess
 import sys
 import time
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,11 +27,19 @@ EMULATOR = ZEAL / "Zeal-NativeEmulator/build/zeal-native"
 ROM = ZEAL / "zeal-dev-environment/home/Zeal-8-bit-OS/build/os_with_romdisk.img"
 KERNEL_MAP = ROM.with_name('os.map')
 TF_TEMPLATE = ZEAL / 'zeal-dev-environment/home/tf.base.img.gz'
+MEDIA = ROOT / 'tests/native/media'
 COREUTILS = ZEAL / 'zeal-dev-environment/home/zeal-coreutils/bin'
 OUT = ROOT / "analysis/native-slice"
 RUN = OUT / (datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ') + f'-{os.getpid()}')
 # Loading/hashing the complete banked library is deliberately not optimized yet.
 # Stop at the actual breakpoint, with room for the growing native product.
+CORE_GROUPS = {
+    name: int(number) for number, name in re.findall(
+        r'NATIVE_GROUP\((\d+), "([^"\n]+)", \w+\)',
+        (ROOT/'tests/native/core-groups.h').read_text())
+}
+CORE_COUNTS = json.loads((ROOT/'tests/native/core-counts.json').read_text())
+MEDIA_COPIES = {}
 LIBRARY_READY_CYCLES = 8000000000
 # Private SDCC near handles inspected by debugger-based IDE acceptance.
 # Native compile-time guards in sources-main.c pin these observer sizes.
@@ -53,16 +63,64 @@ def kernel_symbols():
 
 
 def blank_eeprom():
-    # ZealFS v2, 256-byte pages/FAT8. Matches the installed formatter's 64 KiB
-    # layout: header/root page 0, FAT page 1, 254 initially free pages.
-    data = bytearray(65536)
-    struct.pack_into('<BBHHB', data, 0, 0x5a, 2, 32, 254, 0)
-    data[7] = 3
-    return bytes(data)
+    return (MEDIA/'eeprom-empty.img').read_bytes()
 
 
-def zealfs_files(data):
-    """Read-only independent disk oracle for the native ZealFS v2 fixture."""
+def prepare_media():
+    """One immutable TF base per installed template, shared by all test jobs."""
+    manifest = json.loads((MEDIA/'fixtures.json').read_text())
+    for name, digest in manifest['images'].items():
+        if sha(MEDIA/name) != digest:raise RuntimeError(f'Test media fixture changed: {name}')
+    digest = sha(TF_TEMPLATE)
+    directory = ROOT/'analysis/native-media'
+    directory.mkdir(parents=True, exist_ok=True)
+    base = directory/f'tf-{digest}.img'
+    stamp = base.with_suffix('.sha256')
+    with (directory/'prepare.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        valid = base.is_file() and stamp.is_file() and sha(base) == stamp.read_text().strip()
+        if not valid:
+            with tempfile.NamedTemporaryFile(dir=directory, delete=False) as output:
+                temporary = Path(output.name)
+                checksum = temporary.with_suffix('.sha256')
+                try:
+                    with gzip.open(TF_TEMPLATE, 'rb') as source:shutil.copyfileobj(source, output)
+                    if sha(TF_TEMPLATE) != digest:raise RuntimeError('TF template changed during preparation')
+                    output.flush()
+                    temporary.chmod(0o444)
+                    checksum.write_text(sha(temporary)+'\n')
+                    checksum.replace(stamp)
+                    temporary.replace(base)
+                finally:
+                    temporary.unlink(missing_ok=True)
+                    checksum.unlink(missing_ok=True)
+    return base
+
+
+def copy_media(source, destination):
+    """Use an APFS clone when available; always give the test its own file."""
+    source, destination = Path(source), Path(destination)
+    if source.resolve() == destination.resolve():raise ValueError('Cannot overwrite a base media image')
+    cloned = (sys.platform == 'darwin' and subprocess.run(
+        ['/bin/cp', '-c', str(source), str(destination)], stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL).returncode == 0)
+    if not cloned:
+        destination.unlink(missing_ok=True)
+        shutil.copyfile(source, destination)
+    destination.chmod(0o600)
+
+
+def install_media(destination, value):
+    if isinstance(value, (str, os.PathLike)):copy_media(value, destination)
+    else:destination.write_bytes(value)
+    MEDIA_COPIES[str(destination.relative_to(RUN))] = {
+        'source':str(value) if isinstance(value,(str,os.PathLike)) else 'explicit custom bytes',
+        'initial_sha256':sha(destination),
+    }
+
+
+def zealfs_volume(data):
+    """Locate a ZealFS volume in a raw EEPROM or partitioned TF image."""
     if data[:2] != b'Z\x02':
         assert data[510:512] == b'\x55\xaa'
         partitions = [446 + i * 16 for i in range(4) if data[450 + i * 16] == 0x5a]
@@ -70,6 +128,12 @@ def zealfs_files(data):
         start, sectors = struct.unpack_from('<II', data, partitions[0] + 8)
         data = data[start * 512:(start + sectors) * 512]
     assert data[:2] == b'Z\x02'
+    return data
+
+
+def zealfs_files(data):
+    """Read-only independent disk oracle for the native ZealFS v2 fixture."""
+    data = zealfs_volume(data)
     page = 256 << data[6]
     bitmap = struct.unpack_from('<H', data, 2)[0]
     header = (7 + bitmap + 31) // 32 * 32
@@ -391,10 +455,10 @@ def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, tim
     for artifact in ('CONSOLE.TXT', 'SLICE.COM', 'SLICE.ZMP'):
         (hostfs / artifact).unlink(missing_ok=True)
     shutil.copyfile(ROM, directory / 'rom.img')
-    (directory / 'tf.img').write_bytes(tf_image if tf_image is not None else bytes(1024 * 1024))
-    (directory / 'eeprom.img').write_bytes(eeprom_image if eeprom_image is not None else bytes(65536))
+    install_media(directory/'tf.img', tf_image if tf_image is not None else MEDIA/'tf-unformatted.img')
+    install_media(directory/'eeprom.img', eeprom_image if eeprom_image is not None else MEDIA/'eeprom-unformatted.img')
     (directory / 'zeal.ini').write_text('')
-    live = after_command is not None or any(isinstance(command, (PhysicalLine, ImageStop)) for command in commands)
+    live = console_class is not None or after_command is not None or any(isinstance(command, (PhysicalLine, ImageStop)) for command in commands)
     if not live: (directory / 'commands.txt').write_text('\n'.join(commands) + '\n')
     cmd = [str(EMULATOR), '--console', '--debug', '--rom', str(directory / 'rom.img'),
            '--hostfs', str(hostfs), '-c', str(directory / 'zeal.ini'),
@@ -688,14 +752,10 @@ def bank_lifecycle_checks():
 
 def full_media_checks():
     sym = symbols('zpascal')
-    disk = bytearray((RUN / 'core/eeprom.img').read_bytes())
+    disk = (MEDIA/'eeprom-full.img').read_bytes()
     # Controlled full-before-transaction fixture. The pinned OS has a separate
     # stack-unwind defect when a file grows *into* exhaustion; that failing
     # native probe is retained locally, never counted as a passing check.
-    struct.pack_into('<H', disk, 4, 0)
-    bitmap = struct.unpack_from('<H', disk, 2)[0]
-    disk[7:7 + bitmap] = b'\xff' * bitmap
-    disk = bytes(disk)
     typed = lambda text: type_text(text, ticks=2000000)
     commands = ['run 100000000'] + program_launch()
     commands += ['run 10000000'] + typed('nwB:/UNTITLED.PAS\ne{kept}') + control('K') + typed('doc')
@@ -710,7 +770,7 @@ def full_media_checks():
     commands += ['tap S',ImageStop(sym['_key_read'],'zpascal.bin'),'tap Y',
                  ImageStop(sym['_output_number'],'zpascal.bin'),f"rb 0x{sym['_work']:x} 140"]
     commands += ['quit']
-    text = execute('full-media', commands, eeprom_image=disk,timeout=360)
+    text = execute('full-media', commands, eeprom_image=MEDIA/'eeprom-full.img',timeout=360)
     frames = [frame for frame in re.split(r'\[DBG\] PC=', text)[1:]
               if frame.startswith(f"{sym['_output_number']:04x} ")]
     work = sym['_work']
@@ -874,19 +934,8 @@ def default_library_checks():
              and '/src/' not in files)]
 
 
-def main():
-    parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--core-only',action='store_true',help='Run the complete compiler/runtime language corpus without repeating IDE/platform workflows')
-    args=parser.parse_args()
-    OUT.mkdir(parents=True, exist_ok=True)
-    inputs = [ROOT / 'CMakeLists.txt', ROOT / 'tools/package-native.py', Path(__file__).resolve()]
-    inputs += sorted((ROOT / 'src').glob('*')) + sorted((ROOT / 'tests/native').glob('*.pas'))
-    inputs += [ROOT/'tests/native'/name for name in ('main.c', 'harness.c', 'harness.h', 'machine.asm', 'startup-fail.c')]
-    input_hashes = {str(p.relative_to(ROOT)): sha(p) for p in inputs if p.is_file()}
+def layout_checks():
     checks = []
-    if not args.core_only:
-        checks.extend(library_failure_checks())
-        checks.extend(default_library_checks())
     for target in ('zpascal', 'zptest'):
         sym = symbols(target)
         checks.append((target + ' retained mapping core/control/scratch in page 1',
@@ -901,19 +950,113 @@ def main():
                            for area in ('HEADER', 'GSINIT', 'GSFINAL', 'INITIALIZER', 'HOME', 'SYSTEM', 'TEXT', 'RODATA'))))
         checks.append((target + ' code banks fit their 16 KiB window',
                        all(0 < sym[f'l__BANK{bank}'] <= 16384 for bank in range(1,code_banks(target)+1))))
-    if not args.core_only:
-        boot = symbols('zpbootfail')
-        commands = ['run 100000000'] + type_text('H:/zpbootfail.bin\n')
-        # Every partial-allocation case reloads/hashes the available bank prefix.
-        # This is a growing quadratic workload, not one ordinary library launch.
-        commands += [f"bp 0x{boot['_boot_complete']:x}", 'run 120000000000', 'regs',
-                     f"rb 0x{boot['_boot_done']:x} 1", f"rb 0x{boot['_boot_failed']:x} 1", 'quit']
-        boot_text = execute('boot-allocation', commands,
-                            {'zpbootfail.bin': (ROOT / 'build/zpbootfail.bin').read_bytes(),
-                             'BAD.ZPL': b'BAD!' + (ROOT / 'build/zpascal.zpl').read_bytes()[4:]}, timeout=360)
-        boot_memory = memory(boot_text)
-        checks.append(('startup allocation failures release partial/all banks and malformed-library retries close handles',
-                       boot_memory.get(boot['_boot_done']) == 255 and boot_memory.get(boot['_boot_failed']) == 0))
+    return checks
+
+
+def allocation_checks():
+    checks = []
+    boot = symbols('zpbootfail')
+    commands = ['run 100000000'] + type_text('H:/zpbootfail.bin\n')
+    # Every partial-allocation case reloads/hashes the available bank prefix.
+    # This is a growing quadratic workload, not one ordinary library launch.
+    commands += [f"bp 0x{boot['_boot_complete']:x}", 'run 120000000000', 'regs',
+                 f"rb 0x{boot['_boot_done']:x} 1", f"rb 0x{boot['_boot_failed']:x} 1", 'quit']
+    boot_text = execute('boot-allocation', commands,
+                        {'zpbootfail.bin': (ROOT / 'build/zpbootfail.bin').read_bytes(),
+                         'BAD.ZPL': b'BAD!' + (ROOT / 'build/zpascal.zpl').read_bytes()[4:]}, timeout=360)
+    boot_memory = memory(boot_text)
+    checks.append(('startup allocation failures release partial/all banks and malformed-library retries close handles',
+                   boot_memory.get(boot['_boot_done']) == 255 and boot_memory.get(boot['_boot_failed']) == 0))
+    return checks
+
+
+WORKFLOW_CASES = {
+    'library': lambda: library_failure_checks()+default_library_checks(),
+    'allocation': allocation_checks,
+    'lifecycle': bank_lifecycle_checks,
+    'interactive': interactive_checks,
+    'user-break': user_break_checks,
+    'files': file_workflow_checks,
+    'paths': default_path_checks,
+    'full-media': full_media_checks,
+}
+
+
+def artifact_hashes():
+    paths = [EMULATOR, ROM, KERNEL_MAP, TF_TEMPLATE, COREUTILS/'mkdir', COREUTILS/'cp']
+    paths += [ROOT/f'build/{target}.{suffix}'for target in ('zpascal','zptest')for suffix in ('bin','zpl')]
+    paths += [ROOT/f'build/{name}.zpl'for name in ('stringabi','setabi','pointerabi','realabi')]
+    return {str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p):sha(p)for p in paths}
+
+
+def write_report(report, case=None):
+    report['case'] = case
+    report['media'] = MEDIA_COPIES
+    report.setdefault('build_command','zde cmake')
+    RUN.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(report, indent=2)+'\n'
+    (RUN/'report.json').write_text(text)
+    # Standalone legacy runs retain their public summary; isolated chunks only
+    # publish inside their own timestamp+PID capture directory.
+    if case is None:(OUT/'report.json').write_text(text)
+    print(text)
+    return 0 if report['passed'] else 1
+
+
+def input_commands(case):
+    commands = []
+    if case in (None, 'basic'):
+        for memory_mode in (1, 0):
+            commands += [PhysicalLine('Adx\ba', 'NAME.COM', memory_mode, inspect_mode=True),
+                         PhysicalLine('abcdefghi', 'NAME.COM', memory_mode),
+                         PhysicalLine('', 'NAME.COM', memory_mode)]
+    if case in (None, 'read'):
+        for memory_mode in (1, 0):
+            commands += [PhysicalLine(value, 'READINPUT.COM', memory_mode) for value in READ_INPUT_LINES]
+        commands += [PhysicalLine('12x', 'invalid-readln', 1,
+                                 source=('H:/READINPUT.PAS', b'var n:integer;begin\nreadln(n)end.'))]
+    return commands
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--core-only',action='store_true',help='Run the complete compiler/runtime language corpus without repeating IDE/platform workflows')
+    parser.add_argument('--case', choices=(*CORE_GROUPS, *WORKFLOW_CASES),
+                        help='Run one independent native family/workflow')
+    parser.add_argument('--list-cases', action='store_true', help='List native chunks without running Zeal')
+    parser.add_argument('--prepare-media', action='store_true', help='Prepare reusable media bases without running Zeal')
+    args=parser.parse_args()
+    if args.list_cases:
+        print('\n'.join((*CORE_GROUPS, *WORKFLOW_CASES)));return 0
+    if args.prepare_media:
+        print(prepare_media());return 0
+    if args.core_only and args.case:parser.error('--core-only and --case are alternatives')
+    integrated = not args.core_only and not args.case
+    OUT.mkdir(parents=True, exist_ok=True)
+    inputs = [ROOT / 'CMakeLists.txt', ROOT / 'tools/package-native.py', Path(__file__).resolve()]
+    inputs += sorted((ROOT / 'src').glob('*')) + sorted((ROOT / 'tests/native').glob('*.pas'))
+    inputs += [ROOT/'tests/native'/name for name in ('main.c', 'harness.c', 'harness.h', 'core-groups.h', 'core-counts.json', 'machine.asm', 'startup-fail.c')]
+    inputs += sorted(MEDIA.iterdir())
+    input_hashes = {str(p.relative_to(ROOT)): sha(p) for p in inputs if p.is_file()}
+    artifacts = artifact_hashes()
+    checks = []
+    if args.case in WORKFLOW_CASES:
+        checks.extend(layout_checks())
+        checks.extend(WORKFLOW_CASES[args.case]())
+        checks.append(('implementation inputs unchanged during native validation',
+                       all(sha(ROOT/name)==digest for name,digest in input_hashes.items())))
+        checks.append(('execution artifacts unchanged',artifact_hashes()==artifacts))
+        return write_report({'scope':'Independent native workflow; subset acceptance',
+                             'complete_native_suite':False, 'passed':all(ok for _,ok in checks),
+                             'capture_directory':str(RUN.relative_to(ROOT)),
+                             'input_sha256':input_hashes, 'artifacts':artifacts,
+                             'checks':[{'check':label,'passed':ok}for label,ok in checks]}, args.case)
+    if integrated:
+        checks.extend(library_failure_checks())
+        checks.extend(default_library_checks())
+    checks.extend(layout_checks())
+    if integrated:
+        checks.extend(allocation_checks())
         checks.extend(bank_lifecycle_checks())
     sym = symbols('zptest')
     if sym['_test_stop'] != 0xfc00:
@@ -925,16 +1068,7 @@ def main():
     # program_launch already stops at code_ready; do not resume past it.
     commands += ['regs','mmu','rb 0x4000 32']
     commands += ['run 100000000', f"bp 0x{sym['_test_stop']:x}"]
-    for memory_mode in (1, 0):
-        commands += [PhysicalLine('Adx\ba', 'NAME.COM', memory_mode, inspect_mode=True),
-                     PhysicalLine('abcdefghi', 'NAME.COM', memory_mode),
-                     PhysicalLine('', 'NAME.COM', memory_mode)]
-    for memory_mode in (1, 0):
-        commands += [PhysicalLine(value, 'READINPUT.COM', memory_mode) for value in READ_INPUT_LINES]
-    # Bind the unsaved error fixture to its source manifest, too. It must
-    # receive 12x itself, after the two successful numeric-input executions.
-    commands += [PhysicalLine('12x', 'invalid-readln', 1,
-                             source=('H:/READINPUT.PAS', b'var n:integer;begin\nreadln(n)end.'))]
+    commands += input_commands(args.case)
     # The completion breakpoint is mandatory; this bounded budget includes the
     # RAM/COM control/routine/string corpora and source-recovery executions.
     commands += ['run 120000000000', 's', 'regs', 'mmu', 'rb 0x4000 32']
@@ -944,9 +1078,12 @@ def main():
         commands.append(f"rb 0x{sym['_test_failures']:x} 128")
     if '_test_hash' in sym:
         commands.append(f"rb 0x{sym['_test_hash']:x} 32")
+    commands += [f"rb 0x{sym['_test_group']:x} 1",f"rb 0x{sym['_test_groups']:x} {len(CORE_GROUPS)}"]
     commands.append(f"rb 0x{sym['_ram_result']:x} 128")
     commands.append('quit')
+    expected_inputs = sum(isinstance(command,PhysicalLine) for command in commands)
     fixtures = {p.name.upper(): p.read_bytes() for p in (ROOT / 'tests/native').glob('*.pas')}
+    fixtures['CORE.GRP'] = bytes([CORE_GROUPS.get(args.case,0)])
     # This growing native corpus includes repeated disk publication and RAM/COM
     # routine execution. Retain both a cycle bound and mandatory completion;
     # allow its measured workload more wall time than the small UI scenarios.
@@ -971,7 +1108,8 @@ def main():
                     failed=state.get(sym['_test_failed'],0)|(state.get(sym['_test_failed']+1,0)<<8)
                     print(f'Native core stage {stage}: {passed} passed, {failed} failed',flush=True)
             return frame
-    text = execute('core', commands, fixtures, eeprom_image=blank_eeprom(), timeout=5400,
+    text = execute('core', commands, fixtures, eeprom_image=MEDIA/'eeprom-empty.img',
+                   tf_image=prepare_media() if args.case in (None,'media') else None, timeout=5400,
                    console_class=CoreConsole)
     frames = re.split(r'\[DBG\] PC=', text)[1:]
     final_frame = frames[-1] if frames else ''
@@ -987,260 +1125,290 @@ def main():
     startup_valid=bool(frames)and frames[0].startswith(f'{sym["_code_ready"]:04x} ')and bytes(startup.get(0x4000+i,0)for i in range(32))==(ROOT/'build/zptest.bin').read_bytes()[:32]
     supervisor=supervisor and startup_valid and bool(first_mapping and final_mapping and first_mapping[1]==final_mapping[1])
     checks.append(('native test completion marker', supervisor and mem.get(sym['_test_done']) == 255 and word('_test_stage')==6))
-    checks.append(('native assertions', supervisor and word('_test_failed') == 0 and word('_test_passed') >= 40))
+    expected_assertions = (CORE_COUNTS['families'][args.case] if args.case else
+                           CORE_COUNTS['legacy_all_assertions']+CORE_COUNTS['selector_assertions'])
+    checks.append(('native assertions', supervisor and word('_test_failed') == 0
+                   and word('_test_passed') == expected_assertions))
+    selected=CORE_GROUPS.get(args.case,0)
+    checks.append(('requested native group and every planned family completed',
+        supervisor and mem.get(sym['_test_group'])==selected and all(
+            mem.get(sym['_test_groups']+i-1)==int(not selected or selected==i)
+            for i in CORE_GROUPS.values())))
     receipt_file = RUN/'core/input-lines.json'
     receipts = json.loads(receipt_file.read_text()) if receipt_file.exists() else []
     error_file = RUN/'core/input-error.json'
     input_error = json.loads(error_file.read_text()) if error_file.exists() else None
     checks.append(('input delivery completed without an observer/protocol error', input_error is None))
-    checks.append(('all 53 input lines reached their intended program and were verified before submission',
-                   len(receipts) == 53))
+    checks.append(('all planned input lines reached their intended program and were verified before submission',
+                   len(receipts) == expected_inputs))
     frames=frames[1:] # The authenticated startup mapping is not an input-mode checkpoint.
-    checks.append(('ReadLn restores blocking raw in RAM and nonblocking raw in shell exec',
-                   len(frames) == 3 and memory(frames[0]).get(mode) == 0
-                   and memory(frames[1]).get(mode) == 4
-                   and all('[DBG] c000 -> 088000' in frame for frame in frames[:2])))
-    output = RUN / 'core/hostfs/CONSOLE.TXT'
-    checks.append(('generated Z80 output, signed DIV/MOD and CRLF', output.is_file()
-                   and output.read_bytes() == b'N=-32768,-2,-1\r\n' * 3 + b'abc/abc/42\r\n[]\r\n'))
-    input_output = RUN / 'core/hostfs/INPUT.TXT'
-    checks.append(('short-string ReadLn, editing, fields, empty line and shell exec',
-                   input_output.is_file() and input_output.read_bytes() ==
-                   b'Your name: Hello, Ada!\r\nabc/defg\r\n[]\r\n' * 2))
-    numeric_input_output = RUN / 'core/hostfs/READ.TXT'
-    checks.append(('numeric/Char/String input, selected targets, B+/B- buffering and checked conversion errors in RAM/COM',
-                   numeric_input_output.is_file() and numeric_input_output.read_bytes()==
-                   b'INDEX>READ-ALL-OK\r\n'*2))
-    control_output = RUN / 'core/hostfs/CONTROL.TXT'
-    control_expected = ('BOOL-LAYOUT-OK\nTRUE,FALSE\nNEAREST-ELSE-OK\nFOR-UP-OK\nFOR-DOWN-OK\n'
-                        'FOR-ZERO-TRIP-OK\nFOR-ZERO-DOWN-OK\nFOR-BOUND-ONCE-OK\nNESTED-FOR-OK\nFOR-LIMITS-OK\n'
-                        'FOR-SIGNED-OK\nFOR-BOOLEAN-OK\nWHILE-REPEAT-OK\nCOMPARE-OK\nBITWISE-OK\n'
-                        'SHIFTS-OK\nSTR-COMPARE-OK\n').replace('\n','\r\n').encode() * 2
-    checks.append(('Boolean layout/eager logic, signed/string comparisons, bitwise/shift and control flow in RAM and COM',
-                   control_output.is_file() and control_output.read_bytes() == control_expected))
-    ordinal_output = RUN / 'core/hostfs/ORDINAL.TXT'
-    ordinal_expected = ('BYTE-OK\nCONST-LIMITS-OK\nCONST-STRINGS-OK\nCHAR-STRING-OK\nCHAR-LITERALS-OK\n'
-                        'ENUM-CAST-OK\nENUM-FOR-OK\nBYTE-CHAR-FOR-OK\nORDINAL-FUNCTIONS-OK\n'
-                        'INTEGER-FUNCTIONS-OK\nTYPE-LAYOUT-OK\nTYPED-CONST-OK\nCHECKED-BOUNDS-OK\n').replace('\n','\r\n').encode()
-    ordinal_expected = ordinal_expected * 2 + b'ENUM-256-OK\r\n' * 2 + b'ENUM-257-OK\r\n' * 2
-    checks.append(('constants, typed storage, ordinal families/layout/conversions and 256/257 enums in RAM and COM',
-                   ordinal_output.is_file() and ordinal_output.read_bytes() == ordinal_expected))
-    case_output = RUN / 'core/hostfs/CASES.TXT'
-    case_expected = ('CASE-SINGLE-MISS-OK\nCASE-LISTS-RANGES-OK\nCASE-SIGNED-LIMITS-OK\n'
-                     'CASE-ORDINAL-FAMILIES-OK\nCASE-ELSE-SEQUENCE-OK\nCASE-NESTED-NEAREST-ELSE-OK\n'
-                     'CASE-REFERENCE-EDGES-OK\nCASE-STACK-CLEANUP-OK\n').replace('\n','\r\n').encode() * 2
-    checks.append(('Case ordinal selectors, lists/ranges, nesting, Else and repeated stack cleanup in RAM and COM',
-                   case_output.is_file() and case_output.read_bytes() == case_expected))
-    routine_output = RUN / 'core/hostfs/ROUTINES.TXT'
-    routine_expected = ('LEXICAL-SCOPE-OK\nVAR-FORWARD-OK\nVALUE-FUNCTION-OK\nEXIT-OK\n'
-                        'VALUE-COPY-ORDER-OK\nARGUMENT-LAYOUT-OK\nVAR-STRING-UNTYPED-OK\n'
-                        'LOCAL-TYPED-CONST-OK\nSCALAR-RESULTS-OK\nRECURSION-OK\nRECURSIVE-LEXICAL-OK\n'
-                        'SIBLING-STATIC-LINK-OK\nRECURSIVE-STRING-COPY-OK\nCALL-STACK-CLEANUP-OK\n'
-                        'LATE-GLOBAL-LAYOUT-OK\n').replace('\n','\r\n').encode() * 2
-    checks.append(('routine scopes, forwards, value/VAR/string arguments, recursive lexical frames and cleanup in RAM and COM',
-                   routine_output.is_file() and routine_output.read_bytes() == routine_expected))
-    string_output = RUN / 'core/hostfs/SRESULT.TXT'
-    string_expected = b''
-    for lines in (
-        'STRING-RETURN-NESTED-OK\nSTRING-RETURN-LENGTH-OK\nSTRING-EXIT-OK\n'
-        'STRING-CHAR-CONSUMERS-OK\nSTRING-FOR-BOUND-CLEANUP-OK\nRESULT-AS-ARGUMENT-OK\n'
-        'STRING-TEMPORARY-CLEANUP-OK\nRETURN=abc/abc\n',
-        'STATIC-RESULT-COPY-OK\nRECURSIVE-STRING-RESULT-OK\nSTRING-COMPARE-SNAPSHOT-OK\n'
-        'STRING-CONCAT-SNAPSHOT-OK\nCONCAT-CHAR-EMPTY-OK\nCONCAT-ORDER-OK\n',
-        'STRING-255-RESULT-OK\nSTRING-255-NESTED-OK\nSTRING-RESULT-TRUNCATE-OK\n'
-        'STRING-255-ARGUMENT-CLEANUP-OK\nSTRING-ZERO-RESULT-OK\n',
-        'EXTERNAL-STRING-ABI-OK\nEXTERNAL-ZERO-ARGUMENT-OK\nEXTERNAL-ONE-ARGUMENT-OK\n'
-        'EXTERNAL-255-ARGUMENT-OK\n',
-    ):
-        string_expected += lines.replace('\n','\r\n').encode() * 2
-    checks.append(('string results, concatenation, snapshots, length, 0/255-byte arguments and repeated cleanup in RAM/COM',
-                   string_output.is_file() and string_output.read_bytes() == string_expected))
-    operation_output = RUN / 'core/hostfs/STROPS.TXT'
-    operation_expected = b''
-    for lines in (
-        'SELECT-CHAR-VAR-OK\nSELECT-CAPACITY-ZERO-OK\nSELECT-EVALUATION-ORDER-OK\n'
-        'SELECT-SIZEOF-ADDR-OK\nSELECT-RECURSIVE-LOCAL-OK\nSELECT-TEMPORARY-CLEANUP-OK\n',
-        'COPY-CLIP-EMPTY-OK\nPOS-BOUNDARIES-OK\nSTRING-CHAR-ARGUMENTS-OK\nSTRING-ARGUMENT-ORDER-OK\n'
-        'STRING-ARGUMENT-SNAPSHOT-OK\nDELETE-CLIP-ZERO-OK\nINSERT-CAPACITY-APPEND-OK\nINSERT-SELF-ALIAS-OK\nSTRING-OPERATIONS-CLEANUP-OK\n',
-        'COPY-255-OK\nPOS-255-OK\nSTRING-BINARY-BYTES-OK\nSTRING-ZERO-ONE-OK\nSTRING-255-MUTATION-OK\n',
-    ):
-        operation_expected += lines.replace('\n','\r\n').encode() * 2
-    checks.append(('string selections, Copy/Pos/Concat/Delete/Insert and boundary cleanup in RAM/COM',
-                   operation_output.is_file() and operation_output.read_bytes() == operation_expected))
-    array_output = RUN / 'core/hostfs/ARRAYS.TXT'
-    array_expected = b''
-    for lines in (
-        'ARRAY-WHOLE-COPY-OK\nARRAY-SELECT-ORDER-VAR-OK\nARRAY-MULTIDIM-LAYOUT-OK\n'
-        'ARRAY-ORDINAL-INDEX-OK\nARRAY-STRING-SELECTION-OK\nARRAY-MUTABLE-INITIALIZER-OK\n'
-        'ARRAY-SIZEOF-NO-EVAL-OK\nARRAY-SELECT-CLEANUP-OK\n',
-        'ARRAY-VALUE-COPY-TIMING-OK\nARRAY-VAR-LEXICAL-OK\nARRAY-RECURSIVE-COPY-OK\nARRAY-STRING-ABI-CLEANUP-OK\n',
-        'CHARARRAY-INITIALIZERS-OK\nCHARARRAY-TEXT-OPERATORS-OK\nCHARARRAY-STRING-APIS-OK\n'
-        'CHARARRAY-ONE-BYTE-OK\nCHARARRAY-VALUE-PARAMETER-OK\nCHARARRAY-LEFT-SNAPSHOT-OK\n'
-        'CHARARRAY-255-BINARY-OK\nCHARARRAY-TEMPORARY-CLEANUP-OK\n',
-    ):
-        array_expected += lines.replace('\n','\r\n').encode() * 2
-    checks.append(('array layout/selection/initializers, callee value copies and Char-array conversion in RAM/COM',
-                   array_output.is_file() and array_output.read_bytes() == array_expected))
-    record_output = RUN / 'core/hostfs/RECORDS.TXT'
-    record_expected = b''
-    for lines in (
-        'RECORD-LAYOUT-COPY-VAR-OK\nRECORD-ARRAY-SELECTION-OK\nRECORD-VALUE-ISOLATION-OK\n'
-        'RECORD-MUTABLE-INITIALIZER-OK\nRECORD-PARTIAL-INITIALIZER-OK\nRECORD-SIZEOF-NO-EVAL-OK\nRECORD-ZERO-WIDTH-OK\nRECORD-SELECTION-CLEANUP-OK\n',
-        'VARIANT-MAX-LAYOUT-OK\nVARIANT-TAGGED-COPY-OK\nVARIANT-INITIALIZER-FIELD-CHOICE-OK\n'
-        'VARIANT-FREE-INITIALIZERS-OK\nVARIANT-NESTED-INITIALIZER-OK\nVARIANT-ACCESS-UNSELECTED-OK\n'
-        'VARIANT-REPEATED-LABEL-OK\nVARIANT-WITH-FIELD-OK\n',
-        'WITH-LAST-PRECEDENCE-OK\nWITH-BASE-EVALUATED-ONCE-OK\nWITH-LIST-LEXICAL-LOOKUP-OK\n'
-        'WITH-RECURSIVE-EXIT-RESTORE-OK\nWITH-W9-OK\nWITH-STACK-CLEANUP-OK\n',
-        'ZERO-RECORD-COPY-OK\n',
-    ):
-        record_expected += lines.replace('\n','\r\n').encode() * 2
-    checks.append(('records/variants/With, lexical recursive cleanup and guarded zero-width copies in RAM/COM',
-                   record_output.is_file() and record_output.read_bytes() == record_expected))
-    set_output = RUN / 'core/hostfs/SETS.TXT'
-    set_expected = b''
-    for lines in (
-        'SET-ENUM-MEMBER-OK\nSET-UNION-OK\nSET-INTERSECTION-OK\nSET-DIFFERENCE-OK\n'
-        'SET-RELATIONS-OK\nSET-EMPTY-POLYMORPHIC-OK\nSET-FULL-UNIVERSE-OK\nSET-DUPLICATE-REVERSED-OK\n'
-        'SET-CONSTRUCTOR-LOW-BYTE-OK\nSET-WRAPPED-RANGE-OK\n',
-        'SET-COMPRESSED-LAYOUT-OK\nSET-TYPED-INITIALIZERS-OK\nSET-WHOLE-BYTE-EDGES-OK\n'
-        'SET-CROSS-RANGE-COPY-OK\nSET-SELECTED-STORAGE-OK\nSET-MUTABLE-CONSTANT-OK\n',
-        'SET-VALUE-SNAPSHOT-ORDER-OK\nSET-VAR-PARAMETER-OK\nSET-RECURSIVE-VALUES-OK\n'
-        'SET-MIXED-ABI-CLEANUP-OK\nSET-EXPRESSION-CLEANUP-OK\n',
-        'EXTERNAL-SET-32-BYTE-OK\nEXTERNAL-EMPTY-SET-OK\nEXTERNAL-COMPRESSED-SET-OK\n',
-    ):
-        set_expected += lines.replace('\n','\r\n').encode() * 2
-    checks.append(('sets, compressed storage, constructors/operators, parameter values and cleanup in RAM/COM',
-                   set_output.is_file() and set_output.read_bytes() == set_expected))
-    pointer_output = RUN / 'core/hostfs/POINTERS.TXT'
-    pointer_expected = b''
-    for markers in (
-        ('NIL-WIDTH','FORWARD-RECORD','WITH','TARGET-COMPATIBILITY','REPEATED-DEREFERENCE',
-         'STRING-SELECTION','ARRAY-SELECTION','SET-SELECTION','CARET-LITERALS'),
-        ('VALUE-ARGUMENT','VAR-ARGUMENT','UNTYPED-ARGUMENT','FUNCTION-RESULT',
-         'SELECTED-LHS-ONCE','SIZEOF-NO-EVAL','LOCAL-FORWARD','RECURSIVE-FRAME','ARGUMENT-CLEANUP'),
-    ):
-        pointer_expected += ''.join('POINTER-'+marker+'-OK\r\n' for marker in markers).encode() * 2
-    pointer_expected += b'ORDINAL-STRING-CHAR-OK\r\nORDINAL-CHARARRAY-OK\r\nORDINAL-CHAR-TEMPORARY-CLEANUP-OK\r\n' * 2
-    checks.append(('typed pointers, selected addresses, pointer calls and ordinal String conversions in RAM/COM',
-                   pointer_output.is_file() and pointer_output.read_bytes() == pointer_expected))
-    heap_output = RUN / 'core/hostfs/HEAP.TXT'
-    heap_expected = b''
-    for markers in (
-        ('HEAP-NEW-INTEGER-OK','HEAP-GETMEM-SIZE-OK','HEAP-LINKED-RECORD-OK',
-         'HEAP-SELECTED-TARGET-ONCE-OK','HEAP-RELEASE-FRONTIER-OK',
-         'HEAP-MARK-RELEASE-CLEANUP-OK','HEAP-ZERO-WIDTH-NONNIL-OK',
-         'HEAP-STACKPTR-RESTORE-OK','HEAP-OWNED-BOUNDS-OK'),
-        ('HEAP-DISPOSE-RESTORE-OK','HEAP-FREEMEM-RESTORE-OK','HEAP-FIRST-FIT-SPLIT-OK',
-         'HEAP-COALESCE-NEIGHBORS-OK','HEAP-COALESCE-TAIL-RESTORE-OK',
-         'HEAP-ODD-SIZE-CLEANUP-OK','HEAP-MAXAVAIL-OK'),
-        ('EXTERNAL-POINTER-WORDS-OK','EXTERNAL-POINTER-NIL-OK'),
-    ):
-        heap_expected += ''.join(marker+'\r\n' for marker in markers).encode() * 2
-    checks.append(('heap allocation, reuse, coalescing, Mark/Release, state and pointer ABI in RAM/COM',
-                   heap_output.is_file() and heap_output.read_bytes() == heap_expected))
-    memory_output = RUN / 'core/hostfs/MEMORY.TXT'
-    memory_expected = b''
-    for markers in (
-        ('ABSOLUTE-LITTLE-ENDIAN-OK','ABSOLUTE-RECORD-VIEW-OK','ABSOLUTE-ALIAS-CHAIN-OK',
-         'ABSOLUTE-NO-EXTRA-STORAGE-OK','ABSOLUTE-TYPED-CONSTANT-OK',
-         'ABSOLUTE-STRING-LENGTH-OK','ABSOLUTE-LOGICAL-ADDRESS-OK'),
-        ('ABSOLUTE-UNTYPED-VAR-OK','ABSOLUTE-RECURSIVE-FRAMES-OK',
-         'ABSOLUTE-LEXICAL-FRAMES-OK','ABSOLUTE-VALUE-PARAMETER-OK',
-         'ABSOLUTE-VAR-PARAMETER-OK','ABSOLUTE-REPEATED-FRAMES-OK'),
-        ('MOVE-OVERLAP-UP-OK','MOVE-OVERLAP-DOWN-OK','MOVE-SELF-OK','MEMORY-ZERO-COUNT-OK',
-         'MOVE-ARGUMENT-ORDER-ONCE-OK','FILL-SELECTED-ONCE-OK','FILL-LOW-BYTE-RPLUS-OK',
-         'FILL-NEGATIVE-BYTE-OK','FILL-ORDINAL-VALUES-OK','FILL-STRING-CHAR-OK',
-         'MEM-LITTLE-ENDIAN-OK','MEM-ADDRESSABLE-VAR-OK','MEM-SIZEOF-NO-EVALUATION-OK',
-         'MEMORY-REPEATED-CLEANUP-OK'),
-        ('NATIVE-ABSOLUTE-GLOBAL-OK','NATIVE-PORT-ADDRESS-DATA-IDENTITY-OK','MEMORY-PREDEFINED-SHADOW-OK'),
-    ):
-        memory_expected += ''.join(marker+'\r\n' for marker in markers).encode() * 2
-    checks.append(('absolute aliases, block operations, addressable Mem and native Port identity in RAM/COM',
-                   memory_output.is_file() and memory_output.read_bytes() == memory_expected))
-    label_output = RUN / 'core/hostfs/LABELS.TXT'
-    label_markers = ('LABEL-FORWARD-BACKWARD-OK','LABEL-NUMERIC-TEXT-OK',
-                     'LABEL-FOR-LEAVE-STACK-OK','LABEL-FOR-STAY-OK',
-                     'LABEL-NESTED-FOR-STACK-OK','LABEL-WITH-LEAVE-STACK-OK',
-                     'LABEL-WITH-STAY-OK','LABEL-FIELD-VALUE-OK',
-                     'LABEL-NESTED-WITH-STACK-OK','LABEL-CASE-LEAVE-STACK-OK',
-                     'LABEL-LEXICAL-SHADOW-OK') + ('LABEL-RECURSIVE-OK',) * 3
-    label_expected = ''.join(marker+'\r\n' for marker in label_markers).encode() * 2
-    checks.append(('labels/Goto, lexical and recursive scopes, For/With stack ownership in RAM/COM',
-                   label_output.is_file() and label_output.read_bytes() == label_expected))
-    real_output = RUN / 'core/hostfs/REALS.TXT'
-    real_markers = ('REAL-LAYOUT-OK','REAL-CONSTANTS-OK','REAL-INITIALIZERS-OK',
-                    'REAL-THIRD-BITS-OK','REAL-CANCELLATION-BITS-OK','REAL-MINIMUM-OK',
-                    'REAL-CANONICAL-UNDERFLOW-OK','REAL-MIXED-ARITHMETIC-OK',
-                    'REAL-PRIMITIVE-FUNCTIONS-OK','REAL-LEFT-SNAPSHOT-OK',
-                    'REAL-VALUE-VAR-ARGUMENTS-OK','REAL-INTEGER-ARGUMENT-PROMOTION-OK',
-                    'REAL-SELECTED-STORAGE-OK','REAL-WITH-PRESERVED-OK',
-                    'REAL-RECURSIVE-RESULT-OK','REAL-LEXICAL-FRAME-OK')
-    real_abi_markers = ('EXTERNAL-REAL-ARGUMENT-RESULT-OK',
-                        'EXTERNAL-REAL-INTEGER-PROMOTION-OK','EXTERNAL-REAL-REPEATED-STACK-OK')
-    real_expected = ''.join(marker+'\r\n'for marker in real_markers).encode()*2
-    real_expected += ''.join(marker+'\r\n'for marker in real_abi_markers).encode()*2
-    checks.append(('Real6 storage/constants/arithmetic, snapshots, recursive frames and public ABI in RAM/COM',
-                   real_output.is_file() and real_output.read_bytes()==real_expected))
-    real_image = RUN / 'core/hostfs/REALABI.COM'
-    real_code = (ROOT/'build/realabi.zpl').read_bytes()
-    checks.append(('native external six-byte Real arguments and BCDEHL result match independent assembly',
-                   real_image.is_file() and real_image.read_bytes()[0x4004:0x4004+len(real_code)]==real_code))
-    formats_output = RUN / 'core/hostfs/FORMATS.TXT'
-    formats_expected = (
-        b'DEFAULT[0,-32768,32767,TRUE,FALSE,X,text]\r\n'
-        b'WIDTH[   -123,12,   TRUE,FALSE,  X,  text]\r\n'
-        b'SIGNED[7,7,7]\r\n'
-        b'REALDEFAULT[  1.2500000000E+00, -1.2500000000E+00,  0.0000000000E+00]\r\n'
-        b'SCIENTIFIC[1.3E+00,1.250E+00,-1.25E+00]\r\n'
-        b'FIXED[    1.25,1,-0.00,0.3]\r\n'
-        b'ROUND[0.1,2.67,10.0]\r\n'
-        b'PRECISION[1.250000000000000000000000,1.3E+00,1.3E+00]\r\n'
-        b'STRING-VALUE[     old]\r\n'
-        b'REAL-VALUE[    1.25]\r\n'
-        b'INTEGER-VALUE[       7]\r\n'
-        b'BOOLEAN-VALUE[   FALSE]\r\n'
-        b'CHAR-VALUE[       A]\r\n'
-        b'OUTER[INNER;    1.25];3.5\r\n'
-        b'RAW[  \x00 \xff]\r\n'
-        b'EMPTY[     ]\r\n'
-        + b'CLAMP-INT[' + b' '*254 + b'7]\r\n'
-        + b'CLAMP-REAL[' + b' '*239 + b'1.2500000000E+00]\r\n'
-        + b'FORMAT-OUTPUT-DONE\r\n')
-    checks.append(('formatted scalar/Real output, nested calls and snapshots plus Str destinations/truncation in RAM/COM',
-                   formats_output.is_file() and formats_output.read_bytes()==
-                   formats_expected*2+b'STR-FORMAT-ALL-OK\r\n'*2+b'VAL-ALL-OK\r\n'*2))
-    pointer_image = RUN / 'core/hostfs/POINTERABI.COM'
-    pointer_code = (ROOT / 'build/pointerabi.zpl').read_bytes()
-    checks.append(('native external pointer payload matches independently assembled two-word probe',
-                   pointer_image.is_file() and pointer_image.read_bytes()[0x4004:0x4004+len(pointer_code)] == pointer_code))
-    set_image = RUN / 'core/hostfs/SETABI.COM'
-    set_code = (ROOT / 'build/setabi.zpl').read_bytes()
-    checks.append(('native external set payload matches independently assembled 32-byte argument probe',
-                   set_image.is_file() and set_image.read_bytes()[0x4004:0x4004+len(set_code)] == set_code))
-    abi_image = RUN / 'core/hostfs/STRINGABI.COM'
-    abi_code = (ROOT / 'build/stringabi.zpl').read_bytes()
-    checks.append(('native external string payload matches independently assembled ABI probe',
-                   abi_image.is_file() and abi_image.read_bytes()[0x4004:0x4004+len(abi_code)] == abi_code))
-    media_output = RUN / 'core/hostfs/MEDIA.TXT'
-    disk = (RUN / 'core/eeprom.img').read_bytes()
-    try:
-        media = zealfs_files(disk)
-        media_ok = (media['/UNTITLED.PAS'] == media['/UNTITLED.BAK'] == b"begin\nwriteln('MEDIA')\nend.\n"
-                    and media['/ZP0000/KEEP.PAS'] == b'unrelated recovery'
-                    and not any(path.startswith('/ZP') and not path.startswith('/ZP0000/') for path in media)
-                    and hashlib.sha256(media['/UNTITLED.PAS']).digest() == media['/UNTITLED.ZMP'][104:136])
-        checks.append(('repeated B: source/COM saves release owned staging and preserve unrelated recovery', media_ok))
-    except (AssertionError, KeyError, UnicodeError, struct.error):
-        checks.append(('repeated B: source/COM saves release owned staging and preserve unrelated recovery', False))
-    checks.append(('repeated B: saves preserve the source/BAK and shell-runnable COM/map pair',
-                   struct.unpack_from('<H', disk, 4)[0] > 0 and media_output.is_file()
-                   and media_output.read_bytes() == b'MEDIA\r\n' * 4))
-    try:
-        checks.append(('native-generated image/map/source identities and format bounds',
-                       artifact_checks(RUN / 'core/hostfs')))
-    except (OSError, AssertionError, struct.error):
-        checks.append(('native-generated image/map/source identities and format bounds', False))
-    if not args.core_only and mem.get(sym['_test_done']) == 255 and word('_test_failed') == 0:
+    if args.case in (None, 'basic'):
+        checks.append(('ReadLn restores blocking raw in RAM and nonblocking raw in shell exec',
+                       len(frames) == 3 and memory(frames[0]).get(mode) == 0
+                       and memory(frames[1]).get(mode) == 4
+                       and all('[DBG] c000 -> 088000' in frame for frame in frames[:2])))
+        output = RUN / 'core/hostfs/CONSOLE.TXT'
+        checks.append(('generated Z80 output, signed DIV/MOD and CRLF', output.is_file()
+                       and output.read_bytes() == b'N=-32768,-2,-1\r\n' * 3 + b'abc/abc/42\r\n[]\r\n'))
+        input_output = RUN / 'core/hostfs/INPUT.TXT'
+        checks.append(('short-string ReadLn, editing, fields, empty line and shell exec',
+                       input_output.is_file() and input_output.read_bytes() ==
+                       b'Your name: Hello, Ada!\r\nabc/defg\r\n[]\r\n' * 2))
+    if args.case in (None, 'read'):
+        numeric_input_output = RUN / 'core/hostfs/READ.TXT'
+        checks.append(('numeric/Char/String input, selected targets, B+/B- buffering and checked conversion errors in RAM/COM',
+                       numeric_input_output.is_file() and numeric_input_output.read_bytes()==
+                       b'INDEX>READ-ALL-OK\r\n'*2))
+    if args.case in (None, 'control'):
+        control_output = RUN / 'core/hostfs/CONTROL.TXT'
+        control_expected = ('BOOL-LAYOUT-OK\nTRUE,FALSE\nNEAREST-ELSE-OK\nFOR-UP-OK\nFOR-DOWN-OK\n'
+                            'FOR-ZERO-TRIP-OK\nFOR-ZERO-DOWN-OK\nFOR-BOUND-ONCE-OK\nNESTED-FOR-OK\nFOR-LIMITS-OK\n'
+                            'FOR-SIGNED-OK\nFOR-BOOLEAN-OK\nWHILE-REPEAT-OK\nCOMPARE-OK\nBITWISE-OK\n'
+                            'SHIFTS-OK\nSTR-COMPARE-OK\n').replace('\n','\r\n').encode() * 2
+        checks.append(('Boolean layout/eager logic, signed/string comparisons, bitwise/shift and control flow in RAM and COM',
+                       control_output.is_file() and control_output.read_bytes() == control_expected))
+    if args.case in (None, 'ordinals'):
+        ordinal_output = RUN / 'core/hostfs/ORDINAL.TXT'
+        ordinal_expected = ('BYTE-OK\nCONST-LIMITS-OK\nCONST-STRINGS-OK\nCHAR-STRING-OK\nCHAR-LITERALS-OK\n'
+                            'ENUM-CAST-OK\nENUM-FOR-OK\nBYTE-CHAR-FOR-OK\nORDINAL-FUNCTIONS-OK\n'
+                            'INTEGER-FUNCTIONS-OK\nTYPE-LAYOUT-OK\nTYPED-CONST-OK\nCHECKED-BOUNDS-OK\n').replace('\n','\r\n').encode()
+        ordinal_expected = ordinal_expected * 2 + b'ENUM-256-OK\r\n' * 2 + b'ENUM-257-OK\r\n' * 2
+        checks.append(('constants, typed storage, ordinal families/layout/conversions and 256/257 enums in RAM and COM',
+                       ordinal_output.is_file() and ordinal_output.read_bytes() == ordinal_expected))
+    if args.case in (None, 'cases'):
+        case_output = RUN / 'core/hostfs/CASES.TXT'
+        case_expected = ('CASE-SINGLE-MISS-OK\nCASE-LISTS-RANGES-OK\nCASE-SIGNED-LIMITS-OK\n'
+                         'CASE-ORDINAL-FAMILIES-OK\nCASE-ELSE-SEQUENCE-OK\nCASE-NESTED-NEAREST-ELSE-OK\n'
+                         'CASE-REFERENCE-EDGES-OK\nCASE-STACK-CLEANUP-OK\n').replace('\n','\r\n').encode() * 2
+        checks.append(('Case ordinal selectors, lists/ranges, nesting, Else and repeated stack cleanup in RAM and COM',
+                       case_output.is_file() and case_output.read_bytes() == case_expected))
+    if args.case in (None, 'routines'):
+        routine_output = RUN / 'core/hostfs/ROUTINES.TXT'
+        routine_expected = ('LEXICAL-SCOPE-OK\nVAR-FORWARD-OK\nVALUE-FUNCTION-OK\nEXIT-OK\n'
+                            'VALUE-COPY-ORDER-OK\nARGUMENT-LAYOUT-OK\nVAR-STRING-UNTYPED-OK\n'
+                            'LOCAL-TYPED-CONST-OK\nSCALAR-RESULTS-OK\nRECURSION-OK\nRECURSIVE-LEXICAL-OK\n'
+                            'SIBLING-STATIC-LINK-OK\nRECURSIVE-STRING-COPY-OK\nCALL-STACK-CLEANUP-OK\n'
+                            'LATE-GLOBAL-LAYOUT-OK\n').replace('\n','\r\n').encode() * 2
+        checks.append(('routine scopes, forwards, value/VAR/string arguments, recursive lexical frames and cleanup in RAM and COM',
+                       routine_output.is_file() and routine_output.read_bytes() == routine_expected))
+    if args.case in (None, 'strings'):
+        string_output = RUN / 'core/hostfs/SRESULT.TXT'
+        string_expected = b''
+        for lines in (
+            'STRING-RETURN-NESTED-OK\nSTRING-RETURN-LENGTH-OK\nSTRING-EXIT-OK\n'
+            'STRING-CHAR-CONSUMERS-OK\nSTRING-FOR-BOUND-CLEANUP-OK\nRESULT-AS-ARGUMENT-OK\n'
+            'STRING-TEMPORARY-CLEANUP-OK\nRETURN=abc/abc\n',
+            'STATIC-RESULT-COPY-OK\nRECURSIVE-STRING-RESULT-OK\nSTRING-COMPARE-SNAPSHOT-OK\n'
+            'STRING-CONCAT-SNAPSHOT-OK\nCONCAT-CHAR-EMPTY-OK\nCONCAT-ORDER-OK\n',
+            'STRING-255-RESULT-OK\nSTRING-255-NESTED-OK\nSTRING-RESULT-TRUNCATE-OK\n'
+            'STRING-255-ARGUMENT-CLEANUP-OK\nSTRING-ZERO-RESULT-OK\n',
+            'EXTERNAL-STRING-ABI-OK\nEXTERNAL-ZERO-ARGUMENT-OK\nEXTERNAL-ONE-ARGUMENT-OK\n'
+            'EXTERNAL-255-ARGUMENT-OK\n',
+        ):
+            string_expected += lines.replace('\n','\r\n').encode() * 2
+        checks.append(('string results, concatenation, snapshots, length, 0/255-byte arguments and repeated cleanup in RAM/COM',
+                       string_output.is_file() and string_output.read_bytes() == string_expected))
+    if args.case in (None, 'string-operations'):
+        operation_output = RUN / 'core/hostfs/STROPS.TXT'
+        operation_expected = b''
+        for lines in (
+            'SELECT-CHAR-VAR-OK\nSELECT-CAPACITY-ZERO-OK\nSELECT-EVALUATION-ORDER-OK\n'
+            'SELECT-SIZEOF-ADDR-OK\nSELECT-RECURSIVE-LOCAL-OK\nSELECT-TEMPORARY-CLEANUP-OK\n',
+            'COPY-CLIP-EMPTY-OK\nPOS-BOUNDARIES-OK\nSTRING-CHAR-ARGUMENTS-OK\nSTRING-ARGUMENT-ORDER-OK\n'
+            'STRING-ARGUMENT-SNAPSHOT-OK\nDELETE-CLIP-ZERO-OK\nINSERT-CAPACITY-APPEND-OK\nINSERT-SELF-ALIAS-OK\nSTRING-OPERATIONS-CLEANUP-OK\n',
+            'COPY-255-OK\nPOS-255-OK\nSTRING-BINARY-BYTES-OK\nSTRING-ZERO-ONE-OK\nSTRING-255-MUTATION-OK\n',
+        ):
+            operation_expected += lines.replace('\n','\r\n').encode() * 2
+        checks.append(('string selections, Copy/Pos/Concat/Delete/Insert and boundary cleanup in RAM/COM',
+                       operation_output.is_file() and operation_output.read_bytes() == operation_expected))
+    if args.case in (None, 'arrays'):
+        array_output = RUN / 'core/hostfs/ARRAYS.TXT'
+        array_expected = b''
+        for lines in (
+            'ARRAY-WHOLE-COPY-OK\nARRAY-SELECT-ORDER-VAR-OK\nARRAY-MULTIDIM-LAYOUT-OK\n'
+            'ARRAY-ORDINAL-INDEX-OK\nARRAY-STRING-SELECTION-OK\nARRAY-MUTABLE-INITIALIZER-OK\n'
+            'ARRAY-SIZEOF-NO-EVAL-OK\nARRAY-SELECT-CLEANUP-OK\n',
+            'ARRAY-VALUE-COPY-TIMING-OK\nARRAY-VAR-LEXICAL-OK\nARRAY-RECURSIVE-COPY-OK\nARRAY-STRING-ABI-CLEANUP-OK\n',
+            'CHARARRAY-INITIALIZERS-OK\nCHARARRAY-TEXT-OPERATORS-OK\nCHARARRAY-STRING-APIS-OK\n'
+            'CHARARRAY-ONE-BYTE-OK\nCHARARRAY-VALUE-PARAMETER-OK\nCHARARRAY-LEFT-SNAPSHOT-OK\n'
+            'CHARARRAY-255-BINARY-OK\nCHARARRAY-TEMPORARY-CLEANUP-OK\n',
+        ):
+            array_expected += lines.replace('\n','\r\n').encode() * 2
+        checks.append(('array layout/selection/initializers, callee value copies and Char-array conversion in RAM/COM',
+                       array_output.is_file() and array_output.read_bytes() == array_expected))
+    if args.case in (None, 'records'):
+        record_output = RUN / 'core/hostfs/RECORDS.TXT'
+        record_expected = b''
+        for lines in (
+            'RECORD-LAYOUT-COPY-VAR-OK\nRECORD-ARRAY-SELECTION-OK\nRECORD-VALUE-ISOLATION-OK\n'
+            'RECORD-MUTABLE-INITIALIZER-OK\nRECORD-PARTIAL-INITIALIZER-OK\nRECORD-SIZEOF-NO-EVAL-OK\nRECORD-ZERO-WIDTH-OK\nRECORD-SELECTION-CLEANUP-OK\n',
+            'VARIANT-MAX-LAYOUT-OK\nVARIANT-TAGGED-COPY-OK\nVARIANT-INITIALIZER-FIELD-CHOICE-OK\n'
+            'VARIANT-FREE-INITIALIZERS-OK\nVARIANT-NESTED-INITIALIZER-OK\nVARIANT-ACCESS-UNSELECTED-OK\n'
+            'VARIANT-REPEATED-LABEL-OK\nVARIANT-WITH-FIELD-OK\n',
+            'WITH-LAST-PRECEDENCE-OK\nWITH-BASE-EVALUATED-ONCE-OK\nWITH-LIST-LEXICAL-LOOKUP-OK\n'
+            'WITH-RECURSIVE-EXIT-RESTORE-OK\nWITH-W9-OK\nWITH-STACK-CLEANUP-OK\n',
+            'ZERO-RECORD-COPY-OK\n',
+        ):
+            record_expected += lines.replace('\n','\r\n').encode() * 2
+        checks.append(('records/variants/With, lexical recursive cleanup and guarded zero-width copies in RAM/COM',
+                       record_output.is_file() and record_output.read_bytes() == record_expected))
+    if args.case in (None, 'sets'):
+        set_output = RUN / 'core/hostfs/SETS.TXT'
+        set_expected = b''
+        for lines in (
+            'SET-ENUM-MEMBER-OK\nSET-UNION-OK\nSET-INTERSECTION-OK\nSET-DIFFERENCE-OK\n'
+            'SET-RELATIONS-OK\nSET-EMPTY-POLYMORPHIC-OK\nSET-FULL-UNIVERSE-OK\nSET-DUPLICATE-REVERSED-OK\n'
+            'SET-CONSTRUCTOR-LOW-BYTE-OK\nSET-WRAPPED-RANGE-OK\n',
+            'SET-COMPRESSED-LAYOUT-OK\nSET-TYPED-INITIALIZERS-OK\nSET-WHOLE-BYTE-EDGES-OK\n'
+            'SET-CROSS-RANGE-COPY-OK\nSET-SELECTED-STORAGE-OK\nSET-MUTABLE-CONSTANT-OK\n',
+            'SET-VALUE-SNAPSHOT-ORDER-OK\nSET-VAR-PARAMETER-OK\nSET-RECURSIVE-VALUES-OK\n'
+            'SET-MIXED-ABI-CLEANUP-OK\nSET-EXPRESSION-CLEANUP-OK\n',
+            'EXTERNAL-SET-32-BYTE-OK\nEXTERNAL-EMPTY-SET-OK\nEXTERNAL-COMPRESSED-SET-OK\n',
+        ):
+            set_expected += lines.replace('\n','\r\n').encode() * 2
+        checks.append(('sets, compressed storage, constructors/operators, parameter values and cleanup in RAM/COM',
+                       set_output.is_file() and set_output.read_bytes() == set_expected))
+    if args.case in (None, 'pointers'):
+        pointer_output = RUN / 'core/hostfs/POINTERS.TXT'
+        pointer_expected = b''
+        for markers in (
+            ('NIL-WIDTH','FORWARD-RECORD','WITH','TARGET-COMPATIBILITY','REPEATED-DEREFERENCE',
+             'STRING-SELECTION','ARRAY-SELECTION','SET-SELECTION','CARET-LITERALS'),
+            ('VALUE-ARGUMENT','VAR-ARGUMENT','UNTYPED-ARGUMENT','FUNCTION-RESULT',
+             'SELECTED-LHS-ONCE','SIZEOF-NO-EVAL','LOCAL-FORWARD','RECURSIVE-FRAME','ARGUMENT-CLEANUP'),
+        ):
+            pointer_expected += ''.join('POINTER-'+marker+'-OK\r\n' for marker in markers).encode() * 2
+        pointer_expected += b'ORDINAL-STRING-CHAR-OK\r\nORDINAL-CHARARRAY-OK\r\nORDINAL-CHAR-TEMPORARY-CLEANUP-OK\r\n' * 2
+        checks.append(('typed pointers, selected addresses, pointer calls and ordinal String conversions in RAM/COM',
+                       pointer_output.is_file() and pointer_output.read_bytes() == pointer_expected))
+    if args.case in (None, 'heap'):
+        heap_output = RUN / 'core/hostfs/HEAP.TXT'
+        heap_expected = b''
+        for markers in (
+            ('HEAP-NEW-INTEGER-OK','HEAP-GETMEM-SIZE-OK','HEAP-LINKED-RECORD-OK',
+             'HEAP-SELECTED-TARGET-ONCE-OK','HEAP-RELEASE-FRONTIER-OK',
+             'HEAP-MARK-RELEASE-CLEANUP-OK','HEAP-ZERO-WIDTH-NONNIL-OK',
+             'HEAP-STACKPTR-RESTORE-OK','HEAP-OWNED-BOUNDS-OK'),
+            ('HEAP-DISPOSE-RESTORE-OK','HEAP-FREEMEM-RESTORE-OK','HEAP-FIRST-FIT-SPLIT-OK',
+             'HEAP-COALESCE-NEIGHBORS-OK','HEAP-COALESCE-TAIL-RESTORE-OK',
+             'HEAP-ODD-SIZE-CLEANUP-OK','HEAP-MAXAVAIL-OK'),
+            ('EXTERNAL-POINTER-WORDS-OK','EXTERNAL-POINTER-NIL-OK'),
+        ):
+            heap_expected += ''.join(marker+'\r\n' for marker in markers).encode() * 2
+        checks.append(('heap allocation, reuse, coalescing, Mark/Release, state and pointer ABI in RAM/COM',
+                       heap_output.is_file() and heap_output.read_bytes() == heap_expected))
+    if args.case in (None, 'memory'):
+        memory_output = RUN / 'core/hostfs/MEMORY.TXT'
+        memory_expected = b''
+        for markers in (
+            ('ABSOLUTE-LITTLE-ENDIAN-OK','ABSOLUTE-RECORD-VIEW-OK','ABSOLUTE-ALIAS-CHAIN-OK',
+             'ABSOLUTE-NO-EXTRA-STORAGE-OK','ABSOLUTE-TYPED-CONSTANT-OK',
+             'ABSOLUTE-STRING-LENGTH-OK','ABSOLUTE-LOGICAL-ADDRESS-OK'),
+            ('ABSOLUTE-UNTYPED-VAR-OK','ABSOLUTE-RECURSIVE-FRAMES-OK',
+             'ABSOLUTE-LEXICAL-FRAMES-OK','ABSOLUTE-VALUE-PARAMETER-OK',
+             'ABSOLUTE-VAR-PARAMETER-OK','ABSOLUTE-REPEATED-FRAMES-OK'),
+            ('MOVE-OVERLAP-UP-OK','MOVE-OVERLAP-DOWN-OK','MOVE-SELF-OK','MEMORY-ZERO-COUNT-OK',
+             'MOVE-ARGUMENT-ORDER-ONCE-OK','FILL-SELECTED-ONCE-OK','FILL-LOW-BYTE-RPLUS-OK',
+             'FILL-NEGATIVE-BYTE-OK','FILL-ORDINAL-VALUES-OK','FILL-STRING-CHAR-OK',
+             'MEM-LITTLE-ENDIAN-OK','MEM-ADDRESSABLE-VAR-OK','MEM-SIZEOF-NO-EVALUATION-OK',
+             'MEMORY-REPEATED-CLEANUP-OK'),
+            ('NATIVE-ABSOLUTE-GLOBAL-OK','NATIVE-PORT-ADDRESS-DATA-IDENTITY-OK','MEMORY-PREDEFINED-SHADOW-OK'),
+        ):
+            memory_expected += ''.join(marker+'\r\n' for marker in markers).encode() * 2
+        checks.append(('absolute aliases, block operations, addressable Mem and native Port identity in RAM/COM',
+                       memory_output.is_file() and memory_output.read_bytes() == memory_expected))
+    if args.case in (None, 'labels'):
+        label_output = RUN / 'core/hostfs/LABELS.TXT'
+        label_markers = ('LABEL-FORWARD-BACKWARD-OK','LABEL-NUMERIC-TEXT-OK',
+                         'LABEL-FOR-LEAVE-STACK-OK','LABEL-FOR-STAY-OK',
+                         'LABEL-NESTED-FOR-STACK-OK','LABEL-WITH-LEAVE-STACK-OK',
+                         'LABEL-WITH-STAY-OK','LABEL-FIELD-VALUE-OK',
+                         'LABEL-NESTED-WITH-STACK-OK','LABEL-CASE-LEAVE-STACK-OK',
+                         'LABEL-LEXICAL-SHADOW-OK') + ('LABEL-RECURSIVE-OK',) * 3
+        label_expected = ''.join(marker+'\r\n' for marker in label_markers).encode() * 2
+        checks.append(('labels/Goto, lexical and recursive scopes, For/With stack ownership in RAM/COM',
+                       label_output.is_file() and label_output.read_bytes() == label_expected))
+    if args.case in (None, 'reals'):
+        real_output = RUN / 'core/hostfs/REALS.TXT'
+        real_markers = ('REAL-LAYOUT-OK','REAL-CONSTANTS-OK','REAL-INITIALIZERS-OK',
+                        'REAL-THIRD-BITS-OK','REAL-CANCELLATION-BITS-OK','REAL-MINIMUM-OK',
+                        'REAL-CANONICAL-UNDERFLOW-OK','REAL-MIXED-ARITHMETIC-OK',
+                        'REAL-PRIMITIVE-FUNCTIONS-OK','REAL-LEFT-SNAPSHOT-OK',
+                        'REAL-VALUE-VAR-ARGUMENTS-OK','REAL-INTEGER-ARGUMENT-PROMOTION-OK',
+                        'REAL-SELECTED-STORAGE-OK','REAL-WITH-PRESERVED-OK',
+                        'REAL-RECURSIVE-RESULT-OK','REAL-LEXICAL-FRAME-OK')
+        real_abi_markers = ('EXTERNAL-REAL-ARGUMENT-RESULT-OK',
+                            'EXTERNAL-REAL-INTEGER-PROMOTION-OK','EXTERNAL-REAL-REPEATED-STACK-OK')
+        real_expected = ''.join(marker+'\r\n'for marker in real_markers).encode()*2
+        real_expected += ''.join(marker+'\r\n'for marker in real_abi_markers).encode()*2
+        checks.append(('Real6 storage/constants/arithmetic, snapshots, recursive frames and public ABI in RAM/COM',
+                       real_output.is_file() and real_output.read_bytes()==real_expected))
+        real_image = RUN / 'core/hostfs/REALABI.COM'
+        real_code = (ROOT/'build/realabi.zpl').read_bytes()
+        checks.append(('native external six-byte Real arguments and BCDEHL result match independent assembly',
+                       real_image.is_file() and real_image.read_bytes()[0x4004:0x4004+len(real_code)]==real_code))
+    if args.case in (None, 'formats'):
+        formats_output = RUN / 'core/hostfs/FORMATS.TXT'
+        formats_expected = (
+            b'DEFAULT[0,-32768,32767,TRUE,FALSE,X,text]\r\n'
+            b'WIDTH[   -123,12,   TRUE,FALSE,  X,  text]\r\n'
+            b'SIGNED[7,7,7]\r\n'
+            b'REALDEFAULT[  1.2500000000E+00, -1.2500000000E+00,  0.0000000000E+00]\r\n'
+            b'SCIENTIFIC[1.3E+00,1.250E+00,-1.25E+00]\r\n'
+            b'FIXED[    1.25,1,-0.00,0.3]\r\n'
+            b'ROUND[0.1,2.67,10.0]\r\n'
+            b'PRECISION[1.250000000000000000000000,1.3E+00,1.3E+00]\r\n'
+            b'STRING-VALUE[     old]\r\n'
+            b'REAL-VALUE[    1.25]\r\n'
+            b'INTEGER-VALUE[       7]\r\n'
+            b'BOOLEAN-VALUE[   FALSE]\r\n'
+            b'CHAR-VALUE[       A]\r\n'
+            b'OUTER[INNER;    1.25];3.5\r\n'
+            b'RAW[  \x00 \xff]\r\n'
+            b'EMPTY[     ]\r\n'
+            + b'CLAMP-INT[' + b' '*254 + b'7]\r\n'
+            + b'CLAMP-REAL[' + b' '*239 + b'1.2500000000E+00]\r\n'
+            + b'FORMAT-OUTPUT-DONE\r\n')
+        checks.append(('formatted scalar/Real output, nested calls and snapshots plus Str destinations/truncation in RAM/COM',
+                       formats_output.is_file() and formats_output.read_bytes()==
+                       formats_expected*2+b'STR-FORMAT-ALL-OK\r\n'*2+b'VAL-ALL-OK\r\n'*2))
+    if args.case in (None, 'heap'):
+        pointer_image = RUN / 'core/hostfs/POINTERABI.COM'
+        pointer_code = (ROOT / 'build/pointerabi.zpl').read_bytes()
+        checks.append(('native external pointer payload matches independently assembled two-word probe',
+                       pointer_image.is_file() and pointer_image.read_bytes()[0x4004:0x4004+len(pointer_code)] == pointer_code))
+    if args.case in (None, 'sets'):
+        set_image = RUN / 'core/hostfs/SETABI.COM'
+        set_code = (ROOT / 'build/setabi.zpl').read_bytes()
+        checks.append(('native external set payload matches independently assembled 32-byte argument probe',
+                       set_image.is_file() and set_image.read_bytes()[0x4004:0x4004+len(set_code)] == set_code))
+    if args.case in (None, 'strings'):
+        abi_image = RUN / 'core/hostfs/STRINGABI.COM'
+        abi_code = (ROOT / 'build/stringabi.zpl').read_bytes()
+        checks.append(('native external string payload matches independently assembled ABI probe',
+                       abi_image.is_file() and abi_image.read_bytes()[0x4004:0x4004+len(abi_code)] == abi_code))
+    if args.case in (None, 'media'):
+        media_output = RUN / 'core/hostfs/MEDIA.TXT'
+        disk = (RUN / 'core/tf.img').read_bytes()
+        try:
+            media = zealfs_files(disk)
+            media_ok = (media['/UNTITLED.PAS'] == media['/UNTITLED.BAK'] == b"begin\nwriteln('MEDIA')\nend.\n"
+                        and media['/ZP0000/KEEP.PAS'] == b'unrelated recovery'
+                        and not any(path.startswith('/ZP') and not path.startswith('/ZP0000/') for path in media)
+                        and hashlib.sha256(media['/UNTITLED.PAS']).digest() == media['/UNTITLED.ZMP'][104:136])
+            checks.append(('repeated T: source/COM saves release owned staging and preserve unrelated recovery', media_ok))
+        except (AssertionError, KeyError, UnicodeError, struct.error):
+            checks.append(('repeated T: source/COM saves release owned staging and preserve unrelated recovery', False))
+        checks.append(('repeated T: saves preserve the source/BAK and shell-runnable COM/map pair',
+                       struct.unpack_from('<H', zealfs_volume(disk), 4)[0] > 0 and media_output.is_file()
+                       and media_output.read_bytes() == b'MEDIA\r\n' * 4))
+    if args.case in (None, 'basic'):
+        try:
+            checks.append(('native-generated image/map/source identities and format bounds',
+                           artifact_checks(RUN / 'core/hostfs')))
+        except (OSError, AssertionError, struct.error):
+            checks.append(('native-generated image/map/source identities and format bounds', False))
+    if integrated and mem.get(sym['_test_done']) == 255 and word('_test_failed') == 0:
         print('Native core passed; driving interactive edit/error/repair workflow...', flush=True)
         checks.extend(interactive_checks())
         checks.extend(user_break_checks())
@@ -1249,10 +1417,12 @@ def main():
         checks.extend(default_path_checks())
     checks.append(('implementation inputs unchanged during native validation',
                    all(sha(ROOT / name) == digest for name, digest in input_hashes.items())))
+    checks.append(('execution artifacts unchanged',artifact_hashes()==artifacts))
     report = {
         'scope': ('Complete existing native core language/runtime corpus; IDE/platform workflows excluded' if args.core_only else 'First native slice on pinned Zeal emulator/ROM; not full conformance or physical hardware'),
         'capture_directory': str(RUN.relative_to(ROOT)),
         'build_command': 'zde cmake',
+        'complete_native_suite':integrated,
         'input_sha256': input_hashes,
         'passed': all(ok for _, ok in checks),
         'native_assertions_passed': word('_test_passed')if supervisor else None,
@@ -1264,14 +1434,10 @@ def main():
         'input_readiness': [line['readiness'] for line in receipts],
         'native_completion_tstates_including_boot':
             int(re.findall(r'cyc=(\d+)', text)[-1]) if re.findall(r'cyc=(\d+)', text) else None,
-        'artifacts': {str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p): sha(p)
-                      for p in [EMULATOR, ROM, KERNEL_MAP, TF_TEMPLATE, COREUTILS / 'mkdir', COREUTILS / 'cp', ROOT / 'build/zpascal.bin', ROOT / 'build/zpascal.zpl', ROOT / 'build/zptest.bin', ROOT / 'build/zptest.zpl', ROOT / 'build/stringabi.zpl', ROOT / 'build/setabi.zpl', ROOT / 'build/pointerabi.zpl', ROOT / 'build/realabi.zpl']},
+        'artifacts':artifacts, 'expected_native_assertions':expected_assertions,
         'checks': [{'check': label, 'passed': ok} for label, ok in checks],
     }
-    (RUN / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
-    (OUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
-    print(json.dumps(report, indent=2))
-    return 0 if report['passed'] else 1
+    return write_report(report,args.case)
 
 
 if __name__ == '__main__':

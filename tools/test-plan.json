@@ -1,10 +1,10 @@
 {
   "full": [
     "tools/test-native-host.py --sanitize",
+    "tools/test-native.py",
     "tools/test-compile-interrupt.py @observed",
     "tools/test-language-conformance.py",
     "tools/test-editor-native.py",
-    "tools/test-native.py",
     "tools/test-input.py",
     "tools/test-io.py",
     "tools/test-files.py",
@@ -71,5 +71,119 @@
     "tools/test-native.py --core-only",
     "tools/test-chain-call.py",
     "tools/test-compiler-messages.py --publication-error"
-  ]
+  ],
+  "chunks": {
+    "tools/test-editor-native.py": [
+      "--case component",
+      "--case scroll",
+      "--case horizontal",
+      "--case editing",
+      "--case source-errors",
+      "--case block",
+      "--case block-catalog",
+      "--case block-files",
+      "--case block-cancel",
+      "--case control-block",
+      "--case tf-block",
+      "--case transaction-namespace",
+      "--case find",
+      "--case replace",
+      "--case multiline-search",
+      "--case search-interrupt"
+    ],
+    "tools/test-language-conformance.py": [
+      "--shard 1/4",
+      "--shard 2/4",
+      "--shard 3/4",
+      "--shard 4/4"
+    ],
+    "tools/test-native.py": [
+      "--case basic",
+      "--case media",
+      "--case control",
+      "--case ordinals",
+      "--case cases",
+      "--case routines",
+      "--case strings",
+      "--case string-operations",
+      "--case arrays",
+      "--case records",
+      "--case sets",
+      "--case pointers",
+      "--case heap",
+      "--case memory",
+      "--case labels",
+      "--case reals",
+      "--case formats",
+      "--case read",
+      "--case library",
+      "--case allocation",
+      "--case lifecycle",
+      "--case interactive",
+      "--case user-break",
+      "--case files",
+      "--case paths",
+      "--case full-media"
+    ]
+  },
+  "groups": {
+    "host": [
+      "native-host",
+      "output-host",
+      "runtime-profile"
+    ],
+    "editor": [
+      "editor-native",
+      "ide-sources",
+      "ide-directory",
+      "saved-map:native"
+    ],
+    "compiler": [
+      "native-host",
+      "compile-interrupt",
+      "language-conformance",
+      "sources",
+      "compiler-job",
+      "options",
+      "inline"
+    ],
+    "publication": [
+      "output",
+      "output-host",
+      "output-interrupt",
+      "members",
+      "file-gate"
+    ],
+    "execution": [
+      "chain",
+      "chain-call",
+      "chain-loader",
+      "chain-files",
+      "execute-override",
+      "execute-handoff",
+      "compiled-startup",
+      "transfer",
+      "workers"
+    ],
+    "runtime": [
+      "input",
+      "io",
+      "files",
+      "text",
+      "standard",
+      "keyboard",
+      "logical",
+      "console",
+      "control",
+      "devices",
+      "hooks",
+      "params",
+      "math",
+      "real",
+      "runtime-layout"
+    ],
+    "native": [
+      "native"
+    ]
+  }
 }

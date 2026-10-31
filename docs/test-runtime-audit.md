@@ -137,3 +137,12 @@ the expected diagnostic checkpoints; Save returned error 22 and the media was
 unchanged. An isolated unchanged rerun reproduced the two failed check results.
 No failure is waived by deduplication or parallel scheduling. Establish a clean
 baseline with the revised plan before resuming PERF01.
+
+
+## Follow-up: remaining long suites after clean baseline
+
+The complete revised plan now passes 109/109 jobs in 54m44s at six workers; the historical failed/interrupted baseline above is superseded. A read-only investigation identified safe boundaries for math, files, compiler options, publication interruption and text: **42 proposed chunks replacing five commands** (146 scheduled jobs in total, retaining the 66 canonical commands). This is a plan, not implemented support or measured improvement.
+
+Use **eight workers for the next tests**, per the user's instruction. Six-worker slot utilization was already 94.6%; unchanged-duration perfect packing would save at most about 2m58s before added startup. Chunking primarily improves focused reruns and balancing; more worker capacity is needed for a large whole-suite reduction. Preserve stage-dependent RAM/COM coverage, OMAX's layout-size dependency and Text rename-error's pre-existing destination. No tests were run for this investigation.
+
+See [concrete chunk plan and verification requirements](../analysis/performance/full-baseline-monitored/next-chunking-plan.md) and [machine-readable case list](../analysis/performance/full-baseline-monitored/next-chunking-plan.json).

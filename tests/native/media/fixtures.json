@@ -1,0 +1,13 @@
+{
+  "purpose": "Immutable test-only ZealFS EEPROM states; copy to disposable paths before emulator use. Full image retains old source/program/recovery data and is never executed.",
+  "seed_capture": "analysis/native-slice/20261030T222827.722930Z-99865/core/eeprom.img",
+  "seed_sha256": "6a26bc8567be96010d8d7d8812b8d7a83a9887d7ce114134340616c330edb948",
+  "full_image_transform": "Set little-endian free-page count at4 to0; fill bitmap at7 of uint16 length at2 with0xff. Original full-before-transaction fixture transformation.",
+  "expected_source": "begin\nwriteln('MEDIA')\nend.\n",
+  "images": {
+    "eeprom-full.img": "4a977d50d7af450c9abd1a6e92b80aedc77cade5a3e01b66811fdd8385638be5",
+    "eeprom-empty.img": "38ba273c1d820e037f23a132254c1d749d52dfebd628283179c74d312b266b0b",
+    "eeprom-unformatted.img": "de2f256064a0af797747c2b97505dc0b9f3df0de4f489eac731c23ae9ca9cc31",
+    "tf-unformatted.img": "30e14955ebf1352266dc2ff8067e68104607e750abb9d3b36582b8af909fcb58"
+  }
+}

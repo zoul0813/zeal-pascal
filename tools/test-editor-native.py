@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Editor model and real PS/2/IDE acceptance on the unmodified Zeal emulator."""
 import hashlib
+import argparse
 import gzip
 import importlib.util
 import json
@@ -615,7 +616,36 @@ def search_interrupt_checks():
             (host/'SCAN.PAS').read_bytes()==b'z'+source and (host/'SCAN.BAK').read_bytes()==source}
 
 
+CASES = {
+    'component': component,
+    'scroll': scroll_checks,
+    'horizontal': horizontal_checks,
+    'editing': editing_checks,
+    'source-errors': source_error_checks,
+    'block': block_checks,
+    'block-catalog': block_catalog_checks,
+    'block-files': block_file_checks,
+    'block-cancel': block_cancel_checks,
+    'control-block': control_block_checks,
+    'tf-block': tf_block_checks,
+    'transaction-namespace': transaction_namespace_checks,
+    'find': find_checks,
+    'replace': replace_checks,
+    'multiline-search': multiline_search_checks,
+    'search-interrupt': search_interrupt_checks,
+}
+
+
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--case', action='append', choices=CASES,
+                        help='Run only a named independent workflow (repeatable)')
+    parser.add_argument('--list-cases', action='store_true', help='List workflows without running Zeal')
+    args = parser.parse_args()
+    if args.list_cases:
+        print('\n'.join(CASES))
+        return
+    selected = [name for name in CASES if not args.case or name in args.case]
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(), ROOT/'tools/test-native.py',
               ROOT/'tools/package-native.py', n.EMULATOR, n.ROM, n.KERNEL_MAP, n.TF_TEMPLATE,
               n.COREUTILS/'mkdir', n.COREUTILS/'cp']
@@ -623,27 +653,18 @@ def main():
     inputs += [ROOT/f'build/{target}.{ext}' for target in ('zedittest', 'zpascal')
                for ext in ('bin', 'zpl', 'map', 'banks.json')]
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}
-    checks, assertions = component()
-    checks.update(scroll_checks())
-    checks.update(horizontal_checks())
-    checks.update(editing_checks())
-    checks.update(source_error_checks())
-    checks.update(block_checks())
-    checks.update(block_catalog_checks())
-    checks.update(block_file_checks())
-    checks.update(block_cancel_checks())
-    checks.update(control_block_checks())
-    checks.update(tf_block_checks())
-    checks.update(transaction_namespace_checks())
-    checks.update(find_checks())
-    checks.update(replace_checks())
-    checks.update(multiline_search_checks())
-    checks.update(search_interrupt_checks())
+    checks, assertions = {}, None
+    for name in selected:
+        result = CASES[name]()
+        if name == 'component':
+            result, assertions = result
+        checks.update(result)
     checks['source/build/emulator inputs unchanged'] = all(
         n.sha(Path(p)) == digest for p, digest in hashes.items())
     report = {'scope': 'Editor foundation and block editing/I/O; search/full keyboard/hardware remain open',
               'passed': all(checks.values()), 'capture_directory': str(n.RUN.relative_to(ROOT)),
-              'native_assertions': assertions, 'input_sha256': hashes, 'checks': checks}
+              'native_assertions': assertions, 'input_sha256': hashes, 'checks': checks,
+              'selected_cases': selected, 'complete_editor_suite': len(selected) == len(CASES)}
     (n.RUN/'editor-report.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))
     assert report['passed']
