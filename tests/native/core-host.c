@@ -1063,6 +1063,40 @@ static void reference_cases(void) {
     error.code=0;state.refs_page=255;check(cc_source_reference(9)==0&&error.code==99);
     check(page_drop(page)&&pages_used()==1);memset(&cc,0,sizeof(cc));
 }
+static void source_resume_cases(void) {
+    const char *roots[]={""," \n\t\n"};
+    HostSource part={"H:/EMPTY.INC",""};CompilerSources state;uint8_t i;
+    for(i=0;i<2;++i) {
+        load(roots[i]);memset(&cc,0,sizeof(cc));memset(&state,0,sizeof(state));
+        cc.input=&s;cc.error=&d;cc.sources=&state;
+        cc.hexadecimal=cc.number_overflow=cc.literal_length=1;
+        cc_next();check(!d.code&&cc.token==T_EOF&&cc.scan==s.length&&
+            cc.token_start==s.length&&cc.token_end==s.length&&
+            !cc.hexadecimal&&!cc.number_overflow&&!cc.literal_length);
+        cc_next();check(!d.code&&cc.token==T_EOF&&cc.scan==s.length);
+        /* An existing error must return before any source/resume work. */
+        d.code=56;cc.scan=0;cc.sources=0;
+        cc_next();check(d.code==56&&cc.token==T_EOF&&!cc.scan);
+        memset(&cc,0,sizeof(cc));
+    }
+    disk_sources=&part;disk_source_count=1;
+    for(i=0;i<2;++i) {
+        part.text=i?" \n\t\n":"";
+        load("{$I EMPTY.INC}\n{$I EMPTY.INC}\nbegin end.");
+        check(compile(&s,&b,&d)&&b.sources.count==2&&build_ready(&s,&b));
+        build_close(&b);check(pages_used()==1);
+    }
+    part.text="{$R+,A-,I-,V-,W0,X-,C-,U+,B-}";
+    load("{$R-,A+,I+,V+,W4,X+,C+,U-,B+}\n{$I EMPTY.INC}\nbegin end.");
+    check(compile(&s,&b,&d)&&b.sources.count==2&&build_ready(&s,&b));
+    check(!cc.range_check&&cc.absolute_mode&&cc.io_check&&cc.var_strict&&
+        cc.with_limit==4&&cc.index_speed&&cc.console_control&&!cc.user_interrupt&&!cc.input_fresh);
+    build_close(&b);check(pages_used()==1);
+    part.text="{";load("{$I EMPTY.INC}\nbegin end.");
+    check(!compile(&s,&b,&d)&&d.code==91&&pages_used()==1);
+    check(!strcmp(compile_error_path(),part.path)&&d.start==1&&d.end==1);
+    disk_sources=0;disk_source_count=0;
+}
 static void include_cases(void) {
     HostSource files[]={
         {"H:/PART.INC","const greeting='included';number=-1.25;\ntype link=^node;node=record value:integer;next:link end;\nconst table:array[1..2]of integer=(1,2);\nvar n:integer;\nprocedure part;begin n:=table[1];writeln(greeting,number)end;"},
@@ -1319,6 +1353,7 @@ int main(int argc,char **argv) {
     bridge_corpus();
     hook_corpus();
     index_modes();
+    source_resume_cases();
     include_cases();
     inline_cases();
     inline_corpus();

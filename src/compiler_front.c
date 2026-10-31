@@ -249,7 +249,7 @@ void cc_next(void) FRONTEND {
     if(cc.error->code||!cc_poll()) { cc.token=T_EOF; return; }
     for(;;) {
         if(cc.error->code) { cc.token=T_EOF; return; }
-        if(cc_source_resume())continue;
+        if(cc.scan==cc.input->length&&cc.sources->file&&cc_source_resume())continue;
         c=get(cc.scan);
         if(cc.scan<cc.input->length && c<=32) { ++cc.scan; continue; }
         if(c=='{' || (c=='('&&get(cc.scan+1)=='*')) {
