@@ -94,8 +94,8 @@ def main():
     helper_ok=False
     if len(helpers)==2:
         origin,code,terms,_=helpers[0]
-        helper_ok=([key for site,key,coefficient,flags in terms]==[0,1,2,2,1,1]
-                   and [int.from_bytes(code[site-origin:site-origin+2],'little')for site,key,coefficient,flags in terms]==[0,0,0,2,0,0]
+        helper_ok=([key for site,key,coefficient,flags in terms]==[0,1,2,2]
+                   and [int.from_bytes(code[site-origin:site-origin+2],'little')for site,key,coefficient,flags in terms]==[0,3,0,0]
                    and not helpers[1][2] and helpers[1][0]>=origin+len(code))
     owners=records_from('OWNERS.SPL');owner_ok=False
     if len(owners)==2:

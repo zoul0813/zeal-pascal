@@ -98,10 +98,10 @@ static void root_helper_cases(const char *path,Diagnostic *diagnostic) {
     check(cc_group_open(&groups,0)==0&&cc_group_member_begin(&groups,0,1));
     origin=cc.emitted;cc_params(0);cc_randomize();
     cc_random(0);cc_release(0);cc_op16(0x21,10);cc_random(1);
-    check(!diagnostic->code&&!cc.parameter_entry&&!cc.random_entry&&!cc.random_state&&groups.late.references==6);
+    check(!diagnostic->code&&!cc.parameter_entry&&!cc.random_entry&&!cc.random_state&&groups.late.references==4);
     check(cc_root_pending(LATE_ROOT,LATE_PARAMETERS)&&cc_root_pending(LATE_ROOT,LATE_RANDOM)&&cc_root_pending(LATE_ROOT,LATE_RANDOM_STATE));
     check(cc_group_member_end(&groups,0,1,origin)&&!groups.late.references);
-    check(cc_group_member_get(&groups,1,&id,&ordinal,&member)&&member.lates==6);
+    check(cc_group_member_get(&groups,1,&id,&ordinal,&member)&&member.lates==4);
     check(cc_group_close(&groups,0));origin=cc.emitted;
     cc_params_finish();cc_random_finish();
     parameters=cc.parameter_entry;random=cc.random_entry;state=cc.random_state;

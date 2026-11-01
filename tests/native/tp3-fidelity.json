@@ -46,6 +46,176 @@
         "global_replace": "GN,GN0,GN1,GN65536,GN65537 andGN2U1 all replace every occurrence; N2 replaces two."
       },
       "native_adaptation": "LF is the normalized source line boundary; Ctrl-U and the approved global Find correction remain."
+    },
+    "random": {
+      "audit_id": "TP3-31",
+      "observed_algorithm": "32-bit state starts0; next=(129*state+$361962E9) mod2^32; bounded=(state shr17) modN; Real=state/2^32; Randomize replaces only the high byte with Z80 R.",
+      "original_code_addresses": {
+        "step": "0792..07C5",
+        "bounded": "073B..074C",
+        "real": "0FB4..0FCF",
+        "randomize": "1F48..1F4D"
+      },
+      "captures": [
+        "analysis/tp3-pass2-implementation/original-random/bounded-complete/capture/report.json",
+        "analysis/tp3-pass2-implementation/original-random-vectors/vectors/capture/report.json"
+      ],
+      "first_bounded_1000": [
+        924,
+        474,
+        237,
+        259,
+        97
+      ],
+      "real_vectors": [
+        [
+          126,
+          0,
+          164,
+          139,
+          101,
+          88
+        ],
+        [
+          127,
+          0,
+          164,
+          116,
+          200,
+          113
+        ],
+        [
+          126,
+          0,
+          236,
+          24,
+          107,
+          4
+        ],
+        [
+          128,
+          0,
+          164,
+          70,
+          151,
+          100
+        ],
+        [
+          127,
+          0,
+          26,
+          247,
+          167,
+          76
+        ],
+        [
+          128,
+          0,
+          246,
+          36,
+          107,
+          70
+        ],
+        [
+          126,
+          0,
+          124,
+          11,
+          92,
+          72
+        ],
+        [
+          127,
+          0,
+          144,
+          170,
+          99,
+          103
+        ],
+        [
+          128,
+          0,
+          49,
+          220,
+          181,
+          2
+        ],
+        [
+          125,
+          0,
+          208,
+          188,
+          234,
+          29
+        ],
+        [
+          126,
+          0,
+          12,
+          30,
+          10,
+          34
+        ],
+        [
+          128,
+          0,
+          236,
+          171,
+          223,
+          31
+        ],
+        [
+          128,
+          0,
+          213,
+          4,
+          207,
+          69
+        ],
+        [
+          128,
+          0,
+          62,
+          210,
+          106,
+          99
+        ],
+        [
+          128,
+          0,
+          39,
+          84,
+          237,
+          78
+        ],
+        [
+          127,
+          0,
+          32,
+          149,
+          97,
+          119
+        ]
+      ],
+      "subsequent_bounded": [
+        0,
+        1,
+        1,
+        1,
+        88,
+        11,
+        134,
+        5694,
+        20611
+      ],
+      "sum_real_bytes": [
+        129,
+        128,
+        30,
+        46,
+        0,
+        3
+      ]
     }
   }
 }

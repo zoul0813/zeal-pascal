@@ -695,7 +695,8 @@ and correctly handle the minimum-magnitude input.
 
 Random without arguments returns Real in [0,1). Random(N) returns Integer in
 [0,N) for a positive Integer bound; zero/negative bounds report runtime91 even
-with R-. Randomize mixes a varying native timer seed into the generator.
+with R-. The generator and initial sequence match the pinned CP/M-80 TP3 binary.
+Randomize replaces the high seed byte using the Z80 refresh register.
 Each program activation starts with its own generator state. No particular
 sequence or cryptographic quality is promised. The helper is linked into the
 program, with no extra runtime library to install.

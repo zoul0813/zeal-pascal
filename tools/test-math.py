@@ -75,7 +75,7 @@ def main():
         'actual native completion': memory.get(sym['_test_done']) == 255,
         'RAM/COM ownership, ABI, dirty-source and exact checked-error locations':
             word('_test_failed') == 0 and word('_test_passed') == expected_assertions,
-        'math and exact Random vectors, rejection, snapshots, recursion, stack, reseeding and shadows in RAM/COM':
+        'math and exact TP3 Random vectors, snapshots, recursion, stack, reseeding and shadows in RAM/COM':
             output.is_file() and output.read_bytes() ==
             b''.join(marker*2 for group,marker in (
                 ('sqrt-programs',b'SQRT-ALL-OK\r\n'),('sqrt-programs',b'SQRT-SHADOW-OK\r\n'),
