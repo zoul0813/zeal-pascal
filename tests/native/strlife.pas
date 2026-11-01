@@ -1,6 +1,8 @@
 program StringLifetimes;
 type text=string[12];
-var s:text; seen:integer;
+var s:text; seen,baseline,gap,found:integer; chars:array[1..3]of char;
+function measure:text;
+begin gap:=baseline-stackptr;measure:='abcdef' end;
 function empty:text;
 begin empty:='' end;
 function touch:text;
@@ -22,6 +24,12 @@ var captured:text;
  begin left:=right(k) end;
 begin captured:='outer'; nesting:=left(x) end;
 begin
+ baseline:=stackptr;s:='abc';chars:='abc';found:=pos(s,measure);
+ if (stackptr<>baseline)or(found<>1)or(gap>128)then begin writeln('SHORT-SNAPSHOT-FAIL');halt end;
+ found:=pos(copy(s,1,2),measure);
+ if (stackptr<>baseline)or(found<>1)or(gap>128)then begin writeln('SHORT-COPY-FAIL');halt end;
+ found:=pos(chars,measure);
+ if (stackptr<>baseline)or(found<>1)or(gap>128)then begin writeln('CHAR-ARRAY-SNAPSHOT-FAIL');halt end;
  if (state+state='onetwo') then writeln('STATIC-RESULT-COPY-OK');
  if (recursive(8)='end') and (nesting(4)='outer') then writeln('RECURSIVE-STRING-RESULT-OK');
  s:='a';

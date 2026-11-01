@@ -14,7 +14,7 @@ static void io_call(uint16_t entry,uint16_t reserve) {
 static void push_word(void) {
     cc_reserve(2);cc_emit(0xe5);cc.temporaries+=2;
 }
-static void snapshot(uint16_t bytes) {
+void cc_string_snapshot(uint16_t bytes) FRONTEND {
     cc_temporary(bytes);cc_emit(0x4e);cc_emit(0x06);cc_emit(0);cc_emit(0x03);
     cc_call(RT_MOVE);cc_op16(0x21,0);cc_emit(0x39);
 }
@@ -25,12 +25,12 @@ static void integer_field(void) {
 }
 static uint16_t field(uint8_t numeric) {
     uint16_t before=cc.temporaries,bytes;
-    uint8_t kind=cc_family(cc_text_value(cc_expression()));
+    uint8_t type=cc_text_value(cc_expression()),kind=cc_family(type);
     if(numeric) {if(kind!=K_INTEGER&&kind!=K_REAL) cc_fail(26);}
     else if(kind==K_ARRAY||kind==K_RECORD) cc_fail(62);
     else if(kind==K_SET) cc_fail(66);
     else if(kind>K_CHAR&&kind!=K_REAL) cc_fail(44);
-    if(kind==K_STRING&&cc.temporaries==before) snapshot(256);
+    if(kind==K_STRING&&cc.temporaries==before) cc_string_snapshot(cc.types[type].width?cc.types[type].width:256);
     push_word();
     if(cc.token==':') {cc_next();integer_field();}
     else cc_op16(0x21,kind==K_REAL?18:0);
@@ -41,7 +41,7 @@ static uint16_t field(uint8_t numeric) {
     cc_op16(0x21,0);cc_emit(0x39);cc_emit(0x3e);cc_emit(kind);
     cc_reserve(kind==K_REAL?256:0);cc_op16(0xcd,RT_FORMAT);
     bytes=kind==K_STRING?0:kind==K_REAL?66:kind==K_BOOLEAN?6:kind==K_CHAR?2:7;
-    if(bytes) snapshot(bytes);
+    if(bytes) cc_string_snapshot(bytes);
     return bytes+2; /* width word relative to the current SP */
 }
 /* A complete padded field is at most255 bytes under the recovered width

@@ -513,7 +513,7 @@ Generated Pascal programs retain the complete math/runtime implementation.
 The compile API accepts one root Source; include contents are read from disk,
 with no parked-buffer overrides or input-catalog allocation.
 
-Compiler source catalogs share unused root-snapshot space when they fit,
+Internal compilation source records share unused root-snapshot space when they fit,
 releasing one physical page during compilation and before Run. Canonical source
 bytes, lengths and error mappings are retained. Larger sources use a separate
 catalog page. Temporary source references share the catalog's tail and spill to
@@ -692,6 +692,12 @@ and accept Integer or Real arguments. Sin/Cos use radian arguments with full
 Real6-range argument reduction; ArcTan returns the principal radian angle.
 Their private calculations retain enough precision for the specified accuracy
 and correctly handle the minimum-magnitude input.
+
+String snapshots and Copy results use their declared capacity when known;
+Char-array conversion reserves its width plus the length byte. ParamStr reserves
+128 bytes for the native127-byte command tail. Unknown-capacity results,
+concatenation and padded fields retain a256-byte slot where255 characters are
+possible. These bounds preserve evaluation order and invocation ownership.
 
 Random without arguments returns Real in [0,1). Random(N) returns Integer in
 [0,N) for a positive Integer bound; zero/negative bounds report runtime91 even

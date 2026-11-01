@@ -633,7 +633,7 @@ void cc_set_store(uint8_t type) FRONTEND {
 }
 uint8_t cc_text_value(uint8_t type) FRONTEND {
     if(!cc_char_array(type)) return type;
-    cc_temporary(256); cc_emit(0x3e); cc_emit((uint8_t)cc.types[type].width);
+    cc_temporary(cc.types[type].width+1); cc_emit(0x3e); cc_emit((uint8_t)cc.types[type].width);
     cc_emit(0x12); cc_emit(0x13); cc_op16(0x01,cc.types[type].width); cc_call(RT_MOVE);
     cc_op16(0x21,0); cc_emit(0x39); return K_STRING;
 }

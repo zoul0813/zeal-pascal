@@ -216,6 +216,11 @@
         0,
         3
       ]
+    },
+    "strings": {
+      "audit_id": "TP3-29",
+      "change": "Use declared string capacities for borrowed snapshots and Copy results, width+1 for Char arrays,128 for ParamStr. Keep maximum256 slots where capacity is unknown or padding/concatenation can reach255.",
+      "regressions": "strlife.pas requires short borrowed/Copy/Char-array operands to stay below128 measured CPU stack bytes while preserving value and recovering StackPtr."
     }
   }
 }

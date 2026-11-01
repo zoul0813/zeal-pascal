@@ -50,7 +50,7 @@ void cc_params(uint8_t string_result) FRONTEND {
     }
     /* Retain the evaluated Integer before allocating an ordinary string-result
      * slot. Every call owns its bytes across later calls and user callbacks. */
-    cc_temporary(256); cc_reserve(8); cc_emit(0xd5);
+    cc_temporary(128); cc_reserve(8); cc_emit(0xd5);
     cc_emit(0x7c); cc_emit(0xb7); high=cc_forward(0xc2);
     cc_emit(0x7d); cc_emit(0xb7); zero=cc_forward(0xca);
     cc_emit(0xfe); cc_emit(128); large=cc_forward(0xd2);

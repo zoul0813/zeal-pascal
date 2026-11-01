@@ -141,69 +141,8 @@ uint8_t cc_aggregate_actual(uint8_t type) BACKEND {
     return type;
 }
 enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR,F_LENGTH,F_COPY,F_POS,F_CONCAT,F_PTR,F_MEMAVAIL,F_MAXAVAIL,F_STACKPTR,F_TRUNC,F_ROUND,F_INT,F_FRAC,F_SQRT,F_LN,F_EXP,F_SIN,F_COS,F_ARCTAN,F_RANDOM,F_IORESULT,F_PARAMCOUNT,F_PARAMSTR };
-static void string_value(void) {
-    uint16_t before=cc.temporaries;
-    uint8_t kind;
-    if(cc.token==')'||cc.token==','||cc.token==T_EOF) { cc_fail(41); return; }
-    kind=cc_family(cc_text_value(expression()));
-    if(kind==K_CHAR) {
-        cc_temporary(2); cc_emit(0x3e); cc_emit(1); cc_emit(0x12);
-        cc_emit(0x13); cc_emit(0x7d); cc_emit(0x12); cc_op16(0x21,0); cc_emit(0x39);
-    } else if(kind!=K_STRING) cc_fail(33);
-    else if(cc.temporaries==before) { cc_call(RT_HOLDSTRING); cc.temporaries+=256; }
-}
 static void integer_value(void) { if(cc_family(expression())!=K_INTEGER) cc_fail(23); }
-void cc_string_value(void) BACKEND { string_value(); }
 static void push_value(void) { cc_guard(); cc_emit(0xe5); }
-static uint8_t string_function(uint8_t op) {
-    uint16_t before=cc.temporaries,right_before,right_bytes,owned;
-    string_value();
-    if(op==F_CONCAT) {
-        while(cc.token==','&&!cc.error->code) {
-            push_value(); right_before=cc.temporaries; cc_next(); string_value();
-            right_bytes=cc.temporaries-right_before; cc_stack_operand(right_bytes);
-            cc_op16(0x01,cc.temporaries-before+(right_bytes?2:0)); cc_emit(0x3e); cc_emit(0);
-            cc_call(RT_CONCAT); cc.temporaries=before+256;
-        }
-        cc_expect(')',5); return K_STRING;
-    }
-    push_value(); cc_expect(',',3);
-    if(op==F_POS) {
-        right_before=cc.temporaries; string_value(); cc_expect(')',5);
-        right_bytes=cc.temporaries-right_before; cc_stack_operand(right_bytes); cc_call(RT_POS);
-        if(right_bytes) cc_drop_stack(2);
-        cc_release(before); return K_INTEGER;
-    }
-    integer_value(); push_value(); cc_expect(',',3); integer_value(); push_value(); cc_expect(')',5);
-    owned=cc.temporaries-before; cc_temporary(256);
-    cc_op16(0x21,256); cc_emit(0x39); cc_op16(0x11,owned+6); cc_call(RT_SUBSTRING);
-    cc.temporaries=before+256; return K_STRING;
-}
-static uint8_t string_target(void) {
-    int16_t id=cc.token==T_ID?cc_lookup():-1;
-    uint8_t type;
-    if(id>=0&&cc.symbols[id].role==S_RESULT) { cc_fail(41); return K_STRING; }
-    if(!cc_variable(id)||cc.symbols[id].control) { cc_fail(34); return K_STRING; }
-    type=cc_selection((uint16_t)id);
-    if(cc_family(type)!=K_STRING) cc_fail(34);
-    return type;
-}
-void cc_string_statement(uint8_t insert) BACKEND {
-    uint16_t before=cc.temporaries;
-    uint8_t type=K_STRING;
-    cc_next(); cc_expect('(',4);
-    if(insert) { string_value(); push_value(); cc_expect(',',3); }
-    type=string_target(); push_value(); cc_expect(',',3);
-    integer_value();
-    if(insert) {
-        cc_emit(0x44); cc_emit(0x4d); cc_emit(0xd1); cc_emit(0xe1);
-        cc_emit(0x3e); cc_emit(cc.types[type].capacity);
-    } else {
-        push_value(); cc_expect(',',3); integer_value();
-        cc_emit(0xeb); cc_emit(0xc1); cc_emit(0xe1);
-    }
-    cc_expect(')',5); cc_call(insert?RT_INSERT:RT_DELETE); cc_release(before);
-}
 static int16_t predefined_function(void) {
     static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length","copy","pos","concat","ptr","memavail","maxavail","stackptr","trunc","round","int","frac","sqrt","ln","exp","sin","cos","arctan","random","ioresult","paramcount","paramstr"};
     uint8_t i;
@@ -228,7 +167,7 @@ static uint8_t intrinsic(uint8_t op) {
     if(op==F_RANDOM&&(cc.token==')'||cc.token==','||cc.token==T_EOF)) {
         cc_fail(41); return K_INTEGER;
     }
-    if(op>=F_COPY&&op<=F_CONCAT) return string_function(op);
+    if(op>=F_COPY&&op<=F_CONCAT) return cc_string_function((uint8_t)(op-F_COPY));
     if(op==F_SIZEOF||op==F_ADDR) {
         id=cc.token==T_ID?cc_lookup():-1;
         if(id<0&&cc_is("port")) { cc_fail(41); return K_INTEGER; }
@@ -413,7 +352,7 @@ static uint8_t text(uint8_t kind) { return cc_family(kind)==K_STRING||cc_family(
 static void hold_left(uint8_t kind,uint16_t before) {
     if(cc_char_array(kind)) cc_text_value(kind);
     else if(cc_family(kind)==K_STRING&&cc.temporaries==before) {
-        cc_call(RT_HOLDSTRING); cc.temporaries+=256;
+        cc_string_snapshot(cc.types[kind].width?cc.types[kind].width:256);
     }
 }
 /* Right-hand string results may lie below the saved left operand. Reading
