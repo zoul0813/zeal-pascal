@@ -1,3 +1,4 @@
+#include "hash-evidence.h"
 #include "stream-hash.h"
 
 /* Decoded streams are owned/authenticated by the caller. A small parent-stack

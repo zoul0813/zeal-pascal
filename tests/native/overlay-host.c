@@ -1,6 +1,7 @@
 /* Exact production staging code with deterministic SDK failure injection.
  * This is a component proof, not Pascal overlay compiler acceptance. */
 #include "overlay.h"
+static uint8_t modified;
 #include "chain.h"
 #include "overlay-fixtures.h"
 #include <zos_vfs.h>
@@ -64,6 +65,7 @@ void chain_page_io(uint8_t page,uint16_t at,uint16_t bytes) {
 }
 static void unchanged(void) {check(!memcmp(caller,before,sizeof(caller)));}
 static void setup(const OverlayCase *c) {
+    modified=!strcmp(c->name,"H:/trusted-member.000");
     check(!handle&&!count());++scenario;overlay_init(&load);
     check(!overlay_group_decode(c->record,&group));
     reads=closes=allocs=stats=0;fail_read=zero_read=oversize_read=fail_alloc=fail_stat=fail_close=0;
@@ -71,7 +73,7 @@ static void setup(const OverlayCase *c) {
     memset(caller,0xa5,sizeof(caller));memcpy(before,caller,sizeof(caller));
 }
 static uint8_t prepare(const OverlayCase *c,uint16_t member) {
-    return overlay_prepare(&load,c->name,&group,overlay_owner_for(c),overlay_manifest_for(c),member);
+    return overlay_prepare(&load,c->name,&group,member);
 }
 static void rejected(const OverlayCase *c) {
     check(!prepare(c,0)&&load.error&&!load.ready&&!handle&&!count());unchanged();
@@ -82,7 +84,7 @@ static void staged(uint16_t member) {
     check(load.ready&&!load.error&&!handle&&count()==(member?1u:2u));
     check(load.origin==0x9000&&load.bytes==bytes&&load.entry==0x9000&&load.member==member);
     for(i=0;i<32;++i)check(load.metadata[i]==255);
-    for(i=0;i<bytes;++i)check(pages[load.pages[i/16384]][i%16384]==(i<8?prefix[i]:(uint8_t)(i*7+member*43)));
+    for(i=0;i<bytes;++i)check(pages[load.pages[i/16384]][i%16384]==(i<8?prefix[i]:(uint8_t)((i*7+member*43)^(modified&&member==0&&i==100))));
     unchanged();
 }
 static void decode_cases(void) {

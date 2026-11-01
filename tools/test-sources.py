@@ -18,23 +18,20 @@ def mapping(directory,name):
     image=(directory/(name+'.COM')).read_bytes();data=(directory/(name+'.ZMP')).read_bytes()
     u16=lambda at:struct.unpack_from('<H',data,at)[0]
     u32=lambda at:struct.unpack_from('<I',data,at)[0]
-    assert data[:8]==b'ZMAP\x01\0\x60\0'and image[3:8]==b'ZP80\x01'
+    assert data[:8]==b'ZMAP\x02\0\x60\0'and image[3:8]==b'ZP80\x02'
     assert u16(8)==1 and data[92:96]==bytes(4)
-    table=data[96:96+u32(84)];assert hashlib.sha256(table).digest()==data[52:84]==image[68:100]
-    manifest=bytearray(data);manifest[20:52]=bytes(32)
-    assert hashlib.sha256(manifest).digest()==image[100:132]
-    payload=bytearray(image);payload[36:68]=bytes(32)
-    assert hashlib.sha256(payload).digest()==image[36:68]==data[20:52]
+    from artifact_format import validate_pair
+    validate_pair(image,data)
+    table=data[96:96+u32(84)]
     assert u16(10)==int.from_bytes(image[20:22],'little')and u16(12)==int.from_bytes(image[22:24],'little')
     at=0;files=[]
     for file in range(u16(14)):
         ident,length,size=struct.unpack_from('<HHI',table,at);assert ident==file and 1<=length<=127
-        expected=table[at+8:at+40];path=table[at+40:at+40+length].decode('ascii')
+        path=table[at+8:at+8+length].decode('ascii')
         assert path.startswith('H:/')and all(1<=len(part)<=15 for part in path[3:].split('/'))
         raw=(directory/path[3:]).read_bytes()
-        if name=='SRCOVER'and path=='H:/source-parts/work.inc':raw=b'const answer=42;\n'
-        text=canonical(raw);assert len(text)==size and hashlib.sha256(text).digest()==expected
-        files.append({'path':path,'canonical_bytes':size,'sha256':expected.hex()});at+=40+length
+        text=canonical(raw);assert len(text)==size
+        files.append({'path':path,'canonical_bytes':size,'host_source_sha256':hashlib.sha256(text).hexdigest()});at+=8+length
     assert at==len(table)and len({f['path']for f in files})==len(files)
     at=96+len(table);last=0;seen=set()
     assert u32(88)==u32(16)*16 and len(data)==at+u32(88)
@@ -65,24 +62,24 @@ def main():
     raw=n.execute('compiler-sources',commands,fixtures,timeout=900)
     m=n.memory(raw);word=lambda name:m.get(sym[name],0)|m.get(sym[name]+1,0)<<8
     directory=n.RUN/'compiler-sources/hostfs'
-    expected=b''.join((f'SOURCE-{name}-OK\r\n'.encode()*2)for name in ['INCLUDES','REPEATED','INITIALIZER','OVERRIDE'])
+    expected=b''.join((f'SOURCE-{name}-OK\r\n'.encode()*2)for name in ['INCLUDES','REPEATED','INITIALIZER'])
     checks={
         'native completion':m.get(sym['_test_done'])==255 and word('_test_stage')==6,
         'RAM/saved source identities, include error path, pending source, mappings, stack and page ownership':
-            word('_test_failed')==0 and word('_test_passed')>=70,
-        'cross-file names/constants, Real signs/Pi, aggregates, repeated inclusion and unsaved override':
+            word('_test_failed')==0 and word('_test_passed')==65,
+        'cross-file names/constants, Real signs/Pi, aggregates, repeated inclusion':
             (directory/'SOURCES.TXT').is_file()and(directory/'SOURCES.TXT').read_bytes()==expected,
-        'unsaved include was never silently saved':(directory/'source-parts/work.inc').read_bytes()==b'const answer=1;\n',
+        'unused disk include remains unchanged':(directory/'source-parts/work.inc').read_bytes()==b'const answer=1;\n',
         'all source/build/platform inputs unchanged':all(n.sha(Path(p))==h for p,h in hashes.items()),
     }
     maps={}
     try:
-        for name in ['SRCMAIN','SRCSTEPS','SRCINIT','SRCERROR','SRCOVER']:maps[name]=mapping(directory,name)
-        checks['complete source tables and independently verified manifest/map/image hashes']=True
+        for name in ['SRCMAIN','SRCSTEPS','SRCINIT','SRCERROR']:maps[name]=mapping(directory,name)
+        checks['versioned source tables and bounded map/image layouts']=True
         checks['main and included statements have distinct actual source mappings']=maps['SRCMAIN']['mapped_files']==[0,1,2]and maps['SRCERROR']['mapped_files']==[0,1]
         checks['repeated normalized include has one canonical source identity']=len(maps['SRCSTEPS']['files'])==2
     except (OSError,AssertionError,ValueError,struct.error)as error:
-        checks['complete source tables and independently verified manifest/map/image hashes']=False
+        checks['versioned source tables and bounded map/image layouts']=False
         maps['validation_error']=repr(error)
     report={'scope':__doc__+' Full language/editor conformance and failure/hardware acceptance remain open.',
             'passed':all(checks.values()),'native_assertions_passed':word('_test_passed'),

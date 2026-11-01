@@ -25,7 +25,7 @@ def main():
     fixtures = {f'{target}.{ext}': (ROOT/f'build/{target}.{ext}').read_bytes() for ext in ('bin', 'zpl')}
     library = fixtures[target+'.zpl']
     assert phase_first < bank_count <= 16
-    assert library[:6] == b'ZPL1\x01'+bytes([bank_count])
+    assert library[:6] == b'ZPL1\x02'+bytes([bank_count])
     header_bytes = 16+2*bank_count
     assert int.from_bytes(library[6:8], 'little') == header_bytes
     sizes = struct.unpack_from(f'<{bank_count}H',library,16)
@@ -42,11 +42,7 @@ def main():
     commands += [f"bp 0x{sym['_test_stop']:x}", 'run 60000000000', 's', 'regs', 'mmu']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage'):
         commands += [f'rb 0x{sym[name]:x} 2']
-    commands += [f"rb 0x{sym['_test_hash']:x} 32", f"rb 0x{sym['_test_group_hash']:x} 32",
-                 f"rb 0x{sym['_test_phase_hash']:x} 32",
-                 f"rb 0x{sym['_test_late_hash']:x} 32",
-                 f"rb 0x{sym['_test_owner_hash']:x} 32",
-                 f"rb 0x{sym['_test_failures']:x} 128", 'quit']
+    commands += [f"rb 0x{sym['_test_failures']:x} 128", 'quit']
     raw = n.execute('member-spool', commands, fixtures, timeout=600)
     memory = n.memory(raw)
     word = lambda name: memory.get(sym[name], 0) | memory.get(sym[name]+1, 0) << 8
@@ -60,7 +56,6 @@ def main():
     maps = bytes((at*7+3) & 255 for at in range(199, 247))
     relocs = bytes((at*11+5) & 255 for at in range(12, 28))
     expected = header + code + maps + relocs
-    digest = bytes(memory.get(sym['_test_hash']+i, 0) for i in range(32))
     def frame(origin, entry, code, first_map, maps, first_reloc, relocs):
         return (b'ZPMS\2\0'+struct.pack('<6H', 24, origin, len(code), entry-origin, maps, relocs)+bytes(6)
                 +code+bytes((at*7+3)&255 for at in range(96+71+first_map*16, 96+71+(first_map+maps)*16))
@@ -71,9 +66,6 @@ def main():
     sibling = frame(0xbff0, 0xbff0, bytes(range(0x70, 0x70+24)), 2, 1, 3, 1)
     grouped = n.RUN/'member-spool/hostfs/GROUPS.SPL'
     group_data = grouped.read_bytes() if grouped.exists() else b''
-    group_digest = bytes(memory.get(sym['_test_group_hash']+i, 0) for i in range(32))
-    payload_hash = hashlib.sha256(library[header_bytes:]).digest()
-    phase_hash = bytes(memory.get(sym['_test_phase_hash']+i, 0) for i in range(32))
     late_first = (b'ZPMS\2\0'+struct.pack('<7H',24,0xbffa,10,0,0,2,2)+bytes(4)
                   +b'\xcd\0\0'+bytes(4)+b'\xcd\0\0'
                   +struct.pack('<4H',0x3ffb,1,0x4002,1)
@@ -81,7 +73,6 @@ def main():
     late_second = (b'ZPMS\2\0'+struct.pack('<7H',24,0xbffa,3,0,0,1,1)+bytes(4)
                    +b'\x21\x03\0'+struct.pack('<2H',0x3ffb,1)+struct.pack('<4H',0xbffb,2,1,0))
     late_spool=n.RUN/'member-spool/hostfs/LATE.SPL'
-    late_digest=bytes(memory.get(sym['_test_late_hash']+i,0)for i in range(32))
     def records_from(name):
         path=n.RUN/('member-spool/hostfs/'+name)
         if not path.is_file():return []
@@ -107,22 +98,19 @@ def main():
                    and [int.from_bytes(code[site-origin:site-origin+2],'little')for site,key,coefficient,flags in terms]==[0,0,0,2,0,0]
                    and not helpers[1][2] and helpers[1][0]>=origin+len(code))
     owners=records_from('OWNERS.SPL');owner_ok=False
-    owner_digest=bytes(memory.get(sym['_test_owner_hash']+i,0)for i in range(32))
     if len(owners)==2:
         origin,code,terms,frame=owners[0]
         owner_ok=([key for site,key,coefficient,flags in terms]==[1,2,3,4,6,7,8]
                   and all(code[site-origin:site-origin+2]==b'\0\0'for site,key,coefficient,flags in terms)
                   and not owners[1][2] and owners[1][0]>=origin+len(code)
-                  and hashlib.sha256(frame).digest()==owner_digest)
+                  )
     checks = {
         'native completion': memory.get(sym['_test_done']) == 255 and word('_test_stage') == 6,
         'native group/journal ownership, scalar/byte/multiple-symbol fixups, phase parking, compile, RAM/saved Run and MMU assertions': word('_test_failed') == 0 and word('_test_passed') >= 147,
         'exact independently framed two-member spool': data == expected*2,
-        'trusted catalog digest matches independent disk hash': hashlib.sha256(expected).digest() == digest,
         'nested member extents, zero parent gaps and immutable suffixes match independent disk framing': group_data == nested_first+nested_second+parent+sibling,
-        'parent catalog identity binds its reserved nested area': hashlib.sha256(parent).digest() == group_digest,
-        'restored compiler pages match the independently hashed original library payload': phase_hash == payload_hash,
-        'member late chains and bridge references match independent framing and hash': late_spool.is_file() and late_spool.read_bytes()==late_first+late_second and late_digest==hashlib.sha256(late_first).digest(),
+        'host compares restored compiler bytes to library payload':all((n.RUN/'member-spool/hostfs'/name).is_file()and(n.RUN/'member-spool/hostfs'/name).read_bytes()==library[header_bytes:]for name in ('CODE0.BIN','CODE1.BIN')),
+        'member late chains and bridge references match independent byte framing': late_spool.is_file() and late_spool.read_bytes()==late_first+late_second,
         'production parameter/random factories defer to root and later members reuse them': helper_ok,
         'keyboard/interrupt/file/record-array-file initializers and all root chains bind outside member reservations': owner_ok,
     }
@@ -132,7 +120,7 @@ def main():
         result=['regs','mmu']
         for name,size in (('_test_done',1),('_test_passed',2),('_test_failed',2),('_test_stage',2),
                           ('_code_owned',1),('_code_phase_fd',1),('_code_pages',bank_count),('_code_phase_pending',phase_count),
-                          ('_test_phase_hash',32),('_test_failures',128)):
+                          ('_test_failures',128)):
             result += [f'rb 0x{sym[name]:x} {size}']
         return result
     altered=[]
@@ -141,12 +129,12 @@ def main():
         if command!='regs' or f'PC={marker:04x} ' not in response:return
         path=directory/'hostfs'/f'{target}.zpl'
         assert len(altered)<2
-        with path.open('r+b') as stream:
-            stream.seek(offset)
-            before=stream.read(1)
-            expected=bytes([library[offset]^(1 if altered else 0)])
-            assert before==expected
-            stream.seek(offset);stream.write(bytes([before[0]^1]))
+        if altered:
+            assert path.read_bytes()==library[:offset]
+            path.write_bytes(library)
+        else:
+            assert path.read_bytes()==library
+            with path.open('r+b') as stream:stream.truncate(offset)
         altered.append({'operation':'repair' if altered else 'corrupt','offset':offset,'sha256':n.sha(path)})
     negative=['run 100000000']+n.program_launch(target)+[f'bp 0x{marker:x}',f"bp 0x{sym['_test_stop']:x}",
               'run 60000000000']+probes()+['s','run 60000000000']+probes()
@@ -155,9 +143,9 @@ def main():
     negative_raw=n.execute('member-phase-corrupt',negative,negative_fixtures,timeout=600,after_command=alter_on_marker)
     negative_state=n.memory(negative_raw)
     value=lambda name:negative_state.get(sym[name],0)|(negative_state.get(sym[name]+1,0)<<8)
-    checks['real post-startup library corruption rejects compilation, preserves source/build, and repairs on retry']=(
+    checks['real post-startup library truncation rejects compilation, preserves source/build, and repairs on retry']=(
         len(altered)==2 and negative_state.get(sym['_test_done'])==255 and value('_test_failed')==0 and value('_test_passed')>=150
-        and bytes(negative_state.get(sym['_test_phase_hash']+i,0)for i in range(32))==payload_hash
+        and all((n.RUN/'member-phase-corrupt/hostfs'/name).is_file()and(n.RUN/'member-phase-corrupt/hostfs'/name).read_bytes()==library[header_bytes:]for name in ('CODE0.BIN','CODE1.BIN'))
         and (n.RUN/f'member-phase-corrupt/hostfs/{target}.zpl').read_bytes()==library)
     release,exit_pc,close_pc=sym['_code_release'],sym['_exit'],sym['_close']
     kernel=n.kernel_symbols();owners=kernel['_page_owners'];kernel_exit=kernel['zos_loader_exit']

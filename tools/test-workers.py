@@ -49,7 +49,9 @@ def main():
     counts = re.findall(rb'WORKER-READY:(\d+)\r\n', output)
     normalized = re.sub(rb'WORKER-READY:\d+\r\n', b'READY\r\n', output)
     binary = (directory/'WORKERS0.COM').read_bytes() if (directory/'WORKERS0.COM').exists() else b''
+    library=fixtures[target+'.zpl'];payload=library[16+2*library[5]:]
     checks = {
+        'host code-byte comparison before and after all jobs':all((directory/name).is_file()and(directory/name).read_bytes()==payload for name in ('CODE0.BIN','CODE1.BIN')),
         'native completion marker': memory.get(sym['_test_done']) == 255 and word('_test_stage') == 6,
         'normal/fault/Halt/malformed return, source recovery and ownership assertions':
             word('_test_failed') == 0 and word('_test_passed') >= 300,

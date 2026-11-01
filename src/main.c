@@ -15,7 +15,6 @@
 Source work;
 Build build;
 CompileOptions compile_options={0,0xfbffu,COMPILE_PROGRAM};
-Sources buffers;
 char main_file[128];
 uint8_t ide_state; /* 1 menu, 2 editor, 3 acknowledgment */
 static uint8_t messages=1;
@@ -25,6 +24,7 @@ extern uint8_t console_scratch[256];
 static void block_io(uint8_t kind);
 static void search_command(uint8_t kind);
 static void search_ack(const char *message);
+static uint8_t save_work_auto(void);
 
 static void output_hex(uint16_t n,uint8_t digits) {
     char text[5]; uint8_t i;
@@ -59,30 +59,19 @@ static void invalidate(void) {
     build_close(&build);
     build.code_bytes=build.globals_bytes=0;
 }
-static uint8_t sync_work(void) { return sources_take(&buffers,&work,&work)>=0; }
 static void lookup_failure(void) {
     recovery_notice();
-    output("\nSource lookup failed; buffers retained. Press Escape");
+    output("\nSource lookup failed; Work retained. Press Escape");
     while(key_read()!=27) {}
 }
-static uint8_t select_error_source(const char *path,const uint8_t *expected) {
-    Source candidate;uint8_t hash[32],loaded=0;int16_t id;
-    if(!expected||!sync_work())return 0;
-    id=sources_find(&buffers,path);
-    if(id>=0) {
-        if(!sources_ready(&buffers,(uint8_t)id)||!sources_get(&buffers,(uint8_t)id,&candidate))return 0;
-    } else {
-        Diagnostic d;
-        if(!read_block(&candidate,path,&d))return 0;
-        loaded=1;
-    }
-    source_hash(&candidate,hash);
-    if(memcmp(hash,expected,32)||(loaded&&sources_take(&buffers,&candidate,&candidate)<0)) {
-        if(loaded)source_close(&candidate);
-        return 0;
-    }
-    if(candidate.page!=work.page)editor_forget();
-    work=candidate;return 1;
+static uint8_t select_error_source(const char *path) {
+    Diagnostic d;
+    if(!strcmp(path,work.path))return 1;
+    /* TP3 saves the actual dirty Work before an include replaces it. */
+    if(work.dirty&&!save_work_auto())return 0;
+    invalidate();
+    if(!reload_source(&work,path,&d))return 0;
+    editor_forget();return 1;
 }
 static uint16_t draw_line(uint16_t p,uint8_t row,uint8_t selected) {
     char text[129];
@@ -158,7 +147,6 @@ static void edit(uint8_t at_error) {
         if(result==EDITOR_FIND||result==EDITOR_REPLACE||result==EDITOR_REPEAT) search_command(result);
         if(work.revision!=revision) {
             invalidate();
-            if(page_lifetime(work.page)!=lifetime&&!sync_work())lookup_failure();
         }
         if(result==EDITOR_DONE) return;
         if(result==EDITOR_REJECT||result==EDITOR_ABORT) {
@@ -168,7 +156,7 @@ static void edit(uint8_t at_error) {
         }
     }
 }
-static void diagnostic(uint8_t kind,uint16_t code,const char *path,const uint8_t *hash,
+static void diagnostic(uint8_t kind,uint16_t code,const char *path,
                        uint16_t position,uint16_t pc,uint8_t canonical) {
     uint16_t line,col;
     uint8_t located;
@@ -180,7 +168,7 @@ static void diagnostic(uint8_t kind,uint16_t code,const char *path,const uint8_t
     if(kind!=1) { output(" PC="); output_hex(pc,4); }
     if(kind==3&&ram_io_detail) { output(" (native error "); output_number(ram_io_detail); output(")"); }
     output("\n");output(path);
-    located=select_error_source(path,hash);
+    located=select_error_source(path);
     if(located) {
         if(canonical)position=source_editor_offset(&work,position);
         located=position<=work.length;
@@ -191,44 +179,27 @@ static void diagnostic(uint8_t kind,uint16_t code,const char *path,const uint8_t
     }
     if(messages&&kind==2&&code==2) output(" Division by zero");
     if(kind==1)recovery_notice();
-    output(located?"\nPress Escape to return to source":"\nSource lookup failed; buffers retained. Press Escape");
+    output(located?"\nPress Escape to return to source":"\nSource lookup failed; Work retained. Press Escape");
     while(key_read()!=27) {}
     if(located) { work.cursor=position;edit(1); }
 }
-static uint8_t save_work_as(const char *name) {
-    uint8_t ok,c;Source candidate,other;int16_t id;
+static uint8_t save_work_as(const char *name,uint8_t automatic) {
+    uint8_t ok;Source candidate;
     candidate=work;
-    if(name) {
-        if(!source_path(name,candidate.path)) { lookup_failure();return 0; }
-        id=sources_find(&buffers,candidate.path);
-        if(id>=0&&sources_get(&buffers,(uint8_t)id,&other)&&other.page!=work.page&&other.dirty) {
-            output("Discard unsaved destination buffer (Y/N)? ");
-            do { c=confirmation_key(); } while(c!='y'&&c!='n'&&c!=27&&c!=21);
-            if(c!='y')return 0;
-        }
-    }
-    candidate=work;
-    screen_clear(); output("Saving source "); output(name?name:work.path); output(" (Ctrl-U cancels)...\n");
-    ok=name?save_source_as(&candidate,name,0,1):save_source(&candidate,0,1);
-    if(!ok&&platform_error==15&&!output_interrupt_reason()) {
-        output("Existing BAK is unchanged.\nReplace BAK with the previous source (Y/N)? ");
-        do { c=confirmation_key(); } while(c!='y'&&c!='n'&&c!=27&&c!=21);
-        if(c==21) { search_ack("*** INTERRUPTED"); return 0; }
-        if(c=='y') ok=name?save_source_as(&candidate,name,1,1):save_source(&candidate,1,1);
-        else return 0;
-    }
+    if(!automatic)screen_clear();
+    output("Saving source "); output(name?name:work.path); output(" (Ctrl-U cancels)...\n");
+    ok=name?save_source_as(&candidate,name,1,1):save_source(&candidate,1,1);
     if(ok) {
         if(candidate.revision!=work.revision)invalidate();
-        if(sources_take(&buffers,&candidate,&candidate)<0) {
-            output("Disk saved; buffer identity could not be updated. RAM retained.");ok=0;
-        } else { work=candidate;output("Source saved: ");output(work.path);recovery_notice(); }
+        work=candidate;output("Source saved: ");output(work.path);output("\n");recovery_notice();
     }
     else if(publication_interrupted()) return 0;
     else { file_error("Save failed, native error ",platform_error); output(". RAM source retained."); recovery_notice(); }
-    search_ack("");
+    if(!ok)search_ack("");
     return ok;
 }
-static uint8_t save_work(void) { return save_work_as(0); }
+static uint8_t save_work(void) { return save_work_as(0,0); }
+static uint8_t save_work_auto(void) { return save_work_as(0,1); }
 static uint8_t file_field(char *text) {
     uint8_t c,n=0; char one[2]={0,0};
     text[0]=0;
@@ -366,8 +337,7 @@ static void block_io(uint8_t kind) {
     }
 }
 static void open_work(void) {
-    char name[128],path[128];uint8_t c=0,loaded=0;Diagnostic d;
-    Source candidate;int16_t id;
+    char name[128],path[128];uint8_t c=0;Diagnostic d;
     if(work.dirty) {
         output("Save current source first (Y/N), Escape cancels: ");
         do { c=confirmation_key(); } while(c!='y'&&c!='n'&&c!=27&&c!=21);
@@ -375,32 +345,14 @@ static void open_work(void) {
     }
     screen_clear();output("Open work file (for example T:/HELLO.PAS): ");
     if(file_field(name)!=1)return;
-    if(!sync_work()||!source_path(name,path)) { lookup_failure();return; }
-    id=sources_find(&buffers,path);
-    /* Parked dirty sources are authoritative. A dirty current Work with N
-     * explicitly discards its edits, so reopening that name reads disk. */
-    if(id>=0&&sources_get(&buffers,(uint8_t)id,&candidate)&&candidate.dirty&&
-       candidate.page!=work.page) {
-        if(!sources_ready(&buffers,(uint8_t)id)) { lookup_failure();return; }
-    } else {
-        output("\nLoading...\n");
-        if(!source_new(&candidate,path)) { lookup_failure();return; }
-        if(!load_source(&candidate,path,&d)) {
-            source_close(&candidate);
-            file_error(d.code?"Source error ":"Native file error ",d.code?d.code:platform_error);
-            output(". Current buffer retained. Press Escape");while(key_read()!=27) {}return;
-        }
-        loaded=1;
-    }
+    if(!source_path(name,path)) { lookup_failure();return; }
+    output("\nLoading...\n");
     invalidate();
-    if(loaded&&sources_take(&buffers,&candidate,&candidate)<0) {
-        source_close(&candidate);lookup_failure();return;
+    if(!load_source(&work,path,&d)) {
+        file_error(d.code?"Source error ":"Native file error ",d.code?d.code:platform_error);
+        output(". Current buffer retained. Press Escape");while(key_read()!=27) {}return;
     }
-    if((c=='n'||!work.dirty)&&strcmp(candidate.path,work.path)) {
-        id=sources_find(&buffers,work.path);
-        if(id<0||!sources_remove(&buffers,(uint8_t)id)) { lookup_failure();return; }
-    }
-    work=candidate;editor_forget();
+    editor_forget();
 }
 static void select_main(void) {
     char name[128],path[128];uint8_t field;
@@ -412,21 +364,12 @@ static void select_main(void) {
     if(strcmp(path,main_file)) { strcpy(main_file,path);invalidate(); }
 }
 static uint8_t quit_work(void) {
-    Source pending;uint8_t c,id;
-    if(!sync_work()) { lookup_failure();return 0; }
-    /* Automatic include navigation can leave several dirty buffers. Every
-     * one participates in quit; cancellation preserves all remaining text. */
-    for(id=0;id<buffers.count;++id) {
-        if(!sources_get(&buffers,id,&pending)) { lookup_failure();return 0; }
-        if(!pending.dirty)continue;
-        output("Save ");output(pending.path);output(" before quitting (Y/N), Escape cancels: ");
+    uint8_t c;
+    if(work.dirty) {
+        output("Save ");output(work.path);output(" before quitting (Y/N), Escape cancels: ");
         do { c=confirmation_key(); } while(c!='y'&&c!='n'&&c!=27&&c!=21);
         if(c==27||c==21)return 0;
-        if(c=='y') {
-            if(!sync_work()) { lookup_failure();return 0; }
-            work=pending;editor_forget();
-            if(!save_work())return 0;
-        }
+        if(c=='y'&&!save_work())return 0;
     }
     return 1;
 }
@@ -434,21 +377,20 @@ static void save_as_work(void) {
     char name[128];
     screen_clear(); output("Save source as (for example T:/untitled.pas): ");
     if(file_field(name)!=1) return;
-    if(save_work_as(name)) invalidate();
+    if(save_work_as(name,0)) invalidate();
 }
-static uint8_t compile_work(void) {
-    Diagnostic d;CompileFailure failure;Source root;int16_t id;uint8_t ok;uint16_t column;
+static uint8_t compile_work(uint8_t running) {
+    Diagnostic d;CompileFailure failure;Source root;uint8_t ok;uint16_t column;
     const char *path=main_file[0]?main_file:work.path;
     invalidate();screen_clear();
-    if(!sync_work()) { lookup_failure();return 0; }
-    id=sources_find(&buffers,path);
-    if(id>=0) {
-        if(!sources_get(&buffers,(uint8_t)id,&root)) { lookup_failure();return 0; }
-    } else {
+    if(!strcmp(path,work.path))root=work;
+    else {
+        /* With a different Main, TP3 saves Work before loading Main. */
+        if(work.dirty&&!save_work_auto())return 0;
         memset(&root,0,sizeof(root));root.page=255;strcpy(root.path,path);
     }
     output(saved_mode==2?"Compiling native CHN (Ctrl-U cancels)...\n":saved_mode?"Compiling to native COM (Ctrl-U cancels)...\n":"Compiling to Memory (Ctrl-U cancels)...\n");
-    ok=compile_request(&root,&buffers,&build,&failure,saved_mode,saved_mode?&compile_options:0,work.path);
+    ok=compile_request(&root,&build,&failure,saved_mode,saved_mode?&compile_options:0);
     d=failure.diagnostic;
     if(!ok) {
         build.code_bytes=build.globals_bytes=0;
@@ -462,7 +404,7 @@ static uint8_t compile_work(void) {
             search_ack(failure.interrupted==2?"Compile interrupted: typeahead full":"*** COMPILE INTERRUPTED");return 0;
         }
         if(strcmp(failure.path,root.path)&&!main_file[0])strcpy(main_file,root.path);
-        diagnostic(1,d.code,failure.path,failure.has_hash?failure.hash:0,d.start,0,0);return 0;
+        diagnostic(1,d.code,failure.path,d.start,0,0);return 0;
     }
     if(!sources_get(&build.sources,0,&root)) { cancel_prepared_build();lookup_failure();return 0; }
     if(saved_mode) {
@@ -480,9 +422,11 @@ static uint8_t compile_work(void) {
             invalidate();search_ack("");return 0;
         }
         output("Saved ");output(output_path());output(" and .ZMP");recovery_notice();
-        search_ack("Source buffers unchanged");
+        output("\n");
     }
-    source_location(&root,root.length,&compiled_main_lines,&column);return 1;
+    source_location(&root,root.length,&compiled_main_lines,&column);
+    if(saved_mode&&!running)build_close(&build);
+    return 1;
 }
 static uint8_t hexadecimal(const char *text,uint16_t *value) {
     uint8_t i,digit;
@@ -511,12 +455,13 @@ static void options_screen(void) {
 }
 static void option_address(uint8_t start) {
     char text[128];CompileOptions proposed;CompileLimits limits;
-    uint16_t value;uint8_t field;
+    uint16_t value=0;uint8_t field;
     for(;;) {
-        output(start?"Start hex (0=AUTO, empty keeps current): ":"End hex (empty keeps current): ");
-        field=file_field(text);if(field!=1)return;
+        output(start?"Start hex (empty or 0=AUTO): ":"End hex (empty=FBFF): ");
+        field=file_field(text);if(field!=1&&field!=3)return;
         proposed=compile_options;
-        if(hexadecimal(text,&value)) {
+        if(field==3||hexadecimal(text,&value)) {
+            if(field==3)value=start?0:0xfbffu;
             if(start)proposed.start=value;else proposed.end=value;
             if(compile_limits(build.code_bytes?build.globals_bytes:0,build.code_bytes,&proposed,&limits)) {
                 if(proposed.start!=compile_options.start||proposed.end!=compile_options.end) {
@@ -540,11 +485,11 @@ static uint8_t find_saved(void) {
         output("\nInvalid hexadecimal PC. Press Escape to retry");while(key_read()!=27) {}
     }
     output("\nVerifying saved program, map and sources...\n");
-    if(!sync_work()||!saved_location_kind(root,&buffers,pc,&found,saved_mode==2)) {
+    if(!saved_location_kind(root,&work,pc,&found,saved_mode==2)) {
         file_error("Saved lookup failed, native error ",platform_error);
         lookup_failure();return 0;
     }
-    if(!select_error_source(found.path,found.hash)) {lookup_failure();return 0;}
+    if(!select_error_source(found.path)) {lookup_failure();return 0;}
     if(strcmp(found.path,root)&&!main_file[0])strcpy(main_file,root);
     pc=source_editor_offset(&work,found.position);
     source_location(&work,pc,&line,&column);ide_state=3;
@@ -699,47 +644,49 @@ done:
     output("Free space unavailable\nPress Escape");while(key_read()!=27) {}
 }
 int app_main(void) {
-    uint8_t c,status,file,hash[32];
+    uint8_t c,status,file,menu=1;
     uint16_t pc,position;Source root,failed;
     Diagnostic startup;
     memset(&build,0,sizeof(build)); memset(build.pages,255,3); build.map_page=255;
     if(!console_open()) { output("Zeal Pascal needs the supported MMU machine and 80x24 PS/2 console.\n"); return 1; }
     if(!source_new(&work,DEFAULT_SOURCE)) { output("Not enough source memory\n"); console_close(); return 1; }
-    if(!sources_new(&buffers)) { source_close(&work);console_close();return 1; }
     screen_clear(); output("Zeal Pascal\nExplanatory error messages (Y/N)? ");
     if(!load_source(&work,work.path,&startup)) {
         file_error("\nDefault source unavailable (error ",startup.code?startup.code:platform_error);
         output("); empty RAM buffer retained.\nExplanatory error messages (Y/N)? ");
     }
-    if(!sync_work()) { source_close(&work);sources_close(&buffers);console_close();return 1; }
     do { c=suffix(key_read()); } while(c!='y'&&c!='n'); messages=c=='y';
     for(;;) {
-        ide_state=1; screen_clear();
-        show_directory();
-        output(saved_mode==2?"Zeal Pascal - native cHn-file\nWork: ":saved_mode?"Zeal Pascal - native Com-file\nWork: ":"Zeal Pascal - Memory\nWork: "); output(work.path);
-        output(work.dirty?" *\n":"\n");output("Main: ");
-        if(main_file[0])output(main_file);else output("(Work)");
-        output("\n");output_number(work.length); output(" source bytes; ");
-        output_number(pages_used()); output(" owned pages; free memory unavailable\n");
-        if(build.code_bytes) {
-            output("Last compile - main lines: ");output_number(compiled_main_lines);
-            output("\nCode bytes: ");output_number(build.code_bytes);
-            output(" Data bytes: ");output_number(build.globals_bytes);
-            output("\nFree space unavailable\n");
+        ide_state=1;
+        if(menu) {
+            screen_clear();show_directory();
+            output(saved_mode==2?"Zeal Pascal - native cHn-file\nWork: ":saved_mode?"Zeal Pascal - native Com-file\nWork: ":"Zeal Pascal - Memory\nWork: "); output(work.path);
+            output(work.dirty?" *\n":"\n");output("Main: ");
+            if(main_file[0])output(main_file);else output("(Work)");
+            output("\n");output_number(work.length); output(" source bytes; ");
+            output_number(pages_used()); output(" owned pages; free memory unavailable\n");
+            if(build.code_bytes) {
+                output("Last compile - main lines: ");output_number(compiled_main_lines);
+                output("\nCode bytes: ");output_number(build.code_bytes);
+                output(" Data bytes: ");output_number(build.globals_bytes);
+                output("\nFree space unavailable\n");
+            }
+            output("L Logged drive  D Dir  W Open  M Main  E Edit\nS Save  A Save as  C Compile  R Run  X Execute  O Options  Q Quit\n");
+            menu=0;
         }
-        output("L Logged drive  D Dir  W Open  M Main  E Edit\nS Save  A Save as  C Compile  R Run  X Execute  O Options  Q Quit\n");
-        c=suffix(key_read());
-        if(c=='e') edit(0);
+        output("\n>");c=suffix(key_read());
+        if(c=='\n') {menu=1;continue;}
+        if(c=='e') {edit(0);menu=1;}
         else if(c=='w') open_work();
         else if(c=='m') select_main();
         else if(c=='s') save_work();
         else if(c=='a') save_as_work();
-        else if(c=='c') compile_work();
+        else if(c=='c') compile_work(0);
         else if(c=='l') logged_drive();
         else if(c=='d') directory_list();
         else if(c=='x') execute_work();
         else if(c=='o') {
-            options_screen();
+            menu=1;options_screen();
             do {
                 c=suffix(key_read());
                 if(c=='m'||c=='c'||c=='h') {
@@ -758,16 +705,16 @@ int app_main(void) {
             } while(c!='q');
         }
         else if(c=='r') {
-            if((!build.valid||!sources_get(&build.sources,0,&root)||!build_ready(&root,&build))&&!compile_work())continue;
+            if((saved_mode||!build.valid||!sources_get(&build.sources,0,&root)||!build_ready(&root,&build))&&!compile_work(1))continue;
             if(!sources_get(&build.sources,0,&root)) { lookup_failure();continue; }
             if(saved_mode==2) {
                 screen_clear();search_ack("Run CHN files with Chain(F) from a saved Pascal program");continue;
             }
             screen_clear(); output("Validating and preparing program...\n");
             if(saved_mode) {
-                if(!run_saved(&root,&build,&status)) file_error("Saved program failed validation/exec. Native error ",platform_error);
-                else { output("\nProgram returned, status "); output_number(status); }
-                output(". Press Escape"); while(key_read()!=27) {}
+                if(!run_saved(&root,&build,&status)) {
+                    file_error("Saved program failed validation/exec. Native error ",platform_error);search_ack("");
+                } else { output("\nProgram returned, status "); output_number(status);output("\n"); }
             } else if(!run_build(&root,&build)) { output("Native run failed; source retained. Press Escape"); while(key_read()!=27) {} }
             else if(ram_result[26]==6) {
                 output("Native platform failure "); output_number(ram_result[28]);
@@ -775,13 +722,13 @@ int app_main(void) {
             } else if(ram_result[26]==3||ram_result[26]==5) {
                 pc=ram_result[30]|((uint16_t)ram_result[31]<<8);
                 if(build_location(&root,&build,pc,&file,&position)&&
-                   sources_get(&build.sources,file,&failed)&&sources_hash(&build.sources,file,hash)) {
+                   sources_get(&build.sources,file,&failed)) {
                     if(file&&!main_file[0])strcpy(main_file,root.path);
-                    diagnostic(ram_result[26]==5?0:ram_result[27],ram_result[28],failed.path,hash,position,pc,1);
+                    diagnostic(ram_result[26]==5?0:ram_result[27],ram_result[28],failed.path,position,pc,1);
                 }
                 else { output("Source lookup failed. Press Escape"); while(key_read()!=27) {} }
-            } else { output("\nProgram returned. Press Escape"); while(key_read()!=27) {} }
+            } else { output("\nProgram returned.\n"); }
         } else if(c=='q'&&quit_work())break;
     }
-    build_close(&build);sources_close(&buffers);console_close(); return 0;
+    build_close(&build);source_close(&work);console_close(); return 0;
 }

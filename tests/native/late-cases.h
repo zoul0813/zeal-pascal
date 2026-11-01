@@ -1,6 +1,6 @@
 /* Shared host/native proof using the actual emitter and far group owner.
  * Caller supplies fresh staging/workspace pages and a resident pathname. */
-static void late_cases(const char *path,Diagnostic *diagnostic,uint8_t *digest) {
+static void late_cases(const char *path,Diagnostic *diagnostic) {
     CompilerGroups groups;
     CompilerMember member;
     CompilerSources context,*old_sources=cc.sources;
@@ -46,7 +46,6 @@ static void late_cases(const char *path,Diagnostic *diagnostic,uint8_t *digest) 
           cc_code_get(0xbffb)==0&&cc_code_get(0xbffc)==0&&cc_code_get(0xc002)==0&&cc_code_get(0xc003)==0);
     check(cc_group_member_end(&groups,0,1,first)&&groups.late.references==4&&cc.emitted==first);
     check(cc_group_member_get(&groups,1,&id,&ordinal,&member)&&id==0&&ordinal==0&&member.lates==2&&member.bytes==10);
-    memcpy(digest,member.hash,32);
     check(cc_group_member_begin(&groups,0,255));
     check(cc_groups_scope(&groups,254));check(cc_groups_domain(&groups,254,&id)&&id==255);
     cc_address(0x21,3);check(cc_late_reference(&groups.late,first+1,bridge,1,0));
@@ -145,7 +144,7 @@ static void member_address_guard(Diagnostic *diagnostic) {
     cc.sources=old_sources;cc.error=old_error;
 }
 
-static void remaining_helper_cases(const char *path,Diagnostic *diagnostic,uint8_t *digest) {
+static void remaining_helper_cases(const char *path,Diagnostic *diagnostic) {
     CompilerGroups groups;CompilerMember member;
     CompilerSources context,*old_sources=cc.sources;Diagnostic *old_error=cc.error;
     uint16_t origin,parent_output,parent_unpack,keyboard,interrupt,file,initializer,value,symbol;
@@ -182,7 +181,6 @@ static void remaining_helper_cases(const char *path,Diagnostic *diagnostic,uint8
     check(cc_group_member_end(&groups,0,1,origin)&&!groups.late.references);
     check(cc.hook_output_calls==parent_output&&!cc.transfer_entry&&cc.unpack_entry==parent_unpack);
     check(cc_group_member_get(&groups,1,&id,&ordinal,&member)&&member.lates==7);
-    memcpy(digest,member.hash,32);
     check(cc_group_close(&groups,0));origin=cc.emitted;
     cc_file_engine_finish();cc_keyboard_finish();cc_interrupt_finish();cc_initializer_finish();
     keyboard=cc.keyboard_entry;interrupt=cc.interrupt_entry;file=cc.file_entry;initializer=(uint16_t)cc.types[8].high;

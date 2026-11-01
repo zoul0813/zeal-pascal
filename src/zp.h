@@ -2,7 +2,6 @@
 #define ZP_H
 #include <stdint.h>
 #include <string.h>
-#include "sha256.h"
 #ifdef __SDCC
 #define NATIVE __sdcccall(1)
 #else
@@ -123,7 +122,6 @@ typedef struct {
     uint8_t pages[3], map_page, valid;
     uint16_t length, code_origin, code_bytes, globals_bytes, map_length;
     uint32_t revision;
-    uint8_t id[32], source_hash[32];
     uint32_t versions[5]; /* image pages, map, original source */
     Sources sources; /* canonical source snapshots retained with this build */
 } Build;
@@ -187,15 +185,12 @@ void source_location(const Source *s, uint16_t position, uint16_t *line, uint16_
 uint16_t source_rebase(uint16_t position,uint16_t first,uint16_t last,uint16_t inserted,uint8_t right);
 uint8_t source_snapshot(const Source *s, Source *snapshot);
 uint16_t source_editor_offset(const Source *s, uint16_t canonical);
-void source_hash(const Source *s, uint8_t out[32]) SOURCE_BLOCK_CALL;
 uint8_t compile(const Source *s, Build *b, Diagnostic *d);
-uint8_t compile_project(const Source *root,const Sources *buffers,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options);
+uint8_t compile_project(const Source *root,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options);
 uint8_t compile_limits(uint16_t globals,uint16_t code,const CompileOptions *options,CompileLimits *limits) SOURCE_BLOCK_CALL;
 uint8_t compile_interrupt_reason(void);
-/* On compile failure these resident values survive until the next compile.
- * A missing/unreadable source has no authenticated hash (NULL). */
+/* On compile failure the source path survives until the next compile. */
 const char *compile_error_path(void) SOURCE_BLOCK_CALL;
-const uint8_t *compile_error_hash(void) SOURCE_BLOCK_CALL;
 /* Path arguments must live in retained data/stack, like the source catalog. */
 uint8_t source_path(const char *name,char *out) SOURCE_BLOCK_CALL;
 /* Resolve against the native current directory without a source extension. */
@@ -207,11 +202,13 @@ uint8_t build_locate(const Source *s, const Build *b, uint16_t pc, uint16_t *pos
 uint8_t build_location(const Source *root,const Build *b,uint16_t pc,uint8_t *file,uint16_t *position);
 uint8_t run_build(const Source *s, const Build *b);
 uint8_t save_build(const Source *s,const Build *b,uint8_t interruptible);
-uint8_t prepare_build(const Source *s,const Sources *buffers,uint8_t chain,uint8_t interruptible) SOURCE_BLOCK_CALL;
+uint8_t prepare_build(const Source *s,uint8_t chain,uint8_t interruptible) SOURCE_BLOCK_CALL;
 uint8_t cancel_prepared_build(void) SOURCE_BLOCK_CALL;
 uint8_t save_source(Source *s,uint8_t replace_backup,uint8_t interruptible);
 uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup,uint8_t interruptible);
 uint8_t load_source(Source *s,const char *path,Diagnostic *d);
+/* Required source replacement: missing/error leaves the current Work intact. */
+uint8_t reload_source(Source *s,const char *path,Diagnostic *d);
 uint8_t read_block(Source *block,const char *path,Diagnostic *d);
 uint8_t save_block(const Source *s,uint16_t first,uint16_t last,const char *path,uint8_t replace,uint8_t interruptible);
 uint8_t run_saved(const Source *s,Build *b,uint8_t *status);

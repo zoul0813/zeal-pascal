@@ -29,7 +29,7 @@ def main():
     runtime = (ROOT/'build/pascal_runtime.zpl').read_bytes()
     assert len(binary)==int.from_bytes(binary[10:12],'little')
     sealed=bytearray(binary);sealed[36:68]=bytes(32)
-    assert hashlib.sha256(sealed).digest()==binary[36:68]
+    assert binary[7]==2 and binary[36:132]==bytes(96)
     # The compiler specializes these five dispatches in each owned image.
     # Permit only valid JP bindings into its generated code; every other
     # runtime byte must still match the pristine template exactly.

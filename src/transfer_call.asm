@@ -5,6 +5,9 @@
 .globl transfer_call_input_operand
 .globl transfer_call_loaded
 .globl zt_profile,zt_module_size,zt_gate_size
+.equ transfer_job_bytes, 26
+.equ transfer_frame_bytes, transfer_job_bytes+128
+.equ transfer_unwind_bytes, transfer_frame_bytes+2
 .area _HEADER (ABS)
 .org 0x8000
 ; HL is the once-evaluated ordinary FileJob. The compiler reserves256 bytes
@@ -21,17 +24,17 @@ transfer_call_start::
 native:
     push iy
     push hl
-    ld hl,#-182               ;54-byte transfer job followed by128-byte path
+    ld hl,#-transfer_frame_bytes               ;26-byte transfer job followed by128-byte path
     add hl,sp
     ld sp,hl
-    ld hl,#182
+    ld hl,#transfer_frame_bytes
     add hl,sp
     ld e,(hl)
     inc hl
     ld d,(hl)
     push de
     pop iy                    ; original FileJob, old lexical IX unchanged
-    ld hl,#54
+    ld hl,#transfer_job_bytes
     add hl,sp
     ld 6(iy),l
     ld 7(iy),h
@@ -98,10 +101,10 @@ module_ready:
     ld hl,#0
     add hl,sp
     push hl
-    pop iy                    ; caller-owned TransferJob, exact54-byte shape
+    pop iy                    ; caller-owned TransferJob, exact26-byte shape
     ld 0(iy),#0
     ld 1(iy),#0
-    ld hl,#182
+    ld hl,#transfer_frame_bytes
     add hl,sp
     ld e,(hl)
     inc hl
@@ -138,16 +141,16 @@ prepared_kind:
     ex de,hl
     .db 0x21
 rel_profile: .dw zt_profile
-    ld bc,#32
+    ld bc,#4
     ldir
-    ld hl,#54
+    ld hl,#transfer_job_bytes
     add hl,sp
-    ld 48(iy),l
-    ld 49(iy),h
+    ld 20(iy),l
+    ld 21(iy),h
     .db 0xcd
 rel_prepare: .dw dispatch
-    ld a,50(iy)
-    or 51(iy)
+    ld a,22(iy)
+    or 23(iy)
     jr nz,finish_job
     .db 0xcd
 transfer_call_input_operand:: .dw zt_input_cleanup
@@ -167,18 +170,18 @@ commit:
     ld 0(iy),#1
     .db 0xcd
 rel_commit: .dw dispatch
-    ld a,50(iy)
-    or 51(iy)
+    ld a,22(iy)
+    or 23(iy)
     jr nz,finish_job
-    ld 50(iy),#0x20           ; a successful commit cannot return
+    ld 22(iy),#0x20           ; a successful commit cannot return
 finish_job:
-    ld l,52(iy)
-    ld h,53(iy)
+    ld l,24(iy)
+    ld h,25(iy)
     ld (0xfe7a),hl
-    ld e,50(iy)
-    ld d,51(iy)
+    ld e,22(iy)
+    ld d,23(iy)
 finish:
-    ld hl,#184
+    ld hl,#transfer_unwind_bytes
     add hl,sp
     ld sp,hl
     pop iy                    ; original With register, before any error jump
@@ -201,10 +204,10 @@ dispatch:
     ld a,(0xfe7f)
     or a
     ret z
-    ld 52(iy),a
-    ld 53(iy),#0
-    ld 50(iy),#255
-    ld 51(iy),#1
+    ld 24(iy),a
+    ld 25(iy),#0
+    ld 22(iy),#255
+    ld 23(iy),#1
     ret
 .include "transfer_call_data.inc"
 transfer_call_relocs::

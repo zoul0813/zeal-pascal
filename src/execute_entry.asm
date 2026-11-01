@@ -81,15 +81,13 @@ checksum:
     sbc hl,de
     jr nz,bad_header
     ld hl,#0xfc0a
-    ld de,#0x4024
     ld b,#32
-identity:
-    ld a,(de)
-    cp (hl)
+reserved:
+    ld a,(hl)
+    or a
     jr nz,bad_header
-    inc de
     inc hl
-    djnz identity
+    djnz reserved
     ld hl,#0xfc05
     ld a,#0x40
     in a,(0xf1)

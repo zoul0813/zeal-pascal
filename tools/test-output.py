@@ -23,8 +23,8 @@ def publication_checks(drive):
     commands += typed('nwH:/REPEAT.PAS\n') + ['run 100000000']
 
     def probe():
-        return ['regs', f'rb 0x{build:x} 83', f'rb 0x{work:x} 140',
-                f"rb 0x{sym['_ram_result']:x} 128"]
+        return ['regs', f'rb 0x{build:x} {n.BUILD_BYTES}', f'rb 0x{work:x} 140',
+                f"rb 0x{sym['_ram_result']:x} 128", f"rb 0x{sym['_ide_state']:x} 1"]
 
     def action(keyname):
         commands.extend([f'bp 0x{key:x}', f'tap {keyname}', 'run 7000000000'])
@@ -53,10 +53,9 @@ def publication_checks(drive):
     edit_prefix('{edited}')
     action('S')
     edit_prefix('{again}')
-    # The second source save must wait for permission to replace the old BAK.
-    commands += [f'bp 0x{key:x}', 'tap S', 'run 300000000'] + probe()
-    commands += [f'bc 0x{key:x}', 's', f'bp 0x{key:x}', 'tap Y', 'run 3000000000'] + probe()
-    commands += [f'bc 0x{key:x}', 'tap ESC', 'run 100000000'] + typed('q') + ['quit']
+    # TP3 replaces BAK automatically with the preceding source version.
+    action('S')
+    commands += typed('q') + ['quit']
     raw = n.execute('publication-'+drive, commands, {'REPEAT.PAS': source},
                     tf_image=template, timeout=540)
     frames = [n.memory(part) for part in re.split(r'\[DBG\] PC=', raw)[1:]]
@@ -72,26 +71,24 @@ def publication_checks(drive):
         clean = not any(path.startswith('/ZP') for path in media)
         untouched = (folder/'hostfs/REPEAT.PAS').read_bytes() == source and '/src/' not in media
     offset = int(drive == 'T')
-    count_ok = len(frames) == 7+offset
+    count_ok = len(frames) == 6+offset
     binary, mapping = files.get('REPEAT.COM', b''), files.get('REPEAT.ZMP', b'')
     identity = bytes(frames[offset+3].get(build+19+i, 0) for i in range(32)) if count_ok else b''
     checks = {
         'all expected checkpoints reached': count_ok,
-        'Memory run, two COM publications and saved run retain a valid build':
-            count_ok and all(f.get(build+4) == 1 for f in frames[offset:offset+4]),
+        'Memory build is retained; saved publications and Run retain no image cache':
+            count_ok and frames[offset].get(build+4)==1 and all(f.get(build+4)==0 for f in frames[offset+1:offset+4]),
         'Memory program returned normally':
             count_ok and frames[offset].get(sym['_ram_result']+26) == 1,
-        'existing backup requires approval before clearing dirty':
-            count_ok and frames[-2].get(work+1) == 1 and frames[-1].get(work+1) == 0,
+        'both source saves return without a BAK permission or acknowledgment':
+            count_ok and all(f.get(work+1)==0 and f.get(sym['_ide_state'])==1 for f in frames[-2:]),
         'exact canonical source after two saves': files.get('REPEAT.PAS') == b'{again}{edited}'+source,
         'BAK contains the exact preceding source': files.get('REPEAT.BAK') == b'{edited}'+source,
-        'native executable, map and compiled source identities match':
-            len(binary) > 132 and binary[3:7] == b'ZP80' and mapping[:4] == b'ZMAP'
-            and int.from_bytes(binary[10:12], 'little') == len(binary)
-            and binary[36:68] == mapping[20:52] == identity
-            and hashlib.sha256(binary[:36]+bytes(32)+binary[68:]).digest() == identity
-            and hashlib.sha256(mapping[:20]+bytes(32)+mapping[52:]).digest() == binary[100:132]
-            and hashlib.sha256(source).digest() == mapping[104:136],
+        'versioned executable/map and canonical source length match':
+            len(binary)>160 and binary[3:8]==b'ZP80\2' and mapping[:5]==b'ZMAP\2'
+            and int.from_bytes(binary[10:12],'little')==len(binary)
+            and binary[36:132]==bytes(96) and mapping[20:84]==bytes(64)
+            and int.from_bytes(mapping[100:104],'little')==len(source),
         'successful saves clean only their transaction directories': clean,
         'unrelated source or TF medium remains unchanged': untouched,
     }

@@ -19,13 +19,13 @@ typedef struct {
 #define IMAGE_LOAD_PAGES 3
 enum { IMAGE_EXECUTABLE,IMAGE_CHAIN,IMAGE_ROLLBACK };
 #endif
-/* One ownership ledger serves authenticated CHN payloads and whole ZP80 COM
+/* One ownership ledger serves version-checked CHN payloads and whole ZP80 COM
  * images. ZP_CHAIN_ONLY is a component-test variant; the product handles both. */
 typedef struct {
     uint8_t pages[IMAGE_LOAD_PAGES],ready;
     int8_t fd;
     uint16_t origin,bytes,globals,end,floor,frontier,trim_at,trim_value,error;
-    uint8_t detail,id[32],map[32];
+    uint8_t detail;
 #ifndef ZP_CHAIN_ONLY
     uint8_t kind;
     uint16_t length;
@@ -35,7 +35,7 @@ typedef struct {
 #endif
 } ImageLoad;
 void chain_init(ImageLoad *load);
-/* Complete file authentication and heap validation, with no caller writes.
+/* Complete file extent and heap validation, with no caller writes.
  * A failed cleanup retains its page ledger for a later discard/retry. */
 uint8_t chain_prepare(ImageLoad *load,const char *path,const ChainCaller *caller);
 #ifndef ZP_CHAIN_ONLY

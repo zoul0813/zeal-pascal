@@ -354,25 +354,20 @@ uint8_t compile_limits(uint16_t globals,uint16_t code,const CompileOptions *opti
 }
 #ifndef __SDCC
 uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
-    return compile_project(s,0,b,d,0,0);
+    return compile_project(s,b,d,0,0);
 }
 #endif
 
 /* Error provenance is captured while invocation-owned compiler inputs live. */
 void cc_sources_error(void) ROUTINES {
-    Source failed;const Source *original=0;int16_t id;
+    Source failed;const Source *original=0;
     cc.literal_length=0;
     if(cc.sources->external_error){strcpy(cc.name,cc.input->path);return;}
     if(!sources_get(&cc.image->sources,cc.sources->error_file,&failed)) {
         strcpy(cc.name,cc.sources->root->path);return;
     }
     strcpy(cc.name,failed.path);
-    if(sources_hash(&cc.image->sources,cc.sources->error_file,cc.literal))cc.literal_length=32;
     if(!cc.sources->error_file)original=cc.sources->root;
-    else if(cc.sources->buffers) {
-        id=sources_find(cc.sources->buffers,failed.path);
-        if(id>=0&&sources_get(cc.sources->buffers,(uint8_t)id,&failed))original=&failed;
-    }
     if(original) {
         cc.error->start=source_editor_offset(original,cc.error->start);
         cc.error->end=source_editor_offset(original,cc.error->end);

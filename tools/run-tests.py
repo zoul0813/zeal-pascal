@@ -72,8 +72,14 @@ def select_commands(plan, patterns):
 def isolated_chunk(command):
     # These modes only read build inputs and write timestamp+PID capture paths.
     # Other runners may compile into fixed host directories: keep them ordered.
-    return ((command[0] in ('tools/test-editor-native.py', 'tools/test-native.py') and '--case' in command) or
+    return ((command[0] in ('tools/test-editor-native.py', 'tools/test-native.py',
+                            'tools/test-math.py', 'tools/test-files.py', 'tools/test-options.py',
+                            'tools/test-text.py', 'tools/test-output-interrupt.py') and '--case' in command) or
             (command[0] == 'tools/test-language-conformance.py' and '--shard' in command))
+
+
+def worker_slots(command, budget):
+    return min(3, budget) if command[0] == 'tools/test-output-interrupt.py' and '--case' not in command else 1
 
 
 def dependencies(plan, index):
@@ -91,7 +97,7 @@ def dependencies(plan, index):
 
 def inputs():
     paths = [ROOT / 'CMakeLists.txt', PLAN, Path(__file__).resolve(),
-             ROOT / 'tests/test_runner.py']
+             ROOT / 'tests/test_runner.py', ROOT / 'tests/test_native_chunks.py']
     for folder in ('src', 'tests/native', 'tools', 'examples'):
         paths.extend(p for p in (ROOT / folder).rglob('*')
                      if p.is_file() and '__pycache__' not in p.parts)
@@ -239,7 +245,7 @@ def main():
                     report['skipped'].append({'index': index, 'blocked_by': sorted(blocked)})
                     pending.remove((index, original))
                     continue
-                slots = min(3, args.jobs) if original[0] == 'tools/test-output-interrupt.py' else 1
+                slots = worker_slots(original, args.jobs)
                 if not required <= completed or not ordered <= (completed | failed | skipped):
                     continue
                 if sum(v['slots'] for v in active.values()) + slots > args.jobs:

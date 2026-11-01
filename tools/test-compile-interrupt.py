@@ -31,7 +31,8 @@ def main():
     image_offsets=re.findall(r'_cc \+ (\d+)',assignment)
     assert len(image_offsets)==3
     image_pointer=sym['_cc']+int(image_offsets[2])
-    prefix_polls=4 # Existing project parent, unique directory, initial input, one buffer.
+    observed_sealing=[]
+    prefix_polls=3 # Existing project parent, unique directory, initial input; no editor catalog.
 
     work, build, editor = sym['_work'], sym['_build'], sym['_editor']
     source = b'program Cancel;\nvar n:integer;\nbegin n:=7;writeln(n) end.\n'
@@ -51,7 +52,7 @@ def main():
         labels.append((label, expected))
         commands = ['regs', 'mmu', f"rb 0x{sym['_ide_state']:x} 1",
                 f'rb 0x{work:x} 140', f'rb 0x{build:x} {n.BUILD_BYTES}', f'rb 0x{editor:x} 223',
-                f"rb 0x{sym['_main_file']:x} 128", f"rb 0x{sym['_buffers']:x} {n.SOURCES_BYTES}",
+                f"rb 0x{sym['_main_file']:x} 128",
                 f"rb 0x{sym['_ram_result']:x} 128", f"rb 0x{kernel['_page_owners']:x} 32"]
         if label.endswith('-phase'):
             commands += [f'rb 0x{image_pointer:x} 2']
@@ -64,10 +65,13 @@ def main():
     def cancel(label, checkpoint):
         commands = [f'bp 0x{poll:x}', 'tap C', 'run 4000000000']
         # Advance actual polling calls, never assume a wall-clock compile time.
-        for _ in range(checkpoint-1):
-            commands += ['s', 'run 4000000000']
+        if label=='sealing':
+            commands += ['@sealing-poll']
+        else:
+            for _ in range(checkpoint-1):
+                commands += ['s', 'run 4000000000']
         commands += snapshot(label+'-phase', poll)+[f'bc 0x{poll:x}', 's']
-        commands += ['press CTRL', 'tap U', 'release CTRL']
+        if label!='sealing':commands += ['press CTRL', 'tap U', 'release CTRL']
         commands += state(label+'-cancelled', [])
         commands += [f'bp 0x{clear:x}', 'tap ESC', 'run 100000000']+snapshot(label+'-screen', clear)
         for offset in range(0, 640, 128):
@@ -79,6 +83,29 @@ def main():
 
     class CancellationConsole(n.DebugConsole):
         def command(self, command, capture=False):
+            if command=='@sealing-poll':
+                # Arm real keyboard input at the qualified sealing entry so
+                # its device IRQ can arrive before sealing's final input poll.
+                # Injecting at that last poll can arrive only during publishing.
+                cmd=lambda value:super(CancellationConsole,self).command(value)
+                entry=sym['_cc_seal']&65535;bank=sym['_cc_seal']>>16
+                at=sym['_code_pages']+bank-1
+                page=n.memory(cmd(f'rb 0x{at:x} 1'))[at]
+                cmd(f'bc 0x{poll:x}');cmd(f'bp 0x{entry:x}')
+                for _ in range(1024):
+                    cmd('run 4000000000')
+                    regs=cmd('regs');mapping=cmd('mmu')
+                    if f'PC={entry:04x} ' in regs and re.search(r'8000 -> 0*'+f'{page*16384:x}'+r'\b',mapping):
+                        break
+                    cmd('s')
+                else:raise RuntimeError('qualified compiler sealing entry was not reached')
+                cmd(f'bc 0x{entry:x}');cmd(f'bp 0x{poll:x}')
+                cmd('press CTRL');cmd('tap U');cmd('release CTRL')
+                cmd('run 4000000000')
+                if f'PC={poll:04x} ' not in cmd('regs'):
+                    raise RuntimeError('sealing did not reach its input poll')
+                observed_sealing.append({'bank':bank,'physical_page':page,'entry':entry})
+                return 'qualified sealing entry and live input poll reached\n'
             if command != '@capacity-return':
                 return super().command(command, capture)
             # A full queue can return to the reader on the last injected key.
@@ -139,15 +166,13 @@ def main():
         checks['checkpoints stop at actual reader or polling entry'] = all(
             part.startswith(f'{expected:04x} ') for (_, expected), part in zip(labels, parts))
         baseline = {address: data('baseline', address, size) for address, size in
-                    ((work, 140), (editor, 223), (sym['_main_file'], 128), (sym['_buffers'], 6))}
+                    ((work, 140), (editor, 223), (sym['_main_file'], 128))}
         unchanged = ['entry', 'allocation', 'parser', 'sealing']
-        # sync_work refreshes the catalog's version even when its source bytes
-        # are unchanged. Page, count and lifetime must retain their identity.
-        checks['cancellation preserves dirty Work, Main, editor and catalog identity'] = all(
+        checks['cancellation preserves dirty Work, Main and editor identity'] = all(
             data(label+suffix, address, len(value))==value for label in unchanged
             for suffix in ('-cancelled', '-menu') for address, value in baseline.items())
         checks['all cancellation paths discard incomplete image, map and source snapshot pages'] = all(
-            data(label, build, 5)==b'\xff\xff\xff\xff\0' and data(label, build+103, 2)==b'\xff\0'
+            data(label, build, 5)==b'\xff\xff\xff\xff\0' and data(label, build+39, 2)==b'\xff\0'
             for label in [x+'-cancelled' for x in unchanged]+['typing-cancelled', 'capacity-cancelled'])
         # Kernel ownership belongs to kernel page3, mapped during the video
         # syscall. Parent keyboard checkpoints map the IDE's separate page3.
@@ -180,13 +205,14 @@ def main():
             word('capacity-inserted', work+2)==length+31 and word('capacity-inserted', work+4)==31)
         checks['next R recompiles the repaired source and runs normally'] = (
             data('completed-run', build+4, 1)==b'\1' and data('completed-run', sym['_ram_result']+26, 1)==b'\1' and
-            data('completed-run', build+51, 32)==hashlib.sha256(prefix+source).digest())
+            data('completed-run', build+15, 4)==data('completed-run', work+8, 4))
     disk = n.RUN/'compile-interrupt/hostfs'
     checks['cancelled COM jobs and Memory rerun never alter existing source or output files'] = all(
         (disk/name).read_bytes()==content for name, content in fixtures.items())
     checks['all qualification inputs unchanged'] = all(n.sha(Path(p))==digest for p, digest in hashes.items())
     report = {'passed': all(checks.values()), 'scope': __doc__+' Bounded emulator acceptance; publication cancellation and full conformance remain open.',
-              'checks': checks, 'capture_directory': str(n.RUN.relative_to(ROOT)), 'checkpoints': labels, 'input_sha256': hashes}
+              'checks': checks, 'native_sealing_entries':observed_sealing,
+              'capture_directory': str(n.RUN.relative_to(ROOT)), 'checkpoints': labels, 'input_sha256': hashes}
     (n.RUN/'compile-interrupt-report.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))
     assert report['passed']

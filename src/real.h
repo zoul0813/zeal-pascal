@@ -16,6 +16,7 @@ extern uint8_t zr_op,zr_error,zr_a[6],zr_b[6],zr_result[6];
 extern int16_t zr_integer;
 extern const uint8_t *zr_text;
 extern uint16_t zr_length;
+#ifndef ZP_REAL_COMPILER
 /* ZR_FORMAT consumes zr_a and produces an unpadded short string. The caller
  * snapshots it before any device/user callback. Maximum body length is65. */
 extern int16_t zr_width,zr_places;
@@ -24,6 +25,9 @@ extern uint8_t zr_formatted[66];
  * not fatal arithmetic errors. Empty input succeeds without an assignment. */
 extern uint16_t zr_code;
 extern uint8_t zr_assign;
+#endif
 void zr_eval(void) REAL_API;
+#ifndef ZP_REAL_COMPILER
 void zr_transcendental(void) REAL_API;
+#endif
 #endif

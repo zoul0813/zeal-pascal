@@ -10,7 +10,7 @@
  * this phase returns. Run may then release its immutable code bank. */
 static uint16_t pc(void) {return cc.emitted-CC_CODE_BASE;}
 
-uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options) {
+uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options) {
     uint16_t i,j,n;
     SourcePosition begin;
     Source active;
@@ -19,7 +19,7 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     sources.refs_page=255;sources.root=s;sources.options=options;
     sources.memory=!options;
 #if defined(__SDCC) || defined(ZP_COMPILER_JOBS)
-    sources.borrow_inputs=compiler_invocation!=0;
+    sources.borrow_root=compiler_invocation!=0;
     if(compiler_invocation)sources.memory=compiler_memory_mode;
 #endif
     cc.input=&active;cc.sources=&sources;cc.image=b;cc.error=d;
@@ -28,7 +28,7 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     memset(b->pages,255,3);b->map_page=255;b->sources.page=255;
     cc.polling=interruptible;
     if(!cc_poll())goto failed;
-    if(!cc_sources_prepare(s,buffers))goto failed;
+    if(!cc_sources_prepare(s))goto failed;
     for(i=0;i<3;++i) {
         /* The middle page holds final globals/code placement, never parser
          * staging. Materialize it on a global initializer's first write or
@@ -67,7 +67,7 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     cc_new_type(K_INTEGER,1,0,255,0);
     cc_new_type(K_REAL,6,0,0,0);
     cc_system_init();
-    cc.file_bytes=40+(uint16_t)strlen(s->path);
+    cc.file_bytes=8+(uint16_t)strlen(s->path);
     cc_next();
     if(cc_is("program")) {
         cc_next();cc_expect(T_ID,53);
@@ -108,4 +108,3 @@ failed:
     }
     build_close(b);return 0;
 }
-

@@ -364,6 +364,35 @@ def generate(path):
     print('Generated',len(rows),'primitive,',len(DECIMALS)+len(BAD_DECIMALS),'decimal and',len(formats),'format native vectors')
     print('Generated',len(vals),'Val vectors, including complete255-byte inputs')
 
+def compiler_conversions(full, out):
+    """Exercise the compiler-only build against exact integers and full parsing."""
+    library=out/'compiler-real.so'
+    subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-DZP_REAL_COMPILER',
+        '-fPIC','-shared',str(ROOT/'src/real.c'),'-o',str(library)],check=True)
+    compiler=ctypes.CDLL(str(library))
+    def context(lib):
+        return (ctypes.c_ubyte.in_dll(lib,'zr_op'),ctypes.c_ubyte.in_dll(lib,'zr_error'),
+            ctypes.c_int16.in_dll(lib,'zr_integer'),(ctypes.c_ubyte*6).in_dll(lib,'zr_result'),
+            ctypes.c_void_p.in_dll(lib,'zr_text'),ctypes.c_uint16.in_dll(lib,'zr_length'))
+    op,error,integer,result,pointer,length=context(compiler)
+    for n in range(-32768,32768):
+        op.value=5;integer.value=n;error.value=255;compiler.zr_eval()
+        assert error.value==0 and bytes(result)==encode(Fraction(n)),(n,bytes(result).hex(),error.value)
+    reference=context(full);rng=random.Random(14)
+    tokens=list(DECIMALS)+list(BAD_DECIMALS)
+    for _ in range(2000):
+        digits=''.join(str(rng.randrange(10))for _ in range(rng.randrange(1,40)))
+        split=rng.randrange(1,len(digits)+1)
+        tokens.append(('-'if rng.randrange(2)else '')+digits[:split]+'.'+digits[split:]+'E'+str(rng.randrange(-99,100)))
+    for token in tokens:
+        buffer=ctypes.create_string_buffer(token.encode());answers=[]
+        for lib,values in [(full,reference),(compiler,(op,error,integer,result,pointer,length))]:
+            cmd,err,num,bits,ptr,size=values
+            ptr.value=ctypes.addressof(buffer);size.value=len(token);cmd.value=13;err.value=255
+            lib.zr_eval();answers.append((err.value,num.value,bytes(bits)))
+        assert answers[0]==answers[1],(token,answers)
+    return {'integer_cases':65536,'decimal_cases':len(tokens),'passed':True}
+
 def host():
     out=ROOT/'analysis/real-host';out.mkdir(parents=True,exist_ok=True);library=out/'real.so'
     subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-fPIC','-shared',str(ROOT/'src/real.c'),str(ROOT/'src/transcendental.c'),'-o',str(library)],check=True)
@@ -401,7 +430,7 @@ def host():
             assert decode(low)<=decode(actual)<=decode(high),(command,bits.hex(),actual.hex(),low.hex(),high.hex())
             if not actual[0]:assert actual==bytes(6)
         checks+=1
-    report={'passed':True,'host_vectors':checks,'source_sha256':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()for p in(ROOT/'src/real.c',ROOT/'src/transcendental.c',ROOT/'src/real.h',ROOT/'tools/test-real.py')}}
+    report={'passed':True,'compiler_conversions':compiler_conversions(lib,out),'host_vectors':checks,'source_sha256':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()for p in(ROOT/'src/real.c',ROOT/'src/transcendental.c',ROOT/'src/real.h',ROOT/'tools/test-real.py')}}
     (out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print('PASS',checks,'host Real6 vectors')
 
 def sanitize(trig=False):

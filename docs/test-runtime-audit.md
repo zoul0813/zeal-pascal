@@ -146,3 +146,77 @@ The complete revised plan now passes 109/109 jobs in 54m44s at six workers; the 
 Use **eight workers for the next tests**, per the user's instruction. Six-worker slot utilization was already 94.6%; unchanged-duration perfect packing would save at most about 2m58s before added startup. Chunking primarily improves focused reruns and balancing; more worker capacity is needed for a large whole-suite reduction. Preserve stage-dependent RAM/COM coverage, OMAX's layout-size dependency and Text rename-error's pre-existing destination. No tests were run for this investigation.
 
 See [concrete chunk plan and verification requirements](../analysis/performance/full-baseline-monitored/next-chunking-plan.md) and [machine-readable case list](../analysis/performance/full-baseline-monitored/next-chunking-plan.json).
+
+
+## Implemented remaining long-suite chunks — October 31, 2026
+
+Prior infrastructure was committed as `4938065`. The next plan is now implemented: math 10, files 9, compiler-options 6, publication 12 and text 5 chunks replace five commands. The default full plan has **146 jobs with the same 66 canonical commands**. All 146 passed with **eight workers in 44m09s**, versus 54m44s with six workers: **10m36s saved,19.4%less total wall time**. Worker count and chunking changed together; their separate gains are unmeasured.
+
+Longest individual chunks: math2m58s (previous command11m51s), files3m16s (11m09s), options2m29s (8m35s), publication2m37s (7m36s with 3 internal workers), text2m11s (7m28s). These are focused-command durations, not suite wall times or additive savings. The27 C groups passed 1,677 assertions, normalizing to1456original assertions after removing repeated setup/selectors and Text cwd checks. Original call/stage order, output/disk bytes, RAM/COM, ownership and error locations are retained.29 host tests and the required Opus review passed. No product binaries changed, no inputs changed and no test processes remained.
+
+The legacy66-command monolithic mode has static/host equivalence proof but was not rerun. Historical Git provenance verification explicitly skips if4938065 is unavailable; it ran without skip here. No native assertion or expected disk/output byte was relaxed. Product optimization tasks remain open.
+
+See [full measured report](../analysis/performance/long-chunks-8workers/report.md), [all command timings](../analysis/performance/long-chunks-8workers/command-times.csv), and [authoritative suite](../analysis/test-runs/20261031T033836.687737Z/suite.json). Select cases with `python3 tools/run-tests.py --only math:sqrt-programs --jobs 8`; run the full plan with `python3 tools/run-tests.py --jobs 8`.
+
+
+## TP3 single-Work correction — November 1, 2026
+
+The IDE's persistent editor source catalog and parked dirty buffers are removed.
+The Borland manual (printed page16) and preserved CP/M-80 TP3 executable
+`89e65bd28d176dba815dbcf6c49f356e3cba5a9db9454264ab3f87f3dd75c0b7`
+establish the actual-file save/reload workflow: save dirty Work before compiling
+a different Main, or before an include error replaces it. Repeated automatic
+saves replace BAK with the previous source revision. This is not a temporary-file
+scheme. Self-contained Work still compiles/runs without saving. Compiler/build
+source tables remain; they are not additional editor buffers.
+
+Kernel ownership confirms17 additional startup pages (previously18), or20 total
+application pages including the three OS execution pages:16 KiB saved. The IDE
+bank shrinks16070 to15099 bytes (-971); file services grow14689 to14716 (+27),
+saved-error services13613 to13663 (+50), and resident code13402 to13489 (+87).
+Other banks are unchanged. Net linked payload shrinks807 bytes;16 code banks
+remain allocated.
+
+The full ZDE build/packages pass. Targeted checks pass: sanitized host compiler,
+editor, saved-map and publication/rollback tests; native single-Work transitions
+with numeric/explanatory diagnostics and Inline repair; save/load failure safety;
+saved-PC lookup; editor replacement pages and exact recovered bytes; U/C
+interruption recovery; Execute; directory operations; and compilation cancellation
+through sealing. Original executable replay verifies both automatic saves and
+resulting file contents. The original artifacts remain hash-identical.
+
+Obsolete editor SHA-field inspection was replaced with revision and actual saved
+byte/backup checks. The cancellation observer now qualifies the actual sealing
+bank and queues physical input before sealing's final poll, allowing keyboard IRQ
+delivery; compile-interruption text, unpublished output, and ownership assertions
+remain required. No product instrumentation was added.
+
+This is targeted acceptance, not a rerun of the146-job matrix or physical hardware
+qualification. Opus was explicitly excluded by the user. Local hash-bound evidence:
+`docs/native-single-work-evidence.json`; original replay:
+`analysis/tp3-single-work/qualified-original/report.json`.
+
+
+TP3 scope follow-up (2026-11-01): the synchronous compiler no longer re-parses
+its own complete image/map at handoff or snapshots all parent-page versions.
+Bounded allocation ownership, later build freshness and external-reader checks
+remain. Saved execution permanently releases its transient Build instead of
+reloading a RAM cache. Native fixture ownership expectations now reflect that
+policy; generated-map correctness remains independently checked by host/native
+readers. A source-readiness bound is captured before iteration to avoid the
+observed SDCC advancing-address failure. Scoped host, publication-fault, native
+compiler/IRQ,256 option/layout, IDE options and repeated HostFS/TF publication
+checks pass. Evidence and failed-run distinctions are recorded in
+docs/tp3-scope-followup-2026-11-01.json. True disk-backed generation remains open.
+
+
+TP3-08/14 completion (2026-11-01): retired multi-buffer compiler parameters,
+input-catalog allocation and unsaved include overrides. Fixtures now exercise
+the single-root/disk-include contract; obsolete override cases are removed.
+Compiler-only math excludes formatting/Val/transcendentals and unused runtime
+operations while using the existing conversion primitives. Full generated
+runtime bytes remain identical. Scoped host checks and native math471/0,
+compiler/IRQ944/0, includes65/0 and IDE error-repair/disk-Main workflows pass.
+The source-count and saved-cache observers were updated to the intentionally
+reduced fixture scope and prior cache-removal behavior, retaining failed
+original captures. See docs/tp3-scope-8-14-evidence.json.

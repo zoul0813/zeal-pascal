@@ -12,15 +12,15 @@ uint8_t sources_get(const Sources *set,uint8_t id,Source *source) SOURCE_BLOCK_C
  * denotes a disk dependency, which the compiler must reread before reuse. */
 int16_t sources_take(Sources *set,const Source *source,const Source *origin) SOURCE_BLOCK_CALL;
 /* Adopt an existing ready record in an unpacked catalogue, preserving its
- * descriptor and digest. Caller must own the source page (the compiler
- * checks its invocation ledger) and already validate descriptor/digest.
+ * descriptor. Caller must own the source page (the compiler
+ * checks its invocation ledger) and already validate the descriptor.
  * This checks readiness, not arbitrary record contents. NULL origin keeps
  * disk freshness semantics. Failure changes no ownership. */
 uint8_t sources_adopt(Sources *set,uint8_t id,const Source *origin) SOURCE_BLOCK_CALL;
 /* Invocation-local immutable views never acquire the source page. The catalog
  * itself is still owned. Nonresident references retain only map identity. */
-int16_t sources_borrow(Sources *set,const Source *source,const uint8_t hash[32]) SOURCE_BLOCK_CALL;
-int16_t sources_reference(Sources *set,const Source *source,const uint8_t hash[32]) SOURCE_BLOCK_CALL;
+int16_t sources_borrow(Sources *set,const Source *source) SOURCE_BLOCK_CALL;
+int16_t sources_reference(Sources *set,const Source *source) SOURCE_BLOCK_CALL;
 uint8_t sources_borrowed(const Sources *set,uint8_t id) SOURCE_BLOCK_CALL;
 uint8_t sources_remove(Sources *set,uint8_t id) SOURCE_BLOCK_CALL;
 uint8_t sources_close(Sources *set) SOURCE_BLOCK_CALL;
@@ -28,7 +28,6 @@ uint8_t sources_close(Sources *set) SOURCE_BLOCK_CALL;
  * bytes remain at offset0. Growth/replacement separates storage if needed.
  * No-space is a successful no-op. A failed page release retains both owners. */
 uint8_t sources_pack(Sources *set) SOURCE_BLOCK_CALL;
-uint8_t sources_hash(const Sources *set,uint8_t id,uint8_t hash[32]) SOURCE_BLOCK_CALL;
 uint8_t sources_ready(const Sources *set,uint8_t id) SOURCE_BLOCK_CALL;
 uint8_t sources_resident(const Sources *set,uint8_t id) SOURCE_BLOCK_CALL;
 uint8_t sources_origin(const Sources *set,uint8_t id) SOURCE_BLOCK_CALL;

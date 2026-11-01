@@ -11,25 +11,25 @@ uint8_t native_decode(const uint8_t *h,uint8_t chain,NativeImage *id) {
     if(!chain)return ERR_NOT_SUPPORTED;
 #endif
     if(chain) {
-        if(memcmp(h,"ZCHN",4)||h[4]!=1||h[5]||word(h+6)!=96||word(h+8)!=1||
+        if(memcmp(h,"ZCHN",4)||h[4]!=2||h[5]||word(h+6)!=96||word(h+8)!=1||
            word(h+14)!=0x8000u||!zeros(h+92,4))return ERR_ENTRY_CORRUPTED;
         id->origin=word(h+10);id->bytes=word(h+12);globals=word(h+16);end=word(h+18);
         heap=(uint32_t)id->origin+id->bytes;
         id->length=96u+id->bytes;
-        memcpy(id->id,h+20,32);memcpy(id->map,h+52,32);
+        if(!zeros(h+20,64))return ERR_ENTRY_CORRUPTED;
     }
 #ifndef ZP_CHAIN_ONLY
     else {
         id->length=word(h+10);heap=word(h+28);end=word(h+30);stack=word(h+32);
         id->origin=word(h+20);id->bytes=word(h+22);globals=word(h+26);
-        if(h[0]!=0xc3||memcmp(h+3,"ZP80",4)||h[7]!=1||word(h+8)!=160||
+        if(h[0]!=0xc3||memcmp(h+3,"ZP80",4)||h[7]!=2||word(h+8)!=160||
            id->length<16384u||id->length>48128u||word(h+1)!=word(h+12)||
            word(h+12)<0x40a0u||word(h+12)>=(uint32_t)0x4000u+id->length||
            word(h+14)<0x40a0u||word(h+14)>=(uint32_t)0x4000u+id->length||
            word(h+16)!=1||(word(h+18)&~1u)||word(h+24)!=0x8000u||
            (uint32_t)0x4000u+id->length!=heap||!zeros(h+34,2)||
            word(h+132)!=16384u||!zeros(h+140,20))return ERR_ENTRY_CORRUPTED;
-        memcpy(id->id,h+36,32);memcpy(id->manifest,h+68,32);memcpy(id->map,h+100,32);
+        if(!zeros(h+36,96))return ERR_ENTRY_CORRUPTED;
     }
 #endif
     if(!id->bytes||(uint32_t)0x8000u+globals>id->origin||

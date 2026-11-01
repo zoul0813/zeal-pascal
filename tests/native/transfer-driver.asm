@@ -21,7 +21,7 @@
     ld hl,#0xf600
     ld a,#3
     call 0xfc80
-    ld hl,(0xf632)
+    ld hl,(0xf616)
     ld de,#0x20
     or a
     sbc hl,de
@@ -61,17 +61,17 @@ module_copied:
     ld (0xf60e),hl
     ld hl,#_driver_profile
     ld de,#0xf610
-    ld bc,#32
+    ld bc,#4
     ldir
     ld hl,#0xf680
-    ld (0xf630),hl
+    ld (0xf614),hl
     ; A direct-Memory attempt must reject before staging/owner handoff.
     ld a,#1
     ld (0xfe78),a
     ld hl,#0xf600
     ld a,#3
     call 0xfc80
-    ld hl,(0xf632)
+    ld hl,(0xf616)
     ld de,#21
     or a
     sbc hl,de
@@ -85,7 +85,7 @@ module_copied:
     ld hl,#0xf600
     ld a,#3
     call 0xfc80
-    ld hl,(0xf632)
+    ld hl,(0xf616)
     dec hl
     ld a,h
     or l
@@ -97,7 +97,7 @@ module_copied:
     ld hl,#0xf600
     ld a,#3
     call 0xfc80
-    ld hl,(0xf632)
+    ld hl,(0xf616)
     ld a,h
     or l
     jp nz,failed

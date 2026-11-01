@@ -18,20 +18,9 @@ static const uint32_t k[64] = {
 /* Every SHA rotation has a fixed count. Keep it visible to SDCC so it can
  * select byte moves and fixed shifts instead of a 32-bit variable shift loop. */
 #ifdef __SDCC
-uint32_t sha_rr2(uint32_t x) NATIVE;
-uint32_t sha_rr6(uint32_t x) NATIVE;
-uint32_t sha_rr7(uint32_t x) NATIVE;
-uint32_t sha_rr11(uint32_t x) NATIVE;
-uint32_t sha_rr13(uint32_t x) NATIVE;
-uint32_t sha_rr17(uint32_t x) NATIVE;
-uint32_t sha_rr18(uint32_t x) NATIVE;
-uint32_t sha_rr19(uint32_t x) NATIVE;
-uint32_t sha_rr22(uint32_t x) NATIVE;
-uint32_t sha_rr25(uint32_t x) NATIVE;
-#define rr(x,n) sha_rr##n(x)
-#else
-#define rr(x,n) (((x)>>(n))|((x)<<(32-(n))))
+#error SHA evidence is host-only; never build this file for the Z80
 #endif
+#define rr(x,n) (((x)>>(n))|((x)<<(32-(n))))
 static void transform(Sha256 *s) {
     uint32_t t,u,x,y;
     uint32_t *w=s->schedule,*v=s->working;

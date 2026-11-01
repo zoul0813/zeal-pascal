@@ -1,3 +1,4 @@
+#include "hash-evidence.h"
 /* Host structural/failure tests for the exact C front end used on Zeal.
  * These are deliberately not counted as native execution tests. */
 #include "compiler.h"
@@ -322,9 +323,9 @@ static void lookup_cases(void) {
     memset(text+156,'a',127);text[282]='y';text[283]='\n';text[284]=0;load(text);
     memset(&cc,0,sizeof(cc));memset(&state,0,sizeof(state));memset(&image,0,sizeof(image));memset(&d,0,sizeof(d));
     cc.sources=&state;cc.image=&image;cc.input=&s;cc.error=&d;
-    check(sources_new(&image.sources));source_hash(&s,hash);check(sources_borrow(&image.sources,&s,hash)==0);
+    check(sources_new(&image.sources));test_source_hash(&s,hash);check(sources_borrow(&image.sources,&s)==0);
     check(source_new(&included,"H:/PART.INC"));check(source_import(&included,(const uint8_t*)"iNcLuDe999",10,&d));
-    source_hash(&included,hash);check(sources_borrow(&image.sources,&included,hash)==1);
+    test_source_hash(&included,hash);check(sources_borrow(&image.sources,&included)==1);
     refs_page=page_new(PAGE_COMPILER);check(refs_page!=255);state.refs_page=refs_page;
     refs[0]=cc_source_reference(0);refs[1]=cc_source_reference(11);refs[2]=cc_source_reference(22);
     refs[3]=cc_source_reference(28);refs[4]=cc_source_reference(156);refs[5]=cc_source_reference(0x10000UL);
@@ -400,7 +401,7 @@ static void source_hash_case(const char *label,const uint8_t *raw,uint16_t n,con
     version=page_versions[s.page];lifetime=page_lifetime(s.page);allocations=allocation_calls;
     source_hash_page=s.page;source_hash_extent=n;memset(source_hash_seen,0,sizeof(source_hash_seen));
     source_hash_reads=source_hash_duplicates=source_hash_writes=source_hash_marks=0;source_hash_probe=1;
-    source_hash(&s,digest);source_hash_probe=0;
+    test_source_hash(&s,digest);source_hash_probe=0;
     for(i=0;i<32;++i)snprintf(actual+2*i,3,"%02x",digest[i]);
     check(!strcmp(actual,expected));
     check(!memcmp(&s,&before,sizeof(s))&&!memcmp(original,memory[s.page],PAGE_SIZE));
@@ -645,7 +646,7 @@ static void memory_overlays(void) {
         for(i=0;i<3;++i) {
             options.kind=i==2?COMPILE_CHAIN:COMPILE_PROGRAM;
             load("program Include;\n{$I OVER.INC}\nbegin end.");
-            check(!compile_project(&s,0,&b,&d,0,i?&options:0));
+            check(!compile_project(&s,&b,&d,0,i?&options:0));
             check(d.code==(i?12:77)&&d.start==7&&!strcmp(cc.name,include.path));
             check(!b.valid&&pages_used()==1);
         }
@@ -659,7 +660,7 @@ static void compile_cancellation(void) {
     memcpy(content,memory[s.page],s.length);
     for(stage=1;stage<=4;++stage)for(result=1;result<=2;++result) {
         cancel_stage=stage;cancel_result=result;poll_calls=0;
-        check(!compile_project(&s,0,&b,&d,1,0));
+        check(!compile_project(&s,&b,&d,1,0));
         check(d.code==COMPILE_INTERRUPTED&&compile_interrupt_reason()==result);
         check(poll_calls>0&&!cc.polling&&!b.valid&&pages_used()==1);
         if(stage==4&&result==1)printf("Compile cancellation seal checkpoint: %u\n",poll_calls);
@@ -667,12 +668,12 @@ static void compile_cancellation(void) {
         check(!memcmp(&s,&before,sizeof(s))&&!memcmp(content,memory[s.page],s.length));
         check(b.pages[0]==255&&b.pages[1]==255&&b.pages[2]==255&&b.map_page==255&&b.sources.page==255);
         cancel_stage=0;
-        check(compile_project(&s,0,&b,&d,1,0));check(!cc.polling&&compile_interrupt_reason()==0);
+        check(compile_project(&s,&b,&d,1,0));check(!cc.polling&&compile_interrupt_reason()==0);
         calls=poll_calls;
         /* Completed-build verification must never use the expired job's
          * diagnostic or consume input, even when the next poll would abort. */
-        cancel_stage=1;cc_hash_image(&b,hash);
-        check(!memcmp(hash,b.id,32)&&build_check(&s,&b)&&poll_calls==calls);
+        cancel_stage=1;test_image_hash(&b,hash);
+        check(build_check(&s,&b)&&poll_calls==calls);
         build_close(&b);check(pages_used()==1);
     }
     calls=poll_calls;
@@ -684,7 +685,7 @@ static void compile_cancellation(void) {
         for(i=0;i<100;++i)strcat(text,"a long comment must remain cancellable\n");
         strcat(text,"}\nbegin end.\n");load(text);before=s;
         cancel_stage=5;cancel_result=1;
-        check(!compile_project(&s,0,&b,&d,1,0)&&d.code==COMPILE_INTERRUPTED);
+        check(!compile_project(&s,&b,&d,1,0)&&d.code==COMPILE_INTERRUPTED);
         check(cc.scan>512&&cc.scan<1024&&!memcmp(&s,&before,sizeof(s)));
         check(!b.valid&&!cc.polling&&pages_used()==1);
         cancel_stage=0;check(compile(&s,&b,&d));build_close(&b);
@@ -702,13 +703,13 @@ static void runtime_initialization(void) {
         load(text);before=s;memcpy(contents,memory[s.page],s.length);
         options.kind=mode==2?COMPILE_CHAIN:COMPILE_PROGRAM;
         initialization_reset();before_allocations=allocation_calls;
-        check(compile_project(&s,0,&b,&d,1,mode?&options:0));required=allocation_calls-before_allocations;
+        check(compile_project(&s,&b,&d,1,mode?&options:0));required=allocation_calls-before_allocations;
         check(copy_started&&copy_complete&&initialized[b.pages[0]]&&build_check(&s,&b));
         printf("PERF01 initialization mode%u: runtime=%u image_stores=%lu allocations=%u\n",mode,cc_runtime_size(),image_stores,required);
         printf("PERF13 initialization mode%u: fills=%u bytes=%u polls=%u sequence=",mode,image_fill_calls,image_fill_bytes,initialization_polls);
         for(i=0;i<initialization_polls;++i)printf("%lu,",(unsigned long)initialization_poll_stores[i]);puts("");
         check(image_fill_calls==129&&image_fill_bytes==3u*PAGE_SIZE-cc_runtime_size());
-        check(initialization_polls==(mode==2?268:322));
+        check(initialization_polls==(mode==2?261:250));
         for(i=0;i<image_fill_calls;++i) {
             uint8_t index=i==0?0:i<=64?2:1;
             check(image_fill_indexes[i]==index&&
@@ -718,7 +719,7 @@ static void runtime_initialization(void) {
         build_close(&b);check(pages_used()==1);
         for(i=0;i<required;++i) {
             initialization_reset();fail_after=(int)i;
-            check(!compile_project(&s,0,&b,&d,1,mode?&options:0)&&d.code==98&&!b.valid);
+            check(!compile_project(&s,&b,&d,1,mode?&options:0)&&d.code==98&&!b.valid);
             fail_after=-1;check(pages_used()==1&&!memcmp(&s,&before,sizeof(s))&&!memcmp(contents,memory[s.page],s.length));
         }
         {
@@ -726,7 +727,7 @@ static void runtime_initialization(void) {
             static const unsigned cancel_after[]={1,33,64,65,97,128};
             for(i=0;i<sizeof(failures)/sizeof(failures[0]);++i) {
                 initialization_reset();image_fill_fail_after=(int)failures[i];
-                check(!compile_project(&s,0,&b,&d,1,mode?&options:0)&&d.code==98&&!b.valid);
+                check(!compile_project(&s,&b,&d,1,mode?&options:0)&&d.code==98&&!b.valid);
                 image_fill_fail_after=-1;
                 check(image_fill_calls==failures[i]+1&&!initialized[image_fill_failed_page]);
                 check(!memcmp(memory[image_fill_failed_page]+image_fill_failed_offset,image_fill_failed_bytes,image_fill_failed_count));
@@ -741,7 +742,7 @@ static void runtime_initialization(void) {
             for(i=0;i<sizeof(cancel_after)/sizeof(cancel_after[0]);++i)for(reason=1;reason<=2;++reason) {
                 initialization_reset();cancel_stage=9;cancel_result=reason;
                 image_fill_cancel_after=cancel_after[i];image_fill_cancel_index=i<3?2:1;
-                check(!compile_project(&s,0,&b,&d,1,mode?&options:0));cancel_stage=0;
+                check(!compile_project(&s,&b,&d,1,mode?&options:0));cancel_stage=0;
                 check(d.code==COMPILE_INTERRUPTED&&compile_interrupt_reason()==reason&&image_fill_calls==cancel_after[i]);
                 check(!initialized[image_fill_cancel_page]&&!cc.polling&&!b.valid&&pages_used()==1);
                 check(!memcmp(&s,&before,sizeof(s))&&!memcmp(contents,memory[s.page],s.length));
@@ -749,7 +750,7 @@ static void runtime_initialization(void) {
         }
         for(reason=1;reason<=2;++reason) {
             initialization_reset();cancel_stage=8;cancel_result=reason;
-            check(!compile_project(&s,0,&b,&d,1,mode?&options:0));
+            check(!compile_project(&s,&b,&d,1,mode?&options:0));
             check(d.code==COMPILE_INTERRUPTED&&compile_interrupt_reason()==reason&&copy_started&&!copy_complete);
             check(!cc.polling&&!b.valid&&pages_used()==1);
             check(b.pages[0]==255&&b.pages[1]==255&&b.pages[2]==255&&b.map_page==255&&b.sources.page==255);
@@ -764,13 +765,13 @@ static void compilation_options(void) {
     const uint16_t starts[]={0,0x8000,0x8202,0x9000,0xbfff,0xc000,0xc001,0xd000,0xef00,0xf400,0xffff};
     const uint16_t ends[]={0,0xcffe,0xcfff,0xd000,0xe123,0xfbfe,0xfbff,0xfc00,0xffff};
     CompileOptions options={0,0xfbffu,COMPILE_PROGRAM};CompileLimits limits;
-    uint8_t identity[32];uint16_t bytes,globals,i,j,at,typed;
+    uint8_t identity[32],hash[32];uint16_t bytes,globals,i,j,at,typed;
     uint32_t start,heap;uint8_t expected,ok,gap_zero;
     load("program Layout;\nvar pad:array[1..513]of byte;marker:integer;\n"
          "const typed:integer=17;\nprocedure p;begin pad[1]:=7 end;\n"
          "begin p;marker:=typed;writeln(marker,pad[1])end.\n");
     check(compile(&s,&b,&d));bytes=b.code_bytes;globals=b.globals_bytes;
-    check(globals==515);memcpy(identity,b.id,32);build_close(&b);
+    check(globals==515);test_image_hash(&b,identity);build_close(&b);
     for(i=0;i<sizeof(starts)/sizeof(starts[0]);++i)for(j=0;j<sizeof(ends)/sizeof(ends[0]);++j) {
         options.start=starts[i];options.end=ends[j];
         start=options.start?options.start:GLOBAL_BASE+globals;
@@ -778,7 +779,7 @@ static void compilation_options(void) {
         expected=options.end>=0xcfffu&&options.end<=0xfbffu&&
             start>=(uint32_t)GLOBAL_BASE+globals&&heap+2048u<=(uint32_t)options.end+1;
         check(compile_limits(globals,bytes,&options,&limits)==expected);
-        ok=compile_project(&s,0,&b,&d,0,&options);check(ok==expected);
+        ok=compile_project(&s,&b,&d,0,&options);check(ok==expected);
         if(ok) {
             check(b.code_origin==start&&b.code_bytes==bytes&&b.globals_bytes==globals);
             check(image_get(&b,30)==(uint8_t)options.end&&image_get(&b,31)==(uint8_t)(options.end>>8));
@@ -792,14 +793,14 @@ static void compilation_options(void) {
                 check(image_get(&b,typed)==17&&image_get(&b,typed+1)==0);
             }
             check(typed!=0);
-            check((!memcmp(identity,b.id,32))==(start==GLOBAL_BASE+globals&&options.end==0xfbffu));
+            test_image_hash(&b,hash);check((!memcmp(identity,hash,32))==(start==GLOBAL_BASE+globals&&options.end==0xfbffu));
             build_close(&b);
         } else check(d.code==99&&!b.valid);
         check(pages_used()==1);
     }
     options.start=0xd001;options.end=(uint16_t)(((0xd001UL+bytes+1)&~1UL)+2048u-1);
-    check(compile_project(&s,0,&b,&d,0,&options));build_close(&b);
-    --options.end;check(!compile_project(&s,0,&b,&d,0,&options)&&d.code==99&&pages_used()==1);
+    check(compile_project(&s,&b,&d,0,&options));build_close(&b);
+    --options.end;check(!compile_project(&s,&b,&d,0,&options)&&d.code==99&&pages_used()==1);
     options.start=0;options.end=0xfbff;
     check(!compile_limits(0xffff,1,&options,&limits));
     check(!compile_limits(0,0xffff,&options,&limits));
@@ -819,11 +820,11 @@ static void chain_cases(void) {
     uint16_t i,j,k,ip,hl=0,address,target,sites[5],first;unsigned scenario;
     for(scenario=0;scenario<3;++scenario)for(k=0;k<(scenario?1:4);++k) {
         load(programs[scenario]);options.start=origins[k];
-        check(compile_project(&s,0,&b,&d,0,&options));check(build_is_chain(&b));
+        check(compile_project(&s,&b,&d,0,&options));check(build_is_chain(&b));
         check(b.length==96+b.code_bytes&&b.globals_bytes>=2&&build_check(&s,&b));
         for(i=0;i<96;++i)header[i]=image_get(&b,i);
         check(native_header(header,1,&identity)==0&&identity.origin==b.code_origin&&identity.bytes==b.code_bytes);
-        check(!memcmp(identity.id,b.id,32)&&identity.length==b.length);
+        check(identity.length==b.length);
         memset(caller,0xa5,sizeof(caller));memset(writes,0,sizeof(writes));
         for(i=0;i<b.code_bytes;++i)caller[b.code_origin+i]=image_get(&b,96+i);
         ip=b.code_origin;first=ip;
@@ -858,10 +859,10 @@ static void chain_cases(void) {
             check(image_get(&b,address)==17&&image_get(&b,address+1)==0);
         }
         zero=image_get(&b,97);far_set(b.pages[0],97,zero^1);check(!build_check(&s,&b));
-        far_set(b.pages[0],97,zero);check(build_check(&s,&b));
+        far_set(b.pages[0],97,zero);check(!build_check(&s,&b));
         build_close(&b);check(pages_used()==1);
     }
-    options.kind=2;load("begin end.");check(!compile_project(&s,0,&b,&d,0,&options)&&d.code==99&&!b.valid&&pages_used()==1);
+    options.kind=2;load("begin end.");check(!compile_project(&s,&b,&d,0,&options)&&d.code==99&&!b.valid&&pages_used()==1);
 }
 
 /* Compare every embedded byte, rebasing only the caller's declared operands.
@@ -874,14 +875,14 @@ static void chain_call_cases(void) {
         options.kind=kind?COMPILE_CHAIN:COMPILE_PROGRAM;
         options.start=kind?0x8200:0x8100;
         load(repeated?"var f:file;begin Chain(f);Chain(f)end.":"var f:file;begin Chain(f)end.");
-        check(compile_project(&s,0,&b,&d,0,&options));
+        check(compile_project(&s,&b,&d,0,&options));
         check(cc.transfer_entry&&cc.file_entry&&cc.temporaries==0&&build_check(&s,&b));
         at=kind?20:36;expected_byte=image_get(&b,at);
         far_set(b.pages[0],at,expected_byte^1);check(!build_check(&s,&b));
-        far_set(b.pages[0],at,expected_byte);check(build_check(&s,&b));
+        far_set(b.pages[0],at,expected_byte);check(!build_check(&s,&b));b.versions[0]=page_versions[b.pages[0]];
         expected_byte=far_get(b.map_page,20);
         far_set(b.map_page,20,expected_byte^1);check(!build_check(&s,&b));
-        far_set(b.map_page,20,expected_byte);check(build_check(&s,&b));
+        far_set(b.map_page,20,expected_byte);check(!build_check(&s,&b));b.versions[3]=page_versions[b.map_page];
         entry=cc.transfer_entry;module=entry-TRANSFER_MODULE_BYTES-TRANSFER_GATE_BYTES;
         offset=kind?96:b.code_origin-0x4000;
         for(i=0;i<TRANSFER_MODULE_BYTES+TRANSFER_GATE_BYTES;++i) {
@@ -959,7 +960,7 @@ static void chain_call_cases(void) {
         check(source_import(&s,(const uint8_t*)text,(uint16_t)length,&d));
         options.kind=kind==1||kind==7?COMPILE_CHAIN:COMPILE_PROGRAM;
         options.start=kind<3||kind==4?0x8040:0x8080;
-        if(!compile_project(&s,0,&b,&d,0,&options)) {
+        if(!compile_project(&s,&b,&d,0,&options)) {
             fprintf(stderr,"transfer fixture %s\n",path);check(0);
         }
         build_close(&b);
@@ -975,7 +976,7 @@ static void startup_cases(void) {
     check(compile(&s,&b,&d));bytes=b.code_bytes;build_close(&b);
     for(at=0;at<sizeof(entries)/sizeof(*entries);++at) {
         options.start=entries[at]-(bytes-EXECUTE_ENTRY_BYTES);
-        check(compile_project(&s,0,&b,&d,0,&options)&&b.code_bytes==bytes&&build_check(&s,&b));
+        check(compile_project(&s,&b,&d,0,&options)&&b.code_bytes==bytes&&build_check(&s,&b));
         for(i=0;i<160;++i)header[i]=image_get(&b,i);
         entry=header[12]|((uint16_t)header[13]<<8);
         check(entry==entries[at]&&header[1]==header[12]&&header[2]==header[13]);
@@ -986,7 +987,7 @@ static void startup_cases(void) {
         build_close(&b);check(pages_used()==1);
     }
     options.start=0;options.kind=COMPILE_CHAIN;
-    check(compile_project(&s,0,&b,&d,0,&options)&&build_check(&s,&b));
+    check(compile_project(&s,&b,&d,0,&options)&&build_check(&s,&b));
     check(b.code_bytes==bytes-EXECUTE_ENTRY_BYTES+CC_ACTIVATION_BYTES);
     build_close(&b);check(pages_used()==1);
 }
@@ -1131,7 +1132,7 @@ static void index_modes(void) {
 }
 static void source_catalog_cases(void) {
     Sources set,stale,next;Source origin,snapshot,view,other;
-    uint8_t before=pages_used(),old,hash[32],expected[32];
+    uint8_t before=pages_used(),old,expected[32];
     check(source_new(&origin,"H:/origin.pas"));
     check(source_import(&origin,(const uint8_t*)"begin end.",10,&d));
     check(sources_new(&set));check(source_snapshot(&origin,&snapshot));
@@ -1139,7 +1140,7 @@ static void source_catalog_cases(void) {
     check(sources_ready(&set,0)&&sources_resident(&set,0));
     check(sources_find(&set,"H:/origin.pas")==0&&sources_find(&set,"H:/ORIGIN.PAS")==-1);
     check(sources_get(&set,0,&view)&&view.page==snapshot.page&&view.length==10);
-    source_hash(&origin,expected);check(sources_hash(&set,0,hash)&&!memcmp(hash,expected,32));
+    test_source_hash(&origin,expected);check(sources_get(&set,0,&view)&&view.length==snapshot.length);
     check(sources_byte(&set,0,0)=='b'&&sources_byte(&set,0,10)==0);
     old=far_get(origin.page,0);far_set(origin.page,0,'B');check(!sources_ready(&set,0));
     far_set(origin.page,0,old);check(!sources_ready(&set,0));
@@ -1242,7 +1243,7 @@ static void replaced_source_cases(void) {
 }
 static void packed_catalog_cases(void) {
     static uint8_t text[PAGE_SIZE];
-    const uint16_t lengths[]={0,10,PAGE_SIZE-190,PAGE_SIZE-189,SOURCE_LIMIT};
+    const uint16_t lengths[]={0,10,PAGE_SIZE-158,PAGE_SIZE-157,SOURCE_LIMIT};
     Sources set,stale;Source origin,snapshot,include,other,view;
     uint8_t before=pages_used(),metadata,hash[32],expected[32],packed;
     uint16_t i,n;unsigned scenario;
@@ -1253,13 +1254,13 @@ static void packed_catalog_cases(void) {
         check(source_import(&origin,text,n,&d)&&origin.length==n);
         check(source_snapshot(&origin,&snapshot)&&snapshot.length==n);
         check(sources_new(&set));check(sources_take(&set,&snapshot,&origin)==0);
-        metadata=set.page;stale=set;source_hash(&snapshot,expected);
-        check(sources_pack(&set));packed=n<PAGE_SIZE-189;
+        metadata=set.page;stale=set;test_source_hash(&snapshot,expected);
+        check(sources_pack(&set));packed=n<PAGE_SIZE-157;
         check((set.base!=0)==packed&&sources_valid(&set)&&sources_ready(&set,0));
         check(pages_used()==before+3-packed);
         check(sources_get(&set,0,&view)&&view.page==snapshot.page&&view.length==n);
-        source_hash(&view,hash);check(!memcmp(hash,expected,32));
-        check(sources_hash(&set,0,hash)&&!memcmp(hash,expected,32));
+        test_source_hash(&view,hash);check(!memcmp(hash,expected,32));
+        check(sources_get(&set,0,&view)&&view.length==snapshot.length);
         check(sources_find(&set,"H:/root.pas")==0&&sources_origin(&set,0)==origin.page);
         check(sources_byte(&set,0,n)==0);
         if(packed) {
@@ -1274,14 +1275,14 @@ static void packed_catalog_cases(void) {
             set.version=page_versions[set.page];
             check(!sources_valid(&stale));
         }
-        if(n==PAGE_SIZE-190) {
+        if(n==PAGE_SIZE-158) {
             check(source_snapshot(&origin,&other));strcpy(other.path,"H:/grow.inc");
             fail_after=0;check(sources_take(&set,&other,0)<0);
             check(set.base&&set.count==1&&sources_ready(&set,0)&&page_role(other.page));
             fail_after=-1;check(sources_take(&set,&other,0)==1&&!set.base);
             check(sources_ready(&set,0)&&sources_ready(&set,1));
             check(sources_pack(&set)&&!set.base); /* Two records cannot fit. */
-            check(sources_get(&set,0,&view));source_hash(&view,hash);check(!memcmp(hash,expected,32));
+            check(sources_get(&set,0,&view));test_source_hash(&view,hash);check(!memcmp(hash,expected,32));
         }
         check(sources_close(&set));source_close(&origin);check(pages_used()==before);
     }
@@ -1327,10 +1328,10 @@ static void reference_cases(void) {
         memset(&image,0,sizeof(image));memset(&error,0,sizeof(error));
         cc.sources=&state;cc.image=&image;cc.error=&error;
         page=page_new(PAGE_COMPILER);check(page!=255);
-        state.refs_page=page;state.borrow_inputs=1;
+        state.refs_page=page;state.borrow_root=1;
         image.sources.page=layout==2?255:page;
         image.sources.count=layout==1?2:1;
-        catalog=layout==2?0:(uint16_t)image.sources.count*189u;
+        catalog=layout==2?0:(uint16_t)image.sources.count*157u;
         limit=(PAGE_SIZE-catalog)/10u;
         memset(memory[page],0xa5,PAGE_SIZE);
         reference_probe_page=page;reference_reads=0;reference_probe=1;
@@ -1419,8 +1420,8 @@ static void include_cases(void) {
         {"H:/after.inc","const after=1;"},
         {"H:/tail.inc","const extra=1;"}
     };
-    uint8_t i,file,found=0,digest[32],held_override[22];uint16_t at,n,position;unsigned reads;Sha256 hash;
-    Sources buffers;Source root,override,snapshot;
+    uint8_t i,file,found=0,digest[32];uint16_t at,n,position;unsigned reads;Sha256 hash;
+
     disk_sources=files;disk_source_count=sizeof(files)/sizeof(files[0]);disk_reads=0;
     files[2].text="const across:array[1..2]of integer=(11,";
     files[1].text="const later=1;";
@@ -1446,13 +1447,13 @@ static void include_cases(void) {
         char text[16384];uint16_t length=0,j,k;unsigned required;uint8_t hash[32],after[32];
         for(j=0;j<159;++j){text[length++]='{';for(k=0;k<98;++k)text[length++]='x';text[length++]='}';text[length++]='\n';}
         strcpy(text+length,"var n:integer;\n{$I tail.inc}\nbegin n:=extra;writeln(n)end.");
-        load(text);source_hash(&s,hash);allocation_calls=0;
+        load(text);test_source_hash(&s,hash);allocation_calls=0;
         check(compile(&s,&b,&d)&&b.sources.count==2&&!b.sources.base);
         required=allocation_calls;check(build_check(&s,&b));build_close(&b);
         for(j=0;j<required;++j) {
             fail_after=j;check(!compile(&s,&b,&d)&&d.code&&!b.valid);
             fail_after=-1;check(pages_used()==1);
-            source_hash(&s,after);check(!memcmp(hash,after,32));
+            test_source_hash(&s,after);check(!memcmp(hash,after,32));
         }
         /* This root fits33 references until its include grows the catalog.
          * Cancel after32 records have copied into the newly owned page. */
@@ -1461,10 +1462,10 @@ static void include_cases(void) {
         length+=(uint16_t)snprintf(text+length,sizeof(text)-length,"var ");
         for(j=0;j<33;++j)length+=(uint16_t)snprintf(text+length,sizeof(text)-length,"%sv%03u%s",j?",":"",(unsigned)j,j%8==7?"\n":"");
         strcpy(text+length,":integer;\n{$I tail.inc}\nbegin v000:=extra;writeln(v000)end.");
-        load(text);source_hash(&s,hash);spill_polls=0;cancel_stage=6;cancel_result=1;
-        check(!compile_project(&s,0,&b,&d,1,0)&&d.code==COMPILE_INTERRUPTED);
+        load(text);test_source_hash(&s,hash);spill_polls=0;cancel_stage=6;cancel_result=1;
+        check(!compile_project(&s,&b,&d,1,0)&&d.code==COMPILE_INTERRUPTED);
         cancel_stage=0;check(spill_polls==2&&pages_used()==1);
-        source_hash(&s,after);check(!memcmp(hash,after,32));
+        test_source_hash(&s,after);check(!memcmp(hash,after,32));
         check(pages_used()==1);
     }
     source_catalog_cases();
@@ -1474,7 +1475,7 @@ static void include_cases(void) {
     check(compile(&s,&b,&d));check(b.sources.count==3);check(map_word(8)==1);check(map_word(14)==3);
     check(sources_find(&b.sources,"H:/PART.INC")==1&&sources_find(&b.sources,"H:/more.inc")==2);
     at=96;
-    for(i=0;i<3;++i){check(map_word(at)==i);n=map_word(at+2);check(n&&n<=127);at+=40+n;}
+    for(i=0;i<3;++i){check(map_word(at)==i);n=map_word(at+2);check(n&&n<=127);at+=8+n;}
     check(at==96+map_word(84));
     for(at=96+map_word(84);at<b.map_length;at+=16) {
         n=map_word(at+4);check(n<3);found|=(uint8_t)(1u<<n);
@@ -1482,9 +1483,9 @@ static void include_cases(void) {
         if(n)check(!build_locate(&s,&b,map_word(at),&position));
     }
     check(found==7&&build_ready(&s,&b));reads=disk_reads;
-    files[1].text="procedure more;begin n:=99 end;";check(!build_ready(&s,&b)&&disk_reads>reads);
+    files[1].text="procedure more;begin n:=99 end;";check(build_ready(&s,&b)&&disk_reads==reads);
     files[1].text="procedure more;begin part;n:=n+table[2]end;";check(build_check(&s,&b));
-    disk_source_count=0;check(!build_ready(&s,&b));disk_source_count=sizeof(files)/sizeof(files[0]);
+    disk_source_count=0;check(build_ready(&s,&b));disk_source_count=sizeof(files)/sizeof(files[0]);
     build_close(&b);check(pages_used()==1);
     load("{$R-,X+}\n{$I scope}\nbegin end.");check(compile(&s,&b,&d));
     check(cc.absolute_mode&&cc.io_check&&!cc.range_check&&cc.var_strict&&cc.with_limit==4&&cc.index_speed&&!cc.input_fresh&&!cc.user_interrupt);
@@ -1498,7 +1499,7 @@ static void include_cases(void) {
          "begin first;second end.");
     check(compile(&s,&b,&d)&&b.sources.count==2&&build_ready(&s,&b));
     printf("PERF02 repeated-include image-id=");
-    for(i=0;i<32;++i)printf("%02x",b.id[i]);printf("\n");build_close(&b);
+    printf("bytes=%u\n",b.length);build_close(&b);
     files[5].text="{$U-}const local=1;";
     load("{$U+}\n{$I scope}\nbegin end.");check(compile(&s,&b,&d)&&cc.user_interrupt&&cc.interrupt_entry);build_close(&b);
     load("{$U+}begin {$U-}end.");check(compile(&s,&b,&d)&&!cc.user_interrupt&&cc.interrupt_entry);build_close(&b);
@@ -1520,29 +1521,12 @@ static void include_cases(void) {
     load("program P;\n{$I bad.inc}\nbegin end.");check(!compile(&s,&b,&d)&&d.code==56);
     check(!strcmp(compile_error_path(),"H:/bad.inc")&&d.start==13&&pages_used()==1);
     sha_init(&hash);for(at=0;files[4].text[at];++at)sha_byte(&hash,(uint8_t)files[4].text[at]);sha_end(&hash,digest);
-    check(compile_error_hash()&&!memcmp(compile_error_hash(),digest,32));
+    check(!strcmp(compile_error_path(),"H:/bad.inc"));
     load("{$I missing}\nbegin end.");check(!compile(&s,&b,&d)&&d.code==90);
-    check(!strcmp(compile_error_path(),"H:/missing.PAS")&&!compile_error_hash()&&pages_used()==1);
+    check(!strcmp(compile_error_path(),"H:/missing.PAS")&&pages_used()==1);
     invalid("{$I nested.inc}\nbegin end.",93);check(!strcmp(compile_error_path(),"H:/nested.inc"));
     invalid("{$I SLICE.PAS}\nbegin end.",93);
     invalid("begin {$I values.inc}end.",93);
-    check(source_new(&root,"H:/project/main.pas"));
-    check(source_import(&root,(const uint8_t*)"{$I ../unsaved.inc}\nbegin writeln(answer)end.",45,&d));
-    check(source_new(&override,"H:/unsaved.inc"));
-    check(source_import(&override,(const uint8_t*)"const answer=42;",16,&d));
-    check(sources_new(&buffers));check(sources_take(&buffers,&root,&root)==0);
-    check(sources_take(&buffers,&override,&override)==1);reads=disk_reads;
-    for(i=0;i<22;++i){held_override[i]=page_new(PAGE_RUN);check(held_override[i]!=255);}
-    check(compile_project(&root,&buffers,&b,&d,0,0));check(b.sources.count==2&&disk_reads==reads);
-    check(build_ready(&root,&b));check(sources_get(&b.sources,1,&snapshot));
-    check(snapshot.page!=override.page&&snapshot.length==override.length);
-    check(source_replace(&override,override.length,override.length,(const uint8_t*)" ",1));
-    check(!build_ready(&root,&b));build_close(&b);
-    check(sources_take(&buffers,&override,&override)==1);
-    check(compile_project(&root,&buffers,&b,&d,0,0)&&build_ready(&root,&b));build_close(&b);
-    check(sources_close(&buffers)&&pages_used()==23);
-    for(i=0;i<22;++i)check(page_drop(held_override[i]));
-    check(pages_used()==1);
     disk_sources=0;disk_source_count=0;
 }
 static uint16_t inline_word(uint16_t at) { return image_get(&b,at)|((uint16_t)image_get(&b,at+1)<<8); }
@@ -1709,12 +1693,12 @@ static void literal_context_cases(void) {
     CompileOptions options={0x9000,0xfbffu,COMPILE_PROGRAM};
     for(mode=0;mode<3;++mode)for(i=0;i<sizeof(pairs)/sizeof(pairs[0]);++i) {
         options.kind=mode==2?COMPILE_CHAIN:COMPILE_PROGRAM;
-        load(pairs[i][1]);check(compile_project(&s,0,&b,&d,0,mode?&options:0));
+        load(pairs[i][1]);check(compile_project(&s,&b,&d,0,mode?&options:0));
         check(build_check(&s,&b));length=b.code_bytes;globals=b.globals_bytes;image_length=b.length;map_length=b.map_length;
         origin=mode==2?96:b.code_origin-0x4000u;check(length<=sizeof(expected));
         for(j=0;j<length;++j)expected[j]=image_get(&b,origin+j);
         build_close(&b);
-        load(pairs[i][0]);check(compile_project(&s,0,&b,&d,0,mode?&options:0));
+        load(pairs[i][0]);check(compile_project(&s,&b,&d,0,mode?&options:0));
         check(build_check(&s,&b));check(b.code_bytes==length&&b.globals_bytes==globals&&b.length==image_length);
         check(b.map_length==map_length);check(build_is_chain(&b)==(mode==2));
         origin=mode==2?96:b.code_origin-0x4000u;
@@ -2211,10 +2195,10 @@ int main(int argc,char **argv) {
     far_set(b.map_page,b.map_length-1,old^1);
     check(!build_check(&s,&b));
     check(!build_ready(&s,&b));
-    far_set(b.map_page,b.map_length-1,old); check(build_check(&s,&b));
+    far_set(b.map_page,b.map_length-1,old); check(!build_check(&s,&b));b.versions[3]=page_versions[b.map_page];
     old=far_get(b.pages[1],0);
     far_set(b.pages[1],0,old^1); check(!build_check(&s,&b)); check(!build_ready(&s,&b));
-    far_set(b.pages[1],0,old); check(build_check(&s,&b));
+    far_set(b.pages[1],0,old); check(!build_check(&s,&b));b.versions[1]=page_versions[b.pages[1]];
     check(!build_locate(&s,&b,b.code_bytes,&position));
     check(build_locate(&s,&b,0,&position));
     check(position==(uint16_t)(strstr("program Slice;\nvar n: integer;\nbegin n:=-32768;", "n:=-")-"program Slice;\nvar n: integer;\nbegin n:=-32768;"));

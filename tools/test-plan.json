@@ -124,6 +124,58 @@
       "--case files",
       "--case paths",
       "--case full-media"
+    ],
+    "tools/test-math.py": [
+      "--case sqrt-programs",
+      "--case sqrt-checked-errors",
+      "--case logexp-programs",
+      "--case logexp-checked-errors",
+      "--case trig-programs",
+      "--case trig-checked-errors",
+      "--case random-programs",
+      "--case random-checked-errors",
+      "--case ide-sqrt-error",
+      "--case ide-random-error"
+    ],
+    "tools/test-files.py": [
+      "--case types",
+      "--case transfers",
+      "--case lifetime",
+      "--case errors",
+      "--case abi",
+      "--case stack",
+      "--case cleanup-scope",
+      "--case cleanup-heap",
+      "--case ide-error"
+    ],
+    "tools/test-options.py": [
+      "--case layouts-low",
+      "--case layouts-upper",
+      "--case layouts-boundaries",
+      "--case startup-end",
+      "--case startup-stack",
+      "--case startup-heap"
+    ],
+    "tools/test-text.py": [
+      "--case disk-format",
+      "--case numbers-recovery",
+      "--case nesting-arguments",
+      "--case capacity-paths",
+      "--case rename"
+    ],
+    "tools/test-output-interrupt.py": [
+      "--case host-source-copy-4-typing",
+      "--case host-build-copy-4",
+      "--case host-source-copy-1",
+      "--case host-source-copy-2",
+      "--case host-source-copy-3",
+      "--case host-build-copy-1",
+      "--case host-build-copy-2",
+      "--case host-build-copy-3",
+      "--case host-source-verify-2",
+      "--case host-build-verify-4",
+      "--case tf-source-copy-4",
+      "--case tf-build-copy-4"
     ]
   },
   "groups": {
@@ -184,6 +236,13 @@
     ],
     "native": [
       "native"
+    ],
+    "long-native": [
+      "math",
+      "files",
+      "options",
+      "output-interrupt",
+      "text"
     ]
   }
 }

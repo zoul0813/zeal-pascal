@@ -68,10 +68,10 @@ static void forget_record(Sources *set,uint8_t id) {
         far_set(set->page,i-RECORD_BYTES,far_get(set->page,i));
     --set->count;
 }
-static int16_t sources_put(Sources *set,const Source *source,const Source *origin,const uint8_t *hash,uint8_t borrowed) {
+static int16_t sources_put(Sources *set,const Source *source,const Source *origin,uint8_t borrowed) {
     uint16_t at,i;int16_t id,owner=-1;uint8_t role=page_role(source->page);
-    if(!hash||!sources_valid(set)||strlen(source->path)>127||source->length>SOURCE_LIMIT||
-       (source->page==255?(!hash||(!borrowed&&origin)||(borrowed&&source->length)):
+    if(!sources_valid(set)||strlen(source->path)>127||source->length>SOURCE_LIMIT||
+       (source->page==255?((!borrowed&&origin)||(borrowed&&source->length)):
         (role!=PAGE_SOURCE&&role!=PAGE_SNAPSHOT))||
        (origin&&!page_lifetime(origin->page)))return -1;
     id=sources_find(set,source->path);
@@ -99,7 +99,6 @@ static int16_t sources_put(Sources *set,const Source *source,const Source *origi
     } else id=set->count++;
     at=set->base+(uint16_t)id*RECORD_BYTES;
     for(i=0;i<sizeof(*source);++i)far_set(set->page,at+i,((const uint8_t *)source)[i]);
-    for(i=0;i<32;++i)far_set(set->page,at+HASH+i,hash[i]);
     far_set(set->page,at+ORIGIN,borrowed?SOURCE_BORROWED:origin?origin->page:SOURCE_DISK);
     put32(set,at+ORIGIN_LIFETIME,origin?page_lifetime(origin->page):0);
     put32(set,at+ORIGIN_VERSION,origin?page_versions[origin->page]:0);
@@ -109,9 +108,8 @@ static int16_t sources_put(Sources *set,const Source *source,const Source *origi
     page_initialized(set->page,set->base+(uint16_t)set->count*RECORD_BYTES);return id;
 }
 int16_t sources_take(Sources *set,const Source *source,const Source *origin) SOURCE_BLOCK_CALL {
-    uint8_t hash[32];
     if(page_role(source->page)!=PAGE_SOURCE&&page_role(source->page)!=PAGE_SNAPSHOT)return -1;
-    source_hash(source,hash);return sources_put(set,source,origin,hash,0);
+    return sources_put(set,source,origin,0);
 }
 uint8_t sources_adopt(Sources *set,uint8_t id,const Source *origin) SOURCE_BLOCK_CALL {
     uint16_t at=(uint16_t)id*RECORD_BYTES;uint8_t role;
@@ -125,12 +123,12 @@ uint8_t sources_adopt(Sources *set,uint8_t id,const Source *origin) SOURCE_BLOCK
     put32(set,at+ORIGIN_VERSION,origin?page_versions[origin->page]:0);
     set->version=page_versions[set->page];return 1;
 }
-int16_t sources_borrow(Sources *set,const Source *source,const uint8_t hash[32]) SOURCE_BLOCK_CALL {
-    return sources_put(set,source,0,hash,1);
+int16_t sources_borrow(Sources *set,const Source *source) SOURCE_BLOCK_CALL {
+    return sources_put(set,source,0,1);
 }
-int16_t sources_reference(Sources *set,const Source *source,const uint8_t hash[32]) SOURCE_BLOCK_CALL {
+int16_t sources_reference(Sources *set,const Source *source) SOURCE_BLOCK_CALL {
     if(source->page!=255)return -1;
-    return sources_put(set,source,0,hash,0);
+    return sources_put(set,source,0,0);
 }
 uint8_t sources_borrowed(const Sources *set,uint8_t id) SOURCE_BLOCK_CALL {
     return sources_valid(set)&&id<set->count&&
@@ -159,12 +157,6 @@ uint8_t sources_close(Sources *set) SOURCE_BLOCK_CALL {
 }
 uint8_t sources_pack(Sources *set) SOURCE_BLOCK_CALL {
     return sources_storage(set,1);
-}
-uint8_t sources_hash(const Sources *set,uint8_t id,uint8_t hash[32]) SOURCE_BLOCK_CALL {
-    uint8_t i;uint16_t at=set->base+(uint16_t)id*RECORD_BYTES+HASH;
-    if(!sources_valid(set)||id>=set->count)return 0;
-    for(i=0;i<32;++i)hash[i]=far_get(set->page,at+i);
-    return 1;
 }
 uint8_t sources_ready(const Sources *set,uint8_t id) SOURCE_BLOCK_CALL {
     uint16_t at=set->base+(uint16_t)id*RECORD_BYTES;uint8_t page;

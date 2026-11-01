@@ -3,8 +3,8 @@
 Compiler cc;
 uint8_t compile_interrupt_reason(void) { return cc.interrupted; }
 uint8_t cc_poll(void) {
-    /* The synchronous job alone enables polling. Build authentication also
-     * uses hash helpers after the job's stack-owned diagnostic has expired. */
+    /* Only the synchronous compiler job enables polling. Cache checks must
+     * not use its expired stack-owned diagnostic or consume keyboard input. */
     if(!cc.polling)return 1;
     if(cc.error->code)return 0;
     cc.interrupted=key_interrupt();

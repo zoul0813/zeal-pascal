@@ -8,7 +8,7 @@
 .globl s__INITIALIZER, l__INITIALIZER, s__INITIALIZED
 .globl _code_sizes, _code_pages, _code_owned, _boot_error
 .globl _code_select, _code_restore, _code_release
-.globl _code_required, _code_digest
+.globl _code_version, _code_required
 .globl _code_phase_fd, _code_phase_cleanup, _close
 .globl get_bank, set_bank
 
@@ -160,8 +160,8 @@ _code_sizes:: .ds 32
 _code_pages:: .ds 16
 _code_owned:: .ds 1
 _boot_error:: .ds 1
-_code_required:: .ds 1          ; packager fills count and exact library SHA-256
-_code_digest:: .ds 32
+_code_required:: .ds 1
+_code_version:: .ds 4          ; packager fills count and exact library SHA-256
 .area _SYSTEM
 .area _TEXT
 .area _RODATA

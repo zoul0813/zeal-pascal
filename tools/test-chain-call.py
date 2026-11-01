@@ -18,7 +18,7 @@ def ide(n,executables=None):
     def state(label,trigger,cycles=10000000000):
         labels.append((label,key))
         return trigger+[n.ImageStop(key,'zpascal.bin'),'mmu',f'rb 0x{build:x} {n.BUILD_BYTES}',
-            f'rb 0x{opts:x} 5',f"rb 0x{sym['_work']:x} 140",f"rb 0x{sym['_buffers']:x} 12",
+            f'rb 0x{opts:x} 5',f"rb 0x{sym['_work']:x} 140",
             f"rb 0x{sym['_ide_state']:x} 1",f'bc 0x{key:x}']
     commands=['run 100000000']+n.program_launch()+['run 10000000']
     if executables:
@@ -51,8 +51,7 @@ def ide(n,executables=None):
             'checkpoints reach the native readers and video syscall':all(frame.startswith(f'{pc:04x} ')for(_,pc),frame in zip(labels,frames)),
             'IDE compiles COM with production asset chunks':read('caller',opts,5)==(b'\x80\x80\xff\xfb\x00' if executables else b'\x40\x80\xff\xfb\x00')and read('caller',build+4,1)==b'\1',
             'IDE run retains the authenticated compiled caller identity':cache('caller')==cache('returned')and read('returned',build+4,1)==b'\1',
-            'IDE preserves Work and its source catalog':read('caller',sym['_work'],140)==read('returned',sym['_work'],140)and
-                read('caller',sym['_buffers'],12)==read('returned',sym['_buffers'],12),
+            'IDE preserves its single Work buffer':read('caller',sym['_work'],140)==read('returned',sym['_work'],140),
             'physical video contains replacement output and successful return':(b'EXECUTE-CALL-OK' if executables else b'CHAIN-CALL-OK:retained:1234:B:18')in read('output',0x4000,1280)and b'status 0'in read('output',0x4000,1280),
         })
         if not executables:
@@ -143,7 +142,7 @@ def execute(n):
     commands += [f"bp 0x{ps['_execute_parent_stop']:x}",'tap ENTER','run 50000000000','regs','mmu']
     for name in ('_test_done','_test_passed','_test_failed'):commands += [f'rb 0x{ps[name]:x} 2']
     commands += [f"rb 0x{ps['_test_failures']:x} 128",'quit']
-    legacy=bytearray(child);legacy[1:3]=legacy[12:14]=b'\xa0\x40';legacy[36:68]=bytes(32);legacy[36:68]=hashlib.sha256(legacy).digest()
+    legacy=bytearray(child);legacy[1:3]=legacy[12:14]=b'\xa0\x40';legacy[36:132]=bytes(96)
     raw=n.execute('execute-call-retry',commands,{parent+'.bin':media[parent+'.bin'],'CALLER.COM':images['EXERETRY'],
         'LEGACY.COM':bytes(legacy),'PARENT.TXT':media['PARENT.TXT']},timeout=900)
     state=n.memory(raw);out=n.RUN/'execute-call-retry/hostfs'
@@ -248,7 +247,7 @@ def main():
     compiler_assertions=word('_test_passed')
     folder=n.RUN/'chain-call-compile/hostfs'
     caller=(folder/'CALLER.COM').read_bytes();chain=(folder/'NEXT.CHN').read_bytes()
-    assert chain[192:224]==(ROOT/'build/pascal_runtime.profile').read_bytes()
+    assert chain[192:196]==(ROOT/'build/pascal_runtime.profile').read_bytes()
     parent='zchaincallparent';ps=n.symbols(parent);terminal=n.symbols('transfer_gate')['transfer_gate_returned']
     assert ps['_transfer_parent_stop']==0x7ff0
     commands=['run 100000000']+n.type_text('H:/'+parent+'.bin',ticks=2000000)

@@ -16,7 +16,10 @@ add_library(real_runtime OBJECT src/real.c src/transcendental.c)
 target_compile_definitions(real_runtime PRIVATE ZP_REAL_RUNTIME)
 target_compile_options(real_runtime PRIVATE --std-c99 --opt-code-size "SHELL:--codeseg REAL"
     "SHELL:--constseg REAL" "SHELL:--dataseg REAL_DATA")
-add_library(real_compiler OBJECT src/real.c src/transcendental.c)
+# Compiler execution needs only literal/integer conversion. Generated programs
+# retain the full arithmetic/format/Val/transcendental runtime above.
+add_library(real_compiler OBJECT src/real.c)
+target_compile_definitions(real_compiler PRIVATE ZP_REAL_COMPILER)
 target_compile_options(real_compiler PRIVATE --std-c99 --opt-code-size "SHELL:--codeseg BANK9" "SHELL:--constseg BANK9")
 add_library(image_compiler OBJECT src/native_image.c src/compiler_image.c)
 target_include_directories(image_compiler PRIVATE src)
@@ -61,7 +64,7 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/runtime_asset.asm CONTENT
 ".area _BANK8\n.globl _runtime_start\n.globl _runtime_end\n.globl _trampoline_start\n.globl _trampoline_end\n_runtime_start:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.zpl\"\n_runtime_end:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.private\"\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.profile\"\n.area _RODATA\n_trampoline_start:\n.incbin \"${CMAKE_BINARY_DIR}/ram_trampoline.zpl\"\n_trampoline_end:\n")
 set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/pascal_runtime.zpl;${CMAKE_BINARY_DIR}/pascal_runtime.private;${CMAKE_BINARY_DIR}/pascal_runtime.profile;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
-set(PASCAL_CORE src/source.c src/sources.c src/sources_storage.c src/compiler_sources.c src/source_hash.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/compiler_expr.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_file.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_state.c src/compiler_predicates.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/saved_map.c src/native.asm
+set(PASCAL_CORE src/source.c src/sources.c src/sources_storage.c src/compiler_sources.c src/compiler.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/compiler_expr.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_file.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_state.c src/compiler_predicates.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/saved_map.c src/native.asm
     ${CMAKE_BINARY_DIR}/runtime_asset.asm ${CMAKE_BINARY_DIR}/file_asset.asm)
 list(APPEND PASCAL_CORE src/compiler_chain.c src/compiler_transfer_asset.c src/compiler_module.c src/compiler_bridges.c src/library_phase.c src/compiler_members.c src/compiler_groups.c src/compiler_late.c src/compiler_keyboard_engine.c src/compiler_compile.c src/compiler_job.c src/compiler_job_result.c src/compiler_job_pages.c)
 list(APPEND PASCAL_CORE src/compiler_messages.c src/source_move.c src/source_validation.c src/source_location.c)
@@ -72,7 +75,7 @@ set_source_files_properties(${CMAKE_BINARY_DIR}/transfer_ide_asset.asm ${CMAKE_B
 # leaving stale objects in another compiler bank during incremental ZDE builds.
 foreach(source IN LISTS PASCAL_CORE)
     if(source MATCHES "\\.c$")
-        set_property(SOURCE ${source} APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h)
+        set_property(SOURCE ${source} APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/zp.h)
     endif()
     if(source MATCHES "src/compiler.*\\.c$")
         set_property(SOURCE ${source} APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h)
@@ -83,17 +86,19 @@ endforeach()
 set_property(SOURCE src/library.c src/library_phase.c src/platform.c src/banks.c src/compiler.c tests/native/main.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/library.h)
 set_property(SOURCE src/banks.c src/main.c tests/native/main.c APPEND PROPERTY
-    OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h)
+    OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/zp.h)
 set_property(SOURCE tests/native/harness.c APPEND PROPERTY OBJECT_DEPENDS
-    ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h ${CMAKE_SOURCE_DIR}/src/library.h)
+    ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h)
 set_property(SOURCE tests/native/options-main.c tests/native/chain-call-main.c tests/native/chain-main.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h)
 set_property(SOURCE tests/native/main.c tests/native/harness.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 set_property(SOURCE tests/native/main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/tests/native/core-groups.h)
+set_property(SOURCE tests/native/math-main.c tests/native/file-main.c tests/native/text-main.c tests/native/options-main.c
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/tests/native/chunk.h)
 set_property(SOURCE tests/native/input-main.c tests/native/math-main.c tests/native/io-main.c tests/native/file-main.c tests/native/text-main.c tests/native/standard-main.c tests/native/keyboard-main.c tests/native/logical-main.c tests/native/console-main.c tests/native/control-main.c tests/native/devices-main.c tests/native/bridges-main.c tests/native/hooks-main.c tests/native/language-main.c tests/native/examples-main.c tests/native/sources-main.c tests/native/inline-main.c tests/native/params-main.c tests/native/options-main.c tests/native/worker-main.c tests/native/saved-main.c APPEND PROPERTY OBJECT_DEPENDS
-    ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h ${CMAKE_SOURCE_DIR}/src/library.h
+    ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h
     ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 set_property(SOURCE src/keys.c src/platform.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/keys.h)
@@ -102,13 +107,13 @@ set_property(SOURCE src/main.c APPEND PROPERTY OBJECT_DEPENDS
 set_property(SOURCE src/platform.c src/worker.c src/banks.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/worker.h)
 set_property(SOURCE src/editor.c src/main.c tests/native/editor-core.c tests/native/editor-search.c tests/native/editor-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/editor.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/editor.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 set_property(SOURCE src/sources.c src/compiler_sources.c src/compiler.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/output.c src/main.c tests/native/sources-main.c tests/native/inline-main.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources.h)
 set_property(SOURCE src/sources.c src/sources_storage.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources_internal.h ${CMAKE_SOURCE_DIR}/src/sources.h)
 set_property(SOURCE src/source.c src/source_blocks.c APPEND PROPERTY OBJECT_DEPENDS
-    ${CMAKE_SOURCE_DIR}/src/source_internal.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h)
+    ${CMAKE_SOURCE_DIR}/src/source_internal.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 set_property(SOURCE src/output.c src/saved_map.c src/main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/saved_map.h ${CMAKE_SOURCE_DIR}/src/sources.h)
 set_property(SOURCE src/output.c src/output_transport.c src/banks.c APPEND PROPERTY OBJECT_DEPENDS
@@ -120,11 +125,10 @@ set_property(SOURCE src/compiler_members.c APPEND PROPERTY OBJECT_DEPENDS
 set_property(SOURCE src/compiler_groups.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/compiler_groups.h ${CMAKE_SOURCE_DIR}/src/compiler_members.h ${CMAKE_SOURCE_DIR}/src/compiler_late.h ${CMAKE_SOURCE_DIR}/src/output_transport.h)
 set_property(SOURCE src/compiler_members.c src/compiler_groups.c src/compiler_late.c src/compiler_params.c src/compiler_random.c src/compiler_file.c src/compiler_files.c src/compiler_keyboard.c src/compiler_keyboard_engine.c src/compiler_interrupt.c src/compiler_chain.c src/compiler_module.c src/compiler_hooks.c APPEND PROPERTY OBJECT_DEPENDS
-    ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h
+    ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h
     ${CMAKE_SOURCE_DIR}/src/chain_abi.h ${CMAKE_SOURCE_DIR}/src/real.h ${CMAKE_SOURCE_DIR}/src/compiler_late.h)
 set_property(SOURCE src/image.c src/compiler_image.c src/compiler_build.c src/saved_map.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/image.h)
 set_property(SOURCE src/image.c src/compiler_image.c src/native_image.c src/saved_map.c tests/native/chain-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/native_image.h)
-set_property(SOURCE src/sha256.c src/source_hash.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sha256.h)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/sdk_glue.asm CONTENT
     ".globl _fflush_stdout\n.include \"$ENV{ZOS_PATH}/sdk/sdcc/src/zeal8bitos.asm\"\n")
 list(APPEND PASCAL_CORE ${CMAKE_BINARY_DIR}/sdk_glue.asm)
@@ -141,7 +145,7 @@ set_source_files_properties(src/main.c tests/native/main.c tests/native/input-ma
 set_source_files_properties(tests/native/conformance-main.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 set_property(SOURCE tests/native/conformance-main.c APPEND PROPERTY OBJECT_DEPENDS
-    ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h ${CMAKE_SOURCE_DIR}/src/library.h
+    ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h
     ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 set_source_files_properties(src/compiler.c src/compiler_random.c src/compiler_keyboard_engine.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK2;--constseg;BANK2")
@@ -155,7 +159,7 @@ set_source_files_properties(src/compiler_params.c src/compiler_routines.c src/co
     COMPILE_OPTIONS "--codeseg;BANK5;--constseg;BANK5")
 set_source_files_properties(src/compiler_real.c src/compiler_artifact.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK9;--constseg;BANK9")
-set_source_files_properties(src/output.c src/worker.c src/sources.c src/source_hash.c src/compiler_job_pages.c PROPERTIES
+set_source_files_properties(src/output.c src/worker.c src/sources.c src/compiler_job_pages.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK3;--constseg;BANK3")
 set_property(SOURCE src/compiler_job_result.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/sources.h)
@@ -302,7 +306,7 @@ target_compile_options(zchaincalltest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>
 set_source_files_properties(tests/native/chain-call-main.c PROPERTIES COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 set_property(SOURCE tests/native/chain-call-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 set_source_files_properties(tests/native/chain-main.c PROPERTIES COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
-set_property(SOURCE tests/native/chain-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/saved_map.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
+set_property(SOURCE tests/native/chain-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/saved_map.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 set_property(SOURCE tests/native/options-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/saved_map.h ${CMAKE_SOURCE_DIR}/tests/native/save-path-native.h)
 set_property(SOURCE tests/native/chain-main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/chain_abi.h
@@ -316,11 +320,11 @@ target_compile_options(zedittest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 set_source_files_properties(tests/native/editor-main.c tests/native/editor-core.c tests/native/editor-search.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-add_library(test_hash OBJECT tests/native/code-hash.c)
-target_include_directories(test_hash PRIVATE src)
-target_compile_options(test_hash PRIVATE --std-c99 "SHELL:--codeseg BANK12" "SHELL:--constseg BANK12")
-set_property(SOURCE tests/native/code-hash.c APPEND PROPERTY OBJECT_DEPENDS
-    ${CMAKE_SOURCE_DIR}/tests/native/harness.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h ${CMAKE_SOURCE_DIR}/src/library.h)
+add_library(test_evidence OBJECT tests/native/code-capture.c)
+target_include_directories(test_evidence PRIVATE src)
+target_compile_options(test_evidence PRIVATE --std-c99 "SHELL:--codeseg BANK12" "SHELL:--constseg BANK12")
+set_property(SOURCE tests/native/code-capture.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/tests/native/harness.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h)
 add_executable(zexecutecalltest src/startup.asm src/banks.c tests/native/execute-call-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 target_include_directories(zexecutecalltest PRIVATE src)
 target_compile_options(zexecutecalltest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
@@ -346,7 +350,7 @@ foreach(target zcorpus zjobtest zmemberstest zexecutecalltest zpascal zptest zin
     endif()
     add_dependencies(${target} transfer_assets)
     if(NOT target STREQUAL "zpascal" AND NOT target STREQUAL "zedittest")
-        target_sources(${target} PRIVATE $<TARGET_OBJECTS:test_hash>)
+        target_sources(${target} PRIVATE $<TARGET_OBJECTS:test_evidence>)
     endif()
     target_link_options(${target} PRIVATE "SHELL:-b _INITIALIZED=0xc000"
         "SHELL:-b _BANK1=0x18000" "SHELL:-b _BANK2=0x28000" "SHELL:-b _BANK3=0x38000" "SHELL:-b _BANK4=0x48000" "SHELL:-b _BANK5=0x58000" "SHELL:-b _BANK6=0x68000" "SHELL:-b _BANK7=0x78000" "SHELL:-b _BANK8=0x88000" "SHELL:-b _BANK9=0x98000" "SHELL:-b _BANK10=0xa8000")
@@ -383,10 +387,10 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/execute_entry_asset.asm CONTENT
     ".area _TEXT\n.globl _execute_entry_start,_execute_entry_length\n_execute_entry_start:\n.incbin \"${CMAKE_BINARY_DIR}/execute_entry.zpl\"\n_execute_entry_length:\n.dw _execute_entry_length-_execute_entry_start\n")
 set_source_files_properties(${CMAKE_BINARY_DIR}/execute_entry_asset.asm PROPERTIES
     OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/execute_entry.zpl)
-add_executable(zchainloadtest ${CMAKE_BINARY_DIR}/test_sdk_startup.asm src/chain.c src/chain_native.asm src/execute_native.asm src/native_image.c src/sha256.c src/sha_z80.asm tests/native/chain-load.c ${CMAKE_BINARY_DIR}/execute_entry_asset.asm)
+add_executable(zchainloadtest ${CMAKE_BINARY_DIR}/test_sdk_startup.asm src/chain.c src/chain_native.asm src/execute_native.asm src/native_image.c tests/native/chain-load.c ${CMAKE_BINARY_DIR}/execute_entry_asset.asm)
 target_include_directories(zchainloadtest PRIVATE src)
 target_compile_options(zchainloadtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
-set_property(SOURCE src/chain.c tests/native/chain-load.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/chain.h ${CMAKE_SOURCE_DIR}/src/chain_abi.h ${CMAKE_SOURCE_DIR}/src/native_image.h ${CMAKE_SOURCE_DIR}/src/sha256.h ${CMAKE_SOURCE_DIR}/src/execute_handoff.h)
+set_property(SOURCE src/chain.c tests/native/chain-load.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/chain.h ${CMAKE_SOURCE_DIR}/src/chain_abi.h ${CMAKE_SOURCE_DIR}/src/native_image.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/execute_handoff.h)
 add_dependencies(zchainloadtest execute_entry_bin)
 zos_add_outputs(zchainloadtest)
 # Standalone overlay staging proof; compiler/publication/runtime integration
@@ -396,17 +400,17 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/overlay-fixtures/overlay-fixtures.
     DEPENDS ${CMAKE_SOURCE_DIR}/tools/test-overlays.py VERBATIM)
 add_custom_target(overlay_fixtures DEPENDS ${CMAKE_BINARY_DIR}/overlay-fixtures/overlay-fixtures.h)
 add_executable(zoverlaytest ${CMAKE_BINARY_DIR}/test_sdk_startup.asm src/overlay.c src/chain_native.asm
-    src/sha256.c src/sha_z80.asm tests/native/overlay-native.c)
+    tests/native/overlay-native.c)
 target_include_directories(zoverlaytest PRIVATE src ${CMAKE_BINARY_DIR}/overlay-fixtures)
 target_compile_options(zoverlaytest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
 set_property(SOURCE src/overlay.c tests/native/overlay-native.c APPEND PROPERTY OBJECT_DEPENDS
-    ${CMAKE_SOURCE_DIR}/src/overlay.h ${CMAKE_SOURCE_DIR}/src/chain.h ${CMAKE_SOURCE_DIR}/src/sha256.h)
+    ${CMAKE_SOURCE_DIR}/src/overlay.h ${CMAKE_SOURCE_DIR}/src/chain.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 set_property(SOURCE tests/native/overlay-native.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_BINARY_DIR}/overlay-fixtures/overlay-fixtures.h)
 add_dependencies(zoverlaytest overlay_fixtures)
 zos_add_outputs(zoverlaytest)
 add_executable(zexecuteprobe tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm src/chain.c src/chain_native.asm
-    src/execute_native.asm src/native_image.c src/sha256.c src/sha_z80.asm
+    src/execute_native.asm src/native_image.c
     tests/native/execute-probe.c tests/native/execute-probe.asm tests/native/machine.asm
     ${CMAKE_BINARY_DIR}/test_file_gate_asset.asm ${CMAKE_BINARY_DIR}/execute_entry_asset.asm)
 target_include_directories(zexecuteprobe PRIVATE src)
@@ -485,7 +489,7 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/transfer_file_gate.asm CONTENT
     ".area _TEXT\n.globl _transfer_file_gate,_transfer_file_gate_bytes\n_transfer_file_gate:\n.incbin \"${CMAKE_BINARY_DIR}/file_gate.zpl\"\n_transfer_file_gate_bytes = .-_transfer_file_gate\n")
 set_source_files_properties(${CMAKE_BINARY_DIR}/transfer_file_gate.asm PROPERTIES OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/file_gate.zpl)
 add_executable(transfer_runtime src/transfer_module.asm src/transfer.c src/transfer_native.asm
-    src/chain.c src/chain_native.asm src/execute_native.asm src/native_image.c src/sha256.c src/sha_z80.asm
+    src/chain.c src/chain_native.asm src/execute_native.asm src/native_image.c
     ${CMAKE_BINARY_DIR}/sdk_glue.asm ${CMAKE_BINARY_DIR}/transfer_file_gate.asm
     ${CMAKE_BINARY_DIR}/execute_entry_asset.asm)
 target_include_directories(transfer_runtime PRIVATE src)
@@ -573,7 +577,7 @@ add_executable(zrealtest ${CMAKE_BINARY_DIR}/test_sdk_startup.asm src/real.c src
 set_property(SOURCE src/real.c src/transcendental.c tests/native/real-core.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/real.h)
 set_property(SOURCE tests/native/real-core.c APPEND PROPERTY OBJECT_DEPENDS
-    ${CMAKE_BINARY_DIR}/real_vectors.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sha256.h)
+    ${CMAKE_BINARY_DIR}/real_vectors.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 target_include_directories(zrealtest PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_definitions(zrealtest PRIVATE ZP_REAL_RUNTIME)
 target_compile_options(zrealtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)

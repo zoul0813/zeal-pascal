@@ -1,7 +1,7 @@
 #include "harness.h"
 
 volatile uint16_t test_passed,test_failed,test_stage,test_failures[64],test_index;
-volatile uint8_t test_done,test_hash[32],corpus_result[8];
+volatile uint8_t test_done,corpus_result[8];
 volatile char corpus_error_path[128];
 extern volatile uint8_t corpus_data_page;
 Source s;Build b;Diagnostic d;

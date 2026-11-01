@@ -2,7 +2,6 @@
 """Physical Ctrl-U during IDE disk publication, with original-file and retry proof."""
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-import gzip
 import hashlib
 import importlib.util
 import json
@@ -81,7 +80,7 @@ def run_case(kind,helper,ordinal,typing=False,drive="H"):
     # the host fault suite and the repeated native publication suite.
     commands+=['quit']
     name=f'output-interrupt-{drive}-{kind}-{helper.strip("_")}-{ordinal}'+('-typing' if typing else '')
-    media=gzip.decompress(n.TF_TEMPLATE.read_bytes()) if drive=='T' else None
+    media=n.prepare_media() if drive=='T' else None
     launch_files=dict(fixtures)
     if drive=='T':launch_files.update({name:(n.COREUTILS/name).read_bytes()for name in ('mkdir','cp')})
     raw=n.execute(name,commands,launch_files,tf_image=media,timeout=480)
@@ -118,28 +117,47 @@ def run_case(kind,helper,ordinal,typing=False,drive="H"):
             'capture':str((n.RUN/name).relative_to(ROOT))}
 
 
+CASES = {
+    'host-source-copy-4-typing': ('source', '_output_copy_file', 4, True),
+    'host-build-copy-4': ('build', '_output_copy_file', 4, False),
+    'host-source-copy-1': ('source', '_output_copy_file', 1, False),
+    'host-source-copy-2': ('source', '_output_copy_file', 2, False),
+    'host-source-copy-3': ('source', '_output_copy_file', 3, False),
+    'host-build-copy-1': ('build', '_output_copy_file', 1, False),
+    'host-build-copy-2': ('build', '_output_copy_file', 2, False),
+    'host-build-copy-3': ('build', '_output_copy_file', 3, False),
+    'host-source-verify-2': ('source', '_output_verify_range', 2, False),
+    'host-build-verify-4': ('build', '_output_verify_range', 4, False),
+    'tf-source-copy-4': ('source', '_output_copy_file', 4, False, 'T'),
+    'tf-build-copy-4': ('build', '_output_copy_file', 4, False, 'T'),
+}
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--quick',action='store_true')
+    selection=parser.add_mutually_exclusive_group()
+    selection.add_argument('--quick',action='store_true')
+    selection.add_argument('--case',choices=CASES)
+    parser.add_argument('--list-cases',action='store_true')
     parser.add_argument('--jobs',type=int,choices=range(1,4),default=3,
                         help='Maximum concurrent emulator cases (default: 3)')
     args=parser.parse_args()
+    if args.list_cases:
+        print("\n".join(CASES));return
+    if args.case:args.jobs=1
     inputs=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',n.EMULATOR,n.ROM,n.TF_TEMPLATE,n.COREUTILS/'cp',n.COREUTILS/'mkdir']
     inputs+=list((ROOT/'src').glob('*'))+[ROOT/f'build/zpascal.{ext}'for ext in ('bin','zpl','map','banks.json')]
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()}
-    cases=[('source','_output_copy_file',4,True),('build','_output_copy_file',4,False)]
-    if not args.quick:
-        cases+=[('source','_output_copy_file',i,False)for i in (1,2,3)]
-        cases+=[('build','_output_copy_file',i,False)for i in (1,2,3)]
-        cases+=[('source','_output_verify_range',2,False),('build','_output_verify_range',4,False),
-                ('source','_output_copy_file',4,False,'T'),('build','_output_copy_file',4,False,'T')]
+    selected=[args.case] if args.case else list(CASES)[:2] if args.quick else list(CASES)
+    cases=[CASES[name] for name in selected]
     results=[]
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
         for result in pool.map(lambda case:run_case(*case),cases):
             results.append(result);print(json.dumps(result),flush=True)
     report={'passed':all(r['passed']for r in results)and all(n.sha(Path(p))==h for p,h in hashes.items()),
             'scope':__doc__+' Bounded native emulator acceptance; not full conformance.',
-            'results':results,'input_sha256':hashes}
+            'results':results,'input_sha256':hashes,'selected_cases':selected,
+            'complete_publication_suite':len(selected)==len(CASES)}
     n.RUN.mkdir(parents=True,exist_ok=True);(n.RUN/'output-interrupt-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps({'passed':report['passed'],'report':str(n.RUN/'output-interrupt-report.json')}))
     assert report['passed']

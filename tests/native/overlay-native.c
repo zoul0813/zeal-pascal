@@ -2,6 +2,7 @@
  * their tiny Z80 members proves loader bytes; no Pascal compiler support is
  * implied. This retained test caller runs entirely below8000. */
 #include "overlay.h"
+static uint8_t modified;
 #include "chain.h"
 #include "overlay-fixtures.h"
 #include <string.h>
@@ -73,8 +74,9 @@ int main(void) {
     for(i=0;i<OVERLAY_CASE_COUNT;++i) {
         c=overlay_cases+i;check(!overlay_group_decode(c->record,&group));
         for(member=0;member<(c->valid?2:1);++member) {
+            modified=!strcmp(c->name,"H:/trusted-member.000");
             memset((void*)0x9000,0xa5,0x4200);
-            ok=overlay_prepare(&load,c->name,&group,overlay_owner_for(c),overlay_manifest_for(c),member);
+            ok=overlay_prepare(&load,c->name,&group,member);
             check(ok==c->valid);unchanged();check(mapping()==saved);
             if(ok)staged(member);else check(load.error&&!load.ready&&load.fd<0);
             check(overlay_discard(&load));check(available()==free_before);
@@ -86,21 +88,21 @@ int main(void) {
      * and scanning cannot manufacture a loader watermark. */
     test_stack_top=stack_pointer();test_stack_low=0;
     memset((void*)(test_stack_top-2048u),0xa5,1920);
-    ok=overlay_prepare(&load,c->name,&group,overlay_owner,overlay_manifest,0);check(ok);
+    ok=overlay_prepare(&load,c->name,&group,0);check(ok);
     for(i=test_stack_top-2048u;i<test_stack_top-128u;++i)
         if(*((uint8_t*)i)!=0xa5) {test_stack_low=i;break;}
     check(test_stack_top>=0xfc00u&&test_stack_low&&test_stack_low<test_stack_top-128u&&
           test_stack_low>=test_stack_top-1024u);
     check(overlay_discard(&load)&&available()==free_before);
     memset((void*)0x9000,0xa5,0x4200);
-    check(!overlay_prepare(&load,"H:/missing.000",&group,overlay_owner,overlay_manifest,0));
+    check(!overlay_prepare(&load,"H:/missing.000",&group,0));
     check(load.error==1&&!load.ready);unchanged();
     /* Exhaust actual OS pages, then allow just the temporary index page.
      * Both paths must close the file and leave caller code untouched. */
     occupied=0;while(occupied<32&&!palloc(held+occupied))++occupied;
     for(j=0;j<2;++j) {
         if(j&&occupied)check(!pfree(held[--occupied]));
-        check(!overlay_prepare(&load,c->name,&group,overlay_owner,overlay_manifest,0));
+        check(!overlay_prepare(&load,c->name,&group,0));
         check(load.error==0x1ff&&!load.ready&&load.fd<0);unchanged();
     }
     while(occupied)check(!pfree(held[--occupied]));
@@ -108,7 +110,7 @@ int main(void) {
     *((uint8_t*)0xe100)=0;*((uint8_t*)0xe101)=0;
     for(j=0;j<3;++j) {
         member=j==1?1:0;
-        ok=overlay_prepare(&load,c->name,&group,overlay_owner_for(c),overlay_manifest_for(c),member);check(ok);
+        ok=overlay_prepare(&load,c->name,&group,member);check(ok);
         if(ok) {install();((void (*)(void))0x9000)();}
         check(overlay_discard(&load)&&available()==free_before&&mapping()==saved);
     }

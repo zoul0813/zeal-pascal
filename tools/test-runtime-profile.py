@@ -89,7 +89,7 @@ def main():
         (directory/'pascal_runtime.profile').write_bytes(changed);rejected()
         (directory/'pascal_runtime.profile').write_bytes(original['pascal_runtime.profile'])
         address = 0x88000+len(original['pascal_runtime.zpl'])+len(original['pascal_runtime.private'])
-        image.write_text(flip_hex(original['zpascal.ihx'].decode(), address+31));rejected()
+        image.write_text(flip_hex(original['zpascal.ihx'].decode(), address+1));rejected()
         image.write_bytes(original['zpascal.ihx'])
         symbols=package.read_symbols(image)
         changed_map,count=re.subn(r'(?m)^(\s+)([0-9A-F]{8})(\s+_native_decode\s)',

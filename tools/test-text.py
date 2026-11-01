@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Disk Text through the native compiler, RAM return and standalone executables."""
+from native_chunks import SuiteChunks
 import importlib.util
 import json
 from pathlib import Path
@@ -11,6 +12,8 @@ spec.loader.exec_module(n)
 
 
 def main():
+    chunks = SuiteChunks('text', n)
+    chunks.arguments()
     target='ztexttest'
     sym=n.symbols(target)
     inputs=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),ROOT/'tools/test-native.py',
@@ -18,33 +21,33 @@ def main():
     inputs+=sorted((ROOT/'src').glob('*'))+sorted((ROOT/'tests/native').glob('*'))
     inputs+=[ROOT/f'build/{target}.{ext}' for ext in ('bin','zpl','map','banks.json')]
     inputs+=[ROOT/'build/file_runtime.zpl',ROOT/'build/file_runtime.packed',ROOT/'build/file_gate.zpl',ROOT/'build/module_unpack.zpl']
+    inputs += chunks.input_paths()
     hashes={str(p):n.sha(p) for p in inputs if p.is_file()}
-    assert sym['_test_stop']==0xfc00
-    commands=['run 100000000']+n.program_launch(target)
-    commands+=[f"bp 0x{sym['_test_stop']:x}",'run 80000000000','s','regs','mmu']
-    for name in ('_test_done','_test_passed','_test_failed','_test_stage'):
-        commands+=[f'rb 0x{sym[name]:x} 2']
-    commands+=[f"rb 0x{sym['_test_failures']:x} 128",'quit']
+    commands = chunks.commands(target, sym)
     fixtures={f'{target}.{ext}':(ROOT/f'build/{target}.{ext}').read_bytes() for ext in ('bin','zpl')}
     fixtures.update({p.name.upper():p.read_bytes() for p in (ROOT/'tests/native').glob('text*.pas')})
     fixtures['CAPACITY.PAS']=(ROOT/'tests/native/capacity.pas').read_bytes()
     fixtures.update({'NUMBERS.TXT':b'-32768 255 1.5 xyz\r\nQ 42\r\n\x1a',
                      'BADNUM.TXT':b'bad 42\r\nbad\r\n256\r\nabc\r\n\x1a','NESTIN.TXT':b'A\r\n\x1a'})
+    fixtures.update(chunks.fixture())
     raw=n.execute('text-component',commands,fixtures,timeout=900)
-    memory=n.memory(raw)
-    word=lambda name:memory.get(sym[name],0)|memory.get(sym[name]+1,0)<<8
+    completion, memory, word, expected_assertions = chunks.completion(raw, sym, target)
     disk=n.RUN/'text-component/hostfs'
-    expected_output=b''.join(marker*2 for marker in (
-        b'TEXT-DISK-OK\r\n',b'TEXT-SEEK-OK\r\n',b'TEXT-NUMBERS-OK\r\n',
-        b'TEXT-FORMAT-OK\r\n',b'TEXT-RECOVERY-OK\r\n',b'TEXT-NESTING-OK\r\n',
-        b'NEST=FALSE\r\nDONE\r\nTEXT-EOF-NESTING-OK\r\n',
-        b'FIRST=11,TRUE\r\nSECOND=22,TRUE\r\nTHIRD=999,TRUE\r\n'
-        b'LIMIT=0,0,49\r\nEMPTYCHAR=0,26,TRUE\r\nEND-NUMERIC\r\n',
-        b'TEXT-ARGUMENTS-OK\r\n',b'CAPACITY-OK\r\n',b'NATIVE-PATHS-OK\r\n',b'NATIVE-RENAME-OK\r\n',b'NATIVE-RENAME-SPACE-OK\r\n'))
+    markers = [
+        ('disk-format', b'TEXT-DISK-OK\r\n'),('disk-format',b'TEXT-SEEK-OK\r\n'),
+        ('numbers-recovery',b'TEXT-NUMBERS-OK\r\n'),('disk-format',b'TEXT-FORMAT-OK\r\n'),
+        ('numbers-recovery',b'TEXT-RECOVERY-OK\r\n'),('nesting-arguments',b'TEXT-NESTING-OK\r\n'),
+        ('nesting-arguments',b'NEST=FALSE\r\nDONE\r\nTEXT-EOF-NESTING-OK\r\n'),
+        ('numbers-recovery',b'FIRST=11,TRUE\r\nSECOND=22,TRUE\r\nTHIRD=999,TRUE\r\n'
+         b'LIMIT=0,0,49\r\nEMPTYCHAR=0,26,TRUE\r\nEND-NUMERIC\r\n'),
+        ('nesting-arguments',b'TEXT-ARGUMENTS-OK\r\n'),('capacity-paths',b'CAPACITY-OK\r\n'),
+        ('capacity-paths',b'NATIVE-PATHS-OK\r\n'),('rename',b'NATIVE-RENAME-OK\r\n'),
+        ('rename',b'NATIVE-RENAME-SPACE-OK\r\n')]
+    expected_output = b''.join(marker*2 for group,marker in markers if chunks.wants(group))
     checks={
         'native completion marker':memory.get(sym['_test_done'])==255 and word('_test_stage')==6,
         'RAM/COM ownership, stack/MMU/IFF, dirty-source and error-location assertions':
-            word('_test_failed')==0 and word('_test_passed')>=100,
+            word('_test_failed')==0 and word('_test_passed')==expected_assertions,
         'Text reads, formatting, lookahead, recovery and nested I/O in both execution modes':
             (disk/'TEXT.TXT').is_file() and (disk/'TEXT.TXT').read_bytes()==expected_output,
         'unchanged source, target artifacts and platform during validation':
@@ -62,18 +65,31 @@ def main():
               'RNNEST.NEW':b'NEST\x1a','RNSIDE.TXT':b'SIDE\x1a','RNERROR.OLD':b'ERROR\x1a',
               'RFULL.OLD':b'FULL\r\n\x1a','RHOLD.TXT':b'hold\r\n\x1a'}
     expected.update({name:fixtures[name] for name in ('NUMBERS.TXT','BADNUM.TXT','NESTIN.TXT')})
+    owners = {
+        'disk-format':['TEXTDISK.TXT','TEXTSPACE.TXT','TEXTFORMAT.TXT','AUTO.TXT'],
+        'numbers-recovery':['LINES.TXT','LIMIT.TXT','EMPTY.TXT'],
+        'nesting-arguments':['NESTOUT.TXT','NESTSIDE.TXT','TEXTARGS.TXT','LOCALTEXT.TXT'],
+        'capacity-paths':['MixedName','NoExtension'],
+        'rename':['RNNEW.TXT','RNINT.NEW','RNNEST.NEW','RNSIDE.TXT','RNERROR.OLD','RFULL.OLD','RHOLD.TXT']}
+    owners = {name:group for group,names in owners.items() for name in names}
+    assert set(owners) | {'NUMBERS.TXT','BADNUM.TXT','NESTIN.TXT'} == set(expected)
     for name,data in expected.items():
+        if name in owners and not chunks.wants(owners[name]): continue
         checks['exact disk bytes '+name]=(disk/name).is_file() and (disk/name).read_bytes()==data
-    checks['Rename removes old names only after verified publication and suppresses pending transfers']=all(
-        not (disk/name).exists() for name in ('RNOLD.TXT','RNINT.OLD','RNNEST.OLD','RNOPEN.NEW','RNSKIPPED','RNNOTMADE'))
-    image=(disk/'TEXTDISK.COM').read_bytes() if (disk/'TEXTDISK.COM').is_file() else b''
-    checks['standalone Text executable embeds exact packed component and one shared decoder']=(
-        (ROOT/'build/file_runtime.packed').read_bytes() in image and
-        image.count((ROOT/'build/module_unpack.zpl').read_bytes())==1 and
-        (ROOT/'build/file_gate.zpl').read_bytes() in image)
+    if chunks.wants('rename'):
+        checks['Rename removes old names only after verified publication and suppresses pending transfers']=all(
+            not (disk/name).exists() for name in ('RNOLD.TXT','RNINT.OLD','RNNEST.OLD','RNOPEN.NEW','RNSKIPPED','RNNOTMADE'))
+    if chunks.wants('disk-format'):
+        image=(disk/'TEXTDISK.COM').read_bytes() if (disk/'TEXTDISK.COM').is_file() else b''
+        checks['standalone Text executable embeds exact packed component and one shared decoder']=(
+            (ROOT/'build/file_runtime.packed').read_bytes() in image and
+            image.count((ROOT/'build/module_unpack.zpl').read_bytes())==1 and
+            (ROOT/'build/file_gate.zpl').read_bytes() in image)
+    checks.update(completion)
     report={'scope':'Ordinary disk Text: scalar/string reads, shared formatting, CRLF/Ctrl-Z, lookahead/seek predicates, cleanup and nested I/O; preassigned/logical streams and full conformance remain pending',
             'passed':all(checks.values()),'capture_directory':str(n.RUN.relative_to(ROOT)),
-            'native_assertions_passed':word('_test_passed'),'native_assertions_failed':word('_test_failed'),
+            'case': chunks.case, 'expected_native_assertions': expected_assertions,
+              'native_assertions_passed':word('_test_passed'),'native_assertions_failed':word('_test_failed'),
             'input_sha256':hashes,'checks':checks}
     (n.RUN/'text-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2))

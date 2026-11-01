@@ -2,7 +2,7 @@
 #include "compiler.h"
 
 volatile uint16_t test_passed,test_failed,test_stage,test_failures[64],test_index;
-volatile uint8_t test_done,test_hash[32];
+volatile uint8_t test_done;
 Source s;Build b;Diagnostic d;
 void test_complete(void);
 
@@ -15,7 +15,7 @@ int app_main(void) {
         test_stage=80+i;
         if(i){strcpy(s.path,i==1?"H:/NEXT.PAS":"H:/FAILURE.PAS");options.kind=i==1?COMPILE_CHAIN:COMPILE_PROGRAM;}
         check(load_source(&s,s.path,&d));
-        check(compile_project(&s,0,&b,&d,0,&options));
+        check(compile_project(&s,&b,&d,0,&options));
         if(b.valid) {
             check(build_check(&s,&b)&&b.code_origin==options.start);
             check(i==1?build_is_chain(&b):cc.transfer_entry!=0);

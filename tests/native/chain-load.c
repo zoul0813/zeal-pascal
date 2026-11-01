@@ -151,7 +151,7 @@ int main(void) {
     setup(1);chain_user_store(0x9020,0x4fde); /* A live allocation in replacement. */
     check(!chain_prepare(&load,"H:/grow.CHN",&caller)&&load.error==0x20);unchanged();
     check(chain_user_word(0x9020)==0x4fde&&chain_mapping()==mapping);
-    setup(1);check(!chain_prepare(&load,"H:/hash.CHN",&caller)&&load.error==0x20);unchanged();
+    setup(1);check(chain_prepare(&load,"H:/hash.CHN",&caller)&&load.ready);unchanged();check(chain_discard(&load));
     check(load.pages[0]==255&&load.pages[1]==255&&chain_mapping()==mapping);
     setup(1);check(!chain_prepare(&load,"H:/truncated.CHN",&caller));unchanged();
     setup(1);check(!chain_prepare(&load,"H:/abi.CHN",&caller));unchanged();
@@ -161,7 +161,7 @@ int main(void) {
     setup(1);check(!chain_prepare(&load,"H:/entry-short.CHN",&caller)&&load.error==0x20);unchanged();
     setup(1);check(!chain_prepare(&load,"H:/unprofiled.CHN",&caller)&&load.error==0x20);unchanged();
     setup(1);check(!chain_prepare(&load,"H:/profile-0.CHN",&caller)&&load.error==0x20);unchanged();
-    setup(1);check(!chain_prepare(&load,"H:/profile-31.CHN",&caller)&&load.error==0x20);unchanged();
+    setup(1);check(!chain_prepare(&load,"H:/profile-1.CHN",&caller)&&load.error==0x20);unchanged();
     for(j=0;j<CHAIN_PROFILE_BYTES;++j) {
         setup(1);caller.profile[j]^=1;
         check(!chain_prepare(&load,"H:/small.CHN",&caller)&&load.error==0x20);
@@ -175,7 +175,7 @@ int main(void) {
     {
         static const char *bad[]={"H:/x-abi.COM","H:/x-entry.COM","H:/x-length.COM",
             "H:/x-origin.COM","H:/x-globals.COM","H:/x-end.COM","H:/x-stack.COM",
-            "H:/x-reserved.COM","H:/x-overlay.COM","H:/x-hash.COM",
+            "H:/x-reserved.COM","H:/x-overlay.COM",
             "H:/x-truncated.COM","H:/x-trailing.COM","H:/small.CHN","H:/absent.COM"};
         for(j=0;j<sizeof(bad)/sizeof(*bad);++j) {
             setup(0);check(!execute_prepare(&load,bad[j])&&load.error&&!load.ready);

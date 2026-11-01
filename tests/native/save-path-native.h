@@ -24,7 +24,7 @@ static void native_save_paths(void) {
         check(source_import(&item,(const uint8_t*)"begin end.",10,&d));item.cursor=4;item.previous=2;prior=item;
         if(kind>=3) {
             options.kind=kind==4?COMPILE_CHAIN:COMPILE_PROGRAM;
-            check(compile_project(&item,0,&b,&d,0,&options));
+            check(compile_project(&item,&b,&d,0,&options));
             if(!b.valid) {source_close(&item);continue;}
         }
         pages=pages_used();

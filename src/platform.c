@@ -197,7 +197,6 @@ uint8_t run_build(const Source *s,const Build *b) {
     memset(ram_result,0,128); memcpy(ram_result,"ZRAM",4);
     ram_result[4]=1; ram_result[5]=2; ram_result[6]=128;
     ram_result[34]=ram_result[35]=255;
-    memcpy(ram_result+44,b->id,32);
     for(i=0;i<3;++i) { ram_pages[i]=child[i]; ram_result[12+i]=child[i]; }
     ram_entry=RT_RAM;
     ram_enter();
@@ -205,7 +204,7 @@ uint8_t run_build(const Source *s,const Build *b) {
     /* A returned/stopped worker is not by itself success. Bind the bounded
      * completion record to this build before the editor consumes its PC. */
     ok=!memcmp(ram_result,"ZRAM",4)&&ram_result[4]==1&&ram_result[5]==2&&
-       ram_result[6]==128&&ram_result[7]==0&&!memcmp(ram_result+44,b->id,32)&&
+       ram_result[6]==128&&ram_result[7]==0&&
        (ram_result[26]==1||ram_result[26]==3||ram_result[26]==4||ram_result[26]==5||ram_result[26]==6);
     for(i=0;i<3;++i) if(ram_result[12+i]!=child[i]) ok=0;
     if(ram_result[15]>1||ram_result[22]||ram_result[23]||ram_result[24]||ram_result[25]||

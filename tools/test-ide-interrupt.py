@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Physical-key break, included-source navigation and unsaved repair in the IDE."""
+"""Physical-key break, included-source navigation and TP3 save/reload repair in the IDE."""
 import argparse
 import hashlib
 import importlib.util
@@ -35,7 +35,7 @@ def main():
     def snapshot():
         return ['regs','mmu',f"rb 0x{sym['_ide_state']:x} 1",f'rb 0x{work:x} 140',
                 f'rb 0x{build:x} {n.BUILD_BYTES}',f"rb 0x{sym['_main_file']:x} 128",
-                f"rb 0x{sym['_buffers']:x} {n.SOURCES_BYTES}",f"rb 0x{sym['_ram_result']:x} 128",
+                f"rb 0x{sym['_ram_result']:x} 128",
                 f'rb 0x{modifiers:x} 4']
     commands=['run 100000000']+n.program_launch()+['run 10000000']
     commands+=typed('nwH:/project/main.pas\nmH:/project/main.pas\ne')+typed(prefix.decode())+leave()
@@ -56,7 +56,7 @@ def main():
                'run 4000000000',f"rb 0x{sym['_platform_error']:x} 1",
                f"rb 0x{sym['_ram_io_detail']:x} 2",f"rb 0x{sym['_ram_cleanup_detail']:x} 1",
                f"bc 0x{sym['_output']:x}",f'bp 0x{key:x}','run 1000000000']+snapshot()+[f'bc 0x{key:x}']
-    commands+=['tap ESC','run 100000000']+typed('qn')
+    commands+=['tap ESC','run 100000000']+typed('e{discard}\n')+leave()+typed('q')
     commands+=[f'bp 0x{key:x}','tap ESC','run 100000000']+snapshot()+[f'bc 0x{key:x}','quit']
     case='ide-console-break'if args.console else'ide-interrupt'
     raw=n.execute(case,commands,fixtures,timeout=600)
@@ -70,12 +70,13 @@ def main():
             'guest interruption returns a user break to the IDE':broken.get(sym['_ide_state'])==3 and broken.get(sym['_ram_result']+26)==5,
             'break selects included source while retaining explicit Main':string(broken,work+12,128)==b'H:/project/parts/run.inc' and string(broken,sym['_main_file'],128)==b'H:/project/main.pas',
             'Escape returns to exact interrupted source byte':editor.get(sym['_ide_state'])==2 and word(editor,work+4)==part.index(interrupted),
-            'unsaved include repair recompiles and runs Main':repaired.get(sym['_ram_result']+26)==1 and repaired.get(work+1)==1,
-            'dirty Main snapshot survives break and repair':bytes(repaired.get(build+51+i,0)for i in range(32))==hashlib.sha256(prefix+root).digest(),
-            'quit cancellation preserves both dirty sources':cancelled.get(sym['_ide_state'])==1 and cancelled.get(sym['_buffers']+1)==2 and cancelled.get(work+1)==1,
+            'unsaved include repair recompiles and runs Main':repaired.get(sym['_ram_result']+26)==1 and repaired.get(work+1)==0,
+            'single Work has no editor catalog':'_buffers' not in sym,
+            'quit cancellation preserves the dirty Work':cancelled.get(sym['_ide_state'])==1 and cancelled.get(work+1)==1,
+
         })
     disk=n.RUN/case/'hostfs'
-    checks['Memory workflow never saves source or compiled outputs']=all((disk/path).read_bytes()==data for path,data in fixtures.items())and not list(disk.rglob('*.COM'))
+    checks['TP3 transitions save Main and repaired include without executable output']=(disk/'project/main.pas').read_bytes()==prefix+root and (disk/'project/parts/run.inc').read_bytes()==(part.splitlines()[0].decode()+"\nwriteln('"+marker+"');\n").encode() and not list(disk.rglob('*.COM'))
     checks['all recorded inputs unchanged']=all(n.sha(Path(p))==h for p,h in hashes.items())
     report={'scope':__doc__+' Bounded emulator acceptance, not full IDE/hardware conformance.',
             'passed':all(checks.values()),'checks':checks,'capture_directory':str(n.RUN.relative_to(ROOT)),

@@ -3,6 +3,7 @@
 #define save_source files_save_source
 #define save_source_as files_save_source_as
 #define load_source files_load_source
+#define reload_source files_reload_source
 #define read_block files_read_block
 #define save_block files_save_block
 #define run_saved files_run_saved
@@ -218,8 +219,7 @@ failed:
     return 0;
 }
 uint8_t run_saved(const Source *s,Build *b,uint8_t *status) {
-    uint8_t e,i;
-    uint16_t n;
+    uint8_t e;
     platform_error=0;
     if(!build_ready(s,b)) { platform_error=ERR_FAILURE; return 0; }
     if(build_is_chain(b)) {platform_error=ERR_NOT_SUPPORTED;return 0;}
@@ -227,36 +227,14 @@ uint8_t run_saved(const Source *s,Build *b,uint8_t *status) {
     if(!strcmp(s->path,destinations[0])||!strcmp(s->path,destinations[1])) { platform_error=ERR_INVALID_PATH; return 0; }
     if(!verify(b->pages,b->length,destinations[0])||
        !verify(&b->map_page,b->map_length,destinations[1])) return 0;
-    /* The verified pair on disk backs this idle cache while the child runs.
-     * Retain sources and their editor state; lend only image/map pages. */
-    if(!page_drop(b->map_page))return 0;
-    b->valid=0;b->map_page=255;
-    for(i=0;i<3;++i)if(b->pages[i]!=255) {
-        if(!page_drop(b->pages[i]))return 0;
-        b->pages[i]=255;
+    /* The saved executable is the program. Release its transient compiler
+     * image/map before entering it; no RAM cache is reconstructed afterward. */
+    build_close(b);
+    if(b->map_page!=255||b->pages[0]!=255||b->pages[1]!=255||b->pages[2]!=255||b->sources.page!=255) {
+        if(!platform_error)platform_error=ERR_FAILURE;return 0;
     }
     strcpy((char*)console_scratch,destinations[0]);
     e=execute_native((char*)console_scratch,status);
-    for(i=0;i<3;++i)if((uint16_t)i*PAGE_SIZE<b->length) {
-        b->pages[i]=page_new(PAGE_IMAGE);
-        if(b->pages[i]==255)goto cache_failed;
-    }
-    if(!output_restore_range(b->pages,0,b->length,destinations[0]))goto cache_failed;
-    for(i=0;i<3;++i)if(b->pages[i]!=255) {
-        n=b->length-(uint16_t)i*PAGE_SIZE;if(n>PAGE_SIZE)n=PAGE_SIZE;
-        page_initialized(b->pages[i],n);b->versions[i]=page_versions[b->pages[i]];
-    }
-    b->map_page=page_new(PAGE_MAP);
-    if(b->map_page==255||!output_restore_range(&b->map_page,0,b->map_length,destinations[1]))goto cache_failed;
-    page_initialized(b->map_page,b->map_length);
-    b->versions[3]=page_versions[b->map_page];b->valid=1;
-    if(build_check(s,b))goto returned;
-cache_failed:
-    build_close(b);
-returned:
-    /* A failed cache reload only requires recompilation. It cannot change
-     * the child's exit result or authorize an unauthenticated cached map. */
-    platform_error=0;
     if(e) { platform_error=e; return 0; }
     return 1;
 }
@@ -377,6 +355,9 @@ static uint8_t read_source(Source *s,const char *name,Diagnostic *d,uint8_t requ
 uint8_t load_source(Source *s,const char *name,Diagnostic *d) {
     return read_source(s,name,d,0);
 }
+uint8_t reload_source(Source *s,const char *name,Diagnostic *d) {
+    return read_source(s,name,d,1);
+}
 uint8_t read_block(Source *block,const char *name,Diagnostic *d) {
     uint8_t error;
     memset(d,0,sizeof(*d)); platform_error=0;
@@ -430,18 +411,12 @@ uint8_t save_build(const Source *s,const Build *b,uint8_t interruptible) {
 }
 /* The compiler receives this already-owned directory. Includes are read-only
  * and use their own path buffer, so they cannot retarget later publication. */
-uint8_t prepare_build(const Source *s,const Sources *buffers,uint8_t chain,uint8_t interruptible) SOURCE_BLOCK_CALL {
+uint8_t prepare_build(const Source *s,uint8_t chain,uint8_t interruptible) SOURCE_BLOCK_CALL {
     uint8_t ok=0;
     output_job_begin(interruptible);
     if(build_prepared) {platform_error=ERR_FAILURE;goto done;}
     if(chain>1||!paths(s,chain)||!strcmp(s->path,destinations[0])||!strcmp(s->path,destinations[1])) {
         platform_error=ERR_INVALID_PATH;goto done;
-    }
-    if(buffers) {
-        if(!sources_valid(buffers)) {platform_error=ERR_ENTRY_CORRUPTED;goto done;}
-        if(sources_find(buffers,destinations[0])>=0||sources_find(buffers,destinations[1])>=0) {
-            platform_error=ERR_INVALID_PATH;goto done;
-        }
     }
     if(!parent_dirs(transaction,1)||!create_transaction())goto done;
     prepared_chain=chain;build_prepared=1;ok=1;

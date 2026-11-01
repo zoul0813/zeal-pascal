@@ -7,15 +7,19 @@ uint8_t zr_op,zr_error,zr_a[6],zr_b[6],zr_result[6];
 int16_t zr_integer;
 const uint8_t *zr_text;
 uint16_t zr_length;
+#ifndef ZP_REAL_COMPILER
 uint16_t zr_code;
 uint8_t zr_assign;
 int16_t zr_width,zr_places;
 uint8_t zr_formatted[66];
+#endif
 static uint8_t a[6],b[6],work[10],negative_a,negative_b;
 static int16_t exponent_a,exponent_b;
 static uint8_t decimal_value[6],decimal_scale[6];
+#ifndef ZP_REAL_COMPILER
 static uint8_t format_digits[12];
 static int16_t format_exponent;
+#endif
 /* Exact 10^(4*k), rounded to the nearest Real6. Mathematical constants, not
  * compiler-folded floating expressions. Scaling then uses truncated arithmetic. */
 static const uint8_t powers[10][6]={
@@ -133,6 +137,7 @@ static void divide_values(void) {
     }
     pack(work,exponent,negative_a^negative_b);
 }
+#ifndef ZP_REAL_COMPILER
 /* The exact radicand is M<<39 for odd E and M<<40 for even E.
  * Forty restoring base-four steps produce floor(sqrt(radicand)); packing
  * that integer gives an error below one final Real6 ULP for every input.
@@ -189,19 +194,25 @@ static void integral_part(uint8_t fraction) {
     }
     pack(a,exponent_a,negative_a);
 }
+#endif
 static void evaluate(uint8_t operation) {
+#ifndef ZP_REAL_COMPILER
     int8_t order;
+#endif
     uint16_t magnitude;
     zr_error=0; clear(zr_result,6);
     unpack(zr_a,a,&exponent_a,&negative_a);
     unpack(zr_b,b,&exponent_b,&negative_b);
     switch(operation) {
     case ZR_ADD: add_values(); break;
+#ifndef ZP_REAL_COMPILER
     case ZR_SUB: if(exponent_b) negative_b^=1; add_values(); break;
     case ZR_SQR: copy(b,a,6); exponent_b=exponent_a; negative_b=negative_a;
         /* fall through */
+#endif
     case ZR_MUL: multiply_values(); break;
     case ZR_DIV: divide_values(); break;
+#ifndef ZP_REAL_COMPILER
     case ZR_COMPARE:
         if(!exponent_a&&!exponent_b) order=0;
         else if(negative_a!=negative_b) order=negative_a?-1:1;
@@ -210,11 +221,13 @@ static void evaluate(uint8_t operation) {
             if(negative_a) order=-order;
         }
         zr_integer=order; break;
+#endif
     case ZR_FROM_INT:
         negative_a=zr_integer<0;
         magnitude=negative_a?(uint16_t)(0u-(uint16_t)zr_integer):(uint16_t)zr_integer;
         clear(a,6); a[0]=(uint8_t)magnitude; a[1]=(uint8_t)(magnitude>>8);
         pack(a,168,negative_a); break;
+#ifndef ZP_REAL_COMPILER
     case ZR_TRUNC: ordinal_result(0); break;
     case ZR_ROUND: ordinal_result(1); break;
     case ZR_NEGATE: pack(a,exponent_a,!negative_a); break;
@@ -222,6 +235,7 @@ static void evaluate(uint8_t operation) {
     case ZR_INT: integral_part(0); break;
     case ZR_FRAC: integral_part(1); break;
     case ZR_SQRT: square_root(); break;
+#endif
     default: zr_error=0xff; break;
     }
 }
@@ -293,6 +307,7 @@ static void decimal(uint8_t runtime) {
     if(negative&&zr_result[0]) zr_result[5]^=128;
     zr_integer=0;
 }
+#ifndef ZP_REAL_COMPILER
 static void val_integer(void) {
     uint16_t p=0,magnitude=0;
     uint8_t negative=0,hexadecimal=0,c,d;
@@ -398,10 +413,18 @@ static void format_value(void) {
         append_formatted('0'+position/10);append_formatted('0'+position%10);
     }
 }
+#endif
 void zr_eval(void) REAL_API {
     if(zr_op==ZR_DECIMAL) decimal(0);
+#ifdef ZP_REAL_COMPILER
+    /* Only literals and typed-constant integer conversion execute inside the
+     * compiler. Pascal arithmetic is emitted as calls into the full runtime. */
+    else if(zr_op==ZR_FROM_INT) evaluate(ZR_FROM_INT);
+    else { zr_error=0xff;clear(zr_result,6); }
+#else
     else if(zr_op==ZR_FORMAT) format_value();
     else if(zr_op==ZR_VAL_INTEGER||zr_op==ZR_VAL_REAL) val();
     else if(zr_op>=ZR_LN&&zr_op<=ZR_ARCTAN) zr_transcendental();
     else evaluate(zr_op);
+#endif
 }

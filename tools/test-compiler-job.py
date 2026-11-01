@@ -38,15 +38,11 @@ checks={'native completion':memory.get(sym['_test_done'])==255 and word('_test_s
     'include reads cannot retarget main outputs':(disk/'JOB.COM').is_file()and(disk/'JOB.ZMP').is_file()and not(disk/'PART.COM').exists()}
 try:
     image=(disk/'JOB.COM').read_bytes();mapping=(disk/'JOB.ZMP').read_bytes();chain=(disk/'JOB.CHN').read_bytes()
-    normalized=bytearray(image);normalized[36:68]=bytes(32)
-    checks['main identity authenticates']=hashlib.sha256(normalized).digest()==image[36:68]
-    normalized=bytearray(mapping);normalized[20:52]=bytes(32)
-    checks['main and source map authenticate']=mapping[:4]==b'ZMAP'and mapping[20:52]==image[36:68]and hashlib.sha256(normalized).digest()==image[100:132]
-    table_bytes=struct.unpack_from('<I',mapping,84)[0]
-    checks['complete source manifest authenticates']=hashlib.sha256(mapping[96:96+table_bytes]).digest()==mapping[52:84]==image[68:100]and struct.unpack_from('<H',mapping,14)[0]==2
-    normalized=bytearray(chain);normalized[20:52]=bytes(32)
-    checks['chain identity authenticates']=chain[:4]==b'ZCHN'and len(chain)==96+struct.unpack_from('<H',chain,12)[0]and hashlib.sha256(normalized).digest()==chain[20:52]
-except(OSError,ValueError,struct.error)as error:
+    from artifact_format import validate_pair
+    records=validate_pair(image,mapping)
+    checks['versioned main/map have checked ranges and source records']=len(records)==2
+    checks['versioned CHN has checked header and extent']=chain[:5]==b'ZCHN\2'and len(chain)==96+struct.unpack_from('<H',chain,12)[0]and chain[20:84]==bytes(64)
+except(OSError,ValueError,struct.error,AssertionError)as error:
     checks['independent artifact validation']=False
     print(repr(error))
 checks['live read/fill/backward/forward keyboard IRQs preserve all span assertions']=(

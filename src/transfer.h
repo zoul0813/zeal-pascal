@@ -12,8 +12,8 @@ typedef struct {
     ChainCaller caller;
     uint16_t path,error,detail;
 } TransferJob;
-typedef char transfer_job_shape[(sizeof(TransferJob)==54&&offsetof(TransferJob,error)==50&&
-    offsetof(TransferJob,detail)==52)?1:-1];
+typedef char transfer_job_shape[(sizeof(TransferJob)==26&&offsetof(TransferJob,error)==22&&
+    offsetof(TransferJob,detail)==24)?1:-1];
 #define ZT_PAGE 0xfe75u
 #define ZT_FILE 0xfe77u
 #define ZT_MODE 0xfe79u

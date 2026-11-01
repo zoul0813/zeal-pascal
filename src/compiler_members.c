@@ -40,8 +40,7 @@ static uint8_t member_byte(const CompilerMember *m,const uint8_t *header,Compile
 }
 uint8_t cc_members_flush(CompilerMemberStore *store,CompilerMember *member,CompilerLate *late,uint16_t first) ROUTINES {
     CompilerMember next;
-    uint8_t header[MEMBER_HEADER],buffer[128],digest[32];
-    Sha256 hash;
+    uint8_t header[MEMBER_HEADER],buffer[128];
     uint16_t i,n;
     uint32_t at,total;
     if(store->failed)return failed();
@@ -77,23 +76,19 @@ uint8_t cc_members_flush(CompilerMemberStore *store,CompilerMember *member,Compi
     word(header,10,next.bytes);word(header,12,next.entry-next.origin);
     word(header,14,next.maps);word(header,16,next.relocs);
     word(header,18,next.lates);
-    sha_init(&hash);
     for(at=0;at<total;at+=n) {
         n=total-at>128?128:(uint16_t)(total-at);
-        for(i=0;i<n;++i) {buffer[i]=member_byte(&next,header,late,first,at+i);sha_byte(&hash,buffer[i]);}
+        for(i=0;i<n;++i)buffer[i]=member_byte(&next,header,late,first,at+i);
         if(late&&late->failed)return 0;
         if(!output_write_buffer(store->fd,buffer,n))return 0;
     }
-    sha_end(&hash,next.hash);
     if(!position(store->fd,next.offset,SEEK_SET))return failed();
-    sha_init(&hash);
     for(at=0;at<total;at+=n) {
         n=total-at>128?128:(uint16_t)(total-at);
         if(!output_read_buffer(store->fd,buffer,n))return 0;
-        for(i=0;i<n;++i)sha_byte(&hash,buffer[i]);
+        for(i=0;i<n;++i)if(buffer[i]!=member_byte(&next,header,late,first,at+i))return failed();
+        if(late&&late->failed)return failed();
     }
-    sha_end(&hash,digest);
-    if(memcmp(digest,next.hash,32))return failed();
     {
         int32_t end=0;
         platform_error=seek(store->fd,&end,SEEK_END);

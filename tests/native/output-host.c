@@ -1,3 +1,4 @@
+#include "hash-evidence.h"
 /* Execute product publication against a deterministic VFS. Faults are injected
  * at API boundaries, independently of the implementation's transaction stages. */
 #include "zp.h"
@@ -29,7 +30,7 @@ static int drop_failure=-1;
 static uint32_t lifetimes[64];
 uint8_t code_pages[CODE_BANK_LIMIT],code_owned,boot_error;
 uint16_t code_sizes[CODE_BANK_LIMIT];
-const uint8_t code_required=15,code_digest[32]={0};
+const uint8_t code_required=15,code_version[4]={0};
 static int phase_free_failure=-1;
 static uint8_t allocation_failure,exec_allocation_failure,exec_corrupt_map,exec_corrupt_image,exec_error,exec_finished,exec_corrupt_phase;
 static unsigned exec_calls,cache_checks,cache_closes;
@@ -95,19 +96,18 @@ uint8_t build_ready(const Source *s,const Build *b) {return s->page==source.page
 /* Publication/member fixtures preallocate their image pages. Compiler page
  * materialization is exercised by the shared front-end/native suites. */
 uint8_t cc_image_page(uint8_t index) {(void)index;assert(0);return 0;}
-/* This VFS model verifies cache policy, not the compiler's cryptography. Native
- * execution and shared-front-end tests use the actual image/map authenticator. */
+/* Model RAM version/ownership authority; restored content is not hashed. */
 uint8_t build_check(const Source *s,const Build *b) {
     unsigned i;++cache_checks;
     if(!build_ready(s,b)||!b->valid||page_role(b->map_page)!=PAGE_MAP)return 0;
-    for(i=0;i<b->map_length;++i)if(far_get(b->map_page,i)!=(uint8_t)(i*13+1))return 0;
-    for(i=0;i<b->length;++i)if(far_get(b->pages[i/PAGE_SIZE],i%PAGE_SIZE)!=(uint8_t)(i*11+3))return 0;
+    for(i=0;i<3;++i)if((uint32_t)i*PAGE_SIZE<b->length&&page_role(b->pages[i])!=PAGE_IMAGE)return 0;
     return 1;
 }
 void build_close(Build *b) {
     unsigned i;++cache_closes;b->valid=0;
     for(i=0;i<3;++i)if(b->pages[i]!=255&&page_drop(b->pages[i]))b->pages[i]=255;
     if(b->map_page!=255&&page_drop(b->map_page))b->map_page=255;
+    b->sources.page=255;
 }
 zos_err_t curdir(char *path) {strcpy(path,"T:/");return 0;}
 zos_err_t exec(zos_exec_mode_t mode,const char *path,const char *args[],uint8_t *status) {
@@ -118,10 +118,10 @@ zos_err_t exec(zos_exec_mode_t mode,const char *path,const char *args[],uint8_t 
         unsigned i;for(i=CODE_PHASE_FIRST;i<code_owned;++i)check(code_pages[i]==255);
     }
     if(fault()||exec_error)return exec_error?exec_error:ERR_FAILURE;
-    if(exec_corrupt_map)files[find(target[1])].bytes[0]^=1;
-    if(exec_corrupt_image)files[find(target[0])].bytes[0]^=1;
+    if(exec_corrupt_map)files[find(target[1])].bytes[exec_corrupt_map==1?0:build.map_length-1]^=1;
+    if(exec_corrupt_image)files[find(target[0])].bytes[exec_corrupt_image==1?0:build.length-1]^=1;
     if(exec_allocation_failure)allocation_failure=1;
-    if(exec_corrupt_phase)files[fds[(uint8_t)code_phase_fd].file].bytes[16+2*code_required+13*17]^=1;
+    if(exec_corrupt_phase)files[fds[(uint8_t)code_phase_fd].file].length=1;
     exec_finished=1;*status=7;return 0;
 }
 zos_dev_t open(const char *path,uint8_t flags) {
@@ -265,30 +265,30 @@ static void run_setup(void) {
 static void saved_cache(void) {
     unsigned total,i;uint8_t status,ok;
     run_setup();status=255;
-    check(run_saved(&source,&build,&status)&&status==7&&build.valid);
-    check(cache_checks==1&&!cache_closes&&owned()==4&&!opened());total=events;
+    check(run_saved(&source,&build,&status)&&status==7&&!build.valid);
+    check(!cache_checks&&cache_closes==1&&owned()==1&&!opened());total=events;
     for(i=1;i<=total;++i) {
         run_setup();fail_at=i;status=255;ok=run_saved(&source,&build,&status);
         check(ok==exec_finished&&status==(exec_finished?7:255));
         check(!memcmp(&source,&before,sizeof(source))&&!memcmp(memory[source.page],fresh,sizeof(fresh))&&!opened());
         check(owned()==(build.valid?4u:1u));
-        if(!ok)check(platform_error&&build.valid);
-        if(build.valid)check(build.versions[3]==page_versions[build.map_page]||!exec_calls);
-        else check(cache_closes==1&&build.map_page==255);
+        if(!ok)check(platform_error);
+        if(exec_calls)check(!build.valid&&cache_closes==1&&build.map_page==255);
     }
-    run_setup();exec_corrupt_map=1;status=255;
-    check(run_saved(&source,&build,&status)&&status==7&&!build.valid&&cache_checks==1&&cache_closes==1&&owned()==1);
-    run_setup();exec_corrupt_image=1;status=255;
-    check(run_saved(&source,&build,&status)&&status==7&&!build.valid&&cache_checks==1&&cache_closes==1&&owned()==1);
-    run_setup();exec_allocation_failure=1;status=255;
-    check(run_saved(&source,&build,&status)&&status==7&&!build.valid&&cache_closes==1&&owned()==1);
+    /* Child-side disk changes and allocation failures cannot cause a reload:
+     * the compiled image/map have already been released permanently. */
+    for(i=0;i<5;++i) {
+        run_setup();exec_corrupt_map=i==0?1:i==1?2:0;
+        exec_corrupt_image=i==2?1:i==3?2:0;exec_allocation_failure=i==4;status=255;
+        check(run_saved(&source,&build,&status)&&status==7&&!build.valid&&owned()==1&&!cache_checks);
+    }
     run_setup();exec_error=ERR_NOT_SUPPORTED;status=255;
-    check(!run_saved(&source,&build,&status)&&status==255&&platform_error==ERR_NOT_SUPPORTED&&build.valid&&owned()==4);
+    check(!run_saved(&source,&build,&status)&&status==255&&platform_error==ERR_NOT_SUPPORTED&&!build.valid&&owned()==1);
     run_setup();drop_failure=build.map_page;status=255;
-    check(!run_saved(&source,&build,&status)&&status==255&&!exec_calls&&build.valid&&owned()==4);
-    drop_failure=-1;
+    check(!run_saved(&source,&build,&status)&&status==255&&!exec_calls&&!build.valid&&build.map_page!=255);
+    drop_failure=-1;build_close(&build);check(owned()==1);
     run_setup();drop_failure=build.pages[0];status=255;
-    check(!run_saved(&source,&build,&status)&&status==255&&!exec_calls&&!build.valid&&owned()==3);
+    check(!run_saved(&source,&build,&status)&&status==255&&!exec_calls&&!build.valid&&owned()==2);
     drop_failure=-1;build_close(&build);check(owned()==1);
 }
 static CompilerMemberStore member_store;
@@ -321,9 +321,9 @@ static void member_unchanged(const CompilerMember *prior) {
     check(!memcmp(memory[source.page],fresh,sizeof(fresh)));
 }
 static void member_spool(void) {
-    CompilerMember prior,first;
+    CompilerMember prior;
     CompilerMemberStore poisoned;
-    unsigned i,at,n,ops,poll_count;uint8_t digest[32];Sha256 hash;int file;
+    unsigned i,at,n,ops,poll_count;int file;
     static uint8_t snapshot[4][PAGE_SIZE];
     member_setup();prior=member_record;
     memcpy(snapshot[0],memory[build.pages[2]],PAGE_SIZE);memcpy(snapshot[1],memory[cc.stage_page],PAGE_SIZE);
@@ -338,12 +338,10 @@ static void member_spool(void) {
     for(i=0xbff1;i<0xc201;++i)check(files[file].bytes[at++]==(i<0xc000?memory[build.pages[2]][i-0x8000]:memory[cc.stage_page][i-0xc000]));
     for(i=199;i<247;++i)check(files[file].bytes[at++]==memory[build.map_page][i]);
     for(i=12;i<28;++i)check(files[file].bytes[at++]==memory[cc.workspace][i]);
-    sha_init(&hash);for(i=0;i<n;++i)sha_byte(&hash,files[file].bytes[i]);sha_end(&hash,digest);
-    check(!memcmp(digest,member_record.hash,32));
     check(!memcmp(snapshot[0],memory[build.pages[2]],PAGE_SIZE)&&!memcmp(snapshot[1],memory[cc.stage_page],PAGE_SIZE)&&
           !memcmp(snapshot[2],memory[build.map_page],PAGE_SIZE)&&!memcmp(snapshot[3],memory[cc.workspace],PAGE_SIZE));
-    first=member_record;check(cc_members_flush(&member_store,&member_record,0,0));
-    check(member_record.offset==n&&member_store.length==2*n&&!memcmp(first.hash,member_record.hash,32));
+    check(cc_members_flush(&member_store,&member_record,0,0));
+    check(member_record.offset==n&&member_store.length==2*n);
     check(!memcmp(files[file].bytes,files[file].bytes+n,n));member_close();
     for(i=1;i<=ops;++i) {
         member_setup();prior=member_record;fail_at=i;
@@ -545,13 +543,13 @@ static void phase_cleanup(void) {
 /* Shared cases use the production emitter, not a second word/chain model. */
 #include "late-cases.h"
 static void late_spool(void) {
-    char path[]="H:/LATE.SPL",helpers[]="H:/HELPERS.SPL",owners[]="H:/OWNERS.SPL";uint8_t digest[32];
-    member_setup();late_cases(path,&late_diagnostic,digest);
+    char path[]="H:/LATE.SPL",helpers[]="H:/HELPERS.SPL",owners[]="H:/OWNERS.SPL";
+    member_setup();late_cases(path,&late_diagnostic);
     check(files[find(path)].length==97);
     check(files[find(path)].bytes[18]==2&&files[find(path)].bytes[19]==0);
     check(!memcmp(files[find(path)].bytes+24,"\xcd\0\0\0\0\0\0\xcd\0\0",10));
     root_helper_cases(helpers,&late_diagnostic);
-    remaining_helper_cases(owners,&late_diagnostic,digest);
+    remaining_helper_cases(owners,&late_diagnostic);
     member_address_guard(&late_diagnostic);
     member_close();
 }
@@ -687,20 +685,23 @@ static void phase_cache(void) {
     }
     phase_setup();check(code_phase_park());shorts=1;
     check(code_phase_restore()&&raw_owned()==15&&!polls);phase_cleanup();
-    for(i=3;i<=5;++i) {
+    for(i=3;i<=4;++i) {
         phase_setup();check(code_phase_park());bad_io=(uint8_t)i;fail_read=1;reads=0;
         check(!code_phase_restore()&&platform_error==ERR_ENTRY_CORRUPTED&&raw_owned()==13);
         bad_io=fail_read=0;check(code_phase_restore()&&raw_owned()==15);phase_cleanup();
     }
+    /* Payload bytes are trusted; a successful read is not rehashed. */
+    phase_setup();check(code_phase_park());bad_io=5;fail_read=1;reads=0;
+    check(code_phase_restore()&&raw_owned()==15);bad_io=fail_read=0;phase_cleanup();
     /* Original opened-handle association survives replacement of its name. */
     phase_setup();f=fds[(uint8_t)code_phase_fd].file;
     strcpy(files[f].path,"T:/ORIGINAL.ZPL");seed("T:/PHASE.ZPL",(const uint8_t*)"wrong",5);
     check(code_phase_park()&&code_phase_restore()&&equals("T:/PHASE.ZPL",(const uint8_t*)"wrong",5));phase_cleanup();
     phase_setup();check(code_phase_park());f=fds[(uint8_t)code_phase_fd].file;
-    at=16+2*code_required+13*17;files[f].bytes[at]^=1;phase_free_failure=45;
+    at=files[f].length;files[f].length=16+2*code_required+13*17;phase_free_failure=45;
     check(!code_phase_restore()&&boot_error==ERR_ENTRY_CORRUPTED&&code_pages[13]==255&&code_phase_pending[0]==45&&raw_owned()==14);
     i=reads;check(!code_phase_restore()&&reads>i&&boot_error==ERR_ENTRY_CORRUPTED&&raw_owned()==14);
-    phase_prove();files[f].bytes[at]^=1;phase_free_failure=-1;
+    phase_prove();files[f].length=at;phase_free_failure=-1;
     check(code_phase_restore()&&raw_owned()==15);phase_cleanup();
     phase_setup();phase_free_failure=46;check(!code_phase_park()&&platform_error&&raw_owned()==14);
     phase_free_failure=-1;code_phase_return();check(platform_error&&raw_owned()==15);phase_cleanup();
@@ -714,7 +715,7 @@ static void phase_cache(void) {
     phase_setup();status=255;exec_corrupt_phase=1;platform_error=0;
     strcpy((char*)console_scratch,target[0]);
     check(!execute_native((char*)console_scratch,&status)&&status==7&&!platform_error&&boot_error==ERR_ENTRY_CORRUPTED&&raw_owned()==13);
-    f=fds[(uint8_t)code_phase_fd].file;files[f].bytes[16+2*code_required+13*17]^=1;
+    f=fds[(uint8_t)code_phase_fd].file;files[f].length=16+2*code_required+13*17+300+417;
     check(code_phase_restore());phase_cleanup();
     phase_setup();status=255;exec_error=ERR_NOT_SUPPORTED;
     check(execute_native(target[0],&status)==ERR_NOT_SUPPORTED&&status==255&&raw_owned()==15);phase_cleanup();
@@ -764,6 +765,26 @@ int main(void) {
     bad_io=fail_write=fail_read=0;setup(0,3);pages=owned();check(!save_source(&source,0,1)&&platform_error==ERR_ALREADY_EXIST);check(!polls&&!*output_recovery());prove(0,pages,0);
     /* Loading a missing path never creates it. */
     {Diagnostic d;setup(0,0);pages=owned();check(load_source(&source,"T:/absent/path/file.pas",&d));check(find("T:/absent")<0&&owned()==pages);}
+    /* Error navigation requires an existing source. Missing/read/close failures
+     * preserve the exact dirty Work, bytes, page ownership and open handles. */
+    {
+        Diagnostic d;Source prior;unsigned fault,operations;
+        setup(0,0);seed("T:/include.pas",(const uint8_t*)"begin end.\n",11);
+        pages=owned();check(reload_source(&source,"T:/include.pas",&d));
+        operations=events;
+        check(!source.dirty&&source.length==11&&owned()==pages&&!opened());
+        for(fault=0;fault<=operations;++fault) {
+            setup(0,0);prior=source;pages=owned();
+            seed("T:/include.pas",(const uint8_t*)"begin end.\n",11);
+            fail_at=fault;
+            check(!reload_source(&source,fault?"T:/include.pas":"T:/missing.pas",&d));
+            check(!memcmp(&source,&prior,sizeof(source))&&owned()==pages&&!opened());
+            check(!memcmp(memory[source.page],fresh,sizeof(fresh)));
+            bad_io=fail_read=fail_at=0;
+        }
+        check(reload_source(&source,"T:/include.pas",&d));
+        check(!source.dirty&&source.length==11&&owned()==pages&&!opened());
+    }
     saved_cache();
     member_spool();
     group_spool();

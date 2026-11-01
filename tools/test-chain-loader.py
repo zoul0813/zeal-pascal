@@ -13,20 +13,18 @@ OUT=ROOT/'analysis/chain-loader/host'
 put=lambda b,at,v:struct.pack_into('<H',b,at,v)
 sha=lambda b:hashlib.sha256(b).digest()
 def fixture(size=128):
-    image=bytearray(96)+bytearray((i*7+3)&255 for i in range(size));image[:5]=b'ZCHN\1'
+    image=bytearray(96)+bytearray((i*7+3)&255 for i in range(size));image[:5]=b'ZCHN\2'
     for at,value in [(6,96),(8,1),(10,0x9000),(12,size),(14,0x8000),(16,64),(18,0xfbff)]:put(image,at,value)
-    image[52:84]=sha(b'independently authored map identity');return image
-def seal(image):image[20:52]=bytes(32);image[20:52]=sha(image)
+    return image
+def seal(image):image[20:84]=bytes(64)
 def executable(length):
     image=bytearray((i*13+5)&255 for i in range(length));image[:160]=bytes(160)
-    image[0]=0xc3;image[3:8]=b'ZP80\1'
+    image[0]=0xc3;image[3:8]=b'ZP80\2'
     for at,value in [(1,0x40a0),(8,160),(10,length),(12,0x40a0),(14,0x40a3),
                      (16,1),(18,1),(20,0x8000),(22,length-16384),(24,0x8000),
                      (28,0x4000+length),(30,0xfbff),(32,2048),(132,16384)]:put(image,at,value)
-    image[68:100]=sha(b'independent source manifest')
-    image[100:132]=sha(b'independent COM source map')
     return image
-def seal_executable(image):image[36:68]=bytes(32);image[36:68]=sha(image)
+def seal_executable(image):image[36:132]=bytes(96)
 def handoff_executable(length,normal=0x8003):
     b=executable(length);entry=(ROOT/'build/execute_entry.zpl').read_bytes()
     assert length>=normal-0x4000+len(entry)
@@ -35,16 +33,16 @@ def handoff_executable(length,normal=0x8003):
     b[normal-0x4000:normal-0x4000+len(entry)]=entry;seal_executable(b);return b
 def fixtures():
     result={}
-    for name,size in [('small',128),('grow',0x4800),('odd',0x4801),('short',128),('legacy',96),('entry-short',127)]:
+    for name,size in [('small',128),('grow',0x4800),('odd',0x4801),('short',128),('legacy',96),('entry-short',99)]:
         b=fixture(size);seal(b);result[name+'.CHN']=bytes(b)
     for name,at,value in [('abi',8,2),('origin',10,0x9100),('end',18,0xfaff),('globals',16,0x1001),('reserved',92,1),('overlay',84,1),('empty',12,0)]:
         b=fixture();put(b,at,value);seal(b);result[name+'.CHN']=bytes(b)
     b=fixture(0x4800);seal(b);b[-1]^=1;result['hash.CHN']=bytes(b)
-    b=fixture();seal(b);result['truncated.CHN']=bytes(b[:-1]);result['trailing.CHN']=bytes(b)+b'x'
+    b=fixture(0x4800);seal(b);result['truncated.CHN']=bytes(b[:-1]);result['trailing.CHN']=bytes(b)+b'x'
     # Structurally valid, correctly hashed files with an incompatible profile.
-    for i in range(32):
+    for i in range(4):
         b=fixture();b[96+96+i]^=1;seal(b);result[f'profile-{i}.CHN']=bytes(b)
-    b=fixture(256);b[96+96:96+128]=bytes(32);seal(b);result['unprofiled.CHN']=bytes(b)
+    b=fixture(256);b[96+96:96+100]=bytes(4);seal(b);result['unprofiled.CHN']=bytes(b)
     for name,length in [('tiny',16385),('small',16512),('boundary',32768),('three',32769),('max',46080)]:
         b=executable(length);seal_executable(b);result['x-'+name+'.COM']=bytes(b)
     for name,at,value in [('abi',16,2),('entry',1,0x40a1),('length',10,16511),
@@ -54,7 +52,7 @@ def fixtures():
         if name=='end':put(b,28,0xf400) # inconsistent extent, rejected before staging
         seal_executable(b);result['x-'+name+'.COM']=bytes(b)
     b=executable(46080);seal_executable(b);b[-1]^=1;result['x-hash.COM']=bytes(b)
-    b=executable(16512);seal_executable(b)
+    b=executable(46080);seal_executable(b)
     result['x-truncated.COM']=bytes(b[:-1]);result['x-trailing.COM']=bytes(b)+b'x'
     result['x-ready.COM']=bytes(handoff_executable(46080))
     result['x-readys.COM']=bytes(handoff_executable(17000))
@@ -71,12 +69,12 @@ def host():
     asset=OUT/'execute-entry.c'
     asset.write_text('#include <stdint.h>\nconst uint8_t execute_entry_start[]={'+','.join(str(b)for b in entry)+'};\nconst uint16_t execute_entry_length='+str(len(entry))+';\n')
     sdk=ROOT.parent/'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
-    cmd=['cc','-std=c99','-Wall','-Wextra','-Werror','-fno-builtin-exit','-fsanitize=address,undefined','-fno-sanitize-recover=all','-g','-DZP_CHAIN_HOST','-D__SDCC_VERSION_MAJOR=4','-D__SDCC_VERSION_MINOR=2','-D__sdcccall(x)=','-Isrc','-I'+str(sdk)]
+    cmd=['cc','-std=c99','-Wall','-Wextra','-Werror','-fno-builtin-exit','-fsanitize=address,undefined','-fno-sanitize-recover=all','-g','-DZP_CHAIN_HOST','-D__SDCC_VERSION_MAJOR=4','-D__SDCC_VERSION_MINOR=2','-D__sdcccall(x)=','-Isrc', '-Itests/native', '-Itests/host','-I'+str(sdk)]
     cmd+=['-D'+name+'=chain_model_'+name for name in ('open','read','close','palloc','pfree')]
-    cmd+=['src/chain.c','src/native_image.c','src/sha256.c','tests/native/chain-host.c',str(asset),'-o',str(OUT/'chain-host')]
+    cmd+=['src/chain.c','src/native_image.c','tests/host/sha256.c','tests/native/chain-host.c',str(asset),'-o',str(OUT/'chain-host')]
     subprocess.run(cmd,cwd=ROOT,check=True);subprocess.run([str(OUT/'chain-host'),str(OUT)],cwd=ROOT,check=True)
     flags=['cc','-std=c99','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
-           '-fno-sanitize-recover=all','-g','-Isrc','-I'+str(sdk)]
+           '-fno-sanitize-recover=all','-g','-Isrc', '-Itests/native', '-Itests/host','-I'+str(sdk)]
     for name,defines in [('generic',[]),('chain',['-DZP_CHAIN_ONLY'])]:
         subprocess.run(flags+defines+['-Dnative_decode=decode_'+name,'-c','src/native_image.c','-o',str(OUT/(name+'.o'))],cwd=ROOT,check=True)
     subprocess.run(flags+['tests/native/native-decode-host.c',str(OUT/'generic.o'),str(OUT/'chain.o'),'-o',str(OUT/'decode-host')],cwd=ROOT,check=True)

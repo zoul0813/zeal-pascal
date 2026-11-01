@@ -1,0 +1,74 @@
+{
+  "count_derivation": "Existing execute_loaded:10 base +3 saved-corpus +2 error location; execution/checked_error/file entry adds1. Cleanup_error adds1 detail check. Invalid compilation3. Options layout22, maximum layout adds1, bad startup8. Original shared setup/teardown6. Counts derived before running chunks.",
+  "suites": {
+    "math": {
+      "target": "zmathtest",
+      "legacy_assertions": 468,
+      "groups": {
+        "sqrt-programs": 28,
+        "sqrt-checked-errors": 65,
+        "logexp-programs": 46,
+        "logexp-checked-errors": 91,
+        "trig-programs": 28,
+        "trig-checked-errors": 39,
+        "random-programs": 74,
+        "random-checked-errors": 91
+      },
+      "workflows": [
+        "ide-sqrt-error",
+        "ide-random-error"
+      ],
+      "setup_checks": 6,
+      "selector_checks": 3
+    },
+    "files": {
+      "target": "zfiletest",
+      "legacy_assertions": 480,
+      "groups": {
+        "types": 84,
+        "transfers": 42,
+        "lifetime": 45,
+        "errors": 34,
+        "abi": 31,
+        "stack": 116,
+        "cleanup-scope": 52,
+        "cleanup-heap": 70
+      },
+      "workflows": [
+        "ide-error"
+      ],
+      "setup_checks": 6,
+      "selector_checks": 3
+    },
+    "options": {
+      "target": "zoptionstest",
+      "legacy_assertions": 253,
+      "groups": {
+        "layouts-low": 66,
+        "layouts-upper": 66,
+        "layouts-boundaries": 67,
+        "startup-end": 16,
+        "startup-stack": 16,
+        "startup-heap": 16
+      },
+      "workflows": [],
+      "setup_checks": 6,
+      "selector_checks": 3
+    },
+    "text": {
+      "target": "ztexttest",
+      "legacy_assertions": 255,
+      "duplicated_group_checks": 2,
+      "groups": {
+        "disk-format": 56,
+        "numbers-recovery": 59,
+        "nesting-arguments": 59,
+        "capacity-paths": 30,
+        "rename": 47
+      },
+      "workflows": [],
+      "setup_checks": 6,
+      "selector_checks": 3
+    }
+  }
+}

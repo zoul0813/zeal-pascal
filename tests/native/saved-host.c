@@ -66,7 +66,7 @@ zos_err_t read(zos_dev_t fd,void *out,uint16_t *size) {
     if(oversize){++*size;return 0;}
     n=*size;if(short_read&&n>3)n=3;
     n=fread(out,1,n,handles[(uint8_t)fd]);if(ferror(handles[(uint8_t)fd]))return ERR_FAILURE;
-    if(tamper_seek==2&&n>=40){((uint8_t*)out)[8]^=1;tamper_seek=0;}
+    if(tamper_seek==2&&n>=8){((uint8_t*)out)[0]^=1;tamper_seek=0;}
     *size=(uint16_t)n;return 0;
 }
 zos_err_t seek(zos_dev_t fd,int32_t *at,zos_whence_t whence) {
@@ -97,8 +97,8 @@ static void reset(void) {
     fail_open=fail_read=fail_close=fail_seek=fail_alloc=0;
     short_read=zero_read=oversize=tamper_seek=0;
 }
-static uint8_t lookup(const char *root,const Sources *buffers,uint16_t pc,SavedLocation *location) {
-    return saved_location_kind(root,buffers,pc,location,chain);
+static uint8_t lookup(const char *root,const Source *work,uint16_t pc,SavedLocation *location) {
+    return saved_location_kind(root,work,pc,location,chain);
 }
 static void locate(uint8_t expected,uint16_t pc) {
     SavedLocation result,before;unsigned pages=owned();uint8_t ok;
@@ -111,8 +111,8 @@ static void locate(uint8_t expected,uint16_t pc) {
     else {check(!strcmp(result.path,"H:/parts/fail.inc"));check(result.position==8);}
 }
 int main(int argc,char **argv) {
-    unsigned i,open_count,read_count,close_count,alloc_count;
-    char paths[2][128];Source root;Sources buffers;SavedLocation result;Diagnostic d;
+    unsigned i,open_count,read_count,close_count,alloc_count;uint16_t length;
+    char paths[2][128];Source root;SavedLocation result;Diagnostic d;
     check(argc==3);chain=(uint8_t)(atoi(argv[2])>>2);snprintf(directory,sizeof(directory),"%s",argv[1]);
     if((atoi(argv[2])&3)==1){reset();locate(0,5);printf("PASS: %u saved-map rejection checks\n",assertions);return 0;}
     if((atoi(argv[2])&3)==2){reset();locate(1,5);reset();fail_alloc=2;locate(0,5);printf("PASS: %u wide/reordered saved-map checks\n",assertions);return 0;}
@@ -134,13 +134,13 @@ int main(int argc,char **argv) {
     check(saved_paths("H:/main.COM",paths));check(!strcmp(paths[0],"H:/main.COM"));
     check(saved_paths("H:/main.ZMP",paths));check(!strcmp(paths[1],"H:/main.ZMP"));
     check(!saved_paths("H:/123456789012345",paths));check(!saved_paths("H:/parts/../main.pas",paths));
-    reset();check(sources_new(&buffers));check(read_block(&root,"H:/main.pas",&d));root.dirty=1;
-    check(sources_take(&buffers,&root,&root)>=0);
-    check(lookup("H:/main.pas",&buffers,5,&result));check(!strcmp(result.path,"H:/parts/fail.inc"));
-    ++buffers.version;check(!lookup("H:/main.pas",&buffers,5,&result));--buffers.version;
-    check(source_replace(&root,0,0,(const uint8_t*)"{dirty}\n",8));check(sources_take(&buffers,&root,&root)>=0);
-    memset(&result,0xa5,sizeof(result));check(!lookup("H:/main.pas",&buffers,5,&result));check(result.path[0]==(char)0xa5);
-    check(root.dirty&&root.cursor==8);check(sources_close(&buffers));check(!opened()&&!owned());
+    reset();check(read_block(&root,"H:/main.pas",&d));root.dirty=1;
+    check(lookup("H:/main.pas",&root,5,&result));check(!strcmp(result.path,"H:/parts/fail.inc"));
+    roles[root.page]=PAGE_IMAGE;check(!lookup("H:/main.pas",&root,5,&result));roles[root.page]=PAGE_SOURCE;
+    length=root.length;root.length=SOURCE_LIMIT+1;check(!lookup("H:/main.pas",&root,5,&result));root.length=length;
+    check(source_replace(&root,0,0,(const uint8_t*)"{dirty}\n",8));
+    memset(&result,0xa5,sizeof(result));check(!lookup("H:/main.pas",&root,5,&result));check(result.path[0]==(char)0xa5);
+    check(root.dirty&&root.cursor==8);source_close(&root);check(!opened()&&!owned());
     reset();fail_drop=32;
     check(!lookup("H:/main.pas",NULL,5,&result));check(owned()==1);
     fail_drop=-1;reset();check(lookup("H:/main.pas",NULL,5,&result));

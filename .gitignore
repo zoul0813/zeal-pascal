@@ -8,9 +8,11 @@
 /tests/*
 !/tests/native/
 !/tests/test_runner.py
+!/tests/test_native_chunks.py
 !/tools/
 /tools/*
 !/tools/test-native.py
+!/tools/native_chunks.py
 !/tools/run-tests.py
 !/tools/test-plan.json
 !/docs/
@@ -82,3 +84,15 @@
 /examples/**/*.zmp
 /examples/**/*.bak
 /examples/partsbin/parts.dat
+
+# Version-2 artifact checks and startup measurement.
+!/tools/artifact_format.py
+!/tools/test-no-sha.py
+
+!/tests/host/
+!/tests/host/*
+!/tests/native/code-capture.c
+
+!/reviews/
+/reviews/*
+!/reviews/no-z80-hashes-v1.md

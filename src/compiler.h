@@ -47,8 +47,7 @@ typedef uint32_t SourcePosition; /* file ID in high word, canonical offset in lo
 struct CompilerGroups;
 typedef struct {
     const Source *root;
-    const Sources *buffers;
-    uint8_t refs_page,refs_owned,stage_shared,file,error_file,external_error,memory,borrow_inputs;
+    uint8_t refs_page,refs_owned,stage_shared,file,error_file,external_error,memory,borrow_root;
     uint16_t refs,parent_scan;
     uint8_t parent_flags,parent_limit;
     const CompileOptions *options;
@@ -112,13 +111,11 @@ void cc_source_save(SourceCursor *cursor) ROUTINES;
 void cc_source_restore(const SourceCursor *cursor) ROUTINES;
 uint8_t cc_source_resume(void) ROUTINES;
 void cc_source_include(uint8_t comment) ROUTINES;
-uint8_t cc_sources_prepare(const Source *root,const Sources *buffers) ROUTINES;
+uint8_t cc_sources_prepare(const Source *root) ROUTINES;
 uint8_t cc_sources_finish(void) ROUTINES;
 void cc_sources_error(void) ROUTINES;
 uint8_t cc_sources_ready(const Source *root,const Build *build) ROUTINES;
 void cc_map_source(uint16_t bytes) BACKEND;
-void cc_hash_image(const Build *build,uint8_t hash[32]) ROUTINES;
-void cc_hash_map(const Build *build,uint8_t hash[32]) ROUTINES;
 void cc_put(uint16_t p,uint8_t v) FRONTEND;
 uint8_t cc_code_get(uint16_t address) FRONTEND;
 void cc_stage_put(uint16_t offset,uint8_t value) FRONTEND;

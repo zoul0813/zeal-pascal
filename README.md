@@ -33,11 +33,13 @@ The explicit [test plan](tools/test-plan.json) retains 66 acceptance commands
 covering all 52 product test runners. The default expands language conformance
 into four disjoint shards, editor acceptance into 16 independent workflows,
 and integrated native acceptance into 26 isolated families/workflows:
-109 scheduled chunks with the same checks. `--monolithic` uses the unchunked
+146 scheduled chunks with the same checks, including the math, file, text,
+compiler-options and publication-interruption partitions. `--monolithic` uses the unchunked
 66-command plan. Native validation still takes substantial time. Four workers
 run independent commands in parallel by default; use
-`--jobs 6` for six workers or `--jobs 1` for serial diagnostics. Modes sharing a
-runner's output paths are serialized; isolated native, editor and language chunks may
+`--jobs 8` for eight workers on the M1 Pro, `--jobs 6` for six, or
+`--jobs 1` for serial diagnostics. Modes sharing a
+runner's output paths are serialized; isolated native component, editor, publication and language chunks may
 overlap. Cancellation depends on the completed
 host checks, and runtime-layout depends on the completed parameter suite. The
 publication-interruption suite's internal workers count against the same budget.
@@ -76,7 +78,7 @@ python3 tools/run-tests.py --only runtime-layout --list
 Runner names select every planned mode/chunk of that runner. Full IDs from
 `--list` select one mode, such as `chain-call:execute` or
 `language-conformance:1/4`. Groups are `host`, `editor`, `compiler`, `publication`,
-`execution`, `runtime`, and `native`; their explicit membership is in the plan. Unknown
+`execution`, `runtime`, `native`, and `long-native`; their explicit membership is in the plan. Unknown
 selectors are errors. Required host checks are included once, and selecting
 runtime-layout also includes the parameter suite that produces its input.
 Successful focused results carry `status: passed-focused` and
@@ -114,6 +116,28 @@ additional chunks cover library loading, allocation failures, lifecycle and IDE
 workflows. Full-disk checks are independent of the media compilation family.
 Direct `test-native.py` without `--case` retains the original integrated path;
 `--monolithic` at the main runner uses that path.
+
+The remaining long components also accept `--case` and `--list-cases`:
+math has ten cases, files nine, compiler options six, text five, and publication
+interruption twelve. The central scheduler runs each publication case with one
+worker; the legacy publication command retains its internal three-worker pool.
+The compiler-options `--ide` and `--paths` modes remain separate. Examples:
+
+```sh
+python3 tools/run-tests.py --only math:sqrt-programs --jobs 8
+python3 tools/run-tests.py --only files:cleanup-heap --only text:rename --jobs 8
+python3 tools/run-tests.py --group long-native --jobs 8
+python3 tools/run-tests.py --jobs 8
+```
+
+Each component's disposable `SUITE.GRP` selects a family independently of the
+existing native stage values, preserving RAM/saved-program behavior. Completion
+requires the authenticated supervisor, the selected-family bitmap and an exact
+assertion count derived from the original harness. Disk/output oracles follow
+the family that produces them. The maximum-layout test retains its preceding
+layout calculation, and rename-error coverage retains the original destination
+creation. Without `--case`, each driver retains its original all-case path;
+`--monolithic` selects the 66 original acceptance commands.
 
 Disposable disks copy immutable bases, with APFS cloning when available and a
 normal-copy fallback. Ordinary filesystem checks use T:. The existing compressed
@@ -194,14 +218,14 @@ replacement, including any source files saved on that card.
 `zde cmake` builds the loose files; refreshing this image is a separate step.
 Close the emulator using the project card before refreshing it.
 
-The launcher verifies the complete library before entering any application
-bank. A missing, damaged or mismatched library returns to the shell. The editor,
-compiler, file operations and compiler front end use separate owned RAM banks.
-Routine, expression and type compilation use additional code banks.
+The launcher checks the library format/build identifiers, bank count and linked lengths, then
+loads its banks. It computes no hashes. Missing files, incompatible versions,
+invalid extents and I/O errors return to the shell. Install the BIN and ZPL from
+the same build. The editor, compiler and file operations use owned RAM banks.
 Compiler phase banks are released while a program runs. The IDE retains the
-original library handle and authenticates reloaded phase bytes before compiling
-again, so the library must remain available while using the IDE. A reload error
-retains the source and reports that the compiler library is unavailable.
+original library handle and reloads those banks before compiling again, so the
+library must remain available. A reload I/O error retains the source and reports
+that the compiler library is unavailable.
 The runtime template occupies a verified library bank; the RAM trampoline
 remains in the launcher. Internal `pascal_runtime.zpl` and `ram_trampoline.zpl`
 build products require no separate deployment. Generated Pascal COM
@@ -226,7 +250,7 @@ unavailable because the OS provides no capacity query.
 | S | Save source through verified temporary/recovery copies |
 | A | Save current source under another filename; Escape cancels |
 | C | Compile in the selected output mode |
-| R | Run the current build, compiling first when needed |
+| R | Run the Memory build, compiling when needed; saved mode compiles and runs the disk executable |
 | X | Execute an external native program and return to the IDE |
 | O | Select M Memory, C native Com-file or H cHn-file; saved modes expose S Start/E End; F finds a saved runtime error; Q returns |
 | Q | Quit, resolving unsaved source with save/discard/cancel |
@@ -253,30 +277,36 @@ self-inclusion are rejected. Repeated includes share one source identity.
 
 Main stays the compilation root when an error selects an included Work file.
 Compile and direct-run errors verify source identity before opening the actual
-file and positioning its cursor. Automatic navigation retains unsaved buffers;
-repairing an include in RAM and pressing R recompiles Main with those edits.
-W can restore a parked dirty buffer. Its dirty-current prompt still offers
-save/discard/cancel; N explicitly discards that current buffer on successful
-replacement. Quit resolves every retained dirty buffer. Compilation never
-silently saves these sources. Saved COM/CHN and ZMP output names follow Main when set.
+file and positioning its cursor. As in TP3, there is one Work buffer: navigation
+to another file saves dirty Work first, and compiling a different Main saves
+dirty Work before reading Main. Repairing an include and pressing R saves that
+include to its actual file, then recompiles Main from disk. W reloads files from
+disk; its dirty-current prompt offers save/discard/cancel, and Quit resolves only
+the current Work. Failed/canceled saves or loads retain Work. A self-contained
+Work program still compiles/runs from RAM without saving. Saved COM/CHN and ZMP
+output names follow Main when set. The IDE allocates no persistent source-catalog
+page; compiler/build source tables still support includes and error locations.
 
 Saved programs report runtime and I/O errors with a hexadecimal PC. Select the
 program's Main or Work source, choose O then F, and enter that PC (one to four
 hexadecimal digits). The IDE verifies the saved COM/ZMP or CHN/ZMP pair for the
 selected output mode and all source identities, then Escape opens the actual
 source or include at the error position.
-This works in a fresh session without compiling. Matching unsaved buffers take
-precedence over disk; changed, missing or invalid artifacts/sources reject lookup
-and retain edits. Overlay lookup remains unsupported. Recompile older programs
-with includes to replace their incorrectly encoded source-map headers.
+This works in a fresh session without compiling. The current Work buffer takes precedence over disk for its matching path. Headers, canonical paths, source
+lengths and PC/source offsets are checked; failures retain edits. Recompile after
+source changes: same-size edits are not detected. Overlay lookup remains
+unsupported. Rebuild version-1 programs/maps with the current compiler.
 
 In Com-file mode, compiling the default source writes
 `T:/src/pascal/UNTITLED.COM` and `T:/src/pascal/UNTITLED.ZMP`.
 Run `T:/src/pascal/UNTITLED.COM` from ZShell. These are native Zeal Z80
 executables. Source must be saved separately with S.
-Saved runs release their cached image/map pages while the child runs, then reload
-and authenticate that cache. Source buffers stay in RAM. A failed or
-unauthenticated cache reload invalidates the cache; the next R recompiles.
+Saved compilation releases its transient image/map/source-table pages after
+publication. R in saved mode recompiles and publishes, releases the transient
+build before execution, then runs the disk executable. It does not reload a RAM
+cache after the child exits. Work stays in RAM. The emitter still constructs the
+output in RAM before publication: true disk-backed code generation remains an
+open TP3 capacity gap; writing a final file does not resolve that gap.
 
 H cHn-file mode writes a compact `.CHN` code payload and its `.ZMP` source map.
 It omits the ordinary executable's runtime, globals and placement gaps. It uses
@@ -299,12 +329,13 @@ images are rejected before closing files; an attempted OS replacement closes
 ordinary files but retains their filename associations if it fails, so Reset
 can reopen them. Replacement targets require the current sealed startup; rebuild
 older experimental COM files. Executing a saved caller through R returns to the
-IDE after the replacement exits, preserving source and the authenticated cache.
+IDE after the replacement exits, preserving Work source.
 
-The staged loader also requires an exact private-runtime fingerprint. CHN entry
-code occupies96 bytes, followed by32 fingerprint bytes that execution jumps
-over. The fingerprint binds the runtime prefix, private helper addresses, file
-module/gate and transfer module/gate; public ABI1 alone cannot establish their compatibility.
+The staged loader also requires an matching four-byte private-runtime compatibility identifier. CHN entry
+code occupies96 bytes, followed by4 compatibility bytes that execution jumps
+over. The build tooling derives the identifier from the runtime prefix, private helper
+addresses, file module/gate and transfer assets. It is a compatibility tag, not
+content authentication; public ABI1 alone cannot establish private-layout compatibility.
 Older experimental CHN files must be recompiled. Rejection leaves caller code,
 globals and heap unchanged.
 
@@ -320,13 +351,13 @@ caller; the older test-bootstrap fixture remains separate component evidence.
 File-module acquisition and Chain/Execute share one private decoder per generated
 program. Both modules are stored as checked packed constants, expanded only into
 their owned pages. Packaging verifies exact linked module/template bytes before
-publishing the IDE, and their identities are part of the private CHN fingerprint.
+publishing the IDE, and their identities are part of the private CHN compatibility identifier.
 The overlay compiler phase occupies an additional bank; it is parked during
 Run/Execute to retain the previous thirteen-bank execution memory budget.
 This does not enable Pascal overlay compilation yet.
 
 Ctrl-U cancels compilation, including image preparation, scanning, code
-placement and final hashing. It also cancels source, Save As, block and executable/
+placement and final header/map construction. It also cancels source, Save As, block and executable/
 map publication between transfer chunks. Escape acknowledges the interruption;
 source edits and queued typing remain available. Filling the 32-key IDE typeahead
 queue also stops the operation instead of dropping ordinary keys. Incomplete
@@ -346,7 +377,8 @@ can proceed after the reservation is released.
 
 In Com-file and cHn-file options, S selects the generated code's Start address
 and E selects the program's End address. Enter one to four hexadecimal digits; Start 0 selects
-the automatic minimum. Empty input, Escape or Ctrl-U retains the current value.
+the automatic minimum. Blank Start resets that minimum; blank End resets FBFF.
+Escape or Ctrl-U cancels the field and retains the current value.
 Invalid input retains the old value and asks again. End defaults to FBFF and must
 be in CFFF..FBFF with enough room for the program and at least 2 KiB of stack.
 The menu shows bounds for the last compiled program; before a successful compile
@@ -359,7 +391,7 @@ static/stack extents.
 X accepts an absolute or relative native executable path without adding an
 extension. Ordinary Zeal applications need no Pascal header. On return it
 restores the IDE text screen and keyboard mode, reports the native exit status,
-and retains Work, Main, dirty buffers, editor state and cached compilation.
+and retains Work, Main, dirty Work, editor state and cached compilation.
 Loader failures retain the session and show the native error. An empty name,
 Escape or Ctrl-U cancels. X supplies no command-tail arguments.
 
@@ -475,9 +507,15 @@ larger catalogs retain separate staging. All staging ends before execution.
 Source remains limited to16,383 bytes and ordinary
 globals to less than16 KiB; stack/heap checks still apply to actual program use.
 
+The compiler executes only Real6 decimal-literal and Integer conversion code.
+It does not link its own transcendental, formatting or Val implementation.
+Generated Pascal programs retain the complete math/runtime implementation.
+The compile API accepts one root Source; include contents are read from disk,
+with no parked-buffer overrides or input-catalog allocation.
+
 Compiler source catalogs share unused root-snapshot space when they fit,
 releasing one physical page during compilation and before Run. Canonical source
-bytes, hashes and error mappings are retained. Larger sources use a separate
+bytes, lengths and error mappings are retained. Larger sources use a separate
 catalog page. Temporary source references share the catalog's tail and spill to
 an owned page if source/catalog growth requires it. Available physical RAM still limits execution and file-registry
 capacity.
@@ -897,3 +935,10 @@ Native tests cover editor workflows, ownership, error recovery and file safety;
 exhaustive reference equivalence and physical hardware acceptance remain open.
 Research artifacts and evidence are retained locally
 but excluded from Git for now.
+
+Normal successful Save, Compile and Run return directly to the command prompt
+without an Escape acknowledgment. Output stays visible; Enter redraws the full
+menu. Errors retain their acknowledgment/source-recovery workflow. Source Save
+replaces the previous BAK with the prior source version without an extra BAK
+permission question. In saved options, blank Start resets AUTO/minimum placement
+and blank End restores the native default FBFF. Ctrl-U cancellation is retained.

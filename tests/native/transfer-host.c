@@ -32,7 +32,7 @@ uint8_t chain_discard(ImageLoad *load) {
     return ok;
 }
 uint8_t chain_prepare(ImageLoad *load,const char *path,const ChainCaller *caller) {
-    ++prepares;check(!strcmp(path,"H:/CHAIN.CHN"));check(caller->profile[31]==0x91);
+    ++prepares;check(!strcmp(path,"H:/CHAIN.CHN"));check(caller->profile[1]==0x91);
     if(!chain_discard(load))return 0;
     chain_init(load);load->origin=caller->origin;load->globals=64;
     load->bytes=0x4800;load->end=caller->end;
@@ -43,7 +43,7 @@ uint8_t chain_prepare(ImageLoad *load,const char *path,const ChainCaller *caller
 static unsigned overrides;
 static uint8_t handoff_supported=1;
 uint8_t execute_prepare(ImageLoad *load,const char *path) {
-    uint8_t ok=chain_prepare(load,path,&(ChainCaller){.origin=0x9000,.end=0xfbff,.profile={[31]=0x91}});
+    uint8_t ok=chain_prepare(load,path,&(ChainCaller){.origin=0x9000,.end=0xfbff,.profile={[1]=0x91}});
     if(ok){load->kind=IMAGE_EXECUTABLE;load->handoff=handoff_supported;}
     return ok;
 }
@@ -80,7 +80,7 @@ static void setup(TransferJob *job,uint8_t files) {
     job->caller.origin=0x9000;job->caller.bytes=32;job->caller.globals=23;
     job->caller.end=0xfbff;job->caller.heap_floor=0xd800;
     job->caller.heap_frontier=0xe020;job->caller.stack_pointer=0xf600;
-    job->caller.profile[31]=0x91;job->path=0xf680;
+    job->caller.profile[1]=0x91;job->path=0xf680;
     strcpy((char*)transfer_memory+job->path,"H:/CHAIN.CHN");
 }
 static void prepare(TransferJob *job) {

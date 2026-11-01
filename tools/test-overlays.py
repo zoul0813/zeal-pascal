@@ -15,11 +15,11 @@ u16 = lambda data, at: struct.unpack_from('<H', data, at)[0]
 u32 = lambda data, at: struct.unpack_from('<I', data, at)[0]
 put = lambda data, at, value: struct.pack_into('<H', data, at, value)
 put32 = lambda data, at, value: struct.pack_into('<I', data, at, value)
-OWNER = sha(b'independent owning native image')
+OWNER = bytes(32)
 SOURCE = b'program OverlayTest; begin end.\n'
 PATH = b'H:/MAIN.PAS'
-TABLE = struct.pack('<HHI', 0, len(PATH), len(SOURCE)) + sha(SOURCE) + PATH
-MANIFEST = sha(TABLE)
+TABLE = struct.pack('<HHI', 0, len(PATH), len(SOURCE)) + PATH
+MANIFEST = bytes(32)
 
 
 def fixture(order=(0, 1), map_first=False):
@@ -34,7 +34,7 @@ def fixture(order=(0, 1), map_first=False):
     maps = []
     for code in codes:
         m = bytearray(96)
-        m[:5] = b'ZMAP\1'
+        m[:5] = b'ZMAP\2'
         for at, value in ((6, 96), (8, 1), (10, 0x9000), (12, len(code)), (14, 1)):
             put(m, at, value)
         put32(m, 16, 1)
@@ -44,7 +44,7 @@ def fixture(order=(0, 1), map_first=False):
         m += TABLE + struct.pack('<HHHHII', 0, 8, 0, 0, 0, len(SOURCE))
         maps.append(m)
     b = bytearray(96 + 96 * len(order))
-    b[:5] = b'ZOVR\1'
+    b[:5] = b'ZOVR\2'
     for at, value in ((6, 96), (8, 1), (10, 0), (12, 0x9000),
                       (14, 0x4200), (16, 2), (18, 96), (84, 65535), (86, 65535)):
         put(b, at, value)
@@ -64,8 +64,8 @@ def fixture(order=(0, 1), map_first=False):
             put32(r, 12, len(b))
             b += maps[member]
         put32(r, 16, len(maps[member]))
-        r[52:84] = sha(maps[member])
-        r[20:52] = sha(r + codes[member])
+        r[52:84] = bytes(32)
+        r[20:52] = bytes(32)
         m = u32(r, 12)
         b[m+20:m+52] = r[20:52]
         b[96+slot*96:192+slot*96] = r
@@ -78,9 +78,9 @@ def reseal_member(b, slot):
     start, size = u32(r, 12), u32(r, 16)
     m = bytearray(b[start:start+size])
     m[20:52] = bytes(32)
-    r[52:84] = sha(m)
+    r[52:84] = bytes(32)
     r[20:52] = bytes(32)
-    r[20:52] = sha(r + b[u32(r, 4):u32(r, 4)+u16(r, 8)])
+    r[20:52] = bytes(32)
     b[start+20:start+52] = r[20:52]
     b[at:at+96] = r
 
@@ -88,7 +88,7 @@ def reseal_member(b, slot):
 def record(b):
     normalized = bytearray(b)
     normalized[20:84] = bytes(64)
-    b[52:84] = sha(normalized)
+    b[52:84] = bytes(32)
     r = bytearray(48)
     for at, value in ((0, u16(b, 10)), (2, u16(b, 84)), (4, u16(b, 86)),
                       (6, u16(b, 12)), (8, u16(b, 14)), (10, u16(b, 16))):
@@ -108,7 +108,7 @@ def many_fixture(count=912):
         m = bytearray(original[u32(r,12):u32(r,12)+u32(r,16)])
         put(r,0,member);put32(r,4,len(b));b += code
         put32(r,12,len(b));r[20:52] = bytes(32)
-        r[20:52] = sha(r+code);m[20:52] = r[20:52];b += m
+        r[20:52] = bytes(32);m[20:52] = r[20:52];b += m
         b[96+96*member:192+96*member] = r
     return b
 
@@ -127,7 +127,7 @@ def fixtures(directory):
     b = fixture(); b += b'authenticated padding'; add('padding.000', b, True)
     b = fixture(); put(b, 84, 1); put(b, 86, 0); add('nested.000', b, True)
     for name, at, value in (
-            ('version', 4, 2), ('abi', 8, 2), ('flags', 5, 1), ('head', 6, 95),
+            ('version', 4, 1), ('abi', 8, 2), ('flags', 5, 1), ('head', 6, 95),
             ('width', 18, 95), ('reserved', 88, 1), ('indexid', 96, 2),
             ('duplicate', 192, 0), ('indexreserve', 98, 1), ('tailreserve', 180, 1),
             ('emptycode', 104, 0), ('bigcode', 104, 0x4201), ('entry', 106, 0x4105)):
@@ -139,23 +139,21 @@ def fixtures(directory):
             ('codeoverlap', 196, 300), ('mapoverlap', 204, 300)):
         b = fixture(); put32(b, at, value); add(name+'.000', b)
     for name, delta, value, wide in (
-            ('mapversion', 4, 2, False), ('maporigin', 10, 0x9001, False),
+            ('mapversion', 4, 1, False), ('maporigin', 10, 0x9001, False),
             ('mapextent', 12, 10, False), ('mapreserved', 92, 1, False),
             ('mapfiles', 14, 0, False), ('mapcount', 16, 0xffffffff, True),
             ('maptable', 84, 0xffffffff, True), ('mapentries', 88, 0xffffffff, True)):
         b = fixture(); m = u32(b, 108)
         (put32 if wide else put)(b, m+delta, value)
         reseal_member(b, 0); add(name+'.000', b)
-    b = fixture(); b[u32(b, 100)+100] ^= 1; add('memberhash.000', b)
-    b = fixture(); b[u32(b, 108)+100] ^= 1; add('maphash.000', b)
+    b = fixture(); b[u32(b, 100)+100] ^= 1; add('trusted-member.000', b, True)
+    b = fixture(); b[u32(b, 108)+100] ^= 1; add('trusted-map.000', b, True)
     b = fixture(); b[u32(b, 108)+20] ^= 1; add('mapidentity.000', b)
     b = fixture(); b[u32(b, 108)+52] ^= 1; reseal_member(b, 0); add('manifest.000', b)
     b = fixture(); b[20] ^= 1; add('owner.000', b)
-    b = fixture(); b[-1] ^= 1; add('grouphash.000', b, seal=False)
+    b = fixture(); b[-1] ^= 1; add('trusted-group.000', b, True, seal=False)
     add('truncated.000', fixture()[:-1], seal=False)
-    add('trailing.000', fixture()+b'x', seal=False)
-    add('wrongowner.000', fixture(), owner=bytes(32))
-    add('wrongsource.000', fixture(), manifest=bytes(32))
+    add('trailing.000', fixture()+b'x', True, seal=False)
     h = ['/* Generated independent test fixtures; not product assets. */',
          '#include <stdint.h>',
          'typedef struct {const char *name; const uint8_t *record; uint8_t valid,wrong_manifest,wrong_owner;} OverlayCase;',
@@ -189,9 +187,9 @@ def host():
     command = ['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-fno-builtin-exit',
                '-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-g',
                '-DZP_OVERLAY_HOST', '-D__SDCC_VERSION_MAJOR=4', '-D__SDCC_VERSION_MINOR=2', '-D__sdcccall(x)=',
-               '-Isrc', '-I'+str(sdk), '-I'+str(out)]
+               '-Isrc', '-Itests/native', '-Itests/host', '-I'+str(sdk), '-I'+str(out)]
     command += ['-D'+name+'=overlay_model_'+name for name in ('open', 'read', 'close', 'dstat', 'palloc', 'pfree')]
-    command += ['src/overlay.c', 'src/sha256.c', 'tests/native/overlay-host.c', '-o', str(out/'model')]
+    command += ['src/overlay.c', 'tests/host/sha256.c', 'tests/native/overlay-host.c', '-o', str(out/'model')]
     subprocess.run(command, cwd=ROOT, check=True)
     subprocess.run([str(out/'model'), str(out)], cwd=ROOT, check=True)
 

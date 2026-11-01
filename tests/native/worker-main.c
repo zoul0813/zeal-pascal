@@ -3,7 +3,6 @@
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done;
 volatile uint16_t test_failures[64],test_index;
-volatile uint8_t test_hash[32];
 Source s;
 Build b;
 Diagnostic d;
@@ -46,8 +45,8 @@ int app_main(void) {
     check(capture>=0&&capture!=code_phase_fd);
     if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
     borrowed=open("H:/BORROW.DAT",O_RDWR);
-    check(borrowed>=0&&borrowed!=capture&&borrowed!=code_phase_fd);
-    test_stage=40;code_hash((uint8_t*)test_hash);
+    check(borrowed>=0&&borrowed!=capture&&borrowed!=code_phase_fd&&code_capture(0));
+    test_stage=40;
     job("H:/WORKERS0.PAS",1,1);
     __asm di __endasm;
     job("H:/WORKERS0.PAS",1,1);
@@ -63,7 +62,7 @@ int app_main(void) {
         n=1;console_scratch[0]='P';
         check(write(borrowed,console_scratch,&n)==0&&n==1);check(close(borrowed)==0);
     }
-    code_hash((uint8_t*)b.id);check(!memcmp(b.id,(const uint8_t*)test_hash,32));
+    check(code_capture(1));
     if(capture>=0) {check(swap(capture,DEV_STDOUT)==0);check(close(capture)==0);}
     source_close(&s);check(pages_used()==code_required);
     test_stage=6;test_done=255;test_complete();return 0;

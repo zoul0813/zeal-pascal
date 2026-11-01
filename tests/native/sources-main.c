@@ -1,11 +1,10 @@
 #include "harness.h"
 #include "sources.h"
-typedef char native_build_handle_size[sizeof(Build)==115?1:-1];
+typedef char native_build_handle_size[sizeof(Build)==51?1:-1];
 typedef char native_catalog_handle_size[sizeof(Sources)==12?1:-1];
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done;
 volatile uint16_t test_failures[64],test_index;
-volatile uint8_t test_hash[32];
 Source s;Build b;Diagnostic d;
 void test_complete(void);
 static void included_error(void) {
@@ -22,36 +21,12 @@ static void included_error(void) {
     check(sources_get(&b.sources,file,&source)&&!strcmp(source.path,"H:/source-parts/run.inc"));
     check(!build_locate(&s,&b,pc,&position));
     status=255;check(run_saved(&s,&b,&status)&&status==2);
-    check(pages_used()==owned&&s.dirty&&build_check(&s,&b));build_close(&b);
+    check(pages_used()==code_required+1&&s.dirty&&!b.valid);build_close(&b);
     check(pages_used()==code_required+1);
     check(load_source(&s,"H:/SRCBAD.PAS",&d));s.dirty=1;owned=pages_used();
     check(!compile(&s,&b,&d)&&d.code==56&&d.start==13);
     check(!strcmp(compile_error_path(),"H:/source-parts/bad.inc"));
     check(s.dirty&&pages_used()==owned);
-}
-static void unsaved_override(void) {
-    Source root,work;Sources buffers;uint8_t status,owned;
-    uint8_t hash[32],after[32];
-    uint8_t ok;
-    ok=read_block(&root,"H:/SRCOVER.PAS",&d);check(ok);if(!ok)return;
-    ok=read_block(&work,"H:/source-parts/work.inc",&d);check(ok);
-    if(!ok){source_close(&root);return;}
-    check(source_import(&work,(const uint8_t*)"const answer=42;\n",17,&d));work.dirty=1;
-    ok=sources_new(&buffers);check(ok);
-    if(!ok){source_close(&root);source_close(&work);return;}
-    check(sources_take(&buffers,&root,&root)==0);
-    check(sources_take(&buffers,&work,&work)==1);source_hash(&work,hash);
-    check(compile_project(&root,&buffers,&b,&d,0,0));if(!b.valid){sources_close(&buffers);return;}
-    check(b.sources.base!=0&&sources_ready(&b.sources,0)&&sources_ready(&b.sources,1));
-    check(save_build(&root,&b,0));owned=pages_used();
-    check(run_build(&root,&b)&&ram_result[26]==1);status=255;
-    check(run_saved(&root,&b,&status)&&status==0);
-    source_hash(&work,after);check(work.dirty&&!memcmp(hash,after,32)&&pages_used()==owned);
-    check(source_replace(&work,work.length,work.length,(const uint8_t*)" ",1));
-    check(!build_ready(&root,&b));build_close(&b);
-    check(sources_take(&buffers,&work,&work)==1);
-    check(compile_project(&root,&buffers,&b,&d,0,0)&&build_ready(&root,&b));build_close(&b);
-    check(sources_close(&buffers)&&pages_used()==code_required);
 }
 int app_main(void) {
     int8_t capture;
@@ -66,7 +41,7 @@ int app_main(void) {
     included_error();
     /* The following case owns its own root/work buffers. Do not retain an
      * unrelated previous source against the sixteen-bank RAM budget. */
-    source_close(&s);unsaved_override();
+    source_close(&s);
     if(capture>=0){check(swap(capture,DEV_STDOUT)==0);check(close(capture)==0);}
     check(pages_used()==code_required);
     test_stage=6;test_done=255;test_complete();return 0;

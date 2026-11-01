@@ -16,8 +16,8 @@ uint8_t output_write_buffer(int8_t fd,const uint8_t *buffer,uint16_t size) SOURC
 uint8_t output_read_buffer(int8_t fd,uint8_t *buffer,uint16_t size) SOURCE_BLOCK_CALL;
 uint8_t output_store_range(const uint8_t *pages,uint16_t first,uint16_t total,const char *path) SOURCE_BLOCK_CALL;
 uint8_t output_verify_range(const uint8_t *pages,uint16_t first,uint16_t total,const char *path) SOURCE_BLOCK_CALL;
-/* Restore an invalidated cache from disk. The owner must authenticate the
- * completed bytes before making that cache valid/executable again. */
+/* Restore an invalidated cache from disk. The owner checks retained layout
+ * headers and page/source versions before making it usable again. */
 uint8_t output_restore_range(const uint8_t *pages,uint16_t first,uint16_t total,const char *path) SOURCE_BLOCK_CALL;
 uint8_t output_copy_file(const char *from,const char *to) SOURCE_BLOCK_CALL;
 uint8_t output_same_files(const char *a,const char *b) SOURCE_BLOCK_CALL;

@@ -33,7 +33,7 @@ def main():
         return [f'bp 0x{key:x}']+trigger+[f'run {cycles}','regs','mmu',
             f"rb 0x{sym['_ide_state']:x} 1",f'rb 0x{work:x} 140',f'rb 0x{build:x} {n.BUILD_BYTES}',
             f'rb 0x{editor:x} 223',f"rb 0x{sym['_main_file']:x} 128",
-            f"rb 0x{sym['_buffers']:x} {n.SOURCES_BYTES}",f"rb 0x{sym['_ram_result']:x} 128",f'bc 0x{key:x}']
+            f"rb 0x{sym['_ram_result']:x} 128",f'bc 0x{key:x}']
     def screen(label,trigger,rows=3):
         labels.append((label,'screen'));clear=kernel['_video_vram_set']
         result=[f'bp 0x{clear:x}']+trigger+['run 1000000000','regs','mmu']
@@ -67,11 +67,11 @@ def main():
         frames={label:(n.memory(part),part)for(label,_),part in zip(labels,parts)}
         checks['state snapshots stop at actual resident reader']=all(part.startswith(f'{key:04x} ')for(_,kind),part in zip(labels,parts)if kind=='state')
         data=lambda label,address,size:bytes(frames[label][0].get(address+i,0)for i in range(size))
-        baseline={address:data('cached-build',address,size)for address,size in ((work,140),(build,n.BUILD_BYTES),(editor,223),(sym['_main_file'],128),(sym['_buffers'],n.SOURCES_BYTES))}
+        baseline={address:data('cached-build',address,size)for address,size in ((work,140),(build,n.BUILD_BYTES),(editor,223),(sym['_main_file'],128))}
         checkpoints=['ordinary-child','repeat-child','missing','empty','directory','invalid','escape-cancel','empty-cancel','control-cancel']
-        checks['ordinary and failed/canceled execution retain exact Work/Main/editor/catalog and cached build']=all(
+        checks['ordinary and failed/canceled execution retain exact Work/Main/editor and cached build']=all(
             data(label,address,len(expected))==expected for label in checkpoints for address,expected in baseline.items())
-        checks['baseline is a valid unsaved build with a retained block mark']=baseline[work][1]==1 and baseline[editor][152]==1 and baseline[build][4]==1 and baseline[build][51:83]==hashlib.sha256(prefix+source).digest()
+        checks['baseline is a valid unsaved build with a retained block mark']=baseline[work][1]==1 and baseline[editor][152]==1 and baseline[build][4]==1 and baseline[build][15:19]==baseline[work][8:12]
         for label,kind in labels:
             if kind!='screen':continue
             m,part=frames[label];screen_bytes=data(label,0x4000,640 if label=='source-retained' else 240)

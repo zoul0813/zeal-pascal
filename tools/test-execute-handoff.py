@@ -98,8 +98,8 @@ def image(f,normal=0x8003,warm=True,variant=None,tail=b''):
     start=boot_at if variant is not None else normal
     for at,value in ((1,start),(10,len(b)),(12,start),(20,0x8000),(22,len(b)-16384),
                      (26,0),(28,0x4000+len(b))):f.put(b,at,value)
-    b[68:100]=hashlib.sha256(b'independently authored Execute fixture').digest()
-    b[100:132]=hashlib.sha256(b'no source-map acceptance claimed').digest()
+    b[68:100]=bytes(32)
+    b[100:132]=bytes(32)
     f.seal_executable(b);return bytes(b),body_at
 
 def main():

@@ -7,16 +7,11 @@
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done;
 volatile uint16_t test_failures[64],test_index;
-volatile uint8_t test_hash[32];
-volatile uint8_t test_group_hash[32];
-volatile uint8_t test_phase_hash[32];
-volatile uint8_t test_late_hash[32];
-volatile uint8_t test_owner_hash[32];
 Source s;Build b;Diagnostic d;
 void test_complete(void);
 void test_phase_restore_marker(void) NATIVE;
-#include "late-cases.h"
 
+#include "late-cases.h"
 static void group_code(uint16_t bytes,uint8_t value,uint16_t maps,uint16_t relocs) {
     uint16_t i,p;
     for(i=0;i<bytes;++i) {
@@ -54,7 +49,6 @@ static void group_cases(void) {
           record.parent_group==0&&record.parent_member==0&&record.owner==1&&record.parent==1&&record.closed);
     check(cc_group_member_get(&groups,1,&id,&ordinal,&member)&&id==0&&ordinal==0&&member.offset==168&&
           member.origin==0xbff0&&member.bytes==56&&member.entry==0xc020&&member.maps==2&&member.relocs==2);
-    memcpy((void*)test_group_hash,member.hash,32);
     check(cc_group_member_get(&groups,255,&id,&ordinal,&member)&&id==0&&ordinal==1&&member.offset==288&&member.bytes==24);
     check(groups.store.length==356);
     for(i=0;i<56;++i) {
@@ -72,7 +66,7 @@ static void group_cases(void) {
     check(cc_groups_discard(&groups));check(groups.page==255&&groups.store.fd==-1&&pages_used()==owned);
 }
 static void phase_cases(void) {
-    uint8_t before[32],after[32],machine_before[7],machine_after[7],owned=pages_used(),status=255,bad=0,ok,bank;
+    uint8_t machine_before[7],machine_after[7],owned=pages_used(),status=255,bad=0,ok,bank;
     uint8_t phases=code_required-CODE_PHASE_FIRST;
     Source original;Build prior;
     char path[]="H:/PHASE.PAS",text[]="begin end.";
@@ -81,7 +75,7 @@ static void phase_cases(void) {
     if(fd>=0) {bad=1;check(!close(fd));}
     check(source_new(&s,path));if(s.page==255)return;
     check(source_replace(&s,0,0,(const uint8_t*)text,10));original=s;
-    code_hash(before);
+    check(code_capture(0));
     check(code_required>CODE_PHASE_FIRST&&code_required<=CODE_BANK_LIMIT);
     check(code_phase_fd>=0&&code_phase_park());
     for(bank=CODE_PHASE_FIRST;bank<code_required;++bank)
@@ -99,7 +93,7 @@ static void phase_cases(void) {
     check(code_phase_restore()&&pages_used()==owned+1);
     for(bank=CODE_PHASE_FIRST;bank<code_required;++bank)
         check(code_pages[bank]!=255&&code_phase_pending[bank-CODE_PHASE_FIRST]==255);
-    code_hash(after);check(!memcmp(before,after,32));memcpy((void*)test_phase_hash,after,32);
+    check(code_capture(1));
     ok=compile(&s,&b,&d);check(ok&&b.valid);
     if(ok) {
         check(run_build(&s,&b)&&ram_result[26]==1);
@@ -135,9 +129,9 @@ int app_main(void) {
     check(cc_members_begin(&store,fd));test_stage=1;
     check(cc_members_flush(&store,&member,0,0));
     check(!store.failed&&store.length==616&&member.offset==0&&member.bytes==528&&member.maps==3&&member.relocs==4);
-    memcpy((void*)test_hash,member.hash,32);first=member;
+    first=member;
     check(cc_members_flush(&store,&member,0,0));
-    check(!store.failed&&store.length==1232&&member.offset==616&&!memcmp(first.hash,member.hash,32));
+    check(!store.failed&&store.length==1232&&member.offset==616&&first.bytes==member.bytes);
     check(cc.emitted==0xc201&&cc.entries==5&&cc.relocations==7&&cc.routine_count==2);
     check(output_finish(fd,1));test_stage=2;
     /* Preserve the complete parent prefixes and global routine records. */
@@ -151,9 +145,9 @@ int app_main(void) {
         check(!cc_members_begin(&store,fd)&&store.failed&&platform_error);
         check(output_finish(fd,1));
     }
-    test_stage=3;group_cases();late_cases(late_path,&d,(uint8_t*)test_late_hash);
+    test_stage=3;group_cases();late_cases(late_path,&d);
     root_helper_cases(helper_path,&d);
-    remaining_helper_cases(owner_path,&d,(uint8_t*)test_owner_hash);
+    remaining_helper_cases(owner_path,&d);
     member_address_guard(&d);
 done:
     if(b.pages[2]!=255) {released=page_drop(b.pages[2]);check(released);if(released)b.pages[2]=255;}

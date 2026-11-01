@@ -105,7 +105,7 @@ class IDE:
         self.frames.append((label, 'state'))
         self.commands += ['regs', 'mmu']
         for symbol, size in (('_work', 140), ('_editor', 223), ('_ide_state', 1),
-                             ('_build', n.BUILD_BYTES), ('_buffers', n.SOURCES_BYTES), ('_ram_result', 128)):
+                             ('_build', n.BUILD_BYTES), ('_ram_result', 128)):
             self.commands += [f'rb 0x{self.sym[symbol]:x} {size}']
 
     def screen(self, label, source_rows=39):
@@ -275,7 +275,7 @@ def editing_checks():
 def source_error_checks():
     source = b'begin\nwriteln(7 div 0)\nend.'
     # The retained one-billion-cycle checkpoints stopped inside compilation
-    # and phase hashing. Observe the real reader, with room for both phases.
+    # and startup loading. Observe the real reader, with room for both phases.
     ide = IDE('ERROR.PAS', cycles=10000000000)
     ide.key('LEFT_BRACKET', shift=True)
     for key in ('E', 'D', 'I', 'T'):
@@ -283,6 +283,7 @@ def source_error_checks():
     ide.key('RIGHT_BRACKET', shift=True)
     ide.key('K', ctrl=True); ide.key('D'); ide.key('R'); ide.state('diagnostic')
     ide.key('ESC'); ide.state('source')
+    ide.block('D'); ide.key('S'); ide.key('ESC')
     frames = ide.finish('editor-source-error', {'ERROR.PAS': source})
     s, b, r = ide.sym['_work'], ide.sym['_build'], ide.sym['_ram_result']
     first, last = frames['diagnostic'], frames['source']
@@ -295,7 +296,10 @@ def source_error_checks():
             and first.get(r+27) == 2 and first.get(r+28) == 2,
         'runtime error retains exact dirty editor snapshot identity': first.get(s+1) == 1
             and word(first, s+2) == len(snapshot)
-            and bytes(first.get(b+51+i, 0) for i in range(32)) == hashlib.sha256(snapshot).digest(),
+            and bytes(first.get(b+15+i, 0) for i in range(4)) == bytes(first.get(s+8+i, 0) for i in range(4)),
+        'recovered source saves exact edited bytes and original backup':
+            (n.RUN/'editor-source-error/hostfs/ERROR.PAS').read_bytes()==snapshot
+            and (n.RUN/'editor-source-error/hostfs/ERROR.BAK').read_bytes()==source,
         'Escape returns to diagnosed statement with edited source':
             last.get(ide.sym['_ide_state']) == 2 and last.get(s+1) == 1
             and word(last, s+4) == snapshot.index(b'writeln'),
@@ -381,20 +385,16 @@ def block_catalog_checks():
     work, build = ide.sym['_work'], ide.sym['_build']
     expected = {'copy': original+comment, 'move': comment+original,
                 'read': inserted+comment+original}
-    catalog_version = lambda frame: bytes(frame.get(ide.sym['_buffers']+6+i, 0) for i in range(4))
-    checks = {'ordinary typing leaves catalog version unchanged':
-              catalog_version(frames['ordinary']) == catalog_version(frames['original'])}
+    checks = {'no persistent editor source catalog': '_buffers' not in ide.sym}
     prior = frames['original'][work]
     for label, source in expected.items():
         edit, compiled, run = (frames[label+suffix] for suffix in ('', ' compiled', ' run'))
-        checks[label+' immediately updates catalog before leaving editor'] = (
-            catalog_version(edit) != catalog_version(frames['before '+label]))
         checks[label+' replaces source page and remains editable'] = (
             edit.get(work) != prior and edit.get(work+1) == 1
             and word(edit, work+2) == len(source) and edit.get(ide.sym['_ide_state']) == 2)
         checks[label+' compiles exact dirty source and executes successfully'] = (
             compiled.get(build+4) == 1
-            and bytes(compiled.get(build+51+i, 0) for i in range(32)) == hashlib.sha256(source).digest()
+            and bytes(compiled.get(build+15+i,0)for i in range(4))==bytes(compiled.get(work+8+i,0)for i in range(4))
             and run.get(ide.sym['_ram_result']+26) == 1 and run.get(work+1) == 1)
         prior = edit.get(work)
     host = n.RUN/'editor-block-catalog/hostfs'
@@ -407,7 +407,7 @@ def block_catalog_checks():
         and (host/'CATALOG.COM').is_file() and (host/'CATALOG.ZMP').is_file()
         and (host/'RESULT.TXT').read_bytes() == b'4\r\n\x1a')
     owners = bytes(frames['quit'].get(kernel['_page_owners']+i, 255) for i in range(32))
-    checks['quit releases editor, snapshot, catalog and compiler owners'] = (
+    checks['quit releases Work, build and compiler owners'] = (
         frames['quit pc'] == kernel['zos_loader_exit'] and owners.count(2) == 3 and len([owner for owner in owners if owner not in (0, 1, 2)]) == 0)
     checks['workflow checkpoints reach the actual IDE reader'] = all(
         frames[label+' pc'] == ide.reader for label, _ in ide.frames

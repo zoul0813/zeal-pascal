@@ -16,7 +16,7 @@ static void word(uint8_t *p,uint16_t v) {p[0]=(uint8_t)v;p[1]=(uint8_t)(v>>8);}
 int main(void) {
     uint8_t good[160]={0},header[160];uint16_t at,value;uint32_t seed=1;unsigned i;
     NativeImage id;
-    memcpy(good,"ZCHN\1",5);word(good+6,96);word(good+8,1);
+    memcpy(good,"ZCHN\2",5);word(good+6,96);word(good+8,1);
     word(good+10,0x9000);word(good+12,128);word(good+14,0x8000);
     word(good+16,0x1000);word(good+18,0xfbff);
     assert(!decode_generic(good,1,&id));compare(good);

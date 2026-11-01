@@ -18,9 +18,9 @@ sym = n.symbols('zpascal')
 metadata = json.loads(snapshots['build/zpascal.banks.json'])
 count = len(metadata['bank_bytes'])
 resident, library = snapshots['build/zpascal.bin'], snapshots['build/zpascal.zpl']
-identity = sym['_code_digest']-0x4000
-if (len(library) < 16 or library[:6] != b'ZPL1\x01'+bytes([count])
-        or resident[identity:identity+32] != hashlib.sha256(library).digest()
+if (len(library) < 16 or library[:6] != b'ZPL1\x02'+bytes([count])
+        or metadata['library_sha256'] != hashlib.sha256(library).hexdigest()
+        or resident[sym['_code_version']-0x4000:sym['_code_version']-0x4000+4] != library[12:16]
         or len(resident) != metadata['resident_bytes']
         or any(sym.get(f'l__BANK{i}', 0) != size for i, size in enumerate(metadata['bank_bytes'], 1))):
     raise RuntimeError('Build outputs do not match. Wait for zde cmake to finish successfully, then retry.')

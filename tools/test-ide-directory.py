@@ -44,7 +44,7 @@ def main():
         assert all(not part.startswith('run ')for part in trigger)
         return [f'bp 0x{key:x}']+trigger+[f'run {cycles}','regs','mmu',
             f"rb 0x{sym['_ide_state']:x} 1",f'rb 0x{work:x} 140',f'rb 0x{build:x} {n.BUILD_BYTES}',
-            f'rb 0x{editor:x} 223',f"rb 0x{sym['_main_file']:x} 128",f"rb 0x{sym['_buffers']:x} {n.SOURCES_BYTES}",
+            f'rb 0x{editor:x} 223',f"rb 0x{sym['_main_file']:x} 128",
             f"rb 0x{sym['_ram_result']:x} 128",f'bc 0x{key:x}']
     def screen(label,trigger,rows=16):
         labels.append((label,'screen'))
@@ -91,10 +91,10 @@ def main():
         data=lambda label,address,size:bytes(frames[label][0].get(address+i,0)for i in range(size))
         text=lambda label,address:data(label,address,128).split(b'\0')[0]
         checks['state checkpoints stop at actual resident reader']=all(part.startswith(f'{key:04x} ')for(_,kind),part in zip(labels,parts)if kind=='state')
-        baseline={address:data('baseline',address,size)for address,size in ((work,140),(build,n.BUILD_BYTES),(editor,223),(sym['_main_file'],128),(sym['_buffers'],n.SOURCES_BYTES))}
-        checks['all drive/listing success, failure, cancellation and paging preserve complete editor/build/catalog state']=all(
+        baseline={address:data('baseline',address,size)for address,size in ((work,140),(build,n.BUILD_BYTES),(editor,223),(sym['_main_file'],128))}
+        checks['all drive/listing success, failure, cancellation and paging preserve complete editor/build state']=all(
             data(label,address,len(expected))==expected for label,kind in labels if kind=='state'and label!='cached-run'for address,expected in baseline.items())
-        checks['baseline contains unsaved source, a block mark and valid compiled snapshot']=baseline[work][1]==1 and baseline[editor][152]==1 and baseline[build][4]==1 and baseline[build][51:83]==hashlib.sha256(prefix+source).digest()
+        checks['baseline contains unsaved source, a block mark and valid compiled snapshot']=baseline[work][1]==1 and baseline[editor][152]==1 and baseline[build][4]==1 and baseline[build][15:19]==baseline[work][8:12]
         for label,kind in labels:
             if kind!='screen':continue
             m,part=frames[label];size=sum(1 for address in m if 0x4000<=address<0x4c80)

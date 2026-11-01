@@ -6,7 +6,6 @@
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done;
 volatile uint16_t test_failures[64],test_index;
-volatile uint8_t test_hash[32];
 Source s;Build b;Diagnostic d;
 void test_complete(void);
 
@@ -18,17 +17,17 @@ int app_main(void) {
     if(!console_open())return 1;
     check(source_new(&s,"H:/BASE.PAS"));
     test_stage=70;
-    check(load_source(&s,s.path,&d));check(compile_project(&s,0,&b,&d,0,&options));
+    check(load_source(&s,s.path,&d));check(compile_project(&s,&b,&d,0,&options));
     check(b.valid&&!build_is_chain(&b));check(save_build(&s,&b,0));build_close(&b);
     strcpy(s.path,"H:/CHAIN.PAS");check(load_source(&s,s.path,&d));s.dirty=1;
     options.kind=COMPILE_CHAIN;
-    check(compile_project(&s,0,&b,&d,0,&options));
+    check(compile_project(&s,&b,&d,0,&options));
     if(b.valid) {
         check(build_is_chain(&b)&&b.length==96+b.code_bytes);
         check(word(6)==96&&word(8)==1&&word(10)==0x9000&&word(12)==b.code_bytes);
         check(word(14)==GLOBAL_BASE&&word(16)==b.globals_bytes&&word(18)==0xfbffu);
         for(i=0;i<96;++i)header[i]=image_get(&b,i);
-        check(native_header(header,1,&identity)==0&&!memcmp(identity.id,b.id,32));
+        check(native_header(header,1,&identity)==0&&identity.length==b.length);
         check(image_get(&b,96+CHAIN_ENTRY_BYTES-3)==0xc3&&word(96+CHAIN_ENTRY_BYTES-2)==b.code_origin+CC_ACTIVATION_BYTES);
         for(i=0;i<CHAIN_PROFILE_BYTES;++i)check(image_get(&b,96+CHAIN_ENTRY_BYTES+i)==cc_runtime_profile_get(i));
         owned=pages_used();check(build_ready(&s,&b)&&build_check(&s,&b));
@@ -41,7 +40,7 @@ int app_main(void) {
         position=far_get(b.map_page,at+8)|((uint16_t)far_get(b.map_page,at+9)<<8);
         check(pc>=CC_ACTIVATION_BYTES);
         check(saved_location_kind(s.path,0,pc,&found,1)&&!strcmp(found.path,s.path)&&found.position==position);
-        check(!memcmp(found.hash,b.source_hash,32)&&pages_used()==owned);
+        check(pages_used()==owned);
         check(!saved_location(s.path,0,pc,&found));
         check(build_check(&s,&b));build_close(&b);
     }

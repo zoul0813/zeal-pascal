@@ -54,12 +54,10 @@ class Selection(unittest.TestCase):
         expanded = runner.expand_commands(definition)
         original = runner.expand_commands(definition, monolithic=True)
         self.assertEqual(len(original), 66)
-        self.assertEqual(len(expanded), 109)
-        for command in original:
-            line = ' '.join(command)
-            expected = [command + shlex.split(suffix) for suffix in definition.get('chunks', {}).get(line, [''])]
-            self.assertEqual([c for c in expanded if c[0] == command[0] and
-                              (line in definition.get('chunks', {}) or c == command)], expected)
+        self.assertEqual(len(expanded), 146)
+        expected = [command + shlex.split(suffix) for command in original
+                    for suffix in definition.get('chunks', {}).get(' '.join(command), [''])]
+        self.assertEqual(expanded, expected)
         self.assertEqual(len({runner.test_id(c) for c in expanded}), len(expanded))
 
     def test_editor_manifest_covers_all_workflows(self):
@@ -220,6 +218,7 @@ class RunnerDependencies(unittest.TestCase):
             (root / 'build').mkdir()
             (root / 'tests').mkdir()
             (root / 'tests/test_runner.py').write_text('')
+            (root / 'tests/test_native_chunks.py').write_text('')
             (root / 'CMakeLists.txt').write_text('')
             shutil.copy(Path(__file__).resolve().parents[1] / 'tools/run-tests.py',
                         root / 'tools/run-tests.py')
@@ -276,6 +275,7 @@ class RunnerDependencies(unittest.TestCase):
                 root = Path(directory)
                 (root/'tools').mkdir(); (root/'build').mkdir(); (root/'tests').mkdir()
                 (root/'CMakeLists.txt').touch(); (root/'tests/test_runner.py').touch()
+                (root/'tests/test_native_chunks.py').touch()
                 shutil.copy(runner.ROOT/'tools/run-tests.py', root/'tools/run-tests.py')
                 (root/'tools/test-native-host.py').write_text('')
                 (root/'tools/test-editor-native.py').write_text(

@@ -34,7 +34,7 @@ uint8_t execute_os_override(const char *path) {
     check(!strcmp(path,"H:/checked.COM")&&load.ready&&load.kind==IMAGE_ROLLBACK);
     check(stack_page==code_page);++override_calls;
     check(!memcmp(record,"ZEX1",4)&&record[4]==4+expected_owner_count&&record[42]==code_page);
-    check(!memcmp(record+5,load.originals,3)&&!memcmp(record+10,load.id,32)&&!memcmp(record+43,load.pages,3));
+    check(!memcmp(record+5,load.originals,3)&&!memcmp(record+43,load.pages,3));
     check(!memcmp(record+46,expected_owners,expected_owner_count));
     for(i=0;i<expected_owner_count;++i)check(owned[expected_owners[i]]);
     for(i=0;i<EXECUTE_HANDOFF_BYTES;++i)sum^=record[i];check(!sum);
@@ -126,7 +126,7 @@ static void executable_rejected(const char *path) {
 }
 static void executable_cases(void) {
     const char *valid[]={"tiny","small","boundary","three","max"};
-    const char *bad[]={"abi","entry","length","origin","globals","end","stack","reserved","overlay","hash","truncated","trailing"};
+    const char *bad[]={"abi","entry","length","origin","globals","end","stack","reserved","overlay","truncated","trailing"};
     char path[64];unsigned i,total_reads,total_allocs,j;
     for(i=0;i<sizeof(valid)/sizeof(*valid);++i) {
         setup(0);snprintf(path,sizeof(path),"H:/x-%s.COM",valid[i]);executable_accepted(path);
@@ -151,7 +151,7 @@ static void executable_cases(void) {
     setup(0);fail_close=1;executable_rejected("H:/x-max.COM");
     setup(0);short_limit=1;executable_accepted("H:/x-max.COM");check(chain_discard(&load));
     for(j=32;j<35;++j) {
-        setup(0);fail_drop=(int)j;check(!execute_prepare(&load,"H:/x-hash.COM"));
+        setup(0);fail_drop=(int)j;check(!execute_prepare(&load,"H:/x-truncated.COM"));
         check(load.error==0x20&&count()==1&&!load.ready&&!handle&&load.pages[j-32]==j);unchanged();
         check(!chain_prepare(&load,"H:/small.CHN",&caller)&&!load.ready&&count()==1);
         fail_drop=-1;check(chain_discard(&load)&&!count());
@@ -180,9 +180,9 @@ static void rollback_cases(void) {
      * three; every byte of caller code/data/stack is captured and restored. */
     for(i=0;i<2;++i) {
         setup(0);check(execute_prepare(&load,i?"H:/x-max.COM":"H:/x-small.COM"));
-        allocated=allocs;memcpy(identity,load.id,32);borrowed(originals);
+        allocated=allocs;memset(identity,0,32);borrowed(originals);
         check(execute_snapshot(&load,originals)&&load.ready&&load.kind==IMAGE_ROLLBACK);
-        check(allocs==allocated+!i&&count()==6&&!memcmp(identity,load.id,32));
+        check(allocs==allocated+!i&&count()==6);
         for(j=0;j<3;++j) {
             for(at=0;at<16384;++at)check(pages[load.pages[j]][at]==rollback_expected[j][at]);
             memset(pages[originals[j]],0x6a,16384);
@@ -362,7 +362,7 @@ int main(int argc,char **argv) {
     setup(0);caller.bytes=0xffff;rejected("H:/small.CHN");
     setup(0);caller.globals=0x1001;rejected("H:/small.CHN");
     setup(0);rejected("H:/missing.CHN");check(load.error==1);
-    {const char *bad[]={"abi","origin","end","globals","truncated","trailing","hash","reserved","overlay","empty","legacy","entry-short","unprofiled"};
+    {const char *bad[]={"abi","origin","end","globals","truncated","trailing","reserved","overlay","empty","legacy","entry-short","unprofiled"};
      char path[48];for(i=0;i<sizeof(bad)/sizeof(*bad);++i){setup(1);snprintf(path,sizeof(path),"H:/%s.CHN",bad[i]);rejected(path);}}
     for(i=0;i<CHAIN_PROFILE_BYTES;++i) {
         char path[48];setup(1);snprintf(path,sizeof(path),"H:/profile-%u.CHN",i);rejected(path);
@@ -380,7 +380,7 @@ int main(int argc,char **argv) {
     setup(1);fail_close=1;rejected("H:/grow.CHN");
     setup(1);short_limit=1;accepted("H:/grow.CHN");installed("H:/grow.CHN");
     setup(1);accepted("H:/grow.CHN");fail_drop=32;check(!chain_discard(&load)&&count()==1&&load.pages[0]==32&&load.pages[1]==255);unchanged();fail_drop=-1;accepted("H:/small.CHN");installed("H:/small.CHN");
-    setup(1);fail_drop=32;check(!chain_prepare(&load,"H:/hash.CHN",&caller));check(load.error==0x20&&count()==1&&!handle);unchanged();fail_drop=-1;check(chain_discard(&load)&&!count());
+    setup(1);fail_drop=32;check(!chain_prepare(&load,"H:/truncated.CHN",&caller));check(load.error==0x20&&count()==1&&!handle);unchanged();fail_drop=-1;check(chain_discard(&load)&&!count());
     setup(1);fail_drop=32;check(!chain_prepare(&load,"H:/profile-0.CHN",&caller));check(load.error==0x20&&load.detail==ERR_ENTRY_CORRUPTED&&count()==1&&!handle);unchanged();fail_drop=-1;check(chain_discard(&load)&&!count());
     executable_cases();
     rollback_cases();

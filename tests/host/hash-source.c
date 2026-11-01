@@ -1,6 +1,6 @@
-#include "zp.h"
+#include "hash-evidence.h"
 
-void source_hash(const Source *s,uint8_t out[32]) SOURCE_BLOCK_CALL {
+void test_source_hash(const Source *s,uint8_t out[32]) SOURCE_BLOCK_CALL {
     Sha256 hash;
     uint16_t i,spaces=0;
     uint8_t c;
@@ -15,5 +15,12 @@ void source_hash(const Source *s,uint8_t out[32]) SOURCE_BLOCK_CALL {
             sha_byte(&hash,c);
         }
     }
+    sha_end(&hash,out);
+}
+
+void test_image_hash(const Build *b,uint8_t out[32]) {
+    Sha256 hash;uint16_t i;
+    sha_init(&hash);
+    for(i=0;i<b->length;++i)sha_byte(&hash,far_get(b->pages[i/PAGE_SIZE],i%PAGE_SIZE));
     sha_end(&hash,out);
 }

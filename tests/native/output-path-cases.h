@@ -54,13 +54,13 @@ static void output_path_cases(void) {
  * Publication must reuse exactly the reserved directory and original targets. */
 static void prepared_output_cases(void) {
     unsigned kind,pages,before_events;uint8_t ok;int f;
-    char reserved[128],foreign[128];Source loaded,changed;Diagnostic error;Sources buffers;uint8_t hash[32];
+    char reserved[128],foreign[128];Source loaded,changed;Diagnostic error;
     for(kind=3;kind<5;++kind) {
         fail_at=cancel_at=shorts=bad_io=fail_read=fail_write=0;setup(kind,3);pages=owned();
-        check(prepare_build(&source,0,kind==4,1));strcpy(reserved,output_recovery());
+        check(prepare_build(&source,kind==4,1));strcpy(reserved,output_recovery());
         check(*reserved&&find(reserved)>=0&&!opened()&&owned()==pages);
         before_events=events;
-        check(!prepare_build(&source,0,kind==4,1)&&events==before_events&&!strcmp(reserved,output_recovery()));
+        check(!prepare_build(&source,kind==4,1)&&events==before_events&&!strcmp(reserved,output_recovery()));
         /* Read an existing include and a missing path without retargeting the
          * pending transaction. Missing parents must not be created by a read. */
         seed("T:/parts.inc",(const uint8_t*)"const answer=42;\n",16);
@@ -79,33 +79,28 @@ static void prepared_output_cases(void) {
         check(equals("T:/parts.inc",(const uint8_t*)"const answer=42;\n",16));
     }
     fail_at=cancel_at=0;setup(3,3);pages=owned();
-    check(sources_new(&buffers));changed=source;strcpy(changed.path,target[0]);source_hash(&changed,hash);
-    check(sources_borrow(&buffers,&changed,hash)==0);before_events=events;
-    check(!prepare_build(&source,&buffers,0,1)&&platform_error==ERR_INVALID_PATH&&events==before_events&&!*output_recovery());
-    check(sources_close(&buffers)&&owned()==pages);
-    check(equals(target[0],old[0],old_length[0])&&equals(target[1],old[1],old_length[1]));
     fail_at=cancel_at=0;setup(3,3);pages=owned();
-    check(prepare_build(&source,0,0,1));strcpy(reserved,output_recovery());
+    check(prepare_build(&source,0,1));strcpy(reserved,output_recovery());
     platform_error=ERR_NO_MORE_MEMORY;
     check(cancel_prepared_build()&&platform_error==ERR_NO_MORE_MEMORY&&find(reserved)<0&&!*output_recovery());
     check(equals(target[0],old[0],old_length[0])&&equals(target[1],old[1],old_length[1]));
     check(!memcmp(&source,&before,sizeof(source))&&owned()==pages);
     /* An undeletable reservation becomes recovery, never a lock on saving
      * dirty source. Foreign members must never be recursively erased. */
-    check(prepare_build(&source,0,0,1));strcpy(reserved,output_recovery());
+    check(prepare_build(&source,0,1));strcpy(reserved,output_recovery());
     strcpy(foreign,reserved);strcat(foreign,"/FOREIGN");seed(foreign,(const uint8_t*)"keep",4);
     check(!cancel_prepared_build()&&!strcmp(reserved,output_recovery())&&equals(foreign,(const uint8_t*)"keep",4));
     before_events=events;check(cancel_prepared_build()&&events==before_events);
     check(save_source(&source,1,1)&&!*output_recovery());
     check(find(reserved)>=0&&equals(foreign,(const uint8_t*)"keep",4)&&equals(source.path,fresh,sizeof(fresh)));
     check(!rm(foreign)&&!rm(reserved));
-    check(prepare_build(&source,0,0,1));strcpy(reserved,output_recovery());fail_at=events+1;
+    check(prepare_build(&source,0,1));strcpy(reserved,output_recovery());fail_at=events+1;
     check(!cancel_prepared_build()&&!strcmp(reserved,output_recovery()));
     fail_at=0;check(save_block(&source,0,17,"T:/other.pas",1,1));
-    check(prepare_build(&source,0,0,1)&&strcmp(reserved,output_recovery()));
+    check(prepare_build(&source,0,1)&&strcmp(reserved,output_recovery()));
     check(cancel_prepared_build()&&find(reserved)>=0&&!opened()&&owned()==pages);
     check(!rm(reserved));
-    check(prepare_build(&source,0,0,1));strcpy(reserved,output_recovery());cancel_at=polls+1;
+    check(prepare_build(&source,0,1));strcpy(reserved,output_recovery());cancel_at=polls+1;
     ok=save_build(&source,&build,1);check(!ok&&output_interrupt_reason()==1);
     check(!strcmp(reserved,output_recovery())&&find(reserved)>=0&&owned()==pages);
     strcpy(foreign,reserved);strcat(foreign,"/NEW.COM");

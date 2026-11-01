@@ -10,7 +10,7 @@
 extern uint8_t code_select(uint8_t bank) NATIVE;
 extern void code_restore(uint8_t page) NATIVE;
 extern int app_main(void);
-uint8_t compiler_compile_project(const Source *root,const Sources *buffers,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options);
+uint8_t compiler_compile_project(const Source *root,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options);
 void compiler_build_close(Build *b);
 uint8_t compiler_build_check(const Source *s,const Build *b);
 uint8_t compiler_build_ready(const Source *s,const Build *b);
@@ -21,6 +21,7 @@ uint8_t files_save_build(const Source *s,const Build *b,uint8_t interruptible);
 uint8_t files_save_source(Source *s,uint8_t replace_backup,uint8_t interruptible);
 uint8_t files_save_source_as(Source *s,const char *name,uint8_t replace_backup,uint8_t interruptible);
 uint8_t files_load_source(Source *s,const char *name,Diagnostic *d);
+uint8_t files_reload_source(Source *s,const char *name,Diagnostic *d);
 uint8_t files_read_block(Source *block,const char *name,Diagnostic *d);
 uint8_t files_save_block(const Source *s,uint16_t first,uint16_t last,const char *name,uint8_t replace,uint8_t interruptible);
 uint8_t files_run_saved(const Source *s,Build *b,uint8_t *status);
@@ -54,23 +55,23 @@ int main(int argc,char **argv) {
     return result;
 }
 uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
-    return compile_project(s,0,b,d,0,0);
+    return compile_project(s,b,d,0,0);
 }
-uint8_t compile_project(const Source *root,const Sources *buffers,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options) {
+uint8_t compile_project(const Source *root,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options) {
     uint8_t old,ok;
     if(!code_phase_restore()) {memset(d,0,sizeof(*d));d->code=COMPILE_PLATFORM_FAILURE;return 0;}
-    old=code_select(CODE_PHASE_FIRST);ok=compiler_compile_project(root,buffers,b,d,interruptible,options);
+    old=code_select(CODE_PHASE_FIRST);ok=compiler_compile_project(root,b,d,interruptible,options);
     code_restore(old);return ok;
 }
-uint8_t compiler_compile_request(const Source *root,const Sources *buffers,Build *build,CompileFailure *failure,
-    uint8_t mode,const CompileOptions *options,const char *work_path);
-uint8_t compile_request(const Source *root,const Sources *buffers,Build *build,CompileFailure *failure,
-    uint8_t mode,const CompileOptions *options,const char *work_path) {
+uint8_t compiler_compile_request(const Source *root,Build *build,CompileFailure *failure,
+    uint8_t mode,const CompileOptions *options);
+uint8_t compile_request(const Source *root,Build *build,CompileFailure *failure,
+    uint8_t mode,const CompileOptions *options) {
     uint8_t old,ok;
     if(!compiler_resources_ready()||!code_phase_restore()) {
         memset(failure,0,sizeof(*failure));failure->diagnostic.code=COMPILE_PLATFORM_FAILURE;return 0;
     }
-    old=code_select(15);ok=compiler_compile_request(root,buffers,build,failure,mode,options,work_path);
+    old=code_select(15);ok=compiler_compile_request(root,build,failure,mode,options);
     code_restore(old);return ok;
 }
 void build_close(Build *b) {
@@ -120,6 +121,12 @@ uint8_t load_source(Source *s,const char *name,Diagnostic *d) {
     char path[128]; uint8_t old,ok;
     if(!capture_path(path,name)) { memset(d,0,sizeof(*d)); return 0; }
     old=code_select(2); ok=files_load_source(s,path,d);
+    code_restore(old); return ok;
+}
+uint8_t reload_source(Source *s,const char *name,Diagnostic *d) {
+    char path[128]; uint8_t old,ok;
+    if(!capture_path(path,name)) { memset(d,0,sizeof(*d)); return 0; }
+    old=code_select(2); ok=files_reload_source(s,path,d);
     code_restore(old); return ok;
 }
 uint8_t run_saved(const Source *s,Build *b,uint8_t *status) {

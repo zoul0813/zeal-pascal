@@ -62,7 +62,7 @@ void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) {
         check(exec(EXEC_PRESERVE_PROGRAM,"H:/SLICE.COM",0,&status)==0&&status==0);
         check(pages_used()==owned);
         status=255; check(run_saved(&s,&b,&status)&&status==0);
-        check(pages_used()==owned);
+        check(!b.valid&&pages_used()==code_required+1);
     }
     if(test_stage==7) {
         uint8_t status=255;
@@ -72,7 +72,7 @@ void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) {
     if(saved_corpus()) {
         uint8_t status=255;
         check(run_saved(&s,&b,&status)&&status==(kind==3?code:kind==5?1:0));
-        check(pages_used()==owned);
+        check(!b.valid&&pages_used()==code_required+1);
     }
     build_close(&b);
     check(pages_used()==code_required+1);

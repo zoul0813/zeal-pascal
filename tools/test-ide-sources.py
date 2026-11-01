@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""PS/2 Main/Work and include-error repair on the native IDE."""
+"""TP3 single-Work save/reload and include-error repair on the native IDE."""
 import argparse
 import hashlib
+import struct
 import importlib.util
 import json
 import re
@@ -36,7 +37,7 @@ def main():
         labels.append(label)
         return [f'bp 0x{key:x}',f'tap {trigger}',f'run {cycles}','regs','mmu',
             f"rb 0x{sym['_ide_state']:x} 1",f'rb 0x{work:x} 140',f'rb 0x{build:x} {n.BUILD_BYTES}',
-            f"rb 0x{sym['_main_file']:x} 128",f"rb 0x{sym['_buffers']:x} {n.SOURCES_BYTES}",
+            f"rb 0x{sym['_main_file']:x} 128",
             f"rb 0x{sym['_ram_result']:x} 128",f'bc 0x{key:x}']
     leave=lambda:control('K')+typed('d')
     commands=['run 100000000']+n.program_launch()+['run 10000000']+typed(answer+'wH:/project/main.pas\ne')
@@ -53,12 +54,11 @@ def main():
         commands+=control('Q')+typed('d')+control('S')+control('S')+control('G')
     commands+=typed('1')+leave()+checkpoint('repaired-run','R')
     commands+=['tap ESC','run 100000000']
-    # Quit must consider the parked dirty root as well as the active include.
-    commands+=typed('qn')+checkpoint('quit-cancel','ESC',100000000)
-    # N explicitly discards current include, W restores the parked dirty root.
+    # Quit and W resolve only the one active Work; Main is already on disk.
+    commands+=typed('e{discard}\n')+leave()+typed('q')+checkpoint('quit-cancel','ESC',100000000)
     commands+=typed('wnH:/project/main.pas\n')+checkpoint('restored-root','SPACE',100000000)
     commands+=typed('m\n')+checkpoint('cleared-main','SPACE',100000000)
-    commands+=typed('qn')+['run 100000000','quit']
+    commands+=typed('q')+['run 100000000','quit']
     raw=n.execute('ide-sources',commands,fixtures,timeout=600)
     frames=[n.memory(part)for part in re.split(r'\[DBG\] PC=',raw)[1:]]
     checks={'all IDE keyboard checkpoints reached':len(frames)==len(labels)}
@@ -72,16 +72,27 @@ def main():
         checks.update({
             'include compiler error selects actual file and preserves Main':state('compile-error')==3 and path('compile-error')==b'H:/project/parts/run.inc'and mainpath('compile-error')==b'H:/project/main.pas',
             'compiler Escape enters include at exact failing byte':state('compile-source')==2 and word(f['compile-source'],work+4)==part.index(b'missing'if inline else b';'),
-            'unsaved include repair recompiles Main then locates runtime error':state('runtime-error')==3 and result('runtime-error')==3 and f['runtime-error'].get(sym['_ram_result']+28)==2 and path('runtime-error')==b'H:/project/parts/run.inc',
+            'R saves repaired include, recompiles Main and locates runtime error':state('runtime-error')==3 and result('runtime-error')==3 and f['runtime-error'].get(sym['_ram_result']+28)==2 and path('runtime-error')==b'H:/project/parts/run.inc',
             'runtime Escape enters include at exact statement':state('runtime-source')==2 and word(f['runtime-source'],work+4)==0,
-            'second unsaved include repair runs successfully':result('repaired-run')==1 and f['repaired-run'].get(work+1)==1,
-            'compiled Main retains exact unsaved root hash':bytes(f['repaired-run'].get(build+51+i,0)for i in range(32))==hashlib.sha256(prefix+root).digest(),
-            'quit cancellation retains both dirty buffers':state('quit-cancel')==1 and f['quit-cancel'].get(sym['_buffers']+1)==2 and f['quit-cancel'].get(work+1)==1,
-            'W restores original unsaved root after explicit include discard':state('restored-root')==1 and path('restored-root')==b'H:/project/main.pas'and f['restored-root'].get(work+1)==1 and word(f['restored-root'],work+2)==len(prefix+root),
+            'second include repair is saved and runs successfully':result('repaired-run')==1 and f['repaired-run'].get(work+1)==0,
+            'no persistent editor catalog exists':'_buffers' not in sym,
+            'quit cancellation retains the single dirty Work':state('quit-cancel')==1 and f['quit-cancel'].get(work+1)==1,
+            'W reloads the saved Main after explicit include discard':state('restored-root')==1 and path('restored-root')==b'H:/project/main.pas'and f['restored-root'].get(work+1)==0 and word(f['restored-root'],work+2)==len(prefix+root),
             'empty Main field clears selector without changing Work':mainpath('cleared-main')==b''and path('cleared-main')==b'H:/project/main.pas',
         })
     directory=n.RUN/'ide-sources/hostfs'
-    checks['Memory compilation never saves either dirty source']=(directory/'project/main.pas').read_bytes()==root and(directory/'project/parts/run.inc').read_bytes()==part
+    expected_part=(raw_statement.replace('>0','>1')+'\n').encode() if inline else b'value:=7 div 1;\n'
+    checks['automatic transitions save actual Main and include files']=(directory/'project/main.pas').read_bytes()==prefix+root and(directory/'project/parts/run.inc').read_bytes()==expected_part
+    checks['Main automatic save retains original backup']=(directory/'project/main.BAK').read_bytes()==root
+    checks['repeated include save replaces backup with prior revision']=(directory/'project/parts/run.BAK').read_bytes()==((raw_statement+'\n').encode() if inline else b'value:=7 div 0;\n')
+    # Observe kernel ownership while its video syscall maps the owner table.
+    # Three OS execution pages + sixteen library pages + one Work; no catalog.
+    kernel=n.kernel_symbols();clear=kernel['_video_vram_set'];owners=kernel['_page_owners']
+    commands=['run 100000000']+n.program_launch()+['run 10000000',f"rb 0x{sym['_code_required']:x} 1",f'bp 0x{clear:x}','tap N','run 100000000','regs',
+        f'rb 0x{owners:x} 32',f'bc 0x{clear:x}','quit']
+    captured=n.execute('ide-startup-pages',commands,timeout=180)
+    memory=n.memory(captured);library_count=memory.get(sym['_code_required'],0)
+    checks['startup owns only library banks and one Work beyond OS pages']=library_count==16 and bytes(memory.get(owners+i,255)for i in range(32)).count(2)==library_count+4 and '_buffers' not in sym
     # An unavailable include must retain the diagnostic and current Work;
     # its offset must never be applied to unrelated text.
     commands=['run 100000000']+n.program_launch()+['run 10000000']+typed(answer+'wH:/missing.pas\n')
@@ -90,6 +101,18 @@ def main():
     captured=n.execute('ide-missing-source',commands,{'missing.pas':missing},timeout=300)
     frames=[n.memory(part)for part in re.split(r'\[DBG\] PC=',captured)[1:]]
     checks['missing include retains Work and Escape returns safely']=len(frames)==2 and frames[0].get(sym['_ide_state'])==3 and frames[1].get(sym['_ide_state'])==1 and all(bytes(f.get(work+12+i,0)for i in range(128)).split(b'\0')[0]==b'H:/missing.pas'for f in frames)
+    # Automatic saving must succeed before an error can replace Work.
+    # Native source-save rules reject a BAK destination (it aliases its backup).
+    commands=['run 100000000']+n.program_launch()+['run 10000000']+typed(answer+'wH:/fail.BAK\ne')
+    commands+=typed(prefix.decode())+leave()+checkpoint('save-failure-before','SPACE',100000000)
+    commands+=checkpoint('save-failure','C')+checkpoint('save-failure-diagnostic','ESC',100000000)
+    commands+=checkpoint('save-failure-menu','ESC',100000000)+typed('mH:/main.pas\n')
+    commands+=checkpoint('main-save-failure','C')+checkpoint('main-save-failure-menu','ESC',100000000)+typed('qn')+['quit']
+    captured=n.execute('ide-source-save-failure',commands,{'fail.BAK':missing,'main.pas':b'begin end.'},timeout=300)
+    frames=[n.memory(part)for part in re.split(r'\[DBG\] PC=',captured)[1:]]
+    checks['failed automatic save retains exact dirty Work and returns to menu']=len(frames)==6 and all(
+        bytes(f.get(work+i,0)for i in range(140))==bytes(frames[0].get(work+i,0)for i in range(140))for f in frames[1:]) and frames[-1].get(sym['_ide_state'])==1
+    checks['failed automatic save leaves disk source intact']=(n.RUN/'ide-source-save-failure/hostfs/fail.BAK').read_bytes()==missing
     # A Main that is not an editor buffer is loaded only for compilation.
     # RAM and saved execution still use that root after the temporary closes.
     commands=['run 100000000']+n.program_launch()+['run 10000000']+typed(answer+'wH:/scratch.inc\nmH:/main.pas\n')
@@ -100,9 +123,10 @@ def main():
     captured=n.execute('ide-disk-main',commands,{'scratch.inc':b'not a program','main.pas':diskroot},timeout=400)
     frames=[n.memory(part)for part in re.split(r'\[DBG\] PC=',captured)[1:]]
     folder=n.RUN/'ide-disk-main/hostfs'
-    checks['disk-only Main runs in RAM and publishes matching saved output']=len(frames)==3 and frames[0].get(sym['_ram_result']+26)==1 and all(f.get(build+4)==1 and bytes(f.get(work+12+i,0)for i in range(128)).split(b'\0')[0]==b'H:/scratch.inc'for f in frames) and (folder/'main.COM').is_file() and (folder/'main.ZMP').is_file() and hashlib.sha256(diskroot).digest()==(folder/'main.ZMP').read_bytes()[104:136]
+    checks['disk-only Main runs in RAM and publishes matching saved output']=len(frames)==3 and frames[0].get(sym['_ram_result']+26)==1 and [f.get(build+4)for f in frames]==[1,0,0] and all(bytes(f.get(work+12+i,0)for i in range(128)).split(b'\0')[0]==b'H:/scratch.inc'for f in frames) and (folder/'main.COM').is_file() and (folder/'main.ZMP').is_file() and struct.unpack_from('<I',(folder/'main.ZMP').read_bytes(),100)[0]==len(diskroot)
     checks['all recorded inputs unchanged']=all(n.sha(Path(p))==h for p,h in hashes.items())
     report={'passed':all(checks.values()),'language_case':'Inline machine code'if inline else'Integer division','messages_enabled':args.messages,
+            'startup_pages':{'library':library_count,'application_total':bytes(memory.get(owners+i,255)for i in range(32)).count(2)},
             'checks':checks,'capture_directory':str(n.RUN.relative_to(ROOT)),
             'input_sha256':hashes,'checkpoints':labels,'scope':__doc__+' Full editor replay, hardware and remaining IDE commands are separate gates.'}
     (n.RUN/'ide-sources-report.json').write_text(json.dumps(report,indent=2)+'\n')

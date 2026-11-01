@@ -2,10 +2,10 @@
 #define ZP_COMPILER_JOB_H
 #include "sources.h"
 /* Diagnostic captured before synchronous compiler cleanup. */
-typedef struct {Diagnostic diagnostic;char path[128];uint8_t hash[32],has_hash,interrupted;} CompileFailure;
-uint8_t compile_request(const Source *root,const Sources *buffers,Build *build,CompileFailure *failure,
-    uint8_t mode,const CompileOptions *options,const char *work_path);
-uint8_t compiler_result_ready(const Sources *inputs,const CompileOptions *options,uint8_t mode,const Build *build) SOURCE_BLOCK_CALL;
+typedef struct {Diagnostic diagnostic;char path[128];uint8_t interrupted;} CompileFailure;
+uint8_t compile_request(const Source *root,Build *build,CompileFailure *failure,
+    uint8_t mode,const CompileOptions *options);
+uint8_t compiler_result_ready(const Build *build) SOURCE_BLOCK_CALL;
 uint8_t compiler_page_owned(const uint8_t mask[8],uint8_t page) SOURCE_BLOCK_CALL;
 uint8_t compiler_pages_release(uint8_t owned[8],const uint8_t *keep) SOURCE_BLOCK_CALL;
 uint8_t compiler_resources_ready(void) SOURCE_BLOCK_CALL;

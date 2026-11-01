@@ -48,11 +48,11 @@ def native_case(n,label,with_file):
     assert memory.get(sym['_test_done'])==255 and word('_test_failed')==0,raw[-2000:]
     folder=n.RUN/(label+'-compile')/'hostfs'
     base=bytearray((folder/'BASE.COM').read_bytes());chain=(folder/'CHAIN.CHN').read_bytes()
-    assert chain[192:224]==(ROOT/'build/pascal_runtime.profile').read_bytes()
+    assert chain[192:196]==(ROOT/'build/pascal_runtime.profile').read_bytes()
     driver=(ROOT/'build/ztransferdriver.zpl').read_bytes()
     assert 0<len(driver)<=0x800 and u16(base,20)==0x9000 and u16(base,26)<0x800
     base[0x4800:0x4800+len(driver)]=driver
-    base[36:68]=bytes(32);base[36:68]=sha(base)
+    base[36:132]=bytes(96)
     # The caller is deliberately modified and independently rehashed. Its map
     # is not used to pretend this bootstrap came from Pascal source.
     parent='ztransferparent';ps=n.symbols(parent);binary=(ROOT/f'build/{parent}.bin').read_bytes()

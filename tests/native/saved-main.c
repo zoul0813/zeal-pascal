@@ -2,12 +2,12 @@
 #include "saved_map.h"
 volatile uint16_t test_passed,test_failed,test_stage,test_index,test_pc,test_io_pc;
 volatile uint16_t test_failures[64];
-volatile uint8_t test_done,test_hash[32];
+volatile uint8_t test_done;
 Source s;Build b;Diagnostic d;
 void test_complete(void);
 int app_main(void) {
-    Sources edits;Source part;SavedLocation found,previous;
-    uint8_t status,owned,held[32],count=0,page,file,hash[32],before[7],after[7];
+    Source part;SavedLocation found,previous;
+    uint8_t status,owned,held[32],count=0,page,file,before[7],after[7];
     uint16_t position;
     int8_t capture;
     if(!console_open())return 1;
@@ -29,30 +29,28 @@ int app_main(void) {
     check(!strcmp(found.path,"H:/project/parts/fail.inc")&&found.position==0);
     previous=found;
     check(seed("H:/project/parts/fail.inc","n:=2 div 0;\n"));
-    check(!saved_location(s.path,0,test_pc,&found));check(!memcmp(&found,&previous,sizeof(found)));
+    check(saved_location(s.path,0,test_pc,&found));check(!memcmp(&found,&previous,sizeof(found)));
     check(seed("H:/project/parts/fail.inc","n:=1 div 0;\n"));
     check(saved_location(s.path,0,test_pc,&found));check(pages_used()==owned);
-    check(sources_new(&edits));check(source_replace(&s,0,0,(const uint8_t*)"{dirty}\n",8));s.dirty=1;
-    check(sources_take(&edits,&s,&s)>=0);source_hash(&s,hash);
-    check(!saved_location(s.path,&edits,test_pc,&found));
-    check(s.dirty&&s.cursor==8&&sources_ready(&edits,0));
-    check(source_replace(&s,0,8,0,0));check(sources_take(&edits,&s,&s)>=0);
-    check(saved_location(s.path,&edits,test_pc,&found));
+    check(source_replace(&s,0,0,(const uint8_t*)"{dirty}\n",8));s.dirty=1;
+    check(!saved_location(s.path,&s,test_pc,&found));
+    check(s.dirty&&s.cursor==8&&page_lifetime(s.page));
+    check(source_replace(&s,0,8,0,0));
+    check(saved_location(s.path,&s,test_pc,&found));
     check(source_new(&part,"H:/project/parts/fail.inc"));
     check(source_import(&part,(const uint8_t*)"n:=1 div 0;\n",12,&d));part.dirty=1;
-    check(sources_take(&edits,&part,&part)>=0);
     check(seed(part.path,"n:=2 div 0;\n"));
-    check(saved_location(s.path,&edits,test_pc,&found)); /* Matching unsaved include overrides disk. */
-    check(!saved_location(s.path,0,test_pc,&found));
-    check(part.dirty&&sources_ready(&edits,0)&&sources_ready(&edits,1));
+    check(saved_location(s.path,&part,test_pc,&found)); /* The one Work buffer may be the include. */
+    check(saved_location(s.path,0,test_pc,&found));
+    check(part.dirty&&page_lifetime(s.page)&&page_lifetime(part.page));
     check(seed(part.path,"n:=1 div 0;\n"));
     owned=pages_used();
     while((page=page_new(PAGE_RUN))!=255&&count<32)held[count++]=page;
-    check(!saved_location(s.path,&edits,test_pc,&found));check(sources_ready(&edits,0)&&sources_ready(&edits,1));
+    check(!saved_location(s.path,&s,test_pc,&found));check(page_lifetime(s.page)&&page_lifetime(part.page));
     while(count)check(page_drop(held[--count]));
-    check(pages_used()==owned&&saved_location(s.path,&edits,test_pc,&found));
-    check(!saved_location(s.path,&edits,0xffff,&found));
-    check(sources_close(&edits));check(pages_used()==code_required);
+    check(pages_used()==owned&&saved_location(s.path,&s,test_pc,&found));
+    check(!saved_location(s.path,&s,0xffff,&found));
+    source_close(&part);source_close(&s);check(pages_used()==code_required);
     check(source_new(&s,"H:/ioerr.pas"));check(load_source(&s,s.path,&d));
     check(compile(&s,&b,&d));check(save_build(&s,&b,0));check(run_build(&s,&b));
     check(ram_result[26]==3&&ram_result[27]==3&&ram_result[28]==1);

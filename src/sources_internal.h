@@ -4,8 +4,8 @@
 
 /* Private serialized records, never an installed/source-map ABI. */
 typedef char source_layout[sizeof(Source)==140?1:-1];
-enum { HASH=140,ORIGIN=172,ORIGIN_LIFETIME=173,ORIGIN_VERSION=177,
-       OWN_LIFETIME=181,OWN_VERSION=185,RECORD_BYTES=189,
+enum { ORIGIN=140,ORIGIN_LIFETIME=141,ORIGIN_VERSION=145,
+       OWN_LIFETIME=149,OWN_VERSION=153,RECORD_BYTES=157,
        SOURCE_COUNT=PAGE_SIZE/RECORD_BYTES };
 enum { SOURCE_BORROWED=254,SOURCE_DISK=255 };
 /* Change catalog storage without transferring any source-page ownership. */

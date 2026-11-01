@@ -6,11 +6,9 @@
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done,test_group,test_groups[18];
 volatile uint16_t test_failures[64],test_index;
-volatile uint8_t test_hash[32];
 Source s;
 Build b;
 Diagnostic d;
-static uint8_t initial_code_hash[32];
 extern uint8_t console_scratch[256];
 void test_machine(uint8_t *state) NATIVE;
 void test_complete(void);
@@ -167,13 +165,13 @@ static void set_tests(void) {
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
 static void invalid_ordinal(const char *text) {
-    uint8_t before[7],after[7],hash[32],now[32];
-    check(load(text)); source_hash(&s,hash);
+    uint8_t before[7],after[7];Source original;uint32_t version;
+    check(load(text));original=s;version=page_versions[s.page];
     test_machine(before);
     check(!compile(&s,&b,&d)&&d.code==31);
-    test_machine(after); source_hash(&s,now);
+    test_machine(after);
     check(!memcmp(before,after,7));
-    check(!memcmp(hash,now,32)&&pages_used()==code_required+1);
+    check(!memcmp(&s,&original,sizeof(s))&&page_versions[s.page]==version&&pages_used()==code_required+1);
 }
 static void pointer_tests(void) {
     int8_t capture=open("H:/POINTERS.TXT",O_WRONLY|O_CREAT|O_TRUNC);
@@ -346,16 +344,10 @@ static void media_tests(void) {
     check(pages_used()==code_required+1);
 }
 static void basic_tests(void) {
-    uint8_t digest[32],expected[32]={
-        0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea,0x41,0x41,0x40,0xde,0x5d,0xae,0x22,0x23,
-        0xb0,0x03,0x61,0xa3,0x96,0x17,0x7a,0x9c,0xb4,0x10,0xff,0x61,0xf2,0x00,0x15,0xad};
-    Sha256 hash;
     uint8_t line[129]; uint16_t i;
     int8_t capture;
     test_stage=1;
-    sha_init(&hash); sha_byte(&hash,'a'); sha_byte(&hash,'b'); sha_byte(&hash,'c'); sha_end(&hash,digest);
-    for(i=0;i<32;++i) test_hash[i]=digest[i];
-    check(!memcmp(digest,expected,32));
+    check(far_get(code_pages[7],7)==2);
     check(load("begin  \r\nend. \r\n\032padding"));
     check(s.length==11&&far_get(s.page,5)=='\n'&&far_get(s.page,10)=='\n');
     for(i=0;i<128;++i) line[i]=' ';
@@ -413,16 +405,16 @@ static void basic_tests(void) {
     check(!load_source(&s,"H:/BAD.PAS",&d)&&d.code==100&&s.length==29&&s.dirty);
     {
         Source before;
-        uint8_t old_hash[32],new_hash[32];
+        uint32_t version=page_versions[s.page];
         memcpy(&before,&s,sizeof(s));
-        source_hash(&s,old_hash);
+
         check(compile(&s,&b,&d));
         check(!save_source_as(&s,"H:/BLOCK/denied.pas",0,0)&&platform_error==ERR_NOT_A_DIR);
         check(!memcmp(&s,&before,sizeof(s))&&build_ready(&s,&b));
         check(save_source_as(&s,"h:/./RENAMED",0,0));
         check(!strcmp(s.path,"H:/RENAMED.PAS")&&!s.dirty&&s.revision==before.revision+1);
         check(s.page==before.page&&s.length==before.length&&s.cursor==before.cursor&&s.previous==before.previous);
-        source_hash(&s,new_hash); check(!memcmp(old_hash,new_hash,32)&&!build_ready(&s,&b));
+         check(page_versions[s.page]==version&&!build_ready(&s,&b));
         build_close(&b);
         memcpy(&before,&s,sizeof(s));
         check(save_source_as(&s,s.path,0,0)&&!memcmp(&s,&before,sizeof(s)));
@@ -450,10 +442,9 @@ static uint8_t select_group(void) {
     return test_failed==failures;
 }
 int app_main(void) {
-    uint8_t digest[32],group;
+    uint8_t group;
     if(!console_open()) { test_failed=1; test_done=255; for(;;) {} }
-    check(pages_used()==code_required);
-    code_hash(initial_code_hash);
+    check(pages_used()==code_required&&code_capture(0));
     check(source_new(&s,"H:/SLICE.PAS"));
     if(select_group())for(group=1;group<=18;++group) {
         if(test_group&&test_group!=group)continue;
@@ -465,7 +456,7 @@ int app_main(void) {
         test_groups[group-1]=1;
     }
     source_close(&s); check(pages_used()==code_required);
-    code_hash(digest); check(!memcmp(digest,initial_code_hash,32));
+    check(code_capture(1));
     test_stage=6; test_done=255;
     test_complete(); return 0;
 }

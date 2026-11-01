@@ -3,16 +3,16 @@
 #include <zos_errors.h>
 
 /* Explicit far records; no host/SDCC structure layout is serialized.
- * 48 +100*18 +255*56 +256 scope owners =16384 bytes. Routine IDs
+ * 48 +100*18 +255*24 +256 scope owners fit one page. Routine IDs
  * already have the compiler's255-scope limit; the native format is unchanged. */
 #define GROUP_BASE 48u
 #define GROUP_BYTES 18u
 #define MEMBER_BASE (GROUP_BASE+100u*GROUP_BYTES)
-#define MEMBER_BYTES 56u
+#define MEMBER_BYTES 24u
 #define DOMAIN_BASE (MEMBER_BASE+255u*MEMBER_BYTES)
-typedef char catalog_fits[(DOMAIN_BASE+256u==PAGE_SIZE)?1:-1];
+typedef char catalog_fits[(DOMAIN_BASE+256u<=PAGE_SIZE)?1:-1];
 enum { G_ORIGIN,G_BYTES=2,G_MAP=4,G_RELOC=6,G_OWNER=8,G_PARENT,G_PARENT_GROUP,G_PARENT_MEMBER,G_MEMBERS,G_STATE=14,G_LATE=16 };
-enum { M_GROUP,M_ORDINAL,M_STATE,M_ORIGIN=4,M_BYTES=6,M_ENTRY=8,M_MAP=10,M_MAPS=12,M_RELOC=14,M_RELOCS=16,M_LATES=18,M_OFFSET=20,M_HASH=24 };
+enum { M_GROUP,M_ORDINAL,M_STATE,M_ORIGIN=4,M_BYTES=6,M_ENTRY=8,M_MAP=10,M_MAPS=12,M_RELOC=14,M_RELOCS=16,M_LATES=18,M_OFFSET=20 };
 enum { OPEN=1,CLOSED=2,ACTIVE=1,COMMITTED=2 };
 
 static uint8_t fail(CompilerGroups *g,uint8_t error) {
@@ -147,7 +147,6 @@ uint8_t cc_group_member_end(CompilerGroups *g,uint8_t id,uint8_t scope,uint16_t 
     put_word(g,m+M_RELOC,record.reloc_first);put_word(g,m+M_RELOCS,record.relocs);
     put_word(g,m+M_LATES,record.lates);
     for(i=0;i<4;++i)put(g,m+M_OFFSET+i,(uint8_t)(record.offset>>(i*8)));
-    for(i=0;i<32;++i)put(g,m+M_HASH+i,record.hash[i]);
     put(g,m+M_STATE,COMMITTED);
     if(record.bytes>word(g,at+G_BYTES))put_word(g,at+G_BYTES,record.bytes);
     cc.entries=record.map_first;cc.relocations=record.reloc_first;cc.emitted=record.origin;
@@ -195,6 +194,5 @@ uint8_t cc_group_member_get(CompilerGroups *g,uint8_t scope,uint8_t *id,uint8_t 
     record->reloc_first=word(g,m+M_RELOC);record->relocs=word(g,m+M_RELOCS);
     record->lates=word(g,m+M_LATES);
     record->offset=0;for(i=0;i<4;++i)record->offset|=(uint32_t)get(g,m+M_OFFSET+i)<<(i*8);
-    for(i=0;i<32;++i)record->hash[i]=get(g,m+M_HASH+i);
     return 1;
 }

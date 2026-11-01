@@ -10,11 +10,10 @@ typedef struct { uint32_t length; int8_t fd; uint8_t failed; } CompilerMemberSto
 typedef struct {
     uint32_t offset;
     uint16_t origin,bytes,entry,map_first,maps,reloc_first,relocs,lates;
-    uint8_t hash[32]; /* trusted catalog identity, not read back from the spool */
 } CompilerMember;
 uint8_t cc_members_begin(CompilerMemberStore *store,int8_t fd) ROUTINES;
 /* Input: origin, entry (absolute preferred address), map_first, reloc_first.
- * Output: immutable section extents and digest, only after verified I/O.
+ * Output: section extents, only after successful I/O and exact byte read-back.
  * The caller journals late symbols before flushing. No compiler cursor, map
  * count or relocation count changes here; the group owner retires those only
  * after success. Parent prefixes and routine descriptors are never serialized. */

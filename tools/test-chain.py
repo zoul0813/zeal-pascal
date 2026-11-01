@@ -17,16 +17,8 @@ put16=lambda data,at,value:struct.pack_into('<H',data,at,value)
 
 
 def identity(image,mapping,chain):
-    start=20 if chain else 36
-    assert sha(image[:start]+bytes(32)+image[start+32:])==image[start:start+32]==mapping[20:52]
-    assert sha(mapping[:20]+bytes(32)+mapping[52:])==image[52:84]if chain else sha(mapping[:20]+bytes(32)+mapping[52:])==image[100:132]
-    table=struct.unpack_from('<I',mapping,84)[0]
-    assert mapping[:10]==b'ZMAP\1\0\x60\0\1\0' and sha(mapping[96:96+table])==mapping[52:84]
-    if chain:
-        assert image[:10]==b'ZCHN\1\0\x60\0\1\0' and len(image)==96+u16(image,12)
-        assert image[84:96]==bytes(12)
-        assert (u16(image,10),u16(image,12))==(u16(mapping,10),u16(mapping,12))
-    else:assert image[3:8]==b'ZP80\1' and len(image)==u16(image,10)
+    from artifact_format import validate_pair
+    validate_pair(image,mapping,chain)
 
 
 def component():
@@ -75,7 +67,7 @@ def activation(folder):
     replay[0x152]=1
     for at,value in [(1,normal),(10,len(replay)),(12,normal),(20,origin),(22,len(replay)+0x4000-origin),(24,0x8000),(26,globals),(28,0x4000+len(replay)),(30,u16(chain,18))]:put16(replay,at,value)
     replay[68:100]=mapping[52:84];replay[100:132]=chain[52:84]
-    replay[36:68]=bytes(32);replay[36:68]=sha(replay)
+    replay[36:132]=bytes(96)
     replay_map=bytearray(mapping);replay_map[20:52]=replay[36:68];identity(replay,replay_map,False)
     # Independently decode the straight-line entry's observable writes. Require
     # its destinations to be only the known prefix bindings and private hooks.
@@ -85,10 +77,10 @@ def activation(folder):
         if op==0:continue
         if op==0x3e:a=code[at];at+=1;continue
         if op==0x21:hl=u16(code,at);at+=2;continue
-        if op==0xc3:assert at==94 and u16(code,at)==origin+128;break
+        if op==0xc3:assert at==94 and u16(code,at)==origin+100;break
         assert op in (0x32,0x22);address=u16(code,at);at+=2
         bindings[address]=bytes([a])if op==0x32 else hl.to_bytes(2,'little')
-    assert chain[192:224]==(ROOT/'build/pascal_runtime.profile').read_bytes()
+    assert chain[192:196]==(ROOT/'build/pascal_runtime.profile').read_bytes()
     allowed={0x4152}|{address+i for address in sites for i in range(3)}
     assert all(all(address+i in allowed or 0x8017<=address+i<0x8000+globals for i in range(len(data)))for address,data in bindings.items())
     ready=n.symbols('zchainreplay')['_replay_ready']
@@ -124,8 +116,8 @@ def ide():
     clear=n.kernel_symbols()['_video_vram_set'];labels.append(('run-message',clear))
     commands+=[f'bp 0x{clear:x}','tap ESC','run 100000000','regs','mmu']
     commands += [f'rb 0x{0x4000+at:x} 128'for at in range(0,640,128)]+[f'bc 0x{clear:x}','run 100000000']
-    # Enter the first Pascal PC, beyond the96-byte entry and32-byte profile.
-    commands+=typed('of0080')+state('found',['tap ENTER'])+state('found-source',['tap ESC'],100000000)
+    # Enter the first Pascal PC, beyond the96-byte entry and4-byte ABI identifier.
+    commands+=typed('of0064')+state('found',['tap ENTER'])+state('found-source',['tap ESC'],100000000)
     commands+=n.control('K')+typed('docq')+state('ordinary-mode',['tap SPACE'],100000000)
     commands+=['run 100000000']+typed('qn')+['quit']
     raw=n.execute('chain-ide',commands,{'project/main.pas':source},timeout=900)
@@ -145,8 +137,8 @@ def ide():
             'Main identity and dirty source survive all mode/recovery transitions':all(read(label,work+1,1)==b'\1'and read(label,sym['_main_file'],128).split(b'\0')[0]==b'H:/project/main.pas'for label in ['compiled','direct-run-rejected','found','found-source','ordinary-mode'])})
     folder=n.RUN/'chain-ide/hostfs';chain=(folder/'project/main.CHN').read_bytes();mapping=(folder/'project/main.ZMP').read_bytes()
     identity(chain,mapping,True)
-    checks['F input PC belongs to the first Pascal statement after activation']=u16(mapping,96+struct.unpack_from('<I',mapping,84)[0])==0x80
-    checks['CHN/map authenticate the exact unsaved canonical source']=mapping[104:136]==sha(prefix+source)
+    checks['F input PC belongs to the first Pascal statement after activation']=u16(mapping,96+struct.unpack_from('<I',mapping,84)[0])==0x64
+    checks['CHN/map name the unsaved source with its canonical length']=u16(mapping,100)==len(prefix+source) and mapping[104:104+u16(mapping,98)]==b'H:/project/main.pas'
     checks['no implicit PAS save or COM creation']=(folder/'project/main.pas').read_bytes()==source and not(folder/'project/main.COM').exists()
     return checks
 

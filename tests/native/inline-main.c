@@ -3,7 +3,6 @@
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done;
 volatile uint16_t test_failures[64],test_index;
-volatile uint8_t test_hash[32];
 Source s;Build b;Diagnostic d;
 void test_complete(void);
 static void included_error(void) {
@@ -16,11 +15,11 @@ static void included_error(void) {
     check(build_location(&s,&b,pc,&file,&position)&&file==1&&position==0);
     check(sources_get(&b.sources,file,&source)&&!strcmp(source.path,"H:/source-parts/inlerror.inc"));
     status=255;check(run_saved(&s,&b,&status)&&status==2);
-    check(pages_used()==owned&&s.dirty&&build_check(&s,&b));build_close(&b);
+    check(pages_used()==code_required+1&&s.dirty&&!b.valid);build_close(&b);
     check(pages_used()==code_required+1);
     check(load_source(&s,"H:/INLBAD.PAS",&d));owned=pages_used();s.dirty=1;
     check(!compile(&s,&b,&d)&&d.code==74&&d.start==7);
-    check(!strcmp(compile_error_path(),"H:/source-parts/inlbad.inc")&&compile_error_hash()!=0);
+    check(!strcmp(compile_error_path(),"H:/source-parts/inlbad.inc"));
     check(s.dirty&&pages_used()==owned);
 }
 int app_main(void) {

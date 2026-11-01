@@ -1,13 +1,9 @@
 #include "overlay.h"
 #include "chain.h"
-#include "sha256.h"
 #include <string.h>
 #include <zos_sys.h>
 #include <zos_vfs.h>
 
-/* One synchronous retained loader owns these workspaces. Keeping hashes here
- * leaves the native prepare/copy/syscall call chain inside its stack budget. */
-static Sha256 group_hash,code_hash,map_hash;
 static uint16_t word(const uint8_t *p) {return p[0]|((uint16_t)p[1]<<8);}
 static uint32_t wide(const uint8_t *p) {return word(p)|((uint32_t)word(p+2)<<16);}
 static uint8_t zeros(const uint8_t *p,uint8_t n) {while(n--)if(*p++)return 0;return 1;}
@@ -21,8 +17,7 @@ uint8_t overlay_group_decode(const uint8_t *r,OverlayGroup *g) {
     memset(g,0,sizeof(*g));
     g->group=word(r);g->parent_group=word(r+2);g->parent_member=word(r+4);
     g->origin=word(r+6);g->bytes=word(r+8);g->members=word(r+10);
-    memcpy(g->hash,r+12,32);
-    return group_valid(g)&&zeros(r+44,4)?0:ERR_ENTRY_CORRUPTED;
+    return group_valid(g)&&zeros(r+12,36)?0:ERR_ENTRY_CORRUPTED;
 }
 static uint8_t fail(OverlayLoad *l,uint16_t error,uint8_t detail) {
     if(!l->error) {l->error=error;l->detail=detail;}
@@ -71,10 +66,6 @@ static uint8_t take(OverlayLoad *l,uint16_t bytes) {
     }
     return 1;
 }
-static void hash_bytes(Sha256 *hash,uint32_t at,uint16_t bytes,uint8_t zero,uint8_t end) {
-    uint16_t i;
-    for(i=0;i<bytes;++i,++at)sha_byte(hash,at>=zero&&at<end?0:chain_buffer[i]);
-}
 static uint8_t acquire(OverlayLoad *l,uint8_t *page) {
     uint8_t error;
     if(*page!=255)return 1;
@@ -114,7 +105,7 @@ static uint8_t index_entry(OverlayLoad *l,const OverlayGroup *g,uint16_t index,
     uint8_t record[18],previous[18];uint16_t i;
     uint32_t a=wide(r+4),z,b=wide(r+12),y;
     if(word(r)>=g->members||word(r+2)||!word(r+8)||word(r+8)>g->bytes||
-       word(r+10)>=word(r+8)||wide(r+16)<96||!zeros(r+84,12)||
+       word(r+10)>=word(r+8)||wide(r+16)<96||!zeros(r+20,76)||
        !extent(a,word(r+8),base,size)||!extent(b,wide(r+16),base,size))return corrupt(l);
     z=a+word(r+8);y=b+wide(r+16);
     if(overlap(a,z,b,y))return corrupt(l);
@@ -129,45 +120,39 @@ static uint8_t index_entry(OverlayLoad *l,const OverlayGroup *g,uint16_t index,
     }
     return remember(l,index,record);
 }
-static uint8_t map_header(OverlayLoad *l,const uint8_t *h,uint32_t bytes,const uint8_t *manifest) {
+static uint8_t map_header(OverlayLoad *l,const uint8_t *h,uint32_t bytes) {
     uint32_t table=wide(h+84),entries=wide(h+16),entry_bytes=wide(h+88);
-    if(memcmp(h,"ZMAP",4)||h[4]!=1||h[5]||word(h+6)!=96||word(h+8)!=1||
+    if(memcmp(h,"ZMAP",4)||h[4]!=2||h[5]||word(h+6)!=96||word(h+8)!=1||
        word(h+10)!=l->origin||word(h+12)!=l->bytes||!word(h+14)||
-       memcmp(h+20,l->id,32)||memcmp(h+52,manifest,32)||!zeros(h+92,4)||
-       table<(uint32_t)word(h+14)*41u||entries>l->bytes||entry_bytes!=entries*16u||
+       !zeros(h+20,64)||!zeros(h+92,4)||
+       table<(uint32_t)word(h+14)*9u||entries>l->bytes||entry_bytes!=entries*16u||
        table>bytes-96u||entry_bytes!=bytes-96u-table)return corrupt(l);
     return 1;
 }
-static uint8_t prepare(OverlayLoad *l,const OverlayGroup *g,const uint8_t *owner,
-                       const uint8_t *manifest,uint16_t member) {
+static uint8_t prepare(OverlayLoad *l,const OverlayGroup *g,uint16_t member) {
     zos_stat_t info;
-    uint8_t h[96],selected[96],map[96],digest[32],error,found=0;
+    uint8_t h[96],selected[96],map[96],error,found=0;
     uint16_t i,n,j,out;uint32_t at,size,base,code_at=0,map_at=0,map_bytes=0;
     error=dstat(l->fd,&info);if(error)return io_error(l,error);
     size=info.s_size;base=96UL+(uint32_t)g->members*96u;
     if(size<base)return corrupt(l);
     if(!take(l,96))return 0;
     memcpy(h,chain_buffer,96);
-    if(memcmp(h,"ZOVR",4)||h[4]!=1||h[5]||word(h+6)!=96||word(h+8)!=1||
+    if(memcmp(h,"ZOVR",4)||h[4]!=2||h[5]||word(h+6)!=96||word(h+8)!=1||
        word(h+10)!=g->group||word(h+12)!=g->origin||word(h+14)!=g->bytes||
-       word(h+16)!=g->members||word(h+18)!=96||memcmp(h+20,owner,32)||
-       memcmp(h+52,g->hash,32)||word(h+84)!=g->parent_group||
+       word(h+16)!=g->members||word(h+18)!=96||!zeros(h+20,64)||word(h+84)!=g->parent_group||
        word(h+86)!=g->parent_member||!zeros(h+88,8))return corrupt(l);
-    sha_init(&group_hash);hash_bytes(&group_hash,0,96,20,84);
     for(i=0;i<g->members;++i) {
         if(!take(l,96))return 0;
-        memcpy(h,chain_buffer,96);hash_bytes(&group_hash,96UL+(uint32_t)i*96u,96,20,84);
+        memcpy(h,chain_buffer,96);
         if(!index_entry(l,g,i,h,base,size))return 0;
         if(word(h)==member) {memcpy(selected,h,96);found=1;}
     }
     if(!found)return corrupt(l);
     code_at=wide(selected+4);map_at=wide(selected+12);map_bytes=wide(selected+16);
     l->origin=g->origin;l->bytes=word(selected+8);l->entry=l->origin+word(selected+10);l->member=member;
-    memcpy(l->id,selected+20,32);memcpy(l->map,selected+52,32);
-    sha_init(&code_hash);sha_init(&map_hash);
-    for(i=0;i<96;++i)sha_byte(&code_hash,i>=20&&i<52?0:selected[i]);
     /* Stream once after the index: all decisions, selected code and map bytes
-     * participate in the same authenticated group pass. No TOCTOU reread. */
+     * come from one bounded pass through the opened file. */
     for(at=base;at<size;at+=n) {
         n=size-at>128u?128u:(uint16_t)(size-at);
         if(at<code_at&&code_at-at<n)n=(uint16_t)(code_at-at);
@@ -180,13 +165,11 @@ static uint8_t prepare(OverlayLoad *l,const OverlayGroup *g,const uint8_t *owner
         }
         if(at>=map_at&&at-map_at<map_bytes&&map_bytes-(at-map_at)<n)n=(uint16_t)(map_bytes-(at-map_at));
         if(!take(l,n))return 0;
-        hash_bytes(&group_hash,at,n,20,84);
         if(at>=code_at&&at-code_at<l->bytes) {
-            hash_bytes(&code_hash,0,n,0,0);out=(uint16_t)(at-code_at);
+            out=(uint16_t)(at-code_at);
             chain_store=1;chain_page_io(l->pages[out/16384u],out%16384u,n);
         }
         if(at>=map_at&&at-map_at<map_bytes) {
-            hash_bytes(&map_hash,at-map_at,n,20,52);
             if(at-map_at<96) {
                 j=(uint16_t)(at-map_at);out=n;if(out>96-j)out=96-j;
                 memcpy(map+j,chain_buffer,out);
@@ -196,13 +179,10 @@ static uint8_t prepare(OverlayLoad *l,const OverlayGroup *g,const uint8_t *owner
     n=1;error=read(l->fd,chain_buffer,&n);
     if(error)return io_error(l,error);
     if(n)return corrupt(l);
-    sha_end(&group_hash,digest);if(memcmp(digest,g->hash,32))return corrupt(l);
-    sha_end(&code_hash,digest);if(memcmp(digest,l->id,32))return corrupt(l);
-    sha_end(&map_hash,digest);if(memcmp(digest,l->map,32))return corrupt(l);
-    return map_header(l,map,map_bytes,manifest);
+    return map_header(l,map,map_bytes);
 }
 uint8_t overlay_prepare(OverlayLoad *l,const char *path,const OverlayGroup *g,
-                        const uint8_t *owner,const uint8_t *manifest,uint16_t member) {
+                        uint16_t member) {
     uint8_t ok;
     /* Retry failed page cleanup before reinitializing an ownership ledger. */
     if(!overlay_discard(l))return 0;
@@ -210,7 +190,7 @@ uint8_t overlay_prepare(OverlayLoad *l,const char *path,const OverlayGroup *g,
     if(!group_valid(g)||member>=g->members)return corrupt(l);
     l->fd=open(path,O_RDONLY);
     if(l->fd<0) {io_error(l,(uint8_t)-l->fd);l->fd=-1;return 0;}
-    ok=prepare(l,g,owner,manifest,member);
+    ok=prepare(l,g,member);
     if(!shut(l))ok=0;
     if(!release(l,l->metadata,32))ok=0;
     if(!ok) {overlay_discard(l);return 0;}

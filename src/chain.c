@@ -1,6 +1,5 @@
 #include "chain.h"
 #include "native_image.h"
-#include "sha256.h"
 #include <string.h>
 #include <zos_sys.h>
 #include <zos_vfs.h>
@@ -91,19 +90,17 @@ static uint8_t heap_plan(ImageLoad *load,const ChainCaller *c) {
     }
     return 1;
 }
-/* Both image formats authenticate the complete file, then retain only their
- * executable payload. Keep chunking, page boundaries, EOF, hash and close
+/* Both image formats check the declared extent, then retain only their
+ * executable payload. Keep chunking, page boundaries, EOF and close
  * handling in one owner instead of maintaining two subtly different readers. */
-static uint8_t stage(ImageLoad *load,uint8_t head_bytes,uint8_t payload,uint8_t zero) {
-    Sha256 hash;
-    uint16_t at,n,i,out,total;
-    uint8_t error,digest[32];
+static uint8_t stage(ImageLoad *load,uint8_t head_bytes,uint8_t payload) {
+    uint16_t at,n,out,total;
+    uint8_t error;
 #ifdef ZP_CHAIN_ONLY
     total=96+load->bytes;
 #else
     total=load->length;
 #endif
-    sha_init(&hash);
     for(at=0;at<total;at+=n) {
         n=total-at;if(n>128)n=128;
         if(at<head_bytes) {
@@ -114,7 +111,6 @@ static uint8_t stage(ImageLoad *load,uint8_t head_bytes,uint8_t payload,uint8_t 
             if(n>16384u-out%16384u)n=16384u-out%16384u;
             if(!take(load,n))return 0;
         }
-        for(i=0;i<n;++i)sha_byte(&hash,at+i>=zero&&at+i<zero+32u?0:chain_buffer[i]);
         if(at>=payload) {
             out=at-payload;
             if(load->pages[out/16384u]==255) {
@@ -127,8 +123,6 @@ static uint8_t stage(ImageLoad *load,uint8_t head_bytes,uint8_t payload,uint8_t 
     n=1;error=read(load->fd,chain_buffer,&n);
     if(error)return io_error(load,error);
     if(n)return corrupt(load);
-    sha_end(&hash,digest);
-    if(memcmp(digest,load->id,32))return corrupt(load);
     error=close(load->fd);load->fd=-1;
     return error?io_error(load,error):1;
 }
@@ -149,8 +143,7 @@ uint8_t chain_prepare(ImageLoad *load,const char *path,const ChainCaller *caller
     load->length=id.length;
 #endif
     if(load->bytes<CHAIN_ACTIVATION_BYTES||load->origin!=caller->origin||load->end!=caller->end) {corrupt(load);goto failed;}
-    memcpy(load->id,id.id,32);memcpy(load->map,id.map,32);
-    if(!stage(load,96,96,20))goto failed;
+    if(!stage(load,96,96))goto failed;
     chain_store=0;chain_page_io(load->pages[0],CHAIN_ENTRY_BYTES,CHAIN_PROFILE_BYTES);
     if(memcmp(chain_buffer,caller->profile,CHAIN_PROFILE_BYTES)) {corrupt(load);goto failed;}
     if(!heap_plan(load,caller))goto failed;
@@ -204,8 +197,7 @@ uint8_t execute_prepare(ImageLoad *load,const char *path) {
     if(error){fail(load,0x20,error);goto failed;}
     load->length=id.length;load->entry=word(header+12);load->origin=id.origin;load->bytes=id.bytes;
     load->globals=word(header+26);load->end=word(header+30);
-    memcpy(load->id,id.id,32);memcpy(load->map,id.map,32);
-    if(!stage(load,160,0,36))goto failed;
+    if(!stage(load,160,0))goto failed;
     load->handoff=handoff_capable(load);load->ready=1;return 1;
 failed:
     chain_discard(load);return 0;
@@ -293,7 +285,6 @@ void execute_attempt(void) {
     memcpy(record+EXECUTE_HANDOFF_ORIGINALS,override_originals,3);
     record[EXECUTE_HANDOFF_LENGTH]=(uint8_t)override_load->length;
     record[EXECUTE_HANDOFF_LENGTH+1]=(uint8_t)(override_load->length>>8);
-    memcpy(record+EXECUTE_HANDOFF_ID,override_load->id,32);
     record[EXECUTE_HANDOFF_PAGES]=execute_code_page();
     memcpy(record+EXECUTE_HANDOFF_PAGES+1,override_load->pages,3);
     memcpy(record+EXECUTE_HANDOFF_PAGES+4,override_owners,override_owner_count);

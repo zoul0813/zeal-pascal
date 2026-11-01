@@ -105,25 +105,6 @@ uint8_t cc_place_code(void) FRONTEND {
     return !cc.error->code;
 }
 
-void cc_hash_image(const Build *b,uint8_t out[32]) ROUTINES {
-    Sha256 hash; uint16_t i;
-    uint8_t zero=build_is_chain(b)?20:36;
-    sha_init(&hash);
-    for(i=0;i<b->length;++i) {
-        if(!(i&255)&&!cc_poll())return;
-        sha_byte(&hash,i>=zero&&i<zero+32u?0:image_get(b,i));
-    }
-    sha_end(&hash,out);
-}
-void cc_hash_map(const Build *b,uint8_t out[32]) ROUTINES {
-    Sha256 hash; uint16_t i;
-    sha_init(&hash);
-    for(i=0;i<b->map_length;++i) {
-        if(!(i&255)&&!cc_poll())return;
-        sha_byte(&hash,i>=20&&i<52?0:far_get(b->map_page,i));
-    }
-    sha_end(&hash,out);
-}
 static uint8_t image_layout(const Build *b) {
     uint8_t i;
     if(b->length<96||b->length>CC_STATIC_LIMIT-0x4000u||
@@ -136,27 +117,15 @@ static uint8_t image_layout(const Build *b) {
     return b->length>=PAGE_SIZE||build_is_chain(b);
 }
 uint8_t build_check(const Source *s,const Build *b) {
-    uint8_t hash[32], expected[32], i;
-    if(!b->valid||!image_layout(b)||b->revision!=s->revision||!cc_sources_ready(s,b)) return 0;
-    source_hash(s,hash); if(memcmp(hash,b->source_hash,32)) return 0;
-    cc_hash_image(b,hash); if(memcmp(hash,b->id,32)||!build_image_identity(b)) return 0;
-    cc_hash_map(b,hash);
-    for(i=0;i<32;++i) expected[i]=image_get(b,(build_is_chain(b)?52:100)+i);
-    return !memcmp(hash,expected,32);
+    uint8_t i;Source snapshot;
+    if(!b->valid||!image_layout(b)||b->revision!=s->revision||!cc_sources_ready(s,b)||
+       !sources_get(&b->sources,0,&snapshot)||strcmp(s->path,snapshot.path))return 0;
+    for(i=0;i<3;++i)if(b->pages[i]!=255&&b->versions[i]!=page_versions[b->pages[i]])return 0;
+    if(b->versions[3]!=page_versions[b->map_page])return 0;
+    if(s->page!=snapshot.page&&s->page!=sources_origin(&b->sources,0))return 0;
+    return b->versions[4]==page_versions[s->page];
 }
-uint8_t build_ready(const Source *s,const Build *b) {
-    uint8_t i;
-    Source snapshot;
-    if(!b->valid||!image_layout(b)||b->revision!=s->revision||!cc_sources_ready(s,b)) return 0;
-    if(!sources_get(&b->sources,0,&snapshot))return 0;
-    if(s->page!=snapshot.page&&s->page!=sources_origin(&b->sources,0))return build_check(s,b);
-    /* Compiler-sealed pages are private and immutable. RAM execution copies
-     * them. The single far-store core detects every subsequent modification;
-     * changed versions require the full cryptographic check again. */
-    for(i=0;i<3;++i) if(b->pages[i]!=255&&b->versions[i]!=page_versions[b->pages[i]]) return build_check(s,b);
-    if(b->versions[3]!=page_versions[b->map_page]||b->versions[4]!=page_versions[s->page]) return build_check(s,b);
-    return 1;
-}
+uint8_t build_ready(const Source *s,const Build *b) {return build_check(s,b);}
 static uint16_t read16(uint8_t p,uint16_t offset) { return far_get(p,offset)|((uint16_t)far_get(p,offset+1)<<8); }
 uint8_t build_locate(const Source *s,const Build *b,uint16_t pc,uint16_t *position) {
     uint8_t file;uint16_t canonical;
@@ -183,16 +152,8 @@ uint8_t build_location(const Source *s,const Build *b,uint16_t pc,uint8_t *file,
 }
 
 uint8_t cc_sources_ready(const Source *root,const Build *build) ROUTINES {
-    uint8_t id,hash[32],expected[32];Source source;
-    Diagnostic diagnostic;
+    uint8_t id,count=build->sources.count;Source source;
     if(!page_lifetime(root->page)||!sources_get(&build->sources,0,&source)||strcmp(root->path,source.path))return 0;
-    for(id=0;id<build->sources.count;++id) {
-        if(!sources_ready(&build->sources,id))return 0;
-        if(sources_resident(&build->sources,id))continue;
-        if(!sources_get(&build->sources,id,&source))return 0;
-        if(!read_block(&source,source.path,&diagnostic))return 0;
-        source_hash(&source,hash);if(!page_drop(source.page))return 0;
-        if(!sources_hash(&build->sources,id,expected)||memcmp(hash,expected,32))return 0;
-    }
+    for(id=0;id<count;++id)if(!sources_ready(&build->sources,id))return 0;
     return 1;
 }

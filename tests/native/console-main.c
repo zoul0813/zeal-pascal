@@ -2,7 +2,6 @@
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done;
 volatile uint16_t test_failures[64],test_index;
-volatile uint8_t test_hash[32];
 Source s; Build b; Diagnostic d;
 void test_complete(void);
 int app_main(void) {

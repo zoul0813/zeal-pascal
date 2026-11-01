@@ -42,14 +42,14 @@ def read_symbols(path):
 
 
 def runtime_profile(directory):
-    """Bind generated private calls and retained file protocols to exact assets."""
-    digest = hashlib.sha256(b'ZP80-private-chain-v1\0')
-    for name in ('pascal_runtime.zpl', 'pascal_runtime.private',
-                 'file_runtime.zpl', 'file_gate.zpl', 'transfer_runtime.zpl', 'transfer_gate.zpl',
-                 'execute_entry.zpl','transfer_runtime.packed','file_runtime.packed','module_unpack.zpl'):
-        data = (directory/name).read_bytes()
-        digest.update(name.encode('ascii')+b'\0'+struct.pack('<I', len(data))+data)
-    return digest.digest()
+    """Host-generated private ABI identifier; target performs only a byte compare."""
+    tag = hashlib.sha256(b'ZP80-private-ABI-v2\0')
+    for name in ('pascal_runtime.zpl','pascal_runtime.private','file_runtime.zpl','file_gate.zpl',
+                 'transfer_runtime.zpl','transfer_gate.zpl','execute_entry.zpl',
+                 'transfer_runtime.packed','file_runtime.packed','module_unpack.zpl'):
+        data=(directory/name).read_bytes()
+        tag.update(name.encode('ascii')+b'\0'+struct.pack('<I',len(data))+data)
+    return tag.digest()[:4]
 
 
 def pack_module(payload):
@@ -146,7 +146,7 @@ def validate_transfer_call(path):
         raise ValueError('transfer caller differs from its link image')
     profile=(path.parent/'pascal_runtime.profile').read_bytes()
     at=symbols['zt_profile']-first
-    if payload[at:at+32]!=profile:
+    if payload[at:at+len(profile)]!=profile:
         raise ValueError('transfer caller profile is stale')
     private=(path.parent/'pascal_runtime.private').read_bytes()
     if (payload[symbols['transfer_call_input_operand']-first:][:2]!=private[18:20] or
@@ -433,18 +433,21 @@ def package(path):
     validate_file_assets(memory,symbols,path.parent)
     header_bytes = 16 + 2 * len(banks)
     total = header_bytes + sum(map(len, payloads))
-    library = (struct.pack('<4sBBHII', b'ZPL1', 1, len(banks), header_bytes, total, 0)
+    library = (struct.pack('<4sBBHII', b'ZPL1', 2, len(banks), header_bytes, total, 0)
                + struct.pack('<' + 'H' * len(banks), *(len(data) for data in payloads))
                + b''.join(payloads))
+    version = hashlib.sha256(library).digest()[:4]
+    library = library[:12]+version+library[16:]
     digest = hashlib.sha256(library).digest()
-    for name, data in (('_code_required', bytes([len(banks)])), ('_code_digest', digest)):
+    for name, data in (('_code_required',bytes([len(banks)])),('_code_version',version),
+                       ('_code_sizes',struct.pack('<'+'H'*len(banks),*(len(data)for data in payloads)))):
         at = symbols[name]
         if not (symbols['s__HOME'] <= at and at + len(data) <= symbols['s__HOME'] + symbols['l__HOME']
                 and at + len(data) <= resident_end):
             raise ValueError('library identity is not in loaded resident HOME storage')
         resident[at - 0x4000:at - 0x4000 + len(data)] = data
     # Validate every extent before replacing either member of the build pair.
-    # A stale/mixed pair is harmless at launch: its whole-library hash fails.
+    # Launcher/library compatibility is the versioned ZPL format and bank ABI.
     path.with_suffix('.zpl').write_bytes(library)
     path.with_suffix('.bin').write_bytes(resident)
     report = {'resident_bytes': len(resident), 'bank_bytes': [len(data) for data in payloads],

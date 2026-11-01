@@ -31,7 +31,7 @@ MEDIA = ROOT / 'tests/native/media'
 COREUTILS = ZEAL / 'zeal-dev-environment/home/zeal-coreutils/bin'
 OUT = ROOT / "analysis/native-slice"
 RUN = OUT / (datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ') + f'-{os.getpid()}')
-# Loading/hashing the complete banked library is deliberately not optimized yet.
+# Load the library through its versioned header and checked extents.
 # Stop at the actual breakpoint, with room for the growing native product.
 CORE_GROUPS = {
     name: int(number) for number, name in re.findall(
@@ -43,7 +43,7 @@ MEDIA_COPIES = {}
 LIBRARY_READY_CYCLES = 8000000000
 # Private SDCC near handles inspected by debugger-based IDE acceptance.
 # Native compile-time guards in sources-main.c pin these observer sizes.
-BUILD_BYTES = 115
+BUILD_BYTES = 51
 SOURCES_BYTES = 12
 
 
@@ -204,7 +204,7 @@ def type_text(text, ticks=250000):
 
 def program_launch(target='zpascal'):
     ready = symbols(target)['_code_ready']
-    # The child loader is hashing its library after the small resident image
+    # The child loader reads its versioned library after the small resident image
     # has loaded. Stop at its resident transition before sending IDE input.
     return (type_text(f'H:/{target}.bin H:/{target}.zpl\n') + ['run 1000000',
             f'bp 0x{ready:x}', f'run {LIBRARY_READY_CYCLES}', f'bc 0x{ready:x}'])
@@ -283,7 +283,7 @@ class DebugConsole:
         # Never mistake their instructions for an IDE reader at the same PC.
         image = (self.directory/'hostfs'/stop.program).read_bytes()
         expected = image[:32]
-        pascal = image[3:8] == b'ZP80\x01'
+        pascal = image[3:8] == b'ZP80\x02'
         if pascal:
             seal, offset = self.identity(PhysicalLine('', stop.program, stop.memory_mode))
             layout = input_layout()
@@ -315,15 +315,12 @@ class DebugConsole:
 
     def identity(self, line):
         if line.source is not None:
-            path, source = line.source; path = path.encode()
-            table = struct.pack('<HHI', 0, len(path), len(source))+hashlib.sha256(source).digest()+path
-            return hashlib.sha256(table).digest(), 68
+            return bytes(32), 68
         image = (self.directory/'hostfs'/line.program).read_bytes()
-        if image[3:8] != b'ZP80\x01' or len(image) != int.from_bytes(image[10:12], 'little'):
+        if image[3:8] != b'ZP80\x02' or len(image) != int.from_bytes(image[10:12], 'little'):
             raise RuntimeError('invalid input program header/extent')
-        normalized = bytearray(image); normalized[36:68] = bytes(32)
-        if hashlib.sha256(normalized).digest() != image[36:68]:
-            raise RuntimeError('unsealed input program')
+        if image[36:132] != bytes(96):
+            raise RuntimeError('invalid reserved header bytes')
         layout = input_layout(); offset = layout['finished']-0x4000
         if image[offset:offset+len(layout['pattern'])] != layout['pattern']:
             raise RuntimeError('input program uses a different runtime observer layout')
@@ -335,7 +332,7 @@ class DebugConsole:
         data = memory(frame)
         actual = bytes(data.get(0x4000+offset+i, 0) for i in range(32))
         layout = input_layout()
-        return (actual == expected and bytes(data.get(0x4003+i, 0) for i in range(5)) == b'ZP80\x01'
+        return (actual == expected and bytes(data.get(0x4003+i, 0) for i in range(5)) == b'ZP80\x02'
                 and bytes(data.get(layout['finished']+i, 0) for i in range(len(layout['pattern']))) == layout['pattern'])
 
     def ready(self, line, layout, reader, mode):
@@ -523,11 +520,11 @@ def artifact_checks(directory):
     long = lambda data, offset: struct.unpack_from('<I', data, offset)[0]
     normalized = bytearray(binary)
     normalized[36:68] = bytes(32)
-    assert hashlib.sha256(normalized).digest() == binary[36:68] == mapping[20:52]
+    assert binary[36:132] == bytes(96) and mapping[20:84] == bytes(64)
     normalized = bytearray(mapping)
     normalized[20:52] = bytes(32)
-    assert hashlib.sha256(normalized).digest() == binary[100:132]
-    assert binary[0] == 0xc3 and word(binary,1)==word(binary,12) and binary[3:8] == b'ZP80\x01'
+    assert binary[100:132] == bytes(32)
+    assert binary[0] == 0xc3 and word(binary,1)==word(binary,12) and binary[3:8] == b'ZP80\x02'
     assert word(binary, 8) == 160 and word(binary, 10) == len(binary)
     entry=(ROOT/'build/execute_entry.zpl').read_bytes()
     assert word(binary,12)==0x4000+len(binary)-len(entry) and binary[-len(entry):]==entry
@@ -538,15 +535,15 @@ def artifact_checks(directory):
     assert word(binary, 28) == 0x4000 + len(binary) == origin + code_bytes
     assert word(binary, 30) == 0xfbff and word(binary, 32) == 2048
     assert word(binary, 132) == 16384 and binary[134:160] == bytes(26)
-    assert mapping[:8] == b'ZMAP\x01\0\x60\0' and word(mapping, 8) == 1
+    assert mapping[:8] == b'ZMAP\x02\0\x60\0' and word(mapping, 8) == 1
     assert word(mapping, 10) == origin and word(mapping, 12) == code_bytes
     assert word(mapping, 14) == 1 and long(mapping, 92) == 0
     table_bytes = long(mapping, 84)
     table = mapping[96:96 + table_bytes]
-    assert hashlib.sha256(table).digest() == mapping[52:84] == binary[68:100]
+    assert mapping[52:84] == binary[68:100] == bytes(32)
     assert word(table, 0) == 0 and long(table, 4) == len(source)
-    assert table[8:40] == hashlib.sha256(source).digest() and table[40:] == b'H:/SLICE.PAS'
-    assert word(table, 2) == len(table[40:])
+    assert table[8:] == b'H:/SLICE.PAS'
+    assert word(table, 2) == len(table[8:])
     count = long(mapping, 16)
     assert long(mapping, 88) == count * 16 and len(mapping) == 96 + table_bytes + count * 16
     previous = 0
@@ -610,7 +607,7 @@ def interactive_checks():
     work = sym['_work']
     build = sym['_build']
     result = sym['_ram_result']
-    hash_bytes = lambda frame: bytes(frame.get(build + 51 + i, 0) for i in range(32))
+    source_revision = lambda frame: bytes(frame.get(build + 15 + i, 0) for i in range(4)) == bytes(frame.get(work + 8 + i, 0) for i in range(4))
     repaired = source.replace(b'div 0', b'div 3')
     first, last = memory(parts[0]), memory(parts[-1])
     mappings = lambda part: re.findall(r'\[DBG\] ([0-9a-f]{4}) -> ([0-9a-f]{6})', part)
@@ -622,16 +619,16 @@ def interactive_checks():
          and frames[0].get(result + 27) == 2 and frames[0].get(result + 28) == 2),
         ('runtime failure retains exact dirty source snapshot',
          frames[0].get(work + 1) == 1 and get_word(frames[0], work + 2) == len(source)
-         and hash_bytes(frames[0]) == hashlib.sha256(source).digest()),
+         and source_revision(frames[0])),
         ('Escape enters source at exact error byte',
          state(frames[1]) == 2 and get_word(frames[1], work + 4) == 6
          and frames[1].get(work + 1) == 1),
         ('edit repair invalidates build, recompiles and runs successfully',
          frames[2].get(result + 26) == 1 and frames[2].get(work + 1) == 1
-         and hash_bytes(frames[2]) == hashlib.sha256(repaired).digest()),
+         and source_revision(frames[2])),
         ('dirty quit cancellation retains source', state(frames[3]) == 1
          and frames[3].get(work + 1) == 1
-         and hash_bytes(frames[3]) == hashlib.sha256(repaired).digest()),
+         and source_revision(frames[3])),
         ('quit returns original ZShell mappings', mappings(parts[0]) == mappings(parts[-1])
          and all(first.get(user_pages + i) == last.get(user_pages + i) for i in range(3))),
         ('ZShell raw nonblocking keyboard convention restored', first.get(mode) == last.get(mode) == 4),
@@ -653,7 +650,7 @@ def user_break_checks():
     work, build, result = sym['_work'], sym['_build'], sym['_ram_result']
     def probe():
         return ['regs', 'mmu', f"rb 0x{sym['_ide_state']:x} 1",
-                f'rb 0x{work:x} 12', f'rb 0x{build:x} 83', f'rb 0x{result:x} 128']
+                f'rb 0x{work:x} 12', f'rb 0x{build:x} {BUILD_BYTES}', f'rb 0x{result:x} 128']
     commands = ['run 100000000'] + program_launch() + ['run 10000000']
     commands += typed('ne') + typed(source.decode()) + control('K') + typed('d')
     # Compiler cancellation polling also enters the keyboard reader. Gate on
@@ -682,7 +679,7 @@ def user_break_checks():
          and diagnostic.get(result+32) == 1 and diagnostic.get(result+33) == 2),
         ('user-break retains the exact dirty source and bound snapshot',
          diagnostic.get(work+1) == 1 and word(diagnostic, work+2) == len(source)
-         and bytes(diagnostic.get(build+51+i, 0) for i in range(32)) == hashlib.sha256(source).digest()),
+         and bytes(diagnostic.get(build+15+i, 0) for i in range(4)) == bytes(diagnostic.get(work+8+i, 0) for i in range(4))),
         ('Escape after Ctrl-C enters the dirty source at its ReadLn statement',
          editor.get(sym['_ide_state']) == 2 and editor.get(work+1) == 1
          and word(editor, work+4) == source.index(b'readln')),
@@ -796,7 +793,7 @@ def default_path_checks():
         return (['run 100000000'] + program_launch() + ['run 10000000',
                 f'bp 0x{key:x}', 'tap N', 'run 100000000'])
     def probe():
-        return ['regs', f'rb 0x{work:x} 140', f'rb 0x{build:x} 83']
+        return ['regs', f'rb 0x{work:x} 140', f'rb 0x{build:x} {BUILD_BYTES}']
     def frames(text):
         return [memory(part) for part in text.split('[DBG] PC=')[1:]]
     def path(frame):
@@ -830,7 +827,7 @@ def default_path_checks():
     checks.append(('startup reopens the saved default source and Memory compilation leaves the disk unchanged',
                    len(observed) == 1 and source_size(observed[0]) == len(text)
                    and observed[0].get(build + 4) == 1
-                   and bytes(observed[0].get(build + 51 + i, 0) for i in range(32)) == hashlib.sha256(text).digest()
+                   and bytes(observed[0].get(build + 15 + i, 0) for i in range(4)) == bytes(observed[0].get(work + 8 + i, 0) for i in range(4))
                    and (RUN / 'paths-reopen/tf.img').read_bytes() == saved_image))
     commands = launch() + [f'bc 0x{key:x}'] + typed('wT:/work/deep/hello.pas\ne' + text.decode())
     commands += control('K') + typed('docq') + [f'bp 0x{key:x}', 'tap C', 'run 2000000000'] + probe()
@@ -873,19 +870,17 @@ def library_failure_checks():
     good = (ROOT / 'build/zpascal.zpl').read_bytes()
     cases = [('missing', None, 4), ('magic', b'BAD!' + good[4:], 25),
              ('truncated', good[:-1], 25), ('trailing', good + b'!', 25),
-             ('payload', good[:-1] + bytes([good[-1] ^ 1]), 25),
-             ('mixed-build', (ROOT / 'build/zptest.zpl').read_bytes(), 25)]
-    for label, at, value in [('version', 4, 2), ('count', 5, 0),
+             ('old-format', good[:4]+b'\1'+good[5:], 25),
+             ('mixed-build', (ROOT/'build/zptest.zpl').read_bytes(), 25)]
+    for label, at, value in [('version', 4, 1), ('count', 5, 0),
                              ('header-size', 6, 0), ('reserved', 12, 1)]:
         data = bytearray(good); data[at] = value
         cases.append((label, bytes(data), 25))
     for label, value in [('zero-length', 0), ('large-bank', 16385)]:
         data = bytearray(good); struct.pack_into('<H', data, 16, value)
         cases.append((label, bytes(data), 25))
-    data = bytearray(good)
-    first, second = struct.unpack_from('<HH', data, 16)
-    struct.pack_into('<HH', data, 16, first-1, second+1)
-    cases.append(('metadata-digest', bytes(data), 25))
+    data=bytearray(good);data[12]^=1;cases.append(('build-version',bytes(data),25))
+    data=bytearray(good);first,second=struct.unpack_from('<HH',data,16);struct.pack_into('<HH',data,16,first-1,second+1);cases.append(('bank-layout',bytes(data),25))
     checks = []
     for label, data, error in cases:
         commands = ['run 100000000'] + type_text('H:/zpascal.bin H:/BAD.ZPL')
@@ -1076,8 +1071,6 @@ def main():
         commands.append(f"rb 0x{sym[name]:x} 2")
     if '_test_failures' in sym:
         commands.append(f"rb 0x{sym['_test_failures']:x} 128")
-    if '_test_hash' in sym:
-        commands.append(f"rb 0x{sym['_test_hash']:x} 32")
     commands += [f"rb 0x{sym['_test_group']:x} 1",f"rb 0x{sym['_test_groups']:x} {len(CORE_GROUPS)}"]
     commands.append(f"rb 0x{sym['_ram_result']:x} 128")
     commands.append('quit')
@@ -1395,7 +1388,7 @@ def main():
             media_ok = (media['/UNTITLED.PAS'] == media['/UNTITLED.BAK'] == b"begin\nwriteln('MEDIA')\nend.\n"
                         and media['/ZP0000/KEEP.PAS'] == b'unrelated recovery'
                         and not any(path.startswith('/ZP') and not path.startswith('/ZP0000/') for path in media)
-                        and hashlib.sha256(media['/UNTITLED.PAS']).digest() == media['/UNTITLED.ZMP'][104:136])
+                        and struct.unpack_from('<I',media['/UNTITLED.ZMP'],100)[0] == len(media['/UNTITLED.PAS']))
             checks.append(('repeated T: source/COM saves release owned staging and preserve unrelated recovery', media_ok))
         except (AssertionError, KeyError, UnicodeError, struct.error):
             checks.append(('repeated T: source/COM saves release owned staging and preserve unrelated recovery', False))
@@ -1417,6 +1410,10 @@ def main():
         checks.extend(default_path_checks())
     checks.append(('implementation inputs unchanged during native validation',
                    all(sha(ROOT / name) == digest for name, digest in input_hashes.items())))
+    library=(ROOT/'build/zptest.zpl').read_bytes();payload=library[16+2*library[5]:]
+    capture_root=RUN/'core/hostfs'
+    checks.append(('host compares actual before/after code bytes without Z80 hashing',
+                   all((capture_root/name).is_file()and(capture_root/name).read_bytes()==payload for name in ('CODE0.BIN','CODE1.BIN'))))
     checks.append(('execution artifacts unchanged',artifact_hashes()==artifacts))
     report = {
         'scope': ('Complete existing native core language/runtime corpus; IDE/platform workflows excluded' if args.core_only else 'First native slice on pinned Zeal emulator/ROM; not full conformance or physical hardware'),

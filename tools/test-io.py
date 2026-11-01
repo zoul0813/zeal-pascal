@@ -22,7 +22,7 @@ def error_source_checks():
     typed = lambda value: n.type_text(value, ticks=2000000)
     def probe():
         return ['regs', 'mmu', f"rb 0x{sym['_ide_state']:x} 1",
-                f'rb 0x{work:x} 12', f'rb 0x{build:x} 83', f'rb 0x{result:x} 128']
+                f'rb 0x{work:x} 12', f'rb 0x{build:x} {n.BUILD_BYTES}', f'rb 0x{result:x} 128']
     commands = ['run 100000000'] + n.program_launch() + ['run 10000000']
     commands += typed('nwH:/IOSOURCE.PAS\n') + ['run 100000000', f'bp 0x{key:x}',
                 'tap E', 'run 1000000000', 's', 'tap SPACE', 'run 1000000000', 's']
@@ -46,7 +46,7 @@ def error_source_checks():
             and diagnostic.get(result+27) == 3 and diagnostic.get(result+28) == 0x10,
         'I/O diagnostic retains exact unsaved source':
             diagnostic.get(work+1) == 1 and word(diagnostic, work+2) == len(source)
-            and bytes(diagnostic.get(build+51+i, 0) for i in range(32)) == hashlib.sha256(source).digest(),
+            and bytes(diagnostic.get(build+15+i,0)for i in range(4))==bytes(diagnostic.get(work+8+i,0)for i in range(4)),
         'Escape selects failing checked operation, retaining dirty source':
             editor.get(sym['_ide_state']) == 2 and editor.get(work+1) == 1
             and word(editor, work+4) == source.index(b'writeln'),
