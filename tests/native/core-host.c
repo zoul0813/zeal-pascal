@@ -719,7 +719,7 @@ static void runtime_initialization(void) {
         build_close(&b);check(pages_used()==1);
         for(i=0;i<required;++i) {
             initialization_reset();fail_after=(int)i;
-            check(!compile_project(&s,&b,&d,1,mode?&options:0)&&d.code==98&&!b.valid);
+            check(!compile_project(&s,&b,&d,1,mode?&options:0)&&d.code==99&&!b.valid);
             fail_after=-1;check(pages_used()==1&&!memcmp(&s,&before,sizeof(s))&&!memcmp(contents,memory[s.page],s.length));
         }
         {
@@ -727,7 +727,7 @@ static void runtime_initialization(void) {
             static const unsigned cancel_after[]={1,33,64,65,97,128};
             for(i=0;i<sizeof(failures)/sizeof(failures[0]);++i) {
                 initialization_reset();image_fill_fail_after=(int)failures[i];
-                check(!compile_project(&s,&b,&d,1,mode?&options:0)&&d.code==98&&!b.valid);
+                check(!compile_project(&s,&b,&d,1,mode?&options:0)&&d.code==99&&!b.valid);
                 image_fill_fail_after=-1;
                 check(image_fill_calls==failures[i]+1&&!initialized[image_fill_failed_page]);
                 check(!memcmp(memory[image_fill_failed_page]+image_fill_failed_offset,image_fill_failed_bytes,image_fill_failed_count));
@@ -1340,7 +1340,7 @@ static void reference_cases(void) {
         check(state.refs==limit&&state.refs_page==page&&!state.refs_owned);
         /* A duplicate still succeeds at capacity; a new key must fail. */
         check(cc_source_reference(limit-1)==limit-1&&!error.code&&state.refs==limit);
-        check(cc_source_reference(limit)==0&&error.code==98&&state.refs==limit);
+        check(cc_source_reference(limit)==0&&error.code==99&&state.refs==limit);
         for(id=0;id<catalog;++id)check(memory[page][id]==0xa5);
         error.code=0;
         for(id=0;id<limit;++id)check(cc_reference_position(id)==id&&!error.code);
@@ -1626,31 +1626,31 @@ static void literal_folding_cases(void) {
         {"1",19,1,0,0,0},
         {"1",20,1,0,0,0},
         {"1",21,1,0,0,0},
-        {"1",22,0,98,36,37},
+        {"1",22,0,99,36,37},
         {"-1",19,1,0,0,0},
         {"-1",20,1,0,0,0},
-        {"-1",21,0,98,36,37},
-        {"-1",22,0,98,36,37},
+        {"-1",21,0,99,36,37},
+        {"-1",22,0,99,36,37},
         {"-$8000",19,1,0,0,0},
         {"-$8000",20,1,0,0,0},
-        {"-$8000",21,0,98,36,41},
-        {"-$8000",22,0,98,36,37},
+        {"-$8000",21,0,99,36,41},
+        {"-$8000",22,0,99,36,37},
         {"-32768",19,1,0,0,0},
         {"-32768",20,1,0,0,0},
         {"-32768",21,1,0,0,0},
-        {"-32768",22,0,98,36,37},
+        {"-32768",22,0,99,36,37},
         {"+32768",19,0,56,34,39},
         {"+32768",20,0,56,35,40},
-        {"+32768",21,0,98,36,41},
-        {"+32768",22,0,98,36,37},
+        {"+32768",21,0,99,36,41},
+        {"+32768",22,0,99,36,37},
         {"-32769",19,0,56,34,39},
         {"-32769",20,0,56,35,40},
-        {"-32769",21,0,98,36,41},
-        {"-32769",22,0,98,36,37},
+        {"-32769",21,0,99,36,41},
+        {"-32769",22,0,99,36,37},
         {"-(32768)",19,0,56,35,40},
-        {"-(32768)",20,0,98,36,41},
-        {"-(32768)",21,0,98,36,37},
-        {"-(32768)",22,0,98,36,37},
+        {"-(32768)",20,0,99,36,41},
+        {"-(32768)",21,0,99,36,37},
+        {"-(32768)",22,0,99,36,37},
     };
     uint8_t expected[PAGE_SIZE];char text[256];unsigned i,j;
     uint16_t length,origin;uint8_t ok;
@@ -2017,6 +2017,7 @@ int main(int argc,char **argv) {
     invalid("var a:array[1..3] of char; begin a:='abc'+'d' end.",1);
     invalid("var a:array[1..3] of char; begin a:=('abc') end.",41);
     invalid("type t=array[integer] of byte; begin end.",98);
+    invalid("var a,b:array[1..17000] of byte; begin a[1]:=1;b[1]:=2 end.",98);
     invalid("type t=array[string[3]] of byte; begin end.",30);
     invalid("const a:array[1..2] of integer=(1,2,3); begin end.",5);
     invalid("const a:array[1..3] of byte=(1,256,3); begin end.",44);
@@ -2182,7 +2183,7 @@ int main(int argc,char **argv) {
     check(required>0); /* Inject failure at every measured allocation. */
     for(i=0;i<required;++i) {
         fail_after=(int)i;
-        check(!compile(&s,&b,&d)&&d.code==98); check(pages_used()==1);
+        check(!compile(&s,&b,&d)&&d.code==99); check(pages_used()==1);
     }
     fail_after=-1;
     }
@@ -2266,7 +2267,7 @@ int main(int argc,char **argv) {
                 if(!strcmp(fixtures[fixture],"textedges")) {
                     for(i=0;i<required_allocations;++i) {
                         fail_after=(int)i;
-                        check(!compile(&s,&b,&d)&&d.code==98);
+                        check(!compile(&s,&b,&d)&&d.code==99);
                         check(pages_used()==1&&cc.stage_page==255);
                     }
                     fail_after=-1;
@@ -2304,11 +2305,11 @@ int main(int argc,char **argv) {
             n=(uint16_t)snprintf((char*)text,sizeof(text),"type t=(");
             for(member=0;member<513;++member) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"v%u%s%s",member,member<512?",":"",member%10==9?"\n":"");
             snprintf((char*)text+n,sizeof(text)-n,"); begin end.");
-            invalid((char*)text,98);
+            invalid((char*)text,99);
             n=(uint16_t)snprintf((char*)text,sizeof(text),"type\n");
             for(member=0;member<60;++member) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"t%u=string[1];\n",member);
             snprintf((char*)text+n,sizeof(text)-n,"begin end.");
-            invalid((char*)text,98);
+            invalid((char*)text,99);
         }
         {
             char left[128],right[128];
@@ -2324,7 +2325,7 @@ int main(int argc,char **argv) {
             for(arm=0;arm<25;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"case 1 of 1:\n");
             for(arm=0;arm<25;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"end\n");
             snprintf((char*)text+n,sizeof(text)-n,"end.");
-            invalid((char*)text,98);
+            invalid((char*)text,99);
             n=(uint16_t)snprintf((char*)text,sizeof(text),"begin case 1 of\n");
             for(arm=0;arm<600;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"%u:;\n",arm);
             snprintf((char*)text+n,sizeof(text)-n,"end end.");
@@ -2332,12 +2333,12 @@ int main(int argc,char **argv) {
             n=0;
             for(arm=0;arm<256;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"procedure p%u; forward;\n",arm);
             snprintf((char*)text+n,sizeof(text)-n,"begin end.");
-            invalid((char*)text,98);
+            invalid((char*)text,99);
             n=0;
             for(arm=0;arm<25;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"procedure p%u;\n",arm);
             for(arm=0;arm<25;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"begin end;\n");
             snprintf((char*)text+n,sizeof(text)-n,"begin end.");
-            invalid((char*)text,98);
+            invalid((char*)text,99);
         }
     }
     {

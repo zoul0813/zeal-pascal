@@ -119,7 +119,7 @@ static void image_fill_failures(void) {
         image_fill_total_calls=0;image_fill_fail_after=(int)failures[i];
         check(!compile_request(&s,&b,&failure,0,0));image_fill_fail_after=-1;
         check(image_fill_total_calls==failures[i]+1);
-        check(failure.diagnostic.code==98&&!b.valid&&!host_prepared&&pages_used()==1);
+        check(failure.diagnostic.code==99&&!b.valid&&!host_prepared&&pages_used()==1);
         check(!strcmp(failure.path,s.path));
         check(!memcmp(&s,&before,sizeof(s))&&mask_empty(compiler_owned,8)&&mask_empty(compiler_parent_owned,8)&&mask_empty(parent_pending,8));
         check(compiler_allocating==COMPILER_ALLOC_NONE);
@@ -175,7 +175,7 @@ static void compiler_job_cases(void) {
     for(allocation=0;allocation<24;++allocation) {
         fail_after=(int)allocation;
         if(compile_request(&s,&b,&failure,0,0))build_close(&b);
-        else check(failure.diagnostic.code==COMPILE_PLATFORM_FAILURE||failure.diagnostic.code==98);
+        else check(failure.diagnostic.code==COMPILE_PLATFORM_FAILURE||failure.diagnostic.code==99);
         fail_after=-1;check(!b.valid&&pages_used()==1&&mask_empty(compiler_owned,8)&&mask_empty(parent_pending,8)&&compiler_allocating==COMPILER_ALLOC_NONE);
         check(!memcmp(&before,&s,sizeof(s)));
     }

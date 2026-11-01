@@ -431,7 +431,7 @@ uint16_t cc_new_symbol(uint8_t role) FRONTEND {
     int16_t old=cc_lookup();
     if(cc.token!=T_ID) cc_fail(53);
     else if(old>=0&&cc.symbols[old].owner==cc.scope&&cc.symbols[old].role!=S_SYSTEM&&cc.symbols[old].role!=S_STANDARD&&cc.symbols[old].role!=S_HOOK) cc_fail(43);
-    else if(id==SYMBOL_LIMIT) cc_fail(98);
+    else if(id==SYMBOL_LIMIT) cc_fail(99);
     if(cc.error->code) return 0;
     memset(&cc.symbols[id],0,sizeof(Symbol));
     cc.symbols[id].name_start=cc_source_reference(cc.token_start);cc.symbols[id].name_length=(uint8_t)strlen(cc.name);
@@ -440,7 +440,7 @@ uint16_t cc_new_symbol(uint8_t role) FRONTEND {
 }
 uint8_t cc_new_type(uint8_t family,uint16_t width,int16_t low,int16_t high,uint8_t capacity) FRONTEND {
     uint8_t id=cc.type_count;
-    if(id==TYPE_LIMIT) { cc_fail(98); return 0; }
+    if(id==TYPE_LIMIT) { cc_fail(99); return 0; }
     cc.types[id].family=family; cc.types[id].width=width;
     cc.types[id].low=low; cc.types[id].high=high; cc.types[id].capacity=capacity;
     cc.types[id].element=0;
@@ -491,11 +491,11 @@ void cc_storage(uint16_t id,uint16_t width) FRONTEND {
     uint16_t count;
     if(cc.scope&&(cc_rget(cc.scope,R_FLAGS)&RF_RECURSIVE)) {
         count=cc_rget(cc.scope,R_LOCALS);
-        if((uint32_t)count+width>0x7ff0u) { cc_fail(99); return; }
+        if((uint32_t)count+width>0x7ff0u) { cc_fail(98); return; }
         count+=width; cc_rput(cc.scope,R_LOCALS,count);
         cc.symbols[id].address=(uint16_t)(0u-FRAME_PRIVATE_BYTES-count);
     } else {
-        if((uint32_t)cc.image->globals_bytes+width>=PAGE_SIZE) { cc_fail(99); return; }
+        if((uint32_t)cc.image->globals_bytes+width>=PAGE_SIZE) { cc_fail(98); return; }
         cc.symbols[id].address=GLOBAL_BASE+cc.image->globals_bytes;
         cc.image->globals_bytes+=width;
         if(cc.symbols[id].role==S_VARIABLE)
@@ -523,7 +523,7 @@ void cc_bind_storage(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];
     if(s->role==S_HOOK) cc_hook_variable(id);
     if(s->role==S_STANDARD&&!s->address&&!cc.suppress&&!cc.error->code) {
-        if((uint32_t)cc.image->globals_bytes+16>=PAGE_SIZE) { cc_fail(99); return; }
+        if((uint32_t)cc.image->globals_bytes+16>=PAGE_SIZE) { cc_fail(98); return; }
         s->type=text_file_type();
         s->address=GLOBAL_BASE+cc.image->globals_bytes; cc.image->globals_bytes+=16;
         cc_file_static(s->type,s->address); cc_put(s->address-0x4000u+9,1);
@@ -609,7 +609,7 @@ void cc_result_symbol(uint16_t routine) FRONTEND {
         }
         if(j==s->name_length) { cc_fail(43); return; }
     }
-    if(cc.symbol_count==SYMBOL_LIMIT) { cc_fail(98); return; }
+    if(cc.symbol_count==SYMBOL_LIMIT) { cc_fail(99); return; }
     i=cc.symbol_count++; cc.symbols[i]=*s;
     cc.symbols[i].owner=cc.scope; cc.symbols[i].role=S_RESULT;
     cc_storage(i,cc.types[s->type].width);

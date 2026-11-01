@@ -6,7 +6,7 @@
 static uint8_t new_scope(uint16_t symbol) {
     uint8_t scope,i;
     if(cc.routine_count==255||(uint32_t)cc.relocations*RELOCATION_BYTES+(cc.routine_count+1u)*ROUTINE_BYTES>PAGE_SIZE) {
-        cc_fail(98); return 0;
+        cc_fail(99); return 0;
     }
     scope=(uint8_t)++cc.routine_count;
     for(i=0;i<ROUTINE_BYTES;++i) far_set(cc.workspace,PAGE_SIZE-(uint16_t)scope*ROUTINE_BYTES+i,0);
@@ -190,7 +190,7 @@ SourcePosition cc_block(void) ROUTINES {
     uint16_t first,jump=0,i,entry,code;
     SourcePosition start;
     uint8_t scope=cc.scope,saved_bound=cc.with_bound;
-    if(++cc.nesting>24) { cc_fail(98); --cc.nesting; return cc.token_start; }
+    if(++cc.nesting>24) { cc_fail(99); --cc.nesting; return cc.token_start; }
     /* C selects CBreak's initial value at the program block's start. Later
      * source switches do not become assignments to this runtime variable. */
     if(!scope)cc_put(RT_CBREAK-0x4000u,cc.sources->file?

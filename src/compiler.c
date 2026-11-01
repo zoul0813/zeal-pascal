@@ -181,7 +181,7 @@ static SourcePosition statement(void) {
     int16_t id;
     uint8_t newline,kind,target,indexed;
     uint16_t before=cc.temporaries;
-    if(++cc.depth>24) { cc_fail(98); --cc.depth; return start; }
+    if(++cc.depth>24) { cc_fail(99); --cc.depth; return start; }
     id=cc.token==T_ID?cc_lookup():-1;
     if(cc.token==T_NUMBER||(id>=0&&cc.symbols[id].role==S_LABEL)) {
         id=label_lookup();

@@ -40,7 +40,7 @@ def cases():
     rows=[];deferred=[]
     corrections={'errminlit':(0,'DV-LANG-001'), 'id127':(0,'DV-SOURCE-001'),
         'id128':(100,'DV-SOURCE-001'),'line126':(58,'DV-SOURCE-001'),
-        'literal116':(0,'DV-SOURCE-001'),'enumsize':(98,'Native 512-symbol capacity')}
+        'literal116':(0,'DV-SOURCE-001'),'enumsize':(99,'Native 512-symbol compiler workspace capacity')}
     for name in ['line127','line128','line254','line255','line256','literal117',
                  'literal118','literal124','literal125','literal126','literal255','literal256']:
         corrections[name]=(100,'DV-SOURCE-001')
@@ -48,8 +48,10 @@ def cases():
         raw=ROOT/Path(evidence[name]['report']).parent/'session-01.stdout.bin'
         assert sha(raw)==report['sessions'][0]['stdout_sha256']
         return runtime_output(raw.read_bytes())
-    for scenario in sorted(REFERENCE.glob('*.json')):
-        name=scenario.stem;entry=evidence[name]
+    # The ledger owns the frozen language corpus. Later IDE workflow replays
+    # in this directory have their own evidence and acceptance runners.
+    for name in sorted(evidence):
+        scenario=REFERENCE/(name+'.json');entry=evidence[name]
         assert sha(scenario)==entry['scenario_sha256']
         report_path=ROOT/entry['report'];assert sha(report_path)==entry['report_sha256']
         report=json.loads(report_path.read_text());assert report['passed'] and report['originals_unchanged']

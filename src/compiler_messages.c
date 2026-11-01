@@ -79,7 +79,7 @@ static const char *const explanations[101]={
     [91]="Unexpected end of source",
     [93]="Invalid compiler directive",
     [97]="Too many nested WITH's",
-    [98]="Compiler memory or nesting limit exceeded",
+    [98]="Memory overflow",
     [99]="Compiler overflow",
     [100]="Source line exceeds 127 bytes",
 };

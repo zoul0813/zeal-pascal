@@ -6,7 +6,7 @@
 void cc_hook_variable(uint16_t id) ROUTINES {
     Symbol *s=&cc.symbols[id];
     if(s->address||cc.suppress||cc.error->code) return;
-    if((uint32_t)cc.image->globals_bytes+2>=PAGE_SIZE) { cc_fail(99); return; }
+    if((uint32_t)cc.image->globals_bytes+2>=PAGE_SIZE) { cc_fail(98); return; }
     s->address=GLOBAL_BASE+cc.image->globals_bytes; cc.image->globals_bytes+=2;
     cc.hook_variables[s->initial_type]=s->address;
 }

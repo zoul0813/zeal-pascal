@@ -3,7 +3,7 @@
 static uint8_t parse_type(uint8_t allow_forward);
 static uint16_t metadata(uint8_t role,uint8_t owner) {
     uint16_t id=cc.symbol_count;
-    if(id==SYMBOL_LIMIT) { cc_fail(98); return 0; }
+    if(id==SYMBOL_LIMIT) { cc_fail(99); return 0; }
     memset(&cc.symbols[id],0,sizeof(Symbol));
     cc.symbols[id].role=role; cc.symbols[id].owner=owner; ++cc.symbol_count;
     return id;
@@ -27,7 +27,7 @@ static void field_list(uint8_t type,uint8_t root) {
     uint16_t largest=0;
     uint8_t field_type,actual,child;
     int16_t named;
-    if(++cc.depth>24) { cc_fail(98); --cc.depth; return; }
+    if(++cc.depth>24) { cc_fail(99); --cc.depth; return; }
     while(cc.token==T_ID&&!cc.error->code) {
         first=cc.symbol_count; new_field(type,root); cc_next();
         while(cc.token==','&&!cc.error->code) { cc_next(); new_field(type,root); cc_next(); }
@@ -74,7 +74,7 @@ static void field_list(uint8_t type,uint8_t root) {
 static uint8_t array_dimension(void) {
     uint8_t index,array,element;
     uint32_t width;
-    if(++cc.depth>24) { cc_fail(98); --cc.depth; return 0; }
+    if(++cc.depth>24) { cc_fail(99); --cc.depth; return 0; }
     index=parse_type(0);
     if(!cc_ordinal(index)) cc_fail(30);
     array=cc_new_type(K_ARRAY,0,0,0,index);
@@ -152,7 +152,7 @@ static uint8_t parse_type_body(uint8_t allow_forward) {
 }
 static uint8_t parse_type(uint8_t allow_forward) {
     uint8_t type;
-    if(++cc.depth>24) { cc_fail(98); --cc.depth; return 0; }
+    if(++cc.depth>24) { cc_fail(99); --cc.depth; return 0; }
     type=parse_type_body(allow_forward); --cc.depth; return type;
 }
 /* Validate initializers when declared; replay their immutable source to emit

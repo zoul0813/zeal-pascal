@@ -31,8 +31,8 @@ static uint8_t reserve_references(uint8_t files,uint8_t references) {
     if(!shared_references()||(uint32_t)cc.image->sources.base+
        (uint32_t)(cc.image->sources.count+files)*RECORD_BYTES+
        (uint32_t)(cc.sources->refs+references)*REFERENCE_BYTES<=PAGE_SIZE)return 1;
-    if(cc.sources->borrow_root){cc_fail(98);return 0;}
-    page=page_new(PAGE_COMPILER);if(page==255){cc_fail(98);return 0;}
+    if(cc.sources->borrow_root){cc_fail(99);return 0;}
+    page=page_new(PAGE_COMPILER);if(page==255){cc_fail(99);return 0;}
     previous=cc.sources->refs_page;cc.sources->refs_page=page;cc.sources->refs_owned=1;
     for(id=0;id<cc.sources->refs;++id) {
         if(!(id&31)&&!cc_poll())return 0;
@@ -68,7 +68,7 @@ uint16_t cc_source_reference(SourcePosition position) ROUTINES {
         for(i=0;i<6;++i)if(far_get(cc.sources->refs_page,at+4+i)!=context[i])break;
         if(i==6)return id;
     }
-    if(id==PAGE_SIZE/REFERENCE_BYTES){cc_fail(98);return 0;}
+    if(id==PAGE_SIZE/REFERENCE_BYTES){cc_fail(99);return 0;}
     if(!reserve_references(0,1))return 0;
     at=reference_at(id);
     for(i=0;i<4;++i)far_set(cc.sources->refs_page,at+i,(uint8_t)(position>>(i*8)));
@@ -110,16 +110,16 @@ void cc_source_restore(const SourceCursor *cursor) ROUTINES {
 }
 uint8_t cc_sources_prepare(const Source *root) ROUTINES {
     cc.sources->root=root;
-    if(!sources_new(&cc.image->sources)){cc_fail(98);return 0;}
+    if(!sources_new(&cc.image->sources)){cc_fail(99);return 0;}
     if(cc.sources->borrow_root) {
         *cc.input=*root;
-        if(sources_borrow(&cc.image->sources,cc.input)<0){cc_fail(98);return 0;}
+        if(sources_borrow(&cc.image->sources,cc.input)<0){cc_fail(99);return 0;}
     } else {
-        if(!source_snapshot(root,cc.input)){cc_fail(98);return 0;}
+        if(!source_snapshot(root,cc.input)){cc_fail(99);return 0;}
         if(sources_take(&cc.image->sources,cc.input,root)<0) {
-            source_close(cc.input);cc_fail(98);return 0;
+            source_close(cc.input);cc_fail(99);return 0;
         }
-        if(!sources_pack(&cc.image->sources)){cc_fail(98);return 0;}
+        if(!sources_pack(&cc.image->sources)){cc_fail(99);return 0;}
     }
     cc.sources->refs_page=cc.image->sources.page;
     return 1;
@@ -129,7 +129,7 @@ uint8_t cc_sources_prepare(const Source *root) ROUTINES {
  * Reserve the entire possible second stage so its capacity never depends on
  * which helper emits first. Packed source text is never used as scratch. */
 uint8_t cc_sources_finish(void) ROUTINES {
-    if(cc.sources->refs_owned&&!page_drop(cc.sources->refs_page)){cc_fail(98);return 0;}
+    if(cc.sources->refs_owned&&!page_drop(cc.sources->refs_page)){cc_fail(99);return 0;}
     cc.sources->refs_page=255;cc.sources->refs_owned=0;
     if(cc.stage_page==255&&!cc.image->sources.base&&
        (uint16_t)cc.image->sources.count*RECORD_BYTES<=PAGE_SIZE-(CC_STATIC_LIMIT-0xc000u)) {
@@ -174,12 +174,12 @@ void cc_source_include(uint8_t comment) ROUTINES {
     if(id<0) {
         if(!reserve_references(1,0))return;
         if(!read_block(&loaded,path,&diagnostic)) {
-            cc.error->code=diagnostic.code?diagnostic.code:90;
+            cc.error->code=diagnostic.code==98?99:diagnostic.code?diagnostic.code:90;
             cc.error->start=diagnostic.start;cc.error->end=diagnostic.end;
             cc.sources->external_error=1;strcpy(cc.input->path,path);return;
         }
         id=sources_take(&cc.image->sources,&loaded,0);
-        if(id<0){source_close(&loaded);cc_fail(98);return;}
+        if(id<0){source_close(&loaded);cc_fail(99);return;}
         cc_map_source(8+(uint16_t)strlen(path));
         if(cc.error->code)return;
     }

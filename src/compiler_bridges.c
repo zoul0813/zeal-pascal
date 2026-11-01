@@ -135,7 +135,7 @@ void cc_routine_address(uint16_t id) ROUTINES {
     slot=cc_rget(scope,R_THUNK);
     if(!slot) {
         locals=cc_rget(parent,R_LOCALS);
-        if((uint32_t)locals+22>0x7ff0u) { cc_fail(99); return; }
+        if((uint32_t)locals+22>0x7ff0u) { cc_fail(98); return; }
         locals+=22; cc_rput(parent,R_LOCALS,locals);
         slot=(uint16_t)(0u-FRAME_PRIVATE_BYTES-locals); cc_rput(scope,R_THUNK,slot);
     }

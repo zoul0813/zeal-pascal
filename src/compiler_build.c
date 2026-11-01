@@ -27,23 +27,23 @@ uint8_t cc_image_page(uint8_t index) FRONTEND {
     uint16_t i;
     if(cc.image->pages[index]!=255)return 1;
     cc.image->pages[index]=page_new(PAGE_IMAGE);
-    if(cc.image->pages[index]==255) {cc_fail(98);return 0;}
+    if(cc.image->pages[index]==255) {cc_fail(99);return 0;}
     for(i=0;i<PAGE_SIZE;i+=256) {
         if(!cc_poll())return 0;
-        if(!far_fill(cc.image->pages[index],i,0,256)){cc_fail(98);return 0;}
+        if(!far_fill(cc.image->pages[index],i,0,256)){cc_fail(99);return 0;}
     }
     page_initialized(cc.image->pages[index],PAGE_SIZE);return 1;
 }
 static uint16_t stage_offset(uint16_t offset) {
     if(cc.sources->stage_shared)offset+=(uint16_t)cc.image->sources.count*RECORD_BYTES;
-    if(offset>=PAGE_SIZE){cc_fail(98);return PAGE_SIZE;}
+    if(offset>=PAGE_SIZE){cc_fail(99);return PAGE_SIZE;}
     return offset;
 }
 void cc_stage_put(uint16_t offset,uint8_t value) FRONTEND {
     offset=stage_offset(offset);if(cc.error->code)return;
     if(cc.stage_page==255) {
         cc.stage_page=page_new(PAGE_COMPILER);
-        if(cc.stage_page==255){cc_fail(98);return;}
+        if(cc.stage_page==255){cc_fail(99);return;}
     }
     far_set(cc.stage_page,offset,value);
     if(cc.sources->stage_shared)cc.image->sources.version=page_versions[cc.stage_page];
@@ -76,7 +76,7 @@ uint8_t cc_place_code(void) FRONTEND {
     }
     /* Relocation and routine records are dead before final placement. Reuse
      * their capacity for the middle image page rather than holding both. */
-    if(!page_drop(cc.workspace)) {cc_fail(98);return 0;}
+    if(!page_drop(cc.workspace)) {cc_fail(99);return 0;}
     cc.workspace=255;
     if(!cc_image_page(1))return 0;
     /* A higher Start may overlap the first staging page in either direction.

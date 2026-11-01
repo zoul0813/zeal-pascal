@@ -300,7 +300,7 @@ static uint8_t factor(void) {
     int16_t id,fn=-1;
     uint16_t before,value_before=cc.temporaries;
     uint8_t negative,kind=K_INTEGER;
-    if(++cc.depth>24) { cc_fail(98); --cc.depth; return 0; }
+    if(++cc.depth>24) { cc_fail(99); --cc.depth; return 0; }
     if(cc.token=='^') cc_control_literal();
     if(cc_is("nil")) { cc_op16(0x21,0); kind=K_NIL; cc_next(); }
     else if(cc.token=='+'||cc.token=='-') {

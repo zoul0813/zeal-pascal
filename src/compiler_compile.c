@@ -35,7 +35,7 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
          * after relocation releases its workspace. */
         if(i==1)continue;
         b->pages[i]=page_new(PAGE_IMAGE);
-        if(b->pages[i]==255){d->code=98;goto failed;}
+        if(b->pages[i]==255){d->code=99;goto failed;}
         /* Initialize the runtime prefix directly, then clear its tail. Both
          * loops retain the original page's bounded polling before page2 is
          * allocated; no byte is marked initialized until it has been stored. */
@@ -49,14 +49,14 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
             /* End at the next existing polling boundary, including the
              * partial tail after the verified runtime prefix. */
             n=256u-(j&255u);
-            if(!far_fill(b->pages[i],j,0,n)){d->code=98;goto failed;}
+            if(!far_fill(b->pages[i],j,0,n)){d->code=99;goto failed;}
         }
         page_initialized(b->pages[i],PAGE_SIZE);
     }
     b->map_page=page_new(PAGE_MAP);
-    if(b->map_page==255){d->code=98;goto failed;}
+    if(b->map_page==255){d->code=99;goto failed;}
     cc.workspace=page_new(PAGE_COMPILER);
-    if(cc.workspace==255){d->code=98;goto failed;}
+    if(cc.workspace==255){d->code=99;goto failed;}
     for(i=0;i<96;++i)far_set(b->map_page,i,0);
     cc.absolute_mode=1;cc.var_strict=1;cc.index_speed=1;cc.with_limit=4;
     cc.input_fresh=1;cc.io_check=1;cc.console_control=1;cc.text_type=255;
@@ -88,7 +88,7 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     if(d->code||!cc_place_code())goto failed;
     if(cc.stage_page!=255) {
         if(sources.stage_shared||page_drop(cc.stage_page))cc.stage_page=255;
-        else {d->code=98;goto failed;}
+        else {d->code=99;goto failed;}
     }
     if(!cc_seal(s,options))goto failed;
     return 1;

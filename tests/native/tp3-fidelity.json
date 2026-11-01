@@ -1,0 +1,26 @@
+{
+  "original": {
+    "path": "originals/extracted/3.0/turbo.com",
+    "sha256": "89e65bd28d176dba815dbcf6c49f356e3cba5a9db9454264ab3f87f3dd75c0b7"
+  },
+  "manual": {
+    "path": "originals/archives/Turbo_Pascal_3_Reference_Manual.pdf",
+    "sha256": "c4fd2182d526a804d3fed6123ccae96b6361151937bde278e7181098d9d4ec16"
+  },
+  "stages": {
+    "diagnostics": {
+      "audit_id": "TP3-28",
+      "documented": "Manual printed324/PDF346:98 variable storage;99 compiler stack/symbol/workspace.",
+      "observed_original": {
+        "source": "var a,b:array[1..17000]of byte;begin a[1]:=1;b[1]:=2 end.",
+        "error": 98,
+        "capture": "analysis/tp3-scope-pass2-20261101/diagnostic-storage-34k-complete/capture/report.json"
+      },
+      "regressions": [
+        "core-host.c oversized-storage and compiler resource/failure cases",
+        "compiler-messages-host.c messages98/99",
+        "language-diagnostics.json enumsize99"
+      ]
+    }
+  }
+}

@@ -540,7 +540,8 @@ error 10. The compiler currently has
 512 symbol entries (seventeen predeclared for HeapPtr/RecurPtr/BufLen/CBreak,
 Input/Output/Kbd/Con/Trm/Lst/Aux/Usr and the five output/status pointers) and
 64 type descriptors (including six built-in types).
-Exhaustion reports resource error 98. Arrays support ordinal bounds, nested or
+Compiler workspace exhaustion reports error 99; insufficient variable storage
+reports error 98. Arrays support ordinal bounds, nested or
 comma-separated dimensions, packed layout, whole-array assignment, typed
 initializers and value/Var parameters. R+ checks each index before access.
 A value parameter passes a source address; the callee makes an independent

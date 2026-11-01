@@ -162,7 +162,7 @@ static uint16_t root_symbol(CompilerGroups *g,uint8_t kind,uint8_t id) {
     }
     return LATE_NONE;
 }
-static void compiler_failure(void) {cc_fail(platform_error==ERR_NO_MORE_MEMORY?98:99);}
+static void compiler_failure(void) {cc_fail(99);}
 uint8_t cc_root_member(void) ROUTINES {return cc.sources->groups&&cc.sources->groups->active;}
 void cc_root_request(uint8_t kind,uint8_t id) ROUTINES {
     CompilerGroups *g=cc.sources->groups;

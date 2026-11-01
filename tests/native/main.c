@@ -378,7 +378,7 @@ static void basic_tests(void) {
         while((p=page_new(PAGE_RUN))!=255) held[count++]=p;
         for(available=0;available<5;++available) {
             uint8_t owned=pages_used();
-            check(!compile(&s,&b,&d)&&d.code==98);
+            check(!compile(&s,&b,&d)&&d.code==99);
             check(pages_used()==owned&&s.dirty);
             if(count) page_drop(held[--count]);
         }
