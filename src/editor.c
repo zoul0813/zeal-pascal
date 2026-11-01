@@ -16,7 +16,7 @@ static uint16_t next(uint16_t p) {
 }
 static uint16_t previous(uint16_t p) { p=start(p); return p?start(p-1):0; }
 static uint8_t delimiter(uint8_t c) {
-    return c<=32||strchr("<>,;.()[]'*+-/$",c)!=0;
+    return c==32||c==10||(c&&strchr("<>,;.()[]'*+-/$",c)!=0);
 }
 static void locate(uint16_t p);
 static void sync(void) { editor.column=editor.source->cursor-start(editor.source->cursor)+1; }
@@ -327,31 +327,25 @@ static uint8_t normalize(uint8_t *out,const uint8_t *text,uint8_t length) {
 uint8_t editor_search_configure(const uint8_t *pattern,uint8_t length,const uint8_t *replacement,
     uint8_t replacement_length,const uint8_t *options,uint8_t options_length,uint8_t replacing) EDITOR_CALL {
     EditorSearch next;
-    uint8_t i,c,digits=0;
-    uint32_t count=0;
+    uint8_t i,c;
+    uint16_t count=0;
     if(!length||length>30||replacement_length>30||options_length>30) return 0;
     memset(&next,0,sizeof(next));
     next.length=normalize(next.pattern,pattern,length);
     next.replacement_length=normalize(next.replacement,replacement,replacement_length);
     for(i=0;i<next.replacement_length;++i) if(next.replacement[i]==26) return 0;
+    /* TP3 scans every byte: flags can occur anywhere, unrecognized bytes are
+     * ignored, and all decimal digits contribute to one wrapping word. */
     for(i=0;i<options_length;++i) {
-        c=options[i]; if(c>='a'&&c<='z') c-=32;
-        if(c>='0'&&c<='9') {
-            digits=1; c-='0';
-            if(count>429496729UL||(count==429496729UL&&c>5)) return 0;
-            count=count*10+c;
-        } else {
-            if(digits) return 0;
-            if(c=='B') next.flags|=SEARCH_BACK;
-            else if(c=='G') next.flags|=SEARCH_GLOBAL;
-            else if(c=='U') next.flags|=SEARCH_UPPER;
-            else if(c=='W') next.flags|=SEARCH_WORD;
-            else if(c=='N'&&replacing) next.flags|=SEARCH_NO_CONFIRM;
-            else return 0;
-        }
+        c=options[i]; if(c>='A'&&c<='Z') c+=32;
+        if(c>='0'&&c<='9') count=(uint16_t)(count*10u+c-'0');
+        else if(c=='b') next.flags|=SEARCH_BACK;
+        else if(c=='g') next.flags|=SEARCH_GLOBAL;
+        else if(c=='u') next.flags|=SEARCH_UPPER;
+        else if(c=='w') next.flags|=SEARCH_WORD;
+        else if(c=='n'&&replacing) next.flags|=SEARCH_NO_CONFIRM;
     }
-    if(digits&&!count) return 0;
-    next.count=digits?count:replacing&&(next.flags&SEARCH_GLOBAL)?0xffffffffUL:1;
+    next.count=replacing&&(next.flags&SEARCH_GLOBAL)?0xffffu:count?count:1;
     next.replacing=replacing!=0; next.valid=1;
     editor.search=next; return 1;
 }

@@ -317,8 +317,12 @@ target_compile_options(zworkertest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_executable(zedittest src/startup.asm src/banks.c src/editor.c src/source_blocks.c tests/native/editor-main.c tests/native/editor-core.c tests/native/editor-search.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 target_include_directories(zedittest PRIVATE src)
 target_compile_options(zedittest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
-set_source_files_properties(tests/native/editor-main.c tests/native/editor-core.c tests/native/editor-search.c PROPERTIES
-    COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
+set_source_files_properties(tests/native/editor-main.c tests/native/editor-core.c PROPERTIES
+    COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK1;--constseg;BANK1")
+# Keep the expanded editor oracle in its existing bank; its read-only fixtures
+# fit in the test launcher and are accessible across banked product calls.
+set_source_files_properties(tests/native/editor-search.c PROPERTIES
+    COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK1;--constseg;RODATA")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_library(test_evidence OBJECT tests/native/code-capture.c)
 target_include_directories(test_evidence PRIVATE src)

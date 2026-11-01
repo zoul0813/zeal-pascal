@@ -45,15 +45,21 @@ static void field_key(EditorField *f,uint8_t c) {
 }
 void editor_search_checks(Source *s) {
     static const char sample[]="alpha beta\nBETA alpha\nalphabet beta\n";
-    static const char *const invalid[]={"0","N","X","B1U","4294967296","G000","U-1","1 2"};
+    static const char *const options[]={"0","N","X","1U","4294967296","G000","U-1","1 2","2U1","2,3","65538","131074"};
+    static const uint16_t counts[]={1,1,1,1,1,1,1,12,21,23,2,2};
     EditorSearchJob job;
-    EditorSearch old;
     EditorField field,saved_field;
     uint8_t recall[10];
     Source saved;
     uint32_t revision;
     uint16_t i;
     uint8_t result;
+    load(s,"foo\tbar baz\n");
+    check(editor_key(11)==EDITOR_OK); check(editor_key('t')==EDITOR_OK);
+    check(editor.block_begin==0&&editor.block_end==7);
+    check(editor_key(6)==EDITOR_OK); check(s->cursor==8);
+    check(editor_key(1)==EDITOR_OK); check(s->cursor==0);
+    config("foo","","W",0); check(run(&job,0)==SEARCH_MISSING);
     load(s,sample); config("beta","","",0); revision=s->revision;
     check(run(&job,0)==SEARCH_DONE); check(s->cursor==10&&s->previous==0);
     check(run(&job,0)==SEARCH_DONE); check(s->cursor==35&&s->previous==10);
@@ -67,13 +73,10 @@ void editor_search_checks(Source *s) {
     config("b\1ta","","G",0); check(run(&job,0)==SEARCH_DONE); check(s->cursor==10);
     config("missing","","G",0); saved=*s; check(run(&job,0)==SEARCH_MISSING);
     check(s->cursor==saved.cursor&&s->revision==saved.revision&&!s->dirty);
-    old=editor.search;
-    for(i=0;i<sizeof(invalid)/sizeof(*invalid);++i) {
-        check(!setup((const uint8_t*)"x",1,(const uint8_t*)"",0,
-            (const uint8_t*)invalid[i],(uint8_t)strlen(invalid[i]),0));
-        check(!memcmp(&old,&editor.search,sizeof(old)));
+    for(i=0;i<sizeof(options)/sizeof(*options);++i) {
+        config("beta","",options[i],0); check(editor.search.count==counts[i]);
     }
-    config("beta","","gguuw4294967295",0); check(editor.search.count==0xffffffffUL);
+    config("beta","","gguuw4294967295",0); check(editor.search.count==0xffffu);
     check(editor.search.flags==(SEARCH_GLOBAL|SEARCH_UPPER|SEARCH_WORD));
     check(!setup((const uint8_t*)"",0,0,0,0,0,0));
     config("a\r\nb\rc","\r\n", "",1);
@@ -95,8 +98,10 @@ void editor_search_checks(Source *s) {
     load(s,"alpha beta\nalpha\n"); config("alpha","Z","",1);
     check(run(&job,"n")==SEARCH_DONE); text(s,"alpha beta\nalpha\n"); check(!s->dirty);
     s->cursor=0; check(run(&job,"y")==SEARCH_DONE); text(s,"Z beta\nalpha\n");
-    load(s,"a a a a"); config("a","b","GN2",1); check(run(&job,"ny")==SEARCH_DONE);
+    load(s,"a a a a"); config("a","b","N2",1); check(run(&job,"ny")==SEARCH_DONE);
     text(s,"a b a a"); check(job.visited==2);
+    load(s,"a a a"); config("a","z","GN1",1);
+    check(run(&job,0)==SEARCH_DONE); text(s,"z z z"); check(job.visited==3);
     load(s,"aaaa"); config("a","aa","GN",1); check(run(&job,0)==SEARCH_DONE);
     text(s,"aaaaaaaa"); check(job.visited==4);
     load(s,"aaaa"); config("a","","GN",1); check(run(&job,0)==SEARCH_DONE); text(s,""); check(job.visited==4);
@@ -105,7 +110,7 @@ void editor_search_checks(Source *s) {
     load(s,"abc\ndef\n"); config("c\r\nd","X","GN",1); check(run(&job,0)==SEARCH_DONE); text(s,"abXef\n");
     load(s,"ab\nx"); config("b\1x","Y","GN",1); check(run(&job,0)==SEARCH_DONE); text(s,"aY");
     load(s,"one only_one one2 one\tONE"); config("one","X","GNUW",1);
-    check(run(&job,0)==SEARCH_DONE); text(s,"X only_one one2 X\tX");
+    check(run(&job,0)==SEARCH_DONE); text(s,"X only_one one2 one\tONE");
     load(s,"aaaa"); config("aa","","G2",0); check(run(&job,0)==SEARCH_DONE); check(s->cursor==4);
     config("aa","","B",0); check(run(&job,0)==SEARCH_DONE); check(s->cursor==2);
     check(run(&job,0)==SEARCH_DONE); check(s->cursor==1); check(run(&job,0)==SEARCH_DONE); check(s->cursor==0);

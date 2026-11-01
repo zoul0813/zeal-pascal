@@ -31,7 +31,7 @@ def component():
         'native shared editor cases complete': memory.get(sym['_test_done']) == 255
             and word('_test_stage') == 6,
         'native editing, capacity, viewport and MMU/SP/IFF preservation':
-            word('_test_passed') == 3724 and word('_test_failed') == 0,
+            word('_test_passed') == 3751 and word('_test_failed') == 0,
     }, {'passed': word('_test_passed'), 'failed': word('_test_failed')}
 
 
@@ -552,8 +552,8 @@ def find_checks():
     ide.key('L',ctrl=True); ide.state('global repeat')
     ide.quick('F'); ide.text('b'); ide.key('P',ctrl=True); ide.key('A',ctrl=True)
     ide.text('ta\nG\n'); ide.state('wildcard')
-    ide.quick('F'); ide.text('beta\n4294967296\n'); ide.state('invalid options')
-    ide.key('ESC'); ide.key('Y',ctrl=True); ide.text('G\n'); ide.state('corrected options')
+    ide.quick('R'); ide.quick('F'); ide.text('beta\n4294967296\n'); ide.state('wrapped count')
+    ide.quick('R'); ide.quick('F'); ide.text('beta\nZ1U\n'); ide.state('mixed options')
     ide.quick('F'); ide.text('missing\n\n'); ide.state('missing'); ide.key('ESC')
     ide.quick('F'); ide.key('F',ctrl=True); ide.key('Y',ctrl=True); ide.text('beta\n\n')
     ide.quick('R'); ide.quick('F'); ide.key('ENTER'); ide.key('L',ctrl=True); ide.state('empty retains search')
@@ -569,8 +569,8 @@ def find_checks():
             and cursor('backward')==31 and cursor('whole word')==5,
         'corrected G and repeat reuse global start':cursor('global')==cursor('global repeat')==10,
         'quoted control-A wildcard works through real keyboard':cursor('wildcard')==10,
-        'invalid count retains source and option prompt accepts correction':cursor('invalid options')==10
-            and cursor('corrected options')==10,
+        'TP3 wrapping count and mixed options are accepted':cursor('wrapped count')==10
+            and cursor('mixed options')==10,
         'failed Find and prompt Abort retain usable source':cursor('missing')==10
             and cursor('prompt abort')==10 and f['prompt abort'].get(ide.sym['_ide_state'])==2,
         'empty Find retains prior nonempty recalled search':cursor('empty retains search')==10

@@ -21,6 +21,31 @@
         "compiler-messages-host.c messages98/99",
         "language-diagnostics.json enumsize99"
       ]
+    },
+    "editor": {
+      "audit_ids": [
+        "TP3-26",
+        "TP3-27"
+      ],
+      "observed_original": {
+        "word_mark": "foo<TAB>bar",
+        "options": {
+          "2U1": 21,
+          "1 2": 12,
+          "2,3": 23,
+          "65538": 2,
+          "131074": 2,
+          "4294967296": 1,
+          "Z": 1,
+          "N": 1,
+          "U-1": 1,
+          "0": 1,
+          "65536": 1
+        },
+        "capture": "analysis/tp3-pass2-implementation/options-confirm/summary.json",
+        "global_replace": "GN,GN0,GN1,GN65536,GN65537 andGN2U1 all replace every occurrence; N2 replaces two."
+      },
+      "native_adaptation": "LF is the normalized source line boundary; Ctrl-U and the approved global Find correction remain."
     }
   }
 }

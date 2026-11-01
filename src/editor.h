@@ -15,12 +15,13 @@ enum { FIELD_MORE,FIELD_DONE,FIELD_ABORT,FIELD_CANCEL,FIELD_REJECT };
 typedef struct {
     uint8_t pattern[30],replacement[30];
     uint8_t length,replacement_length,flags,replacing,valid;
-    uint32_t count;
+    uint16_t count;
 } EditorSearch;
 typedef struct {
     EditorSearch search;
     Source *source;
-    uint32_t revision,remaining;
+    uint32_t revision;
+    uint16_t remaining;
     uint16_t point,match,visited;
     uint8_t page,pending,exhausted,active;
 } EditorSearchJob;

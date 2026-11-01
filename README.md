@@ -895,6 +895,10 @@ virtual columns through128 and horizontal scrolling. Arrow keys, Home/End and
 Page Up/Down provide physical-key shortcuts. Ctrl-H moves left without deleting;
 Backspace deletes left and Delete deletes under the cursor. Ctrl-V toggles
 insert/overwrite, Ctrl-N splits without moving the cursor, Ctrl-Y deletes a line,
+Loaded/quoted TAB is part of a word, matching TP3. Search options scan flags
+and digits throughout the field, ignore unknown bytes, and wrap the occurrence
+count at 16 bits. Zero uses the ordinary default count; global replacement
+visits all matches even when a numeric count is supplied.
 Ctrl-T deletes the right word, and Ctrl-Q,Y deletes to line end. TAB uses word
 stops from the preceding line; Ctrl-Q,I toggles auto-indent. Ctrl-Q,L restores
 the current line's before-edit text until the cursor leaves it; this is a
@@ -923,8 +927,8 @@ retaining prior history. Escape cancels a prompt; Ctrl-U interrupts with Escape
 acknowledgment. Ordinary typing during a scan is retained in a bounded queue.
 
 Options are B backward, G global start, U ignore ASCII case, W whole word, and
-N skip replacement confirmation, followed optionally by a positive occurrence
-count. G Find selects the match as documented, correcting the original's scan
+N skip replacement confirmation. Decimal digits anywhere in the field form
+the occurrence count; unknown bytes are ignored. G Find selects the match as documented, correcting the original's scan
 to EOF. Repeat reuses G too. Quoted Ctrl-A is a one-byte wildcard in the search
 pattern and a literal in replacement. Quoted CR/LF boundaries normalize to LF.
 Replacement counts include N answers; inserted text is not searched again by
