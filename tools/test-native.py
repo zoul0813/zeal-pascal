@@ -278,7 +278,7 @@ class DebugConsole:
         if capture: self.acceptance.append(result)
         return result
 
-    def image_stop(self, stop):
+    def image_stop(self, stop, capture=True):
         # Logical addresses are reused by Pascal children and service modules.
         # Never mistake their instructions for an IDE reader at the same PC.
         image = (self.directory/'hostfs'/stop.program).read_bytes()
@@ -300,7 +300,7 @@ class DebugConsole:
                               (stop.memory_mode is None or observed.get(layout['mode']) == stop.memory_mode)))
                 if (f'PC={stop.address:04x} ' in frame and
                         bytes(observed.get(0x4000+i, 0) for i in range(32)) == expected and qualified):
-                    self.acceptance.append(frame)
+                    if capture: self.acceptance.append(frame)
                     return
                 self.command('s')
             raise RuntimeError('resident image breakpoint not reached; see console-all.txt')

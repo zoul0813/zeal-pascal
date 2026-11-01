@@ -1,6 +1,7 @@
 #include "zp.h"
 #include "source_internal.h"
 #include "source_move.h"
+#include "source_validation.h"
 
 static uint8_t new_source(Source *s, const char *path,uint8_t role) {
     if(strlen(path)>127) return 0;
@@ -24,11 +25,12 @@ uint16_t source_rebase(uint16_t p,uint16_t a,uint16_t z,uint16_t n,uint8_t right
     return p;
 }
 
-/* Validate the complete proposed text before the first store. No edit allocates
+/* Validate the proposed text before the first store. A versioned complete-text
+ * proof may narrow the old-byte scan to affected lines. No edit allocates
  * or loses the old buffer on a capacity/line-length error. */
 uint8_t source_replace(Source *s, uint16_t a, uint16_t z,
                        const uint8_t *text, uint16_t n) {
-    uint16_t i, size, previous, line=0;
+    uint16_t i, size, previous, first,last,line=0;
     uint32_t wide;
     if (a > z || z > s->length) return 0;
     if (a==z && !n) return 1;
@@ -36,10 +38,14 @@ uint8_t source_replace(Source *s, uint16_t a, uint16_t z,
     if (wide > SOURCE_LIMIT) return 0;
     size = (uint16_t)wide;
     /* Validate prefix, replacement and suffix in their proposed order. This
-     * visits every proposed byte once without choosing a region per byte. */
-    for(i=0;i<a;++i)if(!line_byte(far_get(s->page,i),&line))return 0;
+     * visits every byte not covered by the complete-text proof. */
+    /* A hit reads at most510 old bytes, including boundary discovery.
+     * Small retained ranges keep the original single scan and avoid calls. */
+    first=0; last=s->length;
+    if(size-n>1024) source_validation_window(s,a,z,&first,&last);
+    for(i=first;i<a;++i)if(!line_byte(far_get(s->page,i),&line))return 0;
     for(i=0;i<n;++i)if(!line_byte(text[i],&line))return 0;
-    for(i=z;i<s->length;++i)if(!line_byte(far_get(s->page,i),&line))return 0;
+    for(i=z;i<last;++i)if(!line_byte(far_get(s->page,i),&line))return 0;
     previous=s->previous>s->length?s->length:s->previous;
     if(n!=z-a&&!source_move_range(s->page,a+n,z,s->length-z))return 0;
     for (i=0;i<n;++i) far_set(s->page,a+i,text[i]);
@@ -49,6 +55,7 @@ uint8_t source_replace(Source *s, uint16_t a, uint16_t z,
     s->previous=source_rebase(previous,a,z,n,1);
     s->dirty=1;
     ++s->revision;
+    if(size>1024) source_validation_record(s);
     return 1;
 }
 
@@ -86,12 +93,6 @@ uint8_t source_import(Source *s,const uint8_t *bytes,uint16_t n,Diagnostic *d) {
     if(!import_begin(&in,s->path,d)) return 0;
     for(i=0;i<n&&!in.eof;++i) if(!import_byte(&in,bytes[i],d)) break;
     return import_finish(&in,s,d);
-}
-void source_location(const Source *s, uint16_t p, uint16_t *line, uint16_t *col) {
-    uint16_t i;
-    *line=*col=1;
-    for (i=0;i<p && i<s->length;++i)
-        if (far_get(s->page,i)=='\n') { ++*line; *col=1; } else ++*col;
 }
 
 uint8_t source_snapshot(const Source *s, Source *snapshot) {

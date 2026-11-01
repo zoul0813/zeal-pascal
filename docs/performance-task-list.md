@@ -1,8 +1,8 @@
 # Zeal Pascal performance task list
 
-Created October 30, 2026. Based on the [refreshed optimization audit](optimization-audit-2026-10-30.md) at commit `61e8dd9`. PERF01–PERF15 are complete under the user-requested focused validation; all remaining product optimization tasks are open. Test infrastructure now has a clean complete baseline with product binaries unchanged from `86e362e`: **146/146 scheduled jobs passed with eight workers in 44m09s**. See [baseline evidence](../analysis/performance/long-chunks-8workers/report.md). PERF01 now initializes the verified runtime prefix directly, with measured gains and unchanged generated artifacts; details are in the results log. Language support is the accepted baseline; overlays remain deferred.
+Created October 30, 2026. Based on the [refreshed optimization audit](optimization-audit-2026-10-30.md) at commit `61e8dd9`. PERF01–PERF15 and PERF17 are complete under the user-requested focused validation; all remaining product optimization tasks are open. Test infrastructure now has a clean complete baseline with product binaries unchanged from `86e362e`: **146/146 scheduled jobs passed with eight workers in 44m09s**. See [baseline evidence](../analysis/performance/long-chunks-8workers/report.md). PERF01 now initializes the verified runtime prefix directly, with measured gains and unchanged generated artifacts; details are in the results log. Language support is the accepted baseline; overlays remain deferred.
 
-The pre-optimization full revised acceptance plan passes. PERF01–PERF15 are complete. PERF16 is deferred pending the compiler-job simplification integration; PERF17 is next. The order ranks expected practical benefit: savings, how often the path runs, confidence, and the size of the change. It is not a numerical sort of unrelated worst-case percentages. Reference-heavy programs may benefit most from PERF02; every successful compile benefits from PERF01. The first-four measurement checkpoint below retains PERF05 as next; re-evaluate remaining estimates as native evidence arrives.
+The pre-optimization full revised acceptance plan passes. PERF01–PERF15 and PERF17 are complete. PERF16 is deferred pending the compiler-job simplification integration; PERF18 is next. The order ranks expected practical benefit: savings, how often the path runs, confidence, and the size of the change. It is not a numerical sort of unrelated worst-case percentages. Reference-heavy programs may benefit most from PERF02; every successful compile benefits from PERF01. The first-four measurement checkpoint below retains PERF05 as next; re-evaluate remaining estimates as native evidence arrives.
 
 Savings below are projections for the audit fixtures, not achieved speedups. A million nominal Z80 T states is 0.1 seconds at an illustrative 10 MHz; this excludes SHA time, bank wrappers, C setup and OS waits. Estimates overlap and must not be added.
 
@@ -165,7 +165,7 @@ Done when: all reply mutation tests pass, both digests remain independently chec
 
 ### PERF17 Validate only changed source lines
 
-- [ ] First establish validity tied to page lifetime/version, then validate replacement text and affected line boundaries only.
+- [x] First establish validity tied to page lifetime/version, then validate replacement text and affected line boundaries only.
 
 Owner: `src/source.c`. Preserve a full-validation fallback when old-text validity is unknown or external mutation is detected. Keep total-capacity, 127-character line, CR and byte26 checks before mutation. Do not assume all old text is valid merely because an edit starts in the editor.
 
@@ -482,3 +482,31 @@ The edit loop snapshots revision/lifetime, viewport and selection after key read
 Compile-request cycles are **3,127,127,000 before and after (0delta)**; COM/ZMP bytes and build metadata match the product-hash-verified PERF14 baseline. Resident strlen/memset placement verified. Pinned console reports80x40; wider widths have host-model coverage only. Nested search-confirmation redraw output-entry stack samples leave7475bytes above static_end, including the allocated142-byte status frame; this is targeted evidence, not a whole-program/ISR peak proof. Both Opus turns reconciled and finalized with no blockers. Low-priority follow-up: register the standalone `python3 tools/test-editor-repaint.py` regression when reconciling the separately pending chunking manifest; existing full-suite registrations remain unchanged.
 
 Evidence: [report](../analysis/performance/perf15-current/report.md), [verification](../analysis/performance/perf15-current/verification.json), [repaint checks](../analysis/performance/perf15-current/repaint-verification.json), [final original workflow](../analysis/performance/perf15-current/final-helper-verification.json), [compile comparison](../analysis/performance/perf15-current/compile-comparison.json), [review](../reviews/perf15-cursor-redraw.md). Separate pre-existing chunking changes remain excluded. Commit identified by PERF15 in its subject. **PERF16 is deferred as described above; PERF17 is next.**
+
+
+## PERF17 completed — versioned affected-line validation
+
+Baseline `1a69aa6` (product identical to PERF15). A private11-byte certificate records complete-text validity after successful replacement, keyed by page/lifetime/write-version/length. Matching proofs narrow old-byte scans to joined lines; misses retain full proposed-text validation. Every replacement byte still passes the original CR/byte26/127-column checks before stores. No-op/failure never certifies. Retained ranges<=1024bytes keep a single scan; small results are not certified. source_replace remains resident; caller text never crosses a bank switch. Source layout and source_rebase ABI are unchanged.
+
+| Native source_replace window | Before cycles | After cycles | Fewer cycles |
+| --- | ---: | ---: | ---: |
+| 16KB first insert | 8,736,538 | 7,972,193 | 8.75% |
+| 16KB repeated insert | 8,737,389 | 322,439 | 96.31% |
+| 16KB first delete | 8,737,795 | 7,973,546 | 8.75% |
+| 16KB repeated delete | 8,737,561 | 321,860 | 96.32% |
+| 16KB first overwrite | 8,507,098 | 7,742,849 | 8.98% |
+| 16KB repeated overwrite | 8,507,369 | 91,905 | 98.92% |
+| 127-byte first overwrite | 77,640 | 65,949 | 15.06% |
+| 127-byte repeated overwrite | 77,544 | 65,949 | 14.95% |
+
+Two identical trials each; exact metadata, version deltas and PAS/BAK match. These windows exclude redraw/startup and do not measure generated-program execution. Warm16KBvalidation reads15,999→198 (98.76% fewer); short-file reads remain126. Holding the suffix bound also improves cold scans.
+
+Resident space comes from moving source_location to permanentBANK12. Immutable descriptor snapshots and per-call local counters preserve bounds, output aliasing and Source immutability; no cross-key line-count cache. Cursor handling/rendering improves **8,036,882→5,135,314cycles (36.10% fewer vsPERF15)**, with identical full VRAM/status/cursor/source state in two trials. Rejected experiments remain archived: banked source_rebase exceeded BANK13by34bytes; an ungated short-file cache doubled reads; the first banked location loop regressed cursor36.43%. None is shipped.
+
+**Cost:** resident−60 (16,249occupied/135free), library+707, package+647bytes; BANK1+55/BANK2+489/BANK12+163, other banks unchanged. Retained data+11/static_end57295, stack reserve8241. No additional pages. Targeted nested search redraw output-entrySP64759leaves7464bytes above static; no whole-program/ISR peak claim. All six selected ZDE package/link checks pass.
+
+**Validation:**45,809new sanitized oracle/lifecycle/atomicity/position checks plus unchanged64,108core/3,723editor/keyboard/runner checks. Native editor3,724checks pass. **22/22focused jobs passed370.763123s (6m10.76s),8workers**, including all16original editor workflows and relevant host/basic/cancellation/compiler-job/saved-map/options checks. No full146-job replay, per user direction. Native8-process measurements took43.62s;7additional short/compile/stack/repaint checks96.03s overall. Repaint33/33passes. COM/ZMP/build metadata and3,127,127,000compilecycles remain identical.
+
+An initial catalog failure was a demonstrated child/IDE reader-address collision in the observer. Image qualification preserves every original case body/assertion/expected value. The original generic run-first order is retained; host plus interactive/full-media/block-catalog passed **4/4in151.590420s (2m31.59s)** after correction. Opus initial/follow-up reviews found no product blocker; its high observer finding was corrected and tested. The user explicitly waived another review (“We don’t need another review - just keep going”). Accepted under that waiver; no extra Opus pass or post-edit runner finalization is claimed.
+
+Evidence: [report](../analysis/performance/perf17-current/report.md), [measurements](../analysis/performance/perf17-current/benchmark-comparison.json), [short-file comparison](../analysis/performance/perf17-current/short-comparison.json), [verification](../analysis/performance/perf17-current/verification.json), [observer requalification](../analysis/performance/perf17-current/post-review-verification.json), [completion/waiver](../analysis/performance/perf17-current/completion.json), [review dispositions](../reviews/perf17-line-validation.md). Separate pre-existing chunking changes are excluded. Commit identified by PERF17in its subject. **PERF18 is next; PERF16 remains deferred.**

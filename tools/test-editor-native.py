@@ -35,6 +35,32 @@ def component():
     }, {'passed': word('_test_passed'), 'failed': word('_test_failed')}
 
 
+class IDEConsole(n.DebugConsole):
+    """Qualify reused logical reader addresses before queuing another IDE key."""
+    def __init__(self, command, directory, timeout):
+        self.reader = n.symbols('zpascal')['_key_read']
+        self.expected = (directory/'hostfs/zpascal.bin').read_bytes()[:32]
+        self.qualifying = False
+        super().__init__(command, directory, timeout)
+
+    def command(self, command, capture=False):
+        response = super().command(command, capture)
+        if command.startswith('run ') and not self.qualifying:
+            frame = super().command('regs', False)
+            if f'PC={self.reader:04x} ' in frame:
+                data = n.memory(super().command('rb 0x4000 32', False))
+                if bytes(data.get(0x4000+i, 0) for i in range(32)) != self.expected:
+                    self.qualifying = True
+                    try:
+                        self.image_stop(n.ImageStop(self.reader, 'zpascal.bin'), capture=False)
+                    finally:
+                        # image_stop removes its temporary breakpoint; IDE.key
+                        # owns this persistent one until a screen/exit probe.
+                        super().command(f'bp 0x{self.reader:x}', False)
+                        self.qualifying = False
+        return response
+
+
 class IDE:
     """Queue a key only after the preceding redraw reaches the real reader."""
     def __init__(self, filename, setup=(), cycles=1000000000):
@@ -105,7 +131,7 @@ class IDE:
     def finish(self, name, fixtures, tf_image=None, timeout=240, console_class=None):
         self.commands += ['quit']
         raw = n.execute(name, self.commands, fixtures, tf_image=tf_image, timeout=timeout,
-                        console_class=console_class)
+                        console_class=console_class or IDEConsole)
         parts = re.split(r'\[DBG\] PC=', raw)[1:]
         if len(parts) != len(self.frames):
             raise RuntimeError(f'{name}: expected {len(self.frames)} debugger checkpoints, got {len(parts)}')

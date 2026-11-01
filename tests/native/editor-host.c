@@ -6,11 +6,13 @@
 static uint8_t bytes[3][PAGE_SIZE],owned[3];
 volatile uint32_t page_versions[64];
 static unsigned assertions;
+static uint32_t lifetimes[3];
 uint8_t page_new(uint8_t role) {
     uint8_t i;
-    for(i=0;i<3;++i) if(!owned[i]) { owned[i]=role; return 32+i; }
+    for(i=0;i<3;++i) if(!owned[i]) { owned[i]=role; ++lifetimes[i]; return 32+i; }
     return 255;
 }
+uint32_t page_lifetime(uint8_t p) { return p>=32&&p<35&&owned[p-32]?lifetimes[p-32]:0; }
 uint8_t page_drop(uint8_t p) { assert(p>=32&&p<35&&owned[p-32]); owned[p-32]=0; return 1; }
 uint8_t pages_used(void) { return (owned[0]!=0)+(owned[1]!=0)+(owned[2]!=0); }
 void page_initialized(uint8_t p,uint16_t n) { assert(p>=32&&p<35&&owned[p-32]&&n<=PAGE_SIZE); }
