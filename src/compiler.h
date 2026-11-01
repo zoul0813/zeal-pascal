@@ -84,7 +84,7 @@ typedef struct {
     uint16_t standard_table_operand,file_stream_operand;
     uint16_t keyboard_entry,keyboard_poll,keyboard_status,keyboard_state,interrupt_entry;
     uint16_t keyboard_probe,keyboard_enqueue,keyboard_console_probe;
-    uint8_t console_used;
+    uint8_t console_used,console_dynamic;
     uint16_t hook_variables[HOOK_COUNT],hook_defaults[HOOK_COUNT];
     uint16_t hook_output_calls,hook_mask_call;
     uint16_t hook_character,hook_echo,hook_open;

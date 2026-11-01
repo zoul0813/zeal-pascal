@@ -1009,6 +1009,27 @@ static void keyboard_corpus(void) {
 /* Keep the regression's classifier at the placement where its old inline
  * four-byte result would cross BFFF/C000. Native execution checks the actual
  * output and neighboring data; this only establishes that layout precondition. */
+static void console_elision(void) {
+    static const char *const dynamic[]={
+        "{$C-}begin cbreak:=true;writeln('x')end.",
+        "{$C-}var flag:byte absolute $4152;begin flag:=1;writeln('x')end.",
+        "{$C-}begin mem[$4152]:=1;writeln('x')end.",
+        "{$C-}type p=^byte;var q:p;begin q:=ptr($4152);q^:=1;writeln('x')end.",
+        "{$C-}begin inline($00);writeln('x')end.",
+        "{$C-}procedure p;external $1234;begin p;writeln('x')end.",
+        "{$C-}begin conoutptr:=0;writeln('x')end."
+    };
+    uint16_t disabled,enabled;unsigned i;
+    load("{$C-}begin writeln('x')end.");check(compile(&s,&b,&d));
+    disabled=b.code_bytes;check(!cc.keyboard_entry&&!cc.hook_character&&!cc.hook_echo);build_close(&b);
+    load("begin writeln('x')end.");check(compile(&s,&b,&d));
+    enabled=b.code_bytes;check(cc.keyboard_entry&&enabled>disabled+258);build_close(&b);
+    for(i=0;i<sizeof(dynamic)/sizeof(*dynamic);++i) {
+        load(dynamic[i]);check(compile(&s,&b,&d));
+        check(cc.console_dynamic&&cc.keyboard_entry);build_close(&b);
+    }
+    printf("TP3 console fixed-False=%u enabled=%u saved=%u bytes\n",disabled,enabled,enabled-disabled);
+}
 static void console_boundary(void) {
     char text[2048];FILE *file=fopen("tests/native/ctlboundary.pas","rb");
     uint16_t at,entry=0,area=cc_runtime_private(RP_INPUT_CONSOLE_AREA);
@@ -1733,7 +1754,7 @@ int main(int argc,char **argv) {
     chain_cases();
     chain_call_cases();
     startup_cases();
-    console_boundary();
+    console_boundary();console_elision();
     bridge_corpus();
     hook_corpus();
     index_modes();

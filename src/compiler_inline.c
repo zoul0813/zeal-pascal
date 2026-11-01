@@ -52,6 +52,7 @@ static uint16_t data(uint16_t *coefficient,uint8_t *word) {
 void cc_inline(void) FRONTEND {
     uint16_t value,term,coefficient,part;
     uint8_t force,word,subtract;
+    if(!cc.suppress)cc.console_dynamic=1;
     cc_next();cc_expect('(',4);
     cc_guard(); /* No generated instruction may split the raw byte stream. */
     do {

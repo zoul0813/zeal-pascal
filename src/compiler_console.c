@@ -85,6 +85,9 @@ static uint16_t wrap(uint16_t original,uint8_t staged,uint16_t target,uint8_t ki
 void cc_console_finish(void) FRONTEND {
     uint16_t scan,enqueue,poll,stdout,entry,native,physical;
     if(cc.error->code||(!cc.console_used&&(!cc.file_entry||cc.text_type==255)&&!cc.hook_character&&!cc.hook_echo))return;
+    /* With a fixed False CBreak these transparent wrappers always take their
+     * fallback. Raw memory/code, aliases and user-visible hooks keep them live. */
+    if(!cc.console_dynamic&&!far_get(cc.image->pages[0],RT_CBREAK-0x4000u))return;
     cc_keyboard_engine();scan=controls();enqueue=append();poll=flow(scan,enqueue);stdout=stdout_flow(poll);
     native=cc_runtime_get(RT_CHAR-0x4000u+1)|((uint16_t)cc_runtime_get(RT_CHAR-0x4000u+2)<<8);
     cc.hook_character=wrap(cc.hook_character?cc.hook_character:native,cc.hook_character!=0,stdout,0);

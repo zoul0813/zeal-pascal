@@ -366,16 +366,25 @@ int16_t cc_lookup(void) FRONTEND {
                 continue;
             }
             if(cc.symbols[i].role==S_HOOK) {
-                if(cc_is(hook_names[cc.symbols[i].initial_type])) return (int16_t)i;
+                if(cc_is(hook_names[cc.symbols[i].initial_type])) {
+                    if(!cc.suppress)cc.console_dynamic=1;
+                    return (int16_t)i;
+                }
                 continue;
             }
             if(cc.symbols[i].role==S_SYSTEM) {
                 for(j=0;j<sizeof(system_variables)/sizeof(system_variables[0]);++j)
-                    if(cc.symbols[i].address==system_variables[j].address&&cc_is(system_variables[j].name)) return (int16_t)i;
+                    if(cc.symbols[i].address==system_variables[j].address&&cc_is(system_variables[j].name)) {
+                        if(!cc.suppress&&cc.symbols[i].address==RT_CBREAK)cc.console_dynamic=1;
+                        return (int16_t)i;
+                    }
                 continue;
             }
             if(cc.symbols[i].name_length!=n) continue;
-            if(name_matches(cc.symbols[i].name_start,n)) return (int16_t)i;
+            if(name_matches(cc.symbols[i].name_start,n)) {
+                if(!cc.suppress&&cc.symbols[i].role==S_ADDRESS)cc.console_dynamic=1;
+                return (int16_t)i;
+            }
         }
         if(!scope) break;
         scope=(uint8_t)cc_rget(scope,R_PARENT);

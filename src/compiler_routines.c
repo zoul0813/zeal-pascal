@@ -165,6 +165,7 @@ static void routine(void) {
     if(cc.error->code) return;
     flags=(uint8_t)cc_rget(scope,R_FLAGS);
     if(cc_is("external")) {
+        if(!cc.suppress)cc.console_dynamic=1;
         if(flags&RF_FORWARD) {cc_fail(12);return;}
         cc_next(); cc_constant(&flags,&value);
         if(cc_family(flags)!=K_INTEGER) cc_fail(22);

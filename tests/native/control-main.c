@@ -15,6 +15,7 @@ int app_main(void) {
     if(capture>=0)check(swap(capture,DEV_STDOUT)==0);
     test_stage=39;
     if(!full_only) {
+    execution_file("H:/CTLFIXED.PAS",1,0,0);
     execution_file("H:/CTLSTATE.PAS",1,0,0);
     execution_file("H:/CTLMINUS.PAS",1,0,0);
     execution_file("H:/CTLBREAK.PAS",5,0,46);

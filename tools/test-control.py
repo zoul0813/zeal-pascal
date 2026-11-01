@@ -112,10 +112,10 @@ def main():
                  for f in frames if f.startswith(f'{video:04x} ')]
     checks={
         'native completion':memory.get(sym['_test_done'])==255 and word('_test_stage')==6,
-        'RAM/saved stack, MMU/IFF, ownership and exact break source':word('_test_failed')==0 and word('_test_passed')==170,
+        'RAM/saved stack, MMU/IFF, ownership and exact break source':word('_test_failed')==0 and word('_test_passed')==184,
         'root-block C state, disabled input, retained typeahead, redirection and I- recovery':
             (disk/'CONTROL.TXT').is_file()and(disk/'CONTROL.TXT').read_bytes()==
-            b'C-STATE-OK\r\n'*2+b'C-MINUS-OK\r\n'*2+b'C-PAUSE-OK\r\n'*2+
+            b'C-FIXED-OK\r\n'*2+b'C-STATE-OK\r\n'*2+b'C-MINUS-OK\r\n'*2+b'C-PAUSE-OK\r\n'*2+
             b'C-AFTER-BREAK-OK\r\n'+b'C-FULL-OK\r\n'*2+b'C-QUEUED-OK\r\n'*2+b'C-STATE-OK\r\nC-ERROR-OK\r\n',
         'S and Q resume pending physical bytes, including saturated queues':echoed==b'PPFFTT',
         'all ten resumed programs reach normal completion before next-case input':

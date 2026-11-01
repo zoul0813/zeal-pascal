@@ -221,6 +221,17 @@
       "audit_id": "TP3-29",
       "change": "Use declared string capacities for borrowed snapshots and Copy results, width+1 for Char arrays,128 for ParamStr. Keep maximum256 slots where capacity is unknown or padding/concatenation can reach255.",
       "regressions": "strlife.pas requires short borrowed/Copy/Char-array operands to stay below128 measured CPU stack bytes while preserving value and recovering StackPtr."
+    },
+    "console": {
+      "audit_id": "TP3-30",
+      "change": "Omit console flow wrappers and their keyboard dependency when initial CBreak is False and the program has no CBreak/hook/alias/raw-code/raw-memory/pointer/External/transfer access. Explicit keyboard/interrupt use still emits its own required engine.",
+      "retained": "Per-character device classification remains for enabled flow: callbacks/raw native code may rebind stdout, so stable binding cannot be assumed.",
+      "sample_code_bytes": {
+        "fixed_false": 652,
+        "enabled": 1500,
+        "saved": 848
+      },
+      "native_regression": "184 control assertions including CTLFIXED in RAM/COM; full pause/queue/redirection/boundary gates pass."
     }
   }
 }

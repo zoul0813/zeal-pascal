@@ -107,6 +107,7 @@ static uint8_t raw_kind(void) {
 }
 static void raw_index(void) {
     uint16_t before=cc.temporaries;
+    if(!cc.suppress)cc.console_dynamic=1;
     cc_next(); cc_expect('[',8);
     if(cc_family(expression())!=K_INTEGER) cc_fail(23);
     cc_release(before); cc_expect(']',9);
@@ -203,7 +204,7 @@ static uint8_t intrinsic(uint8_t op) {
         else cc_fail(cc_aggregate(kind)?62:44);
         cc_release(before); return K_INTEGER;
     }
-    if(op==F_PTR) { if(cc_family(kind)!=K_INTEGER) cc_fail(23); return K_ANY_POINTER; }
+    if(op==F_PTR) { if(!cc.suppress)cc.console_dynamic=1; if(cc_family(kind)!=K_INTEGER) cc_fail(23); return K_ANY_POINTER; }
     if(op==F_ORD||op==F_SUCC||op==F_PRED) {
         if(cc_family(kind)==K_STRING) { cc_call(RT_STRINGCHAR); cc_release(before); kind=K_CHAR; }
         if(!cc_ordinal(kind)&&!(op==F_ORD&&cc_family(kind)==K_POINTER)) {

@@ -699,6 +699,14 @@ Char-array conversion reserves its width plus the length byte. ParamStr reserves
 concatenation and padded fields retain a256-byte slot where255 characters are
 possible. These bounds preserve evaluation order and invocation ownership.
 
+When `$C-` fixes CBreak false and no source construct can change it, generated
+programs omit the console flow wrappers and their keyboard dependency. CBreak
+references, hooks, absolute aliases, raw memory/code, Ptr, External and transfers
+retain the support. Explicit keyboard/interrupt use keeps its required engine.
+The small `writeln('x')` example generates652 bytes with fixed `$C-`, versus1500
+with console control enabled. Enabled flow still classifies stdout per character
+because callbacks can rebind it; no descriptor cache is added.
+
 Random without arguments returns Real in [0,1). Random(N) returns Integer in
 [0,N) for a positive Integer bound; zero/negative bounds report runtime91 even
 with R-. The generator and initial sequence match the pinned CP/M-80 TP3 binary.
