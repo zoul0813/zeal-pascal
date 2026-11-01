@@ -33,12 +33,9 @@ static uint8_t validate_sources(const Build *b,const NativeImage *image,const So
         if((uint32_t)at+40>96+table)return 0;
         file=far_word(b->map_page,at);n=far_word(b->map_page,at+2);
         if(file!=i||!map_source(b,at,&s,hash)||(uint32_t)at+40+n>96+table)return 0;
-        if(!file) {
-            if(!sources_get(inputs,0,&input)||strcmp(s.path,input.path))return 0;
-        }
-        id=sources_find(inputs,s.path);
+        id=file?sources_find(inputs,s.path):0;
         if(id>=0) {
-            if(!sources_get(inputs,(uint8_t)id,&input))return 0;
+            if(!sources_get(inputs,(uint8_t)id,&input)||(!file&&strcmp(s.path,input.path)))return 0;
             if(input.page!=255&&(!sources_hash(inputs,(uint8_t)id,digest)||
                s.length!=input.length||memcmp(hash,digest,32)))return 0;
         }

@@ -108,12 +108,14 @@ static void rebase_failure(const Source *root,const Sources *buffers,CompileFail
  * into owned results and release disk-only includes without rebuilding records
  * from the map or reloading the already resident root. */
 static uint8_t retain_sources(const Source *root,const Sources *buffers,const Sources *inputs,Build *b) {
-    Source source,original,captured;uint8_t hash[32],i,count=b->sources.count;int16_t id;
+    Source source,original;uint8_t hash[32],i,count=b->sources.count;int16_t id;
     for(i=0;i<count;++i) {
         if(!sources_get(&b->sources,i,&source))return 0;
-        id=sources_find(inputs,source.path);
-        if(id>=0&&!sources_get(inputs,(uint8_t)id,&captured))return 0;
-        if(!i||(id>=0&&captured.page!=255)) {
+        /* prepare_inputs captures resident bytes as borrowed records and
+         * disk-only names as references. Result readiness binds source zero;
+         * no descriptor copy is needed just to classify a captured input. */
+        id=i?sources_find(inputs,source.path):-1;
+        if(!i||(id>=0&&sources_borrowed(inputs,(uint8_t)id))) {
             if(compiler_page_owned(compiler_owned,source.page)||compiler_page_owned(parent_pending,source.page)) {
                 const Source *origin=0;
                 if(!i) {if(root->page!=255)origin=root;}

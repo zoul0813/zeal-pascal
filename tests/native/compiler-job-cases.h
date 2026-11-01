@@ -236,6 +236,61 @@ static void source_adoption_cases(void) {
         check(pages_used()==pages);
     }
 }
+/* The private capture catalogue distinguishes resident snapshots/buffers
+ * from disk-only names using the existing borrowed flag. Retention consumes
+ * that flag only after result readiness; arbitrary public catalogues do not
+ * acquire this invariant. */
+static void captured_kind_cases(void) {
+    Sources inputs;Source disk,captured;uint8_t borrow,id;unsigned pages;
+    load("begin end.");pages=pages_used();
+    memset(&disk,0,sizeof(disk));disk.page=255;strcpy(disk.path,"H:/DISK.PAS");
+    for(borrow=0;borrow<2;++borrow) {
+        memset(input_pages,0,sizeof(input_pages)); /* prepare_inputs precondition */
+        compiler_allocating=COMPILER_ALLOC_PARENT;
+        check(sources_new(&inputs)&&capture_source(&inputs,&s,borrow)&&capture_source(&inputs,&disk,1));
+        for(id=0;id<inputs.count;++id) {
+            check(sources_ready(&inputs,id)&&sources_get(&inputs,id,&captured));
+            check(sources_borrowed(&inputs,id)==(captured.page!=255));
+        }
+        check(sources_get(&inputs,0,&captured)&&((captured.page==s.page)==borrow));
+        check(compiler_resources_ready()&&pages_used()==pages);
+    }
+}
+/* A named nonresident include must stay disk-backed after successful
+ * retention, not keep a compiler-owned page merely because its ID exists. */
+static void referenced_include_success(void) {
+    Sources buffers;Source reference,loaded;CompileFailure failure;uint8_t hash[32];unsigned pages,reads;
+    HostSource disk[]={{"H:/PART.INC","const answer=42;"}};
+    disk_sources=disk;disk_source_count=1;
+    load("{$I PART.INC}\nbegin writeln(answer)end.");
+    check(sources_new(&buffers));source_hash(&s,hash);check(sources_borrow(&buffers,&s,hash)==0);
+    memset(&reference,0,sizeof(reference));reference.page=255;strcpy(reference.path,"H:/PART.INC");memset(hash,0,32);
+    check(sources_reference(&buffers,&reference,hash)==1);pages=pages_used();
+    check(compile_request(&s,&buffers,&b,&failure,0,0,s.path));
+    check(b.sources.count==2&&sources_get(&b.sources,1,&loaded)&&loaded.page==255&&!sources_resident(&b.sources,1));
+    reads=disk_reads;check(build_ready(&s,&b)&&disk_reads>reads);
+    disk[0].text="const answer=43;";check(!build_ready(&s,&b));
+    build_close(&b);check(pages_used()==pages&&sources_close(&buffers)&&pages_used()==1);
+    disk_sources=0;disk_source_count=0;
+}
+/* Pin source-zero binding independently of the non-root map checks. */
+static void root_binding_cases(void) {
+    Sources inputs;Source captured;Build result;CompileFailure failure;uint8_t old;
+    CompileOptions options={0,0xfbffu,COMPILE_PROGRAM};
+    load("begin end.");compiler_allocating=COMPILER_ALLOC_PARENT;
+    check(prepare_inputs(&inputs,&s,0,s.path)&&sources_get(&inputs,0,&captured));
+    compiler_allocating=COMPILER_ALLOC_WORKER;compiler_invocation=&failure;active_inputs=&inputs;compiler_memory_mode=1;
+    check(compile_project(&captured,&inputs,&result,&d,1,&options));compiler_invocation=0;active_inputs=0;
+    check(compiler_result_ready(&inputs,&options,0,&result));
+    old=far_get(inputs.page,inputs.base+12);far_set(inputs.page,inputs.base+12,'I');inputs.version=page_versions[inputs.page];
+    check(!compiler_result_ready(&inputs,&options,0,&result));
+    far_set(inputs.page,inputs.base+12,old);inputs.version=page_versions[inputs.page];
+    old=far_get(result.map_page,136);far_set(result.map_page,136,'I');result.versions[3]=page_versions[result.map_page];
+    check(!compiler_result_ready(&inputs,&options,0,&result));
+    far_set(result.map_page,136,old);result.versions[3]=page_versions[result.map_page];
+    check(compiler_result_ready(&inputs,&options,0,&result)&&retain_sources(&s,0,&inputs,&result));
+    check(compiler_resources_ready()&&pages_used()==1);
+}
 static void direct_result_cases(void) {
     Sources inputs;Source captured;Build result,candidate;CompileFailure failure;
     CompileOptions options={0,0xfbffu,COMPILE_PROGRAM};uint8_t old,catalog;uint32_t lifetime;unsigned allocations;
@@ -467,7 +522,7 @@ static void compiler_job_cases(void) {
     check(compile_request(&s,0,&b,&failure,0,0,s.path));
     check(b.valid&&!memcmp(expected,b.id,32)&&!memcmp(&s,&before,sizeof(s))&&!host_prepared);
     check(build_check(&s,&b)&&sources_resident(&b.sources,0));build_close(&b);check(pages_used()==1);
-    capture_boundaries();retained_source_cases();direct_input_cases();captured_identity_cases();source_adoption_cases();direct_result_cases();generated_map_cases();direct_map_integrity_cases();job_capacity();
+    capture_boundaries();retained_source_cases();direct_input_cases();captured_identity_cases();source_adoption_cases();captured_kind_cases();referenced_include_success();root_binding_cases();direct_result_cases();generated_map_cases();direct_map_integrity_cases();job_capacity();
     stream_hash_failures();image_fill_failures();
     check(host_prepares==prepares&&host_cancels==cancels);
     strcpy(s.path,"H:/bad//name.pas");
