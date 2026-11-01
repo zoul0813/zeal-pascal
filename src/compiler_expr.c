@@ -305,8 +305,11 @@ static uint8_t factor(void) {
     if(cc_is("nil")) { cc_op16(0x21,0); kind=K_NIL; cc_next(); }
     else if(cc.token=='+'||cc.token=='-') {
         negative=cc.token=='-'; cc_next();
-        if(negative&&cc.token==T_NUMBER&&!cc.hexadecimal&&!cc.number_overflow&&cc.magnitude==32768u) {
-            cc_op16(0x21,0x8000); cc_next();
+        /* At the depth limit retain the original recursive failure, except
+         * decimal -32768, which already had a nonrecursive literal path. */
+        if(negative&&cc.token==T_NUMBER&&!cc.number_overflow&&
+           (cc.depth<24||(!cc.hexadecimal&&cc.magnitude==32768u))) {
+            cc_op16(0x21,(uint16_t)(0u-cc.magnitude)); cc_next();
         } else {
             kind=factor();
             if(!cc_numeric(kind)) cc_fail(47);

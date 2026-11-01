@@ -1632,6 +1632,96 @@ static void inline_cases(void) {
     check(pages_used()==1);
 }
 #include "compiler-job-cases.h"
+/* Negative integer immediates must match their hexadecimal bit patterns.
+ * Depth fixtures pin the pre-fold parser's resource/error-location boundary. */
+static void literal_folding_cases(void) {
+    static const char *expressions[]={"-0","-1","-2","-32767","-32768","-$0000","-$0001","-$7FFF","-$8000","-$FFFF"};
+    static const uint16_t words[]={0,65535u,65534u,32769u,32768u,0,65535u,32769u,32768u,1};
+    static const struct {const char *expression;uint8_t depth,ok,error;uint16_t first,last;} boundaries[]={
+        {"1",19,1,0,0,0},
+        {"1",20,1,0,0,0},
+        {"1",21,1,0,0,0},
+        {"1",22,0,98,36,37},
+        {"-1",19,1,0,0,0},
+        {"-1",20,1,0,0,0},
+        {"-1",21,0,98,36,37},
+        {"-1",22,0,98,36,37},
+        {"-$8000",19,1,0,0,0},
+        {"-$8000",20,1,0,0,0},
+        {"-$8000",21,0,98,36,41},
+        {"-$8000",22,0,98,36,37},
+        {"-32768",19,1,0,0,0},
+        {"-32768",20,1,0,0,0},
+        {"-32768",21,1,0,0,0},
+        {"-32768",22,0,98,36,37},
+        {"+32768",19,0,56,34,39},
+        {"+32768",20,0,56,35,40},
+        {"+32768",21,0,98,36,41},
+        {"+32768",22,0,98,36,37},
+        {"-32769",19,0,56,34,39},
+        {"-32769",20,0,56,35,40},
+        {"-32769",21,0,98,36,41},
+        {"-32769",22,0,98,36,37},
+        {"-(32768)",19,0,56,35,40},
+        {"-(32768)",20,0,98,36,41},
+        {"-(32768)",21,0,98,36,37},
+        {"-(32768)",22,0,98,36,37},
+    };
+    uint8_t expected[PAGE_SIZE];char text[256];unsigned i,j;
+    uint16_t length,origin;uint8_t ok;
+    for(i=0;i<sizeof(words)/sizeof(words[0]);++i) {
+        snprintf(text,sizeof(text),"var n:integer;begin n:=$%04X end.",(unsigned)words[i]);
+        load(text);check(compile(&s,&b,&d));length=b.code_bytes;origin=b.code_origin-0x4000u;
+        check(length<=sizeof(expected));
+        for(j=0;j<length;++j)expected[j]=image_get(&b,origin+j);
+        build_close(&b);
+        snprintf(text,sizeof(text),"var n:integer;begin n:=%s end.",expressions[i]);
+        load(text);check(compile(&s,&b,&d));check(b.code_bytes==length);
+        origin=b.code_origin-0x4000u;
+        for(j=0;j<length;++j)check(image_get(&b,origin+j)==expected[j]);
+        build_close(&b);check(pages_used()==1);
+    }
+    for(i=0;i<sizeof(boundaries)/sizeof(boundaries[0]);++i) {
+        char *at=text;at+=snprintf(at,sizeof(text),"begin writeln(");
+        for(j=0;j<boundaries[i].depth;++j)*at++='(';
+        at+=snprintf(at,sizeof(text)-(size_t)(at-text),"%s",boundaries[i].expression);
+        for(j=0;j<boundaries[i].depth;++j)*at++=')';strcpy(at,") end.");
+        load(text);ok=compile(&s,&b,&d);
+        check(ok==boundaries[i].ok&&d.code==boundaries[i].error&&
+              d.start==boundaries[i].first&&d.end==boundaries[i].last);
+        if(ok)build_close(&b);check(pages_used()==1);
+    }
+}
+
+/* Compare negative immediates in consumers and every supported build kind. */
+static void literal_context_cases(void) {
+    static const char *pairs[][2]={
+        {"var a:array[-2..2]of integer;begin a[-1]:=7 end.","var a:array[-2..2]of integer;begin a[$FFFF]:=7 end."},
+        {"var i:integer;begin for i:=-2 to -1 do writeln(i)end.","var i:integer;begin for i:=$FFFE to $FFFF do writeln(i)end."},
+        {"var n:integer;begin if n< -1 then n:=-2 end.","var n:integer;begin if n<$FFFF then n:=$FFFE end."},
+        {"begin writeln(-2)end.","begin writeln($FFFE)end."},
+        {"var s:set of 0..7;begin s:=[-$FFFF..2]end.","var s:set of 0..7;begin s:=[1..2]end."},
+        {"var a:array[-2..2]of integer;n:integer;begin n:=sizeof(a[-1])end.","var a:array[-2..2]of integer;n:integer;begin n:=sizeof(a[$FFFF])end."}
+    };
+    uint8_t expected[PAGE_SIZE];unsigned i,j,mode;
+    uint16_t length,origin,globals,image_length,map_length;
+    CompileOptions options={0x9000,0xfbffu,COMPILE_PROGRAM};
+    for(mode=0;mode<3;++mode)for(i=0;i<sizeof(pairs)/sizeof(pairs[0]);++i) {
+        options.kind=mode==2?COMPILE_CHAIN:COMPILE_PROGRAM;
+        load(pairs[i][1]);check(compile_project(&s,0,&b,&d,0,mode?&options:0));
+        check(build_check(&s,&b));length=b.code_bytes;globals=b.globals_bytes;image_length=b.length;map_length=b.map_length;
+        origin=mode==2?96:b.code_origin-0x4000u;check(length<=sizeof(expected));
+        for(j=0;j<length;++j)expected[j]=image_get(&b,origin+j);
+        build_close(&b);
+        load(pairs[i][0]);check(compile_project(&s,0,&b,&d,0,mode?&options:0));
+        check(build_check(&s,&b));check(b.code_bytes==length&&b.globals_bytes==globals&&b.length==image_length);
+        check(b.map_length==map_length);check(build_is_chain(&b)==(mode==2));
+        origin=mode==2?96:b.code_origin-0x4000u;
+        for(j=0;j<length;++j)check(image_get(&b,origin+j)==expected[j]);
+        build_close(&b);check(pages_used()==1);
+    }
+}
+
 int main(int argc,char **argv) {
     unsigned i;
     uint16_t position;
@@ -1639,6 +1729,7 @@ int main(int argc,char **argv) {
     FILE *file;
     check(argc==2);
     check(source_new(&s,"H:/SLICE.PAS"));
+    literal_folding_cases();literal_context_cases();
     source_edit_cases();range_move_cases();
     source_hash_cases();
     stream_hash_cases();
