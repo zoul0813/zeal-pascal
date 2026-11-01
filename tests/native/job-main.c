@@ -64,6 +64,8 @@ probe_read_done:
     jp (hl)
     __endasm;
 }
+/* Test-only tags select existing enabled 256-byte cases for live IRQ probes. */
+volatile uint8_t span_irq_probe;
 volatile uint8_t span_benchmark;
 uint8_t test_far_read_slow(uint8_t page,uint16_t offset,uint8_t *out,uint16_t n) {
     while(n--)*out++=far_get(page,offset++);
@@ -75,7 +77,9 @@ static void span_case(uint8_t page,uint16_t offset,uint16_t n,uint8_t expected,u
     memset(out,0xa5,sizeof(out));
     if(!enabled) {__asm di __endasm;}
     test_machine(before);
+    span_irq_probe=enabled&&expected&&n==256?1:0;
     result=test_far_read_probe(page,offset,out+1,n);
+    span_irq_probe=0;
     test_machine(after);
     if(!enabled) {__asm ei __endasm;}
     check(result==expected);check(!memcmp(before,after,7));
@@ -196,7 +200,9 @@ static void fill_case(uint8_t owned_page,uint8_t page,uint16_t offset,uint16_t n
     page_versions[owned_page]=version;
     for(other=0;other<64;++other)versions[other]=page_versions[other];
     if(!enabled){__asm di __endasm;}
+    span_irq_probe=enabled&&expected&&n==256&&offset==16128?2:0;
     test_machine(before);result=test_far_fill_probe(page,offset,value,n);test_machine(after);
+    span_irq_probe=0;
     if(!enabled){__asm ei __endasm;}
     check(result==expected);check(!memcmp(before,after,7)&&before[0]==enabled&&before[2]>=0xc0);
     check(page_versions[owned_page]==version+(expected?(uint32_t)n:0));

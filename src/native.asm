@@ -94,16 +94,9 @@ span_begin:
     push de                      ; offset at -4(IX)
     ld a,i
     push af                      ; incoming IFF in P/V, retained until exit
-    ; Move follows far_get/set: the pinned PIO ISR preserves registers/page2.
-    ; Masking a whole move can outlast the keyboard's active-low IRQ pulse.
-    ; Read/fill retain their existing masked-span contract.
-    bit 0,-2(ix)
-    jr nz,span_mask
-    bit 6,-2(ix)
-    jr nz,span_count
-span_mask:
-    di
-span_count:
+    ; Like far_get/set, all spans leave caller interrupts unchanged. The
+    ; pinned PIO ISR preserves registers/page2; masking a bounded span can
+    ; outlast the keyboard's active-low IRQ pulse. Callers still split/poll.
     ld c,6(ix)
     ld b,7(ix)
     ld a,b
@@ -174,7 +167,7 @@ span_valid:
     jr nz,span_invalid
     ld a,c
     or a
-    jr nz,span_invalid           ; all FAR_*_LIMIT values are256, bounding IRQ masking
+    jr nz,span_invalid           ; all FAR_*_LIMIT values are256, bounding unpolled work
 span_count_valid:
     ld a,-1(ix)
     cp #32

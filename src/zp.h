@@ -137,16 +137,17 @@ void far_set(uint8_t page, uint16_t offset, uint8_t value) NATIVE;
  * must fit one physical page and an owned writable near range in4000..7FFF or
  * C000..FFFF, clear of active call frames. Invalid spans return0 unchanged;
  * zero returns1 without dereference. Mapping/IFF are restored; allocation,
- * version and ownership state stay unchanged. Interrupts are masked for at
- * most256copiedbytes plus checks; stream callers use64-byte chunks and split
- * multi-page work. */
+ * version and ownership state stay unchanged. Caller interrupts stay unchanged;
+ * the pinned PIO ISR preserves registers and page2. Stream callers use64-byte
+ * chunks, split multi-page work and poll outside each bounded span. */
 uint8_t far_read(uint8_t page,uint16_t offset,uint8_t *out,uint16_t count) NATIVE;
 /* Fill a caller-owned live RAM page with at most FAR_FILL_LIMIT bytes. Caller
  * retains its page3 stack. Zero succeeds with sentinel arguments; nonzero
  * spans must fit one page. Invalid spans change nothing. Successful stores
  * advance page_versions by count modulo 2^32, including identical bytes.
  * MMU/SP/IX/IY/IFF, allocation/lifetime/ownership and initialized extent are
- * preserved. IRQs are masked during bounded work; callers split and poll. */
+ * preserved. Caller interrupts stay unchanged, as for far_get/set; the pinned
+ * PIO ISR preserves registers and page2. Callers split bounded work and poll. */
 uint8_t far_fill(uint8_t page,uint16_t offset,uint8_t value,uint16_t count) NATIVE;
 /* Same-page memmove on a caller-owned writable live RAM page32..63. Retain
  * the parent page3 stack. Count<=FAR_MOVE_LIMIT; both spans fit one page.
