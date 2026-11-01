@@ -2,7 +2,7 @@
 
 Created October 30, 2026. Based on the [refreshed optimization audit](optimization-audit-2026-10-30.md) at commit `61e8dd9`. PERF01–PERF15, PERF17 and PERF18 are complete under the user-requested focused validation; all remaining product optimization tasks are open. Test infrastructure now has a clean complete baseline with product binaries unchanged from `86e362e`: **146/146 scheduled jobs passed with eight workers in 44m09s**. See [baseline evidence](../analysis/performance/long-chunks-8workers/report.md). PERF01 now initializes the verified runtime prefix directly, with measured gains and unchanged generated artifacts; details are in the results log. Language support is the accepted baseline; overlays remain deferred.
 
-The pre-optimization full revised acceptance plan passes. PERF01–PERF15, PERF17 and PERF18 are complete. PERF16 is deferred pending the compiler-job simplification integration; PERF19 is next. The order ranks expected practical benefit: savings, how often the path runs, confidence, and the size of the change. It is not a numerical sort of unrelated worst-case percentages. Reference-heavy programs may benefit most from PERF02; every successful compile benefits from PERF01. The first-four measurement checkpoint below retains PERF05 as next; re-evaluate remaining estimates as native evidence arrives.
+The pre-optimization full revised acceptance plan passes. PERF01–PERF15, PERF17 and PERF18 are complete. PERF16 is deferred pending the compiler-job simplification integration; PERF19 profiling is complete; PERF20 is next. The order ranks expected practical benefit: savings, how often the path runs, confidence, and the size of the change. It is not a numerical sort of unrelated worst-case percentages. Reference-heavy programs may benefit most from PERF02; every successful compile benefits from PERF01. The first-four measurement checkpoint below retains PERF05 as next; re-evaluate remaining estimates as native evidence arrives.
 
 Savings below are projections for the audit fixtures, not achieved speedups. A million nominal Z80 T states is 0.1 seconds at an illustrative 10 MHz; this excludes SHA time, bank wrappers, C setup and OS waits. Estimates overlap and must not be added.
 
@@ -183,7 +183,7 @@ Done when: integer-boundary and diagnostic tests pass, native outputs and logica
 
 These can move into the queue when a small experiment establishes their return.
 
-- [ ] **PERF19 Profile startup and compilation by phase.** Use the existing emulator/tools and unchanged authenticated assets to separate load, hash, parse, placement, sealing, reply validation and adoption time. Record source/reference counts and peak pages. Promote the dominant remaining cost after the first batch; no startup speedup is established yet.
+- [x] **PERF19 Profile startup and compilation by phase.** Use the existing emulator/tools and unchanged authenticated assets to separate load, hash, parse, placement, sealing, reply validation and adoption time. Record source/reference counts and peak pages. Promote the dominant remaining cost after the first batch; no startup speedup is established yet.
 - [ ] **PERF20 Measure private near wire helpers.** Compare same-bank scalar calls with small private near helpers while preserving required banked exports. Record native cycles and net linked bytes, including wrapper/body costs. Keep the change only if total cost improves.
 - [ ] **PERF21 Prove a disk text read-ahead design.** Check logical versus physical cursor semantics, interleaved files, byte26, serial/device behavior, error timing and the fixed 160-byte registry layout. Budget storage before implementing a cache. The 99.2% estimate is ideal data-read syscall reduction, not overall speedup.
 
@@ -525,3 +525,27 @@ Validation: **12/12 focused jobs passed in 514.413591 seconds (8m 34.41s)** usin
 Added proofs cover ten bit-pattern equivalences, 28 depth boundaries and 175 frozen/candidate depth/diagnostic cases. Array indexes, loop bounds, comparisons, output, set ranges and suppressed sizeof indexes have byte-identical code to their equivalent hexadecimal values in memory, relocated program and relocated CHN builds; size metadata and authenticated builds also match. This does not claim a new native CHN execution replay. The emitted-code consumer audit found no expression opcode peephole affected by the change.
 
 The initial read-only Opus review found no blocker/high finding. Its headroom, link, consumer and mode questions are resolved by the above evidence. The user requested continuing without another review; no follow-up review completion is claimed. Evidence: [report](../analysis/performance/perf18-current/report.md), [measurements](../analysis/performance/perf18-current/comparison.json), [verification](../analysis/performance/perf18-current/verification.json), [context/mode comparison](../analysis/performance/perf18-current/context-comparison.json), [original-oracle preservation](../analysis/performance/perf18-current/oracle-preservation.json). Separate existing chunking infrastructure changes are excluded from the PERF18 commit. **PERF19 is next; PERF16 remains deferred.**
+
+
+## PERF19 complete — native phase profile
+
+Baseline `3c6888e`; product code, generated Build identities and assertions unchanged. Two successful native profiles take **64.478s + 67.941s = 2m 12.42s**; no acceptance replay. The complete compile-request windows match prior measurements to the explained four-cycle endpoint difference. This investigation credits **zero performance/size gain**.
+
+| Compile-request portion | 254-byte fixture | 96-variable fixture |
+|---|---:|---:|
+| Preparation | 1.89% | 4.48% |
+| Parsing/emission | 1.34% | 44.32% |
+| Post-parse completion | 0.39% | 0.18% |
+| Placement | 1.74% | 0.23% |
+| Sealing | 19.25% | 9.90% |
+| Reply construction/boundary | 18.88% | 10.79% |
+| Reply validation/cleanup | 37.13% | 19.12% |
+| Adoption/final check | 19.39% | 10.99% |
+
+The table columns are the 254-byte/19-symbol fixture and the 2,342-byte/113-symbol fixture respectively. They have one source each, 2/96 persistent reference contexts and 25/24 peak product-owned pages. Total compile cycles are **2,553,216,244 / 3,127,126,996**. Sealing/reply/validation/adoption together consume **94.65% / 50.80%**; these buckets include authentication, cleanup and final build checks, not only protocol copying. Parse/emission is **1.34% / 44.32%**, so workload matters.
+
+Cold startup from main to authenticated library ready costs **4,572,741,016 cycles**, identical twice; the initial editor adds 1,501,029 cycles. A 128-byte payload sample spends **96.55%** of its read/hash/copy window hashing (read/setup 2,853; SHA 1,855,545; transition 82; copy 63,294 cycles). That sample is not a whole-startup percentage. Phase-bank identity hashes add further startup work. Startup excludes shell loading of the resident executable before main.
+
+**Priority:** integrate the separately prepared compiler-job simplification, then reprofile before optimizing helpers that it removes. Next optimization research should target retained native SHA work and representative parser/reference costs. No projected integration/SHA gain is credited; retained authentication remains required. PERF16 stays deferred. The initial aliased-breakpoint probe and pre-initialization ownership samples are excluded; successful cycle totals/Build identities match independent accepted captures. The host helper's startup ownership accounting was corrected without changing product code or accepted cycle/compile-peak evidence.
+
+Evidence: [phase report](../analysis/performance/perf19-current/report.md), [summary](../analysis/performance/perf19-current/summary.json), [identity/window preservation](../analysis/performance/perf19-current/artifact-preservation.json). **Four items remain open: PERF16 (deferred), PERF20, PERF21 and PERF22.**
