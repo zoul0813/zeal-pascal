@@ -3,8 +3,6 @@
 #include "zp.h"
 
 uint8_t sources_new(Sources *set) SOURCE_BLOCK_CALL;
-/* Read-only view of an already validated ZCMP table. No page is acquired. */
-uint8_t sources_view(Sources *set,uint8_t page,uint16_t base,uint8_t count) SOURCE_BLOCK_CALL;
 uint8_t sources_valid(const Sources *set) SOURCE_BLOCK_CALL;
 int16_t sources_find(const Sources *set,const char *path) SOURCE_BLOCK_CALL;
 uint8_t sources_get(const Sources *set,uint8_t id,Source *source) SOURCE_BLOCK_CALL;
@@ -13,6 +11,12 @@ uint8_t sources_get(const Sources *set,uint8_t id,Source *source) SOURCE_BLOCK_C
  * An origin records the borrowed editor page used to make a snapshot; NULL
  * denotes a disk dependency, which the compiler must reread before reuse. */
 int16_t sources_take(Sources *set,const Source *source,const Source *origin) SOURCE_BLOCK_CALL;
+/* Adopt an existing ready record in an unpacked catalogue, preserving its
+ * descriptor and digest. Caller must own the source page (the compiler
+ * checks its invocation ledger) and already validate descriptor/digest.
+ * This checks readiness, not arbitrary record contents. NULL origin keeps
+ * disk freshness semantics. Failure changes no ownership. */
+uint8_t sources_adopt(Sources *set,uint8_t id,const Source *origin) SOURCE_BLOCK_CALL;
 /* Invocation-local immutable views never acquire the source page. The catalog
  * itself is still owned. Nonresident references retain only map identity. */
 int16_t sources_borrow(Sources *set,const Source *source,const uint8_t hash[32]) SOURCE_BLOCK_CALL;

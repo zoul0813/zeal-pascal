@@ -1,4 +1,4 @@
-#include "compiler_job_wire.h"
+#include "stream-hash.h"
 
 /* Decoded streams are owned/authenticated by the caller. A small parent-stack
  * buffer bounds both mapping time and stack use; no mapped pointer escapes. */

@@ -399,6 +399,7 @@ static void tail_checks(void) {
     tail_case(0,0);tail_case(1,0);tail_case(0,1);tail_case(1,1);
 }
 void test_span_done(void) {__asm nop __endasm;}
+static uint8_t mask_empty(const uint8_t *p,uint8_t n) {while(n--)if(*p++)return 0;return 1;}
 static CompileFailure failure;
 static uint8_t expected[32];
 static uint8_t request(uint8_t mode,const CompileOptions *options) {
@@ -413,11 +414,12 @@ int app_main(void) {
     test_stage=79;span_checks();fill_checks();move_checks();tail_checks();test_span_done();
     fd=open("H:/JOBS.TXT",O_WRONLY|O_CREAT|O_TRUNC);check(fd>=0);if(fd>=0)check(!swap(fd,DEV_STDOUT));
     test_stage=80;
-    check(load("program Hello;begin writeln('JOB-OK')end."));s.cursor=8;s.previous=3;s.dirty=1;before=s;
+    check(load("program Hello;begin writeln('JOB-OK')end."));
+    check(source_replace(&s,s.length,s.length,(const uint8_t*)"  ",2));s.cursor=8;s.previous=3;s.dirty=1;before=s;
     check(compile(&s,&b,&d));memcpy(expected,b.id,32);closed();
     compiler_allocating=COMPILER_ALLOC_WORKER;owned=page_new(PAGE_COMPILER);compiler_allocating=COMPILER_ALLOC_NONE;
     check(owned!=255);check(code_phase_park());check(request(0,0));
-    check(job_zero(compiler_owned,8)&&job_zero(compiler_parent_owned,8));check(b.valid&&!memcmp(b.id,expected,32)&&!memcmp(&s,&before,sizeof(s)));
+    check(mask_empty(compiler_owned,8)&&mask_empty(compiler_parent_owned,8));check(b.valid&&!memcmp(b.id,expected,32)&&!memcmp(&s,&before,sizeof(s)));
     check(!*output_recovery()&&build_check(&s,&b));owned=pages_used();
     check(run_build(&s,&b)&&ram_result[26]==1);check(pages_used()==owned);
     check(code_phase_restore());closed();

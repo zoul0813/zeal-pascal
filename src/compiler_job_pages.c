@@ -20,3 +20,7 @@ uint8_t compiler_resources_ready(void) SOURCE_BLOCK_CALL {
     if(!workers)platform_error=error;
     return workers&&parent;
 }
+
+uint8_t compiler_page_owned(const uint8_t mask[8],uint8_t page) SOURCE_BLOCK_CALL {
+    return page<64&&(mask[page>>3]&(1u<<(page&7)))&&page_lifetime(page);
+}

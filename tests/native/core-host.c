@@ -2,6 +2,7 @@
  * These are deliberately not counted as native execution tests. */
 #include "compiler.h"
 #include "compiler_job.h"
+#include "stream-hash.h"
 #include "source_move.h"
 #include "image.h"
 #include "transfer_asset.h"
@@ -82,7 +83,7 @@ uint8_t key_interrupt(void) {
         (cancel_stage==4&&cc.image->map_length!=0)||
         (cancel_stage==5&&cc.scan>512)||
         (cancel_stage==6&&cc.sources->refs_owned&&cc.sources->refs_page!=255&&++spill_polls==2)||
-        (cancel_stage==7&&compiler_job_active&&cc.sources->stage_shared&&cc.emitted>0xc100u);
+        (cancel_stage==7&&compiler_invocation&&cc.sources->stage_shared&&cc.emitted>0xc100u);
     if(cancel_stage==8&&initialization_probe&&copy_started&&!copy_complete&&copy_progress>=256)reached=1;
     if(cancel_stage==9&&initialization_probe&&image_fill_calls>=image_fill_cancel_after&&
        cc.image->pages[image_fill_cancel_index]!=255&&!initialized[cc.image->pages[image_fill_cancel_index]]) {
@@ -1326,7 +1327,7 @@ static void reference_cases(void) {
         memset(&image,0,sizeof(image));memset(&error,0,sizeof(error));
         cc.sources=&state;cc.image=&image;cc.error=&error;
         page=page_new(PAGE_COMPILER);check(page!=255);
-        state.refs_page=page;state.job=1;
+        state.refs_page=page;state.borrow_inputs=1;
         image.sources.page=layout==2?255:page;
         image.sources.count=layout==1?2:1;
         catalog=layout==2?0:(uint16_t)image.sources.count*189u;
@@ -1737,7 +1738,6 @@ int main(int argc,char **argv) {
     lexer_cases();
     reference_cases();
     capture_cases();
-    wire_lookup_cases();
     compiler_job_cases();
     large_job_capacity();
     memory_overlays();

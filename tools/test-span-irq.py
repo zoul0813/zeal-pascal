@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def span_console(n, sym, blob, events, timings, proof):
-    first = sym['_far_move']
+    first = min(sym[name] for name in ('_far_read', '_far_fill', '_far_move'))
     body = blob[first-0x4000:sym['_ram_enter']-0x4000]
     assert body.count(b'\xed\xb0') == 2 and body.count(b'\xed\xb8') == 1
     assert body.count(b'\x12\x13\x10') == 1

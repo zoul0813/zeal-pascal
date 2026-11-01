@@ -31,7 +31,7 @@ static uint8_t reserve_references(uint8_t files,uint8_t references) {
     if(!shared_references()||(uint32_t)cc.image->sources.base+
        (uint32_t)(cc.image->sources.count+files)*RECORD_BYTES+
        (uint32_t)(cc.sources->refs+references)*REFERENCE_BYTES<=PAGE_SIZE)return 1;
-    if(cc.sources->job){cc_fail(98);return 0;}
+    if(cc.sources->borrow_inputs){cc_fail(98);return 0;}
     page=page_new(PAGE_COMPILER);if(page==255){cc_fail(98);return 0;}
     previous=cc.sources->refs_page;cc.sources->refs_page=page;cc.sources->refs_owned=1;
     for(id=0;id<cc.sources->refs;++id) {
@@ -113,7 +113,8 @@ uint8_t cc_sources_prepare(const Source *root,const Sources *buffers) ROUTINES {
     uint8_t file,count,borrowed=0,hash[32];int16_t id=-1;
     cc.sources->root=root;cc.sources->buffers=buffers;
     if(buffers) {
-        if(!sources_valid(buffers)){cc_fail(98);return 0;}
+        /* Every nonempty record is validated by sources_ready below. */
+        if(!buffers->count&&!sources_valid(buffers)){cc_fail(98);return 0;}
         /* Keep the immutable bound outside the loop: SDCC's size optimizer
          * otherwise advances the struct-field pointer on each iteration. */
         count=buffers->count;
@@ -123,9 +124,20 @@ uint8_t cc_sources_prepare(const Source *root,const Sources *buffers) ROUTINES {
         else borrowed=sources_borrowed(buffers,(uint8_t)id);
     }
     if(!sources_new(&cc.image->sources)){cc_fail(98);return 0;}
-    if(borrowed||cc.sources->job) {
+    if(borrowed||cc.sources->borrow_inputs) {
+        if(cc.sources->borrow_inputs) {
+            /* Synchronous capture already hashed these canonical bytes.
+             * The readiness loop above checks lifetime/version; bind the
+             * root descriptor before reusing its captured identity. */
+            if(id<0){cc_fail(98);return 0;}
+            /* Path-only capture uses sources_reference, not sources_borrow.
+             * Disk Main is read later and still needs its first hash. */
+            if(!borrowed)source_hash(root,hash);
+            else if(!sources_get(buffers,(uint8_t)id,cc.input)||
+                    cc.input->page!=root->page||cc.input->length!=root->length||
+                    !sources_hash(buffers,(uint8_t)id,hash)){cc_fail(98);return 0;}
+        } else source_hash(root,hash);
         *cc.input=*root;
-        source_hash(root,hash);
         if(sources_borrow(&cc.image->sources,cc.input,hash)<0) {cc_fail(98);return 0;}
     } else {
         if(!source_snapshot(root,cc.input)){cc_fail(98);return 0;}
@@ -133,7 +145,7 @@ uint8_t cc_sources_prepare(const Source *root,const Sources *buffers) ROUTINES {
             source_close(cc.input);cc_fail(98);return 0;
         }
     }
-    if(!cc.sources->job&&!sources_pack(&cc.image->sources)){cc_fail(98);return 0;}
+    if(!cc.sources->borrow_inputs&&!sources_pack(&cc.image->sources)){cc_fail(98);return 0;}
     cc.sources->refs_page=cc.image->sources.page;
     if(cc.sources->refs_page==255){cc_fail(98);return 0;}
     return 1;
@@ -189,10 +201,13 @@ void cc_source_include(uint8_t comment) ROUTINES {
     if(id<0) {
         if(!reserve_references(1,0))return;
         if(cc.sources->buffers)override=sources_find(cc.sources->buffers,path);
-        if(override>=0&&(cc.sources->buffers->base&SOURCES_WIRE_VIEW)&&
-           !sources_resident(cc.sources->buffers,(uint8_t)override))override=-1;
         if(override>=0) {
             if(!sources_get(cc.sources->buffers,(uint8_t)override,&buffer)){cc_fail(98);return;}
+            /* A nonresident reference names disk content, never an editor
+             * override. Failed catalogue access must not fall back to disk. */
+            if(buffer.page==255)override=-1;
+        }
+        if(override>=0) {
             if(sources_borrowed(cc.sources->buffers,(uint8_t)override)) {loaded=buffer;owned=2;}
             else {if(!source_snapshot(&buffer,&loaded)){cc_fail(98);return;}owned=1;}
         } else if(read_block(&loaded,path,&diagnostic))owned=1;

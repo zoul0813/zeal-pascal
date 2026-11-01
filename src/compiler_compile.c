@@ -19,8 +19,8 @@ uint8_t compile_project(const Source *s,const Sources *buffers,Build *b,Diagnost
     sources.refs_page=255;sources.root=s;sources.options=options;
     sources.memory=!options;
 #if defined(__SDCC) || defined(ZP_COMPILER_JOBS)
-    sources.job=compiler_job_active!=0;
-    if(compiler_job_active)sources.memory=compiler_job_memory;
+    sources.borrow_inputs=compiler_invocation!=0;
+    if(compiler_invocation)sources.memory=compiler_memory_mode;
 #endif
     cc.input=&active;cc.sources=&sources;cc.image=b;cc.error=d;
     cc.workspace=255;cc.stage_page=255;
@@ -102,7 +102,7 @@ failed:
     build_discard_image(b);
     if(d->code!=COMPILE_INTERRUPTED) {
 #if defined(__SDCC) || defined(ZP_COMPILER_JOBS)
-        if(compiler_job_active)compiler_job_failure();else
+        if(compiler_invocation)compiler_capture_failure();else
 #endif
         cc_sources_error();
     }

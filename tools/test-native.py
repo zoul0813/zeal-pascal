@@ -22,7 +22,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ZEAL = ROOT.parent
+ZEAL = Path(os.environ.get("ZP_ZEAL_ROOT", str(ROOT.parent))).resolve()
 EMULATOR = ZEAL / "Zeal-NativeEmulator/build/zeal-native"
 ROM = ZEAL / "zeal-dev-environment/home/Zeal-8-bit-OS/build/os_with_romdisk.img"
 KERNEL_MAP = ROM.with_name('os.map')

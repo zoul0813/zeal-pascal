@@ -66,13 +66,10 @@ version_done:
     out (0xf2),a
     ret
 
-; Checked retained spans. A=owned RAM page, DE=offset/destination. Read and
-; move have two LE16 stack arguments; fill has a byte and LE16 count (call1).
+; Checked retained read/fill spans. A=owned RAM page, DE=offset. Read has
+; two LE16 stack arguments; fill has a byte and LE16 count (SDCC call1).
 ; IX/IY and caller SP/IFF are preserved. Bounds
 ; reject before mapping/stores; zero is a no-op even with sentinel arguments.
-_far_move::
-    cp a                         ; preserve page, saved Z=1/C=0 identifies move
-    jr span_begin
 _far_fill::
     ; Align byte+word arguments with read's two-word frame. With entry SP=S,
     ; the return moves to S-1 and padding uses S+1 (old return high byte).
@@ -94,9 +91,6 @@ span_begin:
     push de                      ; offset at -4(IX)
     ld a,i
     push af                      ; incoming IFF in P/V, retained until exit
-    ; Like far_get/set, all spans leave caller interrupts unchanged. The
-    ; pinned PIO ISR preserves registers/page2; masking a bounded span can
-    ; outlast the keyboard's active-low IRQ pulse. Callers still split/poll.
     ld c,6(ix)
     ld b,7(ix)
     ld a,b
@@ -107,8 +101,6 @@ span_begin:
 read_source_valid:
     bit 0,-2(ix)                 ; saved entry AF, independent of saved IFF
     jp nz,fill_body
-    bit 6,-2(ix)
-    jp nz,move_body
     ld l,4(ix)
     ld h,5(ix)
     ld e,l
@@ -167,7 +159,7 @@ span_valid:
     jr nz,span_invalid
     ld a,c
     or a
-    jr nz,span_invalid           ; all FAR_*_LIMIT values are256, bounding unpolled work
+    jr nz,span_invalid           ; FAR_READ_LIMIT=FAR_FILL_LIMIT=256 bounds unpolled work
 span_count_valid:
     ld a,-1(ix)
     cp #32
@@ -192,7 +184,37 @@ span_invalid:
     scf
     ret
 
-span_version:
+; A separate move entry keeps PERF13 read/fill instruction paths unchanged.
+; Move leaves interrupts enabled when the caller enabled them: the pinned PIO
+; ISR preserves registers and page2, as required by far_get/set. Read/fill retain
+; caller IFF too (PERF22). IX argument offsets and exit are
+; shared; move needs no saved destination slot below its page/IFF words.
+_far_move::
+    push ix
+    ld ix,#0
+    add ix,sp
+    push af                      ; only the page is needed, not incoming flags
+    ld a,i
+    push af
+    ld c,6(ix)
+    ld b,7(ix)
+    ld a,b
+    or c
+    jr z,read_success
+    call span_valid
+    jr c,read_invalid
+
+; Common frame: DE=validated destination, source at4/5(IX), count=BC.
+; Interrupt state stays unchanged, as for the existing byte accessors.
+; Both spans are checked before the version change or mapping. One-page
+; memmove direction preserves overlapping bytes; callers order larger chunks.
+move_body:
+    push de
+    ld e,4(ix)
+    ld d,5(ix)
+    call span_valid
+    pop de
+    jr c,read_invalid
     push de
     ld l,-1(ix)
     ld h,#0
@@ -207,50 +229,16 @@ span_version:
     ld a,(hl)
     adc a,b
     ld (hl),a
-    jr nc,span_version_done
+    jr nc,move_version_done
     inc hl
     inc (hl)
-    jr nz,span_version_done
+    jr nz,move_version_done
     inc hl
     inc (hl)
-span_version_done:
+move_version_done:
     pop de
-    ret
-
-fill_body:
-    call span_version
-    set 7,d
-    ld a,#0x80
-    in a,(0xf2)
-    push af
-    ld a,-1(ix)
-    out (0xf2),a
-    ld b,c                       ; zero lower count encodes validated256
-    ld a,5(ix)                  ; byte after the alignment slot
-fill_bytes:
-    ld (de),a
-    inc de
-    djnz fill_bytes
-    pop af
-    out (0xf2),a
-    jp read_success              ; common MMU/IFF/register/argument return
-
-; Common frame: DE=validated destination, source at4/5(IX), count=BC.
-; Interrupt state stays unchanged, as for the existing byte accessors.
-; Both spans are checked before the version change or mapping. One-page
-; memmove direction preserves overlapping bytes; callers order larger chunks.
-move_body:
-    push de
-    ld e,4(ix)
-    ld d,5(ix)
-    call span_valid
-    pop de
-    jp c,read_invalid
     ld l,4(ix)
     ld h,5(ix)
-    push hl
-    call span_version
-    pop hl
     set 7,h
     set 7,d
     ld a,#0x80
@@ -258,14 +246,12 @@ move_body:
     push af
     ld a,-1(ix)
     out (0xf2),a
-    ld a,d
-    cp h
-    jr c,move_forward
-    jr nz,move_backward
-    ld a,e
-    cp l
-    jr c,move_forward
-    jr z,move_forward
+    ; Restore source after subtracting destination. The restoring ADD carries
+    ; exactly when source<destination, selecting the backward overlap copy.
+    or a
+    sbc hl,de
+    add hl,de
+    jr nc,move_forward
 move_backward:
     add hl,bc
     dec hl
@@ -281,6 +267,45 @@ move_mapped_done:
     pop af
     out (0xf2),a
     jp read_success
+
+fill_body:
+    push de
+    ld l,-1(ix)
+    ld h,#0
+    add hl,hl
+    add hl,hl
+    ld de,#_page_versions
+    add hl,de
+    ld a,(hl)
+    add a,c
+    ld (hl),a
+    inc hl
+    ld a,(hl)
+    adc a,b
+    ld (hl),a
+    jr nc,fill_version_done
+    inc hl
+    inc (hl)
+    jr nz,fill_version_done
+    inc hl
+    inc (hl)
+fill_version_done:
+    pop de
+    set 7,d
+    ld a,#0x80
+    in a,(0xf2)
+    push af
+    ld a,-1(ix)
+    out (0xf2),a
+    ld b,c                       ; zero lower count encodes validated256
+    ld a,5(ix)                  ; byte after the alignment slot
+fill_bytes:
+    ld (de),a
+    inc de
+    djnz fill_bytes
+    pop af
+    out (0xf2),a
+    jp read_success              ; common MMU/IFF/register/argument return
 
 _ram_enter::
     push ix

@@ -48,7 +48,7 @@ struct CompilerGroups;
 typedef struct {
     const Source *root;
     const Sources *buffers;
-    uint8_t refs_page,refs_owned,stage_shared,file,error_file,external_error,memory,job;
+    uint8_t refs_page,refs_owned,stage_shared,file,error_file,external_error,memory,borrow_inputs;
     uint16_t refs,parent_scan;
     uint8_t parent_flags,parent_limit;
     const CompileOptions *options;

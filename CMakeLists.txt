@@ -63,8 +63,8 @@ set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/pascal_runtime.zpl;${CMAKE_BINARY_DIR}/pascal_runtime.private;${CMAKE_BINARY_DIR}/pascal_runtime.profile;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
 set(PASCAL_CORE src/source.c src/sources.c src/sources_storage.c src/compiler_sources.c src/source_hash.c src/sha256.c src/sha_z80.asm src/compiler.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/compiler_expr.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_file.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_state.c src/compiler_predicates.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/saved_map.c src/native.asm
     ${CMAKE_BINARY_DIR}/runtime_asset.asm ${CMAKE_BINARY_DIR}/file_asset.asm)
-list(APPEND PASCAL_CORE src/compiler_chain.c src/compiler_transfer_asset.c src/compiler_module.c src/compiler_bridges.c src/library_phase.c src/compiler_members.c src/compiler_groups.c src/compiler_late.c src/compiler_keyboard_engine.c src/compiler_compile.c src/compiler_job.c src/compiler_job_wire.c src/compiler_job_result.c src/compiler_job_pages.c)
-list(APPEND PASCAL_CORE src/compiler_messages.c src/compiler_job_hash.c src/source_move.c src/source_validation.c src/source_location.c)
+list(APPEND PASCAL_CORE src/compiler_chain.c src/compiler_transfer_asset.c src/compiler_module.c src/compiler_bridges.c src/library_phase.c src/compiler_members.c src/compiler_groups.c src/compiler_late.c src/compiler_keyboard_engine.c src/compiler_compile.c src/compiler_job.c src/compiler_job_result.c src/compiler_job_pages.c)
+list(APPEND PASCAL_CORE src/compiler_messages.c src/source_move.c src/source_validation.c src/source_location.c)
 set_property(SOURCE src/main.c src/compiler_messages.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/compiler_messages.h)
 set_source_files_properties(${CMAKE_BINARY_DIR}/transfer_ide_asset.asm ${CMAKE_BINARY_DIR}/transfer_test_asset.asm PROPERTIES GENERATED TRUE)
@@ -157,13 +157,9 @@ set_source_files_properties(src/compiler_real.c src/compiler_artifact.c PROPERTI
     COMPILE_OPTIONS "--codeseg;BANK9;--constseg;BANK9")
 set_source_files_properties(src/output.c src/worker.c src/sources.c src/source_hash.c src/compiler_job_pages.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK3;--constseg;BANK3")
-# Bounded stream hashing shares the permanent storage/hash bank, outside the
-# almost-full wire decoder bank. Its temporary buffer belongs to the stack.
-set_source_files_properties(src/compiler_job_hash.c PROPERTIES
-    COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK3;--constseg;BANK3")
-set_property(SOURCE src/compiler_job_hash.c src/compiler_job_result.c APPEND PROPERTY OBJECT_DEPENDS
-    ${CMAKE_SOURCE_DIR}/src/compiler_job_wire.h)
-set_source_files_properties(src/compiler_sources.c src/compiler_job_wire.c src/compiler_job_result.c PROPERTIES
+set_property(SOURCE src/compiler_job_result.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/sources.h)
+set_source_files_properties(src/compiler_sources.c src/compiler_job_result.c PROPERTIES
     COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK15;--constseg;BANK15")
 set_source_files_properties(src/compiler_job.c src/compiler_activation.c src/compiler_messages.c PROPERTIES
     COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK16;--constseg;BANK16")
@@ -293,7 +289,7 @@ add_executable(zjobtest src/startup.asm src/banks.c tests/native/job-main.c test
 target_include_directories(zjobtest PRIVATE src)
 target_compile_options(zjobtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 set_source_files_properties(tests/native/job-main.c PROPERTIES COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
-set_property(SOURCE tests/native/job-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_job.h ${CMAKE_SOURCE_DIR}/src/compiler_job_wire.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
+set_property(SOURCE tests/native/job-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_job.h ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 add_executable(zoptionstest src/startup.asm src/banks.c tests/native/options-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 target_include_directories(zoptionstest PRIVATE src)
 target_compile_options(zoptionstest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
@@ -601,15 +597,15 @@ target_compile_options(ztrigtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt
 target_link_options(ztrigtest PRIVATE "SHELL:-b _INITIALIZED=0xe000")
 zos_add_outputs(ztrigtest)
 
-set_property(SOURCE src/compiler_compile.c src/compiler_job.c src/compiler_job_wire.c src/main.c APPEND PROPERTY OBJECT_DEPENDS
-    ${CMAKE_SOURCE_DIR}/src/compiler_job.h ${CMAKE_SOURCE_DIR}/src/compiler_job_wire.h)
+set_property(SOURCE src/compiler_compile.c src/compiler_job.c src/main.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/compiler_job.h ${CMAKE_SOURCE_DIR}/src/sources.h)
 
 set_property(SOURCE src/main.c APPEND PROPERTY COMPILE_OPTIONS --opt-code-size)
 
 
-set_property(SOURCE src/sources.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_job_wire.h)
+set_property(SOURCE src/sources.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources.h)
 set_property(SOURCE src/compiler_sources.c src/compiler_build.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources_internal.h)
 
-set_property(SOURCE src/platform.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_job.h ${CMAKE_SOURCE_DIR}/src/compiler_job_wire.h)
+set_property(SOURCE src/platform.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_job.h ${CMAKE_SOURCE_DIR}/src/sources.h)
 
-set_property(SOURCE src/banks.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_job.h ${CMAKE_SOURCE_DIR}/src/compiler_job_wire.h)
+set_property(SOURCE src/banks.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_job.h ${CMAKE_SOURCE_DIR}/src/sources.h)
