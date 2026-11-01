@@ -6,8 +6,8 @@ procedure check(ok:boolean);
 begin checks:=checks+1;if not ok then begin writeln('BRIDGE-FILE-FAIL-',checks);halt end end;
 procedure install(address:integer);
 begin machine[2]:=chr(lo(address));machine[3]:=chr(hi(address))end;
-procedure writecall(var f:ints;value:integer);external $8004;
-procedure readcall(var f:ints;var value:integer);external $8004;
+procedure writecall(var f:ints;value:integer);external $8037;
+procedure readcall(var f:ints;var value:integer);external $8037;
 procedure outer;
 var f:ints;value,total,index:integer;
 procedure writer(var g:ints;n:integer);begin write(g,n)end;
@@ -24,4 +24,4 @@ begin
  assign(f,'H:/BRIDGE.DAT');reset(f);check(filesize(f)=3);
  read(f,value);check(value=11);read(f,value);check(value=22);read(f,value);check(value=33);
 end;
-begin saved:=stackptr;outer;verify;check(stackptr=saved);writeln('BRIDGE-FILE-OK')end.
+begin recurptr:=stackptr-2048; saved:=stackptr;outer;verify;check(stackptr=saved);writeln('BRIDGE-FILE-OK')end.

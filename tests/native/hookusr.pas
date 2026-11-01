@@ -11,4 +11,4 @@ begin
  check(eof(Usr));read(Usr,c);check(c=#26);read(Usr,c);check(c='W');
  check(stackptr=saved);
 end;
-begin outer;writeln('USR-DEFAULT-OK')end.
+begin recurptr:=stackptr-2048; outer;writeln('USR-DEFAULT-OK')end.

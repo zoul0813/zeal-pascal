@@ -207,6 +207,8 @@ void cc_bind_storage(uint16_t id) FRONTEND;
 uint16_t cc_rget(uint8_t scope,uint8_t field) FRONTEND;
 void cc_rput(uint8_t scope,uint8_t field,uint16_t value) FRONTEND;
 void cc_frame(uint8_t scope) FRONTEND;
+void cc_recursion_save(void) ROUTINES;
+void cc_recursion_restore(void) ROUTINES;
 uint8_t cc_frame_required(uint8_t scope) FRONTEND;
 void cc_slot(uint16_t id) FRONTEND;
 void cc_convert(uint8_t target,uint8_t source) FRONTEND;

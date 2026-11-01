@@ -11,12 +11,12 @@ procedure check(ok:boolean);
 begin checks:=checks+1;if not ok then begin writeln('BRIDGE-ARG-FAIL-',checks);halt end end;
 procedure install(address:integer);
 begin target:=address;machine[2]:=chr(lo(address));machine[3]:=chr(hi(address))end;
-function stringcall(a:integer;s:text;b:char;t:text;last:integer):text;external $8004;
-function realcall(a:real;n:integer;b:real):real;external $8004;
-procedure valuecall(s:small;v:vector;r:item;var n:integer;var raw);external $8004;
-function boolcall(n:byte):boolean;external $8004;
-function charcall(n:char):char;external $8004;
-function pointercall:pointer;external $8004;
+function stringcall(a:integer;s:text;b:char;t:text;last:integer):text;external $8349;
+function realcall(a:real;n:integer;b:real):real;external $8349;
+procedure valuecall(s:small;v:vector;r:item;var n:integer;var raw);external $8349;
+function boolcall(n:byte):boolean;external $8349;
+function charcall(n:char):char;external $8349;
+function pointercall:pointer;external $8349;
 procedure outer;
 var local:integer;prefix:string[3];bias:real;own:pointer;
 function strings(a:integer;s:text;b:char;t:text;last:integer):text;
@@ -57,7 +57,7 @@ begin
  result:=stringcall(0,big,'Q','',90);
  check((length(result)=255)and(result[1]='Q')and(result[255]='Z')and(big[1]='x'));
 end;
-begin
+begin recurptr:=stackptr-2048;
  saved:=stackptr;outer;check(stackptr=saved);
  writeln('BRIDGE-ARGUMENTS-OK');
 end.

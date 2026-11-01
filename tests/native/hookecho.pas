@@ -13,4 +13,4 @@ begin
  log:='';read(Kbd,c);check(c='Y');check(log='');
  conoutptr:=old;
 end;
-begin outer;writeln('HOOK-ECHO-OK')end.
+begin recurptr:=stackptr-2048; outer;writeln('HOOK-ECHO-OK')end.

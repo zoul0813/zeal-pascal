@@ -585,8 +585,16 @@ heap. FreeMem requires the original requested byte count; disposed pointers keep
 their dangling numeric value. MemAvail reports total usable free payload and
 MaxAvail the largest payload, excluding block headers. Native counts depend on
 the current stack and metadata; odd requests round up and zero-width allocations
-still consume a header. HeapPtr and RecurPtr expose the frontier and conservative
-stack boundary. StackPtr reads the CPU stack; assigning a saved value restores it
+still consume a header. HeapPtr exposes the heap frontier. RecurPtr is the
+read/write pointer to TP3's separate recursion stack, initially StackPtr minus
+1024 bytes. `$A-` saves and restores each routine's Pascal workspace there;
+ordinary expressions and CPU-stack checks leave RecurPtr unchanged. Reposition
+it before those stacks or the heap are in use. Zeal's C file services need
+1024 bytes plus native call/helper space on the CPU stack: recursive programs
+using them must lower RecurPtr first (the file fixtures use StackPtr minus2048).
+Large native String argument lists can also need a larger CPU-stack gap.
+Bounds checks reject collisions with live recursion data. StackPtr reads the
+CPU stack; assigning a saved value restores it
 within the owned range. Invalid allocation/stack bounds report FF and return to
 source. Direct memory-state manipulation with live frames/allocations is unsafe.
 
@@ -617,8 +625,10 @@ Char arrays remain ordinary arrays.
 Procedures and functions support named parameters, local declarations,
 lexical nesting/shadowing, forward declarations, Exit and native external
 addresses. Value arguments are evaluated left to right; scalar and string values
-are copied, while Var parameters alias their callers. `$A+` uses static local
-storage; `$A-` gives recursive frames with lexical-parent links. `$V+` checks
+are copied, while Var parameters alias their callers. Locals and formal copies
+have static addresses, as in TP3. `$A+` retains their contents; `$A-` saves and
+restores their workspace on the separate recursion stack. Native CPU frames
+retain lexical links and callback lifetime metadata. `$V+` checks
 Var-string capacities and `$V-` permits relaxed matching. Untyped Var parameters
 support forwarding and Addr. Functions return scalars or named short-string
 types. String results can be nested, compared, printed, assigned and passed as
@@ -637,13 +647,15 @@ Delete and Insert require positions 1..255; negative Copy/Delete counts report
 error 11. Remaining runtime APIs are still in progress.
 
 Addr now supports nested routines through native Pascal ABI bridges, including
-captured recursive locals, forward declarations, value/Var arguments, Real
+recursive workspace references, forward declarations, value/Var arguments, Real
 results and short-string results up to255 bytes. A captured address is stable
 within its declaring activation; its private22-byte thunk lives in that frame
 and becomes invalid when the owner returns. Mark/Release does not reclaim it.
 All-static lexical ancestry uses a program-lifetime bridge with no captured
 frame; static routines inside recursive ancestry still retain the live lexical
-chain. Top-level routine addresses remain ordinary native entries. Output/status
+chain. A callback sees the currently installed static Pascal workspace, including
+when an older callback is invoked from a deeper recursive call, as observed in
+TP3. Top-level routine addresses remain ordinary native entries. Output/status
 driver pointers use these bridges as described below.
 Replacement input pointers and ErrorPtr remain pending; no procedural-parameter
 syntax is added.
@@ -825,7 +837,7 @@ preassigned Usr lifecycle operations report I/O22.
 ConStPtr, ConOutPtr, LstOutPtr, AuxOutPtr and UsrOutPtr are writable Integer
 addresses. Assign `Addr(callback)` to replace one; save its original value to
 restore the default. ConSt callbacks return Boolean without parameters; output
-callbacks take one Char. Nested callbacks may capture still-active recursive
+callbacks take one Char. Nested callbacks may reference still-active recursive
 locals through the native Addr bridges. A callback address must not outlive its
 captured owner.
 
@@ -853,8 +865,8 @@ operands emit a little-endian word. `<` forces a low byte and `>` forces a word.
 Address differences and forced bytes remain correct when generated code moves
 above globals. Forward and enclosing routine entries have stable addresses.
 
-Operands use the native Zeal ABI. Static variables use absolute addresses;
-recursive locals and formal copies use their signed IX-frame offsets. A VAR
+Operands use the native Zeal ABI. Variables, recursive locals and formal
+copies use their static absolute addresses. A VAR
 operand identifies its pointer slot. Typed constants reside in generated code.
 Nested routine operands are raw entries: machine-code callers supply the native
 lexical-parent link and arguments. `Addr` retains its captured-thunk behavior

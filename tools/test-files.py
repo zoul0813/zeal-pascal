@@ -82,8 +82,15 @@ def main():
         '%ABI_LENGTH%',str(len(abi))).replace('%ABI_BYTES%',body)
     fixtures['DISKABI.PAS']=template.replace('%SCENARIO%','0').encode()
     fixtures['DISKFAIL.PAS']=template.replace('%SCENARIO%','1').encode()
+    # The recursive local File adds16 bytes of static workspace. Relocate
+    # the independent probe's three JP entries and four internal CALLs.
+    cleanup_abi=bytearray(abi)
+    for operand in (1,4,7,51,61,71,81):
+        address=int.from_bytes(abi[operand:operand+2],'little')
+        assert 0x801d<=address<0x801d+len(abi)
+        cleanup_abi[operand:operand+2]=(address+16).to_bytes(2,'little')
     cleanup=(ROOT/'tests/native/diskcleanup.pas.in').read_text().replace(
-        '%ABI_LENGTH%',str(len(abi))).replace('%ABI_BYTES%',body)
+        '%ABI_LENGTH%',str(len(abi))).replace('%ABI_BYTES%',',\n'.join(','.join(map(str,cleanup_abi[i:i+20])) for i in range(0,len(cleanup_abi),20)))
     open_file="assign(f,'H:/CLEAN.DAT');rewrite(f);i:=7;write(f,i);if dropfiles<>1 then halt;"
     heap_file="new(p);assign(p^.f,'H:/CLEAN.DAT');rewrite(p^.f);i:=7;write(p^.f,i);if dropfiles<>1 then halt;"
     scenarios={

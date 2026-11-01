@@ -232,6 +232,19 @@
         "saved": 848
       },
       "native_regression": "184 control assertions including CTLFIXED in RAM/COM; full pause/queue/redirection/boundary gates pass."
+    },
+    "recursion": {
+      "audit_id": "TP3-25",
+      "documented": "Manual286\u2013287/PDF308\u2013309: separate recursion stack; default RecurPtr=StackPtr-1024; A- saves and restores workspace.",
+      "observed_original": "Original recursive local address stays constant; RecurPtr moves on entry and returns on exit. Assigned RecurPtr survives ordinary expressions.",
+      "capture": "analysis/tp3-pass2-implementation/original-recursion/workspace/capture/report.json",
+      "native_adaptation": "Native Pascal workspace widths are copied; the existing native CPU lexical/callback frame ABI and Zeal bounds checks remain. Raw pointer numeric values and private workspace extents are native.",
+      "recursive_callback_evidence": {
+        "capture": "analysis/tp3-pass2-implementation/original-recursive-callback/callback/capture/report.json",
+        "original": "An older nested callback pointer invoked inside a recursive call sees the current static workspace (101,100), not the older activation values (102,101). Callback numeric address is stable in TP3; native adapter addresses/lifetime representation remain a Zeal ABI detail."
+      },
+      "native_stack_services": "Ordinary helpers retain64 bytes of CPU headroom. Actual C file services reserve1024 additional bytes at entry; loading a file module no longer enlarges every later guard. Recursive file fixtures reposition RecurPtr before use; the documented1024-byte default is unchanged. Heavy native String argument lists can also require a larger gap; these fixtures reposition RecurPtr before use.",
+      "native_regression": "2109 core compiler/runtime assertions with zero failures;94 bridge assertions;143 hook assertions; RAM/COM recursive file lifetime, file type/storage, Text nesting, scope/heap cleanup and Inline fixtures. Final capture and input-stability checks are recorded in /private/tmp/tp3-stage6-*.log."
     }
   }
 }

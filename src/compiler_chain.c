@@ -21,7 +21,7 @@ void cc_transfer_statement(uint16_t base) FRONTEND {
     uint16_t at;
     if(cc.suppress||cc.error->code)return;
     cc.console_dynamic=1;
-    cc_reserve(256);
+    cc_reserve(1280);
     cc_op16(0x21,cc.temporaries-base-ZF_JOB_BYTES);cc_emit(0x39);
     cc_op16(0xcd,RT_IOCALL);at=cc.emitted;cc_relocate(at);
     cc_emit((uint8_t)cc.transfer_entry);cc_emit((uint8_t)(cc.transfer_entry>>8));cc_emit(cc.io_check);

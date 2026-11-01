@@ -10,11 +10,12 @@
 .globl character,neg_hl,false_text,true_text
 .globl io_call,io_result,io_check,io_fail,io_status
 .globl tail_length,tail
-.globl runtime_stack_budget
+.globl runtime_stack_budget,recursion_ceiling
 .globl file_cleanup,heap_floor,io_status
 .equ tail_length, 0xff00
 .equ tail, 0xff01
 .equ runtime_stack_budget, 0xfe7c
+.equ recursion_ceiling, 0xfd64  ; existing private guard scratch word
 .area _HEADER (ABS)
 .org 0x4000
     jp 0x40a0
@@ -73,7 +74,7 @@
     jp heap_availability        ; 4126: A=0 total, 1 largest, 2 frontier
     jp stack_set                ; 4129: HL validated new CPU SP
 heap_frontier: .dw 0            ; 412C: predefined HeapPtr
-recursion_limit: .dw 0          ; 412E: conservative active stack boundary
+recursion_limit: .dw 0          ; 412E: TP3 public recursion-stack pointer
     jp fill_bytes               ; 4130: HL destination, BC count, A byte
     jp real_dispatch            ; 4133: DE left, HL right, A op/Integer flags
 real_buffer: .ds 6              ; 4136: transient helper/return bytes, copied by caller
@@ -148,6 +149,8 @@ ram:
     ld (memory_mode),a
 start:
     ld ix,#0                    ; terminate the actual Pascal frame chain
+    ld hl,#0
+    ld (recursion_ceiling),hl
     ld hl,#0xfe70               ; runtime-owned persistent module control
     ld de,#0xfe71
     ld bc,#31
@@ -185,7 +188,7 @@ heap_aligned:
     call stack_set             ; validate End ceiling and actual static headroom
     ld hl,#64
     ld (runtime_stack_budget),hl
-    ld hl,#-64
+    ld hl,#-1024                 ; documented initial1 KiB CPU/recursion split
     add hl,sp
     ld (recursion_limit),hl
     ld hl,(0x4014)
@@ -714,8 +717,8 @@ true_text: .db 4
     .ascii "TRUE"
 .equ shift_direction, 0xfe83
 .equ range_error_code, 0xfe84
-text_left_char: .ds 2
-text_right_char: .ds 2
+.equ text_left_char, 0xfe85
+.equ text_right_char, 0xfe87
 
 ; A value string actual has its current size on the Pascal stack. The callee
 ; copies it into its formal capacity. The return word is held outside that
@@ -748,8 +751,10 @@ push_string:
 argument_overflow:
     ld hl,(0x40be)
     jp stack_error
-argument_return: .dw 0
-argument_source: .dw 0
+; Synchronous String scratch shares heap work words. Neither subsystem
+; invokes the other while these words are live.
+.equ argument_return, 0xfd66
+.equ argument_source, 0xfd68
 
 ; A function/concatenation owns a fixed maximum-size result slot. A value
 ; actual must occupy only its current length+1 bytes, without leaving padding
@@ -861,11 +866,11 @@ finish_string:
     ex de,hl
     ld hl,(argument_source)
     jr move_string_tail
-concatenate_drop: .dw 0
-concatenate_left: .dw 0
-concatenate_right: .dw 0
-concatenate_return: .dw 0
-concatenate_length: .db 0
+.equ concatenate_drop, 0xfd6a
+.equ concatenate_left, 0xfd6c
+.equ concatenate_right, 0xfd6e
+.equ concatenate_return, 0xfd70
+.equ concatenate_length, 0xfd72
 
 ; Positions/counts are checked independently of $R. No character storage is
 ; accessed by these operations until the argument bounds have been accepted.
@@ -948,47 +953,42 @@ position:
     ld a,(de)
     or a
     jr z,position_none
-    ld (position_length),a
-    ld (position_pattern),de
-    ld c,(hl)
-    cp c
-    jr z,position_equal_length
-    jr nc,position_none
-position_equal_length:
-    ld b,a
-    ld a,c
+    ld b,a                     ; pattern length, always nonzero
+    ld a,(hl)
     sub b
+    jr c,position_none
     inc a
-    ld (position_remaining),a
+    ld c,a                     ; number of candidate starts,1..255
     inc hl
-    ld (position_candidate),hl
-    ld a,#1
-    ld (position_index),a
+    inc de
+    ld a,#1                    ; one-based candidate index
 position_candidate_loop:
-    ld hl,(position_pattern)
-    inc hl
-    ld de,(position_candidate)
-    ld a,(position_length)
-    ld b,a
+    push af
+    push bc
+    push hl
+    push de
 position_compare_loop:
     ld a,(de)
     cp (hl)
     jr nz,position_next
-    inc hl
     inc de
+    inc hl
     djnz position_compare_loop
-    ld a,(position_index)
+    pop de
+    pop hl
+    pop bc
+    pop af
     ld l,a
     ld h,#0
     ret
 position_next:
-    ld hl,(position_candidate)
+    pop de
+    pop hl
+    pop bc
+    pop af
     inc hl
-    ld (position_candidate),hl
-    ld hl,#position_index
-    inc (hl)
-    ld hl,#position_remaining
-    dec (hl)
+    inc a
+    dec c
     jr nz,position_candidate_loop
 position_none:
     ld hl,#0
@@ -1103,21 +1103,16 @@ insert_source:
     inc hl
     ldir
     ret
-string_source: .dw 0
-string_destination: .dw 0
-string_position: .dw 0
-string_count: .dw 0
-string_drop: .dw 0
-string_capacity: .db 0
-string_prefix: .db 0
-string_inserted: .db 0
-string_tail: .db 0
-string_remaining: .db 0
-position_pattern: .dw 0
-position_candidate: .dw 0
-position_length: .db 0
-position_index: .db 0
-position_remaining: .db 0
+.equ string_source, 0xfd6a
+.equ string_destination, 0xfd6c
+.equ string_position, 0xfd6e
+.equ string_count, 0xfd70
+.equ string_drop, 0xfd72
+.equ string_capacity, 0xfd74
+.equ string_prefix, 0xfd75
+.equ string_inserted, 0xfd76
+.equ string_tail, 0xfd77
+.equ string_remaining, 0xfd78
 
 move_bytes:
     ld a,b
@@ -1191,12 +1186,7 @@ set_add:
 set_add_loop:
     push bc
     ld a,(set_element)
-    and #7
-    ld c,a
-    ld b,#0
-    ld hl,#set_masks
-    add hl,bc
-    ld c,(hl)
+    call set_mask
     ld a,(set_element)
     srl a
     srl a
@@ -1308,14 +1298,7 @@ set_member:
     or a
     jr nz,set_member_false
     ld a,e
-    and #7
-    ld c,a
-    ld b,#0
-    push hl
-    ld hl,#set_masks
-    add hl,bc
-    ld c,(hl)
-    pop hl
+    call set_mask
     ld a,e
     srl a
     srl a
@@ -1340,7 +1323,16 @@ set_member_false:
 .equ set_element, 0xfe8d
 .equ set_mode, 0xfe8e
 .equ set_byte, 0xfe8f
-set_masks: .db 1,2,4,8,16,32,64,128
+; A element -> C mask, B zero. HL/DE are retained by both set consumers.
+set_mask:
+    and #7
+    ld b,a
+    ld c,#1
+    ret z
+set_mask_loop:
+    sla c
+    djnz set_mask_loop
+    ret
 
 ; Managed stack/heap checks preserve both alternate and index register sets.
 ; The CALL return points at two inline words: reservation bytes and source PC.
@@ -1410,12 +1402,34 @@ check_boundary:
     sbc hl,de
     jp c,heap_error
     add hl,de
-    ld (recursion_limit),hl
+    ld (guard_sp),hl           ; private prospective CPU boundary
+    push hl
+    ld hl,(recursion_limit)
+    or a                       ; DE is still the live heap frontier
+    sbc hl,de
+    jp c,heap_error
+    pop hl
+    ld de,(recursion_ceiling)   ; preceding accepted subtraction cleared carry
+    sbc hl,de
+    jp c,heap_error
+    add hl,de
     pop bc
     pop de
     ret
-; All public heap calls arrive after checked_guard. Its recursion_limit is
-; the actual caller SP minus64, so these helpers never allocate into scratch.
+; Heap operations use the lower of the public recursion pointer and this
+; invocation's checked CPU boundary. Neither check overwrites RecurPtr.
+heap_limit:
+    push hl
+    ld hl,(recursion_limit)
+    ld de,(guard_sp)
+    or a
+    sbc hl,de
+    jr nc,heap_limit_cpu
+    add hl,de
+    ex de,hl
+heap_limit_cpu:
+    pop hl
+    ret
 ; Two-byte headers contain an even payload span and a high-bit free flag.
 heap_round:
     bit 7,h
@@ -1527,7 +1541,7 @@ heap_append:
     inc de
     add hl,de
     jp c,heap_error
-    ld de,(recursion_limit)
+    call heap_limit
     or a
     sbc hl,de
     jr c,heap_append_ready
@@ -1691,7 +1705,8 @@ heap_availability_next:
     ld hl,(heap_next)
     jr heap_availability_scan
 heap_availability_tail:
-    ld hl,(recursion_limit)
+    call heap_limit
+    ex de,hl
     ld de,(heap_frontier)
     or a
     sbc hl,de
@@ -1752,7 +1767,10 @@ stack_set_end:
     sbc hl,de
     jp c,heap_error
     add hl,de
-    ld (recursion_limit),hl
+    ld (guard_sp),hl
+    ld de,(recursion_ceiling)
+    sbc hl,de
+    jp c,heap_error
     ld hl,(heap_target)
     ld sp,hl
     ld bc,(heap_return)
@@ -1761,7 +1779,6 @@ stack_set_end:
 
 .equ guard_sp, 0xfd60
 .equ guard_bytes, 0xfd62
-.equ boundary_value, 0xfd64
 .equ heap_want, 0xfd66
 .equ heap_at, 0xfd68
 .equ heap_next, 0xfd6a
@@ -1774,9 +1791,20 @@ stack_set_end:
 .equ heap_flag, 0xfd78
 .equ heap_mode, 0xfd79
 
+file_stack_check:
+    push bc
+    push de
+    push hl
+    ld hl,#-1088              ; actual C stack plus ordinary helper headroom
+    add hl,sp
+    jp nc,heap_error
+    call check_boundary
+    pop hl
+    pop de
+    pop bc
+    ret
+
 ; Zero count never becomes a 65536-byte write. Caller owns the raw span.
-runtime_prefix_end::
-.area _CODE
 fill_bytes:
     ld d,a
     ld a,b
@@ -1790,6 +1818,8 @@ fill_bytes_loop:
     or c
     jr nz,fill_bytes_loop
     ret
+runtime_prefix_end::
+.area _CODE
 heap_error:
     ld hl,(0x40be)
     jp stack_error
@@ -1804,6 +1834,11 @@ file_cleanup::
     or a
     ret z
 file_cleanup_owned:
+    ld a,c
+    cp #19                    ; terminal path reset SP and discards recursion
+    jr z,file_cleanup_terminal
+    call file_stack_check
+file_cleanup_terminal:
     ld a,c
     push bc                    ; checking policy and operation
     ld bc,#0

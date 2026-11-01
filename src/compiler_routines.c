@@ -34,6 +34,7 @@ static void prologue(void) {
     cc_op16(0x21,(uint16_t)(0u-FRAME_PRIVATE_BYTES-locals)); cc_emit(0x39); cc_emit(0xf9);
     indexed(0x75,248); indexed(0x74,249); /* actual owned-local lower bound */
     cc_frame(cc.scope); cc_op16(0x11,4); cc_emit(0x19); cursor_store();
+    cc_recursion_save();
     while(count--&&!cc.error->code) {
         id=first+count; cursor_load();
         if(cc.symbols[id].role==S_VALUE&&cc_family(cc.symbols[id].type)==K_REAL) {
@@ -72,6 +73,7 @@ static void unwind_frame(void) {
 }
 static void epilogue(void) {
     uint16_t i;
+    uint8_t files=0;
     uint16_t routine=cc_rget(cc.scope,R_SYMBOL);
     unwind_frame();
     cc_guard(); /* implicit checked close faults belong to this scope end */
@@ -79,9 +81,14 @@ static void epilogue(void) {
     /* Exit already restored its stack and captured its own source/checking
      * policy. Join after the implicit scope-end guard, before any cleanup. */
     cc_patch_chain(cc_rget(cc.scope,R_EXITS),cc.emitted);
-    cc_emit(0xdd); cc_emit(0xe5); cc_emit(0xd1); /* actual ending activation */
-    cc_op16(0x21,0); cc_emit(0x3e); cc_emit(16);
-    cc_op16(0xcd,RT_FILECLEANUP);
+    for(i=0;i<cc.symbol_count;++i)
+        if(cc.symbols[i].owner==cc.scope&&cc.symbols[i].role==S_VARIABLE&&
+           cc_file_fields(cc.symbols[i].type)) files=1;
+    if(files&&(cc_rget(cc.scope,R_FLAGS)&RF_RECURSIVE)) {
+        cc_emit(0xdd); cc_emit(0xe5); cc_emit(0xd1); /* actual ending activation */
+        cc_op16(0x21,0); cc_emit(0x3e); cc_emit(16);
+        cc_op16(0xcd,RT_FILECLEANUP);
+    }
     if(cc.symbols[routine].role==S_FUNCTION) {
         for(i=0;i<cc.symbol_count;++i)
             if(cc.symbols[i].owner==cc.scope&&cc.symbols[i].role==S_RESULT) { cc_load_symbol(i); break; }
@@ -93,6 +100,7 @@ static void epilogue(void) {
             cc_op16(0x11,RT_REAL_BUFFER); cc_op16(0x01,6); cc_call(RT_MOVE);
         }
     }
+    cc_recursion_restore();
     cc_emit(0x44); cc_emit(0x4d); /* BC retains the scalar result */
     indexed(0x5e,2); indexed(0x56,3); /* original return word */
     cursor_load(); cc_emit(0xf9); /* caller's SP before arguments/link */

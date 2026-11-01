@@ -24,4 +24,4 @@ begin
  check(code=34);check(text='');
  conoutptr:=old;auxoutptr:=oldaux;check(stackptr=saved);
 end;
-begin outer;writeln('HOOK-OUTPUT-OK')end.
+begin recurptr:=stackptr-2048; outer;writeln('HOOK-OUTPUT-OK')end.

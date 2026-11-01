@@ -103,13 +103,13 @@ static uint8_t within(uint16_t at,uint16_t size,uint16_t low,uint16_t high) {
 /* Validate the whole chain before accepting an interior object. Saved IX
  * links increase toward the program root. The compiler's private[-8] word
  * is the real lower bound after allocating all local/formal storage. */
-static uint8_t frame_owner(uint16_t at,uint16_t size,uint16_t *owner) {
+static uint8_t frame_owner(uint16_t at,uint16_t size,uint16_t claimed,uint16_t *owner) {
     uint16_t frame=job->frame,next,low,found=0;
     while(frame) {
         if(frame<0xc808u||frame>0xfbfcu||word(frame-4)!=frame) return 0;
         low=word(frame-8);
         if(low<0xc800u||low>frame-8||low<job->stack_pointer) return 0;
-        if(within(at,size,low,frame-8)) found=frame;
+        if(claimed?frame==claimed:within(at,size,low,frame-8)) found=frame;
         next=word(frame);
         if(next&&next<=frame) return 0;
         frame=next;
@@ -134,9 +134,16 @@ static uint8_t heap_owner(uint16_t at,uint16_t size,uint16_t *owner) {
     *owner=found; return 1;
 }
 static uint8_t object_owner(uint16_t *owner) {
-    if(within(job->object,16,0x8000,job->static_end)) { *owner=0; return 1; }
+    if(within(job->object,16,0x8000,job->static_end)) {
+        /* A- workspaces have stable addresses. A nonzero token owner must
+         * still name a live, fully validated activation before binding. */
+        uint16_t claimed=word(job->object+6);
+        if(claimed&&job->frame&&word(job->object)==0x465a)
+            return frame_owner(0,0,claimed,owner);
+        *owner=0; return 1;
+    }
     if(heap_owner(job->object,16,owner)) return 1;
-    return frame_owner(job->object,16,owner);
+    return frame_owner(job->object,16,0,owner);
 }
 static uint8_t readable(uint16_t at,uint16_t size) {
     uint16_t owner;

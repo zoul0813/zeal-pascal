@@ -79,6 +79,8 @@ commit_word:
     inc hl
     ld sp,hl
     ld ix,#0
+    ld hl,#0
+    ld (0xfd64),hl             ; new Chain has no live recursion snapshot
     ld hl,(0x4014)
     jp (hl)
 commit_end:

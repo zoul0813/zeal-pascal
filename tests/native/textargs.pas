@@ -17,4 +17,4 @@ begin
   dispose(p);
   assign(local,'H:/LOCALTEXT.TXT');rewrite(local);writeln(local,'LOCAL');
 end;
-begin go;writeln('TEXT-ARGUMENTS-OK')end.
+begin recurptr:=stackptr-2048; go;writeln('TEXT-ARGUMENTS-OK')end.

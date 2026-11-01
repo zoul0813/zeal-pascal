@@ -142,6 +142,26 @@ static void lifetime(void) {
     clean(ZF_END_FRAME,0xe800,0); check(call(ZF_READ)!=0);
     invocation.object=0xe7f0; invocation.data=0xc140; check(call(ZF_ASSIGN)==0x1ff);
     clean(ZF_END_PROGRAM,0,0);
+
+    /* A- keeps the object address static and snapshots its token. Private
+     * records distinguish the live activations at that same address. */
+    defaults(); invocation.frame=0xe800; invocation.object=0xc020;
+    put(0xe800,0); put(0xe7fc,0xe800); put(0xe7f8,0xe780);
+    memset(VM(0xc020),0,16); put(0xc020,0x465a); put(0xc026,0xe800);
+    assign("H:/STATIC.DAT"); check(get(0xc026)==0xe800);
+    check(call(ZF_REWRITE)==0); put(0xc200,55); check(call(ZF_WRITE)==0);
+    memcpy(saved_token,VM(0xc020),16);
+    invocation.frame=0xe780;
+    put(0xe780,0xe800); put(0xe77c,0xe780); put(0xe778,0xe700);
+    memset(VM(0xc020),0,16); put(0xc020,0x465a); put(0xc026,0xe780);
+    assign("H:/INNER.DAT"); check(get(0xc026)==0xe780);
+    check(call(ZF_REWRITE)==0); put(0xc200,66); check(call(ZF_WRITE)==0);
+    clean(ZF_END_FRAME,0xe780,0);
+    memcpy(VM(0xc020),saved_token,16); invocation.frame=0xe800;
+    put(0xc200,77); check(call(ZF_WRITE)==0); check(call(ZF_CLOSE)==0);
+    put(0xc026,0xe900); check(call(ZF_RESET)==0x1ff);
+    put(0xc026,0xe800); put(0xe800,0xe800); check(call(ZF_RESET)==0x1ff);
+    put(0xe800,0); clean(ZF_END_PROGRAM,0,0);
 }
 static void boundaries(void) {
     static const uint8_t keep[]={9,8,7,6};

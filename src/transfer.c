@@ -140,5 +140,5 @@ void transfer_install(void) {
         BYTE(at++)=(uint8_t)values[i];BYTE(at++)=(uint8_t)(values[i]>>8);
     }
     BYTE(0xfe74)=BYTE(ZT_FILE);
-    BYTE(0xfe7c)=0;BYTE(0xfe7d)=4; /* coordinator cleanup still executes C */
+    BYTE(0xfe7c)=64;BYTE(0xfe7d)=0; /* ordinary Pascal helper headroom */
 }

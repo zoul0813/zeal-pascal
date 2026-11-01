@@ -13,4 +13,4 @@ begin
  constptr:=old;check(stackptr=saved);
  while not keypressed do;check(keypressed);read(Kbd,c);check(c='G');
 end;
-begin outer;writeln('HOOK-STATUS-OK')end.
+begin recurptr:=stackptr-2048; outer;writeln('HOOK-STATUS-OK')end.

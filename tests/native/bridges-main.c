@@ -18,7 +18,7 @@ int app_main(void) {
     execution_file("H:/BRIDGEFILE.PAS",1,0,0);
     execution_file("H:/BRIDGEERROR.PAS",3,2,215);
     bridge_guard_marker();
-    execution_file("H:/BRIDGEGUARD.PAS",3,0xff,424);
+    execution_file("H:/BRIDGEGUARD.PAS",3,0xff,396);
     if(capture>=0){check(swap(capture,DEV_STDOUT)==0);check(close(capture)==0);}
     source_close(&s);check(pages_used()==code_required);
     test_stage=6;test_done=255;test_complete();return 0;

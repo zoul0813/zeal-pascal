@@ -1072,6 +1072,7 @@ static void interruption_corpus(void) {
     invalid("{$C}begin end.",93);invalid("{$C1}begin end.",93);
 }
 static void bridge_corpus(void) {
+    const uint16_t workspace[]={37,837,18,51,6,10};
     const char *names[]={"bridgeframe","bridgeargs","bridgereloc","bridgefile","bridgeerror","bridgeguard"};
     char path[80],text[16384];
     unsigned i;
@@ -1082,8 +1083,7 @@ static void bridge_corpus(void) {
         length=fread(text,1,sizeof(text),file);check(feof(file)&&!ferror(file));check(fclose(file)==0);
         check(source_import(&s,(const uint8_t*)text,(uint16_t)length,&d));
         check(compile(&s,&b,&d));check(cc.temporaries==0);
-        if(!strcmp(names[i],"bridgereloc")) check(b.globals_bytes==3&&b.code_origin==0x8003);
-        else check(b.globals_bytes==0&&image_get(&b,0x4003)==3&&image_get(&b,0x4004)==195);
+        check(b.globals_bytes==workspace[i]&&b.code_origin==0x8000+workspace[i]);
         build_close(&b);
     }
 }
@@ -1779,6 +1779,11 @@ int main(int argc,char **argv) {
         check(source_import(&s,embedded,sizeof(embedded)-1,&d));
         check(compile(&s,&b,&d)); build_close(&b);
     }
+    /* Only A- local File storage owns an activation lifetime. */
+    load("procedure p;var f:text;begin end;begin p end.");
+    check(compile(&s,&b,&d));check(calls(RT_FILECLEANUP,-1)==0);build_close(&b);
+    load("{$A-}procedure p;var f:text;begin end;begin p end.");
+    check(compile(&s,&b,&d));check(calls(RT_FILECLEANUP,-1)==1);build_close(&b);
     invalid("var r:real;begin r:=true end.",44);
     invalid("begin Input:=Output end.",54);
     invalid("begin read(Output,true)end.",41);
@@ -2279,7 +2284,7 @@ int main(int argc,char **argv) {
                 old=compile(&s,&b,&d); if(!old) fprintf(stderr,"fixture %s\n",fixtures[fixture]); check(old);
                 required_allocations=allocation_calls-before_allocations;
                 if(!strcmp(fixtures[fixture],"absolute")) check(b.globals_bytes==8);
-                if(!strcmp(fixtures[fixture],"realabi")) check(b.globals_bytes==0);
+                if(!strcmp(fixtures[fixture],"realabi")) check(b.globals_bytes==6);
                 if(!strcmp(fixtures[fixture],"textedges")||!strcmp(fixtures[fixture],"capacity")) {
                     check(b.code_bytes>PAGE_SIZE&&0x4000u+b.length<=CC_STATIC_LIMIT&&b.pages[2]!=255);
                     check(cc.stage_page==255);

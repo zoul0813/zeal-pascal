@@ -123,7 +123,7 @@ int main(void) {
     file_error=0;bad_page=255;clean(&ending);check(!transfer_cleanup(&ending));
     setup(&job,1);prepare(&job);bad_page=32;job.action=ZT_COMMIT;transfer_dispatch(&job);
     check(commits==1&&installs==1&&owned[32]&&!owned[33]&&owned[34]&&owned[35]);
-    check(transfer_memory[0xfe74]==35&&word(0xfe7c)==1024);
+    check(transfer_memory[0xfe74]==35&&word(0xfe7c)==64);
     {static const uint16_t expected[]={0x4016,0x4800,0x401a,64,0x401c,0xd800,0x412c,0xe020,
         0x412e,0xf800,0x415c,0xd800,0x4164,0,0x4165,0,0x40be,0};
      for(i=0;i<sizeof(expected)/sizeof(*expected);++i)check(word(0xfc30+2*i)==expected[i]);}

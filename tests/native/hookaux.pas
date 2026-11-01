@@ -33,4 +33,4 @@ begin
  if stackptr<>saved then halt;
  auxoutptr:=olda;lstoutptr:=oldl;
 end;
-begin outer;writeln('HOOK-AUX-OK')end.
+begin recurptr:=stackptr-2048; outer;writeln('HOOK-AUX-OK')end.

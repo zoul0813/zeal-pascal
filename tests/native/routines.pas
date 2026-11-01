@@ -1,6 +1,6 @@
 program Routines;
 type text=string[12]; short=string[3]; shade=(red,green,blue);
-var n,total,seen,rawptr:integer; s:text; c:shade;
+var n,total,seen,rawptr,initialSP,initialRP,adjusted,recursiveAddress:integer; s:text; c:shade;
 procedure forwarder(var x:integer); forward;
 procedure outer;
 var local:integer;
@@ -38,6 +38,17 @@ begin yes:=true end;
 function colour:shade;
 begin colour:=blue end;
 {$A-}
+procedure memory(depth:integer);
+var own,before:integer;
+begin
+ own:=depth;before:=recurptr;
+ if before=initialRP then begin writeln('RECURPTR-ENTER-FAIL');halt end;
+ if recursiveAddress=0 then recursiveAddress:=addr(own);
+ if addr(own)<>recursiveAddress then begin writeln('RECURSIVE-ADDRESS-FAIL');halt end;
+ if depth=0 then exit;
+ memory(depth-1);
+ if (recurptr<>before)or(own<>depth)then begin writeln('RECURPTR-RESTORE-FAIL');halt end
+end;
 function fact(x:integer):integer;
 begin if x<=1 then fact:=1 else fact:=x*fact(x-1) end;
 function recursive(x:integer):integer;
@@ -62,6 +73,12 @@ end;
 {$A+}
 var late:integer;
 begin
+ initialSP:=stackptr;initialRP:=recurptr;
+ if initialSP-initialRP<>1024 then begin writeln('RECURPTR-DEFAULT-FAIL');halt end;
+ recurptr:=initialRP-200;adjusted:=1+1;
+ if recurptr<>initialRP-200 then begin writeln('RECURPTR-ASSIGN-FAIL');halt end;
+ recurptr:=initialRP;recursiveAddress:=0;memory(3);
+ if recurptr<>initialRP then begin writeln('RECURPTR-FINAL-FAIL');halt end;
  outer;
  if n=5 then writeln('LEXICAL-SCOPE-OK');
  forwarder(n);

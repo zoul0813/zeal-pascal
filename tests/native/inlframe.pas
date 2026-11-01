@@ -11,11 +11,11 @@ var local,before:integer;
 procedure inner(value:integer;var ref:integer);
 var temp:integer;aliasRef:integer absolute ref;
 begin
- inline($DD/$36/<temp/42/$DD/$36/<temp+1/0);
- inline($DD/$36/<value/17/$DD/$36/<value+1/0);
- inline($DD/$6E/<aliasRef/$DD/$66/<aliasRef+1/$36/44/$23/$36/0);
+ inline($21/temp/$36/42/$23/$36/0);
+ inline($21/value/$36/17/$23/$36/0);
+ inline($2A/aliasRef/$36/44/$23/$36/0);
  if(temp<>42)or(value<>17)or(ref<>44)or(aliasRef<>44)then halt;
- inline($DD/$6E/$FE/$DD/$66/$FF/$11/local/$19/$36/61/$23/$36/0);
+ inline($21/local/$36/61/$23/$36/0);
  if local<>61 then halt;
  inline($21/inner/$22/nativeInner);
  calls:=calls+1

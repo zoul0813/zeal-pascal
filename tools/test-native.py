@@ -1339,7 +1339,7 @@ def main():
         real_image = RUN / 'core/hostfs/REALABI.COM'
         real_code = (ROOT/'build/realabi.zpl').read_bytes()
         checks.append(('native external six-byte Real arguments and BCDEHL result match independent assembly',
-                       real_image.is_file() and real_image.read_bytes()[0x4004:0x4004+len(real_code)]==real_code))
+                       real_image.is_file() and real_image.read_bytes()[0x400a:0x400a+len(real_code)]==real_code))
     if args.case in (None, 'formats'):
         formats_output = RUN / 'core/hostfs/FORMATS.TXT'
         formats_expected = (

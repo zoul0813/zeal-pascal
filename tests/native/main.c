@@ -65,9 +65,6 @@ static void routine_tests(void) {
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
 static void string_tests(void) {
-    char tight[512];
-    uint16_t n;
-    uint8_t i;
     int8_t capture=open("H:/SRESULT.TXT",O_WRONLY|O_CREAT|O_TRUNC);
     check(capture>=0);
     if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
@@ -79,13 +76,7 @@ static void string_tests(void) {
     test_stage=18;
     checked_error("type text=string[3]; var c:char; function bad:text; begin bad:='ab' end; begin\nc:=bad end.",0x10,"c:=bad");
     checked_error("var s:string[255]; t:string[1]; begin\ns:='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-';\ns:=s+s;\nt:=s+s end.",0x10,"t:=s+s");
-    strcpy(tight,"{$A-} type big=string[255]; function value:big; begin value:='' end; procedure tight; var\n");
-    for(i=0;i<51;++i) {
-        n=(uint16_t)strlen(tight); tight[n++]='p'; tight[n++]='a'+i/26;
-        tight[n++]='a'+i%26; tight[n++]=i<50?',':':'; tight[n++]='\n'; tight[n]=0;
-    }
-    strcat(tight,"big; begin writeln(value) end; begin tight end.");
-    checked_error(tight,0xff,"writeln(value)");
+    checked_error("{$A-}procedure tight;var s:string[255];begin end;begin recurptr:=heapptr+128;tight end.",0xff,"tight");
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
 static void string_operation_tests(void) {
@@ -161,7 +152,7 @@ static void set_tests(void) {
     checked_error("var s:set of byte;begin\ns:=[1..7 div 0]end.",2,"s:=[");
     checked_error("var s:set of byte;begin s:=[1];\nif (7 div 0) in s then end.",2,"if");
     checked_error("var s:set of byte;b:byte;begin b:=255;{$R+}\ns:=[succ(b)]end.",0x91,"s:=[");
-    checked_error("{$A-}type t=set of byte;procedure tight(v:t);var a:array[1..14000]of byte;begin end;begin tight([])end.",0xff,"tight");
+    checked_error("{$A-}type t=set of byte;procedure tight(v:t);var a:array[1..14000]of byte;begin end;begin recurptr:=heapptr+128;tight([])end.",0xff,"tight");
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
 }
 static void invalid_ordinal(const char *text) {
@@ -211,8 +202,8 @@ static void heap_tests(void) {
     checked_error("type p=^integer;var x:p;begin new(x);dispose(x);\ndispose(x)end.",0xff,"dispose(x)end");
     checked_error("type p=^integer;var x:p;begin getmem(x,10);\nfreemem(x,8)end.",0xff,"freemem");
     checked_error("{$A-}type p=^integer;var x:p;procedure tight;var a:array[1..512]of byte;begin end;begin getmem(x,maxavail);tight end.",0xff,"tight");
-    checked_error("type p=^integer;var x:p;s:string[255];begin s:='a';getmem(x,maxavail-64);\nwriteln(s+'')end.",0xff,"writeln");
-    checked_error("type p=^integer;text=string[255];var x:p;s:text;\nprocedure accept(v:text);begin end;\nbegin s:='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-';\ns:=s+s;getmem(x,maxavail-64);\naccept(s)end.",0xff,"accept(s)");
+    checked_error("type p=^integer;var x:p;s:string[255];begin s:='a';recurptr:=stackptr-64;getmem(x,maxavail-64);\nwriteln(s+'')end.",0xff,"writeln");
+    checked_error("type p=^integer;text=string[255];var x:p;s:text;\nprocedure accept(v:text);begin end;\nbegin s:='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-';\ns:=s+s;recurptr:=stackptr-64;getmem(x,maxavail-64);\naccept(s)end.",0xff,"accept(s)");
     checked_error("begin\nstackptr:=0 end.",0xff,"stackptr");
     checked_error("begin\nstackptr:=$C7FF end.",0xff,"stackptr");
     checked_error("begin\nstackptr:=$FC01 end.",0xff,"stackptr");

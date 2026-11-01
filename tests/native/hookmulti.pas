@@ -26,4 +26,4 @@ begin
  {$I-}write(Lst,'missing');code:=ioresult;{$I+}check(code=32);
  check(stackptr=saved);
 end;
-begin outer;writeln('HOOK-DEVICES-OK')end.
+begin recurptr:=stackptr-2048; outer;writeln('HOOK-DEVICES-OK')end.

@@ -48,6 +48,7 @@ def main():
              ROOT/'build/file_runtime.zpl',ROOT/'build/file_gate.zpl',
              ROOT/'build/stringabi.zpl',ROOT/'build/realabi.zpl']
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()}
+    trampoline=0x800e # BridgeGuard's10-byte static Pascal workspace
     marker=sym['_bridge_guard_marker']
     runtime=n.symbols('pascal_runtime');module=n.symbols('file_runtime')
     assert marker>=runtime['s__CODE']+runtime['l__CODE'] and marker>=module['s__DATA']
@@ -56,8 +57,8 @@ def main():
     # Enter each disposable child before enabling the fixed native external
     # trampoline breakpoint; compiler banks may themselves execute at8004.
     for entry in (0x40a3,0x4000):
-        commands+=[f'bp 0x{entry:x}','run 20000000000',f'bc 0x{entry:x}','bp 0x8004',
-                   'run 20000000000','regs','rb 0x412c 2','rb 0x8004 3','bc 0x8004']
+        commands+=[f'bp 0x{entry:x}','run 20000000000',f'bc 0x{entry:x}',f'bp 0x{trampoline:x}',
+                   'run 20000000000','regs','rb 0x412c 2',f'rb 0x{trampoline:x} 3',f'bc 0x{trampoline:x}']
     commands+=['run 20000000000','s','regs','mmu']
     for name in ('_test_done','_test_passed','_test_failed','_test_stage'):
         commands.append(f'rb 0x{sym[name]:x} 2')
@@ -75,12 +76,12 @@ def main():
     disk=n.RUN/scenario/'hostfs'
     expected=(b''.join(legacy_output(f)for f in samples)if samples else
               b''.join(f'BRIDGE-{name}-OK\r\n'.encode()*2 for name in ['FRAMES','ARGUMENTS','RELOCATION','FILE']))
-    frames=[f for f in re.split(r'\[DBG\] PC=',raw)[1:]if f.startswith('8004 ')]
+    frames=[f for f in re.split(r'\[DBG\] PC=',raw)[1:]if f.startswith(f'{trampoline:04x} ')]
     guarded=[]
     for f in frames:
         m=n.memory(f);sp=int(re.search(r'\bSP=([0-9a-fA-F]{4})',f)[1],16)
         heap=m.get(0x412c,0)|m.get(0x412d,0)<<8
-        guarded.append({'stack':sp,'heap':heap,'room':sp-heap,'opcode':m.get(0x8004)})
+        guarded.append({'stack':sp,'heap':heap,'room':sp-heap,'opcode':m.get(trampoline)})
     checks={
         'native completion':memory.get(sym['_test_done'])==255 and word('_test_stage')==6,
         'RAM/saved general ABI, frame ownership, stack/MMU, callback source and guard-callsite errors':
@@ -97,7 +98,7 @@ def main():
     else:
         alias,probe=('BRIDGERELOC','stringabi')if corpus=='routines'else('BRIDGEARGS','realabi')
         binary=(disk/(alias+'.COM')).read_bytes();payload=(ROOT/'build'/f'{probe}.zpl').read_bytes()
-        checks['ordinary public ABI payload matches independently assembled probe']=binary[0x4004:0x4004+len(payload)]==payload
+        checks['ordinary public ABI payload matches independently assembled probe']=binary[(0x4004 if probe=='stringabi' else 0x400a):(0x4004 if probe=='stringabi' else 0x400a)+len(payload)]==payload
     report={'scope':__doc__+' This qualifies nested addresses, not yet Pascal device/ErrorPtr hooks or full conformance.',
             'passed':all(checks.values()),'corpus':corpus,'actual_staged_fixtures':samples,
             'native_assertions_passed':word('_test_passed'),

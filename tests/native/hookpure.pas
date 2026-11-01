@@ -11,4 +11,4 @@ begin
  if ready or(code<>34)or(hits<>1)then halt;
  constptr:=old;
 end;
-begin outer;writeln('HOOK-PURE-OK')end.
+begin recurptr:=stackptr-2048; outer;writeln('HOOK-PURE-OK')end.

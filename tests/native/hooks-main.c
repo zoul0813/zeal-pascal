@@ -28,7 +28,7 @@ int app_main(void) {
         check(pages_used()==owned);check(swap(input,DEV_STDIN)==0);check(close(input)==0);
     }
     execution_file("H:/HOOKERROR.PAS",3,2,88);
-    execution_file("H:/HOOKIOERR.PAS",3,0x20,121);
+    execution_file("H:/HOOKIOERR.PAS",3,0x20,146);
     if(capture>=0){check(swap(capture,DEV_STDOUT)==0);check(close(capture)==0);}
     source_close(&s);check(pages_used()==code_required);
     test_stage=6;test_done=255;test_complete();return 0;

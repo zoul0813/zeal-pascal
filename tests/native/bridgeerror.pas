@@ -2,7 +2,7 @@ program BridgeError;
 type code=string[3];
 const machine:code=#195#0#0;actual:integer=0;
 {$A-}
-function wire:integer;external $8004;
+function wire:integer;external $800A;
 procedure outer;
 var zero:integer;target:integer;
 function callback:integer;

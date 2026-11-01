@@ -18,7 +18,7 @@ procedure nested(depth,outer:integer);
 var item:ints;local:bundle;frame:integer;
 begin
  frame:=stackptr;fillchar(item,16,depth);local.left:=12;local.right:=34;
- check((outer=0)or(addr(item)<>outer));
+ check((outer=0)or(addr(item)=outer));
  if depth>0 then nested(depth-1,addr(item));
  check((mem[addr(item)]=depth)and(mem[addr(item)+14]=depth));
  touch(local.f);

@@ -11,7 +11,7 @@
 .area _HEADER (ABS)
 .org 0x8000
 ; HL is the once-evaluated ordinary FileJob. The compiler reserves256 bytes
-; before entry; every C service additionally has the active1024-byte budget.
+; plus 1024 bytes of C service stack before entry.
 transfer_call_start::
     ld a,(0x4164)
     or a
@@ -96,8 +96,6 @@ transfer_call_gate_operand:: .dw 0
     ld bc,#zt_gate_size
     ldir
 module_ready:
-    ld hl,#1024
-    ld (0xfe7c),hl
     ld hl,#0
     add hl,sp
     push hl

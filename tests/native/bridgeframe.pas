@@ -19,8 +19,8 @@ begin
  if kind=0 then check((word(address-6)=0)and(word(address-4)=0))
  else check((word(address-6)<>0)and(word(address-6)=word(address-4)));
 end;
-function wire(value:integer):integer;external $8004;
-procedure run;external $8004;
+function wire(value:integer):integer;external $8029;
+procedure run;external $8029;
 {$A+}
 procedure staticmaker;
 procedure increment;begin counter:=counter+1 end;
@@ -38,7 +38,7 @@ begin
  local:=100+level;mine:=addr(callback);descriptor(mine,1);
  check(mine=addr(callback));check(mine<>parent);
  mark(markpoint);check(mine=addr(callback));release(markpoint);
- if parent<>0 then begin install(parent);check(wire(7)=108+level)end;
+ if parent<>0 then begin install(parent);check(wire(7)=107+level)end;
  if level>0 then recursive(level-1,mine);
  check(mine=addr(callback));install(mine);before:=stackptr;
  check(wire(7)=107+level);check(stackptr=before);

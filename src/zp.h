@@ -69,6 +69,7 @@
 #define RT_STACKSET 0x4129u
 #define RT_HEAPPTR 0x412cu
 #define RT_RECURPTR 0x412eu
+#define RT_RECURSION_CEILING 0xfd64u
 #define RT_FILL 0x4130u
 #define RT_REAL 0x4133u
 #define RT_REAL_BUFFER 0x4136u

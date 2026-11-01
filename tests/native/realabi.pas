@@ -12,7 +12,7 @@ const machine:machinecode=(length:75;payload:(
       mark:integer=$1234;i:integer=0;attempt:integer=0;saved:integer=0;
       good:boolean=true;
 {$A-}
-function wire(a:real;n:integer;b:real):real;external $8004;
+function wire(a:real;n:integer;b:real):real;external $800A;
 function returned:real;begin returned:=first end;
 procedure checkbytes;
 begin

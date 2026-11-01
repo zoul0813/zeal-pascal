@@ -497,19 +497,11 @@ void cc_rput(uint8_t scope,uint8_t field,uint16_t value) FRONTEND {
     if(field>R_FLAGS) far_set(cc.workspace,at+1,(uint8_t)(value>>8));
 }
 void cc_storage(uint16_t id,uint16_t width) FRONTEND {
-    uint16_t count;
-    if(cc.scope&&(cc_rget(cc.scope,R_FLAGS)&RF_RECURSIVE)) {
-        count=cc_rget(cc.scope,R_LOCALS);
-        if((uint32_t)count+width>0x7ff0u) { cc_fail(98); return; }
-        count+=width; cc_rput(cc.scope,R_LOCALS,count);
-        cc.symbols[id].address=(uint16_t)(0u-FRAME_PRIVATE_BYTES-count);
-    } else {
-        if((uint32_t)cc.image->globals_bytes+width>=PAGE_SIZE) { cc_fail(98); return; }
-        cc.symbols[id].address=GLOBAL_BASE+cc.image->globals_bytes;
-        cc.image->globals_bytes+=width;
-        if(cc.symbols[id].role==S_VARIABLE)
-            cc_file_static(cc.symbols[id].type,cc.symbols[id].address);
-    }
+    if((uint32_t)cc.image->globals_bytes+width>=PAGE_SIZE) { cc_fail(98); return; }
+    cc.symbols[id].address=GLOBAL_BASE+cc.image->globals_bytes;
+    cc.image->globals_bytes+=width;
+    if(cc.symbols[id].role==S_VARIABLE)
+        cc_file_static(cc.symbols[id].type,cc.symbols[id].address);
 }
 uint8_t cc_frame_required(uint8_t scope) FRONTEND {
     while(scope) {
@@ -544,9 +536,7 @@ void cc_slot(uint16_t id) FRONTEND {
     if(s->role==S_ALIAS) cc_symbol_address(s->address);
     else if(s->role==S_ADDRESS) cc_op16(0x21,s->address);
     else if(s->role==S_TYPED) cc_address(0x21,s->address);
-    else if(s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE)) {
-        cc_frame(s->owner); cc_op16(0x11,s->address); cc_emit(0x19);
-    } else cc_op16(0x21,s->address);
+    else cc_op16(0x21,s->address);
 }
 uint8_t cc_standard_reference(uint8_t identity) FRONTEND {
     uint16_t i;
@@ -561,8 +551,7 @@ void cc_symbol_address(uint16_t id) FRONTEND {
     if(cc.symbols[id].role==S_REFERENCE) { cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb); }
 }
 static uint8_t indirect_symbol(const Symbol *s) {
-    return s->role==S_ALIAS||s->role==S_FIELD||s->role==S_REFERENCE||
-        (s->role!=S_ADDRESS&&s->owner&&(cc_rget(s->owner,R_FLAGS)&RF_RECURSIVE));
+    return s->role==S_ALIAS||s->role==S_FIELD||s->role==S_REFERENCE;
 }
 void cc_destination(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];

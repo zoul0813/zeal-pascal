@@ -68,7 +68,9 @@ def activation(folder):
     for at,value in [(1,normal),(10,len(replay)),(12,normal),(20,origin),(22,len(replay)+0x4000-origin),(24,0x8000),(26,globals),(28,0x4000+len(replay)),(30,u16(chain,18))]:put16(replay,at,value)
     replay[68:100]=mapping[52:84];replay[100:132]=chain[52:84]
     replay[36:132]=bytes(96)
-    replay_map=bytearray(mapping);replay_map[20:52]=replay[36:68];identity(replay,replay_map,False)
+    replay_map=bytearray(mapping);replay_map[20:52]=replay[36:68]
+    put16(replay_map,12,u16(replay,22)) # replay appends its native startup template
+    identity(replay,bytes(replay_map),False)
     # Independently decode the straight-line entry's observable writes. Require
     # its destinations to be only the known prefix bindings and private hooks.
     code=chain[96:192];at=0;a=hl=0;bindings={}
@@ -114,10 +116,10 @@ def ide():
     commands+=state('compiled',['tap C'])+['tap ESC','run 100000000']
     commands+=state('direct-run-rejected',['tap R'])
     clear=n.kernel_symbols()['_video_vram_set'];labels.append(('run-message',clear))
-    commands+=[f'bp 0x{clear:x}','tap ESC','run 100000000','regs','mmu']
+    commands+=[f'bp 0x{clear:x}','tap ESC','run 100000000','tap O','run 100000000','regs','mmu']
     commands += [f'rb 0x{0x4000+at:x} 128'for at in range(0,640,128)]+[f'bc 0x{clear:x}','run 100000000']
     # Enter the first Pascal PC, beyond the96-byte entry and4-byte ABI identifier.
-    commands+=typed('of0064')+state('found',['tap ENTER'])+state('found-source',['tap ESC'],100000000)
+    commands+=typed('f0064')+state('found',['tap ENTER'])+state('found-source',['tap ESC'],100000000)
     commands+=n.control('K')+typed('docq')+state('ordinary-mode',['tap SPACE'],100000000)
     commands+=['run 100000000']+typed('qn')+['quit']
     raw=n.execute('chain-ide',commands,{'project/main.pas':source},timeout=900)
@@ -128,8 +130,8 @@ def ide():
         word=lambda label,address:int.from_bytes(read(label,address,2),'little')
         checks.update({'every checkpoint reaches its actual native reader/screen':all(frame.startswith(f'{pc:04x} ')for(_,pc),frame in zip(labels,frames)),
             'H selects CHN and invalidates an old cache':read('chain-mode',opts+4,1)==b'\1'and read('chain-mode',build+4,1)==b'\0',
-            'compile saves a valid compact chain without saving dirty source':read('compiled',build+4,1)==b'\1'and word('compiled',build+5)==96+word('compiled',build+9)and read('compiled',work+1,1)==b'\1',
-            'R retains the completed CHN cache and never enters a guest':read('compiled',build,n.BUILD_BYTES)==read('direct-run-rejected',build,n.BUILD_BYTES)and read('direct-run-rejected',sym['_ram_result'],128)==bytes(128),
+            'compile saves a compact chain and releases its RAM image without saving dirty source':read('compiled',build+4,1)==b'\0'and word('compiled',build+5)==96+word('compiled',build+9)and read('compiled',work+1,1)==b'\1',
+            'R recompiles the CHN for rejection and never enters a guest':read('direct-run-rejected',build+4,1)==b'\1'and word('compiled',build+9)==word('direct-run-rejected',build+9)and read('direct-run-rejected',sym['_ram_result'],128)==bytes(128),
             'physical VRAM explains direct-run rejection':b'Run CHN files with Chain(F)' in read('run-message',0x4000,640),
             'H-mode F finds the selected CHN using matching unsaved source':read('found',sym['_ide_state'],1)==b'\3'and read('found',work+1,1)==b'\1',
             'F returns to the exact chain statement in the editor':read('found-source',sym['_ide_state'],1)==b'\2'and word('found-source',work+4)==(prefix+source).index(b'n:=7'),

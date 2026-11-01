@@ -1,7 +1,7 @@
 #include "compiler.h"
 
-/* Raw Inline operands describe storage slots, not loads. A recursive slot is
- * its signed native IX-frame offset; a VAR slot contains the referent pointer.
+/* Raw Inline operands describe storage slots, not loads. Recursive slots
+ * retain static workspace addresses; a VAR slot contains the referent pointer.
  * Routine operands are native entries (nested callers supply the lexical link),
  * while Addr's captured nested thunk remains a Pascal-callable pointer value. */
 static uint16_t address(uint16_t id,uint16_t *coefficient) {

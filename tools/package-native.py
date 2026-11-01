@@ -242,6 +242,8 @@ def validate_runtime(path):
             raise ValueError('runtime '+area+' exceeds its bounded extent')
     if not 0x4d8a<=symbols['_zr_eval']<0x77cd or symbols['real_buffer']!=0x4136:
         raise ValueError('runtime Real helper ABI is misplaced')
+    if symbols['recursion_ceiling']!=0xfd64:
+        raise ValueError('recursion ceiling escaped its private guard workspace')
     if symbols['tail_length']!=0xff00 or symbols['tail']!=0xff01:
         raise ValueError('runtime command-tail cache ABI is misplaced')
     if symbols['line_history']!=0xff80 or symbols['runtime_stack_budget']!=0xfe7c:
