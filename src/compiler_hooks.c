@@ -29,23 +29,13 @@ static void pending(void) {
  * IX/IY, iteration registers and the caller PC. Fatal body errors keep body PC.
  * The callback may invoke this same helper recursively with independent state. */
 static uint16_t invocation(uint8_t status) {
-    uint16_t entry=cc.emitted,body,returned,normal;
+    uint16_t entry=cc.emitted,body,returned;
     cc_capture_guard(512,1);
     cc_emit(0xc5); cc_emit(0xd5); cc_emit(0xe5);
     cc_emit(0xdd); cc_emit(0xe5); cc_emit(0xfd); cc_emit(0xe5);
     cc_emit(0xed); cc_emit(0x4b); cc_emit((uint8_t)RT_PC); cc_emit((uint8_t)(RT_PC>>8)); cc_emit(0xc5);
     cc_op16(0xcd,RT_IOCALL); body=cc.emitted; cc_relocate(body);
     cc_emit(0); cc_emit(0); cc_emit(0);
-    /* A native default can unwind Pascal frames to this I- landing. Their
-     * file owners lie below our restored SP and above the live heap frontier;
-     * caller frames and heap objects are outside that interval. Use the
-     * reserved module emergency stack; retain the primary error through close
-     * failures. Normal callback returns have already retired their owners. */
-    cc_op16(0x3a,RT_IOSTATUS); cc_emit(0xb7); normal=cc_forward(0xca);
-    cc_op16(0x21,0); cc_emit(0x39); /* exclusive owner end = this landing SP */
-    cc_emit(0xed); cc_op16(0x5b,RT_HEAPPTR);
-    cc_emit(0x3e); cc_emit(ZF_END_RANGE); cc_emit(0x06); cc_emit(2);
-    cc_op16(0xcd,RT_FILECLEANUP); cc_patch(normal);
     cc_emit(0xe1); cc_op16(0x22,RT_PC);
     cc_emit(0xfd); cc_emit(0xe1); cc_emit(0xdd); cc_emit(0xe1);
     cc_emit(0xe1); cc_emit(0xd1); cc_emit(0xc1); pending();

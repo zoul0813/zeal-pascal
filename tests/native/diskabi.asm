@@ -1,6 +1,6 @@
 .module disk_abi
 .area _HEADER (ABS)
-.org 0x801d
+.org 0x80bd
     jp seed
     jp capture
     jp dropfiles
@@ -60,7 +60,7 @@ store:
     ld (de),a
     ret
 ; RAM-only fault injection: consume owned handles without changing the file
-; registry. The protected service must reject all borrowed IDE descriptors.
+; ledger. The protected service must reject all borrowed IDE descriptors.
 dropfiles:
     ld hl,#0
     ld bc,#0x7e02

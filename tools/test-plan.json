@@ -164,18 +164,12 @@
       "--case rename"
     ],
     "tools/test-output-interrupt.py": [
-      "--case host-source-copy-4-typing",
-      "--case host-build-copy-4",
-      "--case host-source-copy-1",
-      "--case host-source-copy-2",
-      "--case host-source-copy-3",
-      "--case host-build-copy-1",
-      "--case host-build-copy-2",
-      "--case host-build-copy-3",
-      "--case host-source-verify-2",
-      "--case host-build-verify-4",
-      "--case tf-source-copy-4",
-      "--case tf-build-copy-4"
+      "--case host-source-backup",
+      "--case host-source-store-typing",
+      "--case host-build-executable",
+      "--case host-build-map",
+      "--case tf-source-store",
+      "--case tf-build-map"
     ]
   },
   "groups": {

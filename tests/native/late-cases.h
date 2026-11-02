@@ -5,7 +5,7 @@ static void late_cases(const char *path,Diagnostic *diagnostic) {
     CompilerMember member;
     CompilerSources context,*old_sources=cc.sources;
     Diagnostic *old_error=cc.error;
-    uint16_t parameters,state,bridge,initializer,routine,output,value=0x1234;
+    uint16_t parameters,state,bridge,unpack_helper,routine,output,value=0x1234;
     uint16_t parent,head,tail,first,i,at;
     uint8_t id,ordinal;
     int8_t fd;
@@ -21,10 +21,10 @@ static void late_cases(const char *path,Diagnostic *diagnostic) {
     parameters=cc_late_symbol(&groups.late,LATE_ROOT,LATE_PARAMETERS,0);
     state=cc_late_symbol(&groups.late,LATE_ROOT,LATE_RANDOM_STATE,0);
     bridge=cc_late_symbol(&groups.late,LATE_BRIDGE,255,0);
-    initializer=cc_late_symbol(&groups.late,LATE_INITIALIZER,63,0);
+    unpack_helper=cc_late_symbol(&groups.late,LATE_ROOT,LATE_UNPACK,0);
     routine=cc_late_symbol(&groups.late,LATE_ROUTINE,255,255);
     output=cc_late_symbol(&groups.late,LATE_ROOT,LATE_OUTPUT,0);
-    check(parameters==0&&state==1&&bridge==2&&initializer==3&&routine==4&&output==5);
+    check(parameters==0&&state==1&&bridge==2&&unpack_helper==3&&routine==4&&output==5);
     if(groups.late.failed)goto cleanup;
     check(cc_late_symbol(&groups.late,LATE_ROOT,LATE_PARAMETERS,0)==parameters&&groups.late.symbols==6);
     check(!cc_late_value(&groups.late,parameters,&value)&&value==0x1234&&!groups.late.failed);
@@ -61,7 +61,7 @@ static void late_cases(const char *path,Diagnostic *diagnostic) {
     check(cc_late_bind(&groups.late,parameters,0,at));
     check(cc_late_bind(&groups.late,state,0,at+1));
     check(cc_late_bind(&groups.late,bridge,0,at+2));
-    check(cc_late_bind(&groups.late,initializer,0,at+3));
+    check(cc_late_bind(&groups.late,unpack_helper,0,at+3));
     check(cc_late_bind(&groups.late,routine,255,at+4));
     check(cc_late_bind(&groups.late,output,0,at+5));
     check(cc_late_bind(&groups.late,parameters,0,at)&&cc_late_value(&groups.late,bridge,&value)&&value==at+2);
@@ -147,7 +147,7 @@ static void member_address_guard(Diagnostic *diagnostic) {
 static void remaining_helper_cases(const char *path,Diagnostic *diagnostic) {
     CompilerGroups groups;CompilerMember member;
     CompilerSources context,*old_sources=cc.sources;Diagnostic *old_error=cc.error;
-    uint16_t origin,parent_output,parent_unpack,keyboard,interrupt,file,initializer,value,symbol;
+    uint16_t origin,parent_output,parent_unpack,keyboard,interrupt,file,unpack_helper,value,symbol;
     uint8_t id,ordinal;int8_t fd;
     memset(diagnostic,0,sizeof(*diagnostic));memset(&context,0,sizeof(context));
     cc.error=diagnostic;cc.sources=&context;context.groups=&groups;
@@ -161,9 +161,9 @@ static void remaining_helper_cases(const char *path,Diagnostic *diagnostic) {
     memset(cc.hook_variables,0,sizeof(cc.hook_variables));memset(cc.hook_defaults,0,sizeof(cc.hook_defaults));
     cc.type_count=9;cc.symbol_count=1;memset(cc.types,0,9*sizeof(Type));memset(cc.symbols,0,sizeof(Symbol));
     cc.types[0].width=2;cc.types[3].width=2;cc.types[3].low=1;cc.types[3].high=2;
-    cc.types[6].family=K_FILE;cc.types[6].width=16;cc.types[6].capacity=FILE_TYPED;
-    cc.types[7].family=K_ARRAY;cc.types[7].width=32;cc.types[7].capacity=3;cc.types[7].element=6;
-    cc.types[8].family=K_RECORD;cc.types[8].width=36;
+    cc.types[6].family=K_FILE;cc.types[6].width=176;cc.types[6].capacity=FILE_TYPED;
+    cc.types[7].family=K_ARRAY;cc.types[7].width=352;cc.types[7].capacity=3;cc.types[7].element=6;
+    cc.types[8].family=K_RECORD;cc.types[8].width=356;
     cc.symbols[0].role=S_FIELD;cc.symbols[0].owner=8;cc.symbols[0].type=7;cc.symbols[0].address=4;
     cc_groups_init(&groups);fd=output_open_path(path,O_RDWR|O_CREAT|O_TRUNC);
     check(fd>=0);if(fd<0)goto done;
@@ -171,28 +171,28 @@ static void remaining_helper_cases(const char *path,Diagnostic *diagnostic) {
     cc_hook_output();parent_output=cc.hook_output_calls;
     cc_op16(0xcd,0);cc_unpack_reference(cc.emitted-2);parent_unpack=cc.unpack_entry;
     check(cc_group_open(&groups,0)==0&&cc_group_member_begin(&groups,0,1));
-    origin=cc.emitted;cc_keypressed();cc_user_interrupt();cc_file_initialize(8);
+    origin=cc.emitted;cc_keypressed();cc_user_interrupt();
     /* Transfer's parser requests the file engine before emitting its call.
      * The parser itself is not enabled by this component fixture. */
     cc_root_request(LATE_ROOT,LATE_FILE);cc_transfer_statement(0);
     cc_hook_output();cc_op16(0xcd,0);cc_unpack_reference(cc.emitted-2);
     check(!diagnostic->code&&!cc.keyboard_entry&&!cc.interrupt_entry&&!cc.file_entry&&!cc.types[8].high);
-    check(groups.late.references==4);
+    check(groups.late.references==3);
     check(cc_group_member_end(&groups,0,1,origin)&&!groups.late.references);
     check(cc.hook_output_calls==parent_output&&!cc.transfer_entry&&cc.unpack_entry==parent_unpack);
-    check(cc_group_member_get(&groups,1,&id,&ordinal,&member)&&member.lates==7);
+    check(cc_group_member_get(&groups,1,&id,&ordinal,&member)&&member.lates==6);
     check(cc_group_close(&groups,0));origin=cc.emitted;
-    cc_file_engine_finish();cc_keyboard_finish();cc_interrupt_finish();cc_initializer_finish();
-    keyboard=cc.keyboard_entry;interrupt=cc.interrupt_entry;file=cc.file_entry;initializer=(uint16_t)cc.types[8].high;
-    check(!diagnostic->code&&keyboard>=origin&&interrupt>=origin&&file>=origin&&initializer>=origin);
-    check((uint16_t)cc.types[6].high>=origin&&(uint16_t)cc.types[7].high>=origin&&cc.types[3].high==2);
+    cc_file_engine_finish();cc_keyboard_finish();cc_interrupt_finish();
+    keyboard=cc.keyboard_entry;interrupt=cc.interrupt_entry;file=cc.file_entry;unpack_helper=(uint16_t)cc.types[8].high;
+    check(!diagnostic->code&&keyboard>=origin&&interrupt>=origin&&file>=origin&&unpack_helper==0);
+    check(!cc.types[6].high&&!cc.types[7].high&&cc.types[3].high==2);
     check(!cc_root_pending(LATE_ROOT,LATE_KEYBOARD)&&!cc_root_pending(LATE_ROOT,LATE_INTERRUPT)&&
-          !cc_root_pending(LATE_ROOT,LATE_FILE)&&!cc_root_pending(LATE_INITIALIZER,8));
+          !cc_root_pending(LATE_ROOT,LATE_FILE));
     check(cc_root_pending(LATE_ROOT,LATE_OUTPUT)&&cc_root_pending(LATE_ROOT,LATE_TRANSFER)&&cc_root_pending(LATE_ROOT,LATE_UNPACK));
     check(cc_group_open(&groups,0)==1&&cc_group_member_begin(&groups,1,2));
-    origin=cc.emitted;cc_keypressed();cc_user_interrupt();cc_file_initialize(8);
+    origin=cc.emitted;cc_keypressed();cc_user_interrupt();
     check(cc.keyboard_entry==keyboard&&cc.interrupt_entry==interrupt&&cc.file_entry==file&&
-          (uint16_t)cc.types[8].high==initializer&&!groups.late.references);
+          (uint16_t)cc.types[8].high==unpack_helper&&!groups.late.references);
     check(cc_group_member_end(&groups,1,2,origin)&&cc_group_close(&groups,1));
     check(cc_group_member_get(&groups,2,&id,&ordinal,&member)&&!member.lates);
     cc_transfer_finish();cc_file_stream_finish();cc_hooks_finish();cc_file_finish();cc_unpack_finish();

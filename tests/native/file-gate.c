@@ -1,5 +1,4 @@
-/* Execute the installed gate against a disposable callable module. Registry
- * release faults are independently qualified by the real C owner/model. */
+/* Execute the installed gate against a disposable callable module. */
 #include <stdint.h>
 #include <string.h>
 #include <zos_sys.h>
@@ -61,12 +60,12 @@ int main(void) {
     BYTE(0xe000)=1;BYTE(0xe001)=0;
     invoke(0);check(BYTE(0xe001)==1&&!free_calls&&BYTE(0xfe74)==page&&!BYTE(0xfe7f));
     invoke(1);check(BYTE(0xe001)==2&&!free_calls&&BYTE(0xfe74)==page&&!BYTE(0xfe7f));
-    invoke(2);check(BYTE(0xe001)==3&&!free_calls&&BYTE(0xfe74)==page&&!BYTE(0xfe7f));
-    BYTE(0xe000)=0;free_error=ERR_FAILURE;
+    /* A nonzero callee return is ignored: cleanup has no page-list result. */
+    free_error=ERR_FAILURE;
     invoke(2);check(free_calls==1&&free_target==page&&BYTE(0xfe74)==page&&BYTE(0xfe7f)==ERR_FAILURE);
     free_error=0;
     invoke(2);check(free_calls==2&&free_target==page&&!BYTE(0xfe74)&&!BYTE(0xfe7f));
-    check(BYTE(0xe001)==5);
+    check(BYTE(0xe001)==4);
     page=module();if(!page)goto done;
     BYTE(0xfe78)=0;
     invoke(2);check(free_calls==2&&!BYTE(0xfe74)&&!BYTE(0xfe7f));

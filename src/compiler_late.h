@@ -6,7 +6,7 @@
  * scalar relocation coefficient. This journal adds preferred symbol values;
  * ordinary relocation applies the final delta separately. No tagged addresses
  * or target-qualified relocation records enter the emitter. */
-enum { LATE_ROOT,LATE_INITIALIZER,LATE_BRIDGE,LATE_ROUTINE };
+enum { LATE_ROOT,LATE_BRIDGE,LATE_ROUTINE };
 enum { LATE_RANDOM,LATE_RANDOM_STATE,LATE_PARAMETERS,LATE_FILE,
        LATE_KEYBOARD,LATE_KEY_POLL,LATE_KEY_STATUS,LATE_KEY_STATE,
        LATE_KEY_PROBE,LATE_KEY_ENQUEUE,LATE_CONSOLE_PROBE,LATE_INTERRUPT,

@@ -1,6 +1,5 @@
 .module file_stack_probe
 .globl _file_probe,_file_probe_before,_file_probe_after,_file_probe_ok
-.globl _file_probe_pending
 .globl _test_machine,_zf_dispatch,_zf_cleanup
 .area _TEST
 ; A=cleanup selector, DE=caller job. Both observations have exactly the same
@@ -27,7 +26,6 @@ fill:
     jr observed
 cleanup:
     call _zf_cleanup
-    ld (_file_probe_pending),a
 observed:
     push af
     push af

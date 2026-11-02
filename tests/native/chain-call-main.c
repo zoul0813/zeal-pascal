@@ -7,7 +7,7 @@ Source s;Build b;Diagnostic d;
 void test_complete(void);
 
 int app_main(void) {
-    CompileOptions options={0x8040,0xfbffu,COMPILE_PROGRAM};
+    CompileOptions options={0x8800,0xfbffu,COMPILE_PROGRAM};
     uint8_t i;
     if(!console_open())return 1;
     check(source_new(&s,"H:/CALLER.PAS"));

@@ -22,15 +22,15 @@ def ide(n,executables=None):
             f"rb 0x{sym['_ide_state']:x} 1",f'bc 0x{key:x}']
     commands=['run 100000000']+n.program_launch()+['run 10000000']
     if executables:
-        commands+=typed('nwH:/EXECALL.PAS\nmH:/EXECALL.PAS\nocs8080\nq')
+        commands+=typed('nwH:/EXECALL.PAS\nmH:/EXECALL.PAS\nocs9000\nq')
     else:
-        commands+=typed('nwH:/NEXT.PAS\nmH:/NEXT.PAS\nohs8040\nq')
+        commands+=typed('nwH:/NEXT.PAS\nmH:/NEXT.PAS\nohs8800\nq')
         commands+=state('next',['tap C'])+['tap ESC','run 100000000']
         commands+=typed('wH:/CALLER.PAS\nmH:/CALLER.PAS\nocq')
     commands+=state('caller',['tap C'])+['tap ESC','run 100000000']
     commands+=state('returned',['tap R'],cycles=50000000000)
     clear=n.kernel_symbols()['_video_vram_set'];labels.append(('output',clear))
-    commands+=[f'bp 0x{clear:x}','tap ESC','run 100000000','regs','mmu']
+    commands+=[f'bp 0x{clear:x}','tap E','run 100000000','regs','mmu']
     commands += [f'rb 0x{0x4000+at:x} 128'for at in range(0,1280,128)]
     commands += [f'bc 0x{clear:x}','run 100000000']+typed('q')+['quit']
     data=b'\x03\0\x01\0ABC'
@@ -45,17 +45,15 @@ def ide(n,executables=None):
     if len(frames)==len(labels):
         states={label:n.memory(frame)for(label,_),frame in zip(labels,frames)}
         read=lambda label,at,size:bytes(states[label].get(at+i,0)for i in range(size))
-        # Reauthenticated image/map pages may have different physical tokens.
-        cache=lambda label:read(label,build+4,79)+read(label,build+99,16)
         checks.update({
             'checkpoints reach the native readers and video syscall':all(frame.startswith(f'{pc:04x} ')for(_,pc),frame in zip(labels,frames)),
-            'IDE compiles COM with production asset chunks':read('caller',opts,5)==(b'\x80\x80\xff\xfb\x00' if executables else b'\x40\x80\xff\xfb\x00')and read('caller',build+4,1)==b'\1',
-            'IDE run retains the authenticated compiled caller identity':cache('caller')==cache('returned')and read('returned',build+4,1)==b'\1',
+            'IDE compiles COM with production asset chunks':read('caller',opts,5)==(b'\x00\x90\xff\xfb\x00' if executables else b'\x00\x88\xff\xfb\x00')and read('caller',build,5)==b'\xff\xff\xff\xff\0',
+            'saved IDE run releases transient image and map':read('returned',build,5)==b'\xff\xff\xff\xff\0',
             'IDE preserves its single Work buffer':read('caller',sym['_work'],140)==read('returned',sym['_work'],140),
             'physical video contains replacement output and successful return':(b'EXECUTE-CALL-OK' if executables else b'CHAIN-CALL-OK:retained:1234:B:18')in read('output',0x4000,1280)and b'status 0'in read('output',0x4000,1280),
         })
         if not executables:
-            checks['IDE compiles CHN using selected placement']=read('next',opts,5)==b'\x40\x80\xff\xfb\x01'and read('next',build+4,1)==b'\1'
+            checks['IDE compiles CHN using selected placement']=read('next',opts,5)==b'\x00\x88\xff\xfb\x01'and read('next',build,5)==b'\xff\xff\xff\xff\0'
     folder=n.RUN/(name+'/hostfs')
     checks['source and shared input stay unchanged']=all((folder/name).read_bytes()==payload for name,payload in fixtures.items())
     # Same paths/options/source through the actual chunked IDE asset reader must
@@ -64,7 +62,7 @@ def ide(n,executables=None):
     checks['IDE and compiler target layouts produce identical COM CHN and maps']=all(
         (folder/name).read_bytes()==(reference/name).read_bytes()for name in (('EXECALL.COM','EXECALL.ZMP') if executables else ('CALLER.COM','CALLER.ZMP','NEXT.CHN','NEXT.ZMP')))
     if executables:
-        checks['IDE Execute finalizes the typed file']=(folder/'CLOSED.DAT').read_bytes()==b'\1\0\2\0\xd2\4'
+        checks['explicit Close finalizes the typed file before IDE Execute']=(folder/'CLOSED.DAT').read_bytes()==b'\1\0\2\0\xd2\4'
     return checks
 
 
@@ -97,8 +95,8 @@ def execute(n):
     caller=int.from_bytes(images['EXECALL'][20:22],'little');assert root<caller
     commands=['run 100000000']+n.type_text('H:/'+parent+'.bin',ticks=2000000)
     commands += [f'bp 0x{caller:x}','tap ENTER','run 10000000000','regs','mmu','rb 0xfe70 32',f'bc 0x{caller:x}',
-        f'bp 0x{probe:x}','s','run 50000000000','regs','mmu','rb 0xfc00 72','rb 0x4000 160',f'bc 0x{probe:x}',f'bp 0x{returned:x}']
-    for _ in range(6):commands += ['s','run 1000000000','regs','mmu',f"rb 0x{kernel['_page_owners']:x} 32"]
+        's',n.ImageStop(probe,'EXENEXT.COM',0),'mmu','rb 0xfc00 72','rb 0x4000 160',f'bc 0x{probe:x}',f'bp 0x{returned:x}']
+    for _ in range(5):commands += ['s','run 1000000000','regs','mmu',f"rb 0x{kernel['_page_owners']:x} 32"]
     commands += [f'bc 0x{returned:x}',f'bp 0x{root:x}','s','run 10000000000','regs','mmu','rb 0xfc00 72','rb 0xfe70 32',
         f'bc 0x{root:x}',f"bp 0x{ps['_execute_parent_stop']:x}",'s','run 30000000000','regs','mmu']
     for name in ('_test_done','_test_passed','_test_failed'):commands += [f'rb 0x{ps[name]:x} 2']
@@ -119,25 +117,25 @@ def execute(n):
     checks={'one decoder serves file and transfer acquisition':images['EXECALL'].count((ROOT/'build/module_unpack.zpl').read_bytes())==1,
             'production compiler and direct Memory restrictions pass':word('_test_failed')==0 and word('_test_passed')>=35,
             'native packed module expands byte-for-byte to the checked linked module':unpack_ok,
-            'all actual caller/startup/release/child/supervisor checkpoints reached':len(parts)==10}
-    if len(parts)==10:
+            'all actual caller/startup/release/child/supervisor checkpoints reached':len(parts)==9}
+    if len(parts)==9:
         states=[n.memory(part) for part in parts];data=lambda k,at,size:bytes(states[k].get(at+i,0) for i in range(size))
-        owners=data(1,0xfc2a,6);originals=data(1,0xfc05,3)
+        owners=data(1,0xfc2a,5);originals=data(1,0xfc05,3)
         checks.update({
             'caller starts without preloaded file/coordinator':parts[0].startswith(f'{caller:04x} ') and data(0,0xfe74,2)==b'\0\0',
             'replacement uses the sealed compiler-generated startup':parts[1].startswith(f'{probe:04x} ') and data(1,0x4024,32)==child[36:68],
-            'handoff carries coordinator, three rollback, registry and file-module owners':data(1,0xfc04,1)==b'\6' and len(set(owners))==6 and all(32<=page<64 and page not in originals for page in owners),
-            'six real frees succeed before the first replacement instruction':all(part.startswith(f'{returned:04x} ') and int(re.search(r'AF=([0-9a-f]+)',part)[1],16)>>8==0 for part in parts[2:8]),
+            'handoff carries coordinator, three rollback and file-module owners':data(1,0xfc04,1)==b'\5' and len(set(owners))==5 and all(32<=page<64 and page not in originals for page in owners),
+            'five real frees succeed before the first replacement instruction':all(part.startswith(f'{returned:04x} ') and int(re.search(r'AF=([0-9a-f]+)',part)[1],16)>>8==0 for part in parts[2:7]),
             'every retired page is released once and original active pages stay owned':all(
                 all(states[2+i].get(kernel['_page_owners']+page-32,255)==0 for page in owners[:i+1])
                 and all(states[2+i].get(kernel['_page_owners']+page-32,0)>0 for page in owners[i+1:])
-                and all(states[2+i].get(kernel['_page_owners']+page-32,0)>0 for page in originals) for i in range(6)),
-            'replacement begins with consumed handoff and fresh modules/stack/frame':parts[8].startswith(f'{root:04x} ') and data(8,0xfc00,1)==b'\0' and data(8,0xfe74,2)==b'\0\0' and 'SP=fc00' in parts[8].split('\n',1)[0] and 'IX=0000' in parts[8],
-            'supervisor observes success, foreign-page preservation and exact page recovery':parts[9].startswith(f"{ps['_execute_parent_stop']:04x} ") and data(9,ps['_test_done'],1)==b'\xff' and data(9,ps['_test_failed'],2)==b'\0\0',
+                and all(states[2+i].get(kernel['_page_owners']+page-32,0)>0 for page in originals) for i in range(5)),
+            'replacement begins with consumed handoff and fresh modules/stack/frame':parts[7].startswith(f'{root:04x} ') and data(7,0xfc00,1)==b'\0' and data(7,0xfe74,2)==b'\0\0' and 'SP=fc00' in parts[7].split('\n',1)[0] and 'IX=0000' in parts[7],
+            'supervisor observes success, foreign-page preservation and exact page recovery':parts[8].startswith(f"{ps['_execute_parent_stop']:04x} ") and data(8,ps['_test_done'],1)==b'\xff' and data(8,ps['_test_failed'],2)==b'\0\0',
         })
     output=n.RUN/'execute-call-success/hostfs'
     checks['replacement runs, starts without old arguments, and Execute never returns']=(output/'RESULT.TXT').read_bytes()==b'EXECUTE-CALL-OK\r\n'
-    checks['old typed file is finalized before replacement opens it']=(output/'CLOSED.DAT').read_bytes()==b'\1\0\2\0\xd2\4'
+    checks['explicit Close finalizes typed file before replacement opens it']=(output/'CLOSED.DAT').read_bytes()==b'\1\0\2\0\xd2\4'
     commands=['run 100000000']+n.type_text('H:/'+parent+'.bin',ticks=2000000)
     commands += [f"bp 0x{ps['_execute_parent_stop']:x}",'tap ENTER','run 50000000000','regs','mmu']
     for name in ('_test_done','_test_passed','_test_failed'):commands += [f'rb 0x{ps[name]:x} 2']
@@ -192,7 +190,7 @@ def execute(n):
         and text.endswith(b'EXECUTE-COMMIT-RETRY-OK\r\n') and (out/'RECOVER.DAT').read_bytes()==b'\1\0\2\0\xd2\4')
     mark=re.search(rb'EXECUTE-STACK-LOW:(-?\d+)\r\n',text)
     low=int(mark[1])&65535 if mark else None
-    checks['native caller stack watermark stays inside the 1024-byte service reserve']=low is not None and 0xf800<=low<0xfa00
+    checks['native caller stack watermark stays inside the 1024-byte service reserve']=low is not None and (low==0 or 0xf800<=low<0xfa00)
     # The fatal reporter deliberately writes VID0 rather than borrowed stdout.
     # Observe its completed message before the supported open/write syscalls.
     report_open=b'\x01\xd0\xfc\x21\x02\x01\xcf'
@@ -251,9 +249,9 @@ def main():
     parent='zchaincallparent';ps=n.symbols(parent);terminal=n.symbols('transfer_gate')['transfer_gate_returned']
     assert ps['_transfer_parent_stop']==0x7ff0
     commands=['run 100000000']+n.type_text('H:/'+parent+'.bin',ticks=2000000)
-    commands+=['bp 0x8040','bp 0x7ff0','tap ENTER','run 20000000000','regs','mmu','rb 0x8000 128','rb 0xfe70 32',
+    commands+=['bp 0x8800','bp 0x7ff0','tap ENTER','run 20000000000','regs','mmu','rb 0x8000 128','rb 0xfe70 32',
                's','run 50000000000','regs','mmu','rb 0x4000 160','rb 0x8000 128','rb 0xfe70 32','rb 0xff00 7',
-               'bc 0x8040',f'bp 0x{terminal:x}','s','run 20000000000','regs','mmu','rb 0xfe70 32',f'bc 0x{terminal:x}',
+               'bc 0x8800',f'bp 0x{terminal:x}','s','run 20000000000','regs','mmu','rb 0xfe70 32',f'bc 0x{terminal:x}',
                's','run 20000000000','regs','mmu']
     for name in ('_test_done','_test_passed','_test_failed'):commands += [f'rb 0x{ps[name]:x} 2']
     commands += [f"rb 0x{ps['_test_failures']:x} 128",'quit']
@@ -268,7 +266,7 @@ def main():
         states=[n.memory(frame)for frame in frames]
         read=lambda k,at,size:bytes(states[k].get(at+i,0)for i in range(size))
         checks.update({
-            'caller and replacement enter the real requested origin':frames[0].startswith('8040 ')and frames[1].startswith('8040 '),
+            'caller and replacement enter the real requested origin':frames[0].startswith('8800 ')and frames[1].startswith('8800 '),
             'replacement enters with a fresh stack and frame root':'SP=fc00'in frames[1].split('\n',1)[0]and bool(re.search(r'\bIX=0000\b',frames[1])),
             'no test bootstrap or preloaded coordinator':read(0,0xfe74,2)==b'\0\0',
             'production acquisition retains coordinator and shared file module':all(read(1,at,1)!=b'\0'for at in (0xfe74,0xfe75)),

@@ -3,9 +3,9 @@ type code=array[1..%ABI_LENGTH%]of byte;
 var f:file of integer;i,a,b,c,d:integer;
 const machine:code=(%ABI_BYTES%);
   scenario:integer=%SCENARIO%;
-procedure seed;external $801D;
-procedure capture(var af,hl,de,bc:integer);external $8020;
-function dropfiles:integer;external $8023;
+procedure seed;external $80BD;
+procedure capture(var af,hl,de,bc:integer);external $80C0;
+function dropfiles:integer;external $80C3;
 begin
   if scenario=0 then begin
   seed;

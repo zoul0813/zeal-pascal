@@ -9,12 +9,12 @@ void test_complete(void);
 int app_main(void) {
     static const char * const names[]={"H:/EXECALL.PAS","H:/EXENEXT.PAS","H:/EXERETRY.PAS",
         "H:/EXSTART.PAS","H:/EXCHAIN.PAS","H:/EXEFAIL.PAS","H:/EXECHECK.PAS"};
-    CompileOptions options={0x8080,0xfbffu,COMPILE_PROGRAM};
+    CompileOptions options={0x9000,0xfbffu,COMPILE_PROGRAM};
     uint8_t i;
     if(!console_open())return 1;
     check(source_new(&s,names[0]));
     for(i=0;i<7;++i) {
-        test_stage=90+i;strcpy(s.path,names[i]);options.start=i==1?0x8040:0x8080;
+        test_stage=90+i;strcpy(s.path,names[i]);options.start=i==1?0x8800:0x9000;
         options.kind=i==4?COMPILE_CHAIN:COMPILE_PROGRAM;
         check(load_source(&s,s.path,&d));
         check(compile_project(&s,&b,&d,0,&options));

@@ -161,8 +161,6 @@ static void engine(void) {
     cc_patch(ready);
     guard(1024); /* reserve C service stack only while entering the module */
     cc_emit(0xe1); cc_emit(0xe5); cc_emit(0xe5); cc_emit(0xfd); cc_emit(0xe1); /* IY=job */
-    cc_emit(0xdd); cc_emit(0xe5); cc_emit(0xe1);
-    index_store(0x75,12); index_store(0x74,13);
     cc_op16(0x2a,RT_HEAPFLOOR); index_store(0x75,14); index_store(0x74,15);
     cc_op16(0x2a,RT_HEAPPTR); index_store(0x75,16); index_store(0x74,17);
     cc_op16(0x2a,0x401c); index_store(0x75,18); index_store(0x74,19);

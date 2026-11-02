@@ -68,7 +68,7 @@ def main():
         'exact formatted/captured device and console results':(disk/'HOOKS.TXT').is_file()and(disk/'HOOKS.TXT').read_bytes()==expected,
         'saved default adapter and independent default Usr reach actual physical video':physical==b'PPDD',
         'saved Aux adapter bypasses its replacement, directly and from a captured callback':transmitted==b'SNSN',
-        'unwound callback file finalizes immediately, retaining caller and heap file owners':all(
+        'explicit Close finalizes callback, caller and heap files':all(
             (disk/name).is_file()and(disk/name).read_bytes()==data for name,data in {
                 'HOOKUNW.DAT':bytes.fromhex('010002004d00'),
                 'HOOKKEEP.DAT':bytes.fromhex('020002000b001600'),

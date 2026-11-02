@@ -14,7 +14,7 @@ begin buffer:=buffer+c;install(olda);native('N')end;
 procedure printer(c:char);
 var f:numbers;n:integer;
 begin
- assign(f,'H:/HOOKUNW.DAT');rewrite(f);n:=77;write(f,n);
+ assign(f,'H:/HOOKUNW.DAT');rewrite(f);n:=77;write(f,n);close(f);
  hits:=hits+1;install(oldl);native(c)
 end;
 begin
@@ -29,7 +29,7 @@ begin
  if filesize(probe)<>1 then halt;
  read(probe,number);close(probe);if number<>77 then halt;
  number:=22;write(keep,number);close(keep);
- number:=44;write(heap^.f,number);dispose(heap);
+ number:=44;write(heap^.f,number);close(heap^.f);dispose(heap);
  if stackptr<>saved then halt;
  auxoutptr:=olda;lstoutptr:=oldl;
 end;

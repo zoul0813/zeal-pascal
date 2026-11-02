@@ -93,7 +93,7 @@ def main():
         'source/build/platform inputs unchanged':all(n.sha(Path(p))==h for p,h in hashes.items()),
     }
     if corpus=='bridges':
-        checks['file owner traverses bridge frames and implicit scope cleanup commits typed header']=(
+        checks['explicit Close commits typed headers through native callback bridges']=(
             (disk/'BRIDGE.DAT').is_file()and(disk/'BRIDGE.DAT').read_bytes()==bytes.fromhex('030002000b0016002100'))
     else:
         alias,probe=('BRIDGERELOC','stringabi')if corpus=='routines'else('BRIDGEARGS','realabi')

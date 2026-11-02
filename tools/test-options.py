@@ -167,8 +167,8 @@ def save_paths():
         matches=list(parent.rglob('x.*'))if parent.is_dir()else[]
         expected='CHN'if kind==4 else'COM'if kind==3 else'pas'
         checks[f'accepted boundary produces mode{kind} output']=any(p.suffix=='.'+expected for p in matches)
-        checks[f'rejected mode{kind} creates no parent']=not(disk/f'P{kind}112').exists()
-        checks[f'mode{kind} cleans only its own transaction']=not any(p.name.startswith('ZP')for p in parent.rglob('*'))if parent.exists()else False
+        checks[f'long boundary mode{kind} produces output']=any(p.suffix=='.'+expected for p in (disk/f'P{kind}112').rglob('x.*'))
+        checks[f'mode{kind} creates no transaction directory']=not any(p.name.startswith('ZP')for p in parent.rglob('*'))if parent.exists()else False
         if kind<2:
             checks[f'mode{kind} source and backup content match']=any(p.suffix=='.pas'and p.read_bytes()==b'{dirty}\nbegin end.'for p in matches)and any(p.suffix=='.BAK'and p.read_bytes()==b'begin end.'for p in matches)
     return checks,{'native_assertions_passed':word('_test_passed'),'native_assertions_failed':word('_test_failed')}

@@ -29,7 +29,7 @@ uint8_t transfer_cleanup(FileCleanup *job) CHAIN_CALL {
     if(BYTE(ZT_FILE)) {
         memset(&files,0,sizeof(files));files.operation=ZF_END_PROGRAM;
         /* Mode1 never frees a file module on an undocumented return register.
-         * Its cleanup reports registry-release failure in the owned job. */
+         * Its cleanup reports native descriptor failures in the owned job. */
         transfer_file_call(1,&files);
         if(files.error)first(job,files.error,files.detail);
         else {
@@ -44,10 +44,9 @@ uint8_t transfer_cleanup(FileCleanup *job) CHAIN_CALL {
         BYTE(ZT_FILE)!=0;
 }
 void transfer_dispatch(TransferJob *job) CHAIN_CALL {
-    FileCleanup files;
     uint16_t i;
 #ifndef ZP_CHAIN_ONLY
-    FileExecuteCleanup executing;uint8_t originals[3],owners[ZF_EXECUTE_PAGES+1],owner_count;
+    FileCleanup executing;uint8_t originals[3],owners[1],owner_count;
 #endif
 #ifndef ZP_TRANSFER_HOST
     if((uint16_t)job<0xc800u||(uint16_t)job>0xfc00u-sizeof(*job)) {
@@ -90,23 +89,18 @@ void transfer_dispatch(TransferJob *job) CHAIN_CALL {
     } else if(job->action==ZT_COMMIT&&transfer_load.ready) {
 #ifndef ZP_CHAIN_ONLY
         if(transfer_load.kind==IMAGE_EXECUTABLE) {
-            memset(&executing,0,sizeof(executing));executing.result.operation=ZF_END_EXECUTE;
+            memset(&executing,0,sizeof(executing));executing.operation=ZF_END_EXECUTE;
             owner_count=0;
             if(BYTE(ZT_FILE)) {
                 transfer_file_call(1,&executing);
-                if(!executing.result.error) {
-                    if(executing.count>ZF_EXECUTE_PAGES) {
-                        executing.result.error=0x20;executing.result.detail=ERR_ENTRY_CORRUPTED;
-                    } else {
-                        owner_count=(uint8_t)executing.count;
-                        memcpy(owners,executing.pages,owner_count);owners[owner_count++]=BYTE(ZT_FILE);
-                    }
+                if(!executing.error) {
+                    owners[owner_count++]=BYTE(ZT_FILE);
                 }
             }
-            if(!executing.result.error) {
+            if(!executing.error) {
                 transfer_original_pages(originals);
                 execute_override(&transfer_load,path,originals,owners,owner_count);
-            } else {transfer_load.error=executing.result.error;transfer_load.detail=(uint8_t)executing.result.detail;}
+            } else {transfer_load.error=executing.error;transfer_load.detail=(uint8_t)executing.detail;}
             chain_discard(&transfer_load);
             job->error=transfer_load.error;job->detail=transfer_load.detail;return;
         }
@@ -114,13 +108,8 @@ void transfer_dispatch(TransferJob *job) CHAIN_CALL {
             job->error=0x20;job->detail=ERR_ENTRY_CORRUPTED;return;
         }
 #endif
-        memset(&files,0,sizeof(files));files.operation=ZF_END_CHAIN;
-        files.owner=caller.origin;files.end=caller.heap_frontier;
-        if(BYTE(ZT_FILE))transfer_file_call(1,&files);
-        if(files.error) {
-            transfer_load.error=files.error;transfer_load.detail=(uint8_t)files.detail;
-            chain_discard(&transfer_load);
-        } else {transfer_commit();return;}
+        transfer_commit();return;
+
     } else {job->error=0x20;job->detail=ERR_ENTRY_CORRUPTED;return;}
     job->error=transfer_load.error;job->detail=transfer_load.detail;
 }

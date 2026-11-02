@@ -82,27 +82,27 @@ def main():
         '%ABI_LENGTH%',str(len(abi))).replace('%ABI_BYTES%',body)
     fixtures['DISKABI.PAS']=template.replace('%SCENARIO%','0').encode()
     fixtures['DISKFAIL.PAS']=template.replace('%SCENARIO%','1').encode()
-    # The recursive local File adds16 bytes of static workspace. Relocate
+    # The recursive local File adds176 bytes of static workspace. Relocate
     # the independent probe's three JP entries and four internal CALLs.
     cleanup_abi=bytearray(abi)
     for operand in (1,4,7,51,61,71,81):
         address=int.from_bytes(abi[operand:operand+2],'little')
-        assert 0x801d<=address<0x801d+len(abi)
-        cleanup_abi[operand:operand+2]=(address+16).to_bytes(2,'little')
+        assert 0x80bd<=address<0x80bd+len(abi)
+        cleanup_abi[operand:operand+2]=(address+176).to_bytes(2,'little')
     cleanup=(ROOT/'tests/native/diskcleanup.pas.in').read_text().replace(
         '%ABI_LENGTH%',str(len(abi))).replace('%ABI_BYTES%',',\n'.join(','.join(map(str,cleanup_abi[i:i+20])) for i in range(0,len(cleanup_abi),20)))
     open_file="assign(f,'H:/CLEAN.DAT');rewrite(f);i:=7;write(f,i);if dropfiles<>1 then halt;"
-    heap_file="new(p);assign(p^.f,'H:/CLEAN.DAT');rewrite(p^.f);i:=7;write(p^.f,i);if dropfiles<>1 then halt;"
+    heap_file="new(p);assign(p^.f,'H:/CLEAN.DAT');rewrite(p^.f);i:=7;write(p^.f,i);if dropfiles<>1 then halt;\n"
     scenarios={
-        'SCOPE': ('','', 'scoped;'),
-        'EXIT': ('','exit;', 'scoped;'),
-        'IGNORE': ('{$I-}','', 'scoped;if ioresult<>$99 then halt;'),
-        'EXITOFF': ('','{$I-}exit;{$I+}', 'scoped;if ioresult<>$99 then halt;'),
-        'DISPOSE': ('','',heap_file+'dispose(p);'),
-        'FREE': ('','',heap_file+'freemem(p,sizeof(item));'),
-        'RELEASE': ('','','mark(markptr);'+heap_file+'release(markptr);'),
-        'FINISH': ('','',open_file),
-        'HALT': ('','',open_file+'halt;'),
+        'SCOPE': ('','close(local);', 'scoped;'),
+        'EXIT': ('','close(local);exit;', 'scoped;'),
+        'IGNORE': ('{$I-}','close(local);', 'scoped;if ioresult<>$99 then halt;'),
+        'EXITOFF': ('','{$I-}close(local);exit;{$I+}', 'scoped;if ioresult<>$99 then halt;'),
+        'DISPOSE': ('','',heap_file+'close(p^.f);dispose(p);'),
+        'FREE': ('','',heap_file+'close(p^.f);freemem(p,sizeof(item));'),
+        'RELEASE': ('','','mark(markptr);'+heap_file+'close(p^.f);release(markptr);'),
+        'FINISH': ('','',open_file+'close(f);'),
+        'HALT': ('','',open_file+'close(f);halt;'),
     }
     for name,(checking,scope_exit,program) in scenarios.items():
         fixtures[name+'.PAS']=cleanup.replace('%CHECKING%',checking).replace(
@@ -128,12 +128,12 @@ def main():
     }
     expected={'TYPED.DAT':bytes.fromhex('030002000b0063002100'),'BLOCKS.DAT':bytes(range(256)),
               'HEAPIO.DAT':bytes.fromhex('010002002a00'),'RELEASE.DAT':bytes.fromhex('010002003700'),
-              'HALTIO.DAT':bytes.fromhex('010002005800'),'FAULTIO.DAT':bytes.fromhex('010002006300'),
+              'HALTIO.DAT':bytes.fromhex('000002005800'),'FAULTIO.DAT':bytes.fromhex('000002006300'),
               'ABI.DAT':bytes.fromhex('010002007b00'),
-              'LOWHALT.DAT':bytes.fromhex('010002005100'),
-              'LOWEXIT.DAT':bytes.fromhex('010002005200'),
-              'LOWEND.DAT':bytes.fromhex('010002005300'),
-              'RAMLOSS.DAT':bytes.fromhex('000002000e00'),'SAVLOSS.DAT':bytes.fromhex('010002000e00'),
+              'LOWHALT.DAT':bytes.fromhex('000002005100'),
+              'LOWEXIT.DAT':bytes.fromhex('000002005200'),
+              'LOWEND.DAT':bytes.fromhex('000002005300'),
+              'RAMLOSS.DAT':bytes.fromhex('000002000e00'),'SAVLOSS.DAT':bytes.fromhex('000002000e00'),
               'WIDE.DAT':bytes.fromhex('01002c01')+bytes(i%251 for i in range(1,301))}
     expected.update({f'REC{i}.DAT':bytes((1,0,2,0,i,0)) for i in range(4)})
     expected['CLEAN.DAT']=bytes.fromhex('000002000700')
@@ -157,12 +157,12 @@ def main():
             not (disk/'file_runtime.zpl').exists() and not (disk/'file_gate.zpl').exists())
     if chunks.wants('abi'):
         abi_image=(disk/'DISKABI.COM').read_bytes() if (disk/'DISKABI.COM').exists() else b''
-        checks['independently assembled alternate-register probe retained exactly']=abi_image[0x401d:0x401d+len(abi)]==abi
+        checks['independently assembled alternate-register probe retained exactly']=abi_image[0x40bd:0x40bd+len(abi)]==abi
     checks.update(completion)
     if chunks.wants('ide-error'): checks.update(error_source_checks())
     checks['implementation and artifacts unchanged during validation']=all(
         n.sha(Path(p))==digest for p,digest in hashes.items())
-    report = {'scope': 'Native typed/block file transfers, token storage, automatic routine/heap/program cleanup and RAM/self-contained COM execution; Text/devices, full paths/Rename, copied/variant adoption and full file conformance remain pending',
+    report = {'scope': 'Native typed/block file transfers, inline file storage, explicit Close and native terminal descriptor cleanup and RAM/self-contained COM execution; Text/devices, full paths/Rename, copied/variant adoption and full file conformance remain pending',
               'passed': all(checks.values()), 'capture_directory': str(n.RUN.relative_to(ROOT)),
               'case': chunks.case, 'expected_native_assertions': expected_assertions,
               'native_assertions_passed': word('_test_passed'),

@@ -76,7 +76,7 @@ class NativeChunks(unittest.TestCase):
         mapping=next(node.value for node in tree.body if isinstance(node,ast.Assign)
                      and any(isinstance(t,ast.Name)and t.id=='CASES'for t in node.targets))
         keys=[ast.literal_eval(k)for k in mapping.keys]
-        self.assertEqual(len(keys),12)
+        self.assertEqual(len(keys),6)
         self.assertEqual(definition['chunks']['tools/test-output-interrupt.py'],['--case '+k for k in keys])
 
     def test_chunk_slots_overlap_but_legacy_waits(self):

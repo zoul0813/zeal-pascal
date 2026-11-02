@@ -1553,8 +1553,6 @@ heap_append_ready:
     jr heap_allocate_commit
 
 heap_free:
-    ld a,b
-    ld (heap_mode),a
     ld (heap_target),hl
     ex de,hl
     call heap_round
@@ -1585,12 +1583,6 @@ heap_free_found:
     or a
     sbc hl,de
     jp nz,heap_error
-    ld a,(heap_mode)
-    ld b,a
-    ld a,#17
-    ld de,(heap_target)
-    ld hl,#0
-    call file_cleanup
     ld hl,(heap_at)
     inc hl
     set 7,(hl)
@@ -1651,8 +1643,6 @@ heap_coalesce_next:
     jr heap_coalesce
 
 heap_release:
-    ld a,b
-    ld (heap_mode),a
     ld (heap_target),hl
     ld hl,(heap_floor)
 heap_release_scan:
@@ -1670,12 +1660,6 @@ heap_release_scan:
     ld hl,(heap_next)
     jr heap_release_scan
 heap_release_ready:
-    ld a,(heap_mode)
-    ld b,a
-    ld a,#18
-    ld de,(heap_target)
-    ld hl,(heap_frontier)
-    call file_cleanup
     ld hl,(heap_target)
     ld (heap_frontier),hl
     ret
@@ -1791,19 +1775,6 @@ stack_set_end:
 .equ heap_flag, 0xfd78
 .equ heap_mode, 0xfd79
 
-file_stack_check:
-    push bc
-    push de
-    push hl
-    ld hl,#-1088              ; actual C stack plus ordinary helper headroom
-    add hl,sp
-    jp nc,heap_error
-    call check_boundary
-    pop hl
-    pop de
-    pop bc
-    ret
-
 ; Zero count never becomes a 65536-byte write. Caller owns the raw span.
 fill_bytes:
     ld d,a
@@ -1823,8 +1794,7 @@ runtime_prefix_end::
 heap_error:
     ld hl,(0x40be)
     jp stack_error
-; Ending lifetimes always traverse trusted private records, even with a
-; pending I/O error. A failed close cannot leave the dying object authoritative.
+; Terminal cleanup releases native handles without an implicit Pascal Close.
 file_cleanup::
     ld c,a
     ld a,(0xfe74)
@@ -1835,31 +1805,18 @@ file_cleanup::
     ret z
 file_cleanup_owned:
     ld a,c
-    cp #19                    ; terminal path reset SP and discards recursion
-    jr z,file_cleanup_terminal
-    call file_stack_check
-file_cleanup_terminal:
-    ld a,c
     push bc                    ; checking policy and operation
     ld bc,#0
     push bc                    ; native detail
     push bc                    ; error
-    push hl                    ; exclusive owner-range end
-    push de                    ; owner
     ld l,a
     ld h,#0
     push hl                    ; operation
     ld hl,#0
-    add hl,sp                  ; ten-byte caller-owned cleanup job
-    cp #19
-    ld a,#1
-    jr nz,file_cleanup_call
-    inc a                      ; terminal cleanup also releases module backing
-file_cleanup_call:
+    add hl,sp                  ; six-byte caller-owned cleanup job
+    ld a,#2                    ; terminal cleanup releases module backing
     call 0xfc80
-    pop bc
-    pop de
-    pop hl
+    pop bc                     ; operation
     pop de                     ; error word
     pop hl                     ; native detail
     pop bc                     ; checking policy

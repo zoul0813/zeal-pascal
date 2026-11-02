@@ -62,12 +62,13 @@ def native():
     directory = n.RUN/'file-runtime-core/hostfs'
     expected = {'TYPED.DAT': bytes.fromhex('030002000b0063002100'),
                 'COPY.DAT': bytes.fromhex('010002004d00'),
-                'HEAP.DAT': bytes.fromhex('010002002a00'),
-                'FRAME.DAT': bytes.fromhex('010002003700'), 'ZERO.DAT': bytes((9, 8, 7, 6)),
+                'HEAP.DAT': bytes.fromhex('000002002a00'),
+                'STATIC.DAT':bytes.fromhex('0200020037004d00'),'INNER.DAT':bytes.fromhex('010002004200'),
+                'ZERO.DAT': bytes((9, 8, 7, 6)),
                 'MAX.DAT': bytes.fromhex('ffff0100'), 'BLOCKS.DAT': bytes(range(256)),
                 'MANY.DAT': bytes.fromhex('00000200'), 'WIDE.DAT': bytes.fromhex('01002c01')+b'\x6b'*300,
                 'TEXT.DAT':b'ABCD\r\n  123\r\n\x1a','WHITE.TXT':b'  \r\n\t 12 \t\r\n \r\n\x1aX',
-                'EMPTY.TXT':b'', 'AUTOTEXT.DAT':b'AUTO\x1a','PATHCASE':bytes.fromhex('010002003a01'),
+                'EMPTY.TXT':b'', 'AUTOTEXT.DAT':b'AUTO','PATHCASE':bytes.fromhex('010002003a01'),
                 'RENAMED.DAT':bytes((i^0x5a)&255 for i in range(321)),
                 'RNINT.NEW':bytes.fromhex('01000200c801'),'RNEMPTY.NEW':b'','STDCLONE.TXT':b'X\x1a',
                 'RNLARGE.NEW':bytes((i*7+3)&255 for i in range(4096))*17}
@@ -86,7 +87,7 @@ def native():
     checks['TF/EEPROM cross-volume Rename preserves bytes and removes old names']=(
         tf.get('/RNCROSS.NEW')==bytes.fromhex('010002004900') and '/RNCROSS.OLD' not in tf
         and set(eeprom)=={'/'} and all(tf.get(name)==data for name,data in previous.items()))
-    report = {'scope': 'Callable file disk component: native SDK transfers and registry lifetime; '
+    report = {'scope': 'Callable file disk component: native SDK transfers and inline file blocks and explicit Close; '
                        'logical devices and full conformance remain pending',
               'passed': all(checks.values()), 'capture_directory': str(n.RUN.relative_to(ROOT)),
               'native_assertions_passed': word('_test_passed'), 'native_assertions_failed': word('_test_failed'),

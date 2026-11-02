@@ -5,30 +5,34 @@
 #include <zos_vfs.h>
 #include <zos_serial.h>
 
-/* No user token, copied slot, or returned page list owns a native handle.
- * The only authority is an exact match with this module's private record.
- * Each page contains102 records. Saturated generations are retired instead
- * of wrapping and making a stale token authoritative again. */
-#define RECORDS_PER_PAGE 102u
-#define REGISTRY_PAGES 32u
+/* TP3 stores its176-byte FIB with the file variable. The first12 bytes
+ * retain flags/current-byte/count/width/position fields. CP/M FCB/sector
+ * storage is native backend metadata and a128-byte Zeal path here. */
 #define OPENED 1u
 #define READABLE 2u
 #define WRITABLE 4u
 #define DIRTY 8u
 #define LOOKAHEAD 16u
+#define FILE_MARKER 0x465au
+#define NATIVE_HANDLES 16u
+#include <stddef.h>
 typedef struct {
-    uint16_t object,owner,generation,family,width,state,fd,position,count;
-    uint16_t next,physical_low,physical_high,standard,device,reserved[2];
+    uint8_t flags,next;
+    uint16_t sector,count,width,position,unused;
+    uint16_t marker,family,state,fd,physical_low,physical_high,standard,device;
+    uint16_t reserved[10];
     char path[128];
 } Record;
-typedef char record_size_is_fixed[sizeof(Record)==ZF_RECORD_BYTES?1:-1];
-uint8_t zf_record[ZF_RECORD_BYTES],zf_store;
+typedef char file_block_size[sizeof(Record)==ZF_FILE_BYTES?1:-1];
+typedef char file_count_offset[offsetof(Record,count)==4?1:-1];
+typedef char file_path_offset[offsetof(Record,path)==48?1:-1];
 uint16_t zf_service_value;
-static uint8_t pages[REGISTRY_PAGES],page_count;
-static uint16_t slot;
+/* Zeal does not retire a guest's OS descriptors automatically. This ledger
+ * tracks only native handles we actually opened, never file associations,
+ * variables, heap allocations, generations or Pascal activation lifetimes. */
+static uint16_t handles[NATIVE_HANDLES];
 static FileJob *job;
-/* The record scratch buffer has one fixed owner/address in this module. */
-#define record ((Record *)zf_record)
+#define record ((Record *)USER(job->object))
 static uint8_t bytes[128];
 /* Open requests finish before Rename begins comparing its streams. Both
  * buffers belong to this synchronous transport phase; no callback or retained
@@ -54,9 +58,6 @@ extern uint8_t zf_memory_mode;
 static uint16_t word(uint16_t at) {
     return (uint16_t)USER(at)[0]|((uint16_t)USER(at)[1]<<8);
 }
-static void put_word(uint16_t at,uint16_t value) {
-    USER(at)[0]=(uint8_t)value; USER(at)[1]=(uint8_t)(value>>8);
-}
 static void fail(uint16_t error,uint8_t detail) {
     if(!job->error) { job->error=error; job->detail=detail; }
 }
@@ -66,61 +67,44 @@ static void native_error(uint8_t detail,uint8_t writing) {
          detail==ERR_NOT_A_FILE||detail==ERR_NOT_SUPPORTED||detail==ERR_NOT_IMPLEMENTED||
          detail==ERR_ALREADY_EXIST?0x20:writing?0xf0:0x99,detail);
 }
-static uint8_t alloc_page(uint8_t *page) {
-    uint8_t error;
-    if(MEMORY_MODE) {
-        error=zf_service(0,0);
-        if(!error) *page=(uint8_t)zf_service_value;
-    } else error=palloc(page);
-    if(error) fail(0x1ff,error);
-    return !error;
-}
-static uint8_t drop_page(uint8_t page) {
-    return MEMORY_MODE?zf_service(1,page):pfree(page);
-}
 static int8_t open_path(const char *path,uint8_t flags) {
     uint8_t error;
-    if(!MEMORY_MODE) return open(path,flags);
-    transport.request.flags=flags; strcpy(transport.request.path,path);
-    error=zf_service(2,(uint16_t)(uintptr_t)&transport.request);
-    return error?-(int8_t)error:(int8_t)zf_service_value;
+    int8_t fd;
+    transport.request.flags=flags;
+    if(path!=transport.request.path)strcpy(transport.request.path,path);
+    if(!MEMORY_MODE) fd=open(transport.request.path,flags);
+    else {
+        error=zf_service(2,(uint16_t)(uintptr_t)&transport.request);
+        fd=error?-(int8_t)error:(int8_t)zf_service_value;
+    }
+    if(fd>=0) {
+        if((uint8_t)fd>=NATIVE_HANDLES) {
+            if(MEMORY_MODE)zf_service(3,(uint8_t)fd);else close(fd);
+            return -(int8_t)ERR_INVALID_PARAMETER;
+        }
+        handles[(uint8_t)fd]=job->object;
+    }
+    return fd;
 }
 static int8_t open_file(uint8_t flags) { return open_path(record->path,flags); }
+static uint8_t stat_file(void) {
+    strcpy(transport.request.path,record->path);return stat(transport.request.path,&info);
+}
+static uint8_t remove_file(void) {
+    strcpy(transport.request.path,record->path);return rm(transport.request.path);
+}
 static uint8_t close_file(uint8_t fd) {
+    if(fd>=NATIVE_HANDLES||handles[fd]!=job->object)return ERR_INVALID_PARAMETER;
+    handles[fd]=0; /* VFS consumes even a failed close. */
     return MEMORY_MODE?zf_service(3,fd):close((int8_t)fd);
-}
-static void load_record(uint16_t index) {
-    uint16_t n=index-1;
-    zf_store=0; zf_record_io(pages[n/RECORDS_PER_PAGE],(n%RECORDS_PER_PAGE)*ZF_RECORD_BYTES);
-}
-static void save_record(uint16_t index) {
-    uint16_t n=index-1;
-    zf_store=1; zf_record_io(pages[n/RECORDS_PER_PAGE],(n%RECORDS_PER_PAGE)*ZF_RECORD_BYTES);
 }
 static uint8_t within(uint16_t at,uint16_t size,uint16_t low,uint16_t high) {
     return at>=low&&at<=high&&size<=high-at;
 }
-/* Validate the whole chain before accepting an interior object. Saved IX
- * links increase toward the program root. The compiler's private[-8] word
- * is the real lower bound after allocating all local/formal storage. */
-static uint8_t frame_owner(uint16_t at,uint16_t size,uint16_t claimed,uint16_t *owner) {
-    uint16_t frame=job->frame,next,low,found=0;
-    while(frame) {
-        if(frame<0xc808u||frame>0xfbfcu||word(frame-4)!=frame) return 0;
-        low=word(frame-8);
-        if(low<0xc800u||low>frame-8||low<job->stack_pointer) return 0;
-        if(claimed?frame==claimed:within(at,size,low,frame-8)) found=frame;
-        next=word(frame);
-        if(next&&next<=frame) return 0;
-        frame=next;
-    }
-    if(!found) return 0;
-    *owner=found; return 1;
-}
 /* Inspect every header before following it, including headers after a
  * candidate object. Metadata, freed payloads and cross-allocation spans
- * cannot acquire a new binding even if token bytes look initialized. */
-static uint8_t heap_owner(uint16_t at,uint16_t size,uint16_t *owner) {
+ * must not be passed to native transfers. */
+static uint8_t heap_span(uint16_t at,uint16_t size) {
     uint16_t cursor=job->heap_floor,span,next,found=0,header;
     while(cursor<job->heap_frontier) {
         if(job->heap_frontier-cursor<2) return 0;
@@ -131,107 +115,69 @@ static uint8_t heap_owner(uint16_t at,uint16_t size,uint16_t *owner) {
         cursor=next;
     }
     if(cursor!=job->heap_frontier||!found) return 0;
-    *owner=found; return 1;
-}
-static uint8_t object_owner(uint16_t *owner) {
-    if(within(job->object,16,0x8000,job->static_end)) {
-        /* A- workspaces have stable addresses. A nonzero token owner must
-         * still name a live, fully validated activation before binding. */
-        uint16_t claimed=word(job->object+6);
-        if(claimed&&job->frame&&word(job->object)==0x465a)
-            return frame_owner(0,0,claimed,owner);
-        *owner=0; return 1;
-    }
-    if(heap_owner(job->object,16,owner)) return 1;
-    return frame_owner(job->object,16,0,owner);
+    return 1;
 }
 static uint8_t readable(uint16_t at,uint16_t size) {
-    uint16_t owner;
     return within(at,size,0x8000,job->static_end)||
-        within(at,size,job->stack_pointer,0xfc00)||heap_owner(at,size,&owner);
+        within(at,size,job->stack_pointer,0xfc00)||heap_span(at,size);
 }
 static uint8_t descriptor(uint16_t *family,uint16_t *width) {
     if(!within(job->descriptor,3,job->code_origin,job->static_end)) return 0;
     *family=USER(job->descriptor)[0]; *width=word(job->descriptor+1);
     return *family<=2&&(*family!=0||!*width)&&(*family!=2||*width==128);
 }
-static void token(uint16_t owner,uint16_t family,uint16_t width) {
-    uint16_t at=job->object;
-    memset(USER(at),0,16);
-    put_word(at,0x465a); put_word(at+2,slot); put_word(at+4,record->generation);
-    put_word(at+6,owner); USER(at)[8]=(uint8_t)family; put_word(at+10,width);
-    USER(at)[9]=record->standard?1:0;
+static void initialize(uint16_t family,uint16_t width) {
+    memset(record,0,sizeof(*record));
+    record->marker=FILE_MARKER;record->family=family;record->width=width;
+    record->fd=0xffffu;
 }
-static uint8_t bound(uint16_t owner,uint16_t family,uint16_t width) {
-    uint16_t at=job->object,n=word(at+2);
-    uint8_t i;
-    if(word(at)!=0x465a||!n||n>(uint16_t)page_count*RECORDS_PER_PAGE||
-       word(at+6)!=owner||USER(at)[8]!=family||USER(at)[9]>1||word(at+10)!=width) return 0;
-    for(i=12;i<16;++i) if(USER(at)[i]) return 0;
-    load_record(n);
-    if(record->object!=at||record->owner!=owner||record->family!=family||
-       record->width!=width||record->generation!=word(at+4)||USER(at)[9]!=(record->standard?1:0)) return 0;
-    slot=n; return 1;
+static uint8_t bound(uint16_t family,uint16_t width) {
+    return record->marker==FILE_MARKER&&record->family==family&&record->width==width&&
+        memchr(record->path,0,sizeof(record->path))!=0;
 }
-static uint8_t new_record(uint16_t owner,uint16_t family,uint16_t width) {
-    uint16_t i,generation;
-    uint8_t page;
-    for(i=1;i<=(uint16_t)page_count*RECORDS_PER_PAGE;++i) {
-        load_record(i);
-        if(!record->object&&record->generation!=0xffff) break;
-    }
-    if(i>(uint16_t)page_count*RECORDS_PER_PAGE) {
-        if(page_count==REGISTRY_PAGES) { fail(0x1ff,ERR_NO_MORE_MEMORY); return 0; }
-        if(!alloc_page(&page)) return 0;
-        pages[page_count++]=page; zf_page_clear(page); load_record(i);
-    }
-    generation=record->generation+1;
-    memset(record,0,sizeof(*record)); record->object=job->object; record->owner=owner;
-    record->generation=generation; record->family=family; record->width=width;
-    slot=i; return 1;
+static void flags(void) {
+    uint8_t type=record->device==ZF_STANDARD_KBD?2:record->device==ZF_STANDARD_LST?3:
+        record->device==ZF_STANDARD_AUX?4:record->device==ZF_STANDARD_USR?5:record->device?1:0;
+    record->flags=type|((record->state&READABLE)?0x80:0)|((record->state&WRITABLE)?0x40:0)|
+        ((record->state&(record->family?DIRTY:LOOKAHEAD))?0x20:0)|
+        (record->family==1?0x10:0);
 }
 static uint8_t device_access(uint16_t identity) {
     return identity==ZF_STANDARD_KBD?READABLE:identity==ZF_STANDARD_LST?WRITABLE:READABLE|WRITABLE;
 }
-/* Only immutable compiler-supplied addresses acquire preassigned identity.
- * A flag or token copied into any other object cannot grant that authority.
- * Check the complete bounded table before registering any of its objects. */
-static void close_record(void);
+/* Compiler-defined standard streams are the only preassigned file blocks.
+ * Validate the bounded immutable table before initializing any of them. */
 static uint8_t standards(void) {
     uint16_t table=job->standard_table,count,i,j,at,object,identity,saved=job->object;
     uint8_t identities=0;
-    if(!table) return 1;
-    if(!within(table,2,job->code_origin,job->static_end)) { fail(0x1ff,0); return 0; }
+    if(!table)return 1;
+    if(!within(table,2,job->code_origin,job->static_end))goto invalid;
     count=word(table);
-    if(count>ZF_STANDARD_USR||!within(table+2,count*4,job->code_origin,job->static_end)) { fail(0x1ff,0); return 0; }
+    if(count>ZF_STANDARD_USR||!within(table+2,count*4,job->code_origin,job->static_end))goto invalid;
     for(i=0;i<count;++i) {
-        at=table+2+4*i; object=word(at); identity=word(at+2);
+        at=table+2+4*i;object=word(at);identity=word(at+2);
         if(!identity||identity>ZF_STANDARD_USR||(identities&(1u<<(identity-1)))||
-           !within(object,16,0x8000,job->code_origin)) { fail(0x1ff,0); return 0; }
+           !within(object,ZF_FILE_BYTES,0x8000,job->code_origin))goto invalid;
         identities|=1u<<(identity-1);
-        for(j=0;j<i;++j) if(word(table+2+4*j)==object) { fail(0x1ff,0); return 0; }
+        for(j=0;j<i;++j)if(word(table+2+4*j)==object)goto invalid;
     }
-    for(i=0;i<count&&!job->error;++i) {
-        at=table+2+4*i; job->object=word(at); identity=word(at+2);
-        if(bound(0,0,0)&&record->standard==identity) continue;
-        for(j=1;j<=(uint16_t)page_count*RECORDS_PER_PAGE;++j) {
-            load_record(j);
-            if(record->object==job->object) {
-                /* A replacement can put a hidden standard slot over an old
-                 * trailing private global. The validated compiler table owns
-                 * that address; keep shared files at all other addresses. */
-                if(record->standard||record->owner) fail(0x1ff,0);
-                else {close_record();record->object=0;save_record(j);}
-                break;
-            }
-        }
-        if(job->error||!new_record(0,0,0)) break;
-        record->standard=identity;
+    for(i=0;i<count;++i) {
+        at=table+2+4*i;job->object=word(at);identity=word(at+2);
+        if(bound(0,0)&&record->standard==identity)continue;
+        initialize(0,0);record->standard=identity;
         record->device=identity>=ZF_STANDARD_KBD?identity:0;
-        record->state=device_access(identity);
-        token(0,0,0); save_record(slot);
+        record->state=device_access(identity);flags();
     }
-    job->object=saved; return !job->error;
+    job->object=saved;return 1;
+invalid:
+    fail(0x1ff,0);return 0;
+}
+static uint8_t standard_identity(void) {
+    uint16_t table=job->standard_table,count,i;
+    if(!table)return 0;
+    count=word(table);
+    for(i=0;i<count;++i)if(word(table+2+4*i)==job->object)return (uint8_t)word(table+4+4*i);
+    return 0;
 }
 /* The pinned kernel may return an old-size byte after a successful write
  * advances its cursor inside an existing (or just truncated) file. Distinguish
@@ -452,7 +398,7 @@ static void close_record(void) {
         text_position(); bytes[0]=26; text_bytes(1); text_remember();
     } else flush();
     error=close_file((uint8_t)record->fd);
-    record->state=0; record->fd=0; /* VFS consumes even a failed close. */
+    record->state=0; record->fd=0xffffu; /* VFS consumes even a failed close. */
     if(error) fail(error==ERR_NO_SUCH_ENTRY?0xff:error==ERR_CANNOT_REGISTER_MORE?0xf3:0xf0,error);
     if(primary) { job->error=primary; job->detail=detail; }
 }
@@ -465,7 +411,7 @@ static void activate(uint8_t rewriting) {
      * its filesystem byte. Use supported path stat (its temporary open is
      * read-only) before acquiring our descriptor, including at fd capacity.
      * Classify an existing directory before any truncating open. */
-    error=stat(record->path,&info);
+    error=stat_file();
     if(error&&(!rewriting||error!=ERR_NO_SUCH_ENTRY)) { native_error(error,rewriting); return; }
     if(!error&&!D_ISFILE(info.s_flags)) { fail(0x20,0); return; }
     if(rewriting) info.s_size=0;
@@ -589,7 +535,7 @@ static void rename_file(void) {
     error=stat(rename_path,&info);
     if(!error) { fail(0x20,ERR_ALREADY_EXIST); return; }
     if(error!=ERR_NO_SUCH_ENTRY) { native_error(error,2); return; }
-    error=stat(record->path,&info);
+    error=stat_file();
     if(error) { native_error(error,2); return; }
     if(!D_ISFILE(info.s_flags)) { fail(0x20,0); return; }
     size=info.s_size;
@@ -628,7 +574,7 @@ static void rename_file(void) {
     if(!job->error) { rename_end(in); if(!job->error) rename_end(out); }
     rename_close(out); rename_close(in);
     if(job->error) return;
-    error=rm(record->path);
+    error=remove_file();
     if(error) native_error(error,2);
     else strcpy(record->path,rename_path);
 }
@@ -645,7 +591,7 @@ static void serial_stream(void) {
     if(job->operation==ZF_TEXT_WRITE&&!USER(job->data)[0]) return;
     record->fd=0xffffu;
     if(writing) {
-        if(!serial_open()) { record->fd=0; return; }
+        if(!serial_open()) { record->fd=0xffffu; return; }
         fd=(int8_t)record->fd;
         error=ioctl(fd,SERIAL_CMD_GET_ATTR,&serial_attribute);
         if(!error) {
@@ -671,7 +617,7 @@ static void serial_stream(void) {
         error=close_file((uint8_t)record->fd);
         if(error) fail(0xf0,error);
     }
-    record->fd=0;
+    record->fd=0xffffu;
 }
 /* The file module validates ownership while mapped; the restored prefix owns
  * keyboard services. Only the authenticated binding's small lookahead state
@@ -680,7 +626,7 @@ static void logical_stream(void) {
     switch(job->operation) {
     case ZF_RESET: case ZF_REWRITE:
         record->state=device_access(record->device);
-        record->next=0; save_record(slot); return;
+        record->next=0;  return;
     case ZF_CLOSE: return;
     case ZF_TEXT_BEGIN: case ZF_TEXT_READLN: case ZF_EOF:
     case ZF_EOLN: case ZF_SEEKEOF: case ZF_SEEKEOLN:
@@ -701,12 +647,12 @@ static void logical_stream(void) {
         job->stream=record->device; return;
     }
     if(record->device==ZF_STANDARD_LST) { fail(0x20,ERR_NOT_SUPPORTED); return; }
-    if(record->device==ZF_STANDARD_AUX) { serial_stream(); save_record(slot); return; }
+    if(record->device==ZF_STANDARD_AUX) { serial_stream();  return; }
     job->stream=record->device;
     job->lookahead=(uint8_t)record->next|((record->state&LOOKAHEAD)?0x100u:0);
 }
-void zf_dispatch(FileJob *invocation) ZFILE_CALL {
-    uint16_t owner,family,width;
+static void dispatch(FileJob *invocation) {
+    uint16_t family,width;
     uint8_t valid,error;
     job=invocation;
     if(job->operation!=ZF_STREAM_RETURN) {
@@ -716,11 +662,20 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
        job->heap_floor>job->heap_frontier||job->heap_frontier>job->stack_pointer||
        job->stack_pointer<0xc800u||job->stack_pointer>0xfc00u||
        job->code_origin<0x8000u||job->code_origin>job->static_end||
-       (job->heap_floor&1)||!descriptor(&family,&width)||!object_owner(&owner)) {
+       (job->heap_floor&1)||!descriptor(&family,&width)||!readable(job->object,ZF_FILE_BYTES)) {
         fail(0x1ff,0); return;
     }
-    if(job->operation!=ZF_STREAM_RETURN&&!standards()) return;
-    valid=bound(owner,family,width);
+    if(!standards()) return;
+    valid=bound(family,width);
+    if(valid&&record->standard!=standard_identity()) {
+        if(job->operation==ZF_ASSIGN&&!standard_identity())valid=0;
+        else {fail(0x1ff,0);return;}
+    }
+    if(valid&&(record->state&OPENED)&&
+       (record->fd>=NATIVE_HANDLES||handles[record->fd]!=job->object)) {
+        /* Execute closed the OS handle without finalizing the Pascal file. */
+        record->state&=(uint16_t)~(OPENED|READABLE|WRITABLE|DIRTY);
+    }
     if(job->operation==ZF_STREAM_RETURN) {
         if(!valid||record->device<ZF_STANDARD_KBD||record->device>ZF_STANDARD_USR||
            record->device==ZF_STANDARD_LST||record->device==ZF_STANDARD_AUX||
@@ -729,7 +684,7 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
         else {
             record->next=(uint8_t)job->lookahead;
             record->state=(record->state&~LOOKAHEAD)|((job->lookahead&0x100u)?LOOKAHEAD:0);
-            save_record(slot);
+
         }
         return;
     }
@@ -751,10 +706,9 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
         if(!assigned_path()) { fail(0x20,ERR_INVALID_PATH); return; }
         error=logical_device(transport.request.path);
         if(error&&family) { fail(0x20,0); return; }
-        if(valid&&(record->state&OPENED)) { fail(0x20,0); return; }
-        if(!valid&&!new_record(owner,family,width)) return;
+        initialize(family,width);
         record->device=error; record->state=error?device_access(error):0; record->next=0;
-        strcpy(record->path,transport.request.path); token(owner,family,width); save_record(slot); return;
+        strcpy(record->path,transport.request.path); return;
     }
     if(!valid) {
         fail(family==2?4:job->operation==ZF_READ||job->operation==ZF_TEXT_READ||
@@ -799,10 +753,10 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
     case ZF_ERASE:
         if(record->state&OPENED) fail(0x20,0);
         else {
-            error=stat(record->path,&info);
+            error=stat_file();
             if(error) native_error(error,2);
             else if(!D_ISFILE(info.s_flags)) fail(0x20,0);
-            else { error=rm(record->path); if(error) native_error(error,2); }
+            else { error=remove_file(); if(error) native_error(error,2); }
         }
         break;
     case ZF_RENAME: rename_file(); break;
@@ -822,48 +776,22 @@ void zf_dispatch(FileJob *invocation) ZFILE_CALL {
         break;
     default: fail(0x20,ERR_NOT_IMPLEMENTED); break;
     }
-    save_record(slot);
+
 }
-/* Only the private registry determines which bindings end with a scope. Keep
- * this decision together instead of hoisting a separate flag for every scope
- * across the registry traversal on the target's small register set. */
-static uint8_t ending_record(const FileCleanup *ending) {
-    switch(ending->operation) {
-    case ZF_END_PROGRAM: case ZF_END_EXECUTE: return 1;
-    case ZF_END_FRAME: case ZF_END_OBJECT: return record->owner==ending->owner;
-    case ZF_END_RANGE: return record->owner>=ending->owner&&record->owner<ending->end;
-    case ZF_END_CHAIN: return record->standard||record->owner>=ending->end||
-        (!record->owner&&record->object>=ending->owner);
-    default: return 0;
-    }
+void zf_dispatch(FileJob *invocation) ZFILE_CALL {
+    dispatch(invocation);
+    if(!job->error&&readable(job->object,ZF_FILE_BYTES)&&record->marker==FILE_MARKER)flags();
 }
-static uint8_t execute_owners(FileExecuteCleanup *ending) {
-    if(page_count>ZF_EXECUTE_PAGES) {fail(0x1ff,ERR_NO_MORE_MEMORY);return 0;}
-    memcpy(ending->pages,pages,page_count);ending->count=page_count;return 1;
-}
-uint8_t zf_cleanup(FileCleanup *ending) ZFILE_CALL {
-    FileJob result;
-    uint16_t i;
-    uint8_t error;
-    memset(&result,0,sizeof(result)); job=&result;
-    if(ending->operation==ZF_END_EXECUTE&&!execute_owners((FileExecuteCleanup*)ending))goto done;
-    for(i=1;i<=(uint16_t)page_count*RECORDS_PER_PAGE;++i) {
-        load_record(i);
-        if(record->object&&ending_record(ending)) {
-            close_record();
-            if(ending->operation!=ZF_END_EXECUTE)record->object=0;
-            save_record(i);
+/* Close releases Pascal output buffers/metadata; terminal OS cleanup does
+ * not perform an implicit Pascal Close, nor inspect possibly dead variables. */
+void zf_cleanup(FileCleanup *ending) ZFILE_CALL {
+    uint8_t fd,error;
+    ending->error=ending->detail=0;
+    if(ending->operation==ZF_END_PROGRAM||ending->operation==ZF_END_EXECUTE) {
+        for(fd=0;fd<NATIVE_HANDLES;++fd)if(handles[fd]) {
+            handles[fd]=0;
+            error=MEMORY_MODE?zf_service(3,fd):close((int8_t)fd);
+            if(error&&!ending->error) {ending->error=0xf0;ending->detail=error;}
         }
     }
-    if(ending->operation==ZF_END_PROGRAM) {
-        while(page_count) {
-            error=drop_page(pages[page_count-1]);
-            if(error) { fail(0x1ff,error); break; }
-            --page_count;
-        }
-    }
-done:
-    ending->error=result.error; ending->detail=result.detail;
-    job=0;
-    return page_count;
 }

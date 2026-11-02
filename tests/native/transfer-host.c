@@ -62,9 +62,7 @@ void transfer_commit(void) {++commits;transfer_install();}
 void transfer_file_call(uint8_t mode,void *pointer) {
     FileCleanup *job=pointer;
     ++file_calls;check(mode==1&&transfer_memory[ZT_FILE]==35);
-    check(job->operation==ZF_END_PROGRAM||job->operation==ZF_END_CHAIN||job->operation==ZF_END_EXECUTE);
-    if(job->operation==ZF_END_CHAIN)check(job->owner==0x9000&&job->end==0xe020);
-    if(job->operation==ZF_END_EXECUTE)((FileExecuteCleanup*)job)->count=0;
+    check(job->operation==ZF_END_PROGRAM||job->operation==ZF_END_EXECUTE);
     job->error=file_error;job->detail=file_detail;
 }
 static uint16_t word(uint16_t at) {return transfer_memory[at]|((uint16_t)transfer_memory[at+1]<<8);}
@@ -119,7 +117,7 @@ int main(void) {
     bad_page=255;clean(&ending);check(!transfer_cleanup(&ending)&&!ending.error&&!drops[34]);
     setup(&job,1);prepare(&job);file_error=2;file_detail=7;bad_page=32;
     job.action=ZT_COMMIT;transfer_dispatch(&job);
-    check(job.error==2&&job.detail==7&&!commits&&!installs&&!transfer_load.ready&&owned[32]&&!owned[33]);
+    check(!job.error&&commits==1&&installs==1&&!transfer_load.ready&&owned[32]&&!owned[33]&&!file_calls);
     file_error=0;bad_page=255;clean(&ending);check(!transfer_cleanup(&ending));
     setup(&job,1);prepare(&job);bad_page=32;job.action=ZT_COMMIT;transfer_dispatch(&job);
     check(commits==1&&installs==1&&owned[32]&&!owned[33]&&owned[34]&&owned[35]);

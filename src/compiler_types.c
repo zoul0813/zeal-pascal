@@ -117,7 +117,7 @@ static uint8_t parse_type_body(uint8_t allow_forward) {
             cc_next(); base=parse_type(0);
             if(cc_family(base)==K_FILE) cc_fail(68);
         }
-        result=cc_new_type(K_FILE,16,0,0,base==255?FILE_UNTYPED:FILE_TYPED);
+        result=cc_new_type(K_FILE,176,0,0,base==255?FILE_UNTYPED:FILE_TYPED);
         cc.types[result].element=base;
         return result;
     }

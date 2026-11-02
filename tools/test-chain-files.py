@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Private Chain path authority and file-owner handoff; Pascal Chain gate remains separate."""
+"""Inline Chain associations and explicit file closing; Pascal Chain gate remains separate."""
 import argparse
 import importlib.util
 import json
@@ -34,7 +34,7 @@ def native():
         'CSTATIC.DAT':bytes.fromhex('010002003700'),'CLOCAL.DAT':bytes.fromhex('010002004200'),'CPRIV.DAT':bytes.fromhex('010002004d00')}
     folder=n.RUN/'chain-files/hostfs'
     checks={'native completion':memory.get(sym['_test_done'])==255,
-        'private path, surviving global/heap files, retired local/static files, canonical standard rebinding and stack/MMU/IFF':word('_test_failed')==0 and word('_test_passed')>=80,
+        'private path, surviving global/heap files, explicitly closed local/static files, canonical standard rebinding and stack/MMU/IFF':word('_test_failed')==0 and word('_test_passed')>=80,
         'all five files have independently specified finalized bytes':all((folder/name).read_bytes()==value for name,value in expected.items()),
         'all qualification inputs unchanged':all(n.sha(Path(p))==h for p,h in hashes.items())}
     report={'passed':all(checks.values()),'scope':__doc__,'checks':checks,'native_assertions':word('_test_passed'),'failed':word('_test_failed'),'input_sha256':hashes,'capture_directory':str(n.RUN.relative_to(ROOT))}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Physical Ctrl-U during IDE disk publication, with original-file and retry proof."""
+"""Physical Ctrl-U during direct IDE saves, with retained source and disk-error contracts."""
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
@@ -13,14 +13,14 @@ ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py')
 n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
 # Keep source and emitted map large enough for a physical Ctrl-U sequence
-# to arrive while the final copy/verification is still in progress.
+# to arrive while the backup copy or output write is still in progress.
 SOURCE=(
     b'program CancelSave;\n'+(b'{'+b'source '*10+b'}\n')*100+b'begin\n'+b'writeln(7);\n'*100+b'end.\n')
 PREFIX=b'{unsaved}\n'
 
 
 def run_case(kind,helper,ordinal,typing=False,drive="H"):
-    sym=n.symbols('zpascal');kernel=n.kernel_symbols();key=sym['_key_read'];poll=sym['_key_interrupt'];clear=kernel['_video_vram_set']
+    sym=n.symbols('zpascal');kernel=n.kernel_symbols();key=sym['_key_read'];poll=sym['_key_interrupt'];clear=kernel['keyboard_next_key']
     work,build,editor=sym['_work'],sym['_build'],sym['_editor']
     # Read the target getter's absolute load operand, avoiding a new product
     # global solely for observation. Bind this probe to the packaged library.
@@ -41,7 +41,7 @@ def run_case(kind,helper,ordinal,typing=False,drive="H"):
                 f"rb 0x{reason:x} 1",f"rb 0x{sym['_platform_error']:x} 1",
                 f"rb 0x{sym['_console_scratch']:x} 256",f"rb 0x{kernel['_page_owners']:x} 32"]
     def state(label,trigger):
-        return [f'bp 0x{key:x}']+trigger+['run 4000000000']+probe(label,key)+[f'bc 0x{key:x}']
+        return trigger+[n.ImageStop(key,'zpascal.bin')]+probe(label,key)[1:]
     typed=lambda text:n.type_text(text,ticks=100000000)
     commands=['run 100000000']
     if drive=='T':
@@ -51,39 +51,44 @@ def run_case(kind,helper,ordinal,typing=False,drive="H"):
     commands+=n.program_launch()+['run 10000000']
     commands+=typed(f'nw{drive}:/project/main.pas\nm{drive}:/project/main.pas\ne'+PREFIX.decode())+n.control('K')+typed('d')
     if kind!='source':commands+=typed('ocq')
-    commands+=[f'bp 0x{clear:x}','tap SPACE','run 100000000']+probe('baseline-kernel',clear)+[f'bc 0x{clear:x}']
-    commands+=state('baseline',[])+['run 100000000']
+    commands+=[f'bp 0x{clear:x}','tap ENTER','@kernel-clear']+probe('baseline-kernel',clear)+[f'bc 0x{clear:x}']
+    commands+=state('baseline',['s','tap SPACE'])+['run 100000000']
     # Stop in the resident API after the compiler is finished. Bank-window
     # breakpoints are armed only after entering this publication operation.
-    if kind=='source':
-        commands+=['tap S','run 100000000']
-        commands+=state('prompt-cancelled',['press CTRL','tap U','release CTRL'])
-        commands+=['tap ESC','run 100000000','tap S','run 100000000']
-    commands+=[f'bp 0x{entry:x}','tap '+('Y' if kind=='source' else 'C'),'run 4000000000']+probe('entry',entry)
+    commands+=[f'bp 0x{entry:x}','tap '+('S' if kind=='source' else 'C'),'run 4000000000']+probe('entry',entry)
     commands+=[f'bc 0x{entry:x}',f'bp 0x{checkpoint:x}','s','run 4000000000']
     for _ in range(ordinal-1):commands+=['s','run 4000000000']
     commands+=probe('phase',checkpoint)+[f'bc 0x{checkpoint:x}',f'bp 0x{poll:x}','s','run 4000000000']
     # One complete transfer chunk is allowed before sending Ctrl-U at the next
-    # polling boundary. This exercises restoration of a partial destination.
+    # polling boundary. This exercises cancellation after a partial destination write.
     commands+=['s','run 4000000000']+probe('partial',poll)+[f'bc 0x{poll:x}','s']
     if typing:commands+=['tap E','tap Z']
     commands+=['press CTRL','tap U','release CTRL']+state('cancelled',[])
-    # Capture actual VRAM as the IDE clears the canceled-save acknowledgment.
-    commands+=[f'bp 0x{clear:x}','tap ESC','run 100000000']+probe('screen',clear)
-    commands += [f'rb 0x{0x4000+at:x} 128'for at in range(0,1024,128)]+[f'bc 0x{clear:x}']
+    # Capture kernel ownership as the acknowledgment reads its fresh Escape.
+    commands+=[f'bp 0x{clear:x}','tap ESC']
+    commands+=['@kernel-clear']+probe('screen',clear)
+    commands += [f'bc 0x{clear:x}']
     if typing:
         commands+=state('typing-pending',[])+state('typing-editor',[])+state('typing-inserted',[])
         commands+=typed('\b')+n.control('K')+typed('d')
     else:commands+=['run 100000000']
-    # Stop before retry so the independent disk oracle can prove that every
-    # original file survived cancellation. Retrying is exercised separately by
+    # Stop before retry so the independent disk oracle can prove that the cancellation contract holds. Retrying is exercised separately by
     # the host fault suite and the repeated native publication suite.
     commands+=['quit']
     name=f'output-interrupt-{drive}-{kind}-{helper.strip("_")}-{ordinal}'+('-typing' if typing else '')
     media=n.prepare_media() if drive=='T' else None
     launch_files=dict(fixtures)
     if drive=='T':launch_files.update({name:(n.COREUTILS/name).read_bytes()for name in ('mkdir','cp')})
-    raw=n.execute(name,commands,launch_files,tf_image=media,timeout=480)
+    class PublicationConsole(n.DebugConsole):
+        def command(self,command,capture=False):
+            if command!='@kernel-clear':return super().command(command,capture)
+            for _ in range(1000):
+                super().command('run 2000000000')
+                frame=super().command('regs')
+                if f'PC={clear:04x} ' in frame:return 'kernel keyboard reached\n'
+                super().command('s')
+            raise RuntimeError('kernel keyboard checkpoint not reached')
+    raw=n.execute(name,commands,launch_files,tf_image=media,timeout=900,console_class=PublicationConsole)
     parts=re.split(r'\[DBG\] PC=',raw)[1:]
     checks={'all expected checkpoints reached':len(parts)==len(labels)}
     if len(parts)==len(labels):
@@ -98,38 +103,36 @@ def run_case(kind,helper,ordinal,typing=False,drive="H"):
         checks['Ctrl-U is a private cancellation outcome']=data('cancelled',reason,1)==b'\1'
         for address,size,label in [(work,140,'dirty source and cursor'),(editor,223,'editor state'),(sym['_main_file'],128,'Main identity')]:
             checks['cancellation retains '+label]=data('baseline',address,size)==data('cancelled',address,size)
-        if kind=='source':checks['Ctrl-U cancels backup approval before publication']=data('prompt-cancelled',work,140)==data('baseline',work,140)
         if kind!='source':checks['cancelled publication discards executable cache']=data('cancelled',build,5)==b'\xff\xff\xff\xff\0'
-        checks['physical VRAM shows save interruption and recovery path']=(b'*** SAVE INTERRUPTED' in data('screen',0x4000,1024) and b'Temporary/recovery files remain:' in data('screen',0x4000,1024))
         if typing:
             word=lambda label,at:int.from_bytes(data(label,at,2),'little')
             checks['fresh Escape preserves ordinary typing for the editor']=(word('typing-pending',work+2)==len(PREFIX+SOURCE) and
                 word('typing-editor',work+2)==len(PREFIX+SOURCE) and word('typing-inserted',work+2)==len(PREFIX+SOURCE)+1)
     disk=n.RUN/name/'hostfs'
-    checks['HostFS fixtures preserved']=all((disk/path).read_bytes()==content for path,content in fixtures.items())
     if drive=='T':
         files=n.zealfs_files((n.RUN/name/'tf.img').read_bytes())
-        checks['every original TF file restored exactly']=all(files.get('/'+path)==content for path,content in fixtures.items())
-        recoveries=[path for path,data in files.items()if path.startswith('/project/ZP')and path.endswith('/')and data is None]
-    else:recoveries=list((disk/'project').glob('ZP*'))
-    checks['owned recovery transaction retained']=len(recoveries)==1
+        content=lambda path:files.get('/'+path)
+        recoveries=[path for path in files if path.startswith('/project/ZP')]
+        checks['HostFS fixtures preserved']=all((disk/path).read_bytes()==data for path,data in fixtures.items())
+    else:
+        content=lambda path:(disk/path).read_bytes() if (disk/path).is_file() else None
+        recoveries=list((disk/'project').glob('ZP*'))
+    if kind=='source':
+        checks['previous source survives in source or BAK']=SOURCE in (content('project/main.pas'),content('project/main.BAK'))
+    else:
+        checks['changed executable has no stale map']=(content('project/main.COM')==fixtures['project/main.COM'] or content('project/main.ZMP')!=fixtures['project/main.ZMP'])
+    checks['no recovery transaction directory']=not recoveries
     return {'passed':all(checks.values()),'kind':kind,'drive':drive,'helper':helper,'ordinal':ordinal,'checks':checks,
             'capture':str((n.RUN/name).relative_to(ROOT))}
 
 
 CASES = {
-    'host-source-copy-4-typing': ('source', '_output_copy_file', 4, True),
-    'host-build-copy-4': ('build', '_output_copy_file', 4, False),
-    'host-source-copy-1': ('source', '_output_copy_file', 1, False),
-    'host-source-copy-2': ('source', '_output_copy_file', 2, False),
-    'host-source-copy-3': ('source', '_output_copy_file', 3, False),
-    'host-build-copy-1': ('build', '_output_copy_file', 1, False),
-    'host-build-copy-2': ('build', '_output_copy_file', 2, False),
-    'host-build-copy-3': ('build', '_output_copy_file', 3, False),
-    'host-source-verify-2': ('source', '_output_verify_range', 2, False),
-    'host-build-verify-4': ('build', '_output_verify_range', 4, False),
-    'tf-source-copy-4': ('source', '_output_copy_file', 4, False, 'T'),
-    'tf-build-copy-4': ('build', '_output_copy_file', 4, False, 'T'),
+    'host-source-backup': ('source', '_output_copy_file', 1, False),
+    'host-source-store-typing': ('source', '_output_store_source', 1, True),
+    'host-build-executable': ('build', '_output_store_range', 1, False),
+    'host-build-map': ('build', '_output_store_range', 2, False),
+    'tf-source-store': ('source', '_output_store_source', 1, False, 'T'),
+    'tf-build-map': ('build', '_output_store_range', 2, False, 'T'),
 }
 
 

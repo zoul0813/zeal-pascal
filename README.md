@@ -247,7 +247,7 @@ unavailable because the OS provides no capacity query.
 | W | Open/select a work file by name; default extension PAS |
 | M | Set Main, the compilation root; an empty field uses Work |
 | E | Edit; Ctrl-K,D returns to the menu with text retained in RAM |
-| S | Save source through verified temporary/recovery copies |
+| S | Save source; retain previous source as .BAK |
 | A | Save current source under another filename; Escape cancels |
 | C | Compile in the selected output mode |
 | R | Run the Memory build, compiling when needed; saved mode compiles and runs the disk executable |
@@ -264,7 +264,7 @@ loads/saves retain the previous RAM buffer.
 
 To change the filename after editing, press Ctrl-K,D to return to the menu,
 then A, enter a path such as `T:/untitled.pas`, and press Enter. Save as keeps
-the current text and cursor. A verified successful save adopts the new path;
+the current text and cursor. A successful save adopts the new path;
 failure or cancellation retains the old path and RAM contents. W opens a file
 and should not be used to rename unsaved source. Changing the source path
 invalidates an existing build so its source map cannot retain the old filename.
@@ -310,7 +310,7 @@ open TP3 capacity gap; writing a final file does not resolve that gap.
 
 H cHn-file mode writes a compact `.CHN` code payload and its `.ZMP` source map.
 It omits the ordinary executable's runtime, globals and placement gaps. It uses
-the same verified save/recovery protocol. CHN files require a compatible caller;
+the same direct output protocol. CHN files require a compatible caller;
 they cannot run directly from ZShell or R. A saved Pascal program can activate
 one with `Assign(next,'T:/NEXT.CHN'); Chain(next)`, where `next` is a File variable.
 Compile the caller in Com-file mode and the replacement in cHn-file mode with
@@ -363,17 +363,12 @@ source edits and queued typing remain available. Filling the 32-key IDE typeahea
 queue also stops the operation instead of dropping ordinary keys. Incomplete
 builds are released, and the next R compiles again.
 
-If final publication has begun, the IDE attempts to restore the previous files
-from its verified recovery copies. Restoration runs to completion without further
-keyboard cancellation. A failed or canceled save retains its transaction directory
-and reports the recovery path; a retry uses a new directory. Source dirty state
-and Save As identity change only after a verified successful save. Filesystem
-calls remain synchronous, and this copy-based protocol cannot promise atomic
-replacement or protection against power loss.
-Record a reported recovery path before starting another save or compile, which
-reuses the path display. The old recovery files remain on disk. If cleanup of a
-pending compiler reservation fails, that compile reports the failure; retrying
-can proceed after the reservation is released.
+Source Save copies the previous source to .BAK and writes the suspended Work
+buffer directly, omitting trailing spaces as before. It allocates no source snapshot or transaction directory. On a
+failed replacement it attempts to restore the source from .BAK without further
+keyboard cancellation; .BAK remains available even if restoration fails. RAM
+source, dirty state and Save As identity survive failure. A successful Save As
+adopts its new identity only after writing and closing successfully.
 
 In Com-file and cHn-file options, S selects the generated code's Start address
 and E selects the program's End address. Enter one to four hexadecimal digits; Start 0 selects
@@ -406,24 +401,20 @@ listing. Space or Enter continues a long listing; Escape or Ctrl-U stops it.
 Directory operations create no files or paths. The footer says `Free space
 unavailable` because the supported SDK provides no free-capacity query.
 
-Source saves retain the previous source as BAK. Replacing an existing BAK
-requires confirmation. Source and executable/map publication stage and verify
-new content and old recovery copies before replacing any destination. After all
-final files are closed and verified, the operation removes its own transaction
-files. Failed saves keep recovery copies and identify their directory. Existing
-unrelated recovery folders are never removed automatically. The OS has no atomic
-rename/fsync guarantee. No save failure discards the RAM source or reports success.
-Verified replacements remove and recreate the destination using normal file
-operations. This avoids the pinned HostFS truncate/write return-value problem
-without changing the OS or emulator; recovery copies remain until verification.
+Source Save replaces the previous .BAK without an additional approval prompt,
+as TP3 does. Executable and map files are written separately and checked for
+reported transfer and close errors. There are no staged NEW/OLD/PRIOR copies,
+paired commits or repeated readback comparisons. The old map is removed before
+replacing an executable, so it cannot describe new code after an interrupted
+write. Generated outputs may be incomplete after failure and must be rebuilt.
+The pinned HostFS requires checked remove/recreate instead of in-place truncation.
+Zeal has no atomic rename/fsync guarantee.
 
-On the pinned machine, B: is a 64 KiB EEPROM volume; T: is the TF card. COM
-output currently occupies about 50 KiB in total while replacing a small existing
-program, before source/map overhead: the 16 KiB runtime prefix is present in
-the old, staged and recovery images. Native error 22 during publication indicates
-no free space/resources. Old builds left transaction folders after successful
-saves; those existing folders may still occupy space. Memory mode needs no disk
-space: O, M, Q returns to the menu, then R compiles/runs from RAM.
+On the pinned machine, B: is a 64 KiB EEPROM volume; T: is the TF card. Direct
+output needs only the executable and map, rather than three executable copies.
+Native error 22 indicates no free space/resources. Historical ZP transaction
+folders are not created or managed by the current implementation. Memory mode
+needs no disk space: O, M, Q returns to the menu, then R compiles/runs from RAM.
 
 A separate observed Zeal OS defect can corrupt control flow if the disk fills
 while a file is growing. The OS remains unchanged at the user's instruction. Tests distinguish
@@ -456,11 +447,19 @@ Assign binds a disk filename without creating directories. Typed files retain th
 component-size header. Zero-size components report I/O error 90 before creating
 or truncating a file. `$I-` and IOResult support recovery from ordinary I/O errors.
 
-File bindings close automatically when recursive routines return, when their
-heap objects are disposed or released, and when a program ends, halts or fails.
-Checked cleanup errors return to the ending scope or cleanup statement; a later
-cleanup failure preserves an earlier runtime error. Saved file programs include
-their disk runtime and need no separately installed file-runtime libraries.
+Programs must explicitly Close files before routine return, Dispose, FreeMem,
+Release or program termination to finalize typed counts and Text EOF. This follows
+the TP3 manual's warning that omitting Close can lose data. Terminal and Execute
+cleanup release native OS descriptors without Pascal finalization; Chain retains
+open associations. Saved file programs include their disk runtime.
+
+Text, typed and untyped native file variables contain a176-byte inline control
+block. TP3 Text/typed blocks are also176 bytes; its untyped block is48 bytes.
+The larger native untyped block holds Zeal paths of up to127 bytes, a documented
+platform adaptation. No private association registry or lazy registry page remains.
+A32-byte native descriptor ledger prevents copied/forged blocks from closing
+another variable's OS handle. Assign initializes the association without implicitly
+closing a prior descriptor; use explicit Close before reassigning an open file.
 Disk Text files support formatted Write/Writeln, Char/String/Integer/Byte/Real
 Read/ReadLn, Eof, Eoln, SeekEof and SeekEoln. Text output uses CR/LF and a final
 Ctrl-Z; input accepts physical EOF as well. Eof/Eoln inspect the next byte;
@@ -488,7 +487,7 @@ Input and Output share one current-byte cache. Ordinary buffered lines retain
 CR/LF: Char reads can consume both bytes, String reads stop before CR, and
 numeric reads skip the line endings to continue on the following physical line.
 The B directive continues to control omitted-Input Read calls. Assign, Reset,
-Rewrite and Close on these preassigned variables report I/O22. Copied tokens gain no standard-stream
+Rewrite and Close on these preassigned variables report I/O22. Copied blocks gain no standard-stream
 authority, and program cleanup leaves inherited console descriptors open.
 Console Eof/Eoln/SeekEof/SeekEoln support omitted Input, explicit Input and
 Var Text aliases. They read a line when needed and inspect its unread tail.
@@ -517,8 +516,7 @@ Internal compilation source records share unused root-snapshot space when they f
 releasing one physical page during compilation and before Run. Canonical source
 bytes, lengths and error mappings are retained. Larger sources use a separate
 catalog page. Temporary source references share the catalog's tail and spill to
-an owned page if source/catalog growth requires it. Available physical RAM still limits execution and file-registry
-capacity.
+an owned page if source/catalog growth requires it. Available physical RAM still limits execution capacity.
 
 Declarations may repeat in any order. Ordinary constants alias literal/constant
 values; scalar and string typed constants are initialized writable storage.

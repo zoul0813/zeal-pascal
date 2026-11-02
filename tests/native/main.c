@@ -310,10 +310,10 @@ static void media_tests(void) {
     if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
     for(attempt=0;attempt<3;++attempt) {
         s.dirty=1;
-        check(save_source(&s,1,0)&&!s.dirty&&!*output_recovery());
+        check(save_source(&s,1,0)&&!s.dirty);
         check(compile(&s,&b,&d));
         if(!b.valid) break;
-        check(save_build(&s,&b,0)&&!*output_recovery());
+        check(save_build(&s,&b,0));
         status=255; check(run_saved(&s,&b,&status)&&status==0);
         if(attempt<2) build_close(&b);
     }
@@ -386,7 +386,7 @@ static void basic_tests(void) {
     check(source_replace(&s,8,8,(const uint8_t*)"{second}\n",9));
     check(save_source(&s,0,0)&&!s.dirty);
     check(source_replace(&s,8,8,(const uint8_t*)"{third}\n",8));
-    check(!save_source(&s,0,0)&&platform_error==15&&s.dirty&&!*output_recovery());
+    check(!save_source(&s,0,0)&&platform_error==15&&s.dirty);
     check(save_source(&s,1,0)&&!s.dirty);
     check(load_source(&s,"H:/sub/../EDIT.PAS",&d)&&s.length==28&&!s.dirty);
     check(source_replace(&s,0,0,(const uint8_t*)" ",1));

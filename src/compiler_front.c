@@ -12,7 +12,7 @@ static const char *const standard_names[]={"input","output","kbd","con","trm","l
 static const char *const hook_names[]={"constptr","conoutptr","lstoutptr","auxoutptr","usroutptr"};
 static uint8_t text_file_type(void) {
     if(cc.text_type==255) {
-        cc.text_type=cc_new_type(K_FILE,16,0,0,FILE_TEXT);
+        cc.text_type=cc_new_type(K_FILE,176,0,0,FILE_TEXT);
         cc.types[cc.text_type].element=255;
     }
     return cc.text_type;
@@ -500,8 +500,6 @@ void cc_storage(uint16_t id,uint16_t width) FRONTEND {
     if((uint32_t)cc.image->globals_bytes+width>=PAGE_SIZE) { cc_fail(98); return; }
     cc.symbols[id].address=GLOBAL_BASE+cc.image->globals_bytes;
     cc.image->globals_bytes+=width;
-    if(cc.symbols[id].role==S_VARIABLE)
-        cc_file_static(cc.symbols[id].type,cc.symbols[id].address);
 }
 uint8_t cc_frame_required(uint8_t scope) FRONTEND {
     while(scope) {
@@ -524,10 +522,9 @@ void cc_bind_storage(uint16_t id) FRONTEND {
     Symbol *s=&cc.symbols[id];
     if(s->role==S_HOOK) cc_hook_variable(id);
     if(s->role==S_STANDARD&&!s->address&&!cc.suppress&&!cc.error->code) {
-        if((uint32_t)cc.image->globals_bytes+16>=PAGE_SIZE) { cc_fail(98); return; }
+        if((uint32_t)cc.image->globals_bytes+176>=PAGE_SIZE) { cc_fail(98); return; }
         s->type=text_file_type();
-        s->address=GLOBAL_BASE+cc.image->globals_bytes; cc.image->globals_bytes+=16;
-        cc_file_static(s->type,s->address); cc_put(s->address-0x4000u+9,1);
+        s->address=GLOBAL_BASE+cc.image->globals_bytes; cc.image->globals_bytes+=176;
     }
 }
 void cc_slot(uint16_t id) FRONTEND {

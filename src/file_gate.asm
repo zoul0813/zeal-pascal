@@ -36,15 +36,11 @@
 dispatch:
     call 0x4000
 returned:
-    ld c,a                    ; cleanup returns its retained registry-page count
     ld a,(0xfe76)
     out (0xf1),a
     ld a,(0xfe7e)
     cp #2
     jr nz,restore
-    ld a,c
-    or a
-    jr nz,restore             ; the module still owns a failed registry release
     ld a,(0xfe74)
     ld e,a
     ld d,#0

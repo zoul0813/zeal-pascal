@@ -24,12 +24,6 @@ static char current_directory[128]="A:/";
 static uint8_t memory[32][16384],owned[32];
 static struct { char path[128]; uint8_t data[73728]; uint32_t size; uint8_t directory; } files[64];
 static struct { uint8_t used,file,flags; uint32_t position,cached_size; } handles[16];
-void zf_record_io(uint8_t page,uint16_t offset) {
-    assert(page>=32&&page<64&&owned[page-32]&&offset<=16384-ZF_RECORD_BYTES);
-    if(zf_store) memcpy(memory[page-32]+offset,zf_record,ZF_RECORD_BYTES);
-    else memcpy(zf_record,memory[page-32]+offset,ZF_RECORD_BYTES);
-}
-void zf_page_clear(uint8_t page) { assert(page>=32&&page<64&&owned[page-32]); memset(memory[page-32],0,16384); }
 uint8_t zf_service(uint8_t operation,uint16_t argument) { (void)operation;(void)argument;assert(0);return 1; }
 zos_err_t curdir(char *out) {
     if(model_curdir_error) return (zos_err_t)model_curdir_error;

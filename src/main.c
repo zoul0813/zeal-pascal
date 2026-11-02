@@ -40,17 +40,13 @@ static void file_error(const char *prefix,uint8_t code) {
     if(code==22) output(" (no free space or resources)");
     else if(code==21) output(" (no free entries)");
 }
-static void recovery_notice(void) {
-    if(*output_recovery()) { output("\nTemporary/recovery files remain: "); output(output_recovery()); }
-}
-
 static uint8_t publication_interrupted(void) {
     uint8_t reason=output_interrupt_reason(),error=platform_error,prior=ide_state;
     if(!reason) return 0;
     ide_state=3;
     output(reason==2?"Save interrupted: typeahead full":"*** SAVE INTERRUPTED");
     if(error) file_error(". Native I/O error ",error);
-    recovery_notice();
+
     search_ack("RAM source retained"); ide_state=prior; return 1;
 }
 
@@ -60,7 +56,6 @@ static void invalidate(void) {
     build.code_bytes=build.globals_bytes=0;
 }
 static void lookup_failure(void) {
-    recovery_notice();
     output("\nSource lookup failed; Work retained. Press Escape");
     while(key_read()!=27) {}
 }
@@ -178,7 +173,6 @@ static void diagnostic(uint8_t kind,uint16_t code,const char *path,
         output(" Line ");output_number(line);output(" Col ");output_number(col);
     }
     if(messages&&kind==2&&code==2) output(" Division by zero");
-    if(kind==1)recovery_notice();
     output(located?"\nPress Escape to return to source":"\nSource lookup failed; Work retained. Press Escape");
     while(key_read()!=27) {}
     if(located) { work.cursor=position;edit(1); }
@@ -191,10 +185,10 @@ static uint8_t save_work_as(const char *name,uint8_t automatic) {
     ok=name?save_source_as(&candidate,name,1,1):save_source(&candidate,1,1);
     if(ok) {
         if(candidate.revision!=work.revision)invalidate();
-        work=candidate;output("Source saved: ");output(work.path);output("\n");recovery_notice();
+        work=candidate;output("Source saved: ");output(work.path);output("\n");
     }
     else if(publication_interrupted()) return 0;
-    else { file_error("Save failed, native error ",platform_error); output(". RAM source retained."); recovery_notice(); }
+    else { file_error("Save failed, native error ",platform_error); output(". RAM source retained."); }
     if(!ok)search_ack("");
     return ok;
 }
@@ -333,7 +327,7 @@ static void block_io(uint8_t kind) {
         error=platform_error; output("\n");
         if(kind==EDITOR_READ_BLOCK&&d.code) file_error("Block source error ",d.code);
         else file_error("Block file error ",error);
-        recovery_notice(); output(". Press Escape"); while(key_read()!=27) {} return;
+        output(". Press Escape"); while(key_read()!=27) {} return;
     }
 }
 static void open_work(void) {
@@ -395,12 +389,12 @@ static uint8_t compile_work(uint8_t running) {
     if(!ok) {
         build.code_bytes=build.globals_bytes=0;
         if(d.code==COMPILE_PLATFORM_FAILURE) {
-            file_error("Compile failed, native error ",platform_error);recovery_notice();
+            file_error("Compile failed, native error ",platform_error);
             search_ack("Source retained");return 0;
         }
         if(d.code==COMPILE_INTERRUPTED) {
             ide_state=3;
-            recovery_notice();
+
             search_ack(failure.interrupted==2?"Compile interrupted: typeahead full":"*** COMPILE INTERRUPTED");return 0;
         }
         if(strcmp(failure.path,root.path)&&!main_file[0])strcpy(main_file,root.path);
@@ -408,7 +402,7 @@ static uint8_t compile_work(uint8_t running) {
     }
     if(!sources_get(&build.sources,0,&root)) { cancel_prepared_build();lookup_failure();return 0; }
     if(saved_mode) {
-        output("Verifying and saving executable/map (Ctrl-U cancels)...\n");
+        output("Saving executable/map (Ctrl-U cancels)...\n");
         if(!save_build(&root,&build,1)) {
             ok=platform_error;
             cancel_prepared_build();
@@ -418,10 +412,10 @@ static uint8_t compile_work(uint8_t running) {
                 publication_interrupted(); return 0;
             }
             file_error("Output failed, native error ",platform_error);
-            output(". RAM source retained.");recovery_notice();
+            output(". RAM source retained.");
             invalidate();search_ack("");return 0;
         }
-        output("Saved ");output(output_path());output(" and .ZMP");recovery_notice();
+        output("Saved ");output(output_path());output(" and .ZMP");
         output("\n");
     }
     source_location(&root,root.length,&compiled_main_lines,&column);

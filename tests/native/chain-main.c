@@ -33,7 +33,7 @@ int app_main(void) {
         owned=pages_used();check(build_ready(&s,&b)&&build_check(&s,&b));
         check(!run_build(&s,&b)&&platform_error==ERR_NOT_SUPPORTED&&pages_used()==owned);
         status=55;check(!run_saved(&s,&b,&status)&&platform_error==ERR_NOT_SUPPORTED&&status==55);
-        check(save_build(&s,&b,0)&&!*output_recovery()&&s.dirty);
+        check(save_build(&s,&b,0)&&s.dirty);
         check(!strcmp(output_path(),"H:/CHAIN.CHN"));
         at=96+far_get(b.map_page,84)+((uint16_t)far_get(b.map_page,85)<<8);
         pc=far_get(b.map_page,at)|((uint16_t)far_get(b.map_page,at+1)<<8);

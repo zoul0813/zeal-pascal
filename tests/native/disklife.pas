@@ -12,7 +12,7 @@ begin
   if depth>0 then nested(depth-1);
   if recurptr<>before then halt;
   seek(f,0);read(f,v);if(v<>depth)or(filesize(f)<>1)then halt;
-  exit;
+  close(f);exit;
 end;
 procedure heapfiles;
 begin
@@ -21,12 +21,12 @@ begin
     assign(f,'H:/HEAPIO.DAT');rewrite(f);
     i:=42;write(f,i);
     {$I-}seek(f,9);if ioresult<>$91 then halt;{$I+}
-    if tag<>123 then halt;
+    if tag<>123 then halt;close(f);
   end;
   dispose(p);
   mark(markptr);new(p);
   assign(p^.f,'H:/RELEASE.DAT');rewrite(p^.f);
-  i:=55;write(p^.f,i);release(markptr);
+  i:=55;write(p^.f,i);close(p^.f);release(markptr);
 end;
 begin recurptr:=stackptr-2048;
   savedRP:=recurptr;first:=0;nested(3);if recurptr<>savedRP then halt;heapfiles;

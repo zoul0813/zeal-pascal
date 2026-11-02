@@ -191,10 +191,6 @@ zos_err_t rm(const char *path) {
 static int equals(const char *path,const uint8_t *data,unsigned size) {
     int f=find(path);return f>=0&&!files[f].dir&&files[f].length==size&&!memcmp(files[f].bytes,data,size);
 }
-static int retained(const char *name,const uint8_t *data,unsigned size) {
-    char path[128];if(!*output_recovery())return 0;
-    strcpy(path,output_recovery());strcat(path,"/");strcat(path,name);return equals(path,data,size);
-}
 /* kind: source, Save As, block, executable+map. old is a presence bitmask. */
 static void setup(unsigned kind,unsigned mask) {
     unsigned i;assert(!opened());memset(files,0,sizeof(files));memset(fds,0,sizeof(fds));memset(roles,0,sizeof(roles));
@@ -225,13 +221,16 @@ static uint8_t save(void) {
 }
 static void prove(uint8_t success,unsigned pages,uint8_t restore_failed) {
     unsigned i;int f;
+    (void)restore_failed;
     ++scenarios;check(!opened());check(owned()==pages);check(equals("T:/ZPKEEP/FOREIGN",(const uint8_t*)"keep",4));
     check(!memcmp(memory[source.page],fresh,sizeof(fresh)));
     if(!success) {
         check(!memcmp(&source,&before,sizeof(source)));
-        if(!restore_failed)for(i=0;i<(case_kind==2?1u:2u);++i) {
-            if(case_old&(1u<<i))check(equals(target[i],old[i],old_length[i]));
-            else check(find(target[i])<0);
+        if(case_kind<2) {
+            if(case_old&1)check(equals(target[0],old[0],old_length[0])||equals(target[1],old[0],old_length[0]));
+            else if(case_old&2)check(equals(target[1],old[1],old_length[1]));
+        } else if(case_kind>=3&&find(target[0])>=0&&!equals(target[0],old[0],old_length[0])) {
+            check(!equals(target[1],old[1],old_length[1]));
         }
     } else {
         check(!output_interrupt_reason());
@@ -737,32 +736,18 @@ int main(void) {
         }
         fail_at=0;shorts=1;setup(kind,mask);ok=save();check(ok);prove(ok,pages,0);
         shorts=0;cancel_reason=2;cancel_at=total_polls;setup(kind,mask);ok=save();check(!ok&&output_interrupt_reason()==2);prove(ok,pages,0);cancel_reason=1;
-        {
-            char recovery[128];strcpy(recovery,output_recovery());
-            cancel_at=0;ok=save();check(ok);prove(ok,pages,0);
-            check(find(recovery)>=0); /* Retry cleans only its own transaction. */
-        }
-        cancel_at=total_polls;
-        /* After both final writes, cancel and fail every attempted restoration.
-         * Recovery copies, source identity and all ownership must survive. */
-        if(mask&1) {
-            rollback_fault=1;setup(kind,mask);ok=save();check(!ok&&platform_error&&output_interrupt_reason());prove(ok,pages,1);
-            if(kind>=3) {
-                check(retained(kind==4?"OLD.CHN":"OLD.COM",old[0],old_length[0]));
-                check(retained("NEW.ZMP",memory[build.map_page],build.map_length));
-            } else {
-                check(retained("OLD.PAS",old[0],old_length[0]));
-                check(retained("NEW.PAS",kind==2?fresh+17:fresh,kind==2?372:sizeof(fresh)));
-                if(kind!=2&&(mask&2))check(retained("PRIOR.BAK",old[1],old_length[1]));
-            }
+        if(kind<2&&(mask&1)) {
+            rollback_fault=1;cancel_at=total_polls;setup(kind,mask);ok=save();
+            check(!ok&&output_interrupt_reason());prove(ok,pages,1);
+            check(equals(target[1],old[0],old_length[0]));
         }
         cancel_at=rollback_fault=0;
-        for(i=1;i<=3;++i) {
+        for(i=1;i<=2;++i) {
             bad_io=i;fail_write=fail_read=1;setup(kind,mask);ok=save();check(!ok&&platform_error);prove(ok,pages,0);
         }
     }
     /* A denied BAK prompt must not allocate a transaction or poll input. */
-    bad_io=fail_write=fail_read=0;setup(0,3);pages=owned();check(!save_source(&source,0,1)&&platform_error==ERR_ALREADY_EXIST);check(!polls&&!*output_recovery());prove(0,pages,0);
+    bad_io=fail_write=fail_read=0;setup(0,3);pages=owned();check(!save_source(&source,0,1)&&platform_error==ERR_ALREADY_EXIST);check(!polls);prove(0,pages,0);
     /* Loading a missing path never creates it. */
     {Diagnostic d;setup(0,0);pages=owned();check(load_source(&source,"T:/absent/path/file.pas",&d));check(find("T:/absent")<0&&owned()==pages);}
     /* Error navigation requires an existing source. Missing/read/close failures

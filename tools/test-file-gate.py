@@ -25,10 +25,10 @@ def main():
     raw=n.execute('file-gate',commands,{target+'.bin':(ROOT/f'build/{target}.bin').read_bytes()},timeout=180)
     m=n.memory(raw);word=lambda name:m.get(sym[name],0)|(m.get(sym[name]+1,0)<<8)
     checks={'native completion':m.get(sym['_test_done'])==255,
-        'pending registry, failed module release, retry, native/worker free and CPU/MMU/command-tail preservation':word('_test_failed')==0 and word('_test_passed')>=30,
+        'ignored callee return, failed module release, retry, native/worker free and CPU/MMU/command-tail preservation':word('_test_failed')==0 and word('_test_passed')>=30,
         'module handle and secondary free error are clear after successful release':m.get(0xfe74)==0 and m.get(0xfe7f)==0,
         'all qualification inputs unchanged':all(n.sha(Path(p))==h for p,h in hashes.items())}
-    report={'passed':all(checks.values()),'scope':__doc__+' The fake callee supplies the registry-pending flag; real registry release failures are qualified separately by test-chain-files.py.',
+    report={'passed':all(checks.values()),'scope':__doc__+' The fake callee returns a nonzero value that must not be treated as a registry-page count.',
         'checks':checks,'native_assertions_passed':word('_test_passed'),'native_assertions_failed':word('_test_failed'),
         'capture_directory':str(n.RUN.relative_to(ROOT)),'input_sha256':hashes}
     (n.RUN/'file-gate-report.json').write_text(json.dumps(report,indent=2)+'\n')

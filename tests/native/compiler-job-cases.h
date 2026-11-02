@@ -14,7 +14,6 @@ uint8_t cancel_prepared_build(void) {
     if(host_cancel_failure) {platform_error=ERR_FAILURE;return 0;}
     return 1;
 }
-const char *output_recovery(void) {return host_prepared?"H:/ZP0001":"";}
 uint8_t output_interrupt_reason(void) {return 0;}
 
 static void capture_cases(void) {
@@ -68,7 +67,7 @@ static void generated_map_cases(void) {
 static void large_job_capacity(void) {
     char text[4096];FILE *file;size_t length;uint8_t held[23],i,expected[32];unsigned required,allocation;
     Source before;uint32_t version;CompileFailure failure;
-    CompileOptions options={0x8040,0xfbffu,COMPILE_PROGRAM};
+    CompileOptions options={0x8200,0xfbffu,COMPILE_PROGRAM};
     file=fopen("tests/native/chain-call.pas","rb");check(file!=0);
     length=fread(text,1,sizeof(text),file);check(!ferror(file)&&length<sizeof(text));check(!fclose(file));
     check(source_import(&s,(const uint8_t*)text,(uint16_t)length,&d));before=s;version=page_versions[s.page];

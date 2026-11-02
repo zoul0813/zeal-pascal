@@ -250,6 +250,47 @@
       "audit_id": "TP3-24",
       "decision": "Omit Options P, per user direction to follow verified TP3 support. No native P implementation existed to remove. Saved-program ParamCount/ParamStr remain original supported functions.",
       "evidence": "analysis/tp3-scope-audit-20261101/options-p-absent/capture/report.json"
+    },
+    "file_blocks": {
+      "audit_ids": [
+        "TP3-12",
+        "TP3-13"
+      ],
+      "documented": "Manual printed98/PDF120 requires Close and warns of data loss when omitted. Printed280\u2013281/PDF302\u2013303 specifies FIB flags/current byte/count/width/position and176-byte Text/typed blocks,48-byte untyped blocks.",
+      "observed_original": {
+        "sizes": "SIZES=176:48:176",
+        "recursive_close": "A- recursive local files retain independent data when explicitly closed on unwind.",
+        "captures": [
+          "analysis/tp3-file-simplification-original/sizes/capture/report.json",
+          "analysis/tp3-file-simplification-original/recursive-close/capture/report.json"
+        ]
+      },
+      "change": "Replace16-byte tokens plus160-byte registry records with176-byte inline file blocks. Remove generation/frame/heap lifetime ownership, recursive file initialization and automatic routine/Exit/Dispose/FreeMem/Release closing. Explicit Close finalizes Pascal counts/EOF; terminal and Execute cleanup only raw-close OS descriptors. Chain leaves file associations open.",
+      "native_adaptation": "All native families use176 bytes, including untyped files, to hold127-byte Zeal paths without an association registry. A32-byte16-handle address ledger prevents closing borrowed OS descriptors. Native pointer/heap/transfer validation remains.",
+      "memory": "No16KiB registry page on first use. Unused variables now cost176 instead of16 bytes; assigned per-file payload was already176 bytes before page slack.",
+      "native_proof": "Full native core2109/2109; file suite483/483; standalone file runtime1122/1122; Chain files143/143; terminal gate76/76; bridges94/94; hooks143/143; Text nesting68/68 and Rename56/56. Production Chain and Execute and native long-path Save109/109 pass. Omitted-Close byte oracles require unfinalized headers/EOF; explicit-Close oracles require finalized bytes."
+    },
+    "disk_publication": {
+      "audit_id": "TP3-11",
+      "change": "Source Save retains only previous source BAK and streams canonical Work text with trailing-space trimming, with no snapshot page. Executable and map are sequential direct writes. Remove ZP directories, NEW/OLD/PRIOR staging, paired commits/rollback, repeated readback and immediate saved-run revalidation.",
+      "retained": "Reported write/count/close errors, checked regular-file replacement for HostFS truncation, old-map invalidation before executable replacement, source RAM/identity retention on failure, BAK-preserving restore attempt.",
+      "limits": "Generated outputs may be incomplete on failure and need rebuilding. No atomic replacement or silent-medium-corruption detection is promised. Compilation still builds code in RAM; TP3-10 streaming emission remains open.",
+      "production_measurement": {
+        "before_library_bytes": 220210,
+        "after_library_bytes": 211730,
+        "saved_library_bytes": 8480,
+        "resident_bytes": 13379,
+        "runtime_bytes": 16191,
+        "code_banks": 16,
+        "startup_bank_reduction": 0
+      },
+      "host_proof": "370501 output assertions across2692 fault/cancellation scenarios;1103 file-runtime assertions;112 Chain-file assertions;94+152 transfer assertions; compiler/editor/source host suite passes.",
+      "regressions": "Full core source/BAK byte oracle preserves trailing-space normalization without a snapshot page; native path-boundary source/SaveAs/block/COM/CHN cases pass. Host output suite370501 assertions across2692 fault/cancellation scenarios.",
+      "native_cancellation_proof": {
+        "passed_cases": 6,
+        "scope": "Physical Ctrl-U at source backup, canonical source write, executable write and map write; queued typing, source/Main identity and exact kernel page recovery; HostFS and TF. No transaction directories or stale maps.",
+        "report": "analysis/native-slice/20261102T010644.053058Z-94845/output-interrupt-report.json"
+      }
     }
   }
 }

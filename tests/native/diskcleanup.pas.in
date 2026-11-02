@@ -2,9 +2,9 @@ program DiskCleanup;
 type code=array[1..%ABI_LENGTH%]of byte;
   ints=file of integer;item=record f:ints end;pointer=^item;
 var f:ints;p,markptr:pointer;i:integer;
-  probe_layout:array[1..4]of byte; { Keep the assembled probe at $802D. }
+  probe_layout:array[1..4]of byte; { Keep the assembled probe at $816D. }
 const machine:code=(%ABI_BYTES%);
-function dropfiles:integer;external $8033;
+function dropfiles:integer;external $8173;
 {$A-}%CHECKING%
 procedure scoped;
 var local:ints;
@@ -16,6 +16,6 @@ end{SCOPE};
 {$I+}
 begin
   recurptr:=stackptr-2048;
-  if addr(machine)<>$802D then halt;
+  if addr(machine)<>$816D then halt;
   %BODY%
 end{PROGRAM}.

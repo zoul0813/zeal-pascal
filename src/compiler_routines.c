@@ -61,34 +61,19 @@ static void prologue(void) {
     } else cc_op16(0x21,0);
     indexed(0x75,254); indexed(0x74,255); /* lexical parent */
     cc_frame(cc.scope); indexed(0x75,252); indexed(0x74,253); /* live frame lifetime */
-    if(cc_rget(cc.scope,R_FLAGS)&RF_RECURSIVE)
-        for(id=0;id<cc.symbol_count&&!cc.error->code;++id)
-            if(cc.symbols[id].owner==cc.scope&&cc.symbols[id].role==S_VARIABLE&&cc_file_fields(cc.symbols[id].type)) {
-                cc_symbol_address(id); cc_emit(0xdd); cc_emit(0xe5); cc_emit(0xd1);
-                cc_file_initialize(cc.symbols[id].type);
-            }
+
 }
 static void unwind_frame(void) {
     indexed(0x6e,248); indexed(0x66,249); cc_emit(0xf9);
 }
 static void epilogue(void) {
     uint16_t i;
-    uint8_t files=0;
     uint16_t routine=cc_rget(cc.scope,R_SYMBOL);
     unwind_frame();
-    cc_guard(); /* implicit checked close faults belong to this scope end */
-    cc_emit(0x06); cc_emit(cc.io_check);
+    cc_guard(); /* source location for the checked return path */
     /* Exit already restored its stack and captured its own source/checking
-     * policy. Join after the implicit scope-end guard, before any cleanup. */
+     * location. Join after the scope-end guard. */
     cc_patch_chain(cc_rget(cc.scope,R_EXITS),cc.emitted);
-    for(i=0;i<cc.symbol_count;++i)
-        if(cc.symbols[i].owner==cc.scope&&cc.symbols[i].role==S_VARIABLE&&
-           cc_file_fields(cc.symbols[i].type)) files=1;
-    if(files&&(cc_rget(cc.scope,R_FLAGS)&RF_RECURSIVE)) {
-        cc_emit(0xdd); cc_emit(0xe5); cc_emit(0xd1); /* actual ending activation */
-        cc_op16(0x21,0); cc_emit(0x3e); cc_emit(16);
-        cc_op16(0xcd,RT_FILECLEANUP);
-    }
     if(cc.symbols[routine].role==S_FUNCTION) {
         for(i=0;i<cc.symbol_count;++i)
             if(cc.symbols[i].owner==cc.scope&&cc.symbols[i].role==S_RESULT) { cc_load_symbol(i); break; }
@@ -245,7 +230,7 @@ void cc_exit(void) ROUTINES {
     cc_with_unwind();
     if(!cc.scope) cc_finish(RT_DONE);
     else {
-        unwind_frame(); cc_guard(); cc_emit(0x06); cc_emit(cc.io_check);
+        unwind_frame(); cc_guard();
         cc_rput(cc.scope,R_EXITS,cc_link(0xc3,cc_rget(cc.scope,R_EXITS)));
     }
 }

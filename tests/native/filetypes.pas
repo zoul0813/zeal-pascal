@@ -11,7 +11,7 @@ var f:ints;g:same;t:text;u:raw;z:zero;a,b:bundle;all:files;v:variant;
 procedure check(ok:boolean);
 begin checks:=checks+1;if not ok then begin writeln('FILE-TYPE-FAIL-',checks);halt end end;
 procedure touch(var item:ints);
-begin check(sizeof(item)=16);mem[addr(item)+15]:=173 end;
+begin check(sizeof(item)=176);mem[addr(item)+15]:=173 end;
 procedure forwarded(var item:same);
 begin touch(item)end;
 procedure nested(depth,outer:integer);
@@ -26,7 +26,7 @@ begin
  check(stackptr=frame)
 end;
 procedure copy_value(item:bundle);
-begin item.left:=99;check(sizeof(item.f)=16)end;
+begin item.left:=99;check(sizeof(item.f)=176)end;
 {$A+}
 procedure static_file(first:boolean);
 var item:text;
@@ -35,18 +35,18 @@ begin
 end;
 begin
  checks:=0;
- check((sizeof(text)=16)and(sizeof(ints)=16)and(sizeof(raw)=16)and(sizeof(zero)=16));
- check((sizeof(f)=16)and(sizeof(g)=16)and(sizeof(t)=16)and(sizeof(u)=16)and(sizeof(z)=16));
- check((sizeof(bundle)=50)and(sizeof(files)=100)and(sizeof(variant)=16)and(sizeof(aggregate)=16));
+ check((sizeof(text)=176)and(sizeof(ints)=176)and(sizeof(raw)=176)and(sizeof(zero)=176));
+ check((sizeof(f)=176)and(sizeof(g)=176)and(sizeof(t)=176)and(sizeof(u)=176)and(sizeof(z)=176));
+ check((sizeof(bundle)=530)and(sizeof(files)=1060)and(sizeof(variant)=176)and(sizeof(aggregate)=176));
  fillchar(g,16,0);forwarded(g);check(mem[addr(g)+15]=173);
  a.left:=12;a.right:=34;fillchar(a.f,16,83);b:=a;
  check((b.left=12)and(b.right=34)and(mem[addr(b.f)+14]=83));
  copy_value(a);check(a.left=12);
- all[1]:=a;all[2]:=b;check(addr(all[2])-addr(all[1])=50);
+ all[1]:=a;all[2]:=b;check(addr(all[2])-addr(all[1])=530);
  with all[2] do begin touch(f);check(mem[addr(f)+15]=173)end;
  saved:=stackptr;nested(5,0);check(stackptr=saved);
  static_file(true);static_file(false);
- saved:=memavail;new(p);check(sizeof(p^)=16);touch(p^);
+ saved:=memavail;new(p);check(sizeof(p^)=176);touch(p^);
  check(mem[ord(p)+15]=173);dispose(p);check(memavail=saved);
  writeln('FILE-DECLARATIONS-OK')
 end.

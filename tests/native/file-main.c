@@ -105,7 +105,7 @@ int app_main(void) {
              * code size and the separate C800 platform floor. */
             checked_error("var f:file of integer;begin assign(f,'H:/BADSTACK.DAT');\nstackptr:=$C7FF end.",0xff,"stackptr");
             checked_error("var f:file of integer;pad:^byte;begin assign(f,'H:/BADSTACK.DAT');\n"
-                "if hi(heapptr)<$C8 then getmem(pad,$C800-heapptr);\nstackptr:=heapptr+1022 end.",0xff,"stackptr");
+                "if hi(heapptr)<$C8 then getmem(pad,$C800-heapptr);\nstackptr:=heapptr+1022;\nrewrite(f)end.",0xff,"rewrite");
             execution("var f:file of integer;i:integer;pad:^byte;begin assign(f,'H:/LOWHALT.DAT');\n"
                 "rewrite(f);i:=81;write(f,i);\nif hi(heapptr)<$C8 then getmem(pad,$C800-heapptr);\n"
                 "stackptr:=heapptr+1024;halt end.",4,0);
@@ -119,8 +119,8 @@ int app_main(void) {
         }
         test_stage=40;
         if(chunk_wants(7)) {
-            cleanup_error("H:/SCOPE.PAS","end{SCOPE}");
-            cleanup_error("H:/EXIT.PAS","exit;");
+            cleanup_error("H:/SCOPE.PAS","close(local)");
+            cleanup_error("H:/EXIT.PAS","close(local)");
             execution_file("H:/IGNORE.PAS",1,0,0);
             check(ram_cleanup_detail==0);
             execution_file("H:/EXITOFF.PAS",1,0,0);
@@ -128,11 +128,11 @@ int app_main(void) {
             test_groups[6]=1;
         }
         if(chunk_wants(8)) {
-            cleanup_error("H:/DISPOSE.PAS","dispose(p)");
-            cleanup_error("H:/FREE.PAS","freemem(p");
-            cleanup_error("H:/RELEASE.PAS","release(markptr)");
-            cleanup_error("H:/FINISH.PAS","end{PROGRAM}");
-            cleanup_error("H:/HALT.PAS","halt;\nend{PROGRAM}");
+            cleanup_error("H:/DISPOSE.PAS","close(p^.f)");
+            cleanup_error("H:/FREE.PAS","close(p^.f)");
+            cleanup_error("H:/RELEASE.PAS","close(p^.f)");
+            cleanup_error("H:/FINISH.PAS","close(f)");
+            cleanup_error("H:/HALT.PAS","close(f)");
             test_groups[7]=1;
         }
     }

@@ -74,32 +74,29 @@ uint8_t output_store_range(const uint8_t *pages,uint16_t first,uint16_t total,co
     }
     return output_finish(fd,ok);
 }
-static uint8_t read_range(const uint8_t *pages,uint16_t first,uint16_t total,const char *path,uint8_t restore) {
-    uint16_t p=0,n,i,requested;
-    int8_t fd=output_open_path(path,O_RDONLY);
+/* Save the canonical source stream directly from suspended Work. Keep its
+ * trailing-space rule without materializing a second16KiB source page. */
+uint8_t output_store_source(const Source *s,const char *path) SOURCE_BLOCK_CALL {
+    uint16_t a=0,z,trim,i,n=0;
     uint8_t ok=1;
-    if(fd<0) return 0;
-    while(p<total&&ok) {
-        if(!output_poll()) { ok=0; break; }
-        requested=total-p; if(requested>128) requested=128; n=requested;
-        platform_error=read(fd,console_scratch,&n);
-        if(platform_error) { ok=0; break; }
-        if(!n||n>requested) { ok=0; break; }
-        for(i=0;i<n;++i) {
-            if(restore)far_set(pages[(first+p+i)/PAGE_SIZE],(first+p+i)%PAGE_SIZE,console_scratch[i]);
-            else if(console_scratch[i]!=stream_byte(pages,first+p+i))ok=0;
+    int8_t fd=output_open_path(path,O_WRONLY|O_CREAT|O_TRUNC);
+    if(fd<0)return 0;
+    while(a<s->length&&ok) {
+        if(!output_poll()) {ok=0;break;}
+        z=a;while(z<s->length&&far_get(s->page,z)!='\n')++z;
+        trim=z;while(trim>a&&far_get(s->page,trim-1)==' ')--trim;
+        for(i=a;i<trim&&ok;++i) {
+            console_scratch[n++]=far_get(s->page,i);
+            if(n==128) {ok=output_poll()&&output_write_all(fd,n);n=0;}
         }
-        p+=n;
+        if(z<s->length&&ok) {
+            console_scratch[n++]='\n';
+            if(n==128) {ok=output_poll()&&output_write_all(fd,n);n=0;}
+        }
+        a=z+1;
     }
-    if(ok) { n=1; platform_error=read(fd,console_scratch,&n); if(platform_error||n) ok=0; }
-    if(!ok&&!platform_error&&!(interruptible&&interrupted)) platform_error=ERR_FAILURE;
+    if(ok&&n)ok=output_poll()&&output_write_all(fd,n);
     return output_finish(fd,ok);
-}
-uint8_t output_verify_range(const uint8_t *pages,uint16_t first,uint16_t total,const char *path) SOURCE_BLOCK_CALL {
-    return read_range(pages,first,total,path,0);
-}
-uint8_t output_restore_range(const uint8_t *pages,uint16_t first,uint16_t total,const char *path) SOURCE_BLOCK_CALL {
-    return read_range(pages,first,total,path,1);
 }
 uint8_t output_copy_file(const char *from,const char *to) SOURCE_BLOCK_CALL {
     int8_t input=output_open_path(from,O_RDONLY),out;
@@ -116,27 +113,4 @@ uint8_t output_copy_file(const char *from,const char *to) SOURCE_BLOCK_CALL {
         if(!output_write_all(out,n)) { ok=0; break; }
     }
     ok=output_finish(input,ok); return output_finish(out,ok);
-}
-uint8_t output_same_files(const char *a,const char *b) SOURCE_BLOCK_CALL {
-    int8_t first=output_open_path(a,O_RDONLY),second;
-    uint16_t n[2]={0,0},at[2]={0,0},count,i;
-    uint8_t j,ok=1;
-    if(first<0) return 0;
-    second=output_open_path(b,O_RDONLY);
-    if(second<0) { output_finish(first,0); return 0; }
-    for(;;) {
-        if(!output_poll()) { ok=0; break; }
-        for(j=0;j<2;++j) if(at[j]==n[j]) {
-            n[j]=128; at[j]=0;
-            platform_error=read(j?second:first,console_scratch+j*128,&n[j]);
-            if(platform_error||n[j]>128) { ok=0; break; }
-        }
-        if(!ok||!n[0]||!n[1]) { if(n[0]!=n[1]) ok=0; break; }
-        count=n[0]-at[0]; if(count>n[1]-at[1]) count=n[1]-at[1];
-        for(i=0;i<count;++i) if(console_scratch[at[0]+i]!=console_scratch[128+at[1]+i]) ok=0;
-        if(!ok) break;
-        at[0]+=count; at[1]+=count;
-    }
-    if(!ok&&!platform_error&&!(interruptible&&interrupted)) platform_error=ERR_FAILURE;
-    ok=output_finish(first,ok); return output_finish(second,ok);
 }

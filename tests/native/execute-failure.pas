@@ -3,7 +3,7 @@ var target:file;data:file of integer;n:integer;
     context:record marker:integer end;i,low:integer;
     guard:array[1..1536]of byte absolute $F400;
 begin
-  Assign(data,'H:/RECOVER.DAT');Rewrite(data);n:=1234;Write(data,n);
+  Assign(data,'H:/RECOVER.DAT');Rewrite(data);n:=1234;Write(data,n);Close(data);
   FillChar(guard,SizeOf(guard),167);
   with context do begin
     marker:=42;Assign(target,'H:/TOCTOU.COM');

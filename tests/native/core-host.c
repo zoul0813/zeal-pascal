@@ -959,7 +959,7 @@ static void chain_call_cases(void) {
         check(feof(file)&&!ferror(file)&&fclose(file)==0);
         check(source_import(&s,(const uint8_t*)text,(uint16_t)length,&d));
         options.kind=kind==1||kind==7?COMPILE_CHAIN:COMPILE_PROGRAM;
-        options.start=kind<3||kind==4?0x8040:0x8080;
+        options.start=0; /* native File blocks participate in automatic placement */
         if(!compile_project(&s,&b,&d,0,&options)) {
             fprintf(stderr,"transfer fixture %s\n",path);check(0);
         }
@@ -1072,7 +1072,7 @@ static void interruption_corpus(void) {
     invalid("{$C}begin end.",93);invalid("{$C1}begin end.",93);
 }
 static void bridge_corpus(void) {
-    const uint16_t workspace[]={37,837,18,51,6,10};
+    const uint16_t workspace[]={37,837,18,371,6,10};
     const char *names[]={"bridgeframe","bridgeargs","bridgereloc","bridgefile","bridgeerror","bridgeguard"};
     char path[80],text[16384];
     unsigned i;
@@ -1779,11 +1779,11 @@ int main(int argc,char **argv) {
         check(source_import(&s,embedded,sizeof(embedded)-1,&d));
         check(compile(&s,&b,&d)); build_close(&b);
     }
-    /* Only A- local File storage owns an activation lifetime. */
+    /* Neither A+ nor A- returns perform an implicit Pascal Close. */
     load("procedure p;var f:text;begin end;begin p end.");
     check(compile(&s,&b,&d));check(calls(RT_FILECLEANUP,-1)==0);build_close(&b);
     load("{$A-}procedure p;var f:text;begin end;begin p end.");
-    check(compile(&s,&b,&d));check(calls(RT_FILECLEANUP,-1)==1);build_close(&b);
+    check(compile(&s,&b,&d));check(calls(RT_FILECLEANUP,-1)==0);build_close(&b);
     invalid("var r:real;begin r:=true end.",44);
     invalid("begin Input:=Output end.",54);
     invalid("begin read(Output,true)end.",41);
@@ -1804,11 +1804,11 @@ int main(int argc,char **argv) {
     invalid("type a=file of integer;\nc=array[1..2]of byte;\nb=file of c;\nvar f:b;\nprocedure p(var g:a);\nbegin end;\nbegin p(f)end.",44);
     invalid("type a=file of string[10];\nb=file of string[10];\nvar f:b;\nprocedure p(var g:a);\nbegin end;\nbegin p(f)end.",44);
     load("type plain=file;\nints=file of integer;\nother=file of integer;\nz=record end;\nzero=file of z;\nvar a:text;\nb:plain;\nc:ints;\nd:other;\ne:zero;\nprocedure p(var f:ints);\nbegin end;\nbegin p(d);\nwriteln(sizeof(text),sizeof(a),sizeof(b),sizeof(c),sizeof(e))end.");
-    check(compile(&s,&b,&d)); check(b.globals_bytes==82);
-    check(cc.text_type!=255&&cc.types[cc.text_type].family==K_FILE&&cc.types[cc.text_type].width==16);
+    check(compile(&s,&b,&d)); check(b.globals_bytes==882);
+    check(cc.text_type!=255&&cc.types[cc.text_type].family==K_FILE&&cc.types[cc.text_type].width==176);
     check(cc.types[cc.text_type].capacity==FILE_TEXT); build_close(&b);
     load("type r=record f:text end;\nar=array[1..2]of r;\nff=file of ar;\nvar a,b:r;\nc:ar;\nprocedure p(x:ar);\nbegin end;\nbegin a:=b;\np(c);\nwriteln(sizeof(ff))end.");
-    check(compile(&s,&b,&d)); check(b.globals_bytes==96); build_close(&b);
+    check(compile(&s,&b,&d)); check(b.globals_bytes==1056); build_close(&b);
     load("var Input,Output:integer;begin Input:=7;Output:=Input;if Output<>7 then halt end.");
     check(compile(&s,&b,&d)); check(b.globals_bytes==4); build_close(&b);
     load("var kbd:integer;begin kbd:=7;writeln(kbd)end.");
@@ -1827,20 +1827,11 @@ int main(int argc,char **argv) {
     check(compile(&s,&b,&d)); check(cc.text_type==255); build_close(&b);
     load("type ints=file of integer;raw=file;z=record end;zero=file of z;\nblock=array[1..300]of byte;wide=file of block;\nvar t:text;f:ints;u:raw;e:zero;w:wide;begin end.");
     check(compile(&s,&b,&d));
-    for(i=0;i<5;++i) {
-        unsigned j;
-        const uint8_t family[]={FILE_TEXT,FILE_TYPED,FILE_UNTYPED,FILE_TYPED,FILE_TYPED};
-        const uint16_t width[]={0,2,128,0,300};
-        for(j=0;j<16;++j) {
-            uint8_t expected=j==0?0x5a:j==1?0x46:j==8?family[i]:j==10?(uint8_t)width[i]:j==11?(uint8_t)(width[i]>>8):0;
-            check(image_get(&b,0x4000u+i*16+j)==expected);
-        }
-    }
-    check(cc.types[cc.text_type].high==0); build_close(&b);
-    load("var p:^text;begin getmem(p,16)end.");
-    check(compile(&s,&b,&d)); check(cc.types[cc.text_type].high==0); build_close(&b);
+    check(b.globals_bytes==5*176);build_close(&b);
+    load("var p:^text;begin getmem(p,sizeof(text))end.");
+    check(compile(&s,&b,&d));check(cc.types[cc.text_type].high==0);build_close(&b);
     load("var p:^text;begin new(p)end.");
-    check(compile(&s,&b,&d)); check(cc.types[cc.text_type].high!=0); build_close(&b);
+    check(compile(&s,&b,&d));check(cc.types[cc.text_type].high==0);build_close(&b);
     invalid("var n:integer;begin n:=1/2 end.",44);
     invalid("var r:real;begin r:=1e38 end.",57);
     invalid("var r:real;begin r:=1e-39 end.",57);

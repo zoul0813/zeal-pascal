@@ -34,22 +34,15 @@ static void native_save_paths(void) {
         else ok=save_source(&item,1,0);
         error=platform_error;
         check(pages_used()==pages&&item.cursor==prior.cursor&&item.previous==prior.previous);
-        if(prefix==112) {
-            check(!ok&&error==ERR_INVALID_PATH&&!memcmp(&item,&prior,sizeof(item)));
-            check(stat(parent,&info)==ERR_NO_SUCH_ENTRY&&!*output_recovery());
-        } else {
-            check(ok&&!error&&!*output_recovery());check(stat(parent,&info)==0&&D_ISDIR(info.s_flags));
-            if(kind<2) {
-                check(!item.dirty&&!strcmp(item.path,name));
-                /* Force the longest recovery member, PRIOR.BAK, at the exact
-                 * accepted path boundary. Its full name has127 bytes. */
-                strcpy(backup,name);strcpy(backup+strlen(backup)-3,"BAK");
-                check(seed(backup,"older backup"));
-                check(source_replace(&item,0,0,(const uint8_t*)"{dirty}\n",8));
-                check(save_source(&item,1,0));fd=open(backup,O_RDONLY);check(fd>=0);
-                if(fd>=0) {n=32;check(!read(fd,console_scratch,&n)&&n==10&&!memcmp(console_scratch,"begin end.",10));check(!close(fd));}
-            } else check(!memcmp(&item,&prior,sizeof(item)));
-        }
+        check(ok&&!error);check(stat(parent,&info)==0&&D_ISDIR(info.s_flags));
+        if(kind<2) {
+            check(!item.dirty&&!strcmp(item.path,name));
+            strcpy(backup,name);strcpy(backup+strlen(backup)-3,"BAK");
+            check(seed(backup,"older backup"));
+            check(source_replace(&item,0,0,(const uint8_t*)"{dirty}\n",8));
+            check(save_source(&item,1,0));fd=open(backup,O_RDONLY);check(fd>=0);
+            if(fd>=0) {n=32;check(!read(fd,console_scratch,&n)&&n==10&&!memcmp(console_scratch,"begin end.",10));check(!close(fd));}
+        } else check(!memcmp(&item,&prior,sizeof(item)));
         if(kind>=3)build_close(&b);
         source_close(&item);check(pages_used()==code_required);
     }

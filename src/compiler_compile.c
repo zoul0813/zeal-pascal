@@ -81,7 +81,7 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     cc_finish(RT_DONE);cc_mapping(j,pc(),begin,begin);
     if(d->code||!cc_sources_finish())goto failed;
     cc_params_finish();cc_random_finish();
-    cc_file_engine_finish();cc_keyboard_finish();cc_interrupt_finish();cc_initializer_finish();
+    cc_file_engine_finish();cc_keyboard_finish();cc_interrupt_finish();
     cc_transfer_finish();cc_file_stream_finish();cc_hooks_finish();cc_console_finish();cc_file_finish();cc_error_finish();
     cc_unpack_finish();
     if(!options||options->kind!=COMPILE_CHAIN)cc_startup_finish();

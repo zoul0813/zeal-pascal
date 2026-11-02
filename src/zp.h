@@ -215,7 +215,6 @@ uint8_t save_block(const Source *s,uint16_t first,uint16_t last,const char *path
 uint8_t run_saved(const Source *s,Build *b,uint8_t *status);
 uint8_t execute_native(const char *path,uint8_t *status) SOURCE_BLOCK_CALL;
 const char *output_path(void) SOURCE_BLOCK_CALL;
-const char *output_recovery(void) SOURCE_BLOCK_CALL;
 /* Private job reason: 1 Ctrl-U/keyboard error, 2 retained typeahead full. */
 uint8_t output_interrupt_reason(void) SOURCE_BLOCK_CALL;
 uint8_t image_get(const Build *b, uint16_t offset);

@@ -49,7 +49,6 @@ uint16_t cc_late_symbol(CompilerLate *l,uint8_t kind,uint8_t id,uint8_t owner) R
     if(l->sealed) {fail(l,ERR_FAILURE);return LATE_NONE;}
     if(kind>LATE_ROUTINE||owner>cc.routine_count||
        (kind==LATE_ROOT&&(id>=LATE_ROOT_COUNT||owner))||
-       (kind==LATE_INITIALIZER&&(id>=cc.type_count||owner))||
        (kind==LATE_BRIDGE&&owner)||
        ((kind==LATE_BRIDGE||kind==LATE_ROUTINE)&&(!id||id>cc.routine_count))) {
         fail(l,ERR_INVALID_PARAMETER);return LATE_NONE;
