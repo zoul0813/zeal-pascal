@@ -533,7 +533,9 @@ Odd, Hi, Lo, Swap, Abs, Sqr, Int, Frac, Trunc, Round, ParamCount and ParamStr.
 Saved programs can read shell arguments with `ParamCount` and `ParamStr(N)`.
 Spaces and tabs separate parameters; case and literal quote bytes are retained.
 Index zero, negative indexes and indexes beyond the parameter count return an
-empty string. RAM runs receive no arguments. Command tails allow up to 127 bytes;
+empty string. RAM runs receive no arguments. The manual's Options P command
+is omitted, matching the verified CP/M-80 TP3 3.00A binary, which ignores it.
+Command tails allow up to 127 bytes;
 longer tails are rejected before the Pascal program starts. Ord, Succ and Pred accept
 String/Char-array values of exactly one character; other lengths report runtime
 error 10. The compiler currently has

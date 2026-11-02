@@ -245,6 +245,11 @@
       },
       "native_stack_services": "Ordinary helpers retain64 bytes of CPU headroom. Actual C file services reserve1024 additional bytes at entry; loading a file module no longer enlarges every later guard. Recursive file fixtures reposition RecurPtr before use; the documented1024-byte default is unchanged. Heavy native String argument lists can also require a larger gap; these fixtures reposition RecurPtr before use.",
       "native_regression": "2109 core compiler/runtime assertions with zero failures;94 bridge assertions;143 hook assertions; RAM/COM recursive file lifetime, file type/storage, Text nesting, scope/heap cleanup and Inline fixtures. Final capture and input-stability checks are recorded in /private/tmp/tp3-stage6-*.log."
+    },
+    "memory_parameters": {
+      "audit_id": "TP3-24",
+      "decision": "Omit Options P, per user direction to follow verified TP3 support. No native P implementation existed to remove. Saved-program ParamCount/ParamStr remain original supported functions.",
+      "evidence": "analysis/tp3-scope-audit-20261101/options-p-absent/capture/report.json"
     }
   }
 }
