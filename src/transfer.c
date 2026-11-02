@@ -76,12 +76,7 @@ void transfer_dispatch(TransferJob *job) CHAIN_CALL {
         transfer_load.error=0;transfer_load.detail=0;
 #ifndef ZP_CHAIN_ONLY
         if(job->action==ZT_PREPARE_EXECUTE) {
-            if(execute_prepare(&transfer_load,path)&&!transfer_load.handoff) {
-                /* Known incompatibility belongs to preflight. In particular,
-                 * do not close an ordinary file for an impossible override. */
-                transfer_load.error=0x20;transfer_load.detail=ERR_ENTRY_CORRUPTED;
-                chain_discard(&transfer_load);
-            }
+            execute_prepare(&transfer_load,path);
         }
         else
 #endif

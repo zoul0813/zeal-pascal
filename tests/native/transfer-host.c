@@ -129,7 +129,10 @@ int main(void) {
 #ifndef ZP_CHAIN_ONLY
     setup(&job,1);handoff_supported=0;job.action=ZT_PREPARE_EXECUTE;
     transfer_dispatch(&job);
-    check(job.error==0x20&&job.detail==ERR_ENTRY_CORRUPTED&&!file_calls&&!transfer_load.ready);
+    check(!job.error&&!file_calls&&transfer_load.ready&&!transfer_load.handoff);
+    check(owned[32]&&owned[33]&&owned[34]&&owned[35]);
+    overrides=0;job.action=ZT_COMMIT;transfer_dispatch(&job);
+    check(job.error==1&&job.detail==ERR_NO_SUCH_ENTRY&&overrides==1&&file_calls==1);
     check(!owned[32]&&!owned[33]&&owned[34]&&owned[35]);
     clean(&ending);check(!transfer_cleanup(&ending));
     for(i=0;i<2;++i) {

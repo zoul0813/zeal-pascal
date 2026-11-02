@@ -11,8 +11,8 @@
 static uint8_t pages[64][16384],owned[64],user[65536],before[65536];
 static FILE *handle;
 static char directory[1024];
-static unsigned checks,scenarios,opens,reads,closes,allocs,drops;
-static unsigned fail_open,fail_read,fail_close,fail_alloc,zero_read,oversize_read;
+static unsigned checks,scenarios,opens,reads,closes,seeks,allocs,drops;
+static unsigned fail_open,fail_read,fail_close,fail_seek,bad_seek,fail_alloc,zero_read,oversize_read;
 static int fail_drop=-1;
 static uint16_t short_limit;
 static ImageLoad load;
@@ -33,11 +33,13 @@ uint8_t execute_os_override(const char *path) {
     unsigned i;uint8_t sum=0,*record=pages[load.originals[2]]+0x3c00;
     check(!strcmp(path,"H:/checked.COM")&&load.ready&&load.kind==IMAGE_ROLLBACK);
     check(stack_page==code_page);++override_calls;
+    if(load.handoff) {
     check(!memcmp(record,"ZEX1",4)&&record[4]==4+expected_owner_count&&record[42]==code_page);
     check(!memcmp(record+5,load.originals,3)&&!memcmp(record+43,load.pages,3));
     check(!memcmp(record+46,expected_owners,expected_owner_count));
     for(i=0;i<expected_owner_count;++i)check(owned[expected_owners[i]]);
     for(i=0;i<EXECUTE_HANDOFF_BYTES;++i)sum^=record[i];check(!sum);
+    } else check(!memcmp(record,rollback_expected[2]+0x3c00,EXECUTE_HANDOFF_BYTES));
     for(i=0;i<3;++i)memset(pages[load.originals[i]],0x6a,16384);
     return override_error;
 }
@@ -67,6 +69,16 @@ zos_err_t read(zos_dev_t fd,void *out,uint16_t *bytes) {
     if(short_limit&&*bytes>short_limit)*bytes=short_limit;
     *bytes=(uint16_t)fread(out,1,*bytes,handle);return ferror(handle)?ERR_FAILURE:0;
 }
+zos_err_t seek(zos_dev_t fd,int32_t *offset,zos_whence_t whence) {
+    long position;
+    check(fd==2&&handle);++seeks;
+    if(seeks==fail_seek)return ERR_FAILURE;
+    check(whence==SEEK_SET||whence==SEEK_END);
+    check(!fseek(handle,*offset,whence==SEEK_SET?SEEK_SET:SEEK_END));
+    position=ftell(handle);check(position>=0);*offset=(int32_t)position;
+    if(seeks==bad_seek)++*offset;
+    return 0;
+}
 zos_err_t close(zos_dev_t fd) {
     check(fd==2&&handle);check(!fclose(handle));handle=0;
     return ++closes==fail_close?ERR_FAILURE:0;
@@ -83,8 +95,8 @@ static void put(uint16_t at,uint16_t value) {user[at]=(uint8_t)value;user[at+1]=
 static void setup(uint8_t heap) {
     uint8_t i;
     check(!handle&&!count());++scenarios;chain_init(&load);
-    opens=reads=closes=allocs=drops=0;expected_owner_count=0;
-    fail_open=fail_read=fail_close=fail_alloc=zero_read=oversize_read=0;fail_drop=-1;short_limit=0;
+    opens=reads=closes=seeks=allocs=drops=0;expected_owner_count=0;
+    fail_open=fail_read=fail_close=fail_seek=bad_seek=fail_alloc=zero_read=oversize_read=0;fail_drop=-1;short_limit=0;
     memset(user,0xa5,sizeof(user));
     caller.origin=0x9000;caller.bytes=0x20;caller.globals=23;caller.end=0xfbff;
     caller.heap_floor=caller.heap_frontier=0x9020;caller.stack_pointer=0xf800;
@@ -112,7 +124,7 @@ static void installed(const char *path) {
     unchanged();check(chain_discard(&load)&&!count());
 }
 static void executable_accepted(const char *path) {
-    char name[1200];uint8_t expected[46081];size_t bytes;unsigned at;FILE *f;
+    char name[1200];uint8_t expected[49152];size_t bytes;unsigned at;FILE *f;
     check(execute_prepare(&load,path));
     check(load.ready&&!load.error&&load.kind==IMAGE_EXECUTABLE&&!handle);unchanged();
     snprintf(name,sizeof(name),"%s/%s",directory,path+3);f=fopen(name,"rb");check(f!=0);
@@ -126,16 +138,17 @@ static void executable_rejected(const char *path) {
 }
 static void executable_cases(void) {
     const char *valid[]={"tiny","small","boundary","three","max"};
-    const char *bad[]={"abi","entry","length","origin","globals","end","stack","reserved","overlay","truncated","trailing"};
+    const char *fallback[]={"abi","entry","length","origin","globals","end","stack","reserved","overlay","truncated","trailing"};
     char path[64];unsigned i,total_reads,total_allocs,j;
     for(i=0;i<sizeof(valid)/sizeof(*valid);++i) {
         setup(0);snprintf(path,sizeof(path),"H:/x-%s.COM",valid[i]);executable_accepted(path);
         check(chain_discard(&load)&&!count());
     }
-    for(i=0;i<sizeof(bad)/sizeof(*bad);++i) {
-        setup(0);snprintf(path,sizeof(path),"H:/x-%s.COM",bad[i]);executable_rejected(path);
+    for(i=0;i<sizeof(fallback)/sizeof(*fallback);++i) {
+        setup(0);snprintf(path,sizeof(path),"H:/x-%s.COM",fallback[i]);executable_accepted(path);
+        check(!load.handoff&&chain_discard(&load)&&!count());
     }
-    setup(0);executable_rejected("H:/small.CHN");
+    setup(0);executable_accepted("H:/small.CHN");check(!load.handoff&&chain_discard(&load)&&!count());
     setup(0);executable_rejected("H:/missing.COM");check(load.error==1);
     setup(0);executable_accepted("H:/x-max.COM");total_reads=reads;total_allocs=allocs;
     check(total_allocs==3&&chain_discard(&load));
@@ -151,14 +164,31 @@ static void executable_cases(void) {
     setup(0);fail_close=1;executable_rejected("H:/x-max.COM");
     setup(0);short_limit=1;executable_accepted("H:/x-max.COM");check(chain_discard(&load));
     for(j=32;j<35;++j) {
-        setup(0);fail_drop=(int)j;check(!execute_prepare(&load,"H:/x-truncated.COM"));
-        check(load.error==0x20&&count()==1&&!load.ready&&!handle&&load.pages[j-32]==j);unchanged();
+        setup(0);fail_drop=(int)j;fail_read=total_reads;check(!execute_prepare(&load,"H:/x-max.COM"));
+        check(load.error==0x99&&count()==1&&!load.ready&&!handle&&load.pages[j-32]==j);unchanged();
         check(!chain_prepare(&load,"H:/small.CHN",&caller)&&!load.ready&&count()==1);
         fail_drop=-1;check(chain_discard(&load)&&!count());
     }
     setup(0);accepted("H:/small.CHN");executable_accepted("H:/x-max.COM");
     check(chain_prepare(&load,"H:/small.CHN",&caller)&&load.kind==IMAGE_CHAIN&&count()==1);
     installed("H:/small.CHN");
+}
+static void raw_executable_cases(void) {
+    static const uint16_t lengths[]={1,4,127,128,129,16384,16385,32768,32769,49151};
+    char path[64];unsigned i,j;
+    for(i=0;i<sizeof(lengths)/sizeof(*lengths);++i) {
+        setup(0);snprintf(path,sizeof(path),"H:/raw-%u.BIN",lengths[i]);
+        executable_accepted(path);check(!load.handoff&&!load.entry);
+        check(chain_discard(&load)&&!count());
+    }
+    setup(0);executable_rejected("H:/raw-empty.BIN");
+    setup(0);executable_rejected("H:/raw-big.BIN");
+    setup(0);executable_accepted("H:/raw-claimed.BIN");check(!load.handoff&&chain_discard(&load)&&!count());
+    for(i=1;i<=2;++i)for(j=0;j<2;++j) {
+        setup(0);if(j)bad_seek=i;else fail_seek=i;
+        executable_rejected("H:/raw-129.BIN");
+        if(!j)check(load.error==0x99&&load.detail==ERR_FAILURE);
+    }
 }
 static void borrowed(uint8_t originals[3]) {
     unsigned i,at;
@@ -278,10 +308,38 @@ static void override_cases(void) {
         check(!execute_override(&load,path,originals,0,0)&&!switch_calls&&!override_calls&&load.ready);
     }
     check(chain_discard(&load)&&count()==3);release_borrowed();
-    setup(0);check(execute_prepare(&load,"H:/x-small.COM")&&!load.handoff);
-    override_calls=switch_calls=0;
-    check(!execute_override(&load,"H:/checked.COM",originals,0,0)&&!switch_calls&&!override_calls&&load.ready);
-    check(load.error==0x20&&chain_discard(&load)&&!count());
+    setup(0);check(execute_prepare(&load,"H:/x-small.COM")&&!load.handoff);borrowed(originals);
+    override_calls=switch_calls=0;stack_page=originals[2];override_error=ERR_FAILURE;
+    check(!execute_override(&load,"H:/checked.COM",originals,0,0)&&switch_calls==1&&override_calls==1&&!load.ready);
+    check(load.error==0x99);borrowed_unchanged();
+    stack_page=62;check(chain_discard(&load)&&count()==3);release_borrowed();
+}
+static void raw_override_cases(void) {
+    uint8_t originals[3],partial;unsigned i,allocated;
+    /* A one-page native target needs two backup allocations. Retry may reuse
+     * the first completed allocation if the second initially fails. */
+    for(i=1;i<=2;++i) {
+        setup(0);check(execute_prepare(&load,"H:/raw-4.BIN"));borrowed(originals);
+        allocated=allocs;fail_alloc=allocs+i;
+        check(!execute_snapshot(&load,originals)&&load.kind==IMAGE_EXECUTABLE&&load.ready);
+        check(load.error==0x1ff);borrowed_unchanged();partial=load.pages[1];
+        if(i==2)check(partial!=255&&count()==5);else check(partial==255&&count()==4);
+        fail_alloc=0;check(execute_snapshot(&load,originals)&&count()==6);
+        if(i==2)check(load.pages[1]==partial&&allocs==allocated+3);
+        check(execute_restore(&load));borrowed_unchanged();
+        check(chain_discard(&load)&&count()==3);release_borrowed();
+    }
+    /* Generic override never writes the private Pascal handoff into caller
+     * memory. A real load failure restores even those otherwise-unused bytes. */
+    for(i=0;i<2;++i) {
+        setup(0);check(execute_prepare(&load,"H:/raw-4.BIN"));borrowed(originals);
+        stack_page=originals[2];override_calls=switch_calls=0;
+        override_error=i?ERR_ENTRY_CORRUPTED:ERR_NO_SUCH_ENTRY;
+        check(!execute_override(&load,"H:/checked.COM",originals,0,0));
+        check(override_calls==1&&switch_calls==1&&!load.ready&&load.kind==IMAGE_ROLLBACK);
+        check(load.error==(i?0x99:1)&&load.detail==override_error);borrowed_unchanged();
+        stack_page=62;check(chain_discard(&load)&&count()==3);release_borrowed();
+    }
 }
 static void extra_owner_cases(void) {
     uint8_t originals[3],owners[26],i;unsigned scenario;
@@ -318,13 +376,13 @@ static void extra_owner_cases(void) {
     check(chain_discard(&load)&&count()==3);release_borrowed();
 }
 static void handoff_cases(void) {
-    unsigned i;char path[48];uint8_t originals[3]={40,41,42};
+    unsigned i;char path[48];
     for(i=0;i<execute_entry_length;++i) {
         setup(0);snprintf(path,sizeof(path),"H:/x-h%u.COM",i);
         check(execute_prepare(&load,path)&&load.ready&&!load.error&&!load.handoff);
-        override_calls=switch_calls=0;
-        check(!execute_override(&load,"H:/checked.COM",originals,0,0)&&!override_calls&&!switch_calls);
-        check(load.error==0x20&&chain_discard(&load)&&!count());
+        /* An absent/different Pascal startup template is no longer a
+         * preflight rejection. Ordinary OS override owns that executable. */
+        check(chain_discard(&load)&&!count());
     }
     for(i=0xbfff;i<=0xc001;++i) {
         setup(0);snprintf(path,sizeof(path),"H:/x-h%x.COM",i);
@@ -382,9 +440,9 @@ int main(int argc,char **argv) {
     setup(1);accepted("H:/grow.CHN");fail_drop=32;check(!chain_discard(&load)&&count()==1&&load.pages[0]==32&&load.pages[1]==255);unchanged();fail_drop=-1;accepted("H:/small.CHN");installed("H:/small.CHN");
     setup(1);fail_drop=32;check(!chain_prepare(&load,"H:/truncated.CHN",&caller));check(load.error==0x20&&count()==1&&!handle);unchanged();fail_drop=-1;check(chain_discard(&load)&&!count());
     setup(1);fail_drop=32;check(!chain_prepare(&load,"H:/profile-0.CHN",&caller));check(load.error==0x20&&load.detail==ERR_ENTRY_CORRUPTED&&count()==1&&!handle);unchanged();fail_drop=-1;check(chain_discard(&load)&&!count());
-    executable_cases();
+    executable_cases();raw_executable_cases();
     rollback_cases();
-    override_cases();extra_owner_cases();
+    override_cases();raw_override_cases();extra_owner_cases();
     handoff_cases();
     printf("PASS: %u image staging/heap/identity/commit assertions across %u scenarios\n",checks,scenarios);return 0;
 }

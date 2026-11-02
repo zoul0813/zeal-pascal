@@ -182,23 +182,39 @@ static uint8_t handoff_capable(ImageLoad *load) {
 }
 uint8_t execute_prepare(ImageLoad *load,const char *path) {
     NativeImage id;
-    uint16_t at,n;
+    uint16_t at,n,head;
     uint8_t error;
+    int32_t extent=0,rewind=0;
     if(!chain_discard(load))return 0;
     chain_init(load);load->kind=IMAGE_EXECUTABLE;
     load->fd=open(path,O_RDONLY);
     if(load->fd<0){error=(uint8_t)-load->fd;load->fd=-1;return io_error(load,error);}
-    for(at=0;at<160;at+=n) {
-        n=160-at;if(n>128)n=128;
+    error=seek(load->fd,&extent,SEEK_END);
+    if(error){io_error(load,error);goto failed;}
+    if(extent<=0||extent>=49152L){corrupt(load);goto failed;}
+    error=seek(load->fd,&rewind,SEEK_SET);
+    if(error||rewind){io_error(load,error?error:ERR_INVALID_OFFSET);goto failed;}
+    load->length=(uint16_t)extent;
+    head=load->length<160?load->length:160;
+    memset(header,0,sizeof(header));
+    for(at=0;at<head;at+=n) {
+        n=head-at;if(n>128)n=128;
         if(!take(load,n))goto failed;
         memcpy(header+at,chain_buffer,n);
     }
-    error=native_decode(header,0,&id);
-    if(error){fail(load,0x20,error);goto failed;}
-    load->length=id.length;load->entry=word(header+12);load->origin=id.origin;load->bytes=id.bytes;
-    load->globals=word(header+26);load->end=word(header+30);
-    if(!stage(load,160,0))goto failed;
-    load->handoff=handoff_capable(load);load->ready=1;return 1;
+    /* Native Execute follows the OS's opaque-binary contract. Recognizing a
+     * fully valid Pascal image enables early retirement only; an older or
+     * different header remains an ordinary native executable. */
+    if(head>=7&&!memcmp(header+3,"ZP80",4)) {
+        error=native_decode(header,0,&id);
+        if(!error&&id.length==load->length) {
+            load->entry=word(header+12);load->origin=id.origin;load->bytes=id.bytes;
+            load->globals=word(header+26);load->end=word(header+30);
+        }
+    }
+    if(!stage(load,(uint8_t)head,0))goto failed;
+    load->handoff=load->entry?handoff_capable(load):0;
+    load->ready=1;return 1;
 failed:
     chain_discard(load);return 0;
 }
@@ -230,15 +246,16 @@ static void rollback_copy(uint8_t from,uint8_t to) {
 uint8_t execute_snapshot(ImageLoad *load,const uint8_t originals[3]) {
     uint8_t i,error,count;
     if(!load->ready||load->kind!=IMAGE_EXECUTABLE||load->fd>=0||
-       load->length<=16384u||load->length>46080u||
-       (load->length>32768u&&load->pages[2]==255))return corrupt(load);
-    count=load->pages[2]==255?2:3;
+       !load->length||load->length>=49152u)return corrupt(load);
+    count=(uint8_t)((load->length+16383UL)/16384u);
     if(!rollback_plan(load,originals,count))return 0;
-    if(count==2) {
-        error=palloc(&load->pages[2]);
-        if(error) {load->pages[2]=255;return fail(load,0x1ff,error);}
-        if(!rollback_plan(load,originals,3))return 0;
+    for(i=count;i<3;++i) {
+        /* A failed allocation leaves earlier new slots owned for a retry. */
+        if(load->pages[i]!=255)continue;
+        error=palloc(&load->pages[i]);
+        if(error) {load->pages[i]=255;return fail(load,0x1ff,error);}
     }
+    if(!rollback_plan(load,originals,3))return 0;
     memcpy(load->originals,originals,3);
     for(i=0;i<3;++i)rollback_copy(load->originals[i],load->pages[i]);
     load->kind=IMAGE_ROLLBACK;return 1;
@@ -257,7 +274,7 @@ static uint8_t override_owners[EXECUTE_HANDOFF_MAX_PAGES-4],override_owner_count
 uint8_t execute_override(ImageLoad *load,const char *path,const uint8_t originals[3],
                          const uint8_t *owners,uint8_t owner_count) {
     uint16_t i;uint8_t j,page;
-    if(!load->ready||load->kind!=IMAGE_EXECUTABLE||load->fd>=0||!load->handoff)return corrupt(load);
+    if(!load->ready||load->kind!=IMAGE_EXECUTABLE||load->fd>=0)return corrupt(load);
     /* Copy caller-owned arguments before the original stack is frozen. The
      * retained module must reserve its alias-stack area outside code/data. */
     for(i=0;i<sizeof(override_path);++i) {override_path[i]=path[i];if(!path[i])break;}
@@ -289,13 +306,17 @@ void execute_attempt(void) {
     memcpy(record+EXECUTE_HANDOFF_PAGES+1,override_load->pages,3);
     memcpy(record+EXECUTE_HANDOFF_PAGES+4,override_owners,override_owner_count);
     for(i=0;i<sizeof(record)-1;++i)record[sizeof(record)-1]^=record[i];
-    memcpy(chain_buffer,record,sizeof(record));chain_store=1;
-    chain_page_io(override_originals[2],EXECUTE_HANDOFF_ADDRESS-0xc000u,sizeof(record));
+    if(override_load->handoff) {
+        memcpy(chain_buffer,record,sizeof(record));chain_store=1;
+        chain_page_io(override_originals[2],EXECUTE_HANDOFF_ADDRESS-0xc000u,sizeof(record));
+    }
     error=execute_os_override(override_path);
     io_error(override_load,error?error:ERR_FAILURE); /* override cannot return success */
     if(!execute_restore(override_load))execute_abandon(); /* never resume damaged RAM */
-    memset(chain_buffer,0,sizeof(record));chain_store=1;
-    chain_page_io(override_originals[2],EXECUTE_HANDOFF_ADDRESS-0xc000u,sizeof(record));
+    if(override_load->handoff) {
+        memset(chain_buffer,0,sizeof(record));chain_store=1;
+        chain_page_io(override_originals[2],EXECUTE_HANDOFF_ADDRESS-0xc000u,sizeof(record));
+    }
 }
 #endif
 #ifndef ZP_CHAIN_HOST

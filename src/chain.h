@@ -19,8 +19,8 @@ typedef struct {
 #define IMAGE_LOAD_PAGES 3
 enum { IMAGE_EXECUTABLE,IMAGE_CHAIN,IMAGE_ROLLBACK };
 #endif
-/* One ownership ledger serves version-checked CHN payloads and whole ZP80 COM
- * images. ZP_CHAIN_ONLY is a component-test variant; the product handles both. */
+/* One ownership ledger serves version-checked CHN payloads and ordinary native
+ * executable images. ZP_CHAIN_ONLY is a component-test variant; the product handles both. */
 typedef struct {
     uint8_t pages[IMAGE_LOAD_PAGES],ready;
     int8_t fd;
@@ -39,7 +39,9 @@ void chain_init(ImageLoad *load);
  * A failed cleanup retains its page ledger for a later discard/retry. */
 uint8_t chain_prepare(ImageLoad *load,const char *path,const ChainCaller *caller);
 #ifndef ZP_CHAIN_ONLY
-/* Fully stage a standalone native Pascal image without changing caller RAM.
+/* Fully stage an ordinary native executable without changing caller RAM.
+ * A valid matching Pascal startup may retire old pages early; all other
+ * bytes use the OS executable contract without private header requirements.
  * This validates/stages only; OS override and rollback are separate owners. */
 uint8_t execute_prepare(ImageLoad *load,const char *path);
 /* After validation, reuse staging pages for a complete caller rollback copy.

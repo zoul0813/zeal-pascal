@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Retained CHN staging/install, COM staging and page rollback; OS Execute is not enabled."""
+"""Retained CHN staging/install, native executable staging and caller-page rollback."""
 import argparse
 import hashlib
 import importlib.util
@@ -33,6 +33,11 @@ def handoff_executable(length,normal=0x8003):
     b[normal-0x4000:normal-0x4000+len(entry)]=entry;seal_executable(b);return b
 def fixtures():
     result={}
+    for length in (1,4,127,128,129,16384,16385,32768,32769,49151):
+        result[f'raw-{length}.BIN']=bytes((i*17+9)&255 for i in range(length))
+    result['raw-empty.BIN']=b''
+    result['raw-big.BIN']=bytes(49152)
+    result['raw-claimed.BIN']=b'\xc3\x00\x40ZP80'
     for name,size in [('small',128),('grow',0x4800),('odd',0x4801),('short',128),('legacy',96),('entry-short',99)]:
         b=fixture(size);seal(b);result[name+'.CHN']=bytes(b)
     for name,at,value in [('abi',8,2),('origin',10,0x9100),('end',18,0xfaff),('globals',16,0x1001),('reserved',92,1),('overlay',84,1),('empty',12,0)]:
@@ -70,7 +75,7 @@ def host():
     asset.write_text('#include <stdint.h>\nconst uint8_t execute_entry_start[]={'+','.join(str(b)for b in entry)+'};\nconst uint16_t execute_entry_length='+str(len(entry))+';\n')
     sdk=ROOT.parent/'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
     cmd=['cc','-std=c99','-Wall','-Wextra','-Werror','-fno-builtin-exit','-fsanitize=address,undefined','-fno-sanitize-recover=all','-g','-DZP_CHAIN_HOST','-D__SDCC_VERSION_MAJOR=4','-D__SDCC_VERSION_MINOR=2','-D__sdcccall(x)=','-Isrc', '-Itests/native', '-Itests/host','-I'+str(sdk)]
-    cmd+=['-D'+name+'=chain_model_'+name for name in ('open','read','close','palloc','pfree')]
+    cmd+=['-D'+name+'=chain_model_'+name for name in ('open','read','close','seek','palloc','pfree')]
     cmd+=['src/chain.c','src/native_image.c','tests/host/sha256.c','tests/native/chain-host.c',str(asset),'-o',str(OUT/'chain-host')]
     subprocess.run(cmd,cwd=ROOT,check=True);subprocess.run([str(OUT/'chain-host'),str(OUT)],cwd=ROOT,check=True)
     flags=['cc','-std=c99','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',

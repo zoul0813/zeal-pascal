@@ -1,5 +1,5 @@
-/* Retained CHN staging/install, whole COM staging and caller-page rollback.
- * Does not qualify OS override/stack switching or enable Pascal Execute(F). */
+/* Retained CHN staging/install, native executable staging and caller-page rollback.
+ * OS override/stack switching and Pascal Execute(F) are separate integration tests. */
 #include "chain.h"
 #include <string.h>
 #include <zos_sys.h>
@@ -109,7 +109,7 @@ static void executable_case(const char *path,uint16_t length) {
     setup(0);
     check(execute_prepare(&load,path));
     check(load.ready&&!load.error&&load.kind==IMAGE_EXECUTABLE&&load.length==length);
-    check(load.pages[0]!=255&&load.pages[1]!=255&&((load.pages[2]!=255)==(length>32768u)));
+    check(load.pages[0]!=255&&((load.pages[1]!=255)==(length>16384u))&&((load.pages[2]!=255)==(length>32768u)));
     all_unchanged();check(chain_mapping()==mapping);
     fd=open(path,O_RDONLY);check(fd>=0);
     if(fd>=0) {
@@ -167,16 +167,20 @@ int main(void) {
         check(!chain_prepare(&load,"H:/small.CHN",&caller)&&load.error==0x20);
         unchanged();check(load.pages[0]==255&&load.pages[1]==255&&chain_mapping()==mapping);
     }
+    executable_case("H:/raw-4.BIN",4);
+    executable_case("H:/raw-129.BIN",129);
+    executable_case("H:/raw-claimed.BIN",7);
+    executable_case("H:/x-abi.COM",16512);
+    executable_case("H:/x-truncated.COM",46079);
+    executable_case("H:/small.CHN",224);
+    executable_case("H:/raw-49151.BIN",49151u);
     executable_case("H:/x-tiny.COM",16385);
     executable_case("H:/x-small.COM",16512);
     executable_case("H:/x-boundary.COM",32768u);
     executable_case("H:/x-three.COM",32769u);
     executable_case("H:/x-max.COM",46080u);
     {
-        static const char *bad[]={"H:/x-abi.COM","H:/x-entry.COM","H:/x-length.COM",
-            "H:/x-origin.COM","H:/x-globals.COM","H:/x-end.COM","H:/x-stack.COM",
-            "H:/x-reserved.COM","H:/x-overlay.COM",
-            "H:/x-truncated.COM","H:/x-trailing.COM","H:/small.CHN","H:/absent.COM"};
+        static const char *bad[]={"H:/absent.COM","H:/raw-empty.BIN","H:/raw-big.BIN"};
         for(j=0;j<sizeof(bad)/sizeof(*bad);++j) {
             setup(0);check(!execute_prepare(&load,bad[j])&&load.error&&!load.ready);
             all_unchanged();check(chain_mapping()==mapping);

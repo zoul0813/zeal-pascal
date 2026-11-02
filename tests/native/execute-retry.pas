@@ -10,7 +10,7 @@ begin
     marker:=42;Assign(targets[1],'H:/MISSING.COM');
     {$I-}Execute(targets[choose]);{$I+}
     if (IOResult<>1)or(calls<>1)or(marker<>42)then Halt;
-    Assign(targets[1],'H:/LEGACY.COM');
+    Assign(targets[1],'H:/INVALID.COM');
     {$I-}Execute(targets[choose]);{$I+}
     if (IOResult<>32)or(calls<>2)or(marker<>42)or(FilePos(data)<>1)then Halt;
     Write(data,n);Close(data);

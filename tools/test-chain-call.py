@@ -60,9 +60,10 @@ def ide(n,executables=None):
     # produce the same authenticated bytes as the compiler-only target layout.
     reference=n.RUN/('execute-call-compile/hostfs' if executables else 'chain-call-compile/hostfs')
     checks['IDE and compiler target layouts produce identical COM CHN and maps']=all(
+        (folder/name).is_file() and (reference/name).is_file() and
         (folder/name).read_bytes()==(reference/name).read_bytes()for name in (('EXECALL.COM','EXECALL.ZMP') if executables else ('CALLER.COM','CALLER.ZMP','NEXT.CHN','NEXT.ZMP')))
     if executables:
-        checks['explicit Close finalizes the typed file before IDE Execute']=(folder/'CLOSED.DAT').read_bytes()==b'\1\0\2\0\xd2\4'
+        checks['explicit Close finalizes the typed file before IDE Execute']=(folder/'CLOSED.DAT').is_file() and (folder/'CLOSED.DAT').read_bytes()==b'\1\0\2\0\xd2\4'
     return checks
 
 
@@ -78,7 +79,7 @@ def execute(n):
     fixtures.update({name:(ROOT/'tests/native'/source).read_bytes() for name,source in
         [('EXECALL.PAS','execute-call.pas'),('EXENEXT.PAS','execute-target.pas'),('EXERETRY.PAS','execute-retry.pas'),
          ('EXSTART.PAS','execute-chain.pas'),('EXCHAIN.PAS','execute-chain-next.pas'),
-         ('EXEFAIL.PAS','execute-failure.pas'),('EXECHECK.PAS','execute-checked.pas')]})
+         ('EXEFAIL.PAS','execute-failure.pas'),('EXECHECK.PAS','execute-checked.pas'),('EXENATIVE.PAS','execute-native.pas')]})
     commands=['run 100000000']+n.program_launch(target)+[f"bp 0x{sym['_test_stop']:x}",'run 150000000000','s','regs','mmu']
     for name in ('_test_done','_test_stage','_test_passed','_test_failed'):commands += [f'rb 0x{sym[name]:x} 2']
     commands += [f"rb 0x{sym['_test_failures']:x} 128",f"rb 0x{sym['_d']:x} 5",'quit']
@@ -86,7 +87,7 @@ def execute(n):
     word=lambda name:m.get(sym[name],0)|(m.get(sym[name]+1,0)<<8)
     assert m.get(sym['_test_done'])==255 and word('_test_failed')==0,raw[-4000:]
     folder=n.RUN/'execute-call-compile/hostfs';images={name:(folder/(name+ext)).read_bytes() for name,ext in
-        [('EXECALL','.COM'),('EXENEXT','.COM'),('EXERETRY','.COM'),('EXSTART','.COM'),('EXCHAIN','.CHN'),('EXEFAIL','.COM'),('EXECHECK','.COM')]}
+        [('EXECALL','.COM'),('EXENEXT','.COM'),('EXERETRY','.COM'),('EXSTART','.COM'),('EXCHAIN','.CHN'),('EXEFAIL','.COM'),('EXECHECK','.COM'),('EXENATIVE','.COM')]}
     parent='zexparent';ps=n.symbols(parent);kernel=n.kernel_symbols();entry=n.symbols('execute_entry')
     child=images['EXENEXT'];root=int.from_bytes(child[20:22],'little');normal=int.from_bytes(child[12:14],'little')
     probe=normal+entry['execute_entry_probe']-0x8000
@@ -140,14 +141,33 @@ def execute(n):
     commands += [f"bp 0x{ps['_execute_parent_stop']:x}",'tap ENTER','run 50000000000','regs','mmu']
     for name in ('_test_done','_test_passed','_test_failed'):commands += [f'rb 0x{ps[name]:x} 2']
     commands += [f"rb 0x{ps['_test_failures']:x} 128",'quit']
-    legacy=bytearray(child);legacy[1:3]=legacy[12:14]=b'\xa0\x40';legacy[36:132]=bytes(96)
+    invalid=b'' # Native OS rejects a zero-length executable before replacement.
     raw=n.execute('execute-call-retry',commands,{parent+'.bin':media[parent+'.bin'],'CALLER.COM':images['EXERETRY'],
-        'LEGACY.COM':bytes(legacy),'PARENT.TXT':media['PARENT.TXT']},timeout=900)
+        'INVALID.COM':bytes(invalid),'PARENT.TXT':media['PARENT.TXT']},timeout=900)
     state=n.memory(raw);out=n.RUN/'execute-call-retry/hostfs'
     checks['I-minus missing target preserves With, evaluates File argument once and recovers every page']=(
         state.get(ps['_test_done'])==255 and all(state.get(ps['_test_failed']+i)==0 for i in range(2))
         and (out/'RESULT.TXT').read_bytes()==b'EXECUTE-RETRY-OK\r\n'
         and (out/'RETAIN.DAT').read_bytes()==b'\2\0\2\0\xd2\4\xd2\4')
+    # A four-byte ordinary native program exits37 through the supported OS
+    # syscall. It has no Pascal header, private entry or cleanup convention.
+    raw_exit=bytes.fromhex('210f25cf')
+    raw=n.execute('execute-call-native',commands,{parent+'.bin':media[parent+'.bin'],
+        'CALLER.COM':images['EXENATIVE'],'RAWEXIT.BIN':raw_exit,
+        'PARENT.TXT':b'\x25\x01H:/CALLER.COM'},timeout=900)
+    state=n.memory(raw);out=n.RUN/'execute-call-native/hostfs'
+    checks['ordinary four-byte native replacement never returns to Pascal and OS exit reclaims every owner']=(
+        state.get(ps['_test_done'])==255 and all(state.get(ps['_test_failed']+i)==0 for i in range(2))
+        and (out/'RESULT.TXT').read_bytes()==b'' and (out/'RAWEXIT.BIN').read_bytes()==raw_exit)
+    # A valid older Pascal entry is also an ordinary native executable. Its
+    # missing private handoff affects only early page retirement, not legality.
+    legacy=bytearray(child);legacy[1:3]=legacy[12:14]=b'\xa0\x40'
+    raw=n.execute('execute-call-legacy',commands,{parent+'.bin':media[parent+'.bin'],
+        'CALLER.COM':images['EXECALL'],'EXENEXT.COM':bytes(legacy),'PARENT.TXT':media['PARENT.TXT']},timeout=900)
+    state=n.memory(raw);out=n.RUN/'execute-call-legacy/hostfs'
+    checks['native Pascal replacement without private handoff runs and OS exit recovers every page']=(
+        state.get(ps['_test_done'])==255 and all(state.get(ps['_test_failed']+i)==0 for i in range(2))
+        and (out/'RESULT.TXT').read_bytes()==b'EXECUTE-CALL-OK\r\n')
     # A CHN replacement reuses the same coordinator for Execute, retaining the
     # typed file through failed preflight and retiring old owners on success.
     chained_media={parent+'.bin':media[parent+'.bin'],'CALLER.COM':images['EXSTART'],
@@ -169,7 +189,7 @@ def execute(n):
         f"bp 0x{ps['_execute_parent_stop']:x}",'s','run 50000000000','regs','mmu']
     for name in ('_test_done','_test_passed','_test_failed'):fault_commands += [f'rb 0x{ps[name]:x} 2']
     fault_commands += [f"rb 0x{ps['_test_failures']:x} 128",'quit']
-    mutation={};last_regs=''
+    mutation={};last_regs='';fault_payload=child
     def remove_after_snapshot(command,response,directory):
         nonlocal last_regs
         if command=='regs':last_regs=response
@@ -178,8 +198,8 @@ def execute(n):
         assert f'PC={override:04x} ' in last_regs
         assert bytes(observed.get(0x4000+i,0) for i in range(16))==module[:16]
         path=directory/'hostfs/TOCTOU.COM'
-        assert path.read_bytes()==child
-        mutation.update(checkpoint=override,sha256=hashlib.sha256(child).hexdigest())
+        assert path.read_bytes()==fault_payload
+        mutation.update(checkpoint=override,sha256=hashlib.sha256(fault_payload).hexdigest())
         path.unlink();(directory/'media-change.json').write_text(json.dumps(mutation,indent=2)+'\n')
     raw=n.execute('execute-call-commit-failure',fault_commands,{parent+'.bin':media[parent+'.bin'],
         'CALLER.COM':images['EXEFAIL'],'TOCTOU.COM':child,'PARENT.TXT':media['PARENT.TXT']},
@@ -188,6 +208,16 @@ def execute(n):
     checks['real OS failure after file cleanup restores With, association and all physical owners']=(
         bool(mutation) and state.get(ps['_test_done'])==255 and all(state.get(ps['_test_failed']+i)==0 for i in range(2))
         and text.endswith(b'EXECUTE-COMMIT-RETRY-OK\r\n') and (out/'RECOVER.DAT').read_bytes()==b'\1\0\2\0\xd2\4')
+    mutation.clear();fault_payload=raw_exit
+    raw=n.execute('execute-call-native-commit-failure',fault_commands,
+        {parent+'.bin':media[parent+'.bin'],'CALLER.COM':images['EXEFAIL'],
+         'TOCTOU.COM':raw_exit,'PARENT.TXT':media['PARENT.TXT']},
+        timeout=900,after_command=remove_after_snapshot)
+    state=n.memory(raw);out=n.RUN/'execute-call-native-commit-failure/hostfs'
+    checks['ordinary native target disappearance after snapshot restores caller and exact page inventory']=(
+        bool(mutation) and state.get(ps['_test_done'])==255 and all(state.get(ps['_test_failed']+i)==0 for i in range(2))
+        and (out/'RESULT.TXT').read_bytes().endswith(b'EXECUTE-COMMIT-RETRY-OK\r\n')
+        and (out/'RECOVER.DAT').read_bytes()==b'\1\0\2\0\xd2\4')
     mark=re.search(rb'EXECUTE-STACK-LOW:(-?\d+)\r\n',text)
     low=int(mark[1])&65535 if mark else None
     checks['native caller stack watermark stays inside the 1024-byte service reserve']=low is not None and (low==0 or 0xf800<=low<0xfa00)
