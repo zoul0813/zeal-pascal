@@ -8,7 +8,7 @@ static void load(Source *s,const char *text) {
 static void text(Source *s,const char *expected) {
     uint16_t i,n=(uint16_t)strlen(expected);
     uint8_t ok=s->length==n;
-    for(i=0;i<n&&ok;++i) ok=far_get(s->page,i)==(uint8_t)expected[i];
+    for(i=0;i<n&&ok;++i) ok=buffer_get(s->page,i)==(uint8_t)expected[i];
     check(ok);
 }
 /* Capture literals before entering a different code bank. The product's
@@ -90,7 +90,7 @@ void editor_search_checks(Source *s) {
         load(s,"a#b"); check(source_replace(s,1,2,&zero,1));
         check(setup(&zero,1,&literal,1,(const uint8_t*)"GN",2,1));
         check(run(&job,0)==SEARCH_DONE);
-        check(s->length==3&&far_get(s->page,0)=='a'&&far_get(s->page,1)==1&&far_get(s->page,2)=='b');
+        check(s->length==3&&buffer_get(s->page,0)=='a'&&buffer_get(s->page,1)==1&&buffer_get(s->page,2)=='b');
     }
 
     load(s,sample); config("beta","Z","GNU",1); check(run(&job,0)==SEARCH_DONE);
@@ -120,7 +120,7 @@ void editor_search_checks(Source *s) {
     load(s,"a\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     config("a","aaa","GN",1); check(run(&job,0)==SEARCH_REJECT);
     check(s->dirty&&job.visited>0&&job.pending); check(s->length<=SOURCE_LIMIT);
-    for(i=0;i<s->length;++i) if(far_get(s->page,i)=='\n') break;
+    for(i=0;i<s->length;++i) if(buffer_get(s->page,i)=='\n') break;
     check(i==3); /* First line's edit survived the later127-byte line limit. */
     load(s,"a a"); config("a","z","G",1); check(editor_search_begin(&job));
     check(editor_search_step(&job)==SEARCH_MATCH); saved=*s;

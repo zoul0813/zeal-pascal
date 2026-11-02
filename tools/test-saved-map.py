@@ -162,7 +162,7 @@ def main():
     sdk=Path(os.environ.get('ZP_ZEAL_ROOT', str(ROOT.parent)))/'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
     cmd=['cc','-std=c99','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-g','-D__SDCC_VERSION_MAJOR=4','-D__SDCC_VERSION_MINOR=2','-D__sdcccall(x)=','-Isrc', '-Itests/native', '-Itests/host','-I'+str(sdk)]
     cmd+=['-D'+name+'=map_model_'+name for name in ('open','read','close','seek')]
-    cmd+=['src/source.c','src/source_move.c','src/source_validation.c','src/source_location.c','src/sources.c','src/sources_storage.c','src/path.c','tests/host/sha256.c','tests/host/hash-source.c','src/saved_map.c','src/image.c','src/native_image.c','src/compiler_image.c','tests/native/saved-host.c','-o',str(OUT/'saved-host')]
+    cmd+=['src/buffer_access.c','src/buffer_memory.c','src/source.c','src/source_move.c','src/source_validation.c','src/source_location.c','src/sources.c','src/sources_storage.c','src/path.c','src/saved_map.c','src/native_image.c','src/compiler_image.c','tests/native/saved-host.c','-o',str(OUT/'saved-host')]
     subprocess.run(cmd,cwd=ROOT,check=True)
     b,m=fixture();seal(b,m);positive=write('valid',b,m)
     results=[]

@@ -2,6 +2,7 @@
 #define compile_project compiler_compile_project
 #endif
 #include "compiler.h"
+#include "compiler_disk.h"
 #if defined(__SDCC) || defined(ZP_COMPILER_JOBS)
 #include "compiler_job.h"
 #endif
@@ -11,25 +12,34 @@
 static uint16_t pc(void) {return cc.emitted-CC_CODE_BASE;}
 
 uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options) {
-    uint16_t i,j,n;
+    uint16_t i,j,n;uint8_t native_error;
     SourcePosition begin;
     Source active;
     CompilerSources sources;
     memset(&cc,0,sizeof(cc));memset(&sources,0,sizeof(sources));
-    sources.refs_page=255;sources.root=s;sources.options=options;
+    sources.root=s;sources.options=options;
     sources.memory=!options;
 #if defined(__SDCC) || defined(ZP_COMPILER_JOBS)
     sources.borrow_root=compiler_invocation!=0;
     if(compiler_invocation)sources.memory=compiler_memory_mode;
 #endif
     cc.input=&active;cc.sources=&sources;cc.image=b;cc.error=d;
-    cc.workspace=255;cc.stage_page=255;
+    cc.workspace=255;cc.stage_page=255;cc.primary_stage=255;
     memset(d,0,sizeof(*d));memset(b,0,sizeof(*b));
     memset(b->pages,255,3);b->map_page=255;b->sources.page=255;
     cc.polling=interruptible;
+    if(!cc_tables_begin()){d->code=99;goto failed;}
     if(!cc_poll())goto failed;
     if(!cc_sources_prepare(s))goto failed;
-    for(i=0;i<3;++i) {
+    if(compiler_disk_requested&&!cc_disk_begin(b,s,options&&options->kind==COMPILE_CHAIN)) {
+        d->code=COMPILE_PLATFORM_FAILURE;goto failed;
+    }
+    if(cc_disk_active(b)) {
+        for(j=0;j<PAGE_SIZE;++j) {
+            if(!(j&255)&&!cc_poll())goto failed;
+            cc_put(j,j<cc_runtime_size()?cc_runtime_get(j):0);
+        }
+    } else for(i=0;i<3;++i) {
         /* The middle page holds final globals/code placement, never parser
          * staging. Materialize it on a global initializer's first write or
          * after relocation releases its workspace. */
@@ -55,11 +65,11 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     }
     b->map_page=page_new(PAGE_MAP);
     if(b->map_page==255){d->code=99;goto failed;}
-    cc.workspace=page_new(PAGE_COMPILER);
-    if(cc.workspace==255){d->code=99;goto failed;}
-    for(i=0;i<96;++i)far_set(b->map_page,i,0);
+    buffer_init(b->map_page);
+
+    for(i=0;i<96;++i)buffer_set(b->map_page,i,0);
     cc.absolute_mode=1;cc.var_strict=1;cc.index_speed=1;cc.with_limit=4;
-    cc.input_fresh=1;cc.io_check=1;cc.console_control=1;cc.text_type=255;
+    cc.input_fresh=1;cc.io_check=1;cc.console_control=1;cc.text_type=TYPE_NONE;
     cc_new_type(K_INTEGER,2,-32768,32767,0);
     cc_new_type(K_STRING,0,0,0,0);
     cc_new_type(K_BOOLEAN,1,0,1,0);
@@ -90,11 +100,14 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
         if(sources.stage_shared||page_drop(cc.stage_page))cc.stage_page=255;
         else {d->code=99;goto failed;}
     }
+    if(cc.primary_stage!=255) {
+        if(!page_drop(cc.primary_stage)){d->code=99;goto failed;}cc.primary_stage=255;
+    }
     if(!cc_seal(s,options))goto failed;
     return 1;
 failed:
-    cc.polling=0;
-    if(sources.refs_owned&&page_drop(sources.refs_page))sources.refs_page=255;
+    native_error=platform_error;cc.polling=0;
+    if(cc.primary_stage!=255&&page_drop(cc.primary_stage))cc.primary_stage=255;
     if(cc.stage_page!=255&&(sources.stage_shared||page_drop(cc.stage_page)))cc.stage_page=255;
     if(cc.workspace!=255&&page_drop(cc.workspace))cc.workspace=255;
     /* Error replies still need source identities, but not the abandoned
@@ -106,5 +119,5 @@ failed:
 #endif
         cc_sources_error();
     }
-    build_close(b);return 0;
+    build_close(b);if(native_error)platform_error=native_error;return 0;
 }

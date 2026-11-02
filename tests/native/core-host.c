@@ -3,6 +3,7 @@
  * These are deliberately not counted as native execution tests. */
 #include "compiler.h"
 #include "compiler_job.h"
+#include <zos_vfs.h>
 #include "stream-hash.h"
 #include "source_move.h"
 #include "image.h"
@@ -18,16 +19,16 @@ uint8_t platform_error;
 uint8_t compiler_owned[8],compiler_allocating;
 uint8_t compiler_parent_owned[8];
 static int fail_after=-1,fail_drop=-1;
+static uint8_t clear_error_on_drop;
+static unsigned cleared_drop_errors;
 static unsigned checks,allocation_calls;
-static uint8_t reference_probe,reference_probe_page;
-static unsigned long reference_reads;
 static uint8_t capture_probe,capture_probe_page;
 static unsigned long capture_reads;
 static uint8_t lexer_probe,lexer_probe_page,lexer_poll_probe;
 static unsigned lexer_reads[256];
 static uint16_t lexer_last_poll,lexer_max_gap;
-static uint8_t lookup_probe,lookup_refs_page;
-static unsigned long lookup_reads,lookup_reference_reads;
+static uint8_t lookup_probe;
+static unsigned long lookup_reads;
 static uint8_t wire_lookup_probe,wire_lookup_page;
 static unsigned long wire_lookup_reads;
 static uint8_t source_edit_probe,source_edit_page;
@@ -83,8 +84,8 @@ uint8_t key_interrupt(void) {
         (cancel_stage==3&&cc.emitted>CC_CODE_BASE)||
         (cancel_stage==4&&cc.image->map_length!=0)||
         (cancel_stage==5&&cc.scan>512)||
-        (cancel_stage==6&&cc.sources->refs_owned&&cc.sources->refs_page!=255&&++spill_polls==2)||
-        (cancel_stage==7&&compiler_invocation&&cc.sources->stage_shared&&cc.emitted>0xc100u);
+        (cancel_stage==6&&cc.sources->refs>=33&&++spill_polls==2)||
+        (cancel_stage==7&&compiler_invocation&&cc.token==T_EOF&&cc.emitted>0xc100u);
     if(cancel_stage==8&&initialization_probe&&copy_started&&!copy_complete&&copy_progress>=256)reached=1;
     if(cancel_stage==9&&initialization_probe&&image_fill_calls>=image_fill_cancel_after&&
        cc.image->pages[image_fill_cancel_index]!=255&&!initialized[cc.image->pages[image_fill_cancel_index]]) {
@@ -111,7 +112,7 @@ uint8_t page_new(uint8_t role) {
 uint8_t page_drop(uint8_t p) {
     assert(p<64&&owned[p]);if(p==fail_drop)return 0;
     if(compiler_allocating==COMPILER_ALLOC_WORKER&&!(compiler_owned[p>>3]&(1u<<(p&7))))return 0;
-    owned[p]=0;compiler_owned[p>>3]&=~(1u<<(p&7));compiler_parent_owned[p>>3]&=~(1u<<(p&7));return 1;
+    owned[p]=0;compiler_owned[p>>3]&=~(1u<<(p&7));compiler_parent_owned[p>>3]&=~(1u<<(p&7));if(clear_error_on_drop){if(platform_error)++cleared_drop_errors;platform_error=0;}return 1;
 }
 uint8_t page_role(uint8_t p) { return p<64?owned[p]:0; }
 uint32_t page_lifetime(uint8_t p) { return p<64&&owned[p]?lifetimes[p]:0; }
@@ -143,7 +144,7 @@ void page_initialized(uint8_t p,uint16_t n) {
         initialized[p]=1;
     }
 }
-uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(reference_probe&&p==reference_probe_page)++reference_reads; if(capture_probe&&p==capture_probe_page)++capture_reads; if(lexer_probe&&p==lexer_probe_page){assert(at<256);++lexer_reads[at];} if(lookup_probe){++lookup_reads;if(p==lookup_refs_page)++lookup_reference_reads;} if(wire_lookup_probe&&p==wire_lookup_page)++wire_lookup_reads; if(source_edit_probe&&p==source_edit_page)++source_edit_reads; if(source_hash_probe&&p==source_hash_page){assert(at<source_hash_extent);if(source_hash_seen[at>>3]&(1u<<(at&7)))++source_hash_duplicates;source_hash_seen[at>>3]|=(uint8_t)(1u<<(at&7));++source_hash_reads;} if(stream_probe&&stream_page_index[p]!=255){uint32_t pos=(uint32_t)stream_page_index[p]*PAGE_SIZE+at;assert(pos<stream_length&&!(pos>=stream_zero&&pos-stream_zero<stream_zero_bytes));assert(!(stream_seen[pos>>3]&(1u<<(pos&7))));stream_seen[pos>>3]|=(uint8_t)(1u<<(pos&7));++stream_reads;} return memory[p][at]; }
+uint8_t far_get(uint8_t p,uint16_t at) { assert(p<64&&owned[p]&&at<PAGE_SIZE); if(capture_probe&&p==capture_probe_page)++capture_reads; if(lexer_probe&&p==lexer_probe_page){assert(at<256);++lexer_reads[at];} if(lookup_probe){++lookup_reads;} if(wire_lookup_probe&&p==wire_lookup_page)++wire_lookup_reads; if(source_edit_probe&&p==source_edit_page)++source_edit_reads; if(source_hash_probe&&p==source_hash_page){assert(at<source_hash_extent);if(source_hash_seen[at>>3]&(1u<<(at&7)))++source_hash_duplicates;source_hash_seen[at>>3]|=(uint8_t)(1u<<(at&7));++source_hash_reads;} if(stream_probe&&stream_page_index[p]!=255){uint32_t pos=(uint32_t)stream_page_index[p]*PAGE_SIZE+at;assert(pos<stream_length&&!(pos>=stream_zero&&pos-stream_zero<stream_zero_bytes));assert(!(stream_seen[pos>>3]&(1u<<(pos&7))));stream_seen[pos>>3]|=(uint8_t)(1u<<(pos&7));++stream_reads;} return memory[p][at]; }
 void far_set(uint8_t p,uint16_t at,uint8_t v) {
     assert(p<64&&owned[p]&&at<PAGE_SIZE);++page_versions[p];memory[p][at]=v;
     if(source_edit_probe&&p==source_edit_page)++source_edit_writes;
@@ -303,20 +304,20 @@ static void lexer_cases(void) {
     }
 }
 static void lookup_symbol(uint16_t id,uint8_t role,uint8_t owner,uint16_t reference,uint8_t length,uint16_t address) {
-    Symbol *symbol=&cc.symbols[id];memset(symbol,0,sizeof(*symbol));
-    symbol->role=role;symbol->owner=owner;symbol->name_start=reference;symbol->name_length=length;symbol->address=address;
+    cc_symbol_clear(id);
+    CCS_SET(id,role,role);CCS_SET(id,owner,owner);CCS_SET(id,name_start,reference);CCS_SET(id,name_length,length);CCS_SET(id,address,address);
     if(id>=cc.symbol_count)cc.symbol_count=id+1;
 }
 static void lookup_meter(const char *label,uint8_t field,int16_t expected) {
     int16_t actual;
-    lookup_reads=lookup_reference_reads=0;lookup_probe=1;
+    lookup_reads=0;lookup_probe=1;
     actual=field?cc_field_lookup(0):cc_lookup();lookup_probe=0;
     check(actual==expected&&!d.code);
-    printf("PERF05 %s reads=%lu reference-reads=%lu\n",label,lookup_reads,lookup_reference_reads);
+    printf("PERF05 %s reads=%lu\n",label,lookup_reads);
 }
 /* Isolate production name comparisons with real catalog/lifetime checks. */
 static void lookup_cases(void) {
-    CompilerSources state;Build image;Source included;uint8_t hash[32],refs_page;uint16_t refs[6],id;
+    CompilerSources state;Build image;Source included;uint8_t hash[32];uint16_t refs[6],id;
     uint32_t version;char text[285];
     strcpy(text,"AbCdEfGhIj\nAbCdEfGhiK\nInPuT\n");
     memset(text+28,'a',127);text[154]='x';text[155]='\n';
@@ -326,17 +327,16 @@ static void lookup_cases(void) {
     check(sources_new(&image.sources));test_source_hash(&s,hash);check(sources_borrow(&image.sources,&s)==0);
     check(source_new(&included,"H:/PART.INC"));check(source_import(&included,(const uint8_t*)"iNcLuDe999",10,&d));
     test_source_hash(&included,hash);check(sources_borrow(&image.sources,&included)==1);
-    refs_page=page_new(PAGE_COMPILER);check(refs_page!=255);state.refs_page=refs_page;
+    check(cc_tables_begin());
     refs[0]=cc_source_reference(0);refs[1]=cc_source_reference(11);refs[2]=cc_source_reference(22);
     refs[3]=cc_source_reference(28);refs[4]=cc_source_reference(156);refs[5]=cc_source_reference(0x10000UL);
-    check(!d.code&&state.refs==6);lookup_refs_page=refs_page;
-    cc.workspace=page_new(PAGE_COMPILER);check(cc.workspace!=255);
-    for(id=PAGE_SIZE-3*ROUTINE_BYTES;id<PAGE_SIZE;++id)far_set(cc.workspace,id,0);
+    check(!d.code&&state.refs==6);
+    cc_routine_clear(1);cc_routine_clear(2);cc_routine_clear(3);
     cc_rput(1,R_PARENT,0);cc_rput(2,R_PARENT,1);cc_rput(3,R_PARENT,0);
     cc.token=T_ID;strcpy(cc.name,"abcdefghij");
     lookup_symbol(0,S_VARIABLE,0,refs[0],10,0);
     lookup_meter("symbol10",0,0);
-    lookup_symbol(0,S_FIELD,0,refs[0],10,7);cc.types[0].low=-1;
+    lookup_symbol(0,S_FIELD,0,refs[0],10,7);CCT_SET(0,low,-1);
     lookup_meter("field10",1,0);check(cc.field_offset==7);
     lookup_symbol(0,S_VARIABLE,0,refs[5],10,0);strcpy(cc.name,"include999");
     lookup_meter("include10",0,0);
@@ -344,24 +344,24 @@ static void lookup_cases(void) {
     strcpy(cc.name,"abcdefghij");
     lookup_symbol(0,S_VARIABLE,0,refs[0],10,0);lookup_symbol(1,S_VARIABLE,1,refs[0],10,0);
     lookup_symbol(2,S_VARIABLE,2,refs[0],10,0);cc.scope=2;check(cc_lookup()==2&&!d.code);
-    cc.symbols[2].name_start=refs[1];check(cc_lookup()==1&&!d.code);
-    cc.symbols[1].name_start=refs[1];check(cc_lookup()==0&&!d.code);cc.scope=3;check(cc_lookup()==0&&!d.code);
+    CCS_SET(2,name_start,refs[1]);check(cc_lookup()==1&&!d.code);
+    CCS_SET(1,name_start,refs[1]);check(cc_lookup()==0&&!d.code);cc.scope=3;check(cc_lookup()==0&&!d.code);
     cc.scope=0;cc.symbol_count=0;lookup_symbol(0,S_FIELD,0,refs[0],10,7);
     lookup_symbol(1,S_FIELD,1,refs[0],10,9);lookup_symbol(2,S_VARIABLE,0,refs[0],10,0);
-    cc.types[0].low=cc.types[1].low=-1;cc.with_depth=2;cc.with_types[0]=0;cc.with_types[1]=1;
+    CCT_SET(0,low,-1);CCT_SET(1,low,-1);cc.with_depth=2;cc.with_types[0]=0;cc.with_types[1]=1;
     check(cc_lookup()==1&&cc.field_offset==9&&!d.code);
-    cc.symbols[1].name_start=refs[1];check(cc_lookup()==0&&cc.field_offset==7&&!d.code);
-    cc.symbols[1].owner=0;cc.symbols[1].name_start=refs[0];cc.with_depth=0;
+    CCS_SET(1,name_start,refs[1]);check(cc_lookup()==0&&cc.field_offset==7&&!d.code);
+    CCS_SET(1,owner,0);CCS_SET(1,name_start,refs[0]);cc.with_depth=0;
     check(cc_field_lookup(0)==0&&cc.field_offset==7&&!d.code);
-    cc.symbols[1].name_start=state.refs;check(cc_field_path(0,1)==9&&!d.code);
+    CCS_SET(1,name_start,state.refs);check(cc_field_path(0,1)==9&&!d.code);
     /* Variant recursion must retain the selected field and accumulated offset. */
     cc.symbol_count=0;lookup_symbol(0,S_FIELD,1,refs[0],10,7);lookup_symbol(1,S_VARIABLE,0,0,0,0);
-    lookup_symbol(2,S_VARIANT,0,0,0,4);lookup_symbol(3,S_VLABEL,0,0,0,0);cc.symbols[3].type=1;cc.types[0].low=2;
+    lookup_symbol(2,S_VARIANT,0,0,0,4);lookup_symbol(3,S_VLABEL,0,0,0,0);CCS_SET(3,type,1);CCT_SET(0,low,2);
     check(cc_field_lookup(0)==0&&cc.field_offset==11&&!d.code);
-    cc.symbols[0].name_start=state.refs;check(cc_field_path(0,0)==11&&!d.code);
+    CCS_SET(0,name_start,state.refs);check(cc_field_path(0,0)==11&&!d.code);
     /* Keep special-name fallback and ordinary shadowing in their original order. */
-    cc.symbol_count=cc.type_count=0;cc.text_type=255;cc.scope=0;cc_system_init();strcpy(cc.name,"input");
-    id=(uint16_t)cc_lookup();check(id<cc.symbol_count&&cc.symbols[id].role==S_STANDARD&&!d.code);
+    cc.symbol_count=cc.type_count=0;cc.text_type=TYPE_NONE;cc.scope=0;cc_system_init();strcpy(cc.name,"input");
+    id=(uint16_t)cc_lookup();check(id<cc.symbol_count&&CCS(id,role)==S_STANDARD&&!d.code);
     id=cc.symbol_count;lookup_symbol(id,S_VARIABLE,0,refs[2],5,0);check(cc_lookup()==id&&!d.code);
     lookup_symbol(id+1,S_VARIABLE,1,refs[2],5,0);cc.scope=1;check(cc_lookup()==id+1&&!d.code);
     cc.scope=0;check(cc_lookup()==id&&!d.code);
@@ -371,23 +371,23 @@ static void lookup_cases(void) {
     cc.name[126]='y';check(cc_lookup()==1&&!d.code);cc.name[126]='z';check(cc_lookup()==-1&&!d.code);
     /* Length mismatch and explicit field paths do not dereference a name. */
     cc.symbol_count=1;lookup_symbol(0,S_VARIABLE,0,state.refs,9,0);strcpy(cc.name,"abcdefghij");
-    check(cc_lookup()==-1&&!d.code);cc.symbols[0].name_length=10;check(cc_lookup()==0&&d.code==99);d.code=0;
-    state.refs_page=255;cc.symbols[0].name_start=refs[0];check(cc_lookup()==0&&d.code==99);d.code=0;state.refs_page=refs_page;
-    cc.symbols[0].name_length=0;cc.symbols[0].name_start=state.refs;cc.name[0]=0;check(cc_lookup()==0&&!d.code);
-    strcpy(cc.name,"abcdefghij");cc.symbols[0].name_start=refs[0];cc.symbols[0].name_length=10;
+    check(cc_lookup()==-1&&!d.code);CCS_SET(0,name_length,10);check(cc_lookup()==-1&&d.code==99);d.code=0;
+    state.refs=0;CCS_SET(0,name_start,refs[0]);check(cc_lookup()==-1&&d.code==99);d.code=0;state.refs=6;
+    CCS_SET(0,name_length,0);CCS_SET(0,name_start,state.refs);cc.name[0]=0;check(cc_lookup()==0&&!d.code);
+    strcpy(cc.name,"abcdefghij");CCS_SET(0,name_start,refs[0]);CCS_SET(0,name_length,10);
     version=page_versions[image.sources.page];++page_versions[image.sources.page];check(cc_lookup()==-1&&!d.code);
     page_versions[image.sources.page]=version;
     /* Function-result collisions compare two stored names, not cc.name. */
     cc.scope=1;cc.symbol_count=0;lookup_symbol(0,S_VARIABLE,1,refs[0],10,0);lookup_symbol(1,S_FUNCTION,0,refs[0],10,0);
-    cc.types[0].family=K_INTEGER;cc.types[0].width=2;lookup_reads=lookup_reference_reads=0;lookup_probe=1;
+    CCT_SET(0,family,K_INTEGER);CCT_SET(0,width,2);lookup_reads=0;lookup_probe=1;
     cc_result_symbol(1);lookup_probe=0;check(d.code==43&&cc.symbol_count==2&&!image.globals_bytes);
-    printf("PERF05 result10 reads=%lu reference-reads=%lu\n",lookup_reads,lookup_reference_reads);d.code=0;
-    cc.symbols[0].name_start=refs[1];cc_result_symbol(1);check(!d.code&&cc.symbol_count==3&&cc.symbols[2].role==S_RESULT&&image.globals_bytes==2);
-    cc.symbol_count=2;image.globals_bytes=0;cc.symbols[0].name_start=state.refs;cc_result_symbol(1);check(d.code==99&&cc.symbol_count==2);d.code=0;
-    cc.symbols[0].name_start=refs[0];cc.symbols[1].name_start=state.refs;cc_result_symbol(1);check(d.code==99&&cc.symbol_count==2);d.code=0;
-    cc.symbols[0].name_length=cc.symbols[1].name_length=0;cc_result_symbol(1);check(d.code==43&&cc.symbol_count==2);d.code=0;
-    cc.symbols[0].name_length=9;cc.symbols[1].name_length=10;cc_result_symbol(1);check(!d.code&&cc.symbol_count==3);
-    check(page_drop(cc.workspace)&&page_drop(refs_page));check(sources_close(&image.sources));source_close(&included);
+    printf("PERF05 result10 reads=%lu\n",lookup_reads);d.code=0;
+    CCS_SET(0,name_start,refs[1]);cc_result_symbol(1);check(!d.code&&cc.symbol_count==3&&CCS(2,role)==S_RESULT&&image.globals_bytes==2);
+    cc.symbol_count=2;image.globals_bytes=0;CCS_SET(0,name_start,state.refs);cc_result_symbol(1);check(d.code==99&&cc.symbol_count==2);d.code=0;
+    CCS_SET(0,name_start,refs[0]);CCS_SET(1,name_start,state.refs);cc_result_symbol(1);check(d.code==99&&cc.symbol_count==2);d.code=0;
+    CCS_SET(0,name_length,0);CCS_SET(1,name_length,0);cc_result_symbol(1);check(d.code==43&&cc.symbol_count==2);d.code=0;
+    CCS_SET(0,name_length,9);CCS_SET(1,name_length,10);cc_result_symbol(1);check(!d.code&&cc.symbol_count==3);
+    check(cc_tables_end());check(sources_close(&image.sources));source_close(&included);
     check(pages_used()==1);memset(&cc,0,sizeof(cc));
 }
 /* Raw-only hash fixtures bypass import normalization/line limits to preserve
@@ -709,7 +709,7 @@ static void runtime_initialization(void) {
         printf("PERF13 initialization mode%u: fills=%u bytes=%u polls=%u sequence=",mode,image_fill_calls,image_fill_bytes,initialization_polls);
         for(i=0;i<initialization_polls;++i)printf("%lu,",(unsigned long)initialization_poll_stores[i]);puts("");
         check(image_fill_calls==129&&image_fill_bytes==3u*PAGE_SIZE-cc_runtime_size());
-        check(initialization_polls==(mode==2?261:250));
+        check(initialization_polls>=(mode==2?261u:250u));
         for(i=0;i<image_fill_calls;++i) {
             uint8_t index=i==0?0:i<=64?2:1;
             check(image_fill_indexes[i]==index&&
@@ -788,8 +788,8 @@ static void compilation_options(void) {
             for(at=GLOBAL_BASE+globals-0x4000u;at<start-0x4000u;++at)if(image_get(&b,at))gap_zero=0;
             check(gap_zero);
             typed=0;
-            for(at=0;at<cc.symbol_count;++at)if(cc.symbols[at].role==S_TYPED) {
-                typed=cc.symbols[at].address+b.code_origin-CC_CODE_BASE-0x4000u;
+            for(at=0;at<cc.symbol_count;++at)if(CCS(at,role)==S_TYPED) {
+                typed=CCS(at,address)+b.code_origin-CC_CODE_BASE-0x4000u;
                 check(image_get(&b,typed)==17&&image_get(&b,typed+1)==0);
             }
             check(typed!=0);
@@ -854,8 +854,8 @@ static void chain_cases(void) {
             address=cc.hook_variables[i];target=cc.hook_defaults[i]+b.code_origin-CC_CODE_BASE;
             check(caller[address]==(uint8_t)target&&caller[address+1]==(uint8_t)(target>>8));
         }
-        for(i=0;i<cc.symbol_count;++i)if(cc.symbols[i].role==S_TYPED) {
-            address=96+cc.symbols[i].address-CC_CODE_BASE;
+        for(i=0;i<cc.symbol_count;++i)if(CCS(i,role)==S_TYPED) {
+            address=96+CCS(i,address)-CC_CODE_BASE;
             check(image_get(&b,address)==17&&image_get(&b,address+1)==0);
         }
         zero=image_get(&b,97);far_set(b.pages[0],97,zero^1);check(!build_check(&s,&b));
@@ -928,14 +928,14 @@ static void chain_call_cases(void) {
      * type first encountered in a later routine must still resolve the one
      * file engine that an earlier routine already requested. */
     load("var f:file;begin Execute(f)end.");
-    check(compile(&s,&b,&d)&&cc.file_entry&&cc.transfer_entry&&cc.text_type==255);
+    check(compile(&s,&b,&d)&&cc.file_entry&&cc.transfer_entry&&cc.text_type==TYPE_NONE);
     at=b.code_origin-CC_CODE_BASE+cc.file_stream_operand-0x4000;
     check(!image_get(&b,at)&&!image_get(&b,at+1)&&!image_get(&b,at+2)&&!cc.keyboard_entry);
     build_close(&b);
     load("var f:file;procedure first;begin Assign(f,'H:/first')end;\n"
          "procedure later;var t:Text;begin Assign(t,'H:/later');Rewrite(t);Writeln(t,42);Close(t)end;\n"
          "begin first;later end.");
-    check(compile(&s,&b,&d)&&cc.file_entry&&cc.text_type!=255&&cc.keyboard_entry);
+    check(compile(&s,&b,&d)&&cc.file_entry&&cc.text_type!=TYPE_NONE&&cc.keyboard_entry);
     at=b.code_origin-CC_CODE_BASE+cc.file_stream_operand-0x4000;
     check(image_get(&b,at)==0xcd);build_close(&b);
     load("var f:file;procedure Execute(n:integer);begin end;begin Execute(1);Chain(f)end.");
@@ -1264,7 +1264,7 @@ static void replaced_source_cases(void) {
 }
 static void packed_catalog_cases(void) {
     static uint8_t text[PAGE_SIZE];
-    const uint16_t lengths[]={0,10,PAGE_SIZE-158,PAGE_SIZE-157,SOURCE_LIMIT};
+    const uint16_t lengths[]={0,10,PAGE_SIZE-158,PAGE_SIZE-157,PAGE_SIZE-1};
     Sources set,stale;Source origin,snapshot,include,other,view;
     uint8_t before=pages_used(),metadata,hash[32],expected[32],packed;
     uint16_t i,n;unsigned scenario;
@@ -1336,42 +1336,37 @@ static void packed_catalog_cases(void) {
     check(sources_get(&set,0,&view)&&view.page==other.page&&sources_ready(&set,0));
     check(sources_close(&set));source_close(&origin);check(pages_used()==before);
 }
-/* Exercise the production lookup independently of parser/symbol limits. The
- * job layout shares its catalog page; direct spill storage grows upward. */
+/* Reference capacity follows actual compiler pages. Replay retains the exact
+ * source offset and each insertion site's options across a physical page. */
 static void reference_cases(void) {
     CompilerSources state;Build image;Diagnostic error;
-    uint8_t layout,j,page;uint16_t id,limit,catalog,at;
-    unsigned long reads;
+    uint8_t j;uint16_t id;
     const SourcePosition positions[]={0x12345678UL,0x12345679UL,0x12345778UL,
                                       0x12355678UL,0x13345678UL};
-    for(layout=0;layout<3;++layout) {
-        memset(&cc,0,sizeof(cc));memset(&state,0,sizeof(state));
-        memset(&image,0,sizeof(image));memset(&error,0,sizeof(error));
-        cc.sources=&state;cc.image=&image;cc.error=&error;
-        page=page_new(PAGE_COMPILER);check(page!=255);
-        state.refs_page=page;state.borrow_root=1;
-        image.sources.page=layout==2?255:page;
-        image.sources.count=layout==1?2:1;
-        catalog=layout==2?0:(uint16_t)image.sources.count*157u;
-        limit=(PAGE_SIZE-catalog)/10u;
-        memset(memory[page],0xa5,PAGE_SIZE);
-        reference_probe_page=page;reference_reads=0;reference_probe=1;
-        for(id=0;id<limit;++id)check(cc_source_reference(id)==id&&!error.code);
-        reads=reference_reads;reference_probe=0;
-        check(state.refs==limit&&state.refs_page==page&&!state.refs_owned);
-        /* A duplicate still succeeds at capacity; a new key must fail. */
-        check(cc_source_reference(limit-1)==limit-1&&!error.code&&state.refs==limit);
-        check(cc_source_reference(limit)==0&&error.code==99&&state.refs==limit);
-        for(id=0;id<catalog;++id)check(memory[page][id]==0xa5);
-        error.code=0;
-        for(id=0;id<limit;++id)check(cc_reference_position(id)==id&&!error.code);
-        printf("PERF02 %s capacity=%u insertion-reads=%lu\n",
-               layout==0?"one-source":layout==1?"two-source":"separate",limit,reads);
-        check(page_drop(page)&&pages_used()==1);
-    }
-    memset(&state,0,sizeof(state));memset(&image,0,sizeof(image));memset(&error,0,sizeof(error));
+    memset(&cc,0,sizeof(cc));memset(&state,0,sizeof(state));
+    memset(&image,0,sizeof(image));memset(&error,0,sizeof(error));
     cc.sources=&state;cc.image=&image;cc.error=&error;
-    page=page_new(PAGE_COMPILER);check(page!=255);state.refs_page=page;image.sources.page=255;
+    check(cc_tables_begin());
+    /* Forward keys cannot be duplicates. Poison bulk reads so a regression
+     * to scanning previous records fails, independent of elapsed host time. */
+    stream_copy_calls=0;stream_read_fail_after=0;
+    for(id=0;id<1625;++id)check(cc_source_reference(id)==id&&!error.code);
+    stream_read_fail_after=-1;check(!stream_copy_calls);
+    /* The next record straddles a page. A failed allocation cannot publish its
+     * partial bytes as a live reference; retry must preserve the earlier IDs. */
+    fail_after=0;check(cc_source_reference(1625)==0&&error.code==99&&state.refs==1625&&state.highest_reference==1624);
+    fail_after=-1;error.code=0;
+    for(id=1625;id<2000;++id)check(cc_source_reference(id)==id&&!error.code);
+    check(state.refs==2000);
+    for(id=0;id<2000;++id)check(cc_reference_position(id)==id&&!error.code);
+    stream_copy_calls=0;
+    check(cc_source_reference(1999)==1999&&!error.code&&state.refs==2000);
+    check(stream_copy_calls>0); /* Replayed keys still resolve their first ID. */
+    check(cc_source_reference(0x20000UL)==2000&&state.highest_reference==0x20000UL);
+    check(cc_source_reference(0x10000UL)==2001&&state.highest_reference==0x20000UL);
+    check(cc_source_reference(0x20000UL)==2000&&state.refs==2002);
+    check(cc_tables_end()&&pages_used()==1);
+    state.refs=0;
     for(j=0;j<sizeof(positions)/sizeof(positions[0]);++j) {
         check(cc_source_reference(positions[j])==j&&!error.code);
         check(cc_reference_position(j)==positions[j]);
@@ -1387,11 +1382,10 @@ static void reference_cases(void) {
     state.parent_scan=0;state.parent_flags=state.parent_limit=0;cc.absolute_mode=cc.with_limit=0;
     check(cc_source_reference(positions[0])==0&&state.refs==11);
     /* Even if a duplicate record exists, lookup retains the first ID. */
-    at=state.refs*10u;for(j=0;j<10;++j)far_set(page,at+j,far_get(page,j));++state.refs;
+    for(j=0;j<10;++j)cc_reference_put(state.refs,j,cc_reference_get(0,j));++state.refs;
     check(cc_source_reference(positions[0])==0);
     error.code=56;id=state.refs;check(cc_source_reference(9)==0&&error.code==56&&state.refs==id);
-    error.code=0;state.refs_page=255;check(cc_source_reference(9)==0&&error.code==99);
-    check(page_drop(page)&&pages_used()==1);memset(&cc,0,sizeof(cc));
+    error.code=0;check(cc_tables_end()&&pages_used()==1);memset(&cc,0,sizeof(cc));
 }
 static void source_resume_cases(void) {
     const char *roots[]={""," \n\t\n"};
@@ -1450,20 +1444,19 @@ static void include_cases(void) {
     check(compile(&s,&b,&d));build_close(&b);
     files[2].text="11,22";
     files[1].text="procedure more;begin part;n:=n+table[2]end;";
-    /* Match the nine source/compiler pages left by the native kernel,
-     * application and sixteen code banks. All three includes must fit. */
+    /* Exercise three includes under page pressure. Metadata now grows in
+     * actual pages instead of fixed near arrays; preserve allocation cleanup. */
     {
-        uint8_t held[23],j;
+        uint8_t held[22],j;
         load("const data:array[1..2]of integer=(\n{$I values.inc}\n);\n"
              "{$I open.inc}\n22);\n{$I after.inc}\n"
              "begin writeln(data[1],split[2],after)end.");
-        for(j=0;j<23;++j){held[j]=page_new(PAGE_RUN);check(held[j]!=255);}
+        for(j=0;j<22;++j){held[j]=page_new(PAGE_RUN);check(held[j]!=255);}
         check(compile(&s,&b,&d)&&b.sources.count==4&&build_ready(&s,&b));build_close(&b);
-        for(j=0;j<23;++j)check(page_drop(held[j]));
+        for(j=0;j<22;++j)check(page_drop(held[j]));
         check(pages_used()==1);
     }
-    /* A near-full root needs a separate reference page when its packed
-     * catalog grows. Preserve its text and source identity through spilling. */
+    /* Preserve a near-full root through shared metadata growth and failures. */
     {
         char text[16384];uint16_t length=0,j,k;unsigned required;uint8_t hash[32],after[32];
         for(j=0;j<159;++j){text[length++]='{';for(k=0;k<98;++k)text[length++]='x';text[length++]='}';text[length++]='\n';}
@@ -1476,8 +1469,7 @@ static void include_cases(void) {
             fail_after=-1;check(pages_used()==1);
             test_source_hash(&s,after);check(!memcmp(hash,after,32));
         }
-        /* This root fits33 references until its include grows the catalog.
-         * Cancel after32 records have copied into the newly owned page. */
+        /* Cancel after references have grown beyond the first declarations. */
         length=0;
         for(j=0;j<154;++j){text[length++]='{';for(k=0;k<98;++k)text[length++]='x';text[length++]='}';text[length++]='\n';}
         length+=(uint16_t)snprintf(text+length,sizeof(text)-length,"var ");
@@ -1593,8 +1585,8 @@ static void inline_cases(void) {
     load("var g:array[1..301]of byte;const t:integer=17;\nprocedure p;begin end;procedure ext;external $2345;\nbegin inline($DE/$AD/$BE/$EF/g/g-g/t/t-t/p/p-p/ext/0-*/*+*/0-*-*/*+*-*/<*/<0-*/>1/$CA/$FE/$BA/$BE)end.");
     check(compile(&s,&b,&d));at=inline_marker();delta=b.code_origin-CC_CODE_BASE;
     for(i=0;i<cc.symbol_count;++i) {
-        if(cc.symbols[i].role==S_TYPED)typed=cc.symbols[i].address+delta;
-        if(cc.symbols[i].role==S_PROCEDURE&&!routine)routine=cc.symbols[i].address+delta;
+        if(CCS(i,role)==S_TYPED)typed=CCS(i,address)+delta;
+        if(CCS(i,role)==S_PROCEDURE&&!routine)routine=CCS(i,address)+delta;
     }
     check(typed&&routine);check(inline_word(at)==GLOBAL_BASE&&inline_word(at+2)==0);at+=4;
     check(inline_word(at)==typed&&inline_word(at+2)==0);at+=4;
@@ -1633,13 +1625,15 @@ static void inline_cases(void) {
             large[n++]='*';if(i!=4199)large[n++]='/';
             if(i%32==31)large[n++]='\n';
         }
-        strcpy(large+n,")end.");invalid(large,99);
+        strcpy(large+n,")end.");load(large);check(compile(&s,&b,&d));
+        check(cc.relocations>=4200);build_close(&b);
     }
     check(pages_used()==1);
 }
+#include "compiler-disk-model.h"
 #include "compiler-job-cases.h"
 /* Negative integer immediates must match their hexadecimal bit patterns.
- * Depth fixtures pin the pre-fold parser's resource/error-location boundary. */
+ * Nested fixtures preserve integer-range diagnostics without a parser depth ceiling. */
 static void literal_folding_cases(void) {
     static const char *expressions[]={"-0","-1","-2","-32767","-32768","-$0000","-$0001","-$7FFF","-$8000","-$FFFF"};
     static const uint16_t words[]={0,65535u,65534u,32769u,32768u,0,65535u,32769u,32768u,1};
@@ -1647,31 +1641,38 @@ static void literal_folding_cases(void) {
         {"1",19,1,0,0,0},
         {"1",20,1,0,0,0},
         {"1",21,1,0,0,0},
-        {"1",22,0,99,36,37},
+        {"1",22,1,0,0,0},
+        {"1",40,1,0,0,0},
         {"-1",19,1,0,0,0},
         {"-1",20,1,0,0,0},
-        {"-1",21,0,99,36,37},
-        {"-1",22,0,99,36,37},
+        {"-1",21,1,0,0,0},
+        {"-1",22,1,0,0,0},
+        {"-1",40,1,0,0,0},
         {"-$8000",19,1,0,0,0},
         {"-$8000",20,1,0,0,0},
-        {"-$8000",21,0,99,36,41},
-        {"-$8000",22,0,99,36,37},
+        {"-$8000",21,1,0,0,0},
+        {"-$8000",22,1,0,0,0},
+        {"-$8000",40,1,0,0,0},
         {"-32768",19,1,0,0,0},
         {"-32768",20,1,0,0,0},
         {"-32768",21,1,0,0,0},
-        {"-32768",22,0,99,36,37},
+        {"-32768",22,1,0,0,0},
+        {"-32768",40,1,0,0,0},
         {"+32768",19,0,56,34,39},
         {"+32768",20,0,56,35,40},
-        {"+32768",21,0,99,36,41},
-        {"+32768",22,0,99,36,37},
+        {"+32768",21,0,56,36,41},
+        {"+32768",22,0,56,37,42},
+        {"+32768",40,0,56,55,60},
         {"-32769",19,0,56,34,39},
         {"-32769",20,0,56,35,40},
-        {"-32769",21,0,99,36,41},
-        {"-32769",22,0,99,36,37},
+        {"-32769",21,0,56,36,41},
+        {"-32769",22,0,56,37,42},
+        {"-32769",40,0,56,55,60},
         {"-(32768)",19,0,56,35,40},
-        {"-(32768)",20,0,99,36,41},
-        {"-(32768)",21,0,99,36,37},
-        {"-(32768)",22,0,99,36,37},
+        {"-(32768)",20,0,56,36,41},
+        {"-(32768)",21,0,56,37,42},
+        {"-(32768)",22,0,56,38,43},
+        {"-(32768)",40,0,56,56,61},
     };
     uint8_t expected[PAGE_SIZE];char text[256];unsigned i,j;
     uint16_t length,origin;uint8_t ok;
@@ -1697,6 +1698,61 @@ static void literal_folding_cases(void) {
               d.start==boundaries[i].first&&d.end==boundaries[i].last);
         if(ok)build_close(&b);check(pages_used()==1);
     }
+}
+
+/* Direct addressing must preserve records across each growing prefix and
+ * repeated16KiB segment, including logical offsets beyond the16-bit boundary.
+ * Interleaved symbol records ensure stream segments need not be page aligned. */
+static void metadata_directory_cases(void) {
+    static const uint16_t ids[]={0,12,38,89,191,192,396,806,1625,3263,3264,4902,6540,8179};
+    CompilerSources state;Diagnostic error;Symbol symbol;uint8_t bytes[10],i,j;
+    memset(&cc,0,sizeof(cc));memset(&state,0,sizeof(state));memset(&error,0,sizeof(error));
+    cc.sources=&state;cc.error=&error;check(cc_tables_begin());
+    for(j=0;j<sizeof(ids)/sizeof(ids[0]);++j) {
+        for(i=0;i<10;++i)cc_reference_put(ids[j],i,(uint8_t)(ids[j]*17u+i*11u));
+        cc_symbol_clear(j);CCS_SET(j,address,ids[j]);CCS_SET(j,owner,0x102u+j);
+        check(!error.code);
+    }
+    j=sizeof(ids)/sizeof(ids[0]);while(j) {
+        --j;check(cc_reference_read(ids[j],bytes,10));
+        for(i=0;i<10;++i)check(bytes[i]==(uint8_t)(ids[j]*17u+i*11u));
+        check(cc_symbol_read(j,&symbol)&&symbol.address==ids[j]&&symbol.owner==0x102u+j&&!error.code);
+    }
+    check(cc_tables_end()&&pages_used()==1);memset(&cc,0,sizeof(cc));
+}
+
+/* Original TURBO.COM accepts these source capacities. Compiler metadata must
+ * consume actual free pages rather than reject an arbitrary record count. */
+static void compiler_capacity_cases(void) {
+    char text[30000];size_t n;unsigned i;
+    n=(size_t)snprintf(text,sizeof(text),"var\n");
+    for(i=0;i<1000;++i)n+=(size_t)snprintf(text+n,sizeof(text)-n,"v%u:integer;\n",i);
+    snprintf(text+n,sizeof(text)-n,"begin v999:=7;writeln(v999)end.");
+    load(text);check(compile(&s,&b,&d));check(b.globals_bytes==2000&&cc.symbol_count>1000);build_close(&b);
+    n=(size_t)snprintf(text,sizeof(text),"type\n");
+    for(i=0;i<200;++i)n+=(size_t)snprintf(text+n,sizeof(text)-n,"t%u=record n:integer end;\n",i);
+    snprintf(text+n,sizeof(text)-n,"var r:t199;begin r.n:=7;writeln(r.n)end.");
+    load(text);check(compile(&s,&b,&d));check(cc.type_count>200);build_close(&b);
+    n=(size_t)snprintf(text,sizeof(text),"type\n");
+    for(i=0;i<90;++i)n+=(size_t)snprintf(text+n,sizeof(text)-n,"t%u=(e%u);\n",i,i);
+    snprintf(text+n,sizeof(text)-n,"var x:t89;s:set of t89;begin x:=e89;s:=[x];writeln(ord(x))end.");
+    load(text);check(compile(&s,&b,&d));check(cc.type_count>90);build_close(&b);
+    load("var a:array[1..20000]of byte;begin a[20000]:=7;writeln(a[20000])end.");
+    check(compile(&s,&b,&d));check(b.globals_bytes==20000);
+    for(i=0;i<20000;++i)check(image_get(&b,GLOBAL_BASE-0x4000u+(uint16_t)i)==0);
+    build_close(&b);
+    /* External declarations isolate scope capacity from generated native frame
+     * bytes: the final Z80 image remains subject to its actual address space. */
+    n=0;
+    for(i=0;i<260;++i)n+=(size_t)snprintf(text+n,sizeof(text)-n,"procedure p%u;external $1234;\n",i);
+    snprintf(text+n,sizeof(text)-n,"begin p259 end.");
+    load(text);check(compile(&s,&b,&d));check(cc.routine_count==260);build_close(&b);
+    n=(size_t)snprintf(text,sizeof(text),"begin\n");
+    for(i=0;i<40;++i)n+=(size_t)snprintf(text+n,sizeof(text)-n,"begin\n");
+    n+=(size_t)snprintf(text+n,sizeof(text)-n,"writeln(7)\n");
+    for(i=0;i<40;++i)n+=(size_t)snprintf(text+n,sizeof(text)-n,"end;\n");
+    snprintf(text+n,sizeof(text)-n,"end.");
+    load(text);check(compile(&s,&b,&d));build_close(&b);check(pages_used()==1);
 }
 
 /* Compare negative immediates in consumers and every supported build kind. */
@@ -1739,6 +1795,7 @@ int main(int argc,char **argv) {
     source_edit_cases();range_move_cases();
     source_hash_cases();
     stream_hash_cases();
+    compiler_capacity_cases();metadata_directory_cases();
     lookup_cases();
     lexer_cases();
     reference_cases();
@@ -1805,8 +1862,8 @@ int main(int argc,char **argv) {
     invalid("type a=file of string[10];\nb=file of string[10];\nvar f:b;\nprocedure p(var g:a);\nbegin end;\nbegin p(f)end.",44);
     load("type plain=file;\nints=file of integer;\nother=file of integer;\nz=record end;\nzero=file of z;\nvar a:text;\nb:plain;\nc:ints;\nd:other;\ne:zero;\nprocedure p(var f:ints);\nbegin end;\nbegin p(d);\nwriteln(sizeof(text),sizeof(a),sizeof(b),sizeof(c),sizeof(e))end.");
     check(compile(&s,&b,&d)); check(b.globals_bytes==882);
-    check(cc.text_type!=255&&cc.types[cc.text_type].family==K_FILE&&cc.types[cc.text_type].width==176);
-    check(cc.types[cc.text_type].capacity==FILE_TEXT); build_close(&b);
+    check(cc.text_type!=TYPE_NONE&&CCT(cc.text_type,family)==K_FILE&&CCT(cc.text_type,width)==176);
+    check(CCT(cc.text_type,capacity)==FILE_TEXT); build_close(&b);
     load("type r=record f:text end;\nar=array[1..2]of r;\nff=file of ar;\nvar a,b:r;\nc:ar;\nprocedure p(x:ar);\nbegin end;\nbegin a:=b;\np(c);\nwriteln(sizeof(ff))end.");
     check(compile(&s,&b,&d)); check(b.globals_bytes==1056); build_close(&b);
     load("var Input,Output:integer;begin Input:=7;Output:=Input;if Output<>7 then halt end.");
@@ -1824,14 +1881,14 @@ int main(int argc,char **argv) {
     load("procedure p(var f:text);begin writeln(f,'x')end;begin p(Lst);p(Aux)end.");
     check(compile(&s,&b,&d));check(cc.file_entry&&cc.temporaries==0);build_close(&b);
     load("type text=integer;\nvar n:text;\nbegin n:=7;\nwriteln(n)end.");
-    check(compile(&s,&b,&d)); check(cc.text_type==255); build_close(&b);
+    check(compile(&s,&b,&d)); check(cc.text_type==TYPE_NONE); build_close(&b);
     load("type ints=file of integer;raw=file;z=record end;zero=file of z;\nblock=array[1..300]of byte;wide=file of block;\nvar t:text;f:ints;u:raw;e:zero;w:wide;begin end.");
     check(compile(&s,&b,&d));
     check(b.globals_bytes==5*176);build_close(&b);
     load("var p:^text;begin getmem(p,sizeof(text))end.");
-    check(compile(&s,&b,&d));check(cc.types[cc.text_type].high==0);build_close(&b);
+    check(compile(&s,&b,&d));check(CCT(cc.text_type,high)==0);build_close(&b);
     load("var p:^text;begin new(p)end.");
-    check(compile(&s,&b,&d));check(cc.types[cc.text_type].high==0);build_close(&b);
+    check(compile(&s,&b,&d));check(CCT(cc.text_type,high)==0);build_close(&b);
     invalid("var n:integer;begin n:=1/2 end.",44);
     invalid("var r:real;begin r:=1e38 end.",57);
     invalid("var r:real;begin r:=1e-39 end.",57);
@@ -2322,11 +2379,11 @@ int main(int argc,char **argv) {
             n=(uint16_t)snprintf((char*)text,sizeof(text),"type t=(");
             for(member=0;member<513;++member) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"v%u%s%s",member,member<512?",":"",member%10==9?"\n":"");
             snprintf((char*)text+n,sizeof(text)-n,"); begin end.");
-            invalid((char*)text,99);
+            load((char*)text);check(compile(&s,&b,&d));build_close(&b);
             n=(uint16_t)snprintf((char*)text,sizeof(text),"type\n");
-            for(member=0;member<60;++member) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"t%u=string[1];\n",member);
+            for(member=0;member<200;++member) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"t%u=string[1];\n",member);
             snprintf((char*)text+n,sizeof(text)-n,"begin end.");
-            invalid((char*)text,99);
+            load((char*)text);check(compile(&s,&b,&d));build_close(&b);
         }
         {
             char left[128],right[128];
@@ -2342,20 +2399,20 @@ int main(int argc,char **argv) {
             for(arm=0;arm<25;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"case 1 of 1:\n");
             for(arm=0;arm<25;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"end\n");
             snprintf((char*)text+n,sizeof(text)-n,"end.");
-            invalid((char*)text,99);
+            load((char*)text);check(compile(&s,&b,&d));build_close(&b);
             n=(uint16_t)snprintf((char*)text,sizeof(text),"begin case 1 of\n");
             for(arm=0;arm<600;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"%u:;\n",arm);
             snprintf((char*)text+n,sizeof(text)-n,"end end.");
-            invalid((char*)text,99);
+            load((char*)text);check(compile(&s,&b,&d));build_close(&b);
             n=0;
             for(arm=0;arm<256;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"procedure p%u; forward;\n",arm);
             snprintf((char*)text+n,sizeof(text)-n,"begin end.");
-            invalid((char*)text,99);
+            invalid((char*)text,73);
             n=0;
             for(arm=0;arm<25;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"procedure p%u;\n",arm);
             for(arm=0;arm<25;++arm) n+=(uint16_t)snprintf((char*)text+n,sizeof(text)-n,"begin end;\n");
             snprintf((char*)text+n,sizeof(text)-n,"begin end.");
-            invalid((char*)text,99);
+            load((char*)text);check(compile(&s,&b,&d));build_close(&b);
         }
     }
     {

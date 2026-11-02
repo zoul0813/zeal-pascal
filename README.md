@@ -234,6 +234,11 @@ programs contain their own runtime and need no IDE library.
 Startup is currently slow: allow roughly 2½ minutes at the target's normal
 speed for library loading and verification before the IDE prompt appears.
 
+The library uses fifteen code banks. Startup retains thirteen; two compiler banks
+load on the first compilation and can be parked during program execution. Startup
+still
+checks the complete library file before accepting it.
+
 At the startup message prompt, Y enables compiler explanations and N keeps
 numeric diagnostics. Missing explanations still leave the error number usable.
 The menu retains the last successful compilation's Main line count and code/data
@@ -289,24 +294,24 @@ page; compiler/build source tables still support includes and error locations.
 
 Saved programs report runtime and I/O errors with a hexadecimal PC. Select the
 program's Main or Work source, choose O then F, and enter that PC (one to four
-hexadecimal digits). The IDE verifies the saved COM/ZMP or CHN/ZMP pair for the
-selected output mode and all source identities, then Escape opens the actual
-source or include at the error position.
-This works in a fresh session without compiling. The current Work buffer takes precedence over disk for its matching path. Headers, canonical paths, source
-lengths and PC/source offsets are checked; failures retain edits. Recompile after
-source changes: same-size edits are not detected. Overlay lookup remains
-unsupported. Rebuild version-1 programs/maps with the current compiler.
+hexadecimal digits). The IDE recompiles the selected source to recover its statement position, then
+Escape opens the actual source or include at that position. This also works in
+a fresh session with no saved executable or map. The current Work buffer takes
+precedence over disk for its matching path. Use the source, compiler version
+and saved-mode Start/End settings that produced the reported PC. Source changes can change code
+offsets. Overlay lookup remains unsupported.
 
 In Com-file mode, compiling the default source writes
 `T:/src/pascal/UNTITLED.COM` and `T:/src/pascal/UNTITLED.ZMP`.
 Run `T:/src/pascal/UNTITLED.COM` from ZShell. These are native Zeal Z80
 executables. Source must be saved separately with S.
-Saved compilation releases its transient image/map/source-table pages after
-publication. R in saved mode recompiles and publishes, releases the transient
+Saved compilation emits and backpatches code in a private `.$$$` disk workspace,
+using a 128-byte sector buffer and no executable-image RAM pages. It streams the
+final COM/CHN layout to the output and removes its workspace when the build closes.
+An existing workspace name is never overwritten. Compilation releases its
+transient map/source-table pages after publication. R in saved mode recompiles and publishes, releases the transient
 build before execution, then runs the disk executable. It does not reload a RAM
-cache after the child exits. Work stays in RAM. The emitter still constructs the
-output in RAM before publication: true disk-backed code generation remains an
-open TP3 capacity gap; writing a final file does not resolve that gap.
+cache after the child exits. Work stays in RAM. Disk compilation trades storage I/O for RAM capacity.
 
 H cHn-file mode writes a compact `.CHN` code payload and its `.ZMP` source map.
 It omits the ordinary executable's runtime, globals and placement gaps. It uses
@@ -321,17 +326,17 @@ R explains the required caller while retaining the compiled CHN file.
 CHN source lookup through O,F is available. Switching output kinds
 invalidates the cached build; it does not save source.
 
-Saved programs can replace themselves with another compiled Pascal program:
+Saved programs can replace themselves with an ordinary native Zeal executable:
 `Assign(next,'T:/NEXT.COM'); Execute(next)`. Success never returns to the caller.
-The replacement uses its own runtime, globals and Start/End settings. Memory
-mode reports I/O21. `$I-`/IOResult handles ordinary load failures. Incompatible
-images are rejected before closing files; an attempted OS replacement closes
-ordinary files but retains their filename associations if it fails, so Reset
-can reopen them. Replacement targets require the current sealed startup; rebuild
-older experimental COM files. Executing a saved caller through R returns to the
-IDE after the replacement exits, preserving Work source.
+The native loader accepts nonempty files smaller than 48 KiB. A validated Pascal
+startup enables its private handoff; other native executables need no Pascal
+header. Memory mode reports I/O21. `$I-`/IOResult handles load failures. An attempted
+OS replacement closes ordinary files but retains filename associations if it
+fails, so Reset can reopen them. Failed replacement restores the caller image.
+Executing a saved caller through R returns to the IDE after the replacement exits,
+preserving Work source.
 
-The staged loader also requires an matching four-byte private-runtime compatibility identifier. CHN entry
+The CHN loader requires a matching four-byte private-runtime compatibility identifier. CHN entry
 code occupies96 bytes, followed by4 compatibility bytes that execution jumps
 over. The build tooling derives the identifier from the runtime prefix, private helper
 addresses, file module/gate and transfer assets. It is a compatibility tag, not
@@ -411,7 +416,8 @@ The pinned HostFS requires checked remove/recreate instead of in-place truncatio
 Zeal has no atomic rename/fsync guarantee.
 
 On the pinned machine, B: is a 64 KiB EEPROM volume; T: is the TF card. Direct
-output needs only the executable and map, rather than three executable copies.
+publication writes the executable and map directly. During saved compilation,
+the private `.$$$` workspace also occupies disk space until the build closes.
 Native error 22 indicates no free space/resources. Historical ZP transaction
 folders are not created or managed by the current implementation. Memory mode
 needs no disk space: O, M, Q returns to the menu, then R compiles/runs from RAM.
@@ -499,12 +505,13 @@ the complete file-error/capacity matrix remain in progress. File support does no
 establish full Turbo Pascal conformance.
 
 Generated code and static storage can occupy up to29,696 bytes above the fixed
-16 KiB runtime prefix, leaving at least2 KiB of initial stack space. The compiler
-uses an additional temporary page when code staging exceeds16 KiB during parsing.
+16 KiB runtime prefix, leaving at least2 KiB of initial stack space. Memory compilation
+uses an additional temporary page when code staging exceeds 16 KiB during parsing.
 After parsing, late helpers can use an unpacked source catalog's unused tail;
 larger catalogs retain separate staging. All staging ends before execution.
-Source remains limited to16,383 bytes and ordinary
-globals to less than16 KiB; stack/heap checks still apply to actual program use.
+Work source can span banks up to 65,534 bytes, subject to available physical RAM.
+Globals share the actual native static/code capacity; they have no separate
+16 KiB compiler ceiling. Stack/heap checks still apply to actual program use.
 
 The compiler executes only Real6 decimal-literal and Integer conversion code.
 It does not link its own transcendental, formatting or Val implementation.
@@ -512,11 +519,12 @@ Generated Pascal programs retain the complete math/runtime implementation.
 The compile API accepts one root Source; include contents are read from disk,
 with no parked-buffer overrides or input-catalog allocation.
 
-Internal compilation source records share unused root-snapshot space when they fit,
-releasing one physical page during compilation and before Run. Canonical source
-bytes, lengths and error mappings are retained. Larger sources use a separate
-catalog page. Temporary source references share the catalog's tail and spill to
-an owned page if source/catalog growth requires it. Available physical RAM still limits execution capacity.
+Owned root snapshots can share unused space with internal compilation source
+records; borrowed Work stays separate. Canonical source bytes, lengths and error
+mappings are retained. Larger sources use a separate table page. Symbols, types, routine records, relocations and temporary source
+references share a growing compiler page arena. Small tables share physical
+pages; all arena pages are released when compilation ownership ends. Available
+physical RAM still limits compilation and execution capacity.
 
 Declarations may repeat in any order. Ordinary constants alias literal/constant
 values; scalar and string typed constants are initialized writable storage.
@@ -536,10 +544,12 @@ is omitted, matching the verified CP/M-80 TP3 3.00A binary, which ignores it.
 Command tails allow up to 127 bytes;
 longer tails are rejected before the Pascal program starts. Ord, Succ and Pred accept
 String/Char-array values of exactly one character; other lengths report runtime
-error 10. The compiler currently has
-512 symbol entries (seventeen predeclared for HeapPtr/RecurPtr/BufLen/CBreak,
-Input/Output/Kbd/Con/Trm/Lst/Aux/Usr and the five output/status pointers) and
-64 type descriptors (including six built-in types).
+error 10. The compiler grows symbol and type records with available physical RAM instead
+of imposing limits of 512 symbols or 64 types. Routine scopes use 16-bit identifiers;
+nesting is checked against actual compiler stack room. Native identifier and
+source-reference encodings still have finite bounds.
+Large symbol-heavy programs still compile slowly through the banked tables;
+these capacity changes do not establish TP3 compile-speed parity.
 Compiler workspace exhaustion reports error 99; insufficient variable storage
 reports error 98. Arrays support ordinal bounds, nested or
 comma-separated dimensions, packed layout, whole-array assignment, typed

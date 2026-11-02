@@ -17,7 +17,7 @@ void code_phase_bind(int8_t fd) SOURCE_BLOCK_CALL {
     for(bank=0;bank<code_required;++bank) {
         if(bank>=CODE_PHASE_FIRST) {
             index=bank-CODE_PHASE_FIRST;offsets[index]=at;
-            valid|=(uint8_t)(1u<<index);
+            if(code_pages[bank]!=255)valid|=(uint8_t)(1u<<index);
         }
         at+=code_sizes[bank];
     }

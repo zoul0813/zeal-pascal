@@ -95,7 +95,7 @@ static uint8_t cleanup(void) {
     if(pending==255)return 1;
     page=far_get(pending,SOURCE_PAGE);
     if(page!=255) {
-        if(!page_drop(page))return 0;
+        if(!buffer_drop(page))return 0;
         far_set(pending,SOURCE_PAGE,255);
     }
     count=far_get(pending,0);
@@ -160,14 +160,14 @@ static uint8_t source_check(const Source *work,const char *path,uint32_t bytes) 
     else {
         uint16_t a=0,z,trim,total=0;
         while(a<source.length) {
-            z=a;while(z<source.length&&far_get(source.page,z)!='\n')++z;
-            trim=z;while(trim>a&&far_get(source.page,trim-1)==' ')--trim;
+            z=a;while(z<source.length&&buffer_get(source.page,z)!='\n')++z;
+            trim=z;while(trim>a&&buffer_get(source.page,trim-1)==' ')--trim;
             total+=trim-a;if(z<source.length)++total;a=z+1;
         }
         ok=total==bytes;
     }
     if(owned) {
-        if(!page_drop(source.page))return 0;
+        if(!buffer_drop(source.page))return 0;
         far_set(pending,SOURCE_PAGE,255);
     }
     return ok?1:corrupt();

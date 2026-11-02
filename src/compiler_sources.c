@@ -1,4 +1,5 @@
 #include "compiler.h"
+#include "compiler_disk.h"
 #include "sources_internal.h"
 
 static uint8_t flags(void) {
@@ -16,31 +17,6 @@ static void options(uint8_t value,uint8_t limit) {
 /* Persistent references also own their insertion context. The same file byte
  * can appear at several include sites; replay must resume the original site,
  * with its options, rather than the last include the scanner happened to read. */
-#define REFERENCE_BYTES 10u
-static uint8_t shared_references(void) {
-    return cc.sources->refs_page==cc.image->sources.page;
-}
-static uint16_t reference_at(uint16_t id) {
-    return shared_references()?PAGE_SIZE-(id+1)*REFERENCE_BYTES:id*REFERENCE_BYTES;
-}
-/* Small direct compilations use the same catalog-tail scratch as jobs. A
- * packed root or growing catalog can exhaust that tail; preserve its existing
- * reference IDs in a separate page before either region could overlap. */
-static uint8_t reserve_references(uint8_t files,uint8_t references) {
-    uint8_t page,previous,j;uint16_t id;
-    if(!shared_references()||(uint32_t)cc.image->sources.base+
-       (uint32_t)(cc.image->sources.count+files)*RECORD_BYTES+
-       (uint32_t)(cc.sources->refs+references)*REFERENCE_BYTES<=PAGE_SIZE)return 1;
-    if(cc.sources->borrow_root){cc_fail(99);return 0;}
-    page=page_new(PAGE_COMPILER);if(page==255){cc_fail(99);return 0;}
-    previous=cc.sources->refs_page;cc.sources->refs_page=page;cc.sources->refs_owned=1;
-    for(id=0;id<cc.sources->refs;++id) {
-        if(!(id&31)&&!cc_poll())return 0;
-        for(j=0;j<REFERENCE_BYTES;++j)
-            far_set(page,id*REFERENCE_BYTES+j,far_get(previous,PAGE_SIZE-(id+1)*REFERENCE_BYTES+j));
-    }
-    return 1;
-}
 SourcePosition cc_source_position(void) ROUTINES {
     return ((SourcePosition)cc.sources->file<<16)|cc.scan;
 }
@@ -48,43 +24,47 @@ uint8_t cc_source_byte(SourcePosition position) ROUTINES {
     return sources_byte(&cc.image->sources,(uint8_t)(position>>16),(uint16_t)position);
 }
 SourcePosition cc_reference_position(uint16_t reference) ROUTINES {
-    uint8_t i;SourcePosition value=0;
-    if(cc.sources->refs_page==255||reference>=cc.sources->refs){cc_fail(99);return 0;}
-    for(i=0;i<4;++i)value|=(SourcePosition)far_get(cc.sources->refs_page,reference_at(reference)+i)<<(i*8);
+    uint8_t i,bytes[4];SourcePosition value=0;
+    if(reference>=cc.sources->refs){cc_fail(99);return 0;}
+    if(!cc_reference_read(reference,bytes,4))return 0;
+    for(i=0;i<4;++i)value|=(SourcePosition)bytes[i]<<(i*8);
     return value;
 }
 uint16_t cc_source_reference(SourcePosition position) ROUTINES {
-    uint16_t id,at;uint8_t i,context[6];
+    uint16_t id;uint8_t i;uint8_t context[6],bytes[10];
     if(cc.error->code)return 0;
-    if(cc.sources->refs_page==255){cc_fail(99);return 0;}
     context[0]=(uint8_t)cc.sources->parent_scan;context[1]=(uint8_t)(cc.sources->parent_scan>>8);
     context[2]=cc.sources->parent_flags;context[3]=cc.sources->parent_limit;
     context[4]=flags();context[5]=cc.with_limit;
-    for(id=0;id<cc.sources->refs;++id) {
-        at=reference_at(id);
+    /* A position above every prior key cannot be a duplicate. Replayed
+     * positions still search the complete insertion contexts below. */
+    id=cc.sources->refs;
+    if(!id)cc.sources->highest_reference=0;
+    if(id&&position<=cc.sources->highest_reference)for(id=0;id<cc.sources->refs;++id) {
+        if(!(id&63u)&&!cc_poll())return 0;
+        if(!cc_reference_read(id,bytes,10))return 0;
         for(i=0;i<4;++i)
-            if(far_get(cc.sources->refs_page,at+i)!=(uint8_t)(position>>(i*8)))break;
+            if(bytes[i]!=(uint8_t)(position>>(i*8)))break;
         if(i!=4)continue;
-        for(i=0;i<6;++i)if(far_get(cc.sources->refs_page,at+4+i)!=context[i])break;
+        for(i=0;i<6;++i)if(bytes[4+i]!=context[i])break;
         if(i==6)return id;
     }
-    if(id==PAGE_SIZE/REFERENCE_BYTES){cc_fail(99);return 0;}
-    if(!reserve_references(0,1))return 0;
-    at=reference_at(id);
-    for(i=0;i<4;++i)far_set(cc.sources->refs_page,at+i,(uint8_t)(position>>(i*8)));
-    for(i=0;i<6;++i)far_set(cc.sources->refs_page,at+4+i,context[i]);
-    if(shared_references())cc.image->sources.version=page_versions[cc.sources->refs_page];
+    /* Real constant references reserve the high bit for sign and7FFF for Pi. */
+    if(id==REAL_PI){cc_fail(99);return 0;}
+    for(i=0;i<4;++i)cc_reference_put(id,i,(uint8_t)(position>>(i*8)));
+    for(i=0;i<6;++i)cc_reference_put(id,4+i,context[i]);
+    if(cc.error->code)return 0;
+    if(!id||position>cc.sources->highest_reference)cc.sources->highest_reference=position;
     ++cc.sources->refs;return id;
 }
 void cc_reference_seek(uint16_t reference) ROUTINES {
-    SourcePosition position=cc_reference_position(reference);
-    uint16_t at=reference_at(reference);
-    if(cc.error->code)return;
-    cc.sources->parent_scan=far_get(cc.sources->refs_page,at+4)|((uint16_t)far_get(cc.sources->refs_page,at+5)<<8);
-    cc.sources->parent_flags=far_get(cc.sources->refs_page,at+6);
-    cc.sources->parent_limit=far_get(cc.sources->refs_page,at+7);
-    options(far_get(cc.sources->refs_page,at+8),far_get(cc.sources->refs_page,at+9));
-    cc_source_seek(position);
+    SourcePosition position=0;uint8_t bytes[10],i;
+    if(reference>=cc.sources->refs){cc_fail(99);return;}
+    if(!cc_reference_read(reference,bytes,10))return;
+    for(i=0;i<4;++i)position|=(SourcePosition)bytes[i]<<(i*8);
+    cc.sources->parent_scan=bytes[4]|((uint16_t)bytes[5]<<8);
+    cc.sources->parent_flags=bytes[6];cc.sources->parent_limit=bytes[7];
+    options(bytes[8],bytes[9]);cc_source_seek(position);
 }
 void cc_source_seek(SourcePosition position) ROUTINES {
     uint8_t file=(uint8_t)(position>>16);
@@ -121,7 +101,6 @@ uint8_t cc_sources_prepare(const Source *root) ROUTINES {
         }
         if(!sources_pack(&cc.image->sources)){cc_fail(99);return 0;}
     }
-    cc.sources->refs_page=cc.image->sources.page;
     return 1;
 }
 /* Parsing and its last source mapping are complete. Reference IDs are dead;
@@ -129,9 +108,8 @@ uint8_t cc_sources_prepare(const Source *root) ROUTINES {
  * Reserve the entire possible second stage so its capacity never depends on
  * which helper emits first. Packed source text is never used as scratch. */
 uint8_t cc_sources_finish(void) ROUTINES {
-    if(cc.sources->refs_owned&&!page_drop(cc.sources->refs_page)){cc_fail(99);return 0;}
-    cc.sources->refs_page=255;cc.sources->refs_owned=0;
-    if(cc.stage_page==255&&!cc.image->sources.base&&
+    if(!cc_references_end()){cc_fail(99);return 0;}
+    if(!cc_disk_active(cc.image)&&cc.stage_page==255&&!cc.image->sources.base&&
        (uint16_t)cc.image->sources.count*RECORD_BYTES<=PAGE_SIZE-(CC_STATIC_LIMIT-0xc000u)) {
         cc.stage_page=cc.image->sources.page;cc.sources->stage_shared=1;
     }
@@ -144,7 +122,7 @@ uint8_t cc_source_resume(void) ROUTINES {
     cc_source_seek(cc.sources->parent_scan);return 1;
 }
 static uint8_t current(uint16_t at) {
-    return at<cc.input->length?far_get(cc.input->page,at):0;
+    return at<cc.input->length?buffer_get(cc.input->page,at):0;
 }
 void cc_source_include(uint8_t comment) ROUTINES {
     char name[128],directory[128],path[128];
@@ -172,7 +150,6 @@ void cc_source_include(uint8_t comment) ROUTINES {
     id=sources_find(&cc.image->sources,path);
     if(id==0){cc_fail(93);return;}
     if(id<0) {
-        if(!reserve_references(1,0))return;
         if(!read_block(&loaded,path,&diagnostic)) {
             cc.error->code=diagnostic.code==98?99:diagnostic.code?diagnostic.code:90;
             cc.error->start=diagnostic.start;cc.error->end=diagnostic.end;
@@ -195,5 +172,5 @@ void cc_source_include(uint8_t comment) ROUTINES {
     }
     cc.sources->parent_scan=after;
     cc.sources->parent_flags=flags();cc.sources->parent_limit=cc.with_limit;
-    cc_source_seek((SourcePosition)(uint8_t)id<<16);
+    cc_source_seek((SourcePosition)(TypeId)id<<16);
 }

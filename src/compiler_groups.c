@@ -4,7 +4,8 @@
 
 /* Explicit far records; no host/SDCC structure layout is serialized.
  * 48 +100*18 +255*24 +256 scope owners fit one page. Routine IDs
- * already have the compiler's255-scope limit; the native format is unchanged. */
+ * in this dormant group format remain eight-bit; ordinary compilation uses
+ * resource-backed wider scope IDs. */
 #define GROUP_BASE 48u
 #define GROUP_BYTES 18u
 #define MEMBER_BASE (GROUP_BASE+100u*GROUP_BYTES)
@@ -56,7 +57,7 @@ uint8_t cc_groups_begin(CompilerGroups *g,int8_t fd) ROUTINES {
     touch(g);page_initialized(g->page,PAGE_SIZE);return 1;
 }
 uint8_t cc_groups_discard(CompilerGroups *g) ROUTINES {
-    uint8_t prior=platform_error,first=0,ok=1;
+    uint8_t prior=platform_error;uint8_t first=0;uint8_t ok=1;
     if(g->store.fd>=0) {
         if(!output_finish(g->store.fd,1)) {first=platform_error;ok=0;}
         g->store.fd=-1; /* VFS revokes a handle even when close reports failure. */
@@ -83,11 +84,11 @@ uint8_t cc_groups_domain(CompilerGroups *g,uint8_t scope,uint8_t *domain) ROUTIN
     if(scope>cc.routine_count)return fail(g,ERR_INVALID_PARAMETER);
     *domain=get(g,DOMAIN_BASE+scope);return 1;
 }
-uint8_t cc_group_open(CompilerGroups *g,uint8_t owner) ROUTINES {
-    uint8_t id,i;uint16_t at,parent;
+uint8_t cc_group_open(CompilerGroups *g,TypeId owner) ROUTINES {
+    uint8_t id;uint8_t i;uint16_t at,parent;
     if(!ready(g))return 255;
     if(g->groups==100) {fail(g,ERR_NO_MORE_ENTRIES);return 255;}
-    if(owner>cc.routine_count||cc.emitted<CC_CODE_BASE||cc.emitted>=CC_STATIC_LIMIT) {
+    if(owner>255u||owner>cc.routine_count||cc.emitted<CC_CODE_BASE||cc.emitted>=CC_STATIC_LIMIT) {
         fail(g,ERR_INVALID_PARAMETER);return 255;
     }
     for(i=0;i<g->groups;++i) {

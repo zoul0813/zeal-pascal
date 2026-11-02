@@ -16,14 +16,14 @@ enum { LATE_RANDOM,LATE_RANDOM_STATE,LATE_PARAMETERS,LATE_FILE,
 typedef struct {
     uint32_t lifetime,version;
     uint16_t symbols,references;
-    uint8_t page,failed,sealed;
+    uint8_t page;uint8_t failed;uint8_t sealed;
 } CompilerLate;
 void cc_late_init(CompilerLate *late) ROUTINES;
 uint8_t cc_late_discard(CompilerLate *late) ROUTINES;
 /* Owner0 is resident; other owners identify overlay member routine scopes.
  * Symbol indices stay stable until discard, even after member refs retire. */
-uint16_t cc_late_symbol(CompilerLate *late,uint8_t kind,uint8_t id,uint8_t owner) ROUTINES;
-uint8_t cc_late_bind(CompilerLate *late,uint16_t symbol,uint8_t owner,uint16_t value) ROUTINES;
+uint16_t cc_late_symbol(CompilerLate *late,uint8_t kind,uint8_t id,TypeId owner) ROUTINES;
+uint8_t cc_late_bind(CompilerLate *late,uint16_t symbol,TypeId owner,uint16_t value) ROUTINES;
 uint8_t cc_late_value(CompilerLate *late,uint16_t symbol,uint16_t *value) ROUTINES;
 /* The caller emits its constant addend and maintains the ordinary relocation
  * ledger. Multiple symbols at one operand add; byte terms are modulo256. */

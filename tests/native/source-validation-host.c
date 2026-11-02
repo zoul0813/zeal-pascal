@@ -8,8 +8,10 @@
 static uint8_t memory[PAGE_SIZE],owned;
 static uint32_t lifetime;
 volatile uint32_t page_versions[64];
+uint8_t platform_error;
 static unsigned reads,checks;
 uint8_t page_new(uint8_t role) { if(owned)return 255;owned=role;++lifetime;return 32; }
+uint8_t page_role(uint8_t p) {return p==32?owned:0;}
 uint8_t page_drop(uint8_t p) {assert(p==32&&owned);owned=0;return 1;}
 uint32_t page_lifetime(uint8_t p) {return p==32&&owned?lifetime:0;}
 void page_initialized(uint8_t p,uint16_t n) {assert(p==32&&owned&&n<=PAGE_SIZE);}

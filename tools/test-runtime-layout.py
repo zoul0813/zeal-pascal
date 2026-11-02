@@ -46,7 +46,7 @@ def main():
     assert binary[160:len(runtime)] == specialized[160:]
     inputs = [Path(__file__).resolve(), ROOT/'tools/test-native.py', ROOT/'src/runtime.asm',
               ROOT/'src/input.asm', ROOT/'src/zp.h', ROOT/'src/compiler_hooks.c',
-              ROOT/'src/compiler_build.c', ROOT/'build/pascal_runtime.zpl',ROOT/'build/pascal_runtime.map',
+              ROOT/'src/compiler_disk.c',ROOT/'src/compiler_build.c', ROOT/'build/pascal_runtime.zpl',ROOT/'build/pascal_runtime.map',
               args.program.resolve(), n.EMULATOR, n.ROM]
     hashes = {str(path): n.sha(path) for path in inputs}
     payload = (b'aB\t'*42)+b'Z'

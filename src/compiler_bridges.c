@@ -6,7 +6,7 @@ static void indexed(uint8_t opcode,uint8_t offset) { cc_emit(0xdd); cc_emit(opco
 static void cursor_store(void) { indexed(0x75,250); indexed(0x74,251); }
 static void cursor_load(void) { indexed(0x6e,250); indexed(0x66,251); }
 
-void cc_entry_reference(uint8_t opcode,uint8_t scope) ROUTINES {
+void cc_entry_reference(uint8_t opcode,uint16_t scope) ROUTINES {
     uint16_t entry=cc_rget(scope,R_ENTRY);
     if(cc_rget(scope,R_FLAGS)&RF_EXTERNAL) cc_op16(opcode,entry);
     else if(entry) cc_address(opcode,entry);
@@ -29,16 +29,16 @@ static void bridge_slot(int16_t offset) {
     cc_op16(0x11,(uint16_t)offset); cc_emit(0x19);
 }
 static uint16_t argument_bytes(uint16_t id) {
-    uint8_t type=cc.symbols[id].type;
-    if(cc.symbols[id].role==S_REFERENCE) return 2;
+    TypeId type=CCS(id,type);
+    if(CCS(id,role)==S_REFERENCE) return 2;
     if(cc_family(type)==K_REAL) return 6;
     if(cc_family(type)==K_SET) return 32;
     return 2; /* scalars, pointers and aggregate source addresses */
 }
-static void bridge_body(uint8_t scope) {
+static void bridge_body(uint16_t scope) {
     uint16_t count=cc_rget(scope,R_COUNT),first=cc_rget(scope,R_PARAMETERS),i,width;
     uint16_t routine=cc_rget(scope,R_SYMBOL);
-    uint8_t string_result=cc.symbols[routine].role==S_FUNCTION&&cc_family(cc.symbols[routine].type)==K_STRING;
+    uint8_t string_result=CCS(routine,role)==S_FUNCTION&&cc_family(CCS(routine,type))==K_STRING;
     width=BRIDGE_PRIVATE_BYTES+count*2;
     bridge_guard(width+4); cc_emit(0xeb); /* DE owns the descriptor */
     cc_emit(0xdd); cc_emit(0xe5); cc_emit(0xdd); cc_op16(0x21,0); cc_emit(0xdd); cc_emit(0x39);
@@ -55,21 +55,21 @@ static void bridge_body(uint8_t scope) {
         bridge_slot((int16_t)(0u-BRIDGE_PRIVATE_BYTES-i*2));
         cc_emit(0xfd); cc_emit(0xe5); cc_emit(0xd1);
         cc_emit(0x73); cc_emit(0x23); cc_emit(0x72);
-        if(cc.symbols[first+i-1].role==S_VALUE&&cc_family(cc.symbols[first+i-1].type)==K_STRING) {
+        if(CCS(first+i-1,role)==S_VALUE&&cc_family(CCS(first+i-1,type))==K_STRING) {
             cc_emit(0xfd); cc_emit(0x5e); cc_emit(0); cc_emit(0x16); cc_emit(0); cc_emit(0x13);
         } else cc_op16(0x11,argument_bytes(first+i-1));
         cc_emit(0xfd); cc_emit(0x19);
     }
     cc_emit(0xfd); cc_emit(0xe5); cc_emit(0xe1); cursor_store();
     if(string_result) {
-        width=cc.types[cc.symbols[routine].type].width;
+        width=CCT(CCS(routine,type),width);
         bridge_guard(width); cc_op16(0x21,(uint16_t)(0u-width)); cc_emit(0x39); cc_emit(0xf9);
     }
     indexed(0x6e,254); indexed(0x66,255); bridge_guard(2); cc_emit(0xe5);
     for(i=0;i<count&&!cc.error->code;++i) {
         bridge_guard(2); bridge_slot((int16_t)(0u-BRIDGE_PRIVATE_BYTES-(i+1u)*2));
         cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb);
-        if(cc.symbols[first+i].role==S_VALUE&&cc_family(cc.symbols[first+i].type)==K_STRING) {
+        if(CCS(first+i,role)==S_VALUE&&cc_family(CCS(first+i,type))==K_STRING) {
             bridge_guard(257); cc_op16(0xcd,RT_PUSHSTRING);
         } else {
             width=argument_bytes(first+i); bridge_guard(width+2);
@@ -84,7 +84,7 @@ static void bridge_body(uint8_t scope) {
     indexed(0x6e,238); indexed(0x66,239); cc_op16(0x22,RT_PC);
     if(string_result) {
         cc_op16(0x21,0); cc_emit(0x39); indexed(0x5e,250); indexed(0x56,251);
-        cc_emit(0x0e); cc_emit(cc.types[cc.symbols[routine].type].capacity);
+        cc_emit(0x0e); cc_emit(CCT(CCS(routine,type),capacity));
         bridge_guard(2); cc_op16(0xcd,RT_COPY);
         cursor_load(); indexed(0x75,244); indexed(0x74,245);
     }
@@ -105,7 +105,7 @@ static void bridge_body(uint8_t scope) {
     cc_emit(0xe1); cc_emit(0xd1); cc_emit(0xc1);
     cc_emit(0xfd); cc_emit(0xe1); cc_emit(0xdd); cc_emit(0xe1); cc_emit(0xc9);
 }
-static uint16_t bridge_descriptor(uint8_t scope,uint8_t dynamic) {
+static uint16_t bridge_descriptor(uint16_t scope,uint8_t dynamic) {
     uint16_t skip=cc_forward(0xc3),entry=cc.emitted,descriptor,i;
     bridge_body(scope); descriptor=cc.emitted;
     cc_emit('Z'); cc_emit('T'); cc_emit('H'); cc_emit('K'); cc_emit(1); cc_emit(dynamic);
@@ -117,8 +117,8 @@ static uint16_t bridge_descriptor(uint8_t scope,uint8_t dynamic) {
     return descriptor;
 }
 void cc_routine_address(uint16_t id) ROUTINES {
-    uint8_t scope=cc.symbols[id].role==S_RESULT?cc.symbols[id].owner:cc.symbols[id].initial_type;
-    uint8_t parent=(uint8_t)cc_rget(scope,R_PARENT),dynamic;
+    uint16_t scope=CCS(id,role)==S_RESULT?CCS(id,owner):CCS(id,initial_type);
+    uint16_t parent=cc_rget(scope,R_PARENT);uint8_t dynamic;
     uint16_t descriptor,slot,locals;
     if(!parent) { cc_entry_reference(0x21,scope); return; }
     if(cc.suppress||cc.error->code) return;

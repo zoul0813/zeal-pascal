@@ -65,7 +65,7 @@ static void generated_map_cases(void) {
     disk_sources=0;disk_source_count=0;
 }
 static void large_job_capacity(void) {
-    char text[4096];FILE *file;size_t length;uint8_t held[23],i,expected[32];unsigned required,allocation;
+    char text[4096];FILE *file;size_t length;uint8_t held[23],i,expected[32],actual[32];unsigned required,allocation;
     Source before;uint32_t version;CompileFailure failure;
     CompileOptions options={0x8200,0xfbffu,COMPILE_PROGRAM};
     file=fopen("tests/native/chain-call.pas","rb");check(file!=0);
@@ -76,7 +76,8 @@ static void large_job_capacity(void) {
     /* Exactly nine pages remain, including suspended Work,
      * just as in the sixteen-bank IDE. Match the direct compiler's bytes. */
     allocation_calls=0;check(compile_request(&s,&b,&failure,1,&options));required=allocation_calls;
-    check(b.valid&&b.code_bytes>PAGE_SIZE&&build_check(&s,&b));
+    check(b.valid==2&&b.pages[0]==255&&b.pages[1]==255&&b.pages[2]==255&&b.code_bytes>PAGE_SIZE&&build_check(&s,&b));
+    test_image_hash(&b,actual);check(!memcmp(expected,actual,32));
     check(!memcmp(&s,&before,sizeof(s)));build_close(&b);check(cancel_prepared_build());
     for(allocation=0;allocation<required;++allocation) {
         fail_after=(int)allocation;
@@ -124,6 +125,114 @@ static void image_fill_failures(void) {
         check(compiler_allocating==COMPILER_ALLOC_NONE);
     }
 }
+/* Saved compilation must produce exactly the same executable layout as the
+ * in-memory emitter, including code emitted before later global declarations. */
+static void disk_compiler_cases(void) {
+    static const struct {const char *text;uint16_t start;uint8_t wide;} programs[]={
+        {"var n:integer;const k:integer=17;procedure first;begin n:=k end;\n"
+         "var later:array[1..513]of byte;begin first;later[513]:=42;writeln(n,later[513])end.",0,0},
+        {"procedure first;begin end;var a:array[1..20000]of byte;\n"
+         "begin first;a[20000]:=7;writeln(a[20000])end.",0,1},
+        {"const data:array[1..3]of integer=(17,19,23);procedure first;begin writeln(data[3])end;\n"
+         "var later:array[1..193]of byte;begin first;later[193]:=1 end.",0x9000,0}
+    };
+    static const char fault_program[]=
+        "var n:integer;const k:integer=17;procedure first;begin n:=k end;\n"
+        "var later:array[1..513]of byte;begin first;later[513]:=42;writeln(n,later[513])end.";
+    CompileOptions options={0,0xfbffu,COMPILE_PROGRAM};CompileFailure failure;Source before;
+    uint8_t expected[32],actual[32],kind,quirk;unsigned fixture,operation,attempt,total[CD_OPERATIONS],nth;
+    uint16_t i,length,origin,globals;uint32_t version;
+    for(fixture=0;fixture<sizeof(programs)/sizeof(programs[0]);++fixture)for(kind=0;kind<2;++kind) {
+        load(programs[fixture].text);before=s;version=page_versions[s.page];
+        options.start=programs[fixture].start;options.kind=kind?COMPILE_CHAIN:COMPILE_PROGRAM;
+        check(compile_project(&s,&b,&d,0,&options));test_image_hash(&b,expected);
+        length=b.length;origin=b.code_origin;globals=b.globals_bytes;
+        if(!kind) {
+            if(programs[fixture].wide) {
+                check(globals==20000);
+                for(i=0;i<20000;++i)check(image_get(&b,GLOBAL_BASE-0x4000u+i)==0);
+            }
+            for(i=GLOBAL_BASE+globals;i<origin;++i)check(image_get(&b,i-0x4000u)==0);
+        }
+        build_close(&b);
+        for(quirk=CD_QUIRK_NONE;quirk<=CD_QUIRK_COMMITTED;++quirk) {
+            compiler_sdk_reset();compiler_overwrite_mode=quirk;
+            check(compile_request(&s,&b,&failure,kind?2:1,&options));
+            check(b.valid==2&&b.pages[0]==255&&b.pages[1]==255&&b.pages[2]==255&&
+                  b.length==length&&b.code_origin==origin&&b.globals_bytes==globals&&build_check(&s,&b));
+            test_image_hash(&b,actual);check(!memcmp(expected,actual,32));
+            if(quirk)check(compiler_overwrite_reports>0&&
+                compiler_overwrite_readbacks==compiler_overwrite_reports&&!compiler_overwrite_pending);
+            check(!memcmp(&s,&before,sizeof(s))&&page_versions[s.page]==version);
+            build_close(&b);check(cancel_prepared_build());
+            check(!compiler_spool.exists&&!compiler_spool.opened&&pages_used()==1);
+        }
+    }
+    options.start=0;options.kind=COMPILE_PROGRAM;load(fault_program);before=s;version=page_versions[s.page];
+    compiler_sdk_reset();check(compile_request(&s,&b,&failure,1,&options));
+    memcpy(total,compiler_sdk_calls,sizeof(total));build_close(&b);check(cancel_prepared_build());
+    /* Fail the first SDK boundary and a later transfer boundary. Each failed
+     * compile owns its partial scratch and releases it without changing Work. */
+    for(operation=CD_STAT;operation<=CD_WRITE;++operation) {
+        check(total[operation]>0);
+        for(attempt=0;attempt<(total[operation]>2?2u:1u);++attempt) {
+            nth=attempt?total[operation]/2:1;
+            compiler_sdk_reset();compiler_sdk_fail_kind=(uint8_t)operation;compiler_sdk_fail_at=nth;
+            check(!compile_request(&s,&b,&failure,1,&options));
+            check(!compiler_sdk_fail_at&&failure.diagnostic.code==COMPILE_PLATFORM_FAILURE&&!b.valid&&!host_prepared);
+            check(!compiler_spool.exists&&!compiler_spool.opened&&pages_used()==1&&
+                  mask_empty(compiler_owned,8)&&mask_empty(compiler_parent_owned,8));
+            check(!memcmp(&s,&before,sizeof(s))&&page_versions[s.page]==version);
+            compiler_sdk_reset();check(compile_request(&s,&b,&failure,1,&options));
+            build_close(&b);check(cancel_prepared_build());
+            check(!compiler_spool.exists&&!compiler_spool.opened&&pages_used()==1);
+        }
+    }
+    /* An undocumented status alone is insufficient: corrupt or truncated
+     * sectors must fail. Native pfree clears A on success; those releases must
+     * not erase the original write error reported to the caller. */
+    for(kind=0;kind<2;++kind)for(quirk=CD_QUIRK_CORRUPT;quirk<=CD_QUIRK_TRUNCATE;++quirk) {
+        options.kind=kind?COMPILE_CHAIN:COMPILE_PROGRAM;
+        compiler_sdk_reset();compiler_overwrite_mode=quirk;cleared_drop_errors=0;clear_error_on_drop=1;
+        check(!compile_request(&s,&b,&failure,kind?2:1,&options));clear_error_on_drop=0;
+        check(cleared_drop_errors>0&&compiler_overwrite_reports>0&&!compiler_overwrite_readbacks&&
+              compiler_overwrite_reported>=0x40u&&compiler_overwrite_reported<0xc0u&&
+              platform_error==compiler_overwrite_reported&&failure.diagnostic.code==COMPILE_PLATFORM_FAILURE);
+        check(!b.valid&&!host_prepared&&!compiler_spool.exists&&!compiler_spool.opened&&pages_used()==1&&
+              mask_empty(compiler_owned,8)&&mask_empty(compiler_parent_owned,8));
+        check(!memcmp(&s,&before,sizeof(s))&&page_versions[s.page]==version);
+        compiler_sdk_reset();check(compile_request(&s,&b,&failure,kind?2:1,&options));
+        build_close(&b);check(cancel_prepared_build());
+        check(!compiler_spool.exists&&!compiler_spool.opened&&pages_used()==1);
+    }
+    /* A documented SDK failure must remain a failure even with native cleanup
+     * clearing the status register. It is never a candidate for readback repair. */
+    options.kind=COMPILE_PROGRAM;compiler_sdk_reset();
+    compiler_sdk_fail_kind=CD_WRITE;compiler_sdk_fail_at=total[CD_WRITE]/2;cleared_drop_errors=0;clear_error_on_drop=1;
+    check(!compile_request(&s,&b,&failure,1,&options));clear_error_on_drop=0;
+    check(cleared_drop_errors>0&&!compiler_sdk_fail_at&&failure.diagnostic.code==COMPILE_PLATFORM_FAILURE&&platform_error==ERR_FAILURE&&
+          !compiler_overwrite_reports&&!b.valid&&!host_prepared&&!compiler_spool.exists&&!compiler_spool.opened&&pages_used()==1);
+    compiler_sdk_reset();
+    /* A foreign collision must never become our scratch owner. */
+    compiler_spool.exists=1;compiler_spool.length=7;memcpy(compiler_spool.bytes,"foreign",7);
+    compiler_sdk_reset();check(!compile_request(&s,&b,&failure,1,&options));
+    check(failure.diagnostic.code==COMPILE_PLATFORM_FAILURE&&platform_error==ERR_ALREADY_EXIST&&
+          compiler_spool.exists&&!compiler_spool.opened&&compiler_spool.length==7&&
+          !memcmp(compiler_spool.bytes,"foreign",7)&&!compiler_sdk_calls[CD_OPEN]&&!compiler_sdk_calls[CD_REMOVE]);
+    check(pages_used()==1&&!host_prepared&&!memcmp(&s,&before,sizeof(s)));
+    compiler_spool.exists=0;compiler_sdk_reset();check(compile_request(&s,&b,&failure,1,&options));
+    /* Failed removal retains only our own pathname. The next compile retries
+     * that cleanup before acquiring another scratch file. */
+    compiler_sdk_reset();compiler_sdk_fail_kind=CD_REMOVE;compiler_sdk_fail_at=1;build_close(&b);
+    check(!compiler_sdk_fail_at&&compiler_spool.exists&&!compiler_spool.opened&&platform_error==ERR_FAILURE);
+    check(cancel_prepared_build());compiler_sdk_reset();
+    check(compile_request(&s,&b,&failure,1,&options));
+    check(compiler_sdk_calls[CD_REMOVE]==1);build_close(&b);check(cancel_prepared_build());
+    check(!compiler_spool.exists&&!compiler_spool.opened&&pages_used()==1&&
+          !memcmp(&s,&before,sizeof(s))&&page_versions[s.page]==version);
+    compiler_sdk_reset();
+}
+
 static void compiler_job_cases(void) {
     CompileFailure failure;Source before,include;uint8_t expected[32],actual[32],prior;
     unsigned allocation,prepares=host_prepares,cancels=host_cancels;uint8_t stage,reason;
@@ -200,4 +309,5 @@ static void compiler_job_cases(void) {
         load("begin end.");check(compile_request(&s,&b,&failure,1,&options));
         build_close(&b);check(cancel_prepared_build()&&pages_used()==1);
     }
+    disk_compiler_cases();
 }

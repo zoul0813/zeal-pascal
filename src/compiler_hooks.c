@@ -4,11 +4,10 @@
 /* Hooks belong to each generated program. Defaults are genuine Pascal ABI
  * entries; the fixed prefix is patched only in that program's owned image. */
 void cc_hook_variable(uint16_t id) ROUTINES {
-    Symbol *s=&cc.symbols[id];
-    if(s->address||cc.suppress||cc.error->code) return;
-    if((uint32_t)cc.image->globals_bytes+2>=PAGE_SIZE) { cc_fail(98); return; }
-    s->address=GLOBAL_BASE+cc.image->globals_bytes; cc.image->globals_bytes+=2;
-    cc.hook_variables[s->initial_type]=s->address;
+    if(CCS(id,address)||cc.suppress||cc.error->code) return;
+    if((uint32_t)GLOBAL_BASE+cc.image->globals_bytes+2>=CC_STATIC_LIMIT) { cc_fail(98); return; }
+    CCS_SET(id,address,GLOBAL_BASE+cc.image->globals_bytes); cc.image->globals_bytes+=2;
+    cc.hook_variables[CCS(id,initial_type)]=CCS(id,address);
 }
 void cc_hook_output(void) ROUTINES {
     cc.hook_output_calls=cc_link(0xcd,cc.hook_output_calls);
@@ -122,7 +121,7 @@ static void mask(void) {
 }
 void cc_hooks_finish(void) ROUTINES {
     uint16_t open=0,echo=0,output=0,invoke=0,poll,entry,skip,deferred;
-    uint8_t k,needed=0,pending=cc_root_pending(LATE_ROOT,LATE_OUTPUT);
+    uint8_t k;uint8_t needed=0;uint8_t pending=cc_root_pending(LATE_ROOT,LATE_OUTPUT);
     if(cc.error->code) return;
     for(k=HOOK_CON_OUT;k<HOOK_COUNT;++k) if(cc.hook_variables[k]) needed=1;
     if(needed||cc.hook_output_calls||pending) {

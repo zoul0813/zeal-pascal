@@ -9,6 +9,7 @@
 #define run_saved files_run_saved
 #endif
 #include "zp.h"
+#include "compiler_disk.h"
 #include "path.h"
 #include "sources.h"
 #include "saved_map.h"
@@ -61,6 +62,11 @@ static uint8_t remove_output(const char *path) {
     if(e)platform_error=e;
     return !e;
 }
+static uint8_t store_map(const Build *b,const char *path) {
+    uint8_t pages[4],i=0,page=b->map_page;
+    do {if(i==4)return 0;pages[i++]=page;page=buffer_next(page);}while(page!=255);
+    return output_store_range(pages,0,b->map_length,path);
+}
 static uint8_t store(const uint8_t *pages,uint16_t total,const char *path) {
     return output_store_range(pages,0,total,path);
 }
@@ -87,8 +93,9 @@ static uint8_t do_save_build(const Source *s,const Build *b) {
     /* Invalidate an older map before replacing its executable. A failed write
      * can leave incomplete output, but never a stale map beside new code. */
     if(!output_poll()||!remove_output(destinations[1])||!remove_output(destinations[0]))return 0;
-    if(!store(b->pages,b->length,destinations[0]))return 0;
-    if(!store(&b->map_page,b->map_length,destinations[1])) {
+    if(cc_disk_active(b)) {if(!cc_disk_publish(b,destinations[0]))return 0;}
+    else if(!store(b->pages,b->length,destinations[0]))return 0;
+    if(!store_map(b,destinations[1])) {
         uint8_t error=platform_error;
         output_job_end();remove_output(destinations[1]);platform_error=error;
         return 0;
@@ -196,7 +203,7 @@ static uint8_t read_source(Source *s,const char *name,Diagnostic *d,uint8_t requ
         if(!ok) break;
     }
     ok=output_finish(fd,ok);
-    if(!ok) { error=platform_error; page_drop(in.staged.page); platform_error=error; return 0; }
+    if(!ok) { error=platform_error; source_discard(s,&in.staged); platform_error=error; return 0; }
     return import_finish(&in,s,d);
 }
 uint8_t load_source(Source *s,const char *name,Diagnostic *d) {
@@ -225,7 +232,7 @@ static uint8_t do_save_block(const Source *s,uint16_t a,uint16_t z,const char *n
     if(!ordinary_file(destinations[0],&exists))return 0;
     if(exists&&!replace) {platform_error=ERR_ALREADY_EXIST;return 0;}
     if(!parent_dirs(destinations[0],1)||!output_poll()||!remove_output(destinations[0]))return 0;
-    return output_store_range(&s->page,a,z-a,destinations[0]);
+    return output_store_source_slice(s,a,z-a,destinations[0]);
 }
 
 uint8_t save_build(const Source *s,const Build *b,uint8_t interruptible) {

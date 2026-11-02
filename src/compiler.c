@@ -37,8 +37,8 @@ void cc_labels(void) BACKEND {
 void cc_labels_finish(void) BACKEND {
     uint16_t i;
     for(i=0;i<cc.symbol_count&&!cc.error->code;++i)
-        if(cc.symbols[i].role==S_LABEL&&cc.symbols[i].owner==cc.scope&&
-           !cc.symbols[i].initial_type&&cc.symbols[i].address) cc_fail(40);
+        if(CCS(i,role)==S_LABEL&&CCS(i,owner)==cc.scope&&
+           !CCS(i,initial_type)&&CCS(i,address)) cc_fail(40);
 }
 static uint16_t label_word(uint16_t at) {
     return cc_code_get(at)|((uint16_t)cc_code_get(at+1)<<8);
@@ -47,21 +47,19 @@ static uint16_t label_word(uint16_t at) {
  * The JP operand links the pending records until the label is defined.
  * All JP destinations use the ordinary code relocation ledger. */
 static void label_patch(uint16_t id,uint16_t at) {
-    Symbol *s=&cc.symbols[id];
     uint16_t loops=label_word(at-5);
     uint8_t with=cc_code_get(at-25);
-    if(loops<s->type) { cc_fail(71); return; }
-    cc_put(at-25,with>s->control?with-s->control:0);
-    cc_word(at-5,(uint16_t)((loops-s->type)*2+(int16_t)(with-s->control)*4));
-    cc_word(at,s->address);
+    if(loops<CCS(id,type)) { cc_fail(71); return; }
+    cc_put(at-25,with>CCS(id,control)?with-CCS(id,control):0);
+    cc_word(at-5,(uint16_t)((loops-CCS(id,type))*2+(int16_t)(with-CCS(id,control))*4));
+    cc_word(at,CCS(id,address));
 }
 static void label_define(uint16_t id) {
-    Symbol *s=&cc.symbols[id];
-    uint16_t head=s->address,next;
-    if(s->owner!=cc.scope) { cc_fail(72); return; }
-    if(s->initial_type) { cc_fail(43); return; }
-    s->initial_type=1; s->address=cc.emitted;
-    s->type=cc.for_depth; s->control=cc.with_depth;
+    uint16_t head=CCS(id,address),next;
+    if(CCS(id,owner)!=cc.scope) { cc_fail(72); return; }
+    if(CCS(id,initial_type)) { cc_fail(43); return; }
+    CCS_SET(id,initial_type,1); CCS_SET(id,address,cc.emitted);
+    CCS_SET(id,type,cc.for_depth); CCS_SET(id,control,cc.with_depth);
     while(head&&!cc.error->code) {
         next=label_word(head); label_patch(id,head); head=next;
     }
@@ -71,8 +69,8 @@ static void goto_statement(void) {
     int16_t id;
     uint16_t at;
     cc_next(); id=label_lookup();
-    if(id<0||cc.symbols[id].role!=S_LABEL) { cc_fail(40); return; }
-    if(cc.symbols[id].owner!=cc.scope) { cc_fail(72); return; }
+    if(id<0||CCS(id,role)!=S_LABEL) { cc_fail(40); return; }
+    if(CCS(id,owner)!=cc.scope) { cc_fail(72); return; }
     cc_guard();
     cc_emit(0x06); cc_emit(cc.with_depth); /* B = With frames to leave */
     cc_emit(0x78); cc_emit(0xb7); cc_emit(0x28); cc_emit(14);
@@ -81,13 +79,13 @@ static void goto_statement(void) {
     cc_emit(0x10); cc_emit(248); /* follow saved IY links */
     cc_emit(0xe5); cc_emit(0xfd); cc_emit(0xe1);
     cc_op16(0x21,cc.for_depth); cc_emit(0x39); cc_emit(0xf9);
-    at=cc_link(0xc3,cc.symbols[id].initial_type?0:cc.symbols[id].address);
-    if(cc.symbols[id].initial_type) label_patch((uint16_t)id,at);
-    else cc.symbols[id].address=at;
+    at=cc_link(0xc3,CCS(id,initial_type)?0:CCS(id,address));
+    if(CCS(id,initial_type)) label_patch((uint16_t)id,at);
+    else CCS_SET(id,address,at);
     cc_next();
 }
 static void with_statement(SourcePosition start,uint16_t code) {
-    uint8_t saved=cc.with_depth,type;
+    uint8_t saved=cc.with_depth;TypeId type;
     int16_t id;
     cc_next();
     do {
@@ -116,8 +114,8 @@ static void link_jump(uint8_t opcode,uint16_t *head) {
 static void patch_jumps(uint16_t head) {
     cc_patch_chain(head,cc.emitted);
 }
-static uint16_t case_constant(uint8_t selector) {
-    uint8_t type;
+static uint16_t case_constant(TypeId selector) {
+    TypeId type;
     uint16_t value;
     cc_constant(&type,&value);
     if(cc_family(type)!=cc_family(selector)) cc_fail(46);
@@ -128,7 +126,7 @@ static void case_compare(uint16_t value) {
     cc_op16(0x21,value); cc_call(RT_COMPARE);
 }
 static void case_statement(SourcePosition start,uint16_t code) {
-    uint8_t selector;
+    TypeId selector;
     uint16_t matches,exits=0,miss,skip,lo,hi;
     uint16_t before=cc.temporaries;
     cc_next(); selector=cc_expression();
@@ -179,13 +177,13 @@ static SourcePosition statement(void) {
     SourcePosition start=cc.token_start,head_end;
     uint16_t code=pc(),branch,other,loop,body;
     int16_t id;
-    uint8_t newline,kind,target,indexed;
+    uint8_t newline;TypeId kind;TypeId target;uint8_t indexed;
     uint16_t before=cc.temporaries;
-    if(++cc.depth>24) { cc_fail(99); --cc.depth; return start; }
+    if(++cc.depth==0||!cc_stack_check()) { cc_fail(99); --cc.depth; return start; }
     id=cc.token==T_ID?cc_lookup():-1;
-    if(cc.token==T_NUMBER||(id>=0&&cc.symbols[id].role==S_LABEL)) {
+    if(cc.token==T_NUMBER||(id>=0&&CCS(id,role)==S_LABEL)) {
         id=label_lookup();
-        if(id<0||cc.symbols[id].role!=S_LABEL) cc_fail(41);
+        if(id<0||CCS(id,role)!=S_LABEL) cc_fail(41);
         else label_define((uint16_t)id);
         if(cc.error->code) { --cc.depth; return start; }
         start=cc.token_start;
@@ -236,20 +234,20 @@ static SourcePosition statement(void) {
         target=cc.user_interrupt;
         cc_next(); id=cc.token==T_ID?cc_lookup():-1;
         if(!cc_variable(id)) cc_fail(24);
-        else if(cc.symbols[id].role==S_FIELD) cc_fail(41);
-        else if(!cc_ordinal(cc.symbols[id].type)) cc_fail(30);
-        else if(cc.symbols[id].control) cc_fail(44);
+        else if(CCS(id,role)==S_FIELD) cc_fail(41);
+        else if(!cc_ordinal(CCS(id,type))) cc_fail(30);
+        else if(CCS(id,control)) cc_fail(44);
         cc_next(); cc_expect(T_ASSIGN,7);
         kind=cc_expression();
         if(cc_family(kind)==K_STRING) cc_fail(44);
-        if(id>=0) cc_convert(cc.symbols[id].type,kind);
+        if(id>=0) cc_convert(CCS(id,type),kind);
         cc_release(before);
         cc_guard(); cc_emit(0xe5); /* initial, not assigned until a nonzero trip */
         newline=cc_is("downto");
         if(!cc_is("to")&&!newline) cc_fail(18); else cc_next();
         kind=cc_expression();
         if(cc_family(kind)==K_STRING) cc_fail(44);
-        if(id>=0) cc_convert(cc.symbols[id].type,kind);
+        if(id>=0) cc_convert(CCS(id,type),kind);
         cc_release(before);
         cc_emit(0xd1); cc_guard(); cc_emit(0xe5); /* keep final bound across the body */
         cc_call(RT_COMPARE); /* DE initial survives; HL -> signed three-way */
@@ -263,9 +261,9 @@ static SourcePosition statement(void) {
         code=pc();kind=cc.user_interrupt;cc.user_interrupt=target;
         cc_user_interrupt();cc.user_interrupt=kind;
         cc_mapping(code,pc(),start,head_end);
-        if(id>=0) cc.symbols[id].control=1;
+        if(id>=0) CCS_SET(id,control,1);
         ++cc.for_depth; statement(); --cc.for_depth;
-        if(id>=0) cc.symbols[id].control=0;
+        if(id>=0) CCS_SET(id,control,0);
         code=pc();
         if(id>=0) cc_load_symbol((uint16_t)id);
         cc_emit(0xd1); cc_guard(); cc_emit(0xd5); cc_emit(0xeb); cc_call(RT_COMPARE);
@@ -301,11 +299,11 @@ static SourcePosition statement(void) {
     else if(cc.token==T_ID&&!cc_is("end")) {
         id=cc_lookup();
         if(id<0) cc_fail(41);
-        else if(cc.symbols[id].role==S_PROCEDURE) cc_invoke((uint16_t)id);
+        else if(CCS(id,role)==S_PROCEDURE) cc_invoke((uint16_t)id);
         else {
-            if(!cc_variable(id)||cc.symbols[id].control) cc_fail(44);
-            target=cc.symbols[id].type; cc_next();
-            indexed=cc.symbols[id].role!=S_RESULT&&((cc.token=='['&&
+            if(!cc_variable(id)||CCS(id,control)) cc_fail(44);
+            target=CCS(id,type); cc_next();
+            indexed=CCS(id,role)!=S_RESULT&&((cc.token=='['&&
                 (cc_family(target)==K_STRING||cc_aggregate(target)))||
                 (cc.token=='.'&&cc_family(target)==K_RECORD)||
                 (cc.token=='^'&&cc_family(target)==K_POINTER));
@@ -319,10 +317,10 @@ static SourcePosition statement(void) {
             if(indexed) cc_stack_operand(cc.temporaries-before);
             else if(cc_family(target)==K_STRING||cc_family(target)==K_REAL||cc_aggregate(target)||cc_family(target)==K_SET) cc_destination((uint16_t)id);
             if(cc_family(target)==K_STRING) {
-                cc_emit(0x0e); cc_emit(cc.types[target].capacity);
+                cc_emit(0x0e); cc_emit(CCT(target,capacity));
                 cc_call(cc_family(kind)==K_CHAR?RT_CHARCOPY:RT_COPY);
             } else if(cc_aggregate(target)||cc_family(target)==K_REAL) {
-                cc_op16(0x01,cc.types[target].width); cc_call(RT_MOVE);
+                cc_op16(0x01,CCT(target,width)); cc_call(RT_MOVE);
             } else if(cc_family(target)==K_SET) cc_set_store(target);
             else if(indexed) cc_store_indirect(target);
             else cc_store_symbol((uint16_t)id);
@@ -339,7 +337,7 @@ SourcePosition cc_statement(void) BACKEND { return statement(); }
 uint8_t compile_limits(uint16_t globals,uint16_t code,const CompileOptions *options,CompileLimits *limits) SOURCE_BLOCK_CALL {
     uint32_t start,end,top,needed;
     memset(limits,0,sizeof(*limits));
-    if(globals>=PAGE_SIZE||(options&&options->kind>COMPILE_CHAIN))return 0;
+    if((uint32_t)GLOBAL_BASE+globals>=CC_STATIC_LIMIT||(options&&options->kind>COMPILE_CHAIN))return 0;
     limits->minimum_start=GLOBAL_BASE+globals;
     start=options&&options->start?options->start:limits->minimum_start;
     end=options?options->end:0xfbffu;

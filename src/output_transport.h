@@ -14,6 +14,7 @@ uint8_t output_finish(int8_t fd,uint8_t ok) SOURCE_BLOCK_CALL;
  * handle ownership; short successful transfers are retried. */
 uint8_t output_write_buffer(int8_t fd,const uint8_t *buffer,uint16_t size) SOURCE_BLOCK_CALL;
 uint8_t output_read_buffer(int8_t fd,uint8_t *buffer,uint16_t size) SOURCE_BLOCK_CALL;
+uint8_t output_store_source_slice(const Source *s,uint16_t first,uint16_t total,const char *path) SOURCE_BLOCK_CALL;
 uint8_t output_store_source(const Source *s,const char *path) SOURCE_BLOCK_CALL;
 uint8_t output_store_range(const uint8_t *pages,uint16_t first,uint16_t total,const char *path) SOURCE_BLOCK_CALL;
 uint8_t output_copy_file(const char *from,const char *to) SOURCE_BLOCK_CALL;

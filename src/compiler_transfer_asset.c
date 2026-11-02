@@ -13,7 +13,7 @@ uint8_t cc_transfer_asset_get(uint8_t kind,uint16_t offset) FRONTEND {
     if(kind>2)offset+=TRANSFER_CALL_BYTES;
 
 #ifdef __SDCC
-    uint8_t i,bank;
+    uint8_t i;uint8_t bank;
     uint16_t first=0,end,source;
     const uint8_t *row=transfer_asset_rows;
     for(i=0;i<transfer_asset_count;++i,row+=5) {

@@ -68,14 +68,14 @@ static void prepared_output_cases(void) {
 }
 
 static void single_page_block_read(void) {
-    uint8_t held[15],i;Source block;Diagnostic error;unsigned pages;
+    uint8_t held[31],i;Source block;Diagnostic error;unsigned pages;
     fail_at=cancel_at=shorts=bad_io=fail_read=fail_write=0;setup(0,0);
     seed("T:/part.inc",(const uint8_t*)"const answer=42;\n",16);
-    for(i=0;i<14;++i) {held[i]=page_new(PAGE_COMPILER);check(held[i]!=255);}
-    pages=owned();check(pages==15&&read_block(&block,"T:/part.inc",&error));
-    check(block.length==16&&owned()==16&&!opened());source_close(&block);check(owned()==pages);
-    held[14]=page_new(PAGE_COMPILER);check(held[14]!=255&&owned()==16);
-    check(!read_block(&block,"T:/part.inc",&error)&&error.code==98&&owned()==16&&!opened());
-    check(!read_block(&block,"T:/missing.inc",&error)&&owned()==16&&!opened());
-    for(i=0;i<15;++i)check(page_drop(held[i]));check(owned()==1&&!memcmp(&source,&before,sizeof(source)));
+    for(i=0;i<30;++i) {held[i]=page_new(PAGE_COMPILER);check(held[i]!=255);}
+    pages=owned();check(pages==31&&read_block(&block,"T:/part.inc",&error));
+    check(block.length==16&&owned()==32&&!opened());source_close(&block);check(owned()==pages);
+    held[30]=page_new(PAGE_COMPILER);check(held[30]!=255&&owned()==32);
+    check(!read_block(&block,"T:/part.inc",&error)&&error.code==98&&owned()==32&&!opened());
+    check(!read_block(&block,"T:/missing.inc",&error)&&owned()==32&&!opened());
+    for(i=0;i<31;++i)check(page_drop(held[i]));check(owned()==1&&!memcmp(&source,&before,sizeof(source)));
 }

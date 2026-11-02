@@ -60,9 +60,11 @@ static void group_cases(void) {
     for(i=0;i<PAGE_SIZE;++i) {
         if(far_get(b.pages[2],i)!=(i>=0x3ff0u?0:(uint8_t)(i*3+9))||
            far_get(cc.stage_page,i)!=(i<40?0:(uint8_t)(i*5+1))||
-           far_get(b.map_page,i)!=(uint8_t)(i*7+3)||far_get(cc.workspace,i)!=(uint8_t)(i*11+5))break;
+           far_get(b.map_page,i)!=(uint8_t)(i*7+3))break;
     }
     check(i==PAGE_SIZE);
+    for(i=0;i<28;++i)if(cc_reloc_get(i)!=(uint8_t)(i*11+5))break;
+    check(i==28);
     check(cc_groups_discard(&groups));check(groups.page==255&&groups.store.fd==-1&&pages_used()==owned);
 }
 static void phase_cases(void) {
@@ -115,14 +117,16 @@ int app_main(void) {
     owned=pages_used();test_machine(before);
     memset(&cc,0,sizeof(cc));memset(&member,0,sizeof(member));
     b.pages[2]=page_new(PAGE_IMAGE);b.map_page=page_new(PAGE_MAP);
-    cc.workspace=page_new(PAGE_COMPILER);cc.stage_page=page_new(PAGE_COMPILER);
-    check(b.pages[2]!=255&&b.map_page!=255&&cc.workspace!=255&&cc.stage_page!=255);
-    if(b.pages[2]==255||b.map_page==255||cc.workspace==255||cc.stage_page==255)goto done;
+    cc.workspace=255;cc.primary_stage=255;cc.stage_page=page_new(PAGE_COMPILER);
+    cc.error=&d;check(cc_tables_begin());
+    check(b.pages[2]!=255&&b.map_page!=255&&cc.stage_page!=255);
+    if(b.pages[2]==255||b.map_page==255||cc.stage_page==255)goto done;
     cc.image=&b;cc.emitted=0xc201;cc.file_bytes=71;cc.entries=5;cc.relocations=7;cc.routine_count=2;
     for(i=0;i<PAGE_SIZE;++i) {
         far_set(b.pages[2],i,(uint8_t)(i*3+9));far_set(cc.stage_page,i,(uint8_t)(i*5+1));
-        far_set(b.map_page,i,(uint8_t)(i*7+3));far_set(cc.workspace,i,(uint8_t)(i*11+5));
+        far_set(b.map_page,i,(uint8_t)(i*7+3));
     }
+    for(i=0;i<28;++i)cc_reloc_put(i,(uint8_t)(i*11+5));
     member.origin=0xbff1;member.entry=0xc000;member.map_first=2;member.reloc_first=3;
     fd=output_open_path(path,O_RDWR|O_CREAT|O_TRUNC);check(fd>=0);
     if(fd<0)goto done;
@@ -137,9 +141,11 @@ int app_main(void) {
     /* Preserve the complete parent prefixes and global routine records. */
     for(i=0;i<PAGE_SIZE;++i) {
         if(far_get(b.pages[2],i)!=(uint8_t)(i*3+9)||far_get(cc.stage_page,i)!=(uint8_t)(i*5+1)||
-           far_get(b.map_page,i)!=(uint8_t)(i*7+3)||far_get(cc.workspace,i)!=(uint8_t)(i*11+5))break;
+           far_get(b.map_page,i)!=(uint8_t)(i*7+3))break;
     }
     check(i==PAGE_SIZE);
+    for(i=0;i<28;++i)if(cc_reloc_get(i)!=(uint8_t)(i*11+5))break;
+    check(i==28);
     fd=output_open_path(path,O_RDWR);check(fd>=0);
     if(fd>=0) {
         check(!cc_members_begin(&store,fd)&&store.failed&&platform_error);
@@ -152,10 +158,10 @@ int app_main(void) {
 done:
     if(b.pages[2]!=255) {released=page_drop(b.pages[2]);check(released);if(released)b.pages[2]=255;}
     if(b.map_page!=255) {released=page_drop(b.map_page);check(released);if(released)b.map_page=255;}
-    if(cc.workspace!=255) {released=page_drop(cc.workspace);check(released);if(released)cc.workspace=255;}
+    check(cc_tables_end());
     if(cc.stage_page!=255) {released=page_drop(cc.stage_page);check(released);if(released)cc.stage_page=255;}
     check(pages_used()==owned);test_machine(after);check(!memcmp(before,after,7));
-    if(b.pages[2]==255&&b.map_page==255&&cc.workspace==255&&cc.stage_page==255) {
+    if(b.pages[2]==255&&b.map_page==255&&cc.stage_page==255) {
         memset(&b,0,sizeof(b));memset(b.pages,255,3);b.map_page=255;b.sources.page=255;
         test_stage=4;phase_cases();
     }

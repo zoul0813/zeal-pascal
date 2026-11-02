@@ -17,7 +17,7 @@
 #define FAR_READ_LIMIT 256u
 #define FAR_FILL_LIMIT 256u
 #define FAR_MOVE_LIMIT 256u
-#define SOURCE_LIMIT 16383u
+#define SOURCE_LIMIT 65534u
 #define PREFIX_BYTES 16384u
 #define GLOBAL_BASE 0x8000u
 #define RT_NORMAL 0x40a0u
@@ -172,8 +172,20 @@ uint8_t page_role(uint8_t page);
 uint32_t page_lifetime(uint8_t page);
 uint8_t pages_used(void);
 void page_initialized(uint8_t page, uint16_t extent);
+/* Logical source/map buffers cross physical16KiB banks. Their first page
+ * remains the stable handle; continuation banks have the same owner. */
+void buffer_init(uint8_t page) SOURCE_BLOCK_CALL;
+uint8_t buffer_next(uint8_t page) NATIVE;
+uint8_t buffer_page(uint8_t page,uint16_t offset) NATIVE;
+uint8_t buffer_reserve(uint8_t page,uint16_t length) SOURCE_BLOCK_CALL;
+uint8_t buffer_drop(uint8_t page) SOURCE_BLOCK_CALL;
+void buffer_retire(uint8_t page,uint8_t retired,uint16_t length) SOURCE_BLOCK_CALL;
+uint8_t buffer_get(uint8_t page,uint16_t offset) NATIVE;
+void buffer_set(uint8_t page,uint16_t offset,uint8_t value) NATIVE;
+void buffer_initialized(uint8_t page,uint16_t length) SOURCE_BLOCK_CALL;
 uint8_t source_new(Source *s, const char *path);
 void source_close(Source *s);
+void source_discard(Source *owner,Source *staged);
 uint8_t source_replace(Source *s, uint16_t first, uint16_t last,
                        const uint8_t *text, uint16_t length);
 uint8_t source_insert_from(Source *s,uint16_t at,const Source *from,uint16_t first,uint16_t last,uint16_t spaces) SOURCE_BLOCK_CALL;

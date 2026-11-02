@@ -194,18 +194,18 @@ static uint16_t job_start(uint8_t operation) {
     cc_op16(0x21,operation); store(0,0);
     return before;
 }
-static void argument_descriptor(uint8_t type) {
+static void argument_descriptor(TypeId type) {
     uint16_t skip,descriptor,width;
     if(cc_family(type)!=K_FILE) { cc_fail(21); return; }
     store(2,0);
     skip=cc_forward(0xc3); descriptor=cc.emitted;
-    width=cc.types[type].capacity==FILE_TEXT?0:cc.types[type].capacity==FILE_UNTYPED?128:
-        cc.types[cc.types[type].element].width;
-    cc_emit(cc.types[type].capacity); cc_emit((uint8_t)width); cc_emit((uint8_t)(width>>8)); cc_patch(skip);
+    width=CCT(type,capacity)==FILE_TEXT?0:CCT(type,capacity)==FILE_UNTYPED?128:
+        CCT(CCT(type,element),width);
+    cc_emit(CCT(type,capacity)); cc_emit((uint8_t)width); cc_emit((uint8_t)(width>>8)); cc_patch(skip);
     cc_address(0x21,descriptor); store(4,0);
 }
-static uint8_t file_argument(uint16_t base) {
-    uint8_t type=cc_reference(21);
+static TypeId file_argument(uint16_t base) {
+    TypeId type=cc_reference(21);
     cc_release(base+ZF_JOB_BYTES); argument_descriptor(type);
     return type;
 }
@@ -218,7 +218,7 @@ static void invoke(uint16_t base) {
  * The complete ordinary file owner handles SER0 mode/descriptor cleanup. */
 uint16_t cc_file_default_output(void) FRONTEND {
     uint16_t entry=cc.emitted,base;
-    uint8_t type;
+    TypeId type;
     guard(1024);
     cc_op16(0x2a,RT_PC); cc_emit(0xe5);
     cc_op16(0x21,4); cc_emit(0x39); cc_emit(0x46);
@@ -245,7 +245,7 @@ static void integer(void) {
     if(cc_family(cc_expression())!=K_INTEGER) cc_fail(23);
 }
 uint8_t cc_file_statement(void) FRONTEND {
-    uint8_t operation,actual=0;
+    uint8_t operation;TypeId actual=0;
     uint16_t base;
     if(cc.token!=T_ID||cc_lookup()>=0) return 0;
     operation=cc_is("assign")?ZF_ASSIGN:cc_is("reset")?ZF_RESET:cc_is("rewrite")?ZF_REWRITE:
@@ -278,7 +278,7 @@ uint8_t cc_file_statement(void) FRONTEND {
     cc_release(base); return 1;
 }
 int16_t cc_file_function(void) FRONTEND {
-    uint8_t operation,type;
+    uint8_t operation;TypeId type;
     uint16_t base;
     if(cc.token!=T_ID||cc_lookup()>=0) return -1;
     operation=cc_is("filepos")?ZF_POSITION:cc_is("filesize")?ZF_SIZE:cc_is("eof")?ZF_EOF:
@@ -290,7 +290,7 @@ int16_t cc_file_function(void) FRONTEND {
     } else {
         cc_expect('(',4); type=file_argument(base); cc_expect(')',5);
     }
-    if(cc_family(type)==K_FILE&&cc.types[type].capacity!=FILE_TEXT&&operation>=ZF_EOLN) cc_fail(66);
+    if(cc_family(type)==K_FILE&&CCT(type,capacity)!=FILE_TEXT&&operation>=ZF_EOLN) cc_fail(66);
     invoke(base); result(base,20); cc_release(base);
     return operation==ZF_POSITION||operation==ZF_SIZE?K_INTEGER:K_BOOLEAN;
 }
@@ -300,18 +300,18 @@ int16_t cc_file_function(void) FRONTEND {
 uint8_t cc_file_prefix(void) FRONTEND {
     uint16_t before=cc.temporaries;
     SourceCursor cursor;
-    uint8_t type,suppress=cc.suppress;
+    TypeId type;uint8_t suppress=cc.suppress;
     int16_t id=cc.token==T_ID?cc_lookup():-1;
-    if(!cc_variable(id)||cc.symbols[id].role==S_RESULT) return 0;
+    if(!cc_variable(id)||CCS(id,role)==S_RESULT) return 0;
     cc_source_save(&cursor);++cc.suppress;type=cc_selection((uint16_t)id);
     cc.suppress=suppress;cc.temporaries=before;cc_source_restore(&cursor);
     return cc_family(type)==K_FILE;
 }
 void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND {
     uint16_t base=job_start(writing?ZF_WRITE:ZF_READ);
-    uint8_t type=file_argument(base),actual,component,kind;
+    TypeId type=file_argument(base);TypeId actual;TypeId component;TypeId kind;
     if(cc_family(type)!=K_FILE) { cc_fail(66); return; }
-    if(cc.types[type].capacity==FILE_TEXT) {
+    if(CCT(type,capacity)==FILE_TEXT) {
         if(!writing) {
             uint8_t checking=cc.io_check;
             cc_op16(0x21,ZF_TEXT_BEGIN); store(0,0);
@@ -329,14 +329,14 @@ void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND {
             } else {
                 actual=cc_reference(41); kind=cc_family(actual); cc_release(base+ZF_JOB_BYTES);
                 if(kind!=K_STRING&&kind!=K_CHAR&&kind!=K_INTEGER&&kind!=K_REAL) { cc_fail(66); break; }
-                if(kind==K_INTEGER&&cc.types[actual].width==1) kind=K_BYTE;
+                if(kind==K_INTEGER&&CCT(actual,width)==1) kind=K_BYTE;
                 if(kind==K_STRING||kind==K_CHAR) store(6,0);
                 else {
                     cc_temporary(ZF_NUMBER_BYTES);
                     cc_emit(0xeb); cc_emit(0x73); cc_emit(0x23); cc_emit(0x72); /* captured target */
                     cc_op16(0x21,0); cc_emit(0x39); store(6,ZF_NUMBER_BYTES);
                 }
-                cc_op16(0x21,kind|((uint16_t)(kind==K_STRING?cc.types[actual].capacity:0)<<8));
+                cc_op16(0x21,kind|((uint16_t)(kind==K_STRING?CCT(actual,capacity):0)<<8));
                 store(8,cc.temporaries-base-ZF_JOB_BYTES);
             }
             invoke(base); cc_release(base+ZF_JOB_BYTES);
@@ -347,13 +347,13 @@ void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND {
         }
         cc_release(base); return;
     }
-    if(cc.types[type].capacity!=FILE_TYPED||newline) cc_fail(66);
-    component=cc.types[type].element;
+    if(CCT(type,capacity)!=FILE_TYPED||newline) cc_fail(66);
+    component=CCT(type,element);
     while(cc.token==','&&!cc.error->code) {
         cc_next(); actual=cc_reference(41); cc_release(base+ZF_JOB_BYTES);
         if(actual!=component&&!
            (cc_family(actual)==K_POINTER&&cc_family(component)==K_POINTER&&cc_compatible(component,actual))&&!
-           (cc_family(actual)==K_STRING&&cc_family(component)==K_STRING&&cc.types[actual].width==cc.types[component].width))
+           (cc_family(actual)==K_STRING&&cc_family(component)==K_STRING&&CCT(actual,width)==CCT(component,width)))
             cc_fail(44);
         store(6,0); invoke(base);
     }
@@ -364,7 +364,7 @@ void cc_file_stream_finish(void) FRONTEND {
     /* AuxOutPtr's default adapter creates a Text binding during hook finish. */
     if(cc.hook_variables[HOOK_AUX_OUT]&&!cc.file_entry)engine();
     if(!cc.file_entry||cc.error->code||
-       (cc.text_type==255&&!cc.hook_variables[HOOK_AUX_OUT]))return;
+       (cc.text_type==TYPE_NONE&&!cc.hook_variables[HOOK_AUX_OUT]))return;
     cc_put(cc.file_stream_operand,0xcd);cc_word(cc.file_stream_operand+1,cc.emitted);
     cc_relocate(cc.file_stream_operand+1);stream_result();cc_emit(0xc9);
 }
@@ -373,10 +373,10 @@ void cc_file_finish(void) FRONTEND {
     if(!cc.file_entry||cc.error->code) return;
     cc_word(cc.standard_table_operand,cc.emitted);
     for(i=0;i<cc.symbol_count;++i)
-        if(cc.symbols[i].role==S_STANDARD&&cc.symbols[i].address) ++count;
+        if(CCS(i,role)==S_STANDARD&&CCS(i,address)) ++count;
     cc_emit((uint8_t)count); cc_emit(0);
-    for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].role==S_STANDARD&&cc.symbols[i].address) {
-        cc_emit((uint8_t)cc.symbols[i].address); cc_emit((uint8_t)(cc.symbols[i].address>>8));
-        cc_emit(cc.symbols[i].initial_type); cc_emit(0);
+    for(i=0;i<cc.symbol_count;++i) if(CCS(i,role)==S_STANDARD&&CCS(i,address)) {
+        cc_emit((uint8_t)CCS(i,address)); cc_emit((uint8_t)(CCS(i,address)>>8));
+        cc_emit(CCS(i,initial_type)); cc_emit(0);
     }
 }

@@ -1,7 +1,7 @@
 #include "zp.h"
 #include "source_internal.h"
 
-/* Compose block edits in one owned page. A span with page255 supplies virtual
+/* Compose block edits in an owned native buffer. A span with page255 supplies virtual
  * spaces. Input spans may alias the old source: it remains intact until every
  * byte and line of the result is validated. Failure never adopts partial text. */
 typedef struct { uint8_t page; uint16_t first,length; } Span;
@@ -9,18 +9,20 @@ static uint8_t compose(Source *s,const Span *parts,uint8_t count,uint16_t cursor
     Source staged;
     uint32_t size=0;
     uint16_t out=0,i,line=0;
-    uint8_t j,c;
+    uint8_t j,c,old;
     for(j=0;j<count;++j) size+=parts[j].length;
     if(size>SOURCE_LIMIT||!source_new(&staged,s->path)) return 0;
+    if(!buffer_reserve(staged.page,(uint16_t)size)) {source_discard(s,&staged);return 0;}
     for(j=0;j<count;++j) for(i=0;i<parts[j].length;++i) {
-        c=parts[j].page==255?' ':far_get(parts[j].page,parts[j].first+i);
-        if(!line_byte(c,&line)) { source_close(&staged); return 0; }
-        far_set(staged.page,out++,c);
+        c=parts[j].page==255?' ':buffer_get(parts[j].page,parts[j].first+i);
+        if(!line_byte(c,&line)) { source_discard(s,&staged); return 0; }
+        buffer_set(staged.page,out++,c);
     }
-    page_initialized(staged.page,out);
-    if(!page_drop(s->page)) { source_close(&staged); return 0; }
+    buffer_initialized(staged.page,out);
+    old=s->page;
     s->page=staged.page; s->length=out; s->cursor=cursor;
     s->previous=previous; s->dirty=1; ++s->revision;
+    buffer_retire(s->page,old,s->length);
     return 1;
 }
 uint8_t source_insert_from(Source *s,uint16_t p,const Source *from,uint16_t a,uint16_t z,uint16_t spaces) SOURCE_BLOCK_CALL {

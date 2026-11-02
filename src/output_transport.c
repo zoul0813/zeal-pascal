@@ -74,6 +74,17 @@ uint8_t output_store_range(const uint8_t *pages,uint16_t first,uint16_t total,co
     }
     return output_finish(fd,ok);
 }
+uint8_t output_store_source_slice(const Source *s,uint16_t first,uint16_t total,const char *path) SOURCE_BLOCK_CALL {
+    uint16_t p=0,n,i;uint8_t ok=1;
+    int8_t fd=output_open_path(path,O_WRONLY|O_CREAT|O_TRUNC);
+    if(fd<0)return 0;
+    while(p<total&&ok) {
+        n=total-p;if(n>128)n=128;
+        for(i=0;i<n;++i)console_scratch[i]=buffer_get(s->page,first+p+i);
+        ok=output_poll()&&output_write_all(fd,n);p+=n;
+    }
+    return output_finish(fd,ok);
+}
 /* Save the canonical source stream directly from suspended Work. Keep its
  * trailing-space rule without materializing a second16KiB source page. */
 uint8_t output_store_source(const Source *s,const char *path) SOURCE_BLOCK_CALL {
@@ -83,10 +94,10 @@ uint8_t output_store_source(const Source *s,const char *path) SOURCE_BLOCK_CALL 
     if(fd<0)return 0;
     while(a<s->length&&ok) {
         if(!output_poll()) {ok=0;break;}
-        z=a;while(z<s->length&&far_get(s->page,z)!='\n')++z;
-        trim=z;while(trim>a&&far_get(s->page,trim-1)==' ')--trim;
+        z=a;while(z<s->length&&buffer_get(s->page,z)!='\n')++z;
+        trim=z;while(trim>a&&buffer_get(s->page,trim-1)==' ')--trim;
         for(i=a;i<trim&&ok;++i) {
-            console_scratch[n++]=far_get(s->page,i);
+            console_scratch[n++]=buffer_get(s->page,i);
             if(n==128) {ok=output_poll()&&output_write_all(fd,n);n=0;}
         }
         if(z<s->length&&ok) {

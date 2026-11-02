@@ -43,11 +43,11 @@ uint8_t cc_late_discard(CompilerLate *l) ROUTINES {
     }
     cc_late_init(l);return 1;
 }
-uint16_t cc_late_symbol(CompilerLate *l,uint8_t kind,uint8_t id,uint8_t owner) ROUTINES {
+uint16_t cc_late_symbol(CompilerLate *l,uint8_t kind,uint8_t id,TypeId owner) ROUTINES {
     uint16_t i,at;
     if(!ready(l))return LATE_NONE;
     if(l->sealed) {fail(l,ERR_FAILURE);return LATE_NONE;}
-    if(kind>LATE_ROUTINE||owner>cc.routine_count||
+    if(kind>LATE_ROUTINE||owner>255u||owner>cc.routine_count||
        (kind==LATE_ROOT&&(id>=LATE_ROOT_COUNT||owner))||
        (kind==LATE_BRIDGE&&owner)||
        ((kind==LATE_BRIDGE||kind==LATE_ROUTINE)&&(!id||id>cc.routine_count))) {
@@ -66,7 +66,7 @@ uint16_t cc_late_symbol(CompilerLate *l,uint8_t kind,uint8_t id,uint8_t owner) R
     put(l,at+SY_KIND,kind);put(l,at+SY_ID,id);put(l,at+SY_OWNER,owner);put(l,at+SY_STATE,1);
     i=l->symbols++;touch(l);return i;
 }
-uint8_t cc_late_bind(CompilerLate *l,uint16_t symbol,uint8_t owner,uint16_t value) ROUTINES {
+uint8_t cc_late_bind(CompilerLate *l,uint16_t symbol,TypeId owner,uint16_t value) ROUTINES {
     uint16_t at=symbol*SYMBOL_BYTES;
     if(!ready(l)||l->sealed)return fail(l,ERR_FAILURE);
     if(symbol>=l->symbols||value<CC_CODE_BASE||value>=cc.emitted||

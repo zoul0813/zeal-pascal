@@ -3,11 +3,10 @@
 /* TP3 A- saves/restores the Pascal workspace on a separate recursion stack.
  * Native lexical/callback metadata keeps the existing trusted CPU frame ABI. */
 static uint16_t width(uint16_t id) {
-    Symbol *s=&cc.symbols[id];
-    if(s->owner!=cc.scope) return 0;
-    if(s->role==S_REFERENCE)return 2;
-    if(s->role!=S_VARIABLE&&s->role!=S_VALUE&&s->role!=S_RESULT)return 0;
-    return cc.types[s->type].width;
+    if(CCS(id,owner)!=cc.scope) return 0;
+    if(CCS(id,role)==S_REFERENCE)return 2;
+    if(CCS(id,role)!=S_VARIABLE&&CCS(id,role)!=S_VALUE&&CCS(id,role)!=S_RESULT)return 0;
+    return CCT(CCS(id,type),width);
 }
 static uint16_t workspace(void) {
     uint16_t id,bytes=0;
@@ -23,10 +22,10 @@ static void copy(uint8_t restoring) {
     uint16_t id,n,start=0,bytes=0;
     for(id=0;id<cc.symbol_count;++id) {
         n=width(id);if(!n)continue;
-        if(bytes&&cc.symbols[id].address!=start+bytes) {
+        if(bytes&&CCS(id,address)!=start+bytes) {
             block(start,bytes,restoring);bytes=0;
         }
-        if(!bytes)start=cc.symbols[id].address;
+        if(!bytes)start=CCS(id,address);
         bytes+=n;
     }
     if(bytes)block(start,bytes,restoring);

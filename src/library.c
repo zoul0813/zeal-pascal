@@ -45,14 +45,17 @@ uint8_t code_load(const char *path) {
     }
     if(declared!=total) goto corrupt;
     for(bank=0;bank<count;++bank) {
-        boot_error=palloc(&page);
-        if(boot_error) goto close_file;
+        page=255;
+        if(bank<CODE_PHASE_FIRST) {
+            boot_error=palloc(&page);
+            if(boot_error) goto close_file;
+            if(page<32||page>=64) { boot_error=ERR_INVALID_PARAMETER; goto close_file; }
+        }
         code_pages[code_owned++]=page;
-        if(page<32||page>=64) { boot_error=ERR_INVALID_PARAMETER; goto close_file; }
         for(offset=0;offset<code_sizes[bank];offset+=n) {
             n=code_sizes[bank]-offset; if(n>128) n=128;
             if(!code_read_exact(fd,n)) goto close_file;
-            for(j=0;j<n;++j) far_set(page,offset+j,console_scratch[j]);
+            if(page!=255)for(j=0;j<n;++j) far_set(page,offset+j,console_scratch[j]);
         }
     }
     /* Require the declared payload and exact EOF before executing a bank. */

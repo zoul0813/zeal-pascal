@@ -25,12 +25,12 @@ static void integer_field(void) {
 }
 static uint16_t field(uint8_t numeric) {
     uint16_t before=cc.temporaries,bytes;
-    uint8_t type=cc_text_value(cc_expression()),kind=cc_family(type);
+    TypeId type=cc_text_value(cc_expression());TypeId kind=cc_family(type);
     if(numeric) {if(kind!=K_INTEGER&&kind!=K_REAL) cc_fail(26);}
     else if(kind==K_ARRAY||kind==K_RECORD) cc_fail(62);
     else if(kind==K_SET) cc_fail(66);
     else if(kind>K_CHAR&&kind!=K_REAL) cc_fail(44);
-    if(kind==K_STRING&&cc.temporaries==before) cc_string_snapshot(cc.types[type].width?cc.types[type].width:256);
+    if(kind==K_STRING&&cc.temporaries==before) cc_string_snapshot(CCT(type,width)?CCT(type,width):256);
     push_word();
     if(cc.token==':') {cc_next();integer_field();}
     else cc_op16(0x21,kind==K_REAL?18:0);
@@ -79,7 +79,7 @@ void cc_write(uint8_t newline) FRONTEND {
 }
 void cc_str(void) FRONTEND {
     uint16_t before=cc.temporaries,body_before,offset;
-    uint8_t target;
+    TypeId target;
     cc_next();cc_expect('(',4);offset=field(1);cc_expect(',',3);
     body_before=cc.temporaries;target=cc_reference(41);
     if(cc_family(target)!=K_STRING) cc_fail(34);
@@ -90,19 +90,19 @@ void cc_str(void) FRONTEND {
     cc_op16(0x21,offset+2);cc_emit(0x39);
     cc_emit(0x4e);cc_emit(0x23);cc_emit(0x46);
     cc_op16(0x21,2);cc_emit(0x39);cc_emit(0xd1);
-    cc_emit(0x3e);cc_emit(cc.types[target].capacity);cc_call(RT_STR);
+    cc_emit(0x3e);cc_emit(CCT(target,capacity));cc_call(RT_STR);
     cc_release(before);
 }
 void cc_val(void) FRONTEND {
     uint16_t before=cc.temporaries,argument_before;
-    uint8_t type,code_type;
+    TypeId type;TypeId code_type;
     cc_next();cc_expect('(',4);cc_string_value();push_word();cc_expect(',',3);
     argument_before=cc.temporaries;type=cc_reference(41);
     if(cc_family(type)!=K_REAL&&
-       (cc_family(type)!=K_INTEGER||cc.types[type].width!=2)) cc_fail(27);
+       (cc_family(type)!=K_INTEGER||CCT(type,width)!=2)) cc_fail(27);
     cc_release(argument_before);push_word();cc_expect(',',3);
     argument_before=cc.temporaries;code_type=cc_reference(41);
-    if(cc_family(code_type)!=K_INTEGER||cc.types[code_type].width!=2) cc_fail(24);
+    if(cc_family(code_type)!=K_INTEGER||CCT(code_type,width)!=2) cc_fail(24);
     cc_release(argument_before);push_word();cc_expect(')',5);
     cc_op16(0x21,0);cc_emit(0x39);cc_emit(0x3e);
     cc_emit(cc_family(type)==K_REAL?ZR_VAL_REAL:ZR_VAL_INTEGER);
@@ -110,7 +110,7 @@ void cc_val(void) FRONTEND {
 }
 void cc_read(uint8_t newline) FRONTEND {
     uint16_t before=cc.temporaries;
-    uint8_t fresh=cc.input_fresh,type,kind;
+    uint8_t fresh=cc.input_fresh;TypeId type;TypeId kind;
     cc_next();
     if(cc.token=='(') {
         SourceCursor cursor;
@@ -127,8 +127,8 @@ void cc_read(uint8_t newline) FRONTEND {
             type=cc_reference(41);kind=cc_family(type);
             if(kind!=K_INTEGER&&kind!=K_REAL&&kind!=K_CHAR&&kind!=K_STRING) cc_fail(66);
             cc_release(before);
-            cc_emit(0x06);cc_emit(kind==K_INTEGER&&cc.types[type].width==1?K_BYTE:kind);
-            cc_emit(0x0e);cc_emit(cc.types[type].capacity);
+            cc_emit(0x06);cc_emit(kind==K_INTEGER&&CCT(type,width)==1?K_BYTE:kind);
+            cc_emit(0x0e);cc_emit(CCT(type,capacity));
             io_call(RT_INPUT_VALUE,kind==K_INTEGER||kind==K_REAL?256:64);
             if(cc.token!=',') break;
             cc_next();

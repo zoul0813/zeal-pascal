@@ -5,26 +5,24 @@
  * Routine operands are native entries (nested callers supply the lexical link),
  * while Addr's captured nested thunk remains a Pascal-callable pointer value. */
 static uint16_t address(uint16_t id,uint16_t *coefficient) {
-    Symbol *symbol;
-    uint8_t scope;
-    while(cc.symbols[id].role==S_ALIAS)id=cc.symbols[id].address;
-    symbol=&cc.symbols[id];
-    if(symbol->role==S_PROCEDURE||symbol->role==S_FUNCTION||symbol->role==S_RESULT) {
-        scope=symbol->role==S_RESULT?symbol->owner:symbol->initial_type;
+    uint16_t scope;
+    while(CCS(id,role)==S_ALIAS)id=CCS(id,address);
+    if(CCS(id,role)==S_PROCEDURE||CCS(id,role)==S_FUNCTION||CCS(id,role)==S_RESULT) {
+        scope=CCS(id,role)==S_RESULT?CCS(id,owner):CCS(id,initial_type);
         *coefficient=(cc_rget(scope,R_FLAGS)&RF_EXTERNAL)?0:1;
         return cc_rget(scope,R_ENTRY);
     }
-    if(symbol->role==S_TYPED) {*coefficient=1;return symbol->address;}
-    if(symbol->role==S_VARIABLE||symbol->role==S_VALUE||symbol->role==S_REFERENCE||
-       symbol->role==S_SYSTEM||symbol->role==S_ADDRESS||symbol->role==S_STANDARD||symbol->role==S_HOOK) {
-        cc_bind_storage(id);return symbol->address;
+    if(CCS(id,role)==S_TYPED) {*coefficient=1;return CCS(id,address);}
+    if(CCS(id,role)==S_VARIABLE||CCS(id,role)==S_VALUE||CCS(id,role)==S_REFERENCE||
+       CCS(id,role)==S_SYSTEM||CCS(id,role)==S_ADDRESS||CCS(id,role)==S_STANDARD||CCS(id,role)==S_HOOK) {
+        cc_bind_storage(id);return CCS(id,address);
     }
     cc_fail(74);return 0;
 }
 static uint16_t data(uint16_t *coefficient,uint8_t *word) {
     int16_t id;
     uint16_t value=0;
-    uint8_t sign=0,family;
+    uint8_t sign=0;TypeId family;
     *coefficient=0;
     if(cc.token=='+'||cc.token=='-') {sign=cc.token=='-'?2:1;cc_next();}
     if(cc.token==T_NUMBER) {
@@ -33,10 +31,10 @@ static uint16_t data(uint16_t *coefficient,uint8_t *word) {
         value=cc.magnitude;
     } else if(cc.token==T_ID) {
         id=cc_lookup();
-        if(id>=0&&cc.symbols[id].role==S_CONSTANT) {
-            family=cc_family(cc.symbols[id].type);
+        if(id>=0&&CCS(id,role)==S_CONSTANT) {
+            family=cc_family(CCS(id,type));
             if(family!=K_INTEGER)cc_fail(sign&&family!=K_REAL?25:22);
-            value=cc.symbols[id].address;
+            value=CCS(id,address);
         } else if(id<0&&cc_is("maxint"))value=32767;
         else if(id<0&&(cc_is("true")||cc_is("false")||cc_is("pi")))cc_fail(sign&&!cc_is("pi")?25:22);
         else if(sign)cc_fail(25);
@@ -51,7 +49,7 @@ static uint16_t data(uint16_t *coefficient,uint8_t *word) {
 }
 void cc_inline(void) FRONTEND {
     uint16_t value,term,coefficient,part;
-    uint8_t force,word,subtract;
+    uint8_t force;uint8_t word;uint8_t subtract;
     if(!cc.suppress)cc.console_dynamic=1;
     cc_next();cc_expect('(',4);
     cc_guard(); /* No generated instruction may split the raw byte stream. */

@@ -16,8 +16,8 @@ void source_validation_window(const Source *s,uint16_t first,uint16_t last,
        s->length==known.length&&page_versions[s->page]==known.version) {
         /* The unchanged outer lines are already valid. Include every old
          * byte that may join the replacement, stopping at line boundaries. */
-        while(first&&far_get(s->page,first-1)!='\n') --first;
-        while(last<s->length&&far_get(s->page,last)!='\n') ++last;
+        while(first&&buffer_get(s->page,first-1)!='\n') --first;
+        while(last<s->length&&buffer_get(s->page,last)!='\n') ++last;
         *begin=first; *end=last;
     }
 }

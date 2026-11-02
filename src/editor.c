@@ -2,7 +2,7 @@
 
 Editor editor;
 
-static uint8_t byte(uint16_t p) { return far_get(editor.source->page,p); }
+static uint8_t byte(uint16_t p) { return buffer_get(editor.source->page,p); }
 static uint16_t start(uint16_t p) {
     while(p&&byte(p-1)!='\n') --p;
     return p;
@@ -97,7 +97,7 @@ static uint8_t copy_block(const Source *block,uint16_t a,uint16_t z) {
         editor.block_begin=editor.block_end=p;
         editor.block_marks=3; editor.block_visible=1; return EDITOR_OK;
     }
-    for(i=a;i<z&&!structural;++i) structural=far_get(block->page,i)=='\n';
+    for(i=a;i<z&&!structural;++i) structural=buffer_get(block->page,i)=='\n';
     save=!editor.undo_valid&&!structural;
     if(save) for(i=line;i<end(line);++i) before[length++]=byte(i);
     if(!source_insert_from(s,p,block,a,z,spaces)) return EDITOR_REJECT;

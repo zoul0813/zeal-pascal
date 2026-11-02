@@ -50,6 +50,11 @@ int main(int argc,char **argv) {
         output("Missing or invalid Pascal library: "); output(path);
         output(" (native error "); output_number(boot_error); output(")\n"); return 1;
     }
+#ifdef ZP_TEST_COMPILER
+    /* Compiler component fixtures start at the compiler boundary. The IDE
+     * startup test instead observes the deferred, thirteen-bank session. */
+    if(!code_phase_restore())return 1;
+#endif
     code_ready();
     old=code_select(0); result=app_main(); code_restore(old);
     return result;
@@ -71,7 +76,7 @@ uint8_t compile_request(const Source *root,Build *build,CompileFailure *failure,
     if(!compiler_resources_ready()||!code_phase_restore()) {
         memset(failure,0,sizeof(*failure));failure->diagnostic.code=COMPILE_PLATFORM_FAILURE;return 0;
     }
-    old=code_select(15);ok=compiler_compile_request(root,build,failure,mode,options);
+    old=code_select(14);ok=compiler_compile_request(root,build,failure,mode,options);
     code_restore(old);return ok;
 }
 void build_close(Build *b) {

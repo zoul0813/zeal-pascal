@@ -9,7 +9,7 @@ void source_location(const Source *s, uint16_t p, uint16_t *line, uint16_t *col)
      * stores outside the loop, particularly under the banked calling ABI. */
     if(p<end) end=p;
     for(i=0;i<end;++i) {
-        if(far_get(page,i)=='\n') { ++row; column=1; }
+        if(buffer_get(page,i)=='\n') { ++row; column=1; }
         else ++column;
     }
     *line=row; *col=column;

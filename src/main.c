@@ -73,7 +73,7 @@ static uint16_t draw_line(uint16_t p,uint8_t row,uint8_t selected) {
     uint8_t n=0,col=0,shown=0,c,style=0,mark;
     screen_at(0,row);
     while(p<work.length) {
-        c=far_get(work.page,p);
+        c=buffer_get(work.page,p);
         if(c=='\n') break;
         mark=c<32||c==127||(selected&&p>=editor.block_begin&&p<editor.block_end);
         ++p;
@@ -318,11 +318,12 @@ static void block_io(uint8_t kind) {
             if(ok||publication_interrupted()) return;
         } else {
             if(read_block(&block,name,&d)) {
-                result=editor_insert_block(&block); source_close(&block);
+                result=editor_insert_block(&block); source_discard(&work,&block);
                 if(result==EDITOR_OK) return;
                 output("\nBlock insertion rejected: line or source capacity. Press Escape");
                 while(key_read()!=27) {} return;
             }
+            source_discard(&work,&block);
         }
         error=platform_error; output("\n");
         if(kind==EDITOR_READ_BLOCK&&d.code) file_error("Block source error ",d.code);
@@ -469,20 +470,35 @@ static void option_address(uint8_t start) {
 }
 static uint8_t find_saved(void) {
     char text[128],root[128];SavedLocation found;
-    uint16_t pc,line,column;uint8_t field;
+    Source source,located;Diagnostic error;
+    uint16_t pc,line,column;uint8_t field,file,loaded=0,ok;
     strcpy(root,main_file[0]?main_file:work.path);
     for(;;) {
-        screen_clear();output("Find saved run-time error\nEnter PC: ");
+        screen_clear();output("Find run-time error\nEnter PC: ");
         field=file_field(text);
         if(field!=1)return 0;
         if(hexadecimal(text,&pc))break;
         output("\nInvalid hexadecimal PC. Press Escape to retry");while(key_read()!=27) {}
     }
-    output("\nVerifying saved program, map and sources...\n");
-    if(!saved_location_kind(root,&work,pc,&found,saved_mode==2)) {
-        file_error("Saved lookup failed, native error ",platform_error);
-        lookup_failure();return 0;
+    /* TP3 recovers the location from source, including in a fresh session.
+     * Reuse the compiler's statement mapping; no executable or sidecar is an
+     * input, and this read-only compile never publishes output files. */
+    invalidate();
+    if(!strcmp(root,work.path))source=work;
+    else {
+        if(work.dirty&&!save_work_auto())return 0;
+        memset(&source,0,sizeof(source));source.page=255;
+        if(!read_block(&source,root,&error)){source_discard(&work,&source);lookup_failure();return 0;}
+        loaded=1;
     }
+    output("\nFinding position from source (Ctrl-U cancels)...\n");
+    ok=compile_project(&source,&build,&error,1,&compile_options);
+    if(ok)ok=build_location(&source,&build,pc,&file,&found.position)&&
+        sources_get(&build.sources,file,&located);
+    if(ok)strcpy(found.path,located.path);
+    build_close(&build);
+    if(loaded)source_discard(&work,&source);
+    if(!ok){lookup_failure();return 0;}
     if(!select_error_source(found.path)) {lookup_failure();return 0;}
     if(strcmp(found.path,root)&&!main_file[0])strcpy(main_file,root);
     pc=source_editor_offset(&work,found.position);

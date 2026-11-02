@@ -7,21 +7,23 @@
 #define image_get compiler_image_get
 #endif
 #include "compiler.h"
+#include "compiler_disk.h"
 #include "image.h"
 #include "sources_internal.h"
 
 /* Build ownership, sealing and source lookup share a code bank. Compiler
  * emission reaches these through banked helpers or the resident public API. */
-uint8_t image_get(const Build *b,uint16_t p) { return far_get(b->pages[p/PAGE_SIZE],p%PAGE_SIZE); }
+uint8_t image_get(const Build *b,uint16_t p) { return cc_disk_active(b)?cc_disk_image(b,p):far_get(b->pages[p/PAGE_SIZE],p%PAGE_SIZE); }
 
 void build_discard_image(Build *b) SOURCE_BLOCK_CALL {
     uint8_t i;
-    b->valid=0;
+    cc_disk_discard(b);b->valid=0;
     for(i=0;i<3;++i) if(b->pages[i]!=255&&page_drop(b->pages[i])) b->pages[i]=255;
-    if(b->map_page!=255&&page_drop(b->map_page)) b->map_page=255;
+    if(b->map_page!=255&&buffer_drop(b->map_page)) b->map_page=255;
 }
 void build_close(Build *b) {
     build_discard_image(b);sources_close(&b->sources);
+    if(b==cc.image)cc_tables_end();
 }
 uint8_t cc_image_page(uint8_t index) FRONTEND {
     uint16_t i;
@@ -52,6 +54,31 @@ uint8_t cc_stage_get(uint16_t offset) FRONTEND {
     offset=stage_offset(offset);
     return cc.error->code?0:far_get(cc.stage_page,offset);
 }
+/* Once globals cross a bank, their storage must not alias parser staging.
+ * Spill code only when necessary, then clear the old staging bank before the
+ * first high-global initializer or final placement uses it as data. */
+static uint8_t separate_globals(void) {
+    uint16_t i,n;
+    if(cc.primary_stage!=255)return 1;
+    cc.primary_stage=page_new(PAGE_COMPILER);
+    if(cc.primary_stage==255){cc_fail(99);return 0;}
+    n=cc.emitted>CC_CODE_BASE?cc.emitted-CC_CODE_BASE:0;if(n>PAGE_SIZE)n=PAGE_SIZE;
+    for(i=0;i<n;++i) {
+        if(!(i&255)&&!cc_poll())return 0;
+        far_set(cc.primary_stage,i,far_get(cc.image->pages[2],i));
+    }
+    for(i=0;i<PAGE_SIZE;i+=256) {
+        if(!cc_poll()||!far_fill(cc.image->pages[2],i,0,256))return 0;
+    }
+    return 1;
+}
+void cc_global_put(uint16_t p,uint8_t value) FRONTEND {
+    if(cc.error->code)return;
+    if(cc_disk_active(cc.image)){cc_disk_global_put(p,value);return;}
+    if(!cc.placing&&p>=CC_CODE_BASE&&!separate_globals())return;
+    if(!cc_image_page(p/PAGE_SIZE))return;
+    far_set(cc.image->pages[p/PAGE_SIZE],p%PAGE_SIZE,value);
+}
 /* Final placement and relocation belong with build sealing. Keeping them in
  * this bank also leaves lexer/emission room for cancellable scanning. */
 uint8_t cc_place_code(void) FRONTEND {
@@ -65,9 +92,9 @@ uint8_t cc_place_code(void) FRONTEND {
     for(i=0;i<cc.relocations;++i) {
         if(!(i&63)&&!cc_poll())return 0;
         p=i*RELOCATION_BYTES;
-        at=far_get(cc.workspace,p)|((uint16_t)far_get(cc.workspace,p+1)<<8);
+        at=cc_reloc_get(p)|((uint16_t)cc_reloc_get(p+1)<<8);
         byte=(at&0x8000u)!=0;at=CC_CODE_BASE+(at&0x7fffu);
-        coefficient=far_get(cc.workspace,p+2)|((uint16_t)far_get(cc.workspace,p+3)<<8);
+        coefficient=cc_reloc_get(p+2)|((uint16_t)cc_reloc_get(p+3)<<8);
         if(at>=cc.emitted||(!byte&&at>=cc.emitted-1)) { cc_fail(99);return 0; }
         value=cc_code_get(at);
         if(!byte)value|=(uint16_t)cc_code_get(at+1)<<8;
@@ -76,9 +103,12 @@ uint8_t cc_place_code(void) FRONTEND {
     }
     /* Relocation and routine records are dead before final placement. Reuse
      * their capacity for the middle image page rather than holding both. */
-    if(!page_drop(cc.workspace)) {cc_fail(99);return 0;}
+    if(cc.workspace!=255&&!page_drop(cc.workspace)) {cc_fail(99);return 0;}
     cc.workspace=255;
+    if(!cc_disk_active(cc.image)) {
+    if(cc.image->globals_bytes>PAGE_SIZE&&!separate_globals())return 0;
     if(!cc_image_page(1))return 0;
+    cc.placing=1;
     /* A higher Start may overlap the first staging page in either direction.
      * Reverse only for an upward overlapping move. The second staging page
      * is separate from all final image pages. Clear gaps after staging dies. */
@@ -91,6 +121,9 @@ uint8_t cc_place_code(void) FRONTEND {
         if(!(i&255)&&!cc_poll())return 0;
         cc_put(i,0);
     }
+    }
+    cc.image->code_origin=origin;cc.image->code_bytes=count;
+    if(cc_disk_active(cc.image))cc_disk_place(cc.image,origin,count);
     /* Bind the private key dispatch only after final placement is known.
      * Both RAM and saved images own their typeahead state and exact target. */
     if(cc.keyboard_entry)
@@ -108,7 +141,8 @@ uint8_t cc_place_code(void) FRONTEND {
 static uint8_t image_layout(const Build *b) {
     uint8_t i;
     if(b->length<96||b->length>CC_STATIC_LIMIT-0x4000u||
-       b->map_length<96||b->map_length>PAGE_SIZE||page_role(b->map_page)!=PAGE_MAP)return 0;
+       b->map_length<96||b->map_length>SOURCE_LIMIT||page_role(b->map_page)!=PAGE_MAP)return 0;
+    if(b->valid==2)return cc_disk_ready(b)&&b->pages[0]==255&&b->pages[1]==255&&b->pages[2]==255;
     for(i=0;i<3;++i) {
         if((uint16_t)i*PAGE_SIZE<b->length) {
             if(page_role(b->pages[i])!=PAGE_IMAGE)return 0;
@@ -126,7 +160,7 @@ uint8_t build_check(const Source *s,const Build *b) {
     return b->versions[4]==page_versions[s->page];
 }
 uint8_t build_ready(const Source *s,const Build *b) {return build_check(s,b);}
-static uint16_t read16(uint8_t p,uint16_t offset) { return far_get(p,offset)|((uint16_t)far_get(p,offset+1)<<8); }
+static uint16_t read16(uint8_t p,uint16_t offset) { return buffer_get(p,offset)|((uint16_t)buffer_get(p,offset+1)<<8); }
 uint8_t build_locate(const Source *s,const Build *b,uint16_t pc,uint16_t *position) {
     uint8_t file;uint16_t canonical;
     if(!build_location(s,b,pc,&file,&canonical)||file)return 0;
@@ -152,8 +186,14 @@ uint8_t build_location(const Source *s,const Build *b,uint16_t pc,uint8_t *file,
 }
 
 uint8_t cc_sources_ready(const Source *root,const Build *build) ROUTINES {
-    uint8_t id,count=build->sources.count;Source source;
+    uint8_t id;uint8_t count=build->sources.count;Source source;
     if(!page_lifetime(root->page)||!sources_get(&build->sources,0,&source)||strcmp(root->path,source.path))return 0;
     for(id=0;id<count;++id)if(!sources_ready(&build->sources,id))return 0;
     return 1;
+}
+
+void cc_storage(uint16_t id,uint16_t width) FRONTEND {
+    if((uint32_t)GLOBAL_BASE+cc.image->globals_bytes+width>=CC_STATIC_LIMIT) { cc_fail(98); return; }
+    CCS_SET(id,address,GLOBAL_BASE+cc.image->globals_bytes);
+    cc.image->globals_bytes+=width;
 }

@@ -9,11 +9,24 @@ static uint8_t new_source(Source *s, const char *path,uint8_t role) {
     if (p == 255) return 0;
     memset(s, 0, sizeof(*s));
     s->page = p;
+    buffer_init(p);
     strcpy(s->path, path);
     return 1;
 }
 uint8_t source_new(Source *s,const char *path) { return new_source(s,path,PAGE_SOURCE); }
-void source_close(Source *s) { page_drop(s->page); }
+void source_close(Source *s) { if(buffer_drop(s->page))s->page=255; }
+
+/* An aborted candidate remains reachable as spare capacity if its release
+ * fails. An initially absent source can own an empty buffer for this cleanup. */
+void source_discard(Source *owner,Source *staged) {
+    if(staged->page==255)return;
+    if(buffer_drop(staged->page)){staged->page=255;return;}
+    if(owner->page==255) {
+        owner->page=staged->page;owner->length=owner->cursor=owner->previous=0;
+        buffer_retire(owner->page,255,0);
+    } else buffer_retire(owner->page,staged->page,owner->length);
+    staged->page=255;
+}
 
 /* Delete first, then insert at the surviving boundary. Right-biased positions
  * follow the old text; left-biased viewport/selection boundaries retain prefix
@@ -26,8 +39,8 @@ uint16_t source_rebase(uint16_t p,uint16_t a,uint16_t z,uint16_t n,uint8_t right
 }
 
 /* Validate the proposed text before the first store. A versioned complete-text
- * proof may narrow the old-byte scan to affected lines. No edit allocates
- * or loses the old buffer on a capacity/line-length error. */
+ * proof may narrow the old-byte scan to affected lines. Growth reserves
+ * continuation banks only after validation; failures retain the old text. */
 uint8_t source_replace(Source *s, uint16_t a, uint16_t z,
                        const uint8_t *text, uint16_t n) {
     uint16_t i, size, previous, first,last,line=0;
@@ -43,14 +56,15 @@ uint8_t source_replace(Source *s, uint16_t a, uint16_t z,
      * Small retained ranges keep the original single scan and avoid calls. */
     first=0; last=s->length;
     if(size-n>1024) source_validation_window(s,a,z,&first,&last);
-    for(i=first;i<a;++i)if(!line_byte(far_get(s->page,i),&line))return 0;
+    for(i=first;i<a;++i)if(!line_byte(buffer_get(s->page,i),&line))return 0;
     for(i=0;i<n;++i)if(!line_byte(text[i],&line))return 0;
-    for(i=z;i<last;++i)if(!line_byte(far_get(s->page,i),&line))return 0;
+    for(i=z;i<last;++i)if(!line_byte(buffer_get(s->page,i),&line))return 0;
     previous=s->previous>s->length?s->length:s->previous;
+    if(!buffer_reserve(s->page,size))return 0;
     if(n!=z-a&&!source_move_range(s->page,a+n,z,s->length-z))return 0;
-    for (i=0;i<n;++i) far_set(s->page,a+i,text[i]);
+    for (i=0;i<n;++i) buffer_set(s->page,a+i,text[i]);
     s->length=size;
-    page_initialized(s->page,size);
+    buffer_initialized(s->page,size);
     s->cursor=a+n;
     s->previous=source_rebase(previous,a,z,n,1);
     s->dirty=1;
@@ -79,14 +93,17 @@ uint8_t import_byte(SourceImport *in,uint8_t c,Diagnostic *d) {
     }
     if(in->out==SOURCE_LIMIT&&!d->code) d->code=98;
     if(d->code) { d->start=in->out; d->end=in->out+1; return 0; }
-    far_set(in->staged.page,in->out++,c); return 1;
+    if(!buffer_reserve(in->staged.page,in->out+1)) {d->code=98;return 0;}
+    buffer_set(in->staged.page,in->out++,c); return 1;
 }
 uint8_t import_finish(SourceImport *in,Source *s,Diagnostic *d) {
-    if(d->code) { page_drop(in->staged.page); return 0; }
+    uint8_t old;
+    if(d->code) { source_discard(s,&in->staged); return 0; }
     in->staged.length=in->out-in->spaces;
     in->staged.revision=s->revision+1;
-    if(s->page!=255&&!page_drop(s->page)) { page_drop(in->staged.page); d->code=98; return 0; }
-    *s=in->staged; page_initialized(s->page,s->length); return 1;
+    old=s->page;*s=in->staged;in->staged.page=255;
+    buffer_retire(s->page,old,s->length);
+    buffer_initialized(s->page,s->length); return 1;
 }
 uint8_t source_import(Source *s,const uint8_t *bytes,uint16_t n,Diagnostic *d) {
     SourceImport in; uint16_t i;
@@ -98,26 +115,27 @@ uint8_t source_import(Source *s,const uint8_t *bytes,uint16_t n,Diagnostic *d) {
 uint8_t source_snapshot(const Source *s, Source *snapshot) {
     uint16_t a=0,z,trim,i,out=0;
     if(!new_source(snapshot,s->path,PAGE_SNAPSHOT)) return 0;
+    if(!buffer_reserve(snapshot->page,s->length)) {source_close(snapshot);return 0;}
     while(a<s->length) {
         z=a;
-        while(z<s->length&&far_get(s->page,z)!='\n') ++z;
+        while(z<s->length&&buffer_get(s->page,z)!='\n') ++z;
         trim=z;
-        while(trim>a&&far_get(s->page,trim-1)==' ') --trim;
-        for(i=a;i<trim;++i) far_set(snapshot->page,out++,far_get(s->page,i));
-        if(z<s->length) far_set(snapshot->page,out++,'\n');
+        while(trim>a&&buffer_get(s->page,trim-1)==' ') --trim;
+        for(i=a;i<trim;++i) buffer_set(snapshot->page,out++,buffer_get(s->page,i));
+        if(z<s->length) buffer_set(snapshot->page,out++,'\n');
         a=z+1;
     }
     snapshot->length=out; snapshot->revision=s->revision;
-    page_initialized(snapshot->page,out);
+    buffer_initialized(snapshot->page,out);
     return 1;
 }
 uint16_t source_editor_offset(const Source *s,uint16_t canonical) {
     uint16_t a=0,z,trim,count=0;
     while(a<s->length) {
         z=a;
-        while(z<s->length&&far_get(s->page,z)!='\n') ++z;
+        while(z<s->length&&buffer_get(s->page,z)!='\n') ++z;
         trim=z;
-        while(trim>a&&far_get(s->page,trim-1)==' ') --trim;
+        while(trim>a&&buffer_get(s->page,trim-1)==' ') --trim;
         if(canonical<=count+trim-a) return a+canonical-count;
         count+=trim-a;
         if(z<s->length) ++count;

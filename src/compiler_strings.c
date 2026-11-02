@@ -4,11 +4,11 @@
  * the existing parkable compiler phase. No target runtime page is added. */
 static uint16_t string_value(void) {
     uint16_t before=cc.temporaries;
-    uint8_t kind,type;
+    TypeId kind;TypeId type;
     uint16_t bytes;
     if(cc.token==')'||cc.token==','||cc.token==T_EOF) { cc_fail(41); return 0; }
     type=cc_text_value(cc_expression()); kind=cc_family(type);
-    bytes=kind==K_CHAR?2:kind==K_STRING&&cc.types[type].width?cc.types[type].width:256;
+    bytes=kind==K_CHAR?2:kind==K_STRING&&CCT(type,width)?CCT(type,width):256;
     if(kind==K_CHAR) {
         cc_temporary(2); cc_emit(0x3e); cc_emit(1); cc_emit(0x12);
         cc_emit(0x13); cc_emit(0x7d); cc_emit(0x12); cc_op16(0x21,0); cc_emit(0x39);
@@ -19,7 +19,7 @@ static uint16_t string_value(void) {
 static void integer_value(void) { if(cc_family(cc_expression())!=K_INTEGER) cc_fail(23); }
 void cc_string_value(void) BACKEND { string_value(); }
 static void push_value(void) { cc_guard(); cc_emit(0xe5); }
-uint8_t cc_string_function(uint8_t op) BACKEND {
+TypeId cc_string_function(uint8_t op) BACKEND {
     uint16_t before=cc.temporaries,right_before,right_bytes,owned,bytes;
     bytes=string_value();
     if(op==CC_STR_CONCAT) {
@@ -43,25 +43,25 @@ uint8_t cc_string_function(uint8_t op) BACKEND {
     cc_op16(0x21,bytes); cc_emit(0x39); cc_op16(0x11,owned+6); cc_call(RT_SUBSTRING);
     cc.temporaries=before+bytes; return K_STRING;
 }
-static uint8_t string_target(void) {
+static TypeId string_target(void) {
     int16_t id=cc.token==T_ID?cc_lookup():-1;
-    uint8_t type;
-    if(id>=0&&cc.symbols[id].role==S_RESULT) { cc_fail(41); return K_STRING; }
-    if(!cc_variable(id)||cc.symbols[id].control) { cc_fail(34); return K_STRING; }
+    TypeId type;
+    if(id>=0&&CCS(id,role)==S_RESULT) { cc_fail(41); return K_STRING; }
+    if(!cc_variable(id)||CCS(id,control)) { cc_fail(34); return K_STRING; }
     type=cc_selection((uint16_t)id);
     if(cc_family(type)!=K_STRING) cc_fail(34);
     return type;
 }
 void cc_string_statement(uint8_t insert) BACKEND {
     uint16_t before=cc.temporaries;
-    uint8_t type=K_STRING;
+    TypeId type=K_STRING;
     cc_next(); cc_expect('(',4);
     if(insert) { string_value(); push_value(); cc_expect(',',3); }
     type=string_target(); push_value(); cc_expect(',',3);
     integer_value();
     if(insert) {
         cc_emit(0x44); cc_emit(0x4d); cc_emit(0xd1); cc_emit(0xe1);
-        cc_emit(0x3e); cc_emit(cc.types[type].capacity);
+        cc_emit(0x3e); cc_emit(CCT(type,capacity));
     } else {
         push_value(); cc_expect(',',3); integer_value();
         cc_emit(0xeb); cc_emit(0xc1); cc_emit(0xe1);

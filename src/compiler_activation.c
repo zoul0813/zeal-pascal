@@ -1,4 +1,5 @@
 #include "compiler.h"
+#include "compiler_disk.h"
 
 /* Code-only transfers reuse the prefix. Each program therefore owns the
  * executable bindings it installs there, including restoring unused native
@@ -10,11 +11,11 @@ void cc_activation_begin(void) FRONTEND {
 }
 static uint8_t byte(uint16_t address) {
     uint16_t p=address-0x4000u;
-    return far_get(cc.image->pages[p/PAGE_SIZE],p%PAGE_SIZE);
+    return image_get(cc.image,p);
 }
 static void put(uint16_t *at,uint8_t value) {
     uint16_t p=(*at)++;
-    far_set(cc.image->pages[p/PAGE_SIZE],p%PAGE_SIZE,value);
+    cc_put(p,value);
 }
 static void word(uint16_t *at,uint16_t value) {
     put(at,(uint8_t)value);put(at,(uint8_t)(value>>8));

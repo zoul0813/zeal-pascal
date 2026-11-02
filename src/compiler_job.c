@@ -3,6 +3,7 @@
 #endif
 #include "compiler_job.h"
 #include "compiler.h"
+#include "compiler_disk.h"
 #include "output_transport.h"
 #include <zos_errors.h>
 
@@ -22,9 +23,9 @@ static uint8_t source_valid(const Source *s) {
         (page_role(s->page)==PAGE_SOURCE||page_role(s->page)==PAGE_SNAPSHOT));
 }
 static uint8_t source_canonical(const Source *source) {
-    uint8_t c,previous=0;uint16_t i,line=0;
+    uint8_t c;uint8_t previous=0;uint16_t i,line=0;
     for(i=0;i<source->length;++i) {
-        c=far_get(source->page,i);
+        c=buffer_get(source->page,i);
         if(c=='\r'||c==26)return 0;
         if(c=='\n') {if(previous==' ')return 0;line=0;}
         else if(++line>127)return 0;
@@ -66,7 +67,7 @@ static void rebase_failure(const Source *root,CompileFailure *failure) {
 /* Only the root can come from Work. Includes become disk references once
  * parsing ends; the table retains their IDs for source-error lookup. */
 static uint8_t retain_sources(const Source *root,Build *b) {
-    Source source;uint8_t i,count=b->sources.count;
+    Source source;uint8_t i;uint8_t count=b->sources.count;
     for(i=0;i<count;++i) {
         if(!sources_get(&b->sources,i,&source))return 0;
         if(!i) {
@@ -89,7 +90,7 @@ uint8_t compile_request(const Source *root,Build *b,CompileFailure *failure,
     uint8_t mode,const CompileOptions *options) {
     Source source;Build built;Diagnostic diagnostic;
     CompileOptions effective={0,0xfbffu,COMPILE_PROGRAM};
-    uint8_t keep[8],i,ok=0,prepared=0;
+    uint8_t keep[8];uint8_t i;uint8_t ok=0;uint8_t prepared=0;
     memset(failure,0,sizeof(*failure));memset(b,0,sizeof(*b));memset(b->pages,255,3);b->map_page=b->sources.page=255;
     platform_error=0;parent_interrupted=0;
     if(!compiler_resources_ready()||!cancel_prepared_build())goto platform;
@@ -119,7 +120,9 @@ uint8_t compile_request(const Source *root,Build *b,CompileFailure *failure,
         source.revision=root->revision;
     }
     compiler_memory_mode=mode==0;compiler_invocation=failure;
+    compiler_disk_requested=mode!=0;
     ok=compile_project(&source,&built,&diagnostic,1,&effective);
+    compiler_disk_requested=0;
     compiler_invocation=0;
     if(!ok) {
         if(diagnostic.code==COMPILE_INTERRUPTED) {
@@ -129,18 +132,22 @@ uint8_t compile_request(const Source *root,Build *b,CompileFailure *failure,
     }
     ok=0;
     if(!compiler_result_ready(&built))goto corrupt;
-    if(!retain_sources(root,&built))goto platform;
+    if(!retain_sources(root,&built)||!cc_tables_end())goto platform;
     memset(keep,0,8);for(i=0;i<3;++i)if(built.pages[i]!=255)bit(keep,built.pages[i]);
-    bit(keep,built.map_page);bit(keep,built.sources.page);
+    {uint8_t page=built.map_page;do {bit(keep,page);page=buffer_next(page);}while(page!=255);}
+    bit(keep,built.sources.page);
     for(i=0;i<built.sources.count;++i) {
         if(!sources_get(&built.sources,i,&source))goto corrupt;
-        if(source.page!=255)bit(keep,source.page);
+        if(source.page!=255) {
+            uint8_t page=source.page;
+            do {bit(keep,page);page=buffer_next(page);}while(page!=255);
+        }
     }
     /* One ledger transaction releases all scratch before transferring any
      * result ownership. A failed free keeps every surviving handle retryable. */
     for(i=0;i<8;++i) {parent_pending[i]|=compiler_owned[i];compiler_owned[i]=0;}
     if(!compiler_pages_release(parent_pending,keep))goto platform;
-    *b=built;ok=1;goto done;
+    *b=built;cc_disk_adopt(&built,b);ok=1;goto done;
 interrupted:
     failure->diagnostic.code=COMPILE_INTERRUPTED;failure->interrupted=parent_interrupted;goto done;
 corrupt:

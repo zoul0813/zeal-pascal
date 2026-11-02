@@ -31,16 +31,16 @@ static uint8_t member_byte(const CompilerMember *m,const uint8_t *header,Compile
     }
     at-=m->bytes;
     if(at<(uint32_t)m->maps*16u)
-        return far_get(cc.image->map_page,96+cc.file_bytes+m->map_first*16u+(uint16_t)at);
+        return buffer_get(cc.image->map_page,96+cc.file_bytes+m->map_first*16u+(uint16_t)at);
     at-=(uint32_t)m->maps*16u;
     if(at<(uint32_t)m->relocs*RELOCATION_BYTES)
-        return far_get(cc.workspace,m->reloc_first*RELOCATION_BYTES+(uint16_t)at);
+        return cc_reloc_get(m->reloc_first*RELOCATION_BYTES+(uint16_t)at);
     at-=(uint32_t)m->relocs*RELOCATION_BYTES;
     return cc_late_byte(late,first+(uint16_t)(at/LATE_REFERENCE_BYTES),(uint8_t)(at%LATE_REFERENCE_BYTES));
 }
 uint8_t cc_members_flush(CompilerMemberStore *store,CompilerMember *member,CompilerLate *late,uint16_t first) ROUTINES {
     CompilerMember next;
-    uint8_t header[MEMBER_HEADER],buffer[128];
+    uint8_t header[MEMBER_HEADER];uint8_t buffer[128];
     uint16_t i,n;
     uint32_t at,total;
     if(store->failed)return failed();
@@ -51,10 +51,8 @@ uint8_t cc_members_flush(CompilerMemberStore *store,CompilerMember *member,Compi
     if(!cc.image||member->origin<CC_CODE_BASE||member->origin>=cc.emitted||cc.emitted>CC_STATIC_LIMIT||
        member->entry<member->origin||member->entry>=cc.emitted||
        member->map_first>cc.entries||member->reloc_first>cc.relocations||
-       (uint32_t)96+cc.file_bytes+(uint32_t)cc.entries*16u>PAGE_SIZE||
-       (uint32_t)cc.relocations*RELOCATION_BYTES+(uint32_t)cc.routine_count*ROUTINE_BYTES>PAGE_SIZE||
+       (uint32_t)96+cc.file_bytes+(uint32_t)cc.entries*16u>SOURCE_LIMIT||
        page_role(cc.image->pages[2])!=PAGE_IMAGE||page_role(cc.image->map_page)!=PAGE_MAP||
-       page_role(cc.workspace)!=PAGE_COMPILER||
        (cc.emitted>0xc000u&&page_role(cc.stage_page)!=PAGE_COMPILER))return failed();
     next.offset=store->length;next.bytes=cc.emitted-next.origin;
     next.maps=cc.entries-next.map_first;next.relocs=cc.relocations-next.reloc_first;

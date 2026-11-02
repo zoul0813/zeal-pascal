@@ -1,14 +1,14 @@
 #include "compiler.h"
 
-static uint8_t expression(void);
-static uint8_t set_constructor(void) {
-    uint8_t base=255,kind,upper;
+static TypeId expression(void);
+static TypeId set_constructor(void) {
+    TypeId base=TYPE_NONE;TypeId kind;TypeId upper;
     uint16_t before;
     cc_temporary(32); cc_op16(0x21,0); cc_emit(0x39); cc_call(RT_SETZERO); cc_next();
     while(cc.token!=']'&&!cc.error->code) {
         before=cc.temporaries; kind=expression();
         if(!cc_ordinal(kind)) cc_fail(44);
-        if(base==255) base=cc_family(kind); else if(base!=cc_family(kind)) cc_fail(44);
+        if(base==TYPE_NONE) base=cc_family(kind); else if(base!=cc_family(kind)) cc_fail(44);
         cc_release(before); cc_guard(); cc_emit(0xe5);
         if(cc.token==T_RANGE) {
             cc_next(); upper=expression();
@@ -20,13 +20,13 @@ static uint8_t set_constructor(void) {
         if(cc.token!=',') break; cc_next();
     }
     cc_expect(']',9); cc_op16(0x21,0); cc_emit(0x39);
-    return base==255?K_EMPTY_SET:K_SET_EXPR+base;
+    return base==TYPE_NONE?K_EMPTY_SET:K_SET_EXPR+base;
 }
-static uint8_t set_binary(uint8_t left,uint8_t right,uint8_t op,uint16_t before,uint16_t right_bytes) {
+static TypeId set_binary(TypeId left,TypeId right,uint8_t op,uint16_t before,uint16_t right_bytes) {
     if(cc_family(right)!=K_SET||!cc_compatible(left,right)) cc_fail(44);
     cc_op16(0x01,cc.temporaries-before+(right_bytes?2:0)); cc_emit(0x3e); cc_emit(op); cc_call(RT_SETBIN);
     cc.temporaries=before+32;
-    return cc_set_base(left)==255?right:left;
+    return cc_set_base(left)==TYPE_NONE?right:left;
 }
 /* HL is the checked, lower-bound-adjusted ordinal index. Both forms compute
  * the same sixteen-bit byte offset; DE is scratch until the caller pops its
@@ -34,7 +34,7 @@ static uint8_t set_binary(uint8_t left,uint8_t right,uint8_t op,uint16_t before,
  * thirteen-byte guarded call only when that saves code over shifts/adds. */
 static void scale_index(uint16_t stride) {
     uint16_t bit;
-    uint8_t cost=0,mixed;
+    uint8_t cost=0;uint8_t mixed;
     if(stride==1)return;
     if(!stride){cc_op16(0x21,0);return;}
     mixed=(stride&(stride-1))!=0;
@@ -53,39 +53,39 @@ static void scale_index(uint16_t stride) {
         if(stride&bit)cc_emit(0x19); /* ADD HL,DE */
     }
 }
-uint8_t cc_index(uint8_t type) BACKEND {
+TypeId cc_index(TypeId type) BACKEND {
     uint16_t before,stride;
-    uint8_t kind,index,array;
+    TypeId kind;TypeId index;TypeId array;
     int16_t field;
     while(!cc.error->code) {
         if(cc_family(type)==K_POINTER&&cc.token=='^') {
-            cc_load_indirect(type); type=cc.types[type].element; cc_next(); continue;
+            cc_load_indirect(type); type=CCT(type,element); cc_next(); continue;
         }
         if(cc_family(type)==K_RECORD&&cc.token=='.') {
             cc_next(); field=cc.token==T_ID?cc_field_lookup(type):-1;
             if(field<0) { cc_fail(41); return type; }
             if(cc.field_offset) { cc_op16(0x11,cc.field_offset); cc_emit(0x19); }
-            type=cc.symbols[field].type; cc_next(); continue;
+            type=CCS(field,type); cc_next(); continue;
         }
         if((cc_family(type)!=K_STRING&&cc_family(type)!=K_ARRAY)||cc.token!='[') break;
         cc_next();
         for(;;) {
             array=cc_family(type)==K_ARRAY;
-            index=array?cc.types[type].capacity:K_INTEGER;
+            index=array?CCT(type,capacity):K_INTEGER;
             cc_guard(); cc_emit(0xe5); before=cc.temporaries;
             kind=expression();
             if(cc_family(kind)!=cc_family(index)) cc_fail(array?44:23);
             cc_release(before);
             if(cc.range_check) {
-                cc_op16(0x11,array?(uint16_t)cc.types[index].low:0);
-                cc_op16(0x01,array?(uint16_t)cc.types[index].high:cc.types[type].capacity);
+                cc_op16(0x11,array?(uint16_t)CCT(index,low):0);
+                cc_op16(0x01,array?(uint16_t)CCT(index,high):CCT(type,capacity));
                 cc_call(RT_INDEX);
             }
             if(array) {
-                if(cc.types[index].low) {
-                    cc_op16(0x11,(uint16_t)cc.types[index].low); cc_emit(0xb7); cc_emit(0xed); cc_emit(0x52);
+                if(CCT(index,low)) {
+                    cc_op16(0x11,(uint16_t)CCT(index,low)); cc_emit(0xb7); cc_emit(0xed); cc_emit(0x52);
                 }
-                type=cc.types[type].element; stride=cc.types[type].width;
+                type=CCT(type,element); stride=CCT(type,width);
                 scale_index(stride);
             } else type=K_CHAR;
             cc_emit(0xd1); cc_emit(0x19);
@@ -96,13 +96,13 @@ uint8_t cc_index(uint8_t type) BACKEND {
     }
     return type;
 }
-uint8_t cc_selection(uint16_t id) BACKEND {
-    uint8_t type=cc.symbols[id].type;
+TypeId cc_selection(uint16_t id) BACKEND {
+    TypeId type=CCS(id,type);
     cc_symbol_address(id); cc_next();
-    return cc.symbols[id].role==S_RESULT?type:cc_index(type);
+    return CCS(id,role)==S_RESULT?type:cc_index(type);
 }
 /* Mem is addressable byte storage; Port is an I/O operation, never a Var. */
-static uint8_t raw_kind(void) {
+static TypeId raw_kind(void) {
     return cc_is("mem")?1:cc_is("port")?2:0;
 }
 static void raw_index(void) {
@@ -112,26 +112,26 @@ static void raw_index(void) {
     if(cc_family(expression())!=K_INTEGER) cc_fail(23);
     cc_release(before); cc_expect(']',9);
 }
-uint8_t cc_reference(uint8_t code) BACKEND {
+TypeId cc_reference(uint8_t code) BACKEND {
     int16_t id=cc.token==T_ID?cc_lookup():-1;
     if(id<0&&cc_is("mem")) { raw_index(); return K_BYTE; }
-    if((id<0&&cc_is("port"))||(id>=0&&cc.symbols[id].role==S_RESULT)) { cc_fail(41); return K_INTEGER; }
+    if((id<0&&cc_is("port"))||(id>=0&&CCS(id,role)==S_RESULT)) { cc_fail(41); return K_INTEGER; }
     if(!cc_variable(id)) { cc_fail(code); return K_INTEGER; }
-    if(cc.symbols[id].control) { cc_fail(44); return K_INTEGER; }
+    if(CCS(id,control)) { cc_fail(44); return K_INTEGER; }
     return cc_selection((uint16_t)id);
 }
 /* Array values are variable selections or an exact-length string constant
  * for a Char array. They do not acquire general scalar-expression semantics. */
-uint8_t cc_aggregate_actual(uint8_t type) BACKEND {
+TypeId cc_aggregate_actual(TypeId type) BACKEND {
     int16_t id=cc.token==T_ID?cc_lookup():-1;
-    uint8_t actual;
+    TypeId actual;
     uint16_t value;
-    if(cc_char_array(type)&&(cc.token==T_STRING||(id>=0&&cc.symbols[id].role==S_CONSTANT))) {
+    if(cc_char_array(type)&&(cc.token==T_STRING||(id>=0&&CCS(id,role)==S_CONSTANT))) {
         cc_constant(&actual,&value);
         if(actual!=K_STRING) cc_fail(60);
         else {
             cc_constant_literal(value);
-            if(cc.literal_length!=cc.types[type].width) cc_fail(60);
+            if(cc.literal_length!=CCT(type,width)) cc_fail(60);
             cc_emit_literal(); cc_emit(0x23); /* raw characters after the length */
         }
     } else if(cc.token==T_STRING) cc_fail(44);
@@ -151,8 +151,8 @@ static int16_t predefined_function(void) {
     return -1;
 }
 static void negate(void) { cc_emit(0x7d); cc_emit(0x2f); cc_emit(0x6f); cc_emit(0x7c); cc_emit(0x2f); cc_emit(0x67); cc_emit(0x23); }
-static uint8_t intrinsic(uint8_t op) {
-    uint8_t kind=K_INTEGER;
+static TypeId intrinsic(uint8_t op) {
+    TypeId kind=K_INTEGER;
     uint16_t before=cc.temporaries;
     uint8_t saved;
     int16_t id;
@@ -177,14 +177,14 @@ static uint8_t intrinsic(uint8_t op) {
             raw_index(); cc.suppress=saved; cc.temporaries=before;
             if(op==F_SIZEOF) cc_op16(0x21,1);
         } else if(op==F_ADDR) {
-            if(id>=0&&(cc.symbols[id].role==S_PROCEDURE||cc.symbols[id].role==S_FUNCTION||cc.symbols[id].role==S_RESULT)) {
+            if(id>=0&&(CCS(id,role)==S_PROCEDURE||CCS(id,role)==S_FUNCTION||CCS(id,role)==S_RESULT)) {
                 cc_routine_address((uint16_t)id); cc_next();
             } else if(!cc_variable(id)) cc_fail(44); else cc_selection((uint16_t)id);
-        } else if(id>=0&&cc_variable(id)&&cc.symbols[id].type!=255) {
+        } else if(id>=0&&cc_variable(id)&&CCS(id,type)!=TYPE_NONE) {
             saved=cc.suppress; ++cc.suppress; kind=cc_selection((uint16_t)id);
-            cc.suppress=saved; cc.temporaries=before; cc_op16(0x21,cc.types[kind].width);
-        } else if(id>=0&&cc.symbols[id].role==S_TYPE) { cc_op16(0x21,cc.types[cc.symbols[id].type].width); cc_next(); }
-        else if(id<0&&(id=cc_predefined_type())>=0) { cc_op16(0x21,cc.types[id].width); cc_next(); }
+            cc.suppress=saved; cc.temporaries=before; cc_op16(0x21,CCT(kind,width));
+        } else if(id>=0&&CCS(id,role)==S_TYPE) { cc_op16(0x21,CCT(CCS(id,type),width)); cc_next(); }
+        else if(id<0&&(id=cc_predefined_type())>=0) { cc_op16(0x21,CCT(id,width)); cc_next(); }
         else cc_fail(41);
         cc_expect(')',5); return K_INTEGER;
     }
@@ -212,7 +212,7 @@ static uint8_t intrinsic(uint8_t op) {
         }
         if(op==F_ORD) return K_INTEGER;
         cc_emit(op==F_SUCC?0x23:0x2b); cc_check_range(kind);
-        if(cc.types[kind].width==1) { cc_emit(0x26); cc_emit(0); }
+        if(CCT(kind,width)==1) { cc_emit(0x26); cc_emit(0); }
         return kind;
     }
     if(op==F_UPCASE) {
@@ -236,19 +236,16 @@ static uint8_t intrinsic(uint8_t op) {
     else if(op==F_SWAP) { cc_emit(0x7c); cc_emit(0x65); cc_emit(0x6f); }
     return K_INTEGER;
 }
-static uint8_t factor(void) {
+static TypeId factor(void) {
     int16_t id,fn=-1;
     uint16_t before,value_before=cc.temporaries;
-    uint8_t negative,kind=K_INTEGER;
-    if(++cc.depth>24) { cc_fail(99); --cc.depth; return 0; }
+    uint8_t negative;TypeId kind=K_INTEGER;
+    if(++cc.depth==0||!cc_stack_check()) { cc_fail(99); --cc.depth; return 0; }
     if(cc.token=='^') cc_control_literal();
     if(cc_is("nil")) { cc_op16(0x21,0); kind=K_NIL; cc_next(); }
     else if(cc.token=='+'||cc.token=='-') {
         negative=cc.token=='-'; cc_next();
-        /* At the depth limit retain the original recursive failure, except
-         * decimal -32768, which already had a nonrecursive literal path. */
-        if(negative&&cc.token==T_NUMBER&&!cc.number_overflow&&
-           (cc.depth<24||(!cc.hexadecimal&&cc.magnitude==32768u))) {
+        if(negative&&cc.token==T_NUMBER&&!cc.number_overflow) {
             cc_op16(0x21,(uint16_t)(0u-cc.magnitude)); cc_next();
         } else {
             kind=factor();
@@ -274,8 +271,8 @@ static uint8_t factor(void) {
     else if(cc.token=='(') { cc_next(); kind=expression(); cc_expect(')',5); }
     else if(cc.token==T_ID) {
         id=cc_lookup();
-        if((id>=0&&cc.symbols[id].role==S_TYPE)||(id<0&&(fn=cc_predefined_type())>=0)) {
-            kind=id>=0?cc.symbols[id].type:(uint8_t)fn;
+        if((id>=0&&CCS(id,role)==S_TYPE)||(id<0&&(fn=cc_predefined_type())>=0)) {
+            kind=id>=0?CCS(id,type):(uint8_t)fn;
             cc_next(); cc_expect('(',4);
             before=cc.temporaries;
             negative=cc_text_value(expression()); cc_expect(')',5);
@@ -284,7 +281,7 @@ static uint8_t factor(void) {
             else if(cc_family(kind)==K_CHAR&&cc_family(negative)==K_STRING) cc_call(RT_STRINGCHAR);
             else if(!cc_ordinal(negative)) cc_fail(cc_family(negative)==K_REAL?31:44);
             cc_check_range(kind);
-            if(cc.types[kind].width==1) { cc_emit(0x26); cc_emit(0); }
+            if(CCT(kind,width)==1) { cc_emit(0x26); cc_emit(0); }
             cc_release(before);
         } else if(id<0&&raw_kind()) {
             negative=raw_kind(); raw_index(); kind=K_BYTE;
@@ -298,15 +295,15 @@ static uint8_t factor(void) {
         } else if(id<0&&cc_is("maxint")) { cc_op16(0x21,32767); cc_next();
         } else if(id<0&&cc_is("pi")) { cc_real_emit(REAL_PI); kind=K_REAL; cc_next();
         } else if(id<0) cc_fail(41);
-        else if(cc.symbols[id].role==S_CONSTANT) {
-            kind=cc.symbols[id].type;
-            if(cc_family(kind)==K_STRING) { cc_constant_literal(cc.symbols[id].address); cc_emit_literal(); }
-            else if(cc_family(kind)==K_REAL) cc_real_emit(cc.symbols[id].address);
-            else cc_op16(0x21,cc.symbols[id].address);
+        else if(CCS(id,role)==S_CONSTANT) {
+            kind=CCS(id,type);
+            if(cc_family(kind)==K_STRING) { cc_constant_literal(CCS(id,address)); cc_emit_literal(); }
+            else if(cc_family(kind)==K_REAL) cc_real_emit(CCS(id,address));
+            else cc_op16(0x21,CCS(id,address));
             cc_next();
-        } else if(cc.symbols[id].role==S_FUNCTION||cc.symbols[id].role==S_RESULT) { kind=cc_invoke((uint16_t)id); if(cc.token=='^') cc_fail(66); }
+        } else if(CCS(id,role)==S_FUNCTION||CCS(id,role)==S_RESULT) { kind=cc_invoke((uint16_t)id); if(cc.token=='^') cc_fail(66); }
         else if(cc_variable(id)) {
-            kind=cc.symbols[id].type; cc_next();
+            kind=CCS(id,type); cc_next();
             if(((cc_family(kind)==K_STRING||cc_family(kind)==K_ARRAY)&&cc.token=='[')||
                (cc_family(kind)==K_RECORD&&cc.token=='.')||
                (cc_family(kind)==K_POINTER&&cc.token=='^')) {
@@ -323,9 +320,9 @@ static void bitwise(uint8_t op) {
     cc_emit(0x7d); cc_emit(op==0?0xa3:op==1?0xb3:0xab); cc_emit(0x6f);
     cc_emit(0x7c); cc_emit(op==0?0xa2:op==1?0xb2:0xaa); cc_emit(0x67);
 }
-static uint8_t term(void) {
+static TypeId term(void) {
     uint16_t before=cc.temporaries,right_before,right_bytes;
-    uint8_t op,right,base,kind=factor();
+    uint8_t op;TypeId right;TypeId base;TypeId kind=factor();
     while(!cc.error->code&&(cc.token=='*'||cc.token=='/'||cc_is("div")||cc_is("mod")||cc_is("and")||cc_is("shl")||cc_is("shr"))) {
         op=cc.token=='*'?0:cc_is("div")?1:cc_is("mod")?2:cc_is("and")?3:cc_is("shl")?4:cc_is("shr")?5:6;
         base=cc_family(kind);
@@ -349,18 +346,18 @@ static uint8_t term(void) {
     }
     return kind;
 }
-static uint8_t text(uint8_t kind) { return cc_family(kind)==K_STRING||cc_family(kind)==K_CHAR||cc_char_array(kind); }
-static void hold_left(uint8_t kind,uint16_t before) {
+static uint8_t text(TypeId kind) { return cc_family(kind)==K_STRING||cc_family(kind)==K_CHAR||cc_char_array(kind); }
+static void hold_left(TypeId kind,uint16_t before) {
     if(cc_char_array(kind)) cc_text_value(kind);
     else if(cc_family(kind)==K_STRING&&cc.temporaries==before) {
-        cc_string_snapshot(cc.types[kind].width?cc.types[kind].width:256);
+        cc_string_snapshot(CCT(kind,width)?CCT(kind,width):256);
     }
 }
 /* Right-hand string results may lie below the saved left operand. Reading
  * that word must not pop through live result bytes before the operation. */
-static uint8_t simple_expression(void) {
+static TypeId simple_expression(void) {
     uint16_t op,before=cc.temporaries,right_before,right_bytes,owned;
-    uint8_t right,base,kind=term();
+    TypeId right;TypeId base;TypeId kind=term();
     while(!cc.error->code&&(cc.token=='+'||cc.token=='-'||cc_is("or")||cc_is("xor"))) {
         op=cc.token=='+'||cc.token=='-'?cc.token:cc_is("or")?'|':'^';
         base=cc_family(kind);
@@ -388,15 +385,15 @@ static uint8_t simple_expression(void) {
     }
     return kind;
 }
-static uint8_t expression(void) {
+static TypeId expression(void) {
     uint16_t before=cc.temporaries,right_before,right_bytes;
-    uint8_t kind=simple_expression(),right,jump;
+    TypeId kind=simple_expression();TypeId right;uint8_t jump;
     uint16_t op=cc_is("in")?'i':cc.token;
     if(op=='i') {
         if(!cc_ordinal(kind)) cc_fail(44);
         cc_next(); cc_guard(); cc_emit(0xe5); right_before=cc.temporaries;
         right=simple_expression(); right_bytes=cc.temporaries-right_before; cc_stack_operand(right_bytes);
-        if(cc_family(right)!=K_SET||(cc_set_base(right)!=255&&cc_set_base(right)!=cc_family(kind))) cc_fail(44);
+        if(cc_family(right)!=K_SET||(cc_set_base(right)!=TYPE_NONE&&cc_set_base(right)!=cc_family(kind))) cc_fail(44);
         cc_call(RT_SETMEM); if(right_bytes) cc_drop_stack(2); cc_release(before); return K_BOOLEAN;
     }
     if(op!='='&&op!=T_NE&&op!='<'&&op!='>'&&op!=T_LE&&op!=T_GE) return kind;
@@ -429,13 +426,13 @@ static uint8_t expression(void) {
     cc_op16(0x11,1); cc_emit(jump); cc_emit(3); cc_op16(0x11,0); cc_emit(0xeb);
     return K_BOOLEAN;
 }
-uint8_t cc_expression(void) BACKEND { return expression(); }
+TypeId cc_expression(void) BACKEND { return expression(); }
 
 /* Heap pointer destinations are selected exactly once before size evaluation.
  * The runtime commits a returned pointer only after allocation succeeds. */
 static void block_statement(uint8_t fill) {
     uint16_t before=cc.temporaries;
-    uint8_t kind;
+    TypeId kind;
     cc_next(); cc_expect('(',4); cc_reference(41); push_value(); cc_expect(',',3);
     if(!fill) { cc_reference(41); push_value(); cc_expect(',',3); }
     integer_value(); cc_release(before);
@@ -449,7 +446,7 @@ static void block_statement(uint8_t fill) {
 }
 static void raw_store(uint8_t port) {
     uint16_t before=cc.temporaries;
-    uint8_t kind;
+    TypeId kind;
     raw_index(); push_value(); cc_expect(T_ASSIGN,7);
     kind=expression();
     if(port) { if(cc_family(kind)!=K_INTEGER) cc_fail(23); }
@@ -459,7 +456,7 @@ static void raw_store(uint8_t port) {
     else { cc_emit(0x7d); cc_emit(0x12); }
 }
 uint8_t cc_runtime_statement(void) BACKEND {
-    uint8_t op,type=K_INTEGER,kind;
+    uint8_t op;TypeId type=K_INTEGER;TypeId kind;
     int16_t id;
     uint16_t before=cc.temporaries,width=0;
     if(cc.token!=T_ID||cc_lookup()>=0) return 0;
@@ -475,10 +472,10 @@ uint8_t cc_runtime_statement(void) BACKEND {
     cc_next(); cc_expect('(',4);
     if(op<=3) {
         id=cc.token==T_ID?cc_lookup():-1;
-        if(!cc_variable(id)||cc.symbols[id].control||cc.symbols[id].role==S_RESULT) { cc_fail(44); return 1; }
+        if(!cc_variable(id)||CCS(id,control)||CCS(id,role)==S_RESULT) { cc_fail(44); return 1; }
         type=cc_selection((uint16_t)id);
         if(cc_family(type)!=K_POINTER) { cc_fail(44); return 1; }
-        width=cc.types[cc.types[type].element].width;
+        width=CCT(CCT(type,element),width);
         if(op==3) { cc_load_indirect(type); cc_op16(0x11,width); }
         else {
             push_value();

@@ -23,7 +23,7 @@ static uint8_t sources_owned(const Sources *set,uint8_t id,uint8_t page) {
 static uint8_t sources_release(const Sources *set,uint8_t id) {
     uint8_t page=far_get(set->page,set->base+(uint16_t)id*RECORD_BYTES);
     if(far_get(set->page,set->base+(uint16_t)id*RECORD_BYTES+ORIGIN)==SOURCE_BORROWED)return 1;
-    return !sources_owned(set,id,page)||page_drop(page);
+    return !sources_owned(set,id,page)||buffer_drop(page);
 }
 
 static void put32(Sources *set,uint16_t at,uint32_t value) {
@@ -188,7 +188,7 @@ uint8_t sources_byte(const Sources *set,uint8_t id,uint16_t offset) SOURCE_BLOCK
     if(!sources_valid(set)||id>=set->count)return 0;
     page=far_get(set->page,at);length=far_get(set->page,at+2)|((uint16_t)far_get(set->page,at+3)<<8);
     if(offset>=length||length>SOURCE_LIMIT||!sources_owned(set,id,page))return 0;
-    return far_get(page,offset);
+    return buffer_get(page,offset);
 }
 uint8_t sources_path(const char *name,const char *directory,char *out) SOURCE_BLOCK_CALL {
     uint16_t n,base,i;

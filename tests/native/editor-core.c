@@ -15,7 +15,7 @@ static void position(Source *s,uint16_t line,uint16_t col) {
 static void text(Source *s,const char *expected) {
     uint16_t i,n=(uint16_t)strlen(expected);
     uint8_t same=s->length==n;
-    for(i=0;i<n&&same;++i) same=far_get(s->page,i)==(uint8_t)expected[i];
+    for(i=0;i<n&&same;++i) same=buffer_get(s->page,i)==(uint8_t)expected[i];
     check(same);
 }
 static void load(Source *s,const char *value) {
@@ -89,16 +89,16 @@ void editor_checks(Source *s) {
     quick('l'); text(s,"x        \n"); position(s,1,10); check(s->cursor==9);
     load(s,""); for(i=1;i<128;++i) key(4); check(editor.left==48);
     key('\n'); check(s->length==255); position(s,2,128);
-    check(far_get(s->page,127)=='\n'&&s->cursor==255);
-    for(i=0;i<s->length;++i) if(i!=127) check(far_get(s->page,i)==' ');
+    check(buffer_get(s->page,127)=='\n'&&s->cursor==255);
+    for(i=0;i<s->length;++i) if(i!=127) check(buffer_get(s->page,i)==' ');
 
-    load(s,""); key(16); key(9); check(s->length==1&&far_get(s->page,0)==9);
-    key(16); key(8); check(s->length==2&&far_get(s->page,1)==8);
-    key(16); key(27); check(s->length==3&&far_get(s->page,2)==27);
-    key(16); key(0); check(s->length==4&&far_get(s->page,3)==0);
+    load(s,""); key(16); key(9); check(s->length==1&&buffer_get(s->page,0)==9);
+    key(16); key(8); check(s->length==2&&buffer_get(s->page,1)==8);
+    key(16); key(27); check(s->length==3&&buffer_get(s->page,2)==27);
+    key(16); key(0); check(s->length==4&&buffer_get(s->page,3)==0);
     memcpy(&saved,s,sizeof(saved)); key(16); check(editor_key(26)==EDITOR_REJECT);
     check(!memcmp(&saved,s,sizeof(saved))&&!editor.quote);
-    key(16); key(13); check(s->length==5&&far_get(s->page,4)=='\n');
+    key(16); key(13); check(s->length==5&&buffer_get(s->page,4)=='\n');
     key(17); memcpy(&saved,s,sizeof(saved)); check(editor_key(21)==EDITOR_ABORT);
     check(!memcmp(&saved,s,sizeof(saved))&&!editor.prefix);
 

@@ -148,7 +148,8 @@ int main(int argc,char **argv) {
     check(!owned());
     reset();fail_drop=34;check(!lookup("H:/main.pas",NULL,5,&result));check(owned()==2);
     fail_drop=-1;reset();check(lookup("H:/main.pas",NULL,5,&result));check(!owned()&&!opened());
-    reset();fail_drop=33;check(!lookup("H:/main.pas",NULL,5,&result));check(owned()==2);
+    /* A committed import retains its failed old buffer as owned spare capacity. */
+    reset();fail_drop=33;check(!lookup("H:/main.pas",NULL,5,&result));check(owned()==3);
     fail_drop=-1;reset();check(lookup("H:/main.pas",NULL,5,&result));check(!owned()&&!opened());
     printf("PASS: %u saved-map format, identity, source, short-I/O and ownership checks\n",assertions);
     return 0;

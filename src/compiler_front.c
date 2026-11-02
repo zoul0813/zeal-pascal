@@ -1,19 +1,20 @@
 #include "compiler.h"
+#include "compiler_disk.h"
 
 static const char *const reserved[] = {
     "absolute","and","array","begin","case","const","div","do","downto","else","end",
     "external","file","for","forward","function","goto","if","in","inline","label","mod",
     "nil","not","of","or","overlay","packed","procedure","program","record","repeat","set",
     "shl","shr","string","then","to","type","until","var","while","with","xor"};
-static const struct {const char *name;uint16_t address;uint8_t type;} system_variables[]={
+static const struct {const char *name;uint16_t address;TypeId type;} system_variables[]={
     {"heapptr",RT_HEAPPTR,K_INTEGER},{"recurptr",RT_RECURPTR,K_INTEGER},
     {"buflen",RT_BUFLEN,K_BYTE},{"cbreak",RT_CBREAK,K_BOOLEAN}};
 static const char *const standard_names[]={"input","output","kbd","con","trm","lst","aux","usr"};
 static const char *const hook_names[]={"constptr","conoutptr","lstoutptr","auxoutptr","usroutptr"};
-static uint8_t text_file_type(void) {
-    if(cc.text_type==255) {
+static TypeId text_file_type(void) {
+    if(cc.text_type==TYPE_NONE) {
         cc.text_type=cc_new_type(K_FILE,176,0,0,FILE_TEXT);
-        cc.types[cc.text_type].element=255;
+        CCT_SET(cc.text_type,element,TYPE_NONE);
     }
     return cc.text_type;
 }
@@ -21,23 +22,23 @@ static uint8_t text_file_type(void) {
 void cc_system_init(void) FRONTEND {
     uint8_t i;
     for(i=0;i<sizeof(system_variables)/sizeof(system_variables[0]);++i) {
-        Symbol *s=&cc.symbols[cc.symbol_count++];
-        memset(s,0,sizeof(*s));s->role=S_SYSTEM;
-        s->type=system_variables[i].type;s->address=system_variables[i].address;
+        uint16_t id=cc.symbol_count++;
+        cc_symbol_clear(id);CCS_SET(id,role,S_SYSTEM);
+        CCS_SET(id,type,system_variables[i].type);CCS_SET(id,address,system_variables[i].address);
     }
     for(i=0;i<sizeof(standard_names)/sizeof(standard_names[0]);++i) {
-        Symbol *s=&cc.symbols[cc.symbol_count++];
-        memset(s,0,sizeof(*s));s->role=S_STANDARD;s->type=255;s->initial_type=i+1;
+        uint16_t id=cc.symbol_count++;
+        cc_symbol_clear(id);CCS_SET(id,role,S_STANDARD);CCS_SET(id,type,TYPE_NONE);CCS_SET(id,initial_type,i+1);
     }
     for(i=0;i<HOOK_COUNT;++i) {
-        Symbol *s=&cc.symbols[cc.symbol_count++];
-        memset(s,0,sizeof(*s));s->role=S_HOOK;s->type=K_INTEGER;s->initial_type=i;
+        uint16_t id=cc.symbol_count++;
+        cc_symbol_clear(id);CCS_SET(id,role,S_HOOK);CCS_SET(id,type,K_INTEGER);CCS_SET(id,initial_type,i);
     }
 }
 
 static uint8_t get(uint16_t p) {
     if(!++cc.scan_poll)cc_poll();
-    return p<cc.input->length ? far_get(cc.input->page,p) : 0;
+    return p<cc.input->length ? buffer_get(cc.input->page,p) : 0;
 }
 static uint8_t lower(uint8_t c) { return c>='A'&&c<='Z' ? c+32 : c; }
 static uint8_t name_byte(SourcePosition position,uint8_t offset) {
@@ -48,6 +49,22 @@ static uint8_t name_matches(uint16_t reference,uint8_t length) {
     if(!length)return 1;
     position=cc_reference_position(reference);
     for(i=0;i<length;++i)if(cc.name[i]!=name_byte(position,i))return 0;
+    return 1;
+}
+/* One lookup sees immutable captured inputs. Validate a source once for each
+ * file change and retain only this call's near descriptor, never a mapped
+ * pointer. Field lookup keeps its existing independent name comparator. */
+static uint8_t name_matches_view(uint16_t reference,uint8_t length,Source *view,uint16_t *loaded) {
+    SourcePosition position;uint16_t at;uint8_t file,i;
+    if(!length)return 1;
+    position=cc_reference_position(reference);file=(uint8_t)(position>>16);at=(uint16_t)position;
+    if(cc.error->code)return 0;
+    if(*loaded!=file) {
+        if(!sources_ready(&cc.image->sources,file)||!sources_get(&cc.image->sources,file,view))return 0;
+        *loaded=file;
+    }
+    if((uint32_t)at+length>view->length)return 0;
+    for(i=0;i<length;++i)if(cc.name[i]!=lower(buffer_get(view->page,at+i)))return 0;
     return 1;
 }
 static uint8_t letter(uint8_t c) { c=lower(c); return (c>='a'&&c<='z')||c=='_'; }
@@ -61,6 +78,13 @@ void cc_fail(uint8_t code) FRONTEND {
 
 void cc_put(uint16_t p,uint8_t v) FRONTEND {
     if(cc.error->code) return;
+    if(cc_disk_active(cc.image)) {
+        if(compiler_disk_placed)cc_disk_final_put(p,v);else cc_disk_put(p,v);
+        return;
+    }
+    if(!cc.placing&&p>=CC_CODE_BASE&&p<0xc000u&&cc.primary_stage!=255) {
+        far_set(cc.primary_stage,p-CC_CODE_BASE,v);return;
+    }
     if(p>=0xc000u) {
         cc_stage_put(p-0xc000u,v);
     } else {
@@ -71,8 +95,9 @@ void cc_put(uint16_t p,uint8_t v) FRONTEND {
 uint8_t cc_code_get(uint16_t address) FRONTEND {
     if(cc.error->code) return 0;
     if(address<CC_CODE_BASE||address>=cc.emitted) { cc_fail(99); return 0; }
+    if(cc_disk_active(cc.image))return cc_disk_get(address);
     return address>=0xc000u?cc_stage_get(address-0xc000u):
-        far_get(cc.image->pages[2],address-CC_CODE_BASE);
+        far_get(cc.primary_stage==255?cc.image->pages[2]:cc.primary_stage,address-CC_CODE_BASE);
 }
 void cc_word(uint16_t p,uint16_t v) FRONTEND { cc_put(p,(uint8_t)v); cc_put(p+1,(uint8_t)(v>>8)); }
 
@@ -95,12 +120,12 @@ void cc_relocate_value(uint16_t operand,uint16_t coefficient,uint8_t byte) FRONT
     uint16_t p=cc.relocations*RELOCATION_BYTES,encoded;
     if(cc.error->code||cc.suppress||!coefficient)return;
     if(operand<CC_CODE_BASE||operand>=CC_STATIC_LIMIT||
-       (uint32_t)p+RELOCATION_BYTES+(uint32_t)cc.routine_count*ROUTINE_BYTES>PAGE_SIZE) { cc_fail(99);return; }
+       (uint32_t)p+RELOCATION_BYTES>SOURCE_LIMIT) { cc_fail(99);return; }
     /* Staged offsets are below7400. Bit15 denotes one-byte relocation;
      * the other word is the net code-base coefficient, modulo65536. */
     encoded=(operand-CC_CODE_BASE)|(byte?0x8000u:0);
-    far_set(cc.workspace,p,(uint8_t)encoded);far_set(cc.workspace,p+1,(uint8_t)(encoded>>8));
-    far_set(cc.workspace,p+2,(uint8_t)coefficient);far_set(cc.workspace,p+3,(uint8_t)(coefficient>>8));
+    cc_reloc_put(p,(uint8_t)encoded);cc_reloc_put(p+1,(uint8_t)(encoded>>8));
+    cc_reloc_put(p+2,(uint8_t)coefficient);cc_reloc_put(p+3,(uint8_t)(coefficient>>8));
     ++cc.relocations;
 }
 void cc_address(uint8_t op,uint16_t value) FRONTEND {
@@ -147,9 +172,9 @@ uint16_t cc_original_entry(uint16_t entry,uint8_t staged) FRONTEND {
      * name generated self-modifying guard storage, not just fixed prefix
      * data. A copied instruction retains the source operand's relocation. */
     if(staged)for(n=0;n<count;++n) {
-        encoded=far_get(cc.workspace,n*RELOCATION_BYTES)|((uint16_t)far_get(cc.workspace,n*RELOCATION_BYTES+1)<<8);
+        encoded=cc_reloc_get(n*RELOCATION_BYTES)|((uint16_t)cc_reloc_get(n*RELOCATION_BYTES+1)<<8);
         if((encoded&0x7fffu)+CC_CODE_BASE==entry+1) {
-            coefficient=far_get(cc.workspace,n*RELOCATION_BYTES+2)|((uint16_t)far_get(cc.workspace,n*RELOCATION_BYTES+3)<<8);
+            coefficient=cc_reloc_get(n*RELOCATION_BYTES+2)|((uint16_t)cc_reloc_get(n*RELOCATION_BYTES+3)<<8);
             cc_relocate_value(at+1,coefficient,(encoded&0x8000u)!=0);break;
         }
     }
@@ -190,17 +215,17 @@ void cc_stack_operand(uint16_t right_bytes) FRONTEND {
         cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0x60); cc_emit(0x69);
     }
 }
-void cc_load_indirect(uint8_t type) FRONTEND {
+void cc_load_indirect(TypeId type) FRONTEND {
     if(cc_family(type)==K_FILE) { cc_fail(54); return; }
     if(cc_family(type)==K_SET) { cc_set_load(type); return; }
     if(cc_family(type)==K_STRING||cc_family(type)==K_REAL||cc_aggregate(type)) return;
-    if(type==255) { cc_fail(44); return; }
-    if(cc.types[type].width==1) { cc_emit(0x6e); cc_emit(0x26); cc_emit(0); }
+    if(type==TYPE_NONE) { cc_fail(44); return; }
+    if(CCT(type,width)==1) { cc_emit(0x6e); cc_emit(0x26); cc_emit(0); }
     else { cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb); }
 }
-void cc_store_indirect(uint8_t type) FRONTEND {
+void cc_store_indirect(TypeId type) FRONTEND {
     cc_emit(0x7d); cc_emit(0x12);
-    if(cc.types[type].width==2) { cc_emit(0x13); cc_emit(0x7c); cc_emit(0x12); }
+    if(CCT(type,width)==2) { cc_emit(0x13); cc_emit(0x7c); cc_emit(0x12); }
 }
 void cc_call(uint16_t address) FRONTEND { cc_guard(); cc_op16(0xcd,address); }
 static void literal(void) {
@@ -351,75 +376,79 @@ void cc_next(void) FRONTEND {
 void cc_expect(uint16_t t,uint8_t code) FRONTEND { if(cc.token!=t) cc_fail(code); else cc_next(); }
 
 int16_t cc_lookup(void) FRONTEND {
-    uint16_t i; int16_t field; uint8_t j,scope=cc.scope,n=(uint8_t)strlen(cc.name);
+    Symbol symbol;Source view;uint16_t loaded=0xffffu;
+    uint16_t i; int16_t field; uint8_t j;uint16_t scope=cc.scope;uint8_t n=(uint8_t)strlen(cc.name);
     for(j=cc.with_depth;j;--j) {
         field=cc_field_lookup(cc.with_types[j-1]);
         if(field>=0) return field;
     }
     for(;;) {
         i=cc.symbol_count;
-        while(i--) if(cc.symbols[i].role<S_FIELD&&cc.symbols[i].owner==scope) {
-            if(cc.symbols[i].role==S_STANDARD) {
-                if(cc_is(standard_names[cc.symbols[i].initial_type-1])) {
-                    cc.symbols[i].type=text_file_type(); return (int16_t)i;
+        while(i--) {
+            if(!(i&63u)&&!cc_poll())return -1;
+            if(!cc_symbol_read(i,&symbol))return -1;
+            if(symbol.role>=S_FIELD||symbol.owner!=scope)continue;
+            if(symbol.role==S_STANDARD) {
+                if(cc_is(standard_names[symbol.initial_type-1])) {
+                    CCS_SET(i,type,text_file_type()); return (int16_t)i;
                 }
                 continue;
             }
-            if(cc.symbols[i].role==S_HOOK) {
-                if(cc_is(hook_names[cc.symbols[i].initial_type])) {
+            if(symbol.role==S_HOOK) {
+                if(cc_is(hook_names[symbol.initial_type])) {
                     if(!cc.suppress)cc.console_dynamic=1;
                     return (int16_t)i;
                 }
                 continue;
             }
-            if(cc.symbols[i].role==S_SYSTEM) {
+            if(symbol.role==S_SYSTEM) {
                 for(j=0;j<sizeof(system_variables)/sizeof(system_variables[0]);++j)
-                    if(cc.symbols[i].address==system_variables[j].address&&cc_is(system_variables[j].name)) {
-                        if(!cc.suppress&&cc.symbols[i].address==RT_CBREAK)cc.console_dynamic=1;
+                    if(symbol.address==system_variables[j].address&&cc_is(system_variables[j].name)) {
+                        if(!cc.suppress&&symbol.address==RT_CBREAK)cc.console_dynamic=1;
                         return (int16_t)i;
                     }
                 continue;
             }
-            if(cc.symbols[i].name_length!=n) continue;
-            if(name_matches(cc.symbols[i].name_start,n)) {
-                if(!cc.suppress&&cc.symbols[i].role==S_ADDRESS)cc.console_dynamic=1;
+            if(symbol.name_length!=n) continue;
+            if(name_matches_view(symbol.name_start,n,&view,&loaded)) {
+                if(!cc.suppress&&symbol.role==S_ADDRESS)cc.console_dynamic=1;
                 return (int16_t)i;
             }
         }
         if(!scope) break;
-        scope=(uint8_t)cc_rget(scope,R_PARENT);
+        scope=cc_rget(scope,R_PARENT);
     }
     return -1;
 }
-static int16_t find_field(uint8_t type,uint16_t field) {
+static int16_t find_field(TypeId type,uint16_t field) {
     uint16_t i,variant;
     uint8_t n=(uint8_t)strlen(cc.name);
     int16_t found;
-    for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].role==S_FIELD&&cc.symbols[i].owner==type) {
+    for(i=0;i<cc.symbol_count;++i) if(CCS(i,role)==S_FIELD&&CCS(i,owner)==type) {
         if(field!=0xffffu) { if(field!=i) continue; }
         else {
-            if(cc.symbols[i].name_length!=n) continue;
-            if(!name_matches(cc.symbols[i].name_start,n)) continue;
+            if(CCS(i,name_length)!=n) continue;
+            if(!name_matches(CCS(i,name_start),n)) continue;
         }
-        cc.field_offset=cc.symbols[i].address; return (int16_t)i;
+        cc.field_offset=CCS(i,address); return (int16_t)i;
     }
-    if(cc.types[type].low<0) return -1;
-    variant=(uint16_t)cc.types[type].low;
-    for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].role==S_VLABEL&&cc.symbols[i].owner==type) {
-        found=find_field(cc.symbols[i].type,field);
-        if(found>=0) { cc.field_offset+=cc.symbols[variant].address; return found; }
+    if(CCT(type,low)<0) return -1;
+    variant=(uint16_t)CCT(type,low);
+    for(i=0;i<cc.symbol_count;++i) if(CCS(i,role)==S_VLABEL&&CCS(i,owner)==type) {
+        found=find_field(CCS(i,type),field);
+        if(found>=0) { cc.field_offset+=CCS(variant,address); return found; }
     }
     return -1;
 }
-int16_t cc_field_lookup(uint8_t type) FRONTEND { return find_field(type,0xffffu); }
-uint16_t cc_field_path(uint8_t type,uint16_t field) FRONTEND {
+int16_t cc_field_lookup(TypeId type) FRONTEND { return find_field(type,0xffffu); }
+uint16_t cc_field_path(TypeId type,uint16_t field) FRONTEND {
     return find_field(type,field)<0?0xffffu:cc.field_offset;
 }
 static void previous_with(void) {
     cc_emit(0x23); cc_emit(0x23); cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb);
 }
 void cc_with_address(uint16_t field) FRONTEND {
-    uint8_t i=cc.with_depth,distance=0;
+    uint8_t i=cc.with_depth;uint8_t distance=0;
     uint16_t offset=0xffffu;
     while(i) { offset=cc_field_path(cc.with_types[--i],field); if(offset!=0xffffu) break; ++distance; }
     if(offset==0xffffu) { cc_fail(41); return; }
@@ -435,201 +464,129 @@ void cc_with_unwind(void) FRONTEND {
     while(count--) previous_with();
     cc_emit(0xe5); cc_emit(0xfd); cc_emit(0xe1);
 }
-uint16_t cc_new_symbol(uint8_t role) FRONTEND {
-    uint16_t id=cc.symbol_count;
-    int16_t old=cc_lookup();
-    if(cc.token!=T_ID) cc_fail(53);
-    else if(old>=0&&cc.symbols[old].owner==cc.scope&&cc.symbols[old].role!=S_SYSTEM&&cc.symbols[old].role!=S_STANDARD&&cc.symbols[old].role!=S_HOOK) cc_fail(43);
-    else if(id==SYMBOL_LIMIT) cc_fail(99);
-    if(cc.error->code) return 0;
-    memset(&cc.symbols[id],0,sizeof(Symbol));
-    cc.symbols[id].name_start=cc_source_reference(cc.token_start);cc.symbols[id].name_length=(uint8_t)strlen(cc.name);
-    cc.symbols[id].role=role; cc.symbols[id].owner=cc.scope; ++cc.symbol_count;
-    return id;
-}
-uint8_t cc_new_type(uint8_t family,uint16_t width,int16_t low,int16_t high,uint8_t capacity) FRONTEND {
-    uint8_t id=cc.type_count;
-    if(id==TYPE_LIMIT) { cc_fail(99); return 0; }
-    cc.types[id].family=family; cc.types[id].width=width;
-    cc.types[id].low=low; cc.types[id].high=high; cc.types[id].capacity=capacity;
-    cc.types[id].element=0;
-    ++cc.type_count; return id;
-}
-uint8_t cc_family(uint8_t type) FRONTEND {
-    if(type>=K_SET_EXPR&&type<=K_EMPTY_SET) return K_SET;
-    if(type==K_ANY_POINTER||type==K_NIL) return K_POINTER;
-    return type<cc.type_count?cc.types[type].family:255;
-}
-static uint8_t text_type(uint8_t type) { return cc_family(type)==K_CHAR||cc_family(type)==K_STRING; }
-uint8_t cc_compatible(uint8_t left,uint8_t right) FRONTEND {
-    if(cc_family(left)==K_FILE||cc_family(right)==K_FILE)
-        return cc_family(left)==K_FILE&&cc_family(right)==K_FILE&&
-            cc.types[left].capacity==cc.types[right].capacity&&
-            (cc.types[left].capacity!=FILE_TYPED||cc.types[left].element==cc.types[right].element);
-    if(cc_family(left)==K_REAL&&cc_family(right)==K_INTEGER) return 1;
-    if(cc_family(left)==K_POINTER||cc_family(right)==K_POINTER) {
-        if(cc_family(left)!=K_POINTER||cc_family(right)!=K_POINTER) return 0;
-        return left==K_ANY_POINTER||right==K_ANY_POINTER||left==K_NIL||right==K_NIL||
-            cc.types[left].element==cc.types[right].element;
-    }
-    if(cc_family(left)==K_SET||cc_family(right)==K_SET) {
-        if(cc_family(left)!=K_SET||cc_family(right)!=K_SET) return 0;
-        return cc_set_base(left)==255||cc_set_base(right)==255||cc_set_base(left)==cc_set_base(right);
-    }
-    if(cc_aggregate(left)||cc_aggregate(right))
-        return left==right||((cc_char_array(left)||text_type(left))&&(cc_char_array(right)||text_type(right)));
-    return cc_family(left)==cc_family(right)||(text_type(left)&&text_type(right));
-}
-uint8_t cc_variable(int16_t id) FRONTEND {
-    return id>=0&&(cc.symbols[id].role==S_VARIABLE||cc.symbols[id].role==S_TYPED||
-           cc.symbols[id].role==S_VALUE||cc.symbols[id].role==S_REFERENCE||cc.symbols[id].role==S_RESULT||cc.symbols[id].role==S_FIELD||cc.symbols[id].role==S_SYSTEM||
-           cc.symbols[id].role==S_ADDRESS||cc.symbols[id].role==S_ALIAS||cc.symbols[id].role==S_STANDARD||cc.symbols[id].role==S_HOOK);
-}
-uint16_t cc_rget(uint8_t scope,uint8_t field) FRONTEND {
-    uint16_t at=PAGE_SIZE-(uint16_t)scope*ROUTINE_BYTES+field;
-    uint16_t value=far_get(cc.workspace,at);
-    if(field>R_FLAGS) value|=(uint16_t)far_get(cc.workspace,at+1)<<8;
-    return value;
-}
-void cc_rput(uint8_t scope,uint8_t field,uint16_t value) FRONTEND {
-    uint16_t at=PAGE_SIZE-(uint16_t)scope*ROUTINE_BYTES+field;
-    far_set(cc.workspace,at,(uint8_t)value);
-    if(field>R_FLAGS) far_set(cc.workspace,at+1,(uint8_t)(value>>8));
-}
-void cc_storage(uint16_t id,uint16_t width) FRONTEND {
-    if((uint32_t)cc.image->globals_bytes+width>=PAGE_SIZE) { cc_fail(98); return; }
-    cc.symbols[id].address=GLOBAL_BASE+cc.image->globals_bytes;
-    cc.image->globals_bytes+=width;
-}
-uint8_t cc_frame_required(uint8_t scope) FRONTEND {
+uint8_t cc_frame_required(uint16_t scope) FRONTEND {
     while(scope) {
         if(cc_rget(scope,R_FLAGS)&RF_RECURSIVE) return 1;
-        scope=(uint8_t)cc_rget(scope,R_PARENT);
+        scope=cc_rget(scope,R_PARENT);
     }
     return 0;
 }
-void cc_frame(uint8_t scope) FRONTEND {
-    uint8_t current=cc.scope;
+void cc_frame(uint16_t scope) FRONTEND {
+    uint16_t current=cc.scope;
     if(!scope||(scope!=cc.scope&&!cc_frame_required(scope))) { cc_op16(0x21,0); return; }
     cc_guard(); cc_emit(0xdd); cc_emit(0xe5); cc_emit(0xe1); /* HL = IX */
     while(current!=scope&&!cc.error->code) {
         if(!current) { cc_fail(44); return; }
         cc_emit(0x2b); cc_emit(0x2b); cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb);
-        current=(uint8_t)cc_rget(current,R_PARENT);
+        current=cc_rget(current,R_PARENT);
     }
 }
 void cc_bind_storage(uint16_t id) FRONTEND {
-    Symbol *s=&cc.symbols[id];
-    if(s->role==S_HOOK) cc_hook_variable(id);
-    if(s->role==S_STANDARD&&!s->address&&!cc.suppress&&!cc.error->code) {
-        if((uint32_t)cc.image->globals_bytes+176>=PAGE_SIZE) { cc_fail(98); return; }
-        s->type=text_file_type();
-        s->address=GLOBAL_BASE+cc.image->globals_bytes; cc.image->globals_bytes+=176;
+    if(CCS(id,role)==S_HOOK) cc_hook_variable(id);
+    if(CCS(id,role)==S_STANDARD&&!CCS(id,address)&&!cc.suppress&&!cc.error->code) {
+        if((uint32_t)GLOBAL_BASE+cc.image->globals_bytes+176>=CC_STATIC_LIMIT) { cc_fail(98); return; }
+        CCS_SET(id,type,text_file_type());
+        CCS_SET(id,address,GLOBAL_BASE+cc.image->globals_bytes); cc.image->globals_bytes+=176;
     }
 }
 void cc_slot(uint16_t id) FRONTEND {
-    Symbol *s=&cc.symbols[id];
     cc_bind_storage(id);
-    if(s->role==S_ALIAS) cc_symbol_address(s->address);
-    else if(s->role==S_ADDRESS) cc_op16(0x21,s->address);
-    else if(s->role==S_TYPED) cc_address(0x21,s->address);
-    else cc_op16(0x21,s->address);
+    if(CCS(id,role)==S_ALIAS) cc_symbol_address(CCS(id,address));
+    else if(CCS(id,role)==S_ADDRESS) cc_op16(0x21,CCS(id,address));
+    else if(CCS(id,role)==S_TYPED) cc_address(0x21,CCS(id,address));
+    else cc_op16(0x21,CCS(id,address));
 }
-uint8_t cc_standard_reference(uint8_t identity) FRONTEND {
+TypeId cc_standard_reference(uint8_t identity) FRONTEND {
     uint16_t i;
-    for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].role==S_STANDARD&&cc.symbols[i].initial_type==identity) {
-        cc.symbols[i].type=text_file_type(); cc_slot(i); return cc.symbols[i].type;
+    for(i=0;i<cc.symbol_count;++i) if(CCS(i,role)==S_STANDARD&&CCS(i,initial_type)==identity) {
+        CCS_SET(i,type,text_file_type()); cc_slot(i); return CCS(i,type);
     }
-    cc_fail(99); return 255;
+    cc_fail(99); return TYPE_NONE;
 }
 void cc_symbol_address(uint16_t id) FRONTEND {
-    if(cc.symbols[id].role==S_FIELD) { cc_with_address(id); return; }
+    if(CCS(id,role)==S_FIELD) { cc_with_address(id); return; }
     cc_slot(id);
-    if(cc.symbols[id].role==S_REFERENCE) { cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb); }
+    if(CCS(id,role)==S_REFERENCE) { cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb); }
 }
-static uint8_t indirect_symbol(const Symbol *s) {
-    return s->role==S_ALIAS||s->role==S_FIELD||s->role==S_REFERENCE;
+static uint8_t indirect_symbol(uint16_t id) {
+    return CCS(id,role)==S_ALIAS||CCS(id,role)==S_FIELD||CCS(id,role)==S_REFERENCE;
 }
 void cc_destination(uint16_t id) FRONTEND {
-    Symbol *s=&cc.symbols[id];
-    if(s->role==S_HOOK) cc_hook_variable(id);
-    if(indirect_symbol(s)) {
+    if(CCS(id,role)==S_HOOK) cc_hook_variable(id);
+    if(indirect_symbol(id)) {
         cc_guard(); cc_emit(0xe5); cc_symbol_address(id); cc_emit(0xeb); cc_emit(0xe1);
-    } else if(s->role==S_TYPED) cc_address(0x11,s->address);
-    else cc_op16(0x11,cc.symbols[id].address);
+    } else if(CCS(id,role)==S_TYPED) cc_address(0x11,CCS(id,address));
+    else cc_op16(0x11,CCS(id,address));
 }
 void cc_load_symbol(uint16_t id) FRONTEND {
-    Symbol *s=&cc.symbols[id];
-    if(s->role==S_HOOK) cc_hook_variable(id);
-    if(s->type==255) { cc_fail(44); return; }
-    if(cc_family(s->type)==K_FILE) { cc_fail(54); return; }
-    if(cc_family(s->type)==K_SET) { cc_symbol_address(id); cc_set_load(s->type); return; }
-    if(cc_family(s->type)==K_STRING||cc_family(s->type)==K_REAL||cc_aggregate(s->type)) cc_symbol_address(id);
-    else if(indirect_symbol(s)) {
+    if(CCS(id,role)==S_HOOK) cc_hook_variable(id);
+    if(CCS(id,type)==TYPE_NONE) { cc_fail(44); return; }
+    if(cc_family(CCS(id,type))==K_FILE) { cc_fail(54); return; }
+    if(cc_family(CCS(id,type))==K_SET) { cc_symbol_address(id); cc_set_load(CCS(id,type)); return; }
+    if(cc_family(CCS(id,type))==K_STRING||cc_family(CCS(id,type))==K_REAL||cc_aggregate(CCS(id,type))) cc_symbol_address(id);
+    else if(indirect_symbol(id)) {
         cc_symbol_address(id);
-        cc_load_indirect(s->type);
+        cc_load_indirect(CCS(id,type));
     }
-    else if(cc.types[s->type].width==1) {
-        if(s->role==S_TYPED) cc_address(0x3a,s->address); else cc_op16(0x3a,s->address);
+    else if(CCT(CCS(id,type),width)==1) {
+        if(CCS(id,role)==S_TYPED) cc_address(0x3a,CCS(id,address)); else cc_op16(0x3a,CCS(id,address));
         cc_emit(0x6f); cc_emit(0x26); cc_emit(0);
-    } else if(s->role==S_TYPED) cc_address(0x2a,s->address); else cc_op16(0x2a,s->address);
+    } else if(CCS(id,role)==S_TYPED) cc_address(0x2a,CCS(id,address)); else cc_op16(0x2a,CCS(id,address));
 }
 void cc_store_symbol(uint16_t id) FRONTEND {
-    Symbol *s=&cc.symbols[id];
     uint8_t op;
-    if(s->role==S_HOOK) cc_hook_variable(id);
-    if(s->type==255) { cc_fail(44); return; }
-    op=cc.types[s->type].width==1?0x32:0x22;
-    if(indirect_symbol(s)) {
+    if(CCS(id,role)==S_HOOK) cc_hook_variable(id);
+    if(CCS(id,type)==TYPE_NONE) { cc_fail(44); return; }
+    op=CCT(CCS(id,type),width)==1?0x32:0x22;
+    if(indirect_symbol(id)) {
         cc_guard(); cc_emit(0xe5); cc_symbol_address(id); cc_emit(0xd1); cc_emit(0x73);
         if(op==0x22) { cc_emit(0x23); cc_emit(0x72); }
         return;
     }
     if(op==0x32) cc_emit(0x7d);
-    if(cc.symbols[id].role==S_TYPED) cc_address(op,cc.symbols[id].address); else cc_op16(op,cc.symbols[id].address);
+    if(CCS(id,role)==S_TYPED) cc_address(op,CCS(id,address)); else cc_op16(op,CCS(id,address));
 }
-void cc_check_range(uint8_t type) FRONTEND {
-    if(type==255) { cc_fail(44); return; }
+void cc_check_range(TypeId type) FRONTEND {
+    if(type==TYPE_NONE) { cc_fail(44); return; }
     if(!cc.range_check||!cc_ordinal(type)) return;
-    cc_op16(0x11,(uint16_t)cc.types[type].low); cc_op16(0x01,(uint16_t)cc.types[type].high); cc_call(RT_RANGE);
+    cc_op16(0x11,(uint16_t)CCT(type,low)); cc_op16(0x01,(uint16_t)CCT(type,high)); cc_call(RT_RANGE);
 }
 void cc_result_symbol(uint16_t routine) FRONTEND {
     uint16_t i; uint8_t j;SourcePosition left,right;
-    Symbol *s=&cc.symbols[routine];
-    for(i=0;i<cc.symbol_count;++i) if(cc.symbols[i].role<S_FIELD&&cc.symbols[i].owner==cc.scope&&cc.symbols[i].name_length==s->name_length) {
+    for(i=0;i<cc.symbol_count;++i) if(CCS(i,role)<S_FIELD&&CCS(i,owner)==cc.scope&&CCS(i,name_length)==CCS(routine,name_length)) {
         j=0;
-        if(s->name_length) {
-            left=cc_reference_position(cc.symbols[i].name_start);right=cc_reference_position(s->name_start);
-            for(;j<s->name_length;++j)if(name_byte(left,j)!=name_byte(right,j)) break;
+        if(CCS(routine,name_length)) {
+            left=cc_reference_position(CCS(i,name_start));right=cc_reference_position(CCS(routine,name_start));
+            for(;j<CCS(routine,name_length);++j)if(name_byte(left,j)!=name_byte(right,j)) break;
         }
-        if(j==s->name_length) { cc_fail(43); return; }
+        if(j==CCS(routine,name_length)) { cc_fail(43); return; }
     }
     if(cc.symbol_count==SYMBOL_LIMIT) { cc_fail(99); return; }
-    i=cc.symbol_count++; cc.symbols[i]=*s;
-    cc.symbols[i].owner=cc.scope; cc.symbols[i].role=S_RESULT;
-    cc_storage(i,cc.types[s->type].width);
+    i=cc.symbol_count++; cc_symbol_copy(i,routine);
+    CCS_SET(i,owner,cc.scope); CCS_SET(i,role,S_RESULT);
+    cc_storage(i,CCT(CCS(routine,type),width));
 }
-void cc_convert(uint8_t target,uint8_t source) FRONTEND {
+void cc_convert(TypeId target,TypeId source) FRONTEND {
     if(cc_aggregate(target)) { if(target!=source) cc_fail(44); return; }
-    if(target==255||source==255||!cc_compatible(target,source)) { cc_fail(44); return; }
+    if(target==TYPE_NONE||source==TYPE_NONE||!cc_compatible(target,source)) { cc_fail(44); return; }
     source=cc_text_value(source);
     if(cc_family(target)==K_REAL&&cc_family(source)==K_INTEGER) cc_real_unary(ZR_FROM_INT,source,cc.temporaries);
     if(cc_family(target)==K_CHAR&&cc_family(source)==K_STRING) cc_call(RT_STRINGCHAR);
     cc_check_range(target);
 }
-void cc_set_load(uint8_t type) FRONTEND {
+void cc_set_load(TypeId type) FRONTEND {
     cc_temporary(32);
-    cc_emit(0x3e); cc_emit((uint8_t)(cc.types[cc.types[type].element].low>>3));
-    cc_emit(0x0e); cc_emit((uint8_t)cc.types[type].width); cc_call(RT_SETLOAD);
+    cc_emit(0x3e); cc_emit((uint8_t)(CCT(CCT(type,element),low)>>3));
+    cc_emit(0x0e); cc_emit((uint8_t)CCT(type,width)); cc_call(RT_SETLOAD);
 }
-void cc_set_store(uint8_t type) FRONTEND {
-    cc_emit(0x3e); cc_emit((uint8_t)(cc.types[cc.types[type].element].low>>3));
-    cc_emit(0x0e); cc_emit((uint8_t)cc.types[type].width); cc_call(RT_SETSTORE);
+void cc_set_store(TypeId type) FRONTEND {
+    cc_emit(0x3e); cc_emit((uint8_t)(CCT(CCT(type,element),low)>>3));
+    cc_emit(0x0e); cc_emit((uint8_t)CCT(type,width)); cc_call(RT_SETSTORE);
 }
-uint8_t cc_text_value(uint8_t type) FRONTEND {
+TypeId cc_text_value(TypeId type) FRONTEND {
     if(!cc_char_array(type)) return type;
-    cc_temporary(cc.types[type].width+1); cc_emit(0x3e); cc_emit((uint8_t)cc.types[type].width);
-    cc_emit(0x12); cc_emit(0x13); cc_op16(0x01,cc.types[type].width); cc_call(RT_MOVE);
+    cc_temporary(CCT(type,width)+1); cc_emit(0x3e); cc_emit((uint8_t)CCT(type,width));
+    cc_emit(0x12); cc_emit(0x13); cc_op16(0x01,CCT(type,width)); cc_call(RT_MOVE);
     cc_op16(0x21,0); cc_emit(0x39); return K_STRING;
 }
 /* String constants retain their source location, not a pointer into compiler
@@ -660,10 +617,10 @@ int16_t cc_predefined_type(void) FRONTEND {
 }
 int16_t cc_named_type(void) FRONTEND {
     int16_t id=cc.token==T_ID?cc_lookup():-1;
-    if(id>=0&&cc.symbols[id].role==S_TYPE) return cc.symbols[id].type;
+    if(id>=0&&CCS(id,role)==S_TYPE) return CCS(id,type);
     return id<0?cc_predefined_type():-1;
 }
-void cc_constant(uint8_t *type,uint16_t *value) FRONTEND {
+void cc_constant(TypeId *type,uint16_t *value) FRONTEND {
     int16_t id;
     uint8_t sign=0;
     if(cc.token=='+'||cc.token=='-') { sign=cc.token=='-'?2:1; cc_next(); }
@@ -679,7 +636,7 @@ void cc_constant(uint8_t *type,uint16_t *value) FRONTEND {
         *value=cc.literal_length==1?cc.literal[0]:cc_source_reference(cc.token_start);
     } else if(cc.token==T_ID) {
         id=cc_lookup();
-        if(id>=0&&cc.symbols[id].role==S_CONSTANT) { *type=cc.symbols[id].type; *value=cc.symbols[id].address; }
+        if(id>=0&&CCS(id,role)==S_CONSTANT) { *type=CCS(id,type); *value=CCS(id,address); }
         else if(id<0&&(cc_is("true")||cc_is("false"))) { *type=K_BOOLEAN; *value=cc_is("true"); }
         else if(id<0&&cc_is("maxint")) *value=32767;
         else if(id<0&&cc_is("pi")) { *type=K_REAL; *value=REAL_PI; }

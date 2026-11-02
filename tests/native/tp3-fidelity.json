@@ -291,6 +291,126 @@
         "scope": "Physical Ctrl-U at source backup, canonical source write, executable write and map write; queued typing, source/Main identity and exact kernel page recovery; HostFS and TF. No transaction directories or stale maps.",
         "report": "analysis/native-slice/20261102T010644.053058Z-94845/output-interrupt-report.json"
       }
+    },
+    "compiler_capacity": {
+      "audit_ids": [
+        "TP3-03",
+        "TP3-05"
+      ],
+      "observed_original": {
+        "capture_root": "analysis/tp3-capacity-original",
+        "accepted": [
+          "1000 symbols",
+          "200 record types",
+          "90 enum types",
+          "40 nested blocks",
+          "40 nested expression levels",
+          "20000-byte globals",
+          "260 sibling routines"
+        ],
+        "limits_note": "1500-symbol probe reaches original error99; type260 probe fails43. Neither establishes a documented language ceiling."
+      },
+      "native_adaptation": "16-bit logical source offsets permit 65534 bytes across native banks. Symbols, types, routines, relocations and references share a lazy page arena. Native static/code layout and actual compiler stack/resource checks remain.",
+      "tradeoff": "Compiler records use a shared growing far-RAM arena. Whole-record reads, a direct address directory and a monotonic reference bound avoid repeated bank/record walks; no persistent record cache is added. A direct three-include host fixture uses ten free pages; packing removes one compiler code bank.",
+      "regressions": [
+        "tools/test-native-host.py --sanitize",
+        "tests/native/compiler-job-cases.h",
+        "tests/native/source-validation-host.c",
+        "tools/test-tp3-open-items.py"
+      ],
+      "native_source_evidence": "analysis/native-slice/20261102T045844.288585Z-43270/tp3-open-items.json",
+      "native_accepted": [
+        "1000 variables",
+        "200 record types with 20000-byte globals and 40 nested blocks",
+        "20551-byte Work edited/saved/run across a bank boundary"
+      ],
+      "performance": {
+        "capture": "analysis/native-slice/20261102T045844.288585Z-43270/tp3-open-items.json",
+        "measurement": "R command through compiler, Memory run and return to IDE, in native emulator T-states. These are not an old-baseline speed comparison.",
+        "600_variables_tstates": 3831105601,
+        "1000_variables_tstates": 10773643850,
+        "note": "Large symbol-heavy programs remain slow. Capacity acceptance does not establish TP3 compile-speed parity."
+      }
+    },
+    "source_find": {
+      "audit_id": "TP3-02",
+      "observed_original": "Fresh source-only F accepts PC0034 without COM/ZMP; the original algorithm is not established.",
+      "native_adaptation": "Recompile selected Main/Work with current saved-mode settings to recover statement position. No executable/map input or disk publication.",
+      "regressions": [
+        "tools/test-tp3-open-items.py"
+      ],
+      "native_evidence": "analysis/native-slice/20261102T045844.288585Z-43270/tp3-open-items.json"
+    },
+    "startup_phases": {
+      "audit_id": "TP3-06",
+      "native_adaptation": "Fifteen total code banks after packing the compiler jobs with source services. Retain thirteen at startup; load two compiler-phase banks on first compilation. Validate the full library extent and EOF before startup.",
+      "saving_bytes": 49152,
+      "scope": "Startup saves 49152 bytes against the original sixteen-bank eager load; total compiler bank count falls from 16 to 15, saving 16384 bytes while compiler phases are loaded. This does not establish an overall speedup.",
+      "regressions": [
+        "tools/test-tp3-open-items.py"
+      ],
+      "native_evidence": "analysis/native-slice/20261102T045844.288585Z-43270/tp3-open-items.json",
+      "loaded_compiler_saving_bytes": 16384
+    },
+    "disk_emission": {
+      "audit_id": "TP3-10",
+      "documented": "Manual printed260/PDF282:COM mode gains capacity by writing generated code to disk.",
+      "native_adaptation": "Saved jobs emit, backpatch and rebase code in an owned .$$$ workspace using a 128-byte sector buffer, with no PAGE_IMAGE allocations. Final COM/CHN output is streamed and scratch removed on build close; sources/maps retain RAM metadata.",
+      "regressions": [
+        "tests/native/compiler-job-cases.h RAM/diskCOM+CHN byte equivalence, globals/rebase/gap, fault/collision/cleanup tests",
+        "tools/test-native-host.py --sanitize"
+      ],
+      "platform_workaround": {
+        "observed": "Pinned OS successful interior overwrite can return filesize byte0x40..BF as false error. Accept only an existing full sector whose exact128bytes read back correctly; documentedSDKerrors remain failures.",
+        "rom_sha256": "f34d453a1feb17d34c582f64139c5e8a42ac3e0f6642874b1d588695b4036b4a",
+        "kernel_source": "zeal-dev-environment/home/Zeal-8-bit-OS/kernel/disks.asm _zos_disk_write_epilogue",
+        "capture": "analysis/native-slice/20261102T030312.883933Z-1998/disk-native-failure",
+        "third_party_changes": false
+      },
+      "native_evidence": "analysis/native-slice/20261102T050904.009974Z-46955/execute-call-report.json"
+    },
+    "native_execute": {
+      "audit_id": "TP3-22",
+      "documented": "Manual printed263 allows any executableCOM file.",
+      "native_adaptation": "Accept opaque native executables with actual extent 0 < size < 49152. A validated Pascal startup opts into private handoff; ordinary native images need no Pascal header. Native rollback and handoff validation remain.",
+      "regressions": [
+        "tools/test-chain-loader.py",
+        "tools/test-chain-loader.py --native",
+        "tools/test-chain-call.py --execute",
+        "tests/native/transfer-host.c"
+      ],
+      "native_evidence": "analysis/native-slice/20261102T050904.009974Z-46955/execute-call-report.json"
     }
+  },
+  "current_implementation": {
+    "code_banks": 15,
+    "startup_code_banks": 13,
+    "resident_bytes": 14077,
+    "library_bytes": 225673,
+    "linked_payload_bytes": 239750,
+    "native_metadata_directory_bytes_saved": 334,
+    "source_logical_limit_bytes": 65534,
+    "saved_code_sector_buffer_bytes": 128,
+    "saved_image_ram_pages": 0,
+    "qualification": "Bounded native emulator and host acceptance; not complete TP3 equivalence or physical hardware qualification."
+  },
+  "verification": {
+    "host_compiler_checks": 111911,
+    "host_editor_checks": 4010,
+    "host_source_checks": 45809,
+    "host_output_checks": 370857,
+    "host_output_scenarios": 2692,
+    "sanitizers": [
+      "AddressSanitizer",
+      "UndefinedBehaviorSanitizer"
+    ],
+    "native_capacity_report": "analysis/native-slice/20261102T045844.288585Z-43270/tp3-open-items.json",
+    "native_core_report": "analysis/native-slice/20261102T050330.581279Z-45089/report.json",
+    "native_execute_report": "analysis/native-slice/20261102T050904.009974Z-46955/execute-call-report.json",
+    "opus_consulted": false,
+    "native_core_passed": 2109,
+    "native_core_failed": 0,
+    "native_execute_checks_passed": 32,
+    "native_execute_compiler_assertions": 78
   }
 }
