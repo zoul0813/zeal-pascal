@@ -2,13 +2,12 @@
 #include <zos_sys.h>
 #include <zos_vfs.h>
 
-extern uint8_t console_scratch[256];
 int8_t code_phase_fd=-1;
 uint8_t code_phase_pending[CODE_BANK_LIMIT-CODE_PHASE_FIRST];
 static uint8_t valid;
 static uint32_t offsets[CODE_BANK_LIMIT-CODE_PHASE_FIRST];
 
-/* Keep the original open handle and checked bank extents for later reloads. */
+/* Keep the original open handle and declared bank offsets for later reads. */
 void code_phase_bind(int8_t fd) SOURCE_BLOCK_CALL {
     uint8_t bank,index;
     uint32_t at=16u+2u*code_required;
@@ -42,7 +41,7 @@ uint8_t code_phase_park(void) SOURCE_BLOCK_CALL {
 }
 uint8_t code_phase_restore(void) SOURCE_BLOCK_CALL {
     uint8_t bank,index,page,error;
-    uint16_t at,n,j;int32_t seek_to;
+    int32_t seek_to;
     for(bank=CODE_PHASE_FIRST;bank<code_owned;++bank) {
         index=bank-CODE_PHASE_FIRST;
         if((valid&(1u<<index))&&code_pages[bank]!=255)continue;
@@ -57,11 +56,7 @@ uint8_t code_phase_restore(void) SOURCE_BLOCK_CALL {
         if(page<32||page>=64)return failure(ERR_INVALID_PARAMETER);
         seek_to=(int32_t)offsets[index];error=seek(code_phase_fd,&seek_to,SEEK_SET);
         if(!error&&(uint32_t)seek_to!=offsets[index])error=ERR_ENTRY_CORRUPTED;
-        for(at=0;!error&&at<code_sizes[bank];at+=n) {
-            n=code_sizes[bank]-at;if(n>128)n=128;
-            if(!code_read_exact(code_phase_fd,n)) {error=boot_error;break;}
-            for(j=0;j<n;++j)far_set(page,at+j,console_scratch[j]);
-        }
+        if(!error&&!code_read_bank(code_phase_fd,page,code_sizes[bank]))error=boot_error;
         if(error) {
             /* A failed free retains an unready page for retry/terminal release.
              * A complete reload is required before the page becomes usable. */

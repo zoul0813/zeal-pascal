@@ -231,13 +231,13 @@ remains in the launcher. Internal `pascal_runtime.zpl` and `ram_trampoline.zpl`
 build products require no separate deployment. Generated Pascal COM
 programs contain their own runtime and need no IDE library.
 
-Startup is currently slow: allow roughly 2½ minutes at the target's normal
-speed for library loading and verification before the IDE prompt appears.
-
 The library uses fifteen code banks. Startup retains thirteen; two compiler banks
 load on the first compilation and can be parked during program execution. Startup
-still
-checks the complete library file before accepting it.
+checks the library header, then reads each startup bank directly into its mapped
+RAM page. A failed or incomplete bank read reports an error. Deferred banks are
+read and checked when needed; startup does not scan their payloads or require an
+extra read to verify EOF. Informal user timing on physical TF hardware puts startup
+below two seconds, down from roughly 45 seconds before direct bank loading.
 
 At the startup message prompt, Y enables compiler explanations and N keeps
 numeric diagnostics. Missing explanations still leave the error number usable.

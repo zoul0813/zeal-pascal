@@ -10,7 +10,7 @@
 .globl _code_select, _code_restore, _code_release
 .globl _code_version, _code_required
 .globl _code_phase_fd, _code_phase_cleanup, _close
-.globl get_bank, set_bank
+.globl get_bank, set_bank, _get_bank
 
 ; SDK-compatible command-tail entry; application code loads the library after
 ; C data initialization. No payload overlaps the C data or startup stack.
@@ -136,6 +136,7 @@ release_library:
 ; The SDK's standard banked-call trampoline calls these callbacks. Logical
 ; bank IDs are 1..16; saved tokens are actual RAM pages 32..63. Both callbacks
 ; preserve BC/DE/HL. There is no software current-bank state to go stale.
+_get_bank::                     ; C alias for the SDK mapping callback
 get_bank::
     ld a,#0x80
     in a,(0xf2)

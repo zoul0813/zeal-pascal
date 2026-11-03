@@ -15,6 +15,7 @@ void code_release(void) NATIVE;
 extern int8_t code_phase_fd;
 extern uint8_t code_phase_pending[CODE_BANK_LIMIT-CODE_PHASE_FIRST];
 uint8_t code_read_exact(int8_t fd,uint16_t count);
+uint8_t code_read_bank(int8_t fd,uint8_t page,uint16_t size);
 void code_phase_bind(int8_t fd) SOURCE_BLOCK_CALL;
 uint8_t code_phase_park(void) SOURCE_BLOCK_CALL;
 uint8_t code_phase_restore(void) SOURCE_BLOCK_CALL;

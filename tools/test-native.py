@@ -206,8 +206,11 @@ def program_launch(target='zpascal'):
     ready = symbols(target)['_code_ready']
     # The child loader reads its versioned library after the small resident image
     # has loaded. Stop at its resident transition before sending IDE input.
-    return (type_text(f'H:/{target}.bin H:/{target}.zpl\n') + ['run 1000000',
-            f'bp 0x{ready:x}', f'run {LIBRARY_READY_CYCLES}', f'bc 0x{ready:x}'])
+    # Arm the ready breakpoint at child entry: direct loading can finish before
+    # the old fixed post-Enter delay, leaving the breakpoint behind execution.
+    return (type_text(f'H:/{target}.bin H:/{target}.zpl') +
+            ['bp 0x4000', 'tap ENTER', 'run 2000000000', 'bc 0x4000',
+             f'bp 0x{ready:x}', 's', f'run {LIBRARY_READY_CYCLES}', f'bc 0x{ready:x}'])
 
 
 def code_banks(target='zpascal'):
@@ -868,8 +871,10 @@ def memory(text):
 def library_failure_checks():
     sym = symbols('zpascal')
     good = (ROOT / 'build/zpascal.zpl').read_bytes()
+    first_end = 16 + 2*good[5] + struct.unpack_from('<H', good, 16)[0]
     cases = [('missing', None, 4), ('magic', b'BAD!' + good[4:], 25),
-             ('truncated', good[:-1], 25), ('trailing', good + b'!', 25),
+             ('truncated-header', good[:15], 25),
+             ('truncated-bank', good[:first_end-1], 25),
              ('old-format', good[:4]+b'\1'+good[5:], 25),
              ('mixed-build', (ROOT/'build/zptest.zpl').read_bytes(), 25)]
     for label, at, value in [('version', 4, 1), ('count', 5, 0),
@@ -895,6 +900,36 @@ def library_failure_checks():
                        observed.get(sym['_code_owned']) == 0 and observed.get(sym['_boot_error']) == error
                        and observed.get(sym['_work']) == 0
                        and '[DBG] 4000 -> 090000' in text))
+    # Extra bytes need no EOF scan. Deferred bytes are checked only when read.
+    for label, data in [('trailing', good+b'!'), ('deferred-truncated', good[:-1])]:
+        commands = ['run 100000000'] + type_text('H:/zpascal.bin H:/BAD.ZPL')
+        commands += ['bp 0x4000', 'tap ENTER', 'run 2000000000', 'bc 0x4000', 'mmu',
+                     f"bp 0x{sym['_code_ready']:x}", 's', f'run {LIBRARY_READY_CYCLES}',
+                     'regs', 'mmu', f"rb 0x{sym['_code_pages']:x} {code_banks()}",
+                     f"rb 0x{sym['_boot_error']:x} 1", 'quit']
+        text = execute('library-'+label, commands, {'BAD.ZPL': data})
+        observed = memory(text)
+        pages = [observed.get(sym['_code_pages']+i, 255) for i in range(code_banks())]
+        mappings = re.findall(r'\[DBG\] 8000 -> ([0-9a-f]+)', text)
+        checks.append(('library '+label+' reaches editor boundary with only startup banks loaded',
+                       f"[DBG] PC={sym['_code_ready']:04x} " in text
+                       and observed.get(sym['_boot_error']) == 0
+                       and len(mappings) == 2 and mappings[0] == mappings[1]
+                       and all(32 <= p < 64 for p in pages[:13])
+                       and all(p == 255 for p in pages[13:])))
+    # Component launcher loads deferred phases before entering its test body.
+    phase = symbols('zptest')
+    commands = ['run 100000000'] + type_text('H:/zptest.bin H:/BAD.ZPL')
+    commands += ['bp 0x4000', 'tap ENTER', 'run 2000000000', 'bc 0x4000',
+                 f"bp 0x{phase['_fflush_stdout']:x}", 's', f'run {LIBRARY_READY_CYCLES}',
+                 'regs', f"rb 0x{phase['_code_owned']:x} 2", 'quit']
+    text = execute('library-deferred-read-failure', commands,
+                   {'BAD.ZPL': (ROOT/'build/zptest.zpl').read_bytes()[:-1]})
+    observed = memory(text)
+    checks.append(('short deferred bank read fails and releases all code pages',
+                   observed.get(phase['_code_owned']) == 0
+                   and observed.get(phase['_boot_error']) == 25
+                   and f"[DBG] PC={phase['_fflush_stdout']:04x} " in text))
     return checks
 
 

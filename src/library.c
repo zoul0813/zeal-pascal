@@ -3,6 +3,8 @@
 #include <zos_vfs.h>
 
 extern uint8_t console_scratch[256];
+extern uint8_t get_bank(void) NATIVE;
+extern void code_restore(uint8_t page) NATIVE;
 static uint16_t word(uint8_t at) {
     return console_scratch[at]|((uint16_t)console_scratch[at+1]<<8);
 }
@@ -16,12 +18,22 @@ uint8_t code_read_exact(int8_t fd,uint16_t count) {
     }
     return 1;
 }
+/* Resident code and page3 stack stay accessible while page2 is the read
+ * destination. Restore the caller's bank even when the syscall fails. */
+uint8_t code_read_bank(int8_t fd,uint8_t page,uint16_t size) {
+    uint8_t old=get_bank();
+    uint16_t n=size;
+    code_restore(page);
+    boot_error=read(fd,(void*)0x8000,&n);
+    code_restore(old);
+    if(!boot_error&&n!=size)boot_error=ERR_ENTRY_CORRUPTED;
+    return !boot_error;
+}
 /* Terminal release calls this only while a loaded compiler phase exists,
  * before descending through/freeing the always-resident code-bank slots. */
 uint8_t code_phase_cleanup(void) {return code_phase_park();}
 uint8_t code_load(const char *path) {
     uint8_t bank,count,page,i,ok=0,e;
-    uint16_t offset,n,j;
     uint32_t declared,total;
     int8_t fd;
     if(code_owned||code_phase_fd>=0) {boot_error=ERR_ALREADY_OPENED;return 0;}
@@ -52,16 +64,8 @@ uint8_t code_load(const char *path) {
             if(page<32||page>=64) { boot_error=ERR_INVALID_PARAMETER; goto close_file; }
         }
         code_pages[code_owned++]=page;
-        for(offset=0;offset<code_sizes[bank];offset+=n) {
-            n=code_sizes[bank]-offset; if(n>128) n=128;
-            if(!code_read_exact(fd,n)) goto close_file;
-            if(page!=255)for(j=0;j<n;++j) far_set(page,offset+j,console_scratch[j]);
-        }
+        if(page!=255&&!code_read_bank(fd,page,code_sizes[bank]))goto close_file;
     }
-    /* Require the declared payload and exact EOF before executing a bank. */
-    n=1; boot_error=read(fd,console_scratch,&n);
-    if(boot_error) goto close_file;
-    if(n) goto corrupt;
     if(count>CODE_PHASE_FIRST) {code_phase_bind(fd);return 1;}
     ok=1; goto close_file;
 corrupt:
