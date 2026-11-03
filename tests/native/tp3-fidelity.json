@@ -380,37 +380,117 @@
         "tests/native/transfer-host.c"
       ],
       "native_evidence": "analysis/native-slice/20261102T050904.009974Z-46955/execute-call-report.json"
+    },
+    "memory_and_banks_20261103": {
+      "requested_items_fixed": [
+        2,
+        3,
+        4,
+        6,
+        7,
+        8
+      ],
+      "deferred_by_user": [
+        1,
+        5
+      ],
+      "documented": {
+        "memory_run": "Manual printed361/PDF383; existing original counter observation is 1 then 2.",
+        "runtime_library": "Manual printed260/PDF282: COM includes the runtime library; CHN omits it."
+      },
+      "native_adaptation": "Borrow suspended Work, pool transient include text, retain compact source identities and eight-byte statement positions; F recompiles source and no ZMP is published/read. Memory Run executes persistent Build pages. Compiler/editor/shared services have logical banks; resident emission avoids a code-bank call for every output byte; transfer asset is contiguous.",
+      "memory_run_peak_image_pages_saved": {
+        "minimum": 2,
+        "maximum": 3,
+        "bytes_per_page": 16384,
+        "padding_pages_retained_after_first_run_maximum": 1
+      },
+      "baseline": {
+        "commit": "177efdb",
+        "resident_bytes": 13976,
+        "library_bytes": 225507,
+        "combined_bytes": 239483
+      },
+      "final": {
+        "zpascal.bin": {
+          "bytes": 15054,
+          "sha256": "2d761400b52bd8238d8e1f49e42b78eca5cb883a20e0483450333f8b5d57fdb8"
+        },
+        "zpascal.zpl": {
+          "bytes": 198092,
+          "sha256": "d53c40f43aa1c52c29d5cfc56a9cc753fbe3a3f20fed15ce19074ae720742744"
+        }
+      },
+      "combined_bytes": 213146,
+      "bytes_saved": 26337,
+      "native_reports": {
+        "core": "analysis/native-slice/20261103T145427.665538Z-49428/report.json",
+        "compiler_handoff": "analysis/native-slice/20261103T145609.921631Z-50050/compiler-job-report.json",
+        "sources": "analysis/native-slice/20261103T145623.194446Z-50144/sources-report.json",
+        "error_location": "analysis/native-slice/20261103T150101.932165Z-51993/error-location.json",
+        "chain": "analysis/native-slice/20261103T145609.874185Z-50049/chain-report.json",
+        "bank_lifecycle": "analysis/native-slice/20261103T144159.382230Z-44108/report.json"
+      },
+      "verification_scope": "Core, handoff, sources, CHN and lifecycle passed in the staged build. Final map-loop subtraction was subsequently verified by the 28-assertion error-location test, including 8191 map entries and an unmapped PC, and sanitized host tests. Not a complete suite or physical-hardware qualification.",
+      "disk_prefix_fix": "A temporary 256-byte stack buffer prevents disk cache flushes from clobbering runtime template input through console_scratch. The host disk model reproduces transport scratch reuse; native disk programs execute.",
+      "overlays_unchanged": true,
+      "startup_policy_unchanged": true,
+      "opus_consulted": false
     }
   },
   "current_implementation": {
     "code_banks": 15,
     "startup_code_banks": 13,
-    "resident_bytes": 14077,
-    "library_bytes": 225673,
-    "linked_payload_bytes": 239750,
+    "resident_bytes": 15054,
+    "library_bytes": 198092,
+    "linked_payload_bytes": 213146,
     "native_metadata_directory_bytes_saved": 334,
     "source_logical_limit_bytes": 65534,
     "saved_code_sector_buffer_bytes": 128,
     "saved_image_ram_pages": 0,
-    "qualification": "Bounded native emulator and host acceptance; not complete TP3 equivalence or physical hardware qualification."
+    "qualification": "Bounded native emulator and host acceptance; not complete TP3 equivalence or physical hardware qualification.",
+    "bank_bytes": [
+      13941,
+      12640,
+      14253,
+      14119,
+      11504,
+      12716,
+      14736,
+      16243,
+      11749,
+      10935,
+      10419,
+      11887,
+      13611,
+      14565,
+      14728
+    ],
+    "statement_map_record_bytes": 8,
+    "saved_map_sidecars": false,
+    "canonical_source_snapshots": false
   },
   "verification": {
-    "host_compiler_checks": 111911,
+    "host_compiler_checks": 177734,
     "host_editor_checks": 4010,
     "host_source_checks": 45809,
-    "host_output_checks": 370857,
-    "host_output_scenarios": 2692,
+    "host_output_checks": 349746,
+    "host_output_scenarios": 2528,
     "sanitizers": [
       "AddressSanitizer",
       "UndefinedBehaviorSanitizer"
     ],
     "native_capacity_report": "analysis/native-slice/20261102T045844.288585Z-43270/tp3-open-items.json",
-    "native_core_report": "analysis/native-slice/20261102T050330.581279Z-45089/report.json",
+    "native_core_report": "analysis/native-slice/20261103T145427.665538Z-49428/report.json",
     "native_execute_report": "analysis/native-slice/20261102T050904.009974Z-46955/execute-call-report.json",
     "opus_consulted": false,
     "native_core_passed": 2109,
     "native_core_failed": 0,
     "native_execute_checks_passed": 32,
-    "native_execute_compiler_assertions": 78
+    "native_execute_compiler_assertions": 78,
+    "native_compiler_handoff_passed": 944,
+    "native_compiler_handoff_failed": 0,
+    "native_error_location_passed": 28,
+    "native_sources_passed": 65
   }
 }

@@ -30,9 +30,9 @@ static uint8_t member_byte(const CompilerMember *m,const uint8_t *header,Compile
         return p<0xc000u?far_get(cc.image->pages[2],p-CC_CODE_BASE):far_get(cc.stage_page,p-0xc000u);
     }
     at-=m->bytes;
-    if(at<(uint32_t)m->maps*16u)
-        return buffer_get(cc.image->map_page,96+cc.file_bytes+m->map_first*16u+(uint16_t)at);
-    at-=(uint32_t)m->maps*16u;
+    if(at<(uint32_t)m->maps*MAP_RECORD_BYTES)
+        return buffer_get(cc.image->map_page,m->map_first*MAP_RECORD_BYTES+(uint16_t)at);
+    at-=(uint32_t)m->maps*MAP_RECORD_BYTES;
     if(at<(uint32_t)m->relocs*RELOCATION_BYTES)
         return cc_reloc_get(m->reloc_first*RELOCATION_BYTES+(uint16_t)at);
     at-=(uint32_t)m->relocs*RELOCATION_BYTES;
@@ -51,7 +51,7 @@ uint8_t cc_members_flush(CompilerMemberStore *store,CompilerMember *member,Compi
     if(!cc.image||member->origin<CC_CODE_BASE||member->origin>=cc.emitted||cc.emitted>CC_STATIC_LIMIT||
        member->entry<member->origin||member->entry>=cc.emitted||
        member->map_first>cc.entries||member->reloc_first>cc.relocations||
-       (uint32_t)96+cc.file_bytes+(uint32_t)cc.entries*16u>SOURCE_LIMIT||
+       (uint32_t)cc.entries*MAP_RECORD_BYTES>SOURCE_LIMIT||
        page_role(cc.image->pages[2])!=PAGE_IMAGE||page_role(cc.image->map_page)!=PAGE_MAP||
        (cc.emitted>0xc000u&&page_role(cc.stage_page)!=PAGE_COMPILER))return failed();
     next.offset=store->length;next.bytes=cc.emitted-next.origin;
@@ -59,7 +59,7 @@ uint8_t cc_members_flush(CompilerMemberStore *store,CompilerMember *member,Compi
     if(late&&!cc_late_range(late,first,next.origin,cc.emitted))return 0;
     if(!late&&first)return failed();
     next.lates=late?late->references-first:0;
-    total=MEMBER_HEADER+(uint32_t)next.bytes+(uint32_t)next.maps*16u+
+    total=MEMBER_HEADER+(uint32_t)next.bytes+(uint32_t)next.maps*MAP_RECORD_BYTES+
         (uint32_t)next.relocs*RELOCATION_BYTES+(uint32_t)next.lates*LATE_REFERENCE_BYTES;
     if(store->length>0x7ffffffful-total)return failed();
     /* SEEK_END returns the actual file size. Refuse unexpected appended data

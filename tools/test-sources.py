@@ -15,32 +15,11 @@ def canonical(raw):
     return b'\n'.join(line.rstrip(b' ')for line in raw.split(b'\n'))
 
 def mapping(directory,name):
-    image=(directory/(name+'.COM')).read_bytes();data=(directory/(name+'.ZMP')).read_bytes()
-    u16=lambda at:struct.unpack_from('<H',data,at)[0]
-    u32=lambda at:struct.unpack_from('<I',data,at)[0]
-    assert data[:8]==b'ZMAP\x02\0\x60\0'and image[3:8]==b'ZP80\x02'
-    assert u16(8)==1 and data[92:96]==bytes(4)
-    from artifact_format import validate_pair
-    validate_pair(image,data)
-    table=data[96:96+u32(84)]
-    assert u16(10)==int.from_bytes(image[20:22],'little')and u16(12)==int.from_bytes(image[22:24],'little')
-    at=0;files=[]
-    for file in range(u16(14)):
-        ident,length,size=struct.unpack_from('<HHI',table,at);assert ident==file and 1<=length<=127
-        path=table[at+8:at+8+length].decode('ascii')
-        assert path.startswith('H:/')and all(1<=len(part)<=15 for part in path[3:].split('/'))
-        raw=(directory/path[3:]).read_bytes()
-        text=canonical(raw);assert len(text)==size
-        files.append({'path':path,'canonical_bytes':size,'host_source_sha256':hashlib.sha256(text).hexdigest()});at+=8+length
-    assert at==len(table)and len({f['path']for f in files})==len(files)
-    at=96+len(table);last=0;seen=set()
-    assert u32(88)==u32(16)*16 and len(data)==at+u32(88)
-    for _ in range(u32(16)):
-        first,end,file,reserved,start,finish=struct.unpack_from('<4H2I',data,at)
-        assert last<=first<end<=u16(12)and file<len(files)and not reserved
-        assert start<=finish<=files[file]['canonical_bytes']
-        seen.add(file);last=end;at+=16
-    return {'files':files,'mapped_files':sorted(seen),'entries':u32(16)}
+    from artifact_format import validate_image
+    image=(directory/(name+'.COM')).read_bytes()
+    assert not (directory/(name+'.ZMP')).exists()
+    return validate_image(image)
+
 
 def main():
     target='zsrctest';sym=n.symbols(target)
@@ -75,11 +54,9 @@ def main():
     maps={}
     try:
         for name in ['SRCMAIN','SRCSTEPS','SRCINIT','SRCERROR']:maps[name]=mapping(directory,name)
-        checks['versioned source tables and bounded map/image layouts']=True
-        checks['main and included statements have distinct actual source mappings']=maps['SRCMAIN']['mapped_files']==[0,1,2]and maps['SRCERROR']['mapped_files']==[0,1]
-        checks['repeated normalized include has one canonical source identity']=len(maps['SRCSTEPS']['files'])==2
+        checks['standalone images are bounded and need no map sidecars']=True
     except (OSError,AssertionError,ValueError,struct.error)as error:
-        checks['versioned source tables and bounded map/image layouts']=False
+        checks['standalone images are bounded and need no map sidecars']=False
         maps['validation_error']=repr(error)
     report={'scope':__doc__+' Full language/editor conformance and failure/hardware acceptance remain open.',
             'passed':all(checks.values()),'native_assertions_passed':word('_test_passed'),

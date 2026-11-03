@@ -51,3 +51,20 @@ uint8_t path_resolve(const char *name,const char *directory,char *out) PATH_CALL
 uint8_t path_directory(const char *name,const char *directory,char *out) PATH_CALL {
     return resolve(name,directory,out,1);
 }
+
+#if defined(ZP_IDE_PATHS) || !defined(__SDCC)
+/* Native program naming is shared by disk compilation and publication. */
+uint8_t path_program(const char *root,char *out,uint8_t chain) PATH_CALL {
+    char canonical[128];uint16_t n,base=0,dot=0,i;
+    if(!path_resolve(root,"",canonical)||strcmp(root,canonical))return 0;
+    n=(uint16_t)strlen(canonical);
+    for(i=0;i<n;++i) {
+        if(canonical[i]=='/') {base=i+1;dot=0;}
+        else if(canonical[i]=='.')dot=i;
+    }
+    if(!dot)dot=n;
+    if(dot+4>127||dot-base+4>15)return 0;
+    memcpy(out,canonical,dot);strcpy(out+dot,chain?".CHN":".COM");return 1;
+}
+
+#endif

@@ -1,6 +1,5 @@
 #include "compiler.h"
 #include "compiler_disk.h"
-#include "sources_internal.h"
 
 static uint8_t flags(void) {
     return cc.absolute_mode|(cc.var_strict<<1)|(cc.range_check<<2)|
@@ -70,7 +69,7 @@ void cc_source_seek(SourcePosition position) ROUTINES {
     uint8_t file=(uint8_t)(position>>16);
     if((position>>24)||!sources_get(&cc.image->sources,file,cc.input)||
        (uint16_t)position>cc.input->length){cc_fail(99);return;}
-    cc.sources->file=file;cc.scan=(uint16_t)position;
+    cc.sources->file=file;cc.sources->input_base=sources_offset(&cc.image->sources,file);cc.scan=(uint16_t)position;
 }
 void cc_source_save(SourceCursor *cursor) ROUTINES {
     cursor->first=cc.token_start;cursor->last=cc.token_end;
@@ -89,30 +88,14 @@ void cc_source_restore(const SourceCursor *cursor) ROUTINES {
     cc.token_start=cursor->first;cc.token_end=cursor->last;
 }
 uint8_t cc_sources_prepare(const Source *root) ROUTINES {
-    cc.sources->root=root;
-    if(!sources_new(&cc.image->sources)){cc_fail(99);return 0;}
-    if(cc.sources->borrow_root) {
-        *cc.input=*root;
-        if(sources_borrow(&cc.image->sources,cc.input)<0){cc_fail(99);return 0;}
-    } else {
-        if(!source_snapshot(root,cc.input)){cc_fail(99);return 0;}
-        if(sources_take(&cc.image->sources,cc.input,root)<0) {
-            source_close(cc.input);cc_fail(99);return 0;
-        }
-        if(!sources_pack(&cc.image->sources)){cc_fail(99);return 0;}
-    }
-    return 1;
+    cc.sources->root=root;*cc.input=*root;
+    if(!sources_new(&cc.image->sources)||sources_borrow(&cc.image->sources,root)<0){cc_fail(99);return 0;}
+    cc.sources->input_base=0;return 1;
 }
-/* Parsing and its last source mapping are complete. Reference IDs are dead;
- * late native helpers may reuse an unpacked catalog's tail for code staging.
- * Reserve the entire possible second stage so its capacity never depends on
- * which helper emits first. Packed source text is never used as scratch. */
+/* Source references are dead after parsing. Only compact file identities and
+ * statement positions survive with the build; no include text is retained. */
 uint8_t cc_sources_finish(void) ROUTINES {
-    if(!cc_references_end()){cc_fail(99);return 0;}
-    if(!cc_disk_active(cc.image)&&cc.stage_page==255&&!cc.image->sources.base&&
-       (uint16_t)cc.image->sources.count*RECORD_BYTES<=PAGE_SIZE-(CC_STATIC_LIMIT-0xc000u)) {
-        cc.stage_page=cc.image->sources.page;cc.sources->stage_shared=1;
-    }
+    if(!cc_references_end()||!sources_finish(&cc.image->sources)){cc_fail(99);return 0;}
     return 1;
 }
 uint8_t cc_source_resume(void) ROUTINES {
@@ -122,7 +105,7 @@ uint8_t cc_source_resume(void) ROUTINES {
     cc_source_seek(cc.sources->parent_scan);return 1;
 }
 static uint8_t current(uint16_t at) {
-    return at<cc.input->length?buffer_get(cc.input->page,at):0;
+    return at<cc.input->length?buffer_view_get(cc.input->page,cc.sources->input_base,at):0;
 }
 void cc_source_include(uint8_t comment) ROUTINES {
     char name[128],directory[128],path[128];
@@ -155,9 +138,11 @@ void cc_source_include(uint8_t comment) ROUTINES {
             cc.error->start=diagnostic.start;cc.error->end=diagnostic.end;
             cc.sources->external_error=1;strcpy(cc.input->path,path);return;
         }
-        id=sources_take(&cc.image->sources,&loaded,0);
-        if(id<0){source_close(&loaded);cc_fail(99);return;}
-        cc_map_source(8+(uint16_t)strlen(path));
+        id=sources_include(&cc.image->sources,&loaded,cc.polling);
+        source_close(&loaded);
+        if(loaded.page!=255){cc.image->sources.pending=loaded.page;cc_fail(99);return;}
+        if(id<-1){cc.interrupted=(uint8_t)(-id-1);cc_fail(255);return;}
+        if(id<0){cc_fail(99);return;}
         if(cc.error->code)return;
     }
     opening=(uint16_t)cc.token_start-(comment=='{'?1:2);

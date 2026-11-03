@@ -7,7 +7,7 @@ extern uint8_t buffer_following[64];
 void buffer_init(uint8_t page) SOURCE_BLOCK_CALL {following[page]=255;}
 uint8_t buffer_reserve(uint8_t page,uint16_t length) SOURCE_BLOCK_CALL {
     uint8_t next,role=page_role(page);
-    if(role!=PAGE_SOURCE&&role!=PAGE_SNAPSHOT&&role!=PAGE_MAP)return 0;
+    if(role!=PAGE_SOURCE&&role!=PAGE_SNAPSHOT&&role!=PAGE_MAP&&role!=PAGE_SOURCES)return 0;
     while(length>PAGE_SIZE) {
         next=buffer_next(page);
         if(next==255) {
@@ -53,4 +53,10 @@ void buffer_retire(uint8_t page,uint8_t retired,uint16_t length) SOURCE_BLOCK_CA
     if(next!=255&&buffer_drop(next))following[last]=255;
     /* A completed edit remains successful if releasing spare storage fails. */
     platform_error=error;
+}
+
+uint8_t buffer_append(uint8_t page) SOURCE_BLOCK_CALL {
+    uint8_t next=page_new(page_role(page));
+    if(next==255)return 255;
+    buffer_init(next);following[page]=next;return next;
 }

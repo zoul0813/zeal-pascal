@@ -1,7 +1,6 @@
 #include "editor.h"
 #include "main_display.h"
 #include "sources.h"
-#include "saved_map.h"
 #include "keys.h"
 #include "compiler_job.h"
 #include "compiler_messages.h"
@@ -375,7 +374,7 @@ static void save_as_work(void) {
     if(save_work_as(name,0)) invalidate();
 }
 static uint8_t compile_work(uint8_t running) {
-    Diagnostic d;CompileFailure failure;Source root;uint8_t ok;uint16_t column;
+    Diagnostic d;CompileFailure failure;Source root;uint8_t ok;
     const char *path=main_file[0]?main_file:work.path;
     invalidate();screen_clear();
     if(!strcmp(path,work.path))root=work;
@@ -403,7 +402,7 @@ static uint8_t compile_work(uint8_t running) {
     }
     if(!sources_get(&build.sources,0,&root)) { cancel_prepared_build();lookup_failure();return 0; }
     if(saved_mode) {
-        output("Saving executable/map (Ctrl-U cancels)...\n");
+        output("Saving executable (Ctrl-U cancels)...\n");
         if(!save_build(&root,&build,1)) {
             ok=platform_error;
             cancel_prepared_build();
@@ -416,10 +415,10 @@ static uint8_t compile_work(uint8_t running) {
             output(". RAM source retained.");
             invalidate();search_ack("");return 0;
         }
-        output("Saved ");output(output_path());output(" and .ZMP");
+        output("Saved ");output(output_path());
         output("\n");
     }
-    source_location(&root,root.length,&compiled_main_lines,&column);
+    compiled_main_lines=build.source_lines;
     if(saved_mode&&!running)build_close(&build);
     return 1;
 }
@@ -469,7 +468,7 @@ static void option_address(uint8_t start) {
     }
 }
 static uint8_t find_saved(void) {
-    char text[128],root[128];SavedLocation found;
+    char text[128],root[128],found_path[128];uint16_t found_position=0;
     Source source,located;Diagnostic error;
     uint16_t pc,line,column;uint8_t field,file,loaded=0,ok;
     strcpy(root,main_file[0]?main_file:work.path);
@@ -493,17 +492,17 @@ static uint8_t find_saved(void) {
     }
     output("\nFinding position from source (Ctrl-U cancels)...\n");
     ok=compile_project(&source,&build,&error,1,&compile_options);
-    if(ok)ok=build_location(&source,&build,pc,&file,&found.position)&&
+    if(ok)ok=build_location(&source,&build,pc,&file,&found_position)&&
         sources_get(&build.sources,file,&located);
-    if(ok)strcpy(found.path,located.path);
+    if(ok)strcpy(found_path,located.path);
     build_close(&build);
     if(loaded)source_discard(&work,&source);
     if(!ok){lookup_failure();return 0;}
-    if(!select_error_source(found.path)) {lookup_failure();return 0;}
-    if(strcmp(found.path,root)&&!main_file[0])strcpy(main_file,root);
-    pc=source_editor_offset(&work,found.position);
+    if(!select_error_source(found_path)) {lookup_failure();return 0;}
+    if(strcmp(found_path,root)&&!main_file[0])strcpy(main_file,root);
+    pc=source_editor_offset(&work,found_position);
     source_location(&work,pc,&line,&column);ide_state=3;
-    output("Run-time error position found\n");output(found.path);
+    output("Run-time error position found\n");output(found_path);
     output(" Line ");output_number(line);output(" Col ");output_number(column);
     output("\nPress Escape to return to source");while(key_read()!=27) {}
     work.cursor=pc;edit(1);return 1;

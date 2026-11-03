@@ -15,7 +15,7 @@
 #define BACKEND
 #endif
 /* One synchronous compiler owns this workspace until it returns. Source
- * names reference its immutable snapshot; phase banks share only resident data. */
+ * names reference its suspended inputs; phase banks share only resident data. */
 enum { T_EOF=256,T_ID,T_NUMBER,T_STRING,T_ASSIGN,T_RESERVED,T_NE,T_LE,T_GE,T_RANGE,T_REAL };
 enum { K_INTEGER,K_STRING,K_BOOLEAN,K_CHAR,K_BYTE,K_REAL };
 /* Aggregate family tags are separate from ordinary ordinal type identities. */
@@ -35,7 +35,7 @@ enum { RF_FORWARD=1,RF_RECURSIVE=2,RF_DEFINED=4,RF_EXTERNAL=8 };
 /* Published saved IX/return/arguments and lexical/lifetime slots stay fixed.
  * The private words are caller cursor[-6] and owned-local lower bound[-8]. */
 #define FRAME_PRIVATE_BYTES 8u
-/* Names reference the immutable canonical source. All 127 bytes remain
+/* Names reference the suspended input text. All 127 bytes remain
  * significant without spending 128 resident bytes per symbol. */
 typedef struct { uint16_t name_start,address; uint8_t name_length;TypeId type;uint8_t role;uint8_t control;TypeId initial_type;TypeId owner; } Symbol;
 typedef struct { uint16_t width; int16_t low,high; TypeId family;TypeId capacity;TypeId element; } Type;
@@ -47,12 +47,12 @@ enum { SYMBOL_LIMIT=32767u,TYPE_LIMIT=0x7ffcu };
 #define CC_CODE_BASE 0x8000u
 #define CC_ACTIVATION_BYTES CHAIN_ACTIVATION_BYTES
 #define CC_STATIC_LIMIT 0xf400u
-typedef uint32_t SourcePosition; /* file ID in high word, canonical offset in low */
+typedef uint32_t SourcePosition; /* file ID in high word, source offset in low */
 struct CompilerGroups;
 typedef struct {
     const Source *root;
-    uint8_t stage_shared;uint8_t file;uint8_t error_file;uint8_t external_error;uint8_t memory;uint8_t borrow_root;
-    uint16_t refs,parent_scan;
+    uint8_t file,error_file,external_error,memory;
+    uint16_t refs,parent_scan,input_base;
     SourcePosition highest_reference;
     uint8_t parent_flags;uint8_t parent_limit;
     const CompileOptions *options;
@@ -75,8 +75,8 @@ typedef struct {
     SourcePosition token_start,token_end;
     uint8_t literal[256];uint8_t hexadecimal;uint8_t number_overflow;
     char name[128];
-    uint16_t emitted,entries,file_bytes,relocations;
-    uint8_t workspace;uint8_t stage_page;uint8_t primary_stage;uint8_t placing;uint16_t scope;uint8_t absolute_mode;uint8_t var_strict;uint16_t nesting;uint8_t suppress;uint8_t index_speed;
+    uint16_t emitted,entries,relocations;
+    uint8_t stage_page;uint8_t primary_stage;uint8_t placing;uint16_t scope;uint8_t absolute_mode;uint8_t var_strict;uint16_t nesting;uint8_t suppress;uint8_t index_speed;
     uint16_t routine_count,temporaries;
     uint8_t with_depth;uint8_t with_limit;uint8_t with_bound;TypeId with_types[9];uint8_t for_depth;uint8_t input_fresh;uint8_t io_check;uint8_t user_interrupt;uint8_t console_control;
     uint16_t field_offset;
@@ -151,15 +151,14 @@ uint8_t cc_sources_prepare(const Source *root) ROUTINES;
 uint8_t cc_sources_finish(void) ROUTINES;
 void cc_sources_error(void) ROUTINES;
 uint8_t cc_sources_ready(const Source *root,const Build *build) ROUTINES;
-void cc_map_source(uint16_t bytes) BACKEND;
-void cc_put(uint16_t p,uint8_t v) FRONTEND;
+void cc_put(uint16_t p,uint8_t v);
 void cc_global_put(uint16_t p,uint8_t v) FRONTEND;
-uint8_t cc_code_get(uint16_t address) FRONTEND;
+uint8_t cc_code_get(uint16_t address);
 void cc_stage_put(uint16_t offset,uint8_t value) FRONTEND;
 uint8_t cc_stage_get(uint16_t offset) FRONTEND;
-void cc_word(uint16_t p,uint16_t v) FRONTEND;
-void cc_emit(uint8_t v) FRONTEND;
-void cc_op16(uint8_t op,uint16_t value) FRONTEND;
+void cc_word(uint16_t p,uint16_t v);
+void cc_emit(uint8_t v);
+void cc_op16(uint8_t op,uint16_t value);
 void cc_address(uint8_t op,uint16_t value) FRONTEND;
 void cc_relocate(uint16_t operand) FRONTEND;
 void cc_relocate_value(uint16_t operand,uint16_t coefficient,uint8_t byte) FRONTEND;
@@ -189,6 +188,8 @@ void cc_next(void) FRONTEND;
 void cc_control_literal(void) FRONTEND;
 uint16_t cc_runtime_size(void);
 uint8_t cc_runtime_get(uint16_t offset);
+uint8_t cc_runtime_read(uint16_t offset,uint8_t *out,uint16_t count);
+uint8_t cc_runtime_copy(uint8_t page);
 /* Build-bound private input addresses; never an installed/public runtime ABI. */
 enum { RP_INPUT_READY,RP_INPUT_ADVANCE,RP_LINE_NEXT,RP_LINE_REMAINING,RP_LINE_EOF,RP_LINE_VALID,
        RP_INPUT_KEY,RP_INPUT_RAW_KEY,RP_INPUT_MODE,RP_INPUT_CLEANUP,RP_INPUT_FAIL,RP_IO_ERROR,RP_ECHO_FD,

@@ -1,7 +1,7 @@
 #include "harness.h"
 #include "sources.h"
-typedef char native_build_handle_size[sizeof(Build)==51?1:-1];
-typedef char native_catalog_handle_size[sizeof(Sources)==12?1:-1];
+typedef char native_build_handle_size[sizeof(Build)==54?1:-1];
+typedef char native_catalog_handle_size[sizeof(Sources)==13?1:-1];
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done;
 volatile uint16_t test_failures[64],test_index;
@@ -13,7 +13,7 @@ static void included_error(void) {
     check(load_source(&s,"H:/SRCERROR.PAS",&d));s.dirty=1;
     test_machine(before);check(compile(&s,&b,&d));test_machine(after);
     check(!memcmp(before,after,7));if(!b.valid)return;
-    check(b.sources.base!=0&&sources_valid(&b.sources)&&sources_ready(&b.sources,0));
+    check(b.sources.text_page==255&&sources_valid(&b.sources)&&sources_ready(&b.sources,0));
     check(save_build(&s,&b,0));owned=pages_used();
     check(run_build(&s,&b));check(ram_result[26]==3&&ram_result[28]==2);
     pc=ram_result[30]|((uint16_t)ram_result[31]<<8);

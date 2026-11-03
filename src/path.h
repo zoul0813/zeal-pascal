@@ -14,4 +14,5 @@ uint8_t path_resolve(const char *name,const char *directory,char *out) PATH_CALL
 /* Directory identity also accepts root, trailing separators and final dot/
  * dot-dot. Canonical output has no trailing slash except a drive root. */
 uint8_t path_directory(const char *name,const char *directory,char *out) PATH_CALL;
+uint8_t path_program(const char *root,char *out,uint8_t chain) PATH_CALL;
 #endif

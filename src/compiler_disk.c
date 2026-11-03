@@ -1,6 +1,6 @@
 #include "compiler.h"
 #include "compiler_disk.h"
-#include "saved_map.h"
+#include "path.h"
 #include "output_transport.h"
 #include <zos_vfs.h>
 #include <zos_errors.h>
@@ -63,10 +63,10 @@ static uint8_t sector(uint16_t at) {
     if(base<extent&&(!position(base)||!output_read_buffer(disk,cache,128)))return failure();
     return 1;
 }
-uint8_t cc_disk_active(const Build *b) SOURCE_BLOCK_CALL {return owner==b&&disk>=0;}
-uint8_t cc_disk_ready(const Build *b) SOURCE_BLOCK_CALL {return cc_disk_active(b)&&sealed;}
-uint8_t cc_disk_chain(const Build *b) SOURCE_BLOCK_CALL {return cc_disk_active(b)&&chain_kind;}
-void cc_disk_discard(const Build *b) SOURCE_BLOCK_CALL {
+uint8_t cc_disk_active(const Build *b) {return owner==b&&disk>=0;}
+uint8_t cc_disk_ready(const Build *b) {return cc_disk_active(b)&&sealed;}
+uint8_t cc_disk_chain(const Build *b) {return cc_disk_active(b)&&chain_kind;}
+void cc_disk_discard(const Build *b) {
     uint8_t primary=platform_error;uint8_t e=0;
     if(owner!=b)return;
     if(disk>=0){e=close(disk);disk=-1;}
@@ -74,14 +74,14 @@ void cc_disk_discard(const Build *b) SOURCE_BLOCK_CALL {
     owner=0;cached=dirty=placed=sealed=compiler_disk_placed=0;
     platform_error=primary?primary:e;
 }
-uint8_t cc_disk_begin(Build *b,const Source *root,uint8_t chain) SOURCE_BLOCK_CALL {
-    char paths[2][128];zos_stat_t info;uint16_t n;uint8_t e;
+uint8_t cc_disk_begin(Build *b,const Source *root,uint8_t chain) {
+    char path[128];zos_stat_t info;uint16_t n;uint8_t e;
     if(owner)return failure();
     /* A failed cleanup retains only our known scratch pathname, never a new
      * user's colliding file. Retry that cleanup before acquiring another. */
     if(owned) {e=rm(scratch);if(e){platform_error=e;return failure();}owned=0;}
-    if(!saved_paths_kind(root->path,paths,chain)) {platform_error=ERR_INVALID_PATH;return failure();}
-    strcpy(scratch,paths[0]);n=(uint16_t)strlen(scratch);n-=3;strcpy(scratch+n,"$$$");
+    if(!path_program(root->path,path,chain)) {platform_error=ERR_INVALID_PATH;return failure();}
+    strcpy(scratch,path);n=(uint16_t)strlen(scratch);n-=3;strcpy(scratch+n,"$$$");
     e=stat(scratch,&info);
     if(e!=ERR_NO_SUCH_ENTRY){platform_error=e?e:ERR_ALREADY_EXIST;return failure();}
     disk=open(scratch,O_RDWR|O_CREAT);
@@ -121,10 +121,10 @@ static uint8_t global_space(uint16_t code_length) {
     }
     code_base=wanted;return 1;
 }
-void cc_disk_global_put(uint16_t at,uint8_t value) SOURCE_BLOCK_CALL {
+void cc_disk_global_put(uint16_t at,uint8_t value) {
     if(global_space(code_used))raw_put(at,value);
 }
-void cc_disk_put(uint16_t at,uint8_t value) SOURCE_BLOCK_CALL {
+void cc_disk_put(uint16_t at,uint8_t value) {
     uint16_t offset;
     if(at<CC_CODE_BASE){raw_put(at,value);return;}
     offset=at-CC_CODE_BASE;
@@ -132,11 +132,11 @@ void cc_disk_put(uint16_t at,uint8_t value) SOURCE_BLOCK_CALL {
     raw_put(code_base+offset,value);
     if(code_used<=offset)code_used=offset+1;
 }
-uint8_t cc_disk_get(uint16_t at) SOURCE_BLOCK_CALL {
+uint8_t cc_disk_get(uint16_t at) {
     if(at<CC_CODE_BASE||!global_space(code_used))return 0;
     return raw_get(code_base+at-CC_CODE_BASE);
 }
-void cc_disk_place(Build *b,uint16_t origin,uint16_t bytes) SOURCE_BLOCK_CALL {
+void cc_disk_place(Build *b,uint16_t origin,uint16_t bytes) {
     code_at=origin-0x4000u;code_bytes=bytes;globals=b->globals_bytes;placed=compiler_disk_placed=1;
 }
 static uint16_t image_offset(uint16_t at) {
@@ -144,20 +144,20 @@ static uint16_t image_offset(uint16_t at) {
     if(placed&&at>=code_at&&at-code_at<code_bytes)return code_base+at-code_at;
     return at;
 }
-uint8_t cc_disk_image(const Build *b,uint16_t at) SOURCE_BLOCK_CALL {
+uint8_t cc_disk_image(const Build *b,uint16_t at) {
     if(!cc_disk_active(b))return 0;
     if(placed&&!chain_kind&&at>=0x4000u+globals&&at<code_at)return 0;
     return raw_get(image_offset(at));
 }
 /* Final-image writes after placement share the same mapper as reads. */
-void cc_disk_final_put(uint16_t at,uint8_t value) SOURCE_BLOCK_CALL {
+void cc_disk_final_put(uint16_t at,uint8_t value) {
     raw_put(image_offset(at),value);
 }
-void cc_disk_seal(Build *b) SOURCE_BLOCK_CALL {
+void cc_disk_seal(Build *b) {
     if(owner==b&&flush())sealed=1;
 }
-void cc_disk_adopt(const Build *from,Build *to) SOURCE_BLOCK_CALL {if(owner==from)owner=to;}
-uint8_t cc_disk_publish(const Build *b,const char *path) SOURCE_BLOCK_CALL {
+void cc_disk_adopt(const Build *from,Build *to) {if(owner==from)owner=to;}
+uint8_t cc_disk_publish(const Build *b,const char *path) {
     uint8_t bytes[128];uint8_t ok=1;uint16_t at=0,n,i;int8_t fd;
     if(!cc_disk_ready(b)||!flush())return failure();
     fd=output_open_path(path,O_WRONLY|O_CREAT|O_TRUNC);if(fd<0)return 0;

@@ -404,7 +404,7 @@ def block_catalog_checks():
     checks['disk compile and saved execution retain source identity'] = (
         frames['disk compiled'].get(build+4) == 1
         and frames['disk run'].get(work+1) == 0
-        and (host/'CATALOG.COM').is_file() and (host/'CATALOG.ZMP').is_file()
+        and (host/'CATALOG.COM').is_file() and not (host/'CATALOG.ZMP').exists()
         and (host/'RESULT.TXT').read_bytes() == b'4\r\n\x1a')
     owners = bytes(frames['quit'].get(kernel['_page_owners']+i, 255) for i in range(32))
     checks['quit releases Work, build and compiler owners'] = (

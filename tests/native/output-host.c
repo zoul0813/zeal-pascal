@@ -142,8 +142,12 @@ zos_dev_t open(const char *path,uint8_t flags) {
     return fd;
 }
 zos_err_t close(zos_dev_t fd) {assert(fd>=2&&fd<12&&fds[(uint8_t)fd].used);fds[(uint8_t)fd].used=0;return fault()?ERR_FAILURE:0;}
+static uint8_t mapped_page=32;
+uint8_t get_bank(void) {return mapped_page;}
+void code_restore(uint8_t page) {mapped_page=page;}
 zos_err_t read(zos_dev_t fd,void *out,uint16_t *size) {
     unsigned n=*size,left;int f;
+    if((uintptr_t)out>=0x8000u&&(uintptr_t)out<0xc000u)out=memory[mapped_page]+((uintptr_t)out-0x8000u);
     assert(fd>=2&&fd<12&&fds[(uint8_t)fd].used);f=fds[(uint8_t)fd].file;
     if(fault())return ERR_FAILURE;
     stream_mutate();
@@ -236,9 +240,8 @@ static void prove(uint8_t success,unsigned pages,uint8_t restore_failed) {
         if(case_kind<2) {
             if(case_old&1)check(equals(target[0],old[0],old_length[0])||equals(target[1],old[0],old_length[0]));
             else if(case_old&2)check(equals(target[1],old[1],old_length[1]));
-        } else if(case_kind>=3&&find(target[0])>=0&&!equals(target[0],old[0],old_length[0])) {
-            check(!equals(target[1],old[1],old_length[1]));
         }
+        if(case_kind>=3&&case_old&2)check(equals(target[1],old[1],old_length[1]));
     } else {
         check(!output_interrupt_reason());
         if(case_kind<2) {
@@ -251,8 +254,7 @@ static void prove(uint8_t success,unsigned pages,uint8_t restore_failed) {
             else {
                 f=find(target[0]);check(f>=0&&files[f].length==build.length);
                 for(i=0;i<build.length;++i)check(files[f].bytes[i]==(case_kind==4&&i<4?(uint8_t)"ZCHN"[i]:(uint8_t)(i*11+3)));
-                f=find(target[1]);check(f>=0&&files[f].length==build.map_length);
-                for(i=0;i<build.map_length;++i)check(files[f].bytes[i]==(uint8_t)(i*13+1));
+                check(case_old&2?equals(target[1],old[1],old_length[1]):find(target[1])<0);
             }
         }
     }
@@ -307,8 +309,8 @@ static void member_setup(void) {
     check(cc_tables_end());setup(0,0);memset(&cc,0,sizeof(cc));memset(&member_record,0x5a,sizeof(member_record));
     memset(&late_diagnostic,0,sizeof(late_diagnostic));cc.error=&late_diagnostic;check(cc_tables_begin());
     build.pages[2]=page_new(PAGE_IMAGE);build.map_page=page_new(PAGE_MAP);
-    cc.stage_page=page_new(PAGE_COMPILER);cc.workspace=255;cc.primary_stage=255;
-    cc.image=&build;cc.emitted=0xc201;cc.entries=5;cc.file_bytes=71;cc.relocations=7;cc.routine_count=2;
+    cc.stage_page=page_new(PAGE_COMPILER);cc.primary_stage=255;
+    cc.image=&build;cc.emitted=0xc201;cc.entries=5;cc.relocations=7;cc.routine_count=2;
     member_record.origin=0xbff1;member_record.entry=0xc000;member_record.map_first=2;member_record.reloc_first=3;
     for(i=0;i<PAGE_SIZE;++i) {
         memory[build.pages[2]][i]=(uint8_t)(i*3+9);memory[cc.stage_page][i]=(uint8_t)(i*5+1);
@@ -338,13 +340,13 @@ static void member_spool(void) {
     memcpy(snapshot[2],memory[build.map_page],PAGE_SIZE);for(i=0;i<28;++i)snapshot[3][i]=cc_reloc_get((uint16_t)i);
     check(cc_members_flush(&member_store,&member_record,0,0));ops=events;poll_count=polls;
     check(!member_store.failed&&member_record.offset==0&&member_record.bytes==528&&member_record.maps==3&&member_record.relocs==4);
-    n=24+528+48+16;check(member_store.length==n);
+    n=24+528+3*MAP_RECORD_BYTES+16;check(member_store.length==n);
     file=find("T:/PRIVATE.SPL");check(files[file].length==n);
     check(!memcmp(files[file].bytes,"ZPMS\2\0\30\0",8));
     check(files[file].bytes[8]==0xf1&&files[file].bytes[9]==0xbf&&files[file].bytes[12]==15);
     at=24;
     for(i=0xbff1;i<0xc201;++i)check(files[file].bytes[at++]==(i<0xc000?memory[build.pages[2]][i-0x8000]:memory[cc.stage_page][i-0xc000]));
-    for(i=199;i<247;++i)check(files[file].bytes[at++]==memory[build.map_page][i]);
+    for(i=2*MAP_RECORD_BYTES;i<5*MAP_RECORD_BYTES;++i)check(files[file].bytes[at++]==memory[build.map_page][i]);
     for(i=12;i<28;++i)check(files[file].bytes[at++]==cc_reloc_get((uint16_t)i));
     check(!memcmp(snapshot[0],memory[build.pages[2]],PAGE_SIZE)&&!memcmp(snapshot[1],memory[cc.stage_page],PAGE_SIZE)&&
           !memcmp(snapshot[2],memory[build.map_page],PAGE_SIZE));
@@ -376,7 +378,7 @@ static void member_spool(void) {
     /* Only the member suffix belongs on disk, even with maximal retained
      * parent tables. Aggregate spool positions must survive crossing 64 KiB. */
     member_setup();member_record.origin=0x8000;member_record.entry=0x8000;cc.emitted=CC_STATIC_LIMIT;
-    cc.entries=(PAGE_SIZE-96-cc.file_bytes)/16;member_record.map_first=cc.entries;
+    cc.entries=PAGE_SIZE/MAP_RECORD_BYTES;member_record.map_first=cc.entries;
     cc.relocations=SOURCE_LIMIT/RELOCATION_BYTES;member_record.reloc_first=cc.relocations;
     check(cc_members_flush(&member_store,&member_record,0,0)&&member_record.bytes==0x7400&&!member_record.maps&&!member_record.relocs);
     check(cc_members_flush(&member_store,&member_record,0,0));check(cc_members_flush(&member_store,&member_record,0,0));
@@ -433,9 +435,9 @@ static void group_spool(void) {
           root.parent_group==255&&root.parent_member==255&&root.owner==0&&root.parent==0&&root.closed);
     check(cc_group_get(&groups,1,&child)&&child.origin==0xbff8&&child.bytes==40&&child.members==2&&
           child.parent_group==0&&child.parent_member==0&&child.owner==1&&child.parent==1&&child.closed);
-    check(cc_group_member_get(&groups,1,&id,&ordinal,&member)&&id==0&&ordinal==0&&member.offset==168&&
+    check(cc_group_member_get(&groups,1,&id,&ordinal,&member)&&id==0&&ordinal==0&&member.offset==144&&
           member.origin==0xbff0&&member.bytes==56&&member.entry==0xc020&&member.maps==2&&member.relocs==2);
-    f=find("T:/PRIVATE.SPL");check(f>=0&&files[f].length==356&&groups.store.length==356);
+    f=find("T:/PRIVATE.SPL");check(f>=0&&files[f].length==308&&groups.store.length==308);
     for(i=0;i<8;++i)check(files[f].bytes[member.offset+24+i]==0x10+i);
     for(i=8;i<48;++i)check(!files[f].bytes[member.offset+24+i]);
     for(i=48;i<56;++i)check(files[f].bytes[member.offset+24+i]==0x60+i-48);
@@ -694,7 +696,8 @@ static void phase_cache(void) {
         fail_at=0;check(code_phase_restore()&&phase_owned()==15);phase_cleanup();
     }
     phase_setup();check(code_phase_park());shorts=1;
-    check(code_phase_restore()&&phase_owned()==15&&!polls);phase_cleanup();
+    check(!code_phase_restore()&&phase_owned()==13&&boot_error==ERR_ENTRY_CORRUPTED&&mapped_page==32);
+    shorts=0;check(code_phase_restore()&&phase_owned()==15&&!polls);phase_cleanup();
     for(i=3;i<=4;++i) {
         phase_setup();check(code_phase_park());bad_io=(uint8_t)i;fail_read=1;reads=0;
         check(!code_phase_restore()&&platform_error==ERR_ENTRY_CORRUPTED&&phase_owned()==13);

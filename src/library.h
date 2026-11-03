@@ -2,11 +2,16 @@
 #define ZP_LIBRARY_H
 #include "zp.h"
 #define CODE_BANK_LIMIT 16
-#define CODE_PHASE_FIRST 13u /* Zero-based: banks14..16 are compiler phases. */
+#define CODE_PHASE_FIRST 13u /* Zero-based: compiler lifecycle and transfer assets. */
+enum { CODE_IDE=0,CODE_STATEMENTS,CODE_SHARED,CODE_FRONTEND,CODE_ROUTINES,
+       CODE_EXPRESSIONS,CODE_BUILD,CODE_RUNTIME,CODE_METADATA,CODE_FILE_COMPILER,
+       CODE_FILE_RUNTIME,CODE_DEVICES,CODE_EDITOR,CODE_COMPILE,CODE_TRANSFER };
 #define DEFAULT_LIBRARY "T:/lib/zpascal.zpl"
 extern uint8_t code_pages[CODE_BANK_LIMIT],code_owned,boot_error;
 extern uint16_t code_sizes[CODE_BANK_LIMIT];
 extern const uint8_t code_required,code_version[4];
+uint8_t get_bank(void) NATIVE;
+void code_restore(uint8_t page) NATIVE;
 uint8_t code_load(const char *path);
 void code_release(void) NATIVE;
 /* The version-checked loader lends its open original handle to the phase cache.

@@ -85,7 +85,7 @@ def main():
         checks['loader and invalid-path failures are explicit']=all('Execute failed, native error ' in screenshots[label+'-status']for label in ('missing','empty','directory','invalid'))
         checks['child colors are restored before IDE output']=all(data(label,0x5000+80,26)==bytes([15])*26 for label in ('ordinary-status','repeat-status'))
         checks['Escape, empty name and Ctrl-U cancel at menu']=all(data(label,sym['_ide_state'],1)==b'\x01'for label in ('escape-cancel','empty-cancel','control-cancel'))
-        checks['R reuses preserved valid build and returns normally']=data('cached-run',build,n.BUILD_BYTES)==baseline[build] and data('cached-run',sym['_ram_result']+26,1)==b'\x01'
+        checks['R reuses preserved valid build and returns normally']=n.same_build_after_run(baseline[build],data('cached-run',build,n.BUILD_BYTES)) and data('cached-run',sym['_ram_result']+26,1)==b'\x01'
         checks['IDE exits normally after explicit discard']=frames['ide-exit'][1].startswith(f"{kernel['zos_loader_exit']:04x} ")and re.search(r'HL=00',frames['ide-exit'][1])is not None
         checks['IDE releases source, build and code allocations before exit']=data('ide-exit',kernel['_page_owners'],32).count(2)==3
         checks['actual source screen still contains unsaved text']=all(line.decode()in screenshots['source-retained']for line in (prefix.rstrip(),source.splitlines()[0],source.splitlines()[2]))

@@ -84,11 +84,10 @@ def publication_checks(drive):
             count_ok and all(f.get(work+1)==0 and f.get(sym['_ide_state'])==1 for f in frames[-2:]),
         'exact canonical source after two saves': files.get('REPEAT.PAS') == b'{again}{edited}'+source,
         'BAK contains the exact preceding source': files.get('REPEAT.BAK') == b'{edited}'+source,
-        'versioned executable/map and canonical source length match':
-            len(binary)>160 and binary[3:8]==b'ZP80\2' and mapping[:5]==b'ZMAP\2'
+        'versioned executable is published without a source-map sidecar':
+            len(binary)>160 and binary[3:8]==b'ZP80\2'
             and int.from_bytes(binary[10:12],'little')==len(binary)
-            and binary[36:132]==bytes(96) and mapping[20:84]==bytes(64)
-            and int.from_bytes(mapping[100:104],'little')==len(source),
+            and binary[36:132]==bytes(96) and not mapping,
         'successful saves clean only their transaction directories': clean,
         'unrelated source or TF medium remains unchanged': untouched,
     }

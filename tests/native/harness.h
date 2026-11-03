@@ -14,7 +14,7 @@ void check(uint8_t ok);
 uint8_t code_capture(uint8_t after) SOURCE_BLOCK_CALL;
 uint8_t load(const char *text);
 uint8_t seed(const char *path,const char *text);
-void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position);
+void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) SOURCE_BLOCK_CALL;
 void execution(const char *text,uint8_t kind,uint8_t code);
 void execution_file(const char *path,uint8_t kind,uint8_t code,uint16_t expected_position);
 void checked_error(const char *text,uint8_t code,const char *where);

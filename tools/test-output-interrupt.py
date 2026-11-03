@@ -120,7 +120,7 @@ def run_case(kind,helper,ordinal,typing=False,drive="H"):
     if kind=='source':
         checks['previous source survives in source or BAK']=SOURCE in (content('project/main.pas'),content('project/main.BAK'))
     else:
-        checks['changed executable has no stale map']=(content('project/main.COM')==fixtures['project/main.COM'] or content('project/main.ZMP')!=fixtures['project/main.ZMP'])
+        checks['publication leaves unrelated former sidecar untouched']=content('project/main.ZMP')==fixtures['project/main.ZMP']
     checks['no recovery transaction directory']=not recoveries
     return {'passed':all(checks.values()),'kind':kind,'drive':drive,'helper':helper,'ordinal':ordinal,'checks':checks,
             'capture':str((n.RUN/name).relative_to(ROOT))}

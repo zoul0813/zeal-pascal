@@ -38,7 +38,7 @@ void cc_system_init(void) FRONTEND {
 
 static uint8_t get(uint16_t p) {
     if(!++cc.scan_poll)cc_poll();
-    return p<cc.input->length ? buffer_get(cc.input->page,p) : 0;
+    return p<cc.input->length ? buffer_view_get(cc.input->page,cc.sources->input_base,p) : 0;
 }
 static uint8_t lower(uint8_t c) { return c>='A'&&c<='Z' ? c+32 : c; }
 static uint8_t name_byte(SourcePosition position,uint8_t offset) {
@@ -54,17 +54,17 @@ static uint8_t name_matches(uint16_t reference,uint8_t length) {
 /* One lookup sees immutable captured inputs. Validate a source once for each
  * file change and retain only this call's near descriptor, never a mapped
  * pointer. Field lookup keeps its existing independent name comparator. */
-static uint8_t name_matches_view(uint16_t reference,uint8_t length,Source *view,uint16_t *loaded) {
+static uint8_t name_matches_view(uint16_t reference,uint8_t length,Source *view,uint16_t *loaded,uint16_t *base) {
     SourcePosition position;uint16_t at;uint8_t file,i;
     if(!length)return 1;
     position=cc_reference_position(reference);file=(uint8_t)(position>>16);at=(uint16_t)position;
     if(cc.error->code)return 0;
     if(*loaded!=file) {
         if(!sources_ready(&cc.image->sources,file)||!sources_get(&cc.image->sources,file,view))return 0;
-        *loaded=file;
+        *loaded=file;*base=sources_offset(&cc.image->sources,file);
     }
     if((uint32_t)at+length>view->length)return 0;
-    for(i=0;i<length;++i)if(cc.name[i]!=lower(buffer_get(view->page,at+i)))return 0;
+    for(i=0;i<length;++i)if(cc.name[i]!=lower(buffer_view_get(view->page,*base,at+i)))return 0;
     return 1;
 }
 static uint8_t letter(uint8_t c) { c=lower(c); return (c>='a'&&c<='z')||c=='_'; }
@@ -76,43 +76,6 @@ void cc_fail(uint8_t code) FRONTEND {
     }
 }
 
-void cc_put(uint16_t p,uint8_t v) FRONTEND {
-    if(cc.error->code) return;
-    if(cc_disk_active(cc.image)) {
-        if(compiler_disk_placed)cc_disk_final_put(p,v);else cc_disk_put(p,v);
-        return;
-    }
-    if(!cc.placing&&p>=CC_CODE_BASE&&p<0xc000u&&cc.primary_stage!=255) {
-        far_set(cc.primary_stage,p-CC_CODE_BASE,v);return;
-    }
-    if(p>=0xc000u) {
-        cc_stage_put(p-0xc000u,v);
-    } else {
-        if(cc.image->pages[p/PAGE_SIZE]==255&&!cc_image_page(p/PAGE_SIZE))return;
-        far_set(cc.image->pages[p/PAGE_SIZE],p%PAGE_SIZE,v);
-    }
-}
-uint8_t cc_code_get(uint16_t address) FRONTEND {
-    if(cc.error->code) return 0;
-    if(address<CC_CODE_BASE||address>=cc.emitted) { cc_fail(99); return 0; }
-    if(cc_disk_active(cc.image))return cc_disk_get(address);
-    return address>=0xc000u?cc_stage_get(address-0xc000u):
-        far_get(cc.primary_stage==255?cc.image->pages[2]:cc.primary_stage,address-CC_CODE_BASE);
-}
-void cc_word(uint16_t p,uint16_t v) FRONTEND { cc_put(p,(uint8_t)v); cc_put(p+1,(uint8_t)(v>>8)); }
-
-
-
-void cc_emit(uint8_t v) FRONTEND {
-    if(cc.error->code||cc.suppress) return;
-    if(!(cc.emitted&255)&&!cc_poll())return;
-    /* The first staging page reuses image page2. A second owned compiler page
-     * is acquired only if necessary, then released after checked placement. */
-    if(cc.emitted>=CC_STATIC_LIMIT) { cc_fail(99); return; }
-    cc_put(cc.emitted++,v);
-}
-static void emit16(uint16_t v) { cc_emit((uint8_t)v); cc_emit((uint8_t)(v>>8)); }
-void cc_op16(uint8_t op,uint16_t value) FRONTEND { cc_emit(op); emit16(value); }
 void cc_relocate(uint16_t operand) FRONTEND {
     cc_relocate_value(operand,1,0);
 }
@@ -376,7 +339,7 @@ void cc_next(void) FRONTEND {
 void cc_expect(uint16_t t,uint8_t code) FRONTEND { if(cc.token!=t) cc_fail(code); else cc_next(); }
 
 int16_t cc_lookup(void) FRONTEND {
-    Symbol symbol;Source view;uint16_t loaded=0xffffu;
+    Symbol symbol;Source view;uint16_t loaded=0xffffu,base=0;
     uint16_t i; int16_t field; uint8_t j;uint16_t scope=cc.scope;uint8_t n=(uint8_t)strlen(cc.name);
     for(j=cc.with_depth;j;--j) {
         field=cc_field_lookup(cc.with_types[j-1]);
@@ -410,7 +373,7 @@ int16_t cc_lookup(void) FRONTEND {
                 continue;
             }
             if(symbol.name_length!=n) continue;
-            if(name_matches_view(symbol.name_start,n,&view,&loaded)) {
+            if(name_matches_view(symbol.name_start,n,&view,&loaded,&base)) {
                 if(!cc.suppress&&symbol.role==S_ADDRESS)cc.console_dynamic=1;
                 return (int16_t)i;
             }

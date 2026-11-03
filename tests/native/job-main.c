@@ -244,20 +244,18 @@ static void fill_checks(void) {
     fill_benchmark=0;__asm ei __endasm;
     good=1;for(i=512;i<576;++i)if(far_get(p,i)!=0x5a)good=0;check(good);
     check(page_drop(p));
-    /* Identical source stores invalidate cached versions without changing
-     * text. Catalog self-stores likewise invalidate its authenticated view. */
+    /* Source stores invalidate Build freshness. Borrowed descriptors have no
+     * separate snapshot/version protocol; their allocation lifetime remains. */
     check(load("begin end."));check(compile(&s,&b,&d));
     check(build_check(&s,&b));
     check(far_fill(s.page,0,far_get(s.page,0),1));check(!build_check(&s,&b));build_close(&b);
     {
-        Sources catalog;
-        check(sources_new(&catalog));check(sources_borrow(&catalog,&s)==0);
-        check(sources_valid(&catalog)&&sources_ready(&catalog,0));
-        check(far_fill(s.page,0,far_get(s.page,0),1));check(!sources_ready(&catalog,0));
-        check(far_fill(catalog.page,0,far_get(catalog.page,0),1));check(!sources_valid(&catalog));
-        /* Borrowed catalog owns no source page; release its stale handle
-         * directly rather than authenticate it as an unchanged catalog. */
-        check(page_drop(catalog.page));
+        Sources files;
+        check(sources_new(&files));check(sources_borrow(&files,&s)==0);
+        check(sources_valid(&files)&&sources_ready(&files,0));
+        check(far_fill(s.page,0,far_get(s.page,0),1));check(sources_ready(&files,0));
+        check(far_fill(files.page,0,far_get(files.page,0),1));check(sources_valid(&files));
+        check(sources_close(&files));
     }
     check(pages_used()==code_required+1);
 }
@@ -407,7 +405,7 @@ static uint8_t request(uint8_t mode,const CompileOptions *options) {
 static void closed(void) {build_close(&b);check(pages_used()==code_required+1);}
 int app_main(void) {
     Source before,item;CompileOptions options={0,0xfbffu,COMPILE_PROGRAM};
-    uint8_t status=255,owned;int8_t fd;uint16_t pc,position;
+    uint8_t status=255,owned,i;int8_t fd;uint16_t pc,position;
     if(!console_open())return 1;
     check(source_new(&s,"H:/JOB.PAS"));
     test_stage=79;span_checks();fill_checks();move_checks();tail_checks();test_span_done();
@@ -420,6 +418,7 @@ int app_main(void) {
     check(owned!=255);check(code_phase_park());check(request(0,0));
     check(mask_empty(compiler_owned,8)&&mask_empty(compiler_parent_owned,8));check(b.valid&&!memcmp(&s,&before,sizeof(s)));
     check(build_check(&s,&b));owned=pages_used();
+    for(i=0;i<3;++i)if(b.pages[i]==255)++owned;
     check(run_build(&s,&b)&&ram_result[26]==1);check(pages_used()==owned);
     check(code_phase_restore());closed();
     test_stage=81;
@@ -433,7 +432,7 @@ int app_main(void) {
     check(request(1,&options));check(b.sources.count==2&&sources_get(&b.sources,1,&item)&&item.page==255);
     check(save_build(&s,&b,0)&&!strcmp(output_path(),"H:/JOB.COM"));
     check(build_check(&s,&b)&&!memcmp(&s,&before,sizeof(s)));
-    pc=96+far_get(b.map_page,84)+((uint16_t)far_get(b.map_page,85)<<8);
+    pc=0;
     pc=far_get(b.map_page,pc)|((uint16_t)far_get(b.map_page,pc+1)<<8);
     check(build_locate(&s,&b,pc,&position));closed();
     test_stage=83;
@@ -448,7 +447,7 @@ int app_main(void) {
     test_stage=85;
     memset(&item,0,sizeof(item));item.page=255;strcpy(item.path,"H:/DISK.PAS");owned=pages_used();
     check(compile_request(&item,&b,&failure,0,0));
-    check(b.valid&&sources_get(&b.sources,0,&item)&&item.page!=255&&!sources_borrowed(&b.sources,0));
+    check(b.valid&&sources_get(&b.sources,0,&item)&&item.page==255&&item.length>0);
     check(build_check(&item,&b));build_close(&b);check(pages_used()==owned);
     test_stage=86;
     check(load_source(&s,"H:/LARGE.PAS",&d));before=s;

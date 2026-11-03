@@ -20,3 +20,11 @@ void buffer_set(uint8_t page,uint16_t offset,uint8_t value) NATIVE {
     far_set(actual,offset%PAGE_SIZE,value);
     if(actual!=page)++page_versions[page];
 }
+
+/* A compiler include can start partway through a shared physical bank. */
+uint8_t buffer_view_get(uint8_t page,uint16_t base,uint16_t offset) NATIVE {
+    while(offset>=PAGE_SIZE&&page!=255){page=buffer_next(page);offset-=PAGE_SIZE;}
+    offset+=base;
+    if(offset>=PAGE_SIZE){page=buffer_next(page);offset-=PAGE_SIZE;}
+    return page==255?0:far_get(page,offset);
+}

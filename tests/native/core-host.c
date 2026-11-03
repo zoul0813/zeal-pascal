@@ -18,6 +18,7 @@ volatile uint32_t page_versions[64];
 uint8_t platform_error;
 uint8_t compiler_owned[8],compiler_allocating;
 uint8_t compiler_parent_owned[8];
+uint8_t console_scratch[256];
 static int fail_after=-1,fail_drop=-1;
 static uint8_t clear_error_on_drop;
 static unsigned cleared_drop_errors;
@@ -375,7 +376,7 @@ static void lookup_cases(void) {
     state.refs=0;CCS_SET(0,name_start,refs[0]);check(cc_lookup()==-1&&d.code==99);d.code=0;state.refs=6;
     CCS_SET(0,name_length,0);CCS_SET(0,name_start,state.refs);cc.name[0]=0;check(cc_lookup()==0&&!d.code);
     strcpy(cc.name,"abcdefghij");CCS_SET(0,name_start,refs[0]);CCS_SET(0,name_length,10);
-    version=page_versions[image.sources.page];++page_versions[image.sources.page];check(cc_lookup()==-1&&!d.code);
+    version=page_versions[image.sources.page];++page_versions[image.sources.page];check(cc_lookup()==0&&!d.code);
     page_versions[image.sources.page]=version;
     /* Function-result collisions compare two stored names, not cc.name. */
     cc.scope=1;cc.symbol_count=0;lookup_symbol(0,S_VARIABLE,1,refs[0],10,0);lookup_symbol(1,S_FUNCTION,0,refs[0],10,0);
@@ -704,17 +705,17 @@ static void runtime_initialization(void) {
         options.kind=mode==2?COMPILE_CHAIN:COMPILE_PROGRAM;
         initialization_reset();before_allocations=allocation_calls;
         check(compile_project(&s,&b,&d,1,mode?&options:0));required=allocation_calls-before_allocations;
-        check(copy_started&&copy_complete&&initialized[b.pages[0]]&&build_check(&s,&b));
+        check((mode==2?!copy_started&&!copy_complete:copy_started&&copy_complete)&&initialized[b.pages[0]]&&build_check(&s,&b));
         printf("PERF01 initialization mode%u: runtime=%u image_stores=%lu allocations=%u\n",mode,cc_runtime_size(),image_stores,required);
         printf("PERF13 initialization mode%u: fills=%u bytes=%u polls=%u sequence=",mode,image_fill_calls,image_fill_bytes,initialization_polls);
         for(i=0;i<initialization_polls;++i)printf("%lu,",(unsigned long)initialization_poll_stores[i]);puts("");
-        check(image_fill_calls==129&&image_fill_bytes==3u*PAGE_SIZE-cc_runtime_size());
+        check(image_fill_calls==(mode==2?192u:129u)&&image_fill_bytes==3u*PAGE_SIZE-(mode==2?0:cc_runtime_size()));
         check(initialization_polls>=(mode==2?261u:250u));
         for(i=0;i<image_fill_calls;++i) {
-            uint8_t index=i==0?0:i<=64?2:1;
-            check(image_fill_indexes[i]==index&&
-                  image_fill_offsets[i]==(i==0?cc_runtime_size():(i-(index==2?1:65))*256u)&&
-                  image_fill_counts[i]==(i==0?PAGE_SIZE-cc_runtime_size():256u));
+            uint8_t index=mode==2?(i<64?0:i<128?2:1):(i==0?0:i<=64?2:1);
+            uint16_t offset=mode==2?(i%64u)*256u:(i==0?cc_runtime_size():(i-(index==2?1:65))*256u);
+            check(image_fill_indexes[i]==index&&image_fill_offsets[i]==offset&&
+                  image_fill_counts[i]==(mode==2||i?256u:PAGE_SIZE-cc_runtime_size()));
         }
         build_close(&b);check(pages_used()==1);
         for(i=0;i<required;++i) {
@@ -723,9 +724,11 @@ static void runtime_initialization(void) {
             fail_after=-1;check(pages_used()==1&&!memcmp(&s,&before,sizeof(s))&&!memcmp(contents,memory[s.page],s.length));
         }
         {
-            static const unsigned failures[]={0,1,2,32,64,65,66,96,128};
+            static const unsigned failures[]={0,1,2,32,64,65,66,96,128,160,191};
             static const unsigned cancel_after[]={1,33,64,65,97,128};
+            static const unsigned chain_cancel[]={1,33,63,64,97,127,128,161,191};
             for(i=0;i<sizeof(failures)/sizeof(failures[0]);++i) {
+                if(mode!=2&&failures[i]>=129)continue;
                 initialization_reset();image_fill_fail_after=(int)failures[i];
                 check(!compile_project(&s,&b,&d,1,mode?&options:0)&&d.code==99&&!b.valid);
                 image_fill_fail_after=-1;
@@ -739,16 +742,17 @@ static void runtime_initialization(void) {
                 check(pages_used()==1&&!cc.polling&&b.pages[0]==255&&b.pages[1]==255&&b.pages[2]==255&&b.map_page==255&&b.sources.page==255);
                 check(!memcmp(&s,&before,sizeof(s))&&!memcmp(contents,memory[s.page],s.length));
             }
-            for(i=0;i<sizeof(cancel_after)/sizeof(cancel_after[0]);++i)for(reason=1;reason<=2;++reason) {
+            for(i=0;i<(mode==2?9u:6u);++i)for(reason=1;reason<=2;++reason) {
                 initialization_reset();cancel_stage=9;cancel_result=reason;
-                image_fill_cancel_after=cancel_after[i];image_fill_cancel_index=i<3?2:1;
+                image_fill_cancel_after=mode==2?chain_cancel[i]:cancel_after[i];
+                image_fill_cancel_index=mode==2?(i<3?0:i<6?2:1):(i<3?2:1);
                 check(!compile_project(&s,&b,&d,1,mode?&options:0));cancel_stage=0;
-                check(d.code==COMPILE_INTERRUPTED&&compile_interrupt_reason()==reason&&image_fill_calls==cancel_after[i]);
+                check(d.code==COMPILE_INTERRUPTED&&compile_interrupt_reason()==reason&&image_fill_calls==image_fill_cancel_after);
                 check(!initialized[image_fill_cancel_page]&&!cc.polling&&!b.valid&&pages_used()==1);
                 check(!memcmp(&s,&before,sizeof(s))&&!memcmp(contents,memory[s.page],s.length));
             }
         }
-        for(reason=1;reason<=2;++reason) {
+        if(mode!=2)for(reason=1;reason<=2;++reason) {
             initialization_reset();cancel_stage=8;cancel_result=reason;
             check(!compile_project(&s,&b,&d,1,mode?&options:0));
             check(d.code==COMPILE_INTERRUPTED&&compile_interrupt_reason()==reason&&copy_started&&!copy_complete);
@@ -1100,11 +1104,11 @@ static void hook_corpus(void) {
 }
 static uint16_t map_word(uint16_t at) { return far_get(b.map_page,at)|((uint16_t)far_get(b.map_page,at+1)<<8); }
 static void ordered_map(void) {
-    uint16_t at=96+map_word(84),last=0,begin,end;
-    for(;at<b.map_length;at+=16) {
+    uint16_t at=0,last=0,begin,end;
+    for(;at<b.map_length;at+=MAP_RECORD_BYTES) {
         begin=map_word(at); end=map_word(at+2);
         check(begin>=last&&begin<end&&end<=b.code_bytes);
-        check(map_word(at+8)<=map_word(at+12)&&map_word(at+12)<=s.length);
+        check(map_word(at+6)<=s.length);
         last=end;
     }
 }
@@ -1152,192 +1156,50 @@ static void index_modes(void) {
     }
 }
 static void source_catalog_cases(void) {
-    Sources set,stale,next;Source origin,snapshot,view,other;
-    uint8_t before=pages_used(),old,expected[32];
-    check(source_new(&origin,"H:/origin.pas"));
-    check(source_import(&origin,(const uint8_t*)"begin end.",10,&d));
-    check(sources_new(&set));check(source_snapshot(&origin,&snapshot));
-    check(sources_take(&set,&snapshot,&origin)==0);check(set.count==1);
-    check(sources_ready(&set,0)&&sources_resident(&set,0));
-    check(sources_find(&set,"H:/origin.pas")==0&&sources_find(&set,"H:/ORIGIN.PAS")==-1);
-    check(sources_get(&set,0,&view)&&view.page==snapshot.page&&view.length==10);
-    test_source_hash(&origin,expected);check(sources_get(&set,0,&view)&&view.length==snapshot.length);
-    check(sources_byte(&set,0,0)=='b'&&sources_byte(&set,0,10)==0);
-    old=far_get(origin.page,0);far_set(origin.page,0,'B');check(!sources_ready(&set,0));
-    far_set(origin.page,0,old);check(!sources_ready(&set,0));
-    check(sources_take(&set,&snapshot,&origin)==0&&sources_ready(&set,0));
-    fail_drop=snapshot.page;check(!sources_remove(&set,0)&&set.count==1);
-    check(!sources_close(&set)&&set.count==1&&page_role(snapshot.page)==PAGE_SNAPSHOT);fail_drop=-1;
-    check(source_new(&other,"H:/second.pas"));
-    check(source_import(&other,(const uint8_t*)"var n:integer;",14,&d));
-    check(sources_take(&set,&other,&other)==1);
-    strcpy(view.path,"H:/second.pas");fail_drop=other.page;
-    check(sources_take(&set,&view,&origin)<0&&set.count==2&&sources_ready(&set,1));
-    fail_drop=-1;check(sources_take(&set,&view,&origin)==0&&set.count==1);
-    check(!page_role(other.page)&&sources_find(&set,"H:/origin.pas")==-1);
-    strcpy(view.path,"H:/renamed.pas");check(sources_take(&set,&view,&origin)==0&&set.count==1);
-    check(sources_find(&set,"H:/origin.pas")==-1&&sources_find(&set,"H:/renamed.pas")==0);
-    check(source_new(&other,"H:/second.pas"));check(sources_take(&set,&other,&other)==1);
-    view=other;strcpy(view.path,"H:/renamed.pas");fail_drop=snapshot.page;
-    check(sources_take(&set,&view,&view)<0&&set.count==2&&sources_ready(&set,0));
-    fail_drop=-1;check(sources_take(&set,&view,&view)==0&&set.count==1);
-    check(sources_get(&set,0,&view)&&view.page==other.page&&!page_role(snapshot.page));
-    stale=set;check(sources_close(&set)&&set.page==255);check(!sources_valid(&stale));
-    check(sources_new(&next));check(next.page==stale.page&&!sources_valid(&stale));check(sources_close(&next));
-    source_close(&origin);check(pages_used()==before);
+    Sources files,stale,next;Source root,view;
+    uint8_t before=pages_used();
+    check(source_new(&root,"H:/root.pas"));
+    check(source_import(&root,(const uint8_t*)"begin end.",10,&d));
+    check(sources_new(&files)&&sources_borrow(&files,&root)==0);
+    check(sources_get(&files,0,&view)&&view.page==root.page&&view.length==10);
+    check(sources_find(&files,root.path)==0&&sources_byte(&files,0,0)=='b');
+    stale=files;check(sources_close(&files));
+    check(page_lifetime(root.page)&&!sources_valid(&stale));
+    check(sources_new(&next)&&!sources_valid(&stale));check(sources_close(&next));
+    source_close(&root);check(pages_used()==before);
 }
 static void replaced_source_cases(void) {
-    Sources set;Source work,view,other;
-    uint8_t before=pages_used(),prior,foreign,scenario;
-    uint32_t lifetime;
-    for(scenario=0;scenario<3;++scenario) {
-        check(source_new(&work,"H:/edited.pas"));
-        check(source_import(&work,(const uint8_t*)"abc",3,&d));
-        check(sources_new(&set)&&sources_take(&set,&work,&work)==0);
-        prior=work.page;
-        if(scenario==1) check(source_move(&work,0,1,3,0));
-        else check(source_insert_from(&work,3,&work,0,1,0));
-        check(work.page!=prior&&!page_role(prior)&&!sources_ready(&set,0));
-        foreign=255;
-        if(scenario==2) {
-            foreign=page_new(PAGE_COMPILER);check(foreign==prior);
-            lifetime=page_lifetime(foreign);far_set(foreign,0,0xa5);
-            check(sources_byte(&set,0,0)==0); /* never expose the new owner */
-        }
-        check(sources_take(&set,&work,&work)==0&&sources_ready(&set,0));
-        check(sources_get(&set,0,&view)&&view.page==work.page&&view.length==work.length);
-        check(sources_byte(&set,0,0)==(scenario==1?'b':'a'));
-        check(sources_close(&set));
-        if(foreign!=255) {
-            check(page_role(foreign)==PAGE_COMPILER&&page_lifetime(foreign)==lifetime&&far_get(foreign,0)==0xa5);
-            check(page_drop(foreign));
-        }
-        check(pages_used()==before);
-    }
-    /* A reused page number cannot rename an unrelated stale catalog record. */
-    check(source_new(&work,"H:/stale.pas"));check(sources_new(&set));
-    check(sources_take(&set,&work,&work)==0);prior=work.page;source_close(&work);
-    check(source_new(&other,"H:/fresh.pas")&&other.page==prior);
-    check(sources_take(&set,&other,&other)==1&&set.count==2);
-    check(sources_remove(&set,0)&&sources_ready(&set,0));
-    check(sources_find(&set,"H:/fresh.pas")==0&&sources_find(&set,"H:/stale.pas")<0);
-    check(sources_close(&set)&&pages_used()==before);
-
-    /* Reopening the same path on the same page is a new allocation too. */
-    check(source_new(&work,"H:/reopened.pas"));check(sources_new(&set));
-    check(sources_take(&set,&work,&work)==0);prior=work.page;source_close(&work);
-    check(source_new(&other,"H:/reopened.pas")&&other.page==prior);
-    lifetime=page_lifetime(other.page);
-    check(sources_take(&set,&other,&other)==0&&set.count==1&&sources_ready(&set,0));
-    check(page_lifetime(other.page)==lifetime&&sources_close(&set)&&pages_used()==before);
-
-    /* Packed metadata stays authenticated while a stale include is removed. */
-    check(source_new(&work,"H:/packed.pas"));check(source_snapshot(&work,&view));
-    check(source_new(&other,"H:/packed.inc"));check(sources_new(&set));
-    check(sources_take(&set,&view,&work)==0&&sources_take(&set,&other,0)==1);
-    check(sources_pack(&set)&&set.base&&sources_valid(&set));
-    prior=other.page;source_close(&other);foreign=page_new(PAGE_RUN);check(foreign==prior);
-    lifetime=page_lifetime(foreign);
-    check(!sources_ready(&set,1)&&sources_remove(&set,1)&&sources_ready(&set,0));
-    check(sources_close(&set)&&page_lifetime(foreign)==lifetime&&page_drop(foreign));
-    source_close(&work);check(pages_used()==before);
-
-    /* Removal/close may forget a released record, but never free its reuse. */
-    for(scenario=0;scenario<2;++scenario) {
-        check(source_new(&work,"H:/removed.pas"));check(sources_new(&set));
-        check(sources_take(&set,&work,&work)==0);prior=work.page;source_close(&work);
-        foreign=255;
-        if(scenario) {foreign=page_new(PAGE_RUN);check(foreign==prior);lifetime=page_lifetime(foreign);}
-        check(sources_remove(&set,0)&&set.count==0&&sources_close(&set));
-        if(foreign!=255) {check(page_role(foreign)==PAGE_RUN&&page_lifetime(foreign)==lifetime);check(page_drop(foreign));}
-        check(pages_used()==before);
-    }
-    /* Save As also authenticates the destination owner's lifetime. */
-    check(source_new(&work,"H:/destination.pas"));check(sources_new(&set));
-    check(sources_take(&set,&work,&work)==0);prior=work.page;source_close(&work);
-    foreign=page_new(PAGE_RUN);check(foreign==prior);lifetime=page_lifetime(foreign);
-    check(source_new(&other,"H:/renamed.pas"));check(sources_take(&set,&other,&other)==1);
-    view=other;strcpy(view.path,"H:/destination.pas");
-    check(sources_take(&set,&view,&view)==0&&set.count==1&&sources_ready(&set,0));
-    check(page_role(foreign)==PAGE_RUN&&page_lifetime(foreign)==lifetime);
-    check(sources_close(&set)&&page_drop(foreign)&&pages_used()==before);
+    Sources files;Source root,part;uint8_t before=pages_used(),arena;
+    check(source_new(&root,"H:/root.pas")&&source_new(&part,"H:/part.inc"));
+    check(source_import(&part,(const uint8_t*)"const n=7;",10,&d));
+    check(sources_new(&files)&&sources_borrow(&files,&root)==0);
+    check(sources_include(&files,&part,0)==1);arena=files.text_page;
+    fail_drop=arena;check(!sources_finish(&files)&&files.text_page==arena);
+    check(!sources_close(&files)&&page_lifetime(root.page));
+    fail_drop=-1;check(sources_finish(&files)&&files.text_page==255);
+    fail_drop=files.page;check(!sources_close(&files)&&sources_valid(&files));
+    fail_drop=-1;check(sources_close(&files));
+    source_close(&root);source_close(&part);check(pages_used()==before);
 }
 static void packed_catalog_cases(void) {
-    static uint8_t text[PAGE_SIZE];
-    const uint16_t lengths[]={0,10,PAGE_SIZE-158,PAGE_SIZE-157,PAGE_SIZE-1};
-    Sources set,stale;Source origin,snapshot,include,other,view;
-    uint8_t before=pages_used(),metadata,hash[32],expected[32],packed;
-    uint16_t i,n;unsigned scenario;
-    for(i=0;i<PAGE_SIZE;++i)text[i]=i%80==79?'\n':'x';
-    for(scenario=0;scenario<sizeof(lengths)/sizeof(lengths[0]);++scenario) {
-        n=lengths[scenario];
-        check(source_new(&origin,"H:/root.pas"));
-        check(source_import(&origin,text,n,&d)&&origin.length==n);
-        check(source_snapshot(&origin,&snapshot)&&snapshot.length==n);
-        check(sources_new(&set));check(sources_take(&set,&snapshot,&origin)==0);
-        metadata=set.page;stale=set;test_source_hash(&snapshot,expected);
-        check(sources_pack(&set));packed=n<PAGE_SIZE-157;
-        check((set.base!=0)==packed&&sources_valid(&set)&&sources_ready(&set,0));
-        check(pages_used()==before+3-packed);
-        check(sources_get(&set,0,&view)&&view.page==snapshot.page&&view.length==n);
-        test_source_hash(&view,hash);check(!memcmp(hash,expected,32));
-        check(sources_get(&set,0,&view)&&view.length==snapshot.length);
-        check(sources_find(&set,"H:/root.pas")==0&&sources_origin(&set,0)==origin.page);
-        check(sources_byte(&set,0,n)==0);
-        if(packed) {
-            check(set.page==snapshot.page&&set.base==n+1&&!page_role(metadata));
-            check(!sources_valid(&stale));check(sources_pack(&set));
-            fail_drop=snapshot.page;check(!sources_close(&set)&&set.count==1&&sources_valid(&set));
-            fail_drop=-1;
-            stale=set;far_set(set.page,n?0:set.base,far_get(set.page,n?0:set.base));
-            check(!sources_valid(&set)&&!sources_ready(&set,0)&&!sources_close(&set));
-            /* Restore the test observer only, to retire the deliberately
-             * corrupted owner without weakening production authentication. */
-            set.version=page_versions[set.page];
-            check(!sources_valid(&stale));
-        }
-        if(n==PAGE_SIZE-158) {
-            check(source_snapshot(&origin,&other));strcpy(other.path,"H:/grow.inc");
-            fail_after=0;check(sources_take(&set,&other,0)<0);
-            check(set.base&&set.count==1&&sources_ready(&set,0)&&page_role(other.page));
-            fail_after=-1;check(sources_take(&set,&other,0)==1&&!set.base);
-            check(sources_ready(&set,0)&&sources_ready(&set,1));
-            check(sources_pack(&set)&&!set.base); /* Two records cannot fit. */
-            check(sources_get(&set,0,&view));test_source_hash(&view,hash);check(!memcmp(hash,expected,32));
-        }
-        check(sources_close(&set));source_close(&origin);check(pages_used()==before);
-    }
-    check(source_new(&origin,"H:/root.pas"));
-    check(source_import(&origin,(const uint8_t*)"begin end.",10,&d));
-    check(source_snapshot(&origin,&snapshot));check(sources_new(&set));
-    check(sources_take(&set,&snapshot,&origin)==0);
-    check(source_snapshot(&origin,&include));strcpy(include.path,"H:/part.inc");
-    check(sources_take(&set,&include,0)==1);
-    check(source_snapshot(&origin,&other));strcpy(other.path,"H:/other.inc");
-    check(sources_take(&set,&other,0)==2);metadata=set.page;
-    fail_drop=metadata;check(!sources_pack(&set));
-    check(set.page==metadata&&!set.base&&sources_valid(&set));
-    check(sources_ready(&set,0)&&sources_ready(&set,1)&&pages_used()==before+5);
-    fail_drop=-1;check(sources_pack(&set)&&pages_used()==before+4);
-    check(sources_ready(&set,0)&&sources_ready(&set,1)&&!sources_resident(&set,1));
-    check(!sources_remove(&set,0)&&set.count==3);
-    check(sources_remove(&set,1)&&set.count==2&&sources_ready(&set,0)&&sources_ready(&set,1));
-    check(sources_get(&set,1,&view)&&view.page==other.page&&sources_find(&set,"H:/other.inc")==1);
-    fail_drop=other.page;check(!sources_close(&set)&&set.count==2&&sources_ready(&set,0));
-    fail_drop=-1;check(sources_remove(&set,1)&&set.count==1&&sources_ready(&set,0));
-    check(!page_role(include.page)&&sources_find(&set,"H:/part.inc")==-1);
-    fail_after=0;check(sources_take(&set,&snapshot,&origin)<0&&set.base&&sources_ready(&set,0));
-    fail_after=-1;check(sources_take(&set,&snapshot,&origin)==0&&!set.base&&sources_ready(&set,0));
-    check(sources_pack(&set)&&set.base&&sources_ready(&set,0));
-    check(source_snapshot(&origin,&other));fail_drop=snapshot.page;
-    check(sources_take(&set,&other,&origin)<0&&!set.base&&sources_ready(&set,0));
-    check(page_role(other.page)==PAGE_SNAPSHOT&&page_role(snapshot.page)==PAGE_SNAPSHOT);
-    fail_drop=-1;check(sources_take(&set,&other,&origin)==0&&!page_role(snapshot.page));
-    check(sources_get(&set,0,&view)&&view.page==other.page&&sources_ready(&set,0));
-    check(sources_close(&set));source_close(&origin);check(pages_used()==before);
+    static uint8_t text[65534];Sources files;Source root,part,view;
+    uint16_t i;uint8_t id,before=pages_used(),owned;
+    check(source_new(&root,"H:/root.pas")&&source_new(&part,"H:/part.inc"));
+    check(sources_new(&files)&&sources_borrow(&files,&root)==0);
+    check(source_import(&part,(const uint8_t*)"const n=7;",10,&d));owned=pages_used();
+    for(id=1;id<=40;++id){snprintf(part.path,sizeof(part.path),"H:/p%u.inc",id);
+        check(sources_include(&files,&part,0)==id);}
+    check(pages_used()==owned+1); /* Forty small inputs share one text bank. */
+    for(id=1;id<=40;++id)for(i=0;i<10;++i)check(sources_byte(&files,id,i)==buffer_get(part.page,i));
+    for(i=0;i<sizeof(text);++i)text[i]=i%80==79?'\n':'x';
+    check(source_import(&part,text,sizeof(text),&d));strcpy(part.path,"H:/large.inc");
+    check(sources_include(&files,&part,0)==41); /* Nonzero start plus64KiB crosses five banks. */
+    for(i=0;i<sizeof(text);++i)check(sources_byte(&files,41,i)==text[i]);
+    check(sources_finish(&files)&&files.text_page==255);
+    check(sources_get(&files,41,&view)&&view.page==255&&view.length==sizeof(text));
+    check(sources_close(&files)&&page_lifetime(root.page));
+    source_close(&root);source_close(&part);check(pages_used()==before);
 }
-/* Reference capacity follows actual compiler pages. Replay retains the exact
- * source offset and each insertion site's options across a physical page. */
 static void reference_cases(void) {
     CompilerSources state;Build image;Diagnostic error;
     uint8_t j;uint16_t id;
@@ -1435,7 +1297,7 @@ static void include_cases(void) {
         {"H:/after.inc","const after=1;"},
         {"H:/tail.inc","const extra=1;"}
     };
-    uint8_t i,file,found=0,digest[32];uint16_t at,n,position;unsigned reads;Sha256 hash;
+    uint8_t file,found=0,digest[32];uint16_t at,n,position;unsigned reads;Sha256 hash;
 
     disk_sources=files;disk_source_count=sizeof(files)/sizeof(files[0]);disk_reads=0;
     files[2].text="const across:array[1..2]of integer=(11,";
@@ -1462,7 +1324,7 @@ static void include_cases(void) {
         for(j=0;j<159;++j){text[length++]='{';for(k=0;k<98;++k)text[length++]='x';text[length++]='}';text[length++]='\n';}
         strcpy(text+length,"var n:integer;\n{$I tail.inc}\nbegin n:=extra;writeln(n)end.");
         load(text);test_source_hash(&s,hash);allocation_calls=0;
-        check(compile(&s,&b,&d)&&b.sources.count==2&&!b.sources.base);
+        check(compile(&s,&b,&d)&&b.sources.count==2&&b.sources.text_page==255);
         required=allocation_calls;check(build_check(&s,&b));build_close(&b);
         for(j=0;j<required;++j) {
             fail_after=j;check(!compile(&s,&b,&d)&&d.code&&!b.valid);
@@ -1485,14 +1347,11 @@ static void include_cases(void) {
     replaced_source_cases();
     packed_catalog_cases();
     load("program Main;\n{$IPART.INC}\n{$I more.inc}\nbegin more;writeln(greeting,number,table[2])end.");
-    check(compile(&s,&b,&d));check(b.sources.count==3);check(map_word(8)==1);check(map_word(14)==3);
+    check(compile(&s,&b,&d));check(b.sources.count==3);
     check(sources_find(&b.sources,"H:/PART.INC")==1&&sources_find(&b.sources,"H:/more.inc")==2);
-    at=96;
-    for(i=0;i<3;++i){check(map_word(at)==i);n=map_word(at+2);check(n&&n<=127);at+=8+n;}
-    check(at==96+map_word(84));
-    for(at=96+map_word(84);at<b.map_length;at+=16) {
-        n=map_word(at+4);check(n<3);found|=(uint8_t)(1u<<n);
-        check(build_location(&s,&b,map_word(at),&file,&position)&&file==n&&position==map_word(at+8));
+    for(at=0;at<b.map_length;at+=MAP_RECORD_BYTES) {
+        n=buffer_get(b.map_page,at+4);check(n<3);found|=(uint8_t)(1u<<n);
+        check(build_location(&s,&b,map_word(at),&file,&position)&&file==n&&position==map_word(at+6));
         if(n)check(!build_locate(&s,&b,map_word(at),&position));
     }
     check(found==7&&build_ready(&s,&b));reads=disk_reads;

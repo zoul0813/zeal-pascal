@@ -47,10 +47,10 @@ static void group_cases(void) {
           record.parent_group==255&&record.parent_member==255&&record.owner==0&&record.parent==0&&record.closed);
     check(cc_group_get(&groups,1,&record)&&record.origin==0xbff8&&record.bytes==40&&record.members==2&&
           record.parent_group==0&&record.parent_member==0&&record.owner==1&&record.parent==1&&record.closed);
-    check(cc_group_member_get(&groups,1,&id,&ordinal,&member)&&id==0&&ordinal==0&&member.offset==168&&
+    check(cc_group_member_get(&groups,1,&id,&ordinal,&member)&&id==0&&ordinal==0&&member.offset==144&&
           member.origin==0xbff0&&member.bytes==56&&member.entry==0xc020&&member.maps==2&&member.relocs==2);
     check(cc_group_member_get(&groups,255,&id,&ordinal,&member)&&id==0&&ordinal==1&&member.offset==288&&member.bytes==24);
-    check(groups.store.length==356);
+    check(groups.store.length==308);
     for(i=0;i<56;++i) {
         uint16_t p=0xbff0u+i;
         if(p<0xc000u) {if(far_get(b.pages[2],p-0x8000u))break;}
@@ -117,11 +117,11 @@ int app_main(void) {
     owned=pages_used();test_machine(before);
     memset(&cc,0,sizeof(cc));memset(&member,0,sizeof(member));
     b.pages[2]=page_new(PAGE_IMAGE);b.map_page=page_new(PAGE_MAP);
-    cc.workspace=255;cc.primary_stage=255;cc.stage_page=page_new(PAGE_COMPILER);
+    cc.primary_stage=255;cc.stage_page=page_new(PAGE_COMPILER);
     cc.error=&d;check(cc_tables_begin());
     check(b.pages[2]!=255&&b.map_page!=255&&cc.stage_page!=255);
     if(b.pages[2]==255||b.map_page==255||cc.stage_page==255)goto done;
-    cc.image=&b;cc.emitted=0xc201;cc.file_bytes=71;cc.entries=5;cc.relocations=7;cc.routine_count=2;
+    cc.image=&b;cc.emitted=0xc201;cc.entries=5;cc.relocations=7;cc.routine_count=2;
     for(i=0;i<PAGE_SIZE;++i) {
         far_set(b.pages[2],i,(uint8_t)(i*3+9));far_set(cc.stage_page,i,(uint8_t)(i*5+1));
         far_set(b.map_page,i,(uint8_t)(i*7+3));
@@ -132,10 +132,10 @@ int app_main(void) {
     if(fd<0)goto done;
     check(cc_members_begin(&store,fd));test_stage=1;
     check(cc_members_flush(&store,&member,0,0));
-    check(!store.failed&&store.length==616&&member.offset==0&&member.bytes==528&&member.maps==3&&member.relocs==4);
+    check(!store.failed&&store.length==592&&member.offset==0&&member.bytes==528&&member.maps==3&&member.relocs==4);
     first=member;
     check(cc_members_flush(&store,&member,0,0));
-    check(!store.failed&&store.length==1232&&member.offset==616&&first.bytes==member.bytes);
+    check(!store.failed&&store.length==1184&&member.offset==592&&first.bytes==member.bytes);
     check(cc.emitted==0xc201&&cc.entries==5&&cc.relocations==7&&cc.routine_count==2);
     check(output_finish(fd,1));test_stage=2;
     /* Preserve the complete parent prefixes and global routine records. */

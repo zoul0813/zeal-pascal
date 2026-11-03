@@ -123,7 +123,7 @@ def main():
         closed=[label for label,kind in labels if kind=='screen'and label not in ('page-one','page-two')]
         checks['directory descriptors close on EOF, errors and pager cancellation']=all(data(label,kernel['_dev_table'],32)==data('baseline-menu',kernel['_dev_table'],32)for label in closed)
         checks['page and allocator ownership remains unchanged']=all(data(label,kernel['_page_owners'],32)==data('baseline-menu',kernel['_page_owners'],32)and data(label,kernel['mmu_bitmap'],4)==data('baseline-menu',kernel['mmu_bitmap'],4)for label,kind in labels if kind=='screen')
-        checks['R after logged-drive changes reuses valid absolute-root cache']=data('cached-run',build,n.BUILD_BYTES)==baseline[build]and data('cached-run',sym['_ram_result']+26,1)==b'\x01'
+        checks['R after logged-drive changes reuses valid absolute-root cache']=n.same_build_after_run(baseline[build],data('cached-run',build,n.BUILD_BYTES))and data('cached-run',sym['_ram_result']+26,1)==b'\x01'
         checks['actual source display retains unsaved comment and original program']=all(any(line.decode()in row for row in screens['source-retained'])for line in (prefix.rstrip(),source.splitlines()[0],source.splitlines()[2]))
         checks['clean IDE exit releases all non-loader pages']=frames['ide-exit'][1].startswith(f"{kernel['zos_loader_exit']:04x} ")and data('ide-exit',kernel['_page_owners'],32).count(2)==3
     folder=n.RUN/'ide-directory'

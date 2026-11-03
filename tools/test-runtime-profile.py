@@ -99,21 +99,13 @@ def main():
         rejected('native header adapter')
         image.with_suffix('.map').write_bytes(original['zpascal.map'])
         memory=package.read_hex(image)
-        row=symbols['_transfer_asset_rows']
-        count=memory[symbols['_transfer_asset_count']]
-        # The product layout spans resident bytes and multiple code banks.
-        # Mutate each assembled extent and its metadata independently.
-        addresses=[symbols['_transfer_asset_count']]
-        banks=set()
-        for i in range(count):
-            at=row+5*i
-            source=memory[at+2]|(memory[at+3]<<8);bank=memory[at+4]
-            banks.add(bank)
-            addresses.extend((at,at+2,at+4,(bank<<16)|source))
-        assert 0 in banks and len(banks)>2
+        first,last=symbols['_transfer_start'],symbols['_transfer_end']
+        assert first>>16==last>>16==15
+        # Both ends of the single linked constant must match the build asset.
+        addresses=[first,last-1]
         for address in addresses:
             image.write_text(flip_hex(original['zpascal.ihx'].decode(),address))
-            rejected('embedded transfer assets')
+            rejected('embedded transfer asset')
         image.write_bytes(original['zpascal.ihx'])
         for name in ('_file_start','_file_gate_start','_unpack_start'):
             image.write_text(flip_hex(original['zpascal.ihx'].decode(),symbols[name]))
@@ -121,7 +113,7 @@ def main():
         image.write_bytes(original['zpascal.ihx'])
         changed=bytearray(original['transfer_call.zpl']);changed[0]^=1
         (directory/'transfer_call.zpl').write_bytes(changed)
-        rejected('embedded transfer assets')
+        rejected('embedded transfer asset')
         (directory/'transfer_call.zpl').write_bytes(original['transfer_call.zpl'])
 
     assert all((ROOT/'build'/name).read_bytes() == data for name, data in original.items())

@@ -16,9 +16,9 @@ u16=lambda data,at:struct.unpack_from('<H',data,at)[0]
 put16=lambda data,at,value:struct.pack_into('<H',data,at,value)
 
 
-def identity(image,mapping,chain):
-    from artifact_format import validate_pair
-    validate_pair(image,mapping,chain)
+def identity(image,chain):
+    from artifact_format import validate_image
+    validate_image(image,chain)
 
 
 def component():
@@ -37,17 +37,17 @@ def component():
         'source files remain unchanged':all((folder/name).read_bytes()==source for name in ('BASE.PAS','CHAIN.PAS')),
         'successful replacement cleans only its transaction directories':not list(folder.glob('ZP*')),
         'CHN compilation does not produce an ordinary COM':not (folder/'CHAIN.COM').exists()}
-    chain=(folder/'CHAIN.CHN').read_bytes();mapping=(folder/'CHAIN.ZMP').read_bytes()
+    chain=(folder/'CHAIN.CHN').read_bytes()
     try:
-        identity(chain,mapping,True);identity((folder/'BASE.COM').read_bytes(),(folder/'BASE.ZMP').read_bytes(),False)
-        checks['independent CHN/COM/map hashes and format bounds authenticate']=True
+        identity(chain,True);identity((folder/'BASE.COM').read_bytes(),False)
+        checks['independent CHN/COM format bounds match']=True
         checks['chain uses the requested Start/End and omits runtime/globals']=u16(chain,10)==0x9000 and u16(chain,18)==0xfbff and len(chain)==96+u16(chain,12)
     except(AssertionError,ValueError,struct.error):checks['independent artifact validation']=False
     return checks,folder,{'assertions':word('_test_passed'),'failed':word('_test_failed')}
 
 
 def activation(folder):
-    chain=(folder/'CHAIN.CHN').read_bytes();mapping=(folder/'CHAIN.ZMP').read_bytes()
+    chain=(folder/'CHAIN.CHN').read_bytes()
     base=(folder/'BASE.COM').read_bytes();origin,size=u16(chain,10),u16(chain,12)
     # This executable adapter is test-only: it places the actual compiler CHN
     # code over a caller prefix with stale targets and caller-owned globals.
@@ -66,11 +66,8 @@ def activation(folder):
     for at in sites:replay[at-0x4000:at-0x4000+3]=b'\xc3\0\0'
     replay[0x152]=1
     for at,value in [(1,normal),(10,len(replay)),(12,normal),(20,origin),(22,len(replay)+0x4000-origin),(24,0x8000),(26,globals),(28,0x4000+len(replay)),(30,u16(chain,18))]:put16(replay,at,value)
-    replay[68:100]=mapping[52:84];replay[100:132]=chain[52:84]
     replay[36:132]=bytes(96)
-    replay_map=bytearray(mapping);replay_map[20:52]=replay[36:68]
-    put16(replay_map,12,u16(replay,22)) # replay appends its native startup template
-    identity(replay,bytes(replay_map),False)
+    identity(replay,False)
     # Independently decode the straight-line entry's observable writes. Require
     # its destinations to be only the known prefix bindings and private hooks.
     code=chain[96:192];at=0;a=hl=0;bindings={}
@@ -91,7 +88,7 @@ def activation(folder):
                'bp 0x40a6','s','run 10000000000','regs','mmu','rb 0x8000 64','rb 0x4152 1']
     for address,data in bindings.items():commands += [f'rb 0x{address:x} {len(data)}']
     commands+=['bc 0x40a6','s','run 100000000','quit']
-    raw=n.execute('chain-activation',commands,{'REPLAY.COM':bytes(replay),'REPLAY.ZMP':bytes(replay_map),'zchainreplay.bin':(ROOT/'build/zchainreplay.bin').read_bytes()},timeout=300)
+    raw=n.execute('chain-activation',commands,{'REPLAY.COM':bytes(replay),'zchainreplay.bin':(ROOT/'build/zchainreplay.bin').read_bytes()},timeout=300)
     frames=re.split(r'\[DBG\] PC=',raw)[1:];m=n.memory(frames[-1])if frames else{}
     read=lambda address,length:bytes(m.get(address+i,0)for i in range(length))
     output=n.RUN/'chain-activation/hostfs/REPLAY.TXT'
@@ -131,16 +128,15 @@ def ide():
         checks.update({'every checkpoint reaches its actual native reader/screen':all(frame.startswith(f'{pc:04x} ')for(_,pc),frame in zip(labels,frames)),
             'H selects CHN and invalidates an old cache':read('chain-mode',opts+4,1)==b'\1'and read('chain-mode',build+4,1)==b'\0',
             'compile saves a compact chain and releases its RAM image without saving dirty source':read('compiled',build+4,1)==b'\0'and word('compiled',build+5)==96+word('compiled',build+9)and read('compiled',work+1,1)==b'\1',
-            'R recompiles the CHN for rejection and never enters a guest':read('direct-run-rejected',build+4,1)==b'\1'and word('compiled',build+9)==word('direct-run-rejected',build+9)and read('direct-run-rejected',sym['_ram_result'],128)==bytes(128),
+            'R compiles CHN on disk for rejection without a guest or RAM image':read('direct-run-rejected',build+4,1)==b'\2'and read('direct-run-rejected',build,3)==b'\xff'*3 and word('compiled',build+9)==word('direct-run-rejected',build+9)and read('direct-run-rejected',sym['_ram_result'],128)==bytes(128),
             'physical VRAM explains direct-run rejection':b'Run CHN files with Chain(F)' in read('run-message',0x4000,640),
             'H-mode F finds the selected CHN using matching unsaved source':read('found',sym['_ide_state'],1)==b'\3'and read('found',work+1,1)==b'\1',
             'F returns to the exact chain statement in the editor':read('found-source',sym['_ide_state'],1)==b'\2'and word('found-source',work+4)==(prefix+source).index(b'n:=7'),
             'C restores ordinary output kind and discards the CHN cache':read('ordinary-mode',opts+4,1)==b'\0'and read('ordinary-mode',build+4,1)==b'\0',
             'Main identity and dirty source survive all mode/recovery transitions':all(read(label,work+1,1)==b'\1'and read(label,sym['_main_file'],128).split(b'\0')[0]==b'H:/project/main.pas'for label in ['compiled','direct-run-rejected','found','found-source','ordinary-mode'])})
-    folder=n.RUN/'chain-ide/hostfs';chain=(folder/'project/main.CHN').read_bytes();mapping=(folder/'project/main.ZMP').read_bytes()
-    identity(chain,mapping,True)
-    checks['F input PC belongs to the first Pascal statement after activation']=u16(mapping,96+struct.unpack_from('<I',mapping,84)[0])==0x64
-    checks['CHN/map name the unsaved source with its canonical length']=u16(mapping,100)==len(prefix+source) and mapping[104:104+u16(mapping,98)]==b'H:/project/main.pas'
+    folder=n.RUN/'chain-ide/hostfs';chain=(folder/'project/main.CHN').read_bytes()
+    identity(chain,True)
+    checks['CHN output needs no source-map sidecar']=not(folder/'project/main.ZMP').exists()
     checks['no implicit PAS save or COM creation']=(folder/'project/main.pas').read_bytes()==source and not(folder/'project/main.COM').exists()
     return checks
 

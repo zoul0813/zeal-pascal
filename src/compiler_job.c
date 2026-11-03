@@ -22,29 +22,8 @@ static uint8_t source_valid(const Source *s) {
     return s->page==255||(s->page>=32&&s->page<64&&page_lifetime(s->page)&&
         (page_role(s->page)==PAGE_SOURCE||page_role(s->page)==PAGE_SNAPSHOT));
 }
-static uint8_t source_canonical(const Source *source) {
-    uint8_t c;uint8_t previous=0;uint16_t i,line=0;
-    for(i=0;i<source->length;++i) {
-        c=buffer_get(source->page,i);
-        if(c=='\r'||c==26)return 0;
-        if(c=='\n') {if(previous==' ')return 0;line=0;}
-        else if(++line>127)return 0;
-        previous=c;
-    }
-    if(previous==' ')return 0;
-    return 1;
-}
-
 static uint8_t capture_source(const Source *original,Source *captured) {
-    *captured=*original;
-    if(!source_valid(original))return 0;
-    if(original->page==255) {captured->length=0;return 1;}
-    if(!source_canonical(original)) {
-        if(!source_snapshot(original,captured))return 0;
-        captured->revision=original->revision;
-        if(!source_canonical(captured))return 0;
-    }
-    return 1;
+    if(!source_valid(original))return 0;*captured=*original;return 1;
 }
 /* Called before compiler cleanup releases include pages. Retain the actual
  * canonical location directly; rebasing belongs to the IDE inputs. */
@@ -67,23 +46,14 @@ static void rebase_failure(const Source *root,CompileFailure *failure) {
 /* Only the root can come from Work. Includes become disk references once
  * parsing ends; the table retains their IDs for source-error lookup. */
 static uint8_t retain_sources(const Source *root,Build *b) {
-    Source source;uint8_t i;uint8_t count=b->sources.count;
-    for(i=0;i<count;++i) {
-        if(!sources_get(&b->sources,i,&source))return 0;
-        if(!i) {
-            if(compiler_page_owned(compiler_owned,source.page)||compiler_page_owned(parent_pending,source.page))
-                if(!sources_adopt(&b->sources,i,root->page==255?0:root))return 0;
-        } else {
-            source.page=255;
-            if(sources_reference(&b->sources,&source)!=i)return 0;
-        }
-    }
+    Source source;
     b->revision=root->revision;
     if(root->page==255) {
         if(!sources_get(&b->sources,0,&source))return 0;
-        root=&source;
+        source.page=255;
+        if(sources_reference(&b->sources,&source)!=0)return 0;
     }
-    b->versions[4]=page_versions[root->page];
+    b->versions[4]=root->page==255?0:page_versions[root->page];
     return build_check(root,b);
 }
 uint8_t compile_request(const Source *root,Build *b,CompileFailure *failure,
@@ -135,14 +105,7 @@ uint8_t compile_request(const Source *root,Build *b,CompileFailure *failure,
     if(!retain_sources(root,&built)||!cc_tables_end())goto platform;
     memset(keep,0,8);for(i=0;i<3;++i)if(built.pages[i]!=255)bit(keep,built.pages[i]);
     {uint8_t page=built.map_page;do {bit(keep,page);page=buffer_next(page);}while(page!=255);}
-    bit(keep,built.sources.page);
-    for(i=0;i<built.sources.count;++i) {
-        if(!sources_get(&built.sources,i,&source))goto corrupt;
-        if(source.page!=255) {
-            uint8_t page=source.page;
-            do {bit(keep,page);page=buffer_next(page);}while(page!=255);
-        }
-    }
+    {uint8_t page=built.sources.page;do {bit(keep,page);page=buffer_next(page);}while(page!=255);}
     /* One ledger transaction releases all scratch before transferring any
      * result ownership. A failed free keeps every surviving handle retryable. */
     for(i=0;i<8;++i) {parent_pending[i]|=compiler_owned[i];compiler_owned[i]=0;}

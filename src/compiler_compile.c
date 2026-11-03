@@ -10,9 +10,25 @@
 /* Compilation owns transient sources, staging, relocation and sealing until
  * this phase returns. Run may then release its immutable code bank. */
 static uint16_t pc(void) {return cc.emitted-CC_CODE_BASE;}
+static uint8_t disk_prefix(uint8_t chain) {
+    uint8_t bytes[256];uint16_t at,n;
+    /* Disk flushes own console_scratch. Keep pending template bytes on the
+     * retained stack until every byte in this block has been emitted. */
+    for(at=0;at<PAGE_SIZE;at+=256) {
+        if(!cc_poll())return 0;
+        memset(bytes,0,sizeof(bytes));
+        if(!chain&&at<cc_runtime_size()) {
+            n=cc_runtime_size()-at;if(n>sizeof(bytes))n=sizeof(bytes);
+            if(!cc_runtime_read(at,bytes,n)){cc_fail(99);return 0;}
+        }
+        for(n=0;n<sizeof(bytes);++n)cc_put(at+n,bytes[n]);
+        if(cc.error->code)return 0;
+    }
+    return 1;
+}
 
 uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options) {
-    uint16_t i,j,n;uint8_t native_error;
+    uint16_t i,j,n;uint8_t native_error,chain=options&&options->kind==COMPILE_CHAIN;
     SourcePosition begin;
     Source active;
     CompilerSources sources;
@@ -20,25 +36,22 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     sources.root=s;sources.options=options;
     sources.memory=!options;
 #if defined(__SDCC) || defined(ZP_COMPILER_JOBS)
-    sources.borrow_root=compiler_invocation!=0;
     if(compiler_invocation)sources.memory=compiler_memory_mode;
 #endif
     cc.input=&active;cc.sources=&sources;cc.image=b;cc.error=d;
-    cc.workspace=255;cc.stage_page=255;cc.primary_stage=255;
+    cc.stage_page=255;cc.primary_stage=255;
     memset(d,0,sizeof(*d));memset(b,0,sizeof(*b));
     memset(b->pages,255,3);b->map_page=255;b->sources.page=255;
     cc.polling=interruptible;
     if(!cc_tables_begin()){d->code=99;goto failed;}
     if(!cc_poll())goto failed;
     if(!cc_sources_prepare(s))goto failed;
+    source_location(s,s->length,&b->source_lines,&j);
     if(compiler_disk_requested&&!cc_disk_begin(b,s,options&&options->kind==COMPILE_CHAIN)) {
         d->code=COMPILE_PLATFORM_FAILURE;goto failed;
     }
     if(cc_disk_active(b)) {
-        for(j=0;j<PAGE_SIZE;++j) {
-            if(!(j&255)&&!cc_poll())goto failed;
-            cc_put(j,j<cc_runtime_size()?cc_runtime_get(j):0);
-        }
+        if(!disk_prefix(chain))goto failed;
     } else for(i=0;i<3;++i) {
         /* The middle page holds final globals/code placement, never parser
          * staging. Materialize it on a global initializer's first write or
@@ -50,10 +63,7 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
          * loops retain the original page's bounded polling before page2 is
          * allocated; no byte is marked initialized until it has been stored. */
         j=0;
-        if(!i)for(;j<cc_runtime_size();++j) {
-            if(!(j&255)&&!cc_poll())goto failed;
-            cc_put(j,cc_runtime_get(j));
-        }
+        if(!i&&!chain){if(!cc_runtime_copy(b->pages[i]))goto failed;j=cc_runtime_size();}
         for(;j<PAGE_SIZE;j+=n) {
             if(!(j&255)&&!cc_poll())goto failed;
             /* End at the next existing polling boundary, including the
@@ -67,7 +77,6 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     if(b->map_page==255){d->code=99;goto failed;}
     buffer_init(b->map_page);
 
-    for(i=0;i<96;++i)buffer_set(b->map_page,i,0);
     cc.absolute_mode=1;cc.var_strict=1;cc.index_speed=1;cc.with_limit=4;
     cc.input_fresh=1;cc.io_check=1;cc.console_control=1;cc.text_type=TYPE_NONE;
     cc_new_type(K_INTEGER,2,-32768,32767,0);
@@ -77,7 +86,6 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     cc_new_type(K_INTEGER,1,0,255,0);
     cc_new_type(K_REAL,6,0,0,0);
     cc_system_init();
-    cc.file_bytes=8+(uint16_t)strlen(s->path);
     cc_next();
     if(cc_is("program")) {
         cc_next();cc_expect(T_ID,53);
@@ -97,7 +105,7 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     if(!options||options->kind!=COMPILE_CHAIN)cc_startup_finish();
     if(d->code||!cc_place_code())goto failed;
     if(cc.stage_page!=255) {
-        if(sources.stage_shared||page_drop(cc.stage_page))cc.stage_page=255;
+        if(page_drop(cc.stage_page))cc.stage_page=255;
         else {d->code=99;goto failed;}
     }
     if(cc.primary_stage!=255) {
@@ -108,8 +116,7 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
 failed:
     native_error=platform_error;cc.polling=0;
     if(cc.primary_stage!=255&&page_drop(cc.primary_stage))cc.primary_stage=255;
-    if(cc.stage_page!=255&&(sources.stage_shared||page_drop(cc.stage_page)))cc.stage_page=255;
-    if(cc.workspace!=255&&page_drop(cc.workspace))cc.workspace=255;
+    if(cc.stage_page!=255&&(page_drop(cc.stage_page)))cc.stage_page=255;
     /* Error replies still need source identities, but not the abandoned
      * executable. Reclaim emission storage before exporting a bounded table. */
     build_discard_image(b);

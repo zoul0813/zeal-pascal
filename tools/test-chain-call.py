@@ -61,7 +61,7 @@ def ide(n,executables=None):
     reference=n.RUN/('execute-call-compile/hostfs' if executables else 'chain-call-compile/hostfs')
     checks['IDE and compiler target layouts produce identical COM CHN and maps']=all(
         (folder/name).is_file() and (reference/name).is_file() and
-        (folder/name).read_bytes()==(reference/name).read_bytes()for name in (('EXECALL.COM','EXECALL.ZMP') if executables else ('CALLER.COM','CALLER.ZMP','NEXT.CHN','NEXT.ZMP')))
+        (folder/name).read_bytes()==(reference/name).read_bytes()for name in (('EXECALL.COM',) if executables else ('CALLER.COM','NEXT.CHN')))
     if executables:
         checks['explicit Close finalizes the typed file before IDE Execute']=(folder/'CLOSED.DAT').is_file() and (folder/'CLOSED.DAT').read_bytes()==b'\1\0\2\0\xd2\4'
     return checks
@@ -234,16 +234,9 @@ def execute(n):
     raw=n.execute('execute-call-checked',checked_commands,{parent+'.bin':media[parent+'.bin'],'CALLER.COM':images['EXECHECK'],
         'PARENT.TXT':b'\1\1H:/CALLER.COM'},timeout=900)
     state=n.memory(raw);message=bytes(state.get(0xfc80+i,0) for i in range(32));error=re.search(rb'I/O error 01, PC=([0-9A-F]{4})',message)
-    mapped=[];mapping=(folder/'EXECHECK.ZMP').read_bytes()
-    if error:
-        pc=int(error[1],16);at=96+int.from_bytes(mapping[84:88],'little')
-        for offset in range(at,len(mapping),16):
-            first,last,file_id,reserved,source_first,source_last=struct.unpack_from('<HHHHII',mapping,offset)
-            if first<=pc<last:mapped.append((file_id,source_first,source_last))
     checks['checked missing Execute reports its I/O error and returns status1 without page leaks']=(
         state.get(ps['_test_done'])==255 and all(state.get(ps['_test_failed']+i)==0 for i in range(2))
         and f'PC={report_pc:04x} ' in raw and error is not None)
-    checks['checked Execute error PC maps to its actual source statement']=len(mapped)==1 and mapped[0][0]==0 and b'Execute' in fixtures['EXECHECK.PAS'][mapped[0][1]:mapped[0][2]]
     checks.update({'Execute '+name:passed for name,passed in ide(n,images).items()})
     checks['all source/build/platform inputs unchanged']=all(n.sha(Path(path))==value for path,value in hashes.items())
     report={'passed':all(checks.values()),'scope':execute.__doc__,'checks':checks,'compiler_assertions':word('_test_passed'),

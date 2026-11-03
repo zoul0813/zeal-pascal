@@ -66,7 +66,9 @@ uint8_t output_write_buffer(int8_t fd,const uint8_t *bytes,uint16_t n) {
     uint32_t at=compiler_spool.at,length=compiler_spool.length;
     if(compiler_sdk_fault(CD_WRITE)){platform_error=ERR_FAILURE;return 0;}
     if(fd!=2||!compiler_spool.opened||compiler_spool.at+n>sizeof(compiler_spool.bytes)){platform_error=ERR_FAILURE;return 0;}
-    memcpy(compiler_spool.bytes+compiler_spool.at,bytes,n);compiler_spool.at+=n;
+    /* The target transport owns this scratch even during a cache flush. */
+    assert(n<=sizeof(console_scratch));memcpy(console_scratch,bytes,n);
+    memcpy(compiler_spool.bytes+compiler_spool.at,console_scratch,n);compiler_spool.at+=n;
     if(compiler_spool.length<compiler_spool.at)compiler_spool.length=compiler_spool.at;
     if(compiler_overwrite_mode&&n==128&&length>=PREFIX_BYTES&&at<length) {
         compiler_overwrite_at=at;compiler_overwrite_pending=1;
@@ -81,7 +83,9 @@ uint8_t output_write_buffer(int8_t fd,const uint8_t *bytes,uint16_t n) {
 uint8_t output_read_buffer(int8_t fd,uint8_t *bytes,uint16_t n) {
     if(compiler_sdk_fault(CD_READ)){platform_error=ERR_FAILURE;return 0;}
     if(fd!=2||!compiler_spool.opened||compiler_spool.at+n>compiler_spool.length){platform_error=ERR_FAILURE;return 0;}
-    memcpy(bytes,compiler_spool.bytes+compiler_spool.at,n);
+    assert(n<=sizeof(console_scratch));
+    memcpy(console_scratch,compiler_spool.bytes+compiler_spool.at,n);
+    memcpy(bytes,console_scratch,n);
     if(compiler_overwrite_pending&&compiler_spool.at==compiler_overwrite_at&&n==128) {
         if(!memcmp(bytes,compiler_overwrite_expected,128))++compiler_overwrite_readbacks;
         compiler_overwrite_pending=0;

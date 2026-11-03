@@ -1,7 +1,6 @@
 #include "harness.h"
 #include "chunk.h"
 #include "compiler.h"
-#include "saved_map.h"
 
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done;
@@ -34,7 +33,8 @@ static void changed_header(uint16_t at,uint16_t value) {
 }
 static void run(void) {
     uint8_t owned=pages_used(),status=255,before[7],after[7];
-    uint16_t at,pc,position;SavedLocation found;
+    uint16_t at,pc,position,found;uint8_t i;
+    for(i=0;i<3;++i)if(b.pages[i]==255)++owned;
     test_machine(before);
     check(run_build(&s,&b)&&ram_result[26]==1);
     immutable(1);
@@ -42,14 +42,14 @@ static void run(void) {
     check(pages_used()==owned&&build_check(&s,&b));
     immutable(2);
     check(save_build(&s,&b,0));immutable(3);
-    at=96+far_get(b.map_page,84)+((uint16_t)far_get(b.map_page,85)<<8);
+    at=0;
     pc=far_get(b.map_page,at)|((uint16_t)far_get(b.map_page,at+1)<<8);
-    position=far_get(b.map_page,at+8)|((uint16_t)far_get(b.map_page,at+9)<<8);
+    position=far_get(b.map_page,at+6)|((uint16_t)far_get(b.map_page,at+7)<<8);
     check(run_saved(&s,&b,&status)&&status==0);immutable(4);
     test_machine(after);check(!memcmp(before,after,7));
     check(!b.valid&&b.map_page==255&&pages_used()==code_required+1);
-    check(saved_location(s.path,0,pc,&found));immutable(5);
-    check(!strcmp(found.path,s.path)&&found.position==position);
+    check(compile(&s,&b,&d)&&build_locate(&s,&b,pc,&found));immutable(5);
+    check(found==position);build_close(&b);
     check(pages_used()==code_required+1);
 
 }

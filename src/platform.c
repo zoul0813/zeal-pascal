@@ -173,27 +173,35 @@ uint8_t key_interrupt(void) {
     if(platform_error) result=1;
     return result;
 }
-uint8_t run_build(const Source *s,const Build *b) {
-    uint8_t child[3]={255,255,255},i,ok=0,entered=0,failure,from;
-    uint16_t j;
+uint8_t run_build(const Source *s,Build *b) {
+    uint8_t child[3]={255,255,255},i,ok=0,entered=0,failure;
+    uint8_t old;
+    uint8_t *control=(uint8_t*)(0x8000u+WORKER_CONTROL-0xc000u);
     ram_io_detail=0; ram_cleanup_detail=0;
     if(!build_ready(s,b)) return 0;
     if(build_is_chain(b)) { platform_error=ERR_NOT_SUPPORTED;return 0; }
     if(!code_phase_park()) {code_phase_return();return 0;}
     if(!worker_control(WORKER_START)) {code_phase_return();return 0;}
+    /* Memory Run owns one persistent program image, as TP3 does. Only absent
+     * address windows need backing; typed constants/code survive later Runs. */
     for(i=0;i<3;++i) {
-        child[i]=page_new(PAGE_RUN);
-        if(child[i]==255) goto cleanup;
-        from=b->pages[i];
-        for(j=0;j<PAGE_SIZE;++j) far_set(child[i],j,from==255?0:far_get(from,j));
-        page_initialized(child[i],PAGE_SIZE);
+        if(b->pages[i]==255) {
+            b->pages[i]=page_new(PAGE_IMAGE);
+            if(b->pages[i]==255)goto cleanup;
+            old=get_bank();code_restore(b->pages[i]);
+            memset((void*)0x8000,0,PAGE_SIZE);code_restore(old);
+            page_initialized(b->pages[i],PAGE_SIZE);
+        }
+        child[i]=b->pages[i];
     }
-    for(j=0;j<1024;++j) far_set(child[2],0x3c00+j,0);
-    for(j=0;j<(uint16_t)(trampoline_end-trampoline_start);++j)
-        far_set(child[2],0x3d00+j,trampoline_start[j]);
-    far_set(child[2],WORKER_CONTROL-0xc000u+5,1);
-    far_set(child[2],WORKER_CONTROL-0xc000u+6,(uint8_t)(uint16_t)ram_worker_service);
-    far_set(child[2],WORKER_CONTROL-0xc000u+7,(uint8_t)((uint16_t)ram_worker_service>>8));
+    /* This retained routine may fill the mapped page directly. The control
+     * area and return gate are outside every generated static image. */
+    old=get_bank();code_restore(child[2]);
+    memset((void*)0xbc00,0,1024);
+    memcpy((void*)0xbd00,trampoline_start,(uint16_t)(trampoline_end-trampoline_start));
+    control[5]=1;control[6]=(uint8_t)(uint16_t)ram_worker_service;
+    control[7]=(uint8_t)((uint16_t)ram_worker_service>>8);
+    code_restore(old);
     memset(ram_result,0,128); memcpy(ram_result,"ZRAM",4);
     ram_result[4]=1; ram_result[5]=2; ram_result[6]=128;
     ram_result[34]=ram_result[35]=255;
@@ -225,8 +233,11 @@ cleanup:
         ok=0; if(!failure) failure=platform_error;
     } else if(platform_error&&!failure) failure=platform_error;
     if(ram_cleanup_detail&&!failure) failure=ram_cleanup_detail;
-    for(i=0;i<3;++i) if(child[i]!=255&&!page_drop(child[i])) {
-        ok=0; if(!failure) failure=platform_error;
+    /* Native stores bypass far_set. Adopt the program's own mutations after
+     * cleanup; source edits still invalidate the build through its revision. */
+    for(i=0;i<3;++i)if(b->pages[i]!=255) {
+        ++page_versions[b->pages[i]];
+        b->versions[i]=page_versions[b->pages[i]];
     }
     if(failure) platform_error=failure;
     code_phase_return();

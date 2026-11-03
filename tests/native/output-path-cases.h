@@ -36,7 +36,7 @@ static void output_path_cases(void) {
         } else {
             check(!memcmp(&source,&prior,sizeof(prior)));
             if(kind==2)check(equals(primary,fresh+17,372));
-            else {int f=find(primary);check(f>=0&&files[f].length==build.length);f=find(secondary);check(f>=0&&files[f].length==build.map_length);}
+            else {int f=find(primary);check(f>=0&&files[f].length==build.length);check(equals(secondary,old[1],old_length[1]));}
         }
     }
 }

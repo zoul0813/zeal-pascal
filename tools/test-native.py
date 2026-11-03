@@ -43,8 +43,16 @@ MEDIA_COPIES = {}
 LIBRARY_READY_CYCLES = 8000000000
 # Private SDCC near handles inspected by debugger-based IDE acceptance.
 # Native compile-time guards in sources-main.c pin these observer sizes.
-BUILD_BYTES = 51
-SOURCES_BYTES = 12
+BUILD_BYTES = 54
+SOURCES_BYTES = 13
+
+
+def same_build_after_run(before, after):
+    """Run retains identity, fills absent windows and adopts image writes."""
+    return (len(before) == len(after) == BUILD_BYTES and
+            before[3:19] == after[3:19] and before[31:] == after[31:] and
+            all(32 <= after[i] < 64 and (before[i] == 255 or before[i] == after[i])
+                for i in range(3)))
 
 
 def sha(path):
@@ -516,52 +524,21 @@ def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, tim
 
 
 def artifact_checks(directory):
-    binary = (directory / 'SLICE.COM').read_bytes()
-    mapping = (directory / 'SLICE.ZMP').read_bytes()
-    source = b"var n: integer;\nbegin n:=-32768; writeln('N=',n,',',7 div -3,',',7 mod -3) end."
-    word = lambda data, offset: struct.unpack_from('<H', data, offset)[0]
-    long = lambda data, offset: struct.unpack_from('<I', data, offset)[0]
-    normalized = bytearray(binary)
-    normalized[36:68] = bytes(32)
-    assert binary[36:132] == bytes(96) and mapping[20:84] == bytes(64)
-    normalized = bytearray(mapping)
-    normalized[20:52] = bytes(32)
-    assert binary[100:132] == bytes(32)
-    assert binary[0] == 0xc3 and word(binary,1)==word(binary,12) and binary[3:8] == b'ZP80\x02'
-    assert word(binary, 8) == 160 and word(binary, 10) == len(binary)
+    binary=(directory/'SLICE.COM').read_bytes()
+    from artifact_format import validate_image
+    validate_image(binary)
+    word=lambda at:struct.unpack_from('<H',binary,at)[0]
     entry=(ROOT/'build/execute_entry.zpl').read_bytes()
-    assert word(binary,12)==0x4000+len(binary)-len(entry) and binary[-len(entry):]==entry
-    assert word(binary,14)==0x40a3
-    assert word(binary, 16) == 1 and word(binary, 18) == 0
-    origin, code_bytes = word(binary, 20), word(binary, 22)
-    assert word(binary, 24) == 0x8000 and word(binary, 26) == 2
-    assert word(binary, 28) == 0x4000 + len(binary) == origin + code_bytes
-    assert word(binary, 30) == 0xfbff and word(binary, 32) == 2048
-    assert word(binary, 132) == 16384 and binary[134:160] == bytes(26)
-    assert mapping[:8] == b'ZMAP\x02\0\x60\0' and word(mapping, 8) == 1
-    assert word(mapping, 10) == origin and word(mapping, 12) == code_bytes
-    assert word(mapping, 14) == 1 and long(mapping, 92) == 0
-    table_bytes = long(mapping, 84)
-    table = mapping[96:96 + table_bytes]
-    assert mapping[52:84] == binary[68:100] == bytes(32)
-    assert word(table, 0) == 0 and long(table, 4) == len(source)
-    assert table[8:] == b'H:/SLICE.PAS'
-    assert word(table, 2) == len(table[8:])
-    count = long(mapping, 16)
-    assert long(mapping, 88) == count * 16 and len(mapping) == 96 + table_bytes + count * 16
-    previous = 0
-    for at in range(96 + table_bytes, len(mapping), 16):
-        first, last, file_id, reserved, start, end = struct.unpack_from('<HHHHII', mapping, at)
-        assert previous <= first < last <= code_bytes and file_id == reserved == 0
-        assert 0 <= start <= end <= len(source)
-        previous = last
-    second=b'begin\n{second}\nend.\n'
-    third=b'begin\n{third}\n{second}\nend.\n'
-    assert (directory / 'EDIT.PAS').read_bytes()==third
-    assert (directory / 'EDIT.BAK').read_bytes()==second
-    assert (directory / 'RENAMED.PAS').read_bytes()==b' '+third
-    assert (directory / 'RENAMED.BAK').read_bytes()==b' '+third
-    assert not any(p.name.startswith('ZP') for p in directory.iterdir())
+    assert word(12)==0x4000+len(binary)-len(entry) and binary[-len(entry):]==entry
+    assert word(1)==word(12) and word(14)==0x40a3 and word(16)==1 and word(18)==0
+    assert word(24)==0x8000 and word(26)==2 and word(28)==0x4000+len(binary)
+    assert not (directory/'SLICE.ZMP').exists()
+    second=b'begin\n{second}\nend.\n';third=b'begin\n{third}\n{second}\nend.\n'
+    assert (directory/'EDIT.PAS').read_bytes()==third
+    assert (directory/'EDIT.BAK').read_bytes()==second
+    assert (directory/'RENAMED.PAS').read_bytes()==b' '+third
+    assert (directory/'RENAMED.BAK').read_bytes()==b' '+third
+    assert not any(p.name.startswith('ZP')for p in directory.iterdir())
     return True
 
 
@@ -840,7 +817,7 @@ def default_path_checks():
     files = zealfs_files((RUN / 'paths-com/tf.img').read_bytes())
     checks.append(('COM publication creates entered parent directories without saving source or creating the default path',
                    len(observed) == 1 and observed[0].get(build + 4) == 1 and observed[0].get(work + 1) == 1
-                   and '/work/deep/hello.COM' in files and '/work/deep/hello.ZMP' in files
+                   and '/work/deep/hello.COM' in files and '/work/deep/hello.ZMP' not in files
                    and '/work/deep/hello.pas' not in files and '/src/' not in files
                    and not any('/ZP' in name for name in files)))
     commands = launch() + [f'bc 0x{key:x}'] + typed('e' + text.decode())
@@ -1423,19 +1400,19 @@ def main():
             media_ok = (media['/UNTITLED.PAS'] == media['/UNTITLED.BAK'] == b"begin\nwriteln('MEDIA')\nend.\n"
                         and media['/ZP0000/KEEP.PAS'] == b'unrelated recovery'
                         and not any(path.startswith('/ZP') and not path.startswith('/ZP0000/') for path in media)
-                        and struct.unpack_from('<I',media['/UNTITLED.ZMP'],100)[0] == len(media['/UNTITLED.PAS']))
+                        and '/UNTITLED.COM' in media and '/UNTITLED.ZMP' not in media)
             checks.append(('repeated T: source/COM saves release owned staging and preserve unrelated recovery', media_ok))
         except (AssertionError, KeyError, UnicodeError, struct.error):
             checks.append(('repeated T: source/COM saves release owned staging and preserve unrelated recovery', False))
-        checks.append(('repeated T: saves preserve the source/BAK and shell-runnable COM/map pair',
+        checks.append(('repeated T: saves preserve source/BAK and a shell-runnable COM',
                        struct.unpack_from('<H', zealfs_volume(disk), 4)[0] > 0 and media_output.is_file()
                        and media_output.read_bytes() == b'MEDIA\r\n' * 4))
     if args.case in (None, 'basic'):
         try:
-            checks.append(('native-generated image/map/source identities and format bounds',
+            checks.append(('native executable bounds and source/backup publication',
                            artifact_checks(RUN / 'core/hostfs')))
         except (OSError, AssertionError, struct.error):
-            checks.append(('native-generated image/map/source identities and format bounds', False))
+            checks.append(('native executable bounds and source/backup publication', False))
     if integrated and mem.get(sym['_test_done']) == 255 and word('_test_failed') == 0:
         print('Native core passed; driving interactive edit/error/repair workflow...', flush=True)
         checks.extend(interactive_checks())

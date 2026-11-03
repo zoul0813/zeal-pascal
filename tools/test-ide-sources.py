@@ -123,7 +123,7 @@ def main():
     captured=n.execute('ide-disk-main',commands,{'scratch.inc':b'not a program','main.pas':diskroot},timeout=400)
     frames=[n.memory(part)for part in re.split(r'\[DBG\] PC=',captured)[1:]]
     folder=n.RUN/'ide-disk-main/hostfs'
-    checks['disk-only Main runs in RAM and publishes matching saved output']=len(frames)==3 and frames[0].get(sym['_ram_result']+26)==1 and [f.get(build+4)for f in frames]==[1,0,0] and all(bytes(f.get(work+12+i,0)for i in range(128)).split(b'\0')[0]==b'H:/scratch.inc'for f in frames) and (folder/'main.COM').is_file() and (folder/'main.ZMP').is_file() and struct.unpack_from('<I',(folder/'main.ZMP').read_bytes(),100)[0]==len(diskroot)
+    checks['disk-only Main runs in RAM and publishes matching saved output']=len(frames)==3 and frames[0].get(sym['_ram_result']+26)==1 and [f.get(build+4)for f in frames]==[1,0,0] and all(bytes(f.get(work+12+i,0)for i in range(128)).split(b'\0')[0]==b'H:/scratch.inc'for f in frames) and (folder/'main.COM').is_file() and not (folder/'main.ZMP').exists()
     checks['all recorded inputs unchanged']=all(n.sha(Path(p))==h for p,h in hashes.items())
     report={'passed':all(checks.values()),'language_case':'Inline machine code'if inline else'Integer division','messages_enabled':args.messages,
             'startup_pages':{'library':library_count,'application_total':bytes(memory.get(owners+i,255)for i in range(32)).count(2)},

@@ -187,44 +187,23 @@ def transfer_assets(directory):
     for key in ('reloc_offset','reloc_count','module_operand','gate_operand','file_operand','unpack_operand'):
         header.append('#define TRANSFER_CALL_'+key.upper()+' '+str(metadata[key])+'u')
     (directory/'transfer_asset.h').write_text('\n'.join(header+['#endif','']))
-    # IDE/editor targets have a free resident tail; compiler-only acceptance
-    # programs instead have an unused part of their existing BANK13.
-    layouts={'ide':[(0,1440),(1,1700),(3,136),(4,600),(5,450),(6,1500),
-                    (7,460),(9,400),(10,650),(11,800),(12,950),(13,500)],
-             'test':[(13,12000)]}
-    for name,slots in layouts.items():
-        parts=[];at=0
-        for bank,capacity in slots:
-            if at==len(data):break
-            chunk=data[at:at+capacity];filename=f'transfer_{name}_{len(parts)}.zpl'
-            (directory/filename).write_bytes(chunk)
-            parts.append((bank,at+len(chunk),filename));at+=len(chunk)
-        if at!=len(data):raise ValueError('transfer assets exceed existing '+name+' bank capacity')
-        lines=['.area _BANK3','.globl _transfer_asset_count,_transfer_asset_rows',
-               '_transfer_asset_count::','.db '+str(len(parts)),'_transfer_asset_rows::']
-        for i,(bank,end,_)in enumerate(parts):
-            lines+=['.dw '+str(end)+', _transfer_part_'+str(i),'.db '+str(bank)]
-        for i,(bank,_,filename)in enumerate(parts):
-            lines+=['.area '+('_BANK'+str(bank)if bank else'_RODATA'),
-                    '_transfer_part_'+str(i)+'::','.incbin "'+str(directory/filename)+'"']
+    # One contiguous compiler asset: no runtime bank-fragment routing table.
+    if len(data)>16384:raise ValueError('transfer asset exceeds its bank')
+    asset=directory/'transfer_asset.zpl';asset.write_bytes(data)
+    lines=['.area _BANK15','.globl _transfer_start,_transfer_end',
+           '_transfer_start::','.incbin "'+str(asset)+'"','_transfer_end::']
+    for name in ('ide','test'):
         (directory/('transfer_'+name+'_asset.asm')).write_text('\n'.join(lines)+'\n')
 
 
-def validate_transfer_assets(memory,symbols,directory,resident_end,banks):
+def validate_transfer_assets(memory,symbols,directory,banks):
     expected=b''.join((directory/name).read_bytes()for name in
                      ('transfer_runtime.packed','transfer_gate.zpl','transfer_call.zpl','execute_entry.zpl'))
-    count=memory.get(symbols['_transfer_asset_count'],0)
-    row=symbols['_transfer_asset_rows'];first=0;actual=bytearray()
-    for i in range(count):
-        values=bytes(memory.get(row+5*i+j,0)for j in range(5))
-        end,source,bank=struct.unpack('<HHB',values)
-        size=end-first
-        if not 0<size<=len(expected)-first or (bank and(bank not in banks or not 0x8000<=source<source+size<=0xc000)) or (not bank and not 0x4000<=source<source+size<=resident_end):
-            raise ValueError('embedded transfer assets have malformed bounds')
-        at=(bank<<16|source)if bank else source
-        actual+=bytes(memory.get(at+j,0)for j in range(size));first=end
-    if not count or first!=len(expected)or actual!=expected:
-        raise ValueError('embedded transfer assets are stale or malformed')
+    first,last=symbols['_transfer_start'],symbols['_transfer_end'];bank=first>>16
+    if bank not in banks or bank!=last>>16 or not 0x8000<=first&0xffff<last&0xffff<=0xc000:
+        raise ValueError('embedded transfer asset has malformed bounds')
+    if last-first!=len(expected)or bytes(memory.get(at,0)for at in range(first,last))!=expected:
+        raise ValueError('embedded transfer asset is stale or malformed')
 
 
 def validate_runtime(path):
@@ -431,7 +410,7 @@ def package(path):
             runtime.with_suffix('.profile').read_bytes()!=profile or
             payloads[7]!=template+private+profile):
         raise ValueError('embedded runtime/private metadata or Chain profile is stale or mismatched')
-    validate_transfer_assets(memory,symbols,path.parent,resident_end,banks)
+    validate_transfer_assets(memory,symbols,path.parent,banks)
     validate_file_assets(memory,symbols,path.parent)
     header_bytes = 16 + 2 * len(banks)
     total = header_bytes + sum(map(len, payloads))

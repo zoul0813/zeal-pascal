@@ -125,7 +125,7 @@ def publication_error():
         'failed validation and distinct ROM-drive cleanup both exercised':len(injected)==1,
         'primary publication error survives cleanup failure':b'Output failed, native error 1.'in text,
         'failed cleanup reports recovery path':bool(injected)and injected[0].encode()in text,
-        'subsequent compile publishes a valid executable and map':len(readers)==2 and readers[-1].get(build+4)==1 and (disk/'project/main.COM').is_file()and(disk/'project/main.ZMP').is_file(),
+        'subsequent compile publishes a standalone executable':len(readers)==2 and readers[-1].get(build+4)==1 and (disk/'project/main.COM').is_file()and not(disk/'project/main.ZMP').exists(),
         'source and foreign recovery member remain exact':bool(injected)and(disk/'project/main.pas').read_bytes()==source and(disk/injected[0][3:]/'KEEP').read_bytes()==b'foreign recovery member',
         'all qualification inputs unchanged':all(n.sha(Path(p))==h for p,h in hashes.items()),
     }

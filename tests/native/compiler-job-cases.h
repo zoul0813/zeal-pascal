@@ -1,6 +1,5 @@
 /* Exercise the synchronous capture/result/cleanup implementation directly. */
 #include "../../src/compiler_job.c"
-#include "../../src/sources_internal.h"
 static uint8_t mask_empty(const uint8_t *p,uint16_t n) {while(n--)if(*p++)return 0;return 1;}
 static uint8_t host_prepared,host_cancel_failure;
 static unsigned host_prepares,host_cancels;
@@ -24,12 +23,8 @@ static void capture_cases(void) {
         original.length=(uint16_t)strlen(texts[i]);
         for(uint16_t j=0;j<original.length;++j)far_set(original.page,j,texts[i][j]);
         before=original;compiler_allocating=COMPILER_ALLOC_PARENT;
-        if(i>=4)check(!capture_source(&original,&captured));
-        else {
-            check(capture_source(&original,&captured));
-            check(source_canonical(&captured));
-            check((captured.page==original.page)==(i<2));
-        }
+        check(capture_source(&original,&captured));
+        check(captured.page==original.page);
         check(!memcmp(&original,&before,sizeof(original)));
         check(compiler_resources_ready());source_close(&original);check(pages_used()==prior);
     }
@@ -46,18 +41,18 @@ static void generated_map_cases(void) {
         "var r:record n:integer end;procedure p;begin with r do n:=1 end;begin p end.",
         "{$I PART.INC}\nbegin writeln(answer) end."};
     HostSource disk[]={{"H:/PART.INC","const answer=42;"}};
-    uint16_t at,previous,first,last,file;uint32_t start,end;Source source;unsigned i;
+    uint16_t at,previous,first,last,file;uint32_t start;Source source;unsigned i;
     disk_sources=disk;disk_source_count=1;
     for(i=0;i<sizeof(programs)/sizeof(programs[0]);++i) {
         load(programs[i]);check(compile(&s,&b,&d));
-        at=96+map_number(&b,84,4);previous=0;
-        check(at+16*map_number(&b,16,4)==b.map_length);
-        for(;at<b.map_length;at+=16) {
+        at=0;previous=0;
+        check(b.map_length%MAP_RECORD_BYTES==0);
+        for(;at<b.map_length;at+=MAP_RECORD_BYTES) {
             first=map_number(&b,at,2);last=map_number(&b,at+2,2);file=map_number(&b,at+4,2);
-            start=map_number(&b,at+8,4);end=map_number(&b,at+12,4);
+            start=map_number(&b,at+6,2);
             check(first>=previous&&first<last&&last<=b.code_bytes);
-            check(file<b.sources.count&&!map_number(&b,at+6,2));
-            check(sources_get(&b.sources,file,&source)&&start<=end&&end<=source.length);
+            check(file<b.sources.count);
+            check(sources_get(&b.sources,file,&source)&&start<=source.length);
             previous=last;
         }
         build_close(&b);check(pages_used()==1);
@@ -242,7 +237,7 @@ static void compiler_job_cases(void) {
     check(compile_request(&s,&b,&failure,0,0));
     check(b.valid&&!memcmp(&s,&before,sizeof(s))&&!host_prepared);
     test_image_hash(&b,actual);check(!memcmp(actual,expected,32));
-    check(build_check(&s,&b)&&sources_resident(&b.sources,0));build_close(&b);check(pages_used()==1);
+    check(build_check(&s,&b)&&sources_get(&b.sources,0,&include)&&include.page==s.page);build_close(&b);check(pages_used()==1);
     generated_map_cases();
     stream_hash_failures();image_fill_failures();
     check(host_prepares==prepares&&host_cancels==cancels);
@@ -268,7 +263,7 @@ static void compiler_job_cases(void) {
     check(failure.diagnostic.code==90&&!strcmp(failure.path,"H:/MISSING.INC")&&pages_used()==1);
     load("program Include;\n{$I GOOD.INC}\nbegin writeln(answer)end.");
     check(compile_request(&s,&b,&failure,0,0));
-    check(b.sources.count==2&&sources_get(&b.sources,1,&include)&&include.page==255&&!sources_resident(&b.sources,1));
+    check(b.sources.count==2&&sources_get(&b.sources,1,&include)&&include.page==255);
     check(build_check(&s,&b));build_close(&b);check(pages_used()==1);
     disk_sources=0;disk_source_count=0;
     load("program Cancel;var n:integer;begin n:=7;writeln(n)end.");before=s;

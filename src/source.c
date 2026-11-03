@@ -112,34 +112,7 @@ uint8_t source_import(Source *s,const uint8_t *bytes,uint16_t n,Diagnostic *d) {
     return import_finish(&in,s,d);
 }
 
-uint8_t source_snapshot(const Source *s, Source *snapshot) {
-    uint16_t a=0,z,trim,i,out=0;
-    if(!new_source(snapshot,s->path,PAGE_SNAPSHOT)) return 0;
-    if(!buffer_reserve(snapshot->page,s->length)) {source_close(snapshot);return 0;}
-    while(a<s->length) {
-        z=a;
-        while(z<s->length&&buffer_get(s->page,z)!='\n') ++z;
-        trim=z;
-        while(trim>a&&buffer_get(s->page,trim-1)==' ') --trim;
-        for(i=a;i<trim;++i) buffer_set(snapshot->page,out++,buffer_get(s->page,i));
-        if(z<s->length) buffer_set(snapshot->page,out++,'\n');
-        a=z+1;
-    }
-    snapshot->length=out; snapshot->revision=s->revision;
-    buffer_initialized(snapshot->page,out);
-    return 1;
-}
-uint16_t source_editor_offset(const Source *s,uint16_t canonical) {
-    uint16_t a=0,z,trim,count=0;
-    while(a<s->length) {
-        z=a;
-        while(z<s->length&&buffer_get(s->page,z)!='\n') ++z;
-        trim=z;
-        while(trim>a&&buffer_get(s->page,trim-1)==' ') --trim;
-        if(canonical<=count+trim-a) return a+canonical-count;
-        count+=trim-a;
-        if(z<s->length) ++count;
-        a=z+1;
-    }
-    return s->length;
+/* Compiler positions refer directly to the suspended Work buffer. */
+uint16_t source_editor_offset(const Source *s,uint16_t position) {
+    return position>s->length?s->length:position;
 }

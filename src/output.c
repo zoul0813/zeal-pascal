@@ -12,7 +12,6 @@
 #include "compiler_disk.h"
 #include "path.h"
 #include "sources.h"
-#include "saved_map.h"
 #include "output_transport.h"
 #include <zos_vfs.h>
 #include <zos_errors.h>
@@ -48,7 +47,7 @@ static uint8_t parent_dirs(const char *path,uint8_t create) {
     return 1;
 }
 static uint8_t paths(const Source *s,uint8_t chain) {
-    return !build_prepared&&saved_paths_kind(s->path,destinations,chain);
+    return !build_prepared&&path_program(s->path,destinations[0],chain);
 }
 static uint8_t ordinary_file(const char *path,uint8_t *exists);
 /* The pinned HostFS cannot reliably truncate in place. Remove only a checked
@@ -62,44 +61,30 @@ static uint8_t remove_output(const char *path) {
     if(e)platform_error=e;
     return !e;
 }
-static uint8_t store_map(const Build *b,const char *path) {
-    uint8_t pages[4],i=0,page=b->map_page;
-    do {if(i==4)return 0;pages[i++]=page;page=buffer_next(page);}while(page!=255);
-    return output_store_range(pages,0,b->map_length,path);
-}
 static uint8_t store(const uint8_t *pages,uint16_t total,const char *path) {
     return output_store_range(pages,0,total,path);
 }
 static uint8_t do_save_build(const Source *s,const Build *b) {
-    uint8_t chain,exists,i;
-    char expected[2][128];
+    uint8_t chain,exists;
+    char expected[128];
     platform_error=0;
     if(!build_ready(s,b)) {platform_error=ERR_FAILURE;return 0;}
     chain=build_is_chain(b);
     if(build_prepared) {
-        if(chain!=prepared_chain||!saved_paths_kind(s->path,expected,chain)||
-           strcmp(expected[0],destinations[0])||strcmp(expected[1],destinations[1])) {
+        if(chain!=prepared_chain||!path_program(s->path,expected,chain)||
+           strcmp(expected,destinations[0])) {
             platform_error=ERR_INVALID_PATH;return 0;
         }
     } else if(!paths(s,chain)) {platform_error=ERR_INVALID_PATH;return 0;}
-    for(i=0;i<2;++i) {
-        if(!strcmp(s->path,destinations[i])||sources_find(&b->sources,destinations[i])>=0) {
-            platform_error=ERR_INVALID_PATH;return 0;
-        }
-        if(!ordinary_file(destinations[i],&exists))return 0;
+    if(!strcmp(s->path,destinations[0])||sources_find(&b->sources,destinations[0])>=0) {
+        platform_error=ERR_INVALID_PATH;return 0;
     }
+    if(!ordinary_file(destinations[0],&exists))return 0;
     if(!parent_dirs(destinations[0],1))return 0;
     build_prepared=0;
-    /* Invalidate an older map before replacing its executable. A failed write
-     * can leave incomplete output, but never a stale map beside new code. */
-    if(!output_poll()||!remove_output(destinations[1])||!remove_output(destinations[0]))return 0;
+    if(!output_poll()||!remove_output(destinations[0]))return 0;
     if(cc_disk_active(b)) {if(!cc_disk_publish(b,destinations[0]))return 0;}
     else if(!store(b->pages,b->length,destinations[0]))return 0;
-    if(!store_map(b,destinations[1])) {
-        uint8_t error=platform_error;
-        output_job_end();remove_output(destinations[1]);platform_error=error;
-        return 0;
-    }
     return 1;
 }
 uint8_t run_saved(const Source *s,Build *b,uint8_t *status) {
@@ -108,7 +93,7 @@ uint8_t run_saved(const Source *s,Build *b,uint8_t *status) {
     if(!build_ready(s,b)) {platform_error=ERR_FAILURE;return 0;}
     if(build_is_chain(b)) {platform_error=ERR_NOT_SUPPORTED;return 0;}
     if(!paths(s,0)) {platform_error=ERR_INVALID_PATH;return 0;}
-    if(!strcmp(s->path,destinations[0])||!strcmp(s->path,destinations[1])) {platform_error=ERR_INVALID_PATH;return 0;}
+    if(!strcmp(s->path,destinations[0])) {platform_error=ERR_INVALID_PATH;return 0;}
     build_close(b);
     if(b->map_page!=255||b->pages[0]!=255||b->pages[1]!=255||b->pages[2]!=255||b->sources.page!=255) {
         if(!platform_error)platform_error=ERR_FAILURE;return 0;
@@ -244,7 +229,7 @@ uint8_t save_build(const Source *s,const Build *b,uint8_t interruptible) {
 uint8_t prepare_build(const Source *s,uint8_t chain,uint8_t interruptible) SOURCE_BLOCK_CALL {
     uint8_t ok=0;
     output_job_begin(interruptible);
-    if(chain>1||!paths(s,chain)||!strcmp(s->path,destinations[0])||!strcmp(s->path,destinations[1])) {
+    if(chain>1||!paths(s,chain)||!strcmp(s->path,destinations[0])) {
         platform_error=ERR_INVALID_PATH;goto done;
     }
     if(!parent_dirs(destinations[0],1))goto done;

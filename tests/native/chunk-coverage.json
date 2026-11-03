@@ -248,8 +248,8 @@
         "check(run_saved(&s,&b,&status)&&status==0)",
         "check(!memcmp(before,after,7))",
         "check(!b.valid&&b.map_page==255&&pages_used()==code_required+1)",
-        "check(saved_location(s.path,0,pc,&found))",
-        "check(!strcmp(found.path,s.path)&&found.position==position)",
+        "check(compile(&s,&b,&d)&&build_locate(&s,&b,pc,&found))",
+        "check(found==position)",
         "check(pages_used()==code_required+1)",
         "check(!close(capture))",
         "check(source_new(&s,\"H:/OBASE.PAS\"))",
@@ -273,7 +273,8 @@
         "check(close(capture)==0)",
         "check(pages_used()==code_required)"
       ],
-      "current_calls_reason": "Retired multi-buffer compiler parameters; retained semantic and ownership assertions with single-root API."
+      "current_calls_reason": "Retired multi-buffer compiler parameters; retained semantic and ownership assertions with single-root API.",
+      "current_change": "TP3 Memory Run retains program pages; source-based error lookup replaces saved-map reading. Historical baseline is unchanged."
     },
     "tests/native/text-main.c": {
       "sha256": "ba38c9a73fb9769625f5a9e1cd37ac9ee096bb9605842487df8d8fcb160ec71c",

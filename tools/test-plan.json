@@ -18,8 +18,7 @@
     "tools/test-hooks.py",
     "tools/test-language.py",
     "tools/test-sources.py",
-    "tools/test-saved-map.py",
-    "tools/test-saved-map.py --native",
+    "tools/test-error-location.py",
     "tools/test-ide-sources.py",
     "tools/test-compiler-job.py",
     "tools/test-compiler-messages.py --native",
@@ -182,7 +181,7 @@
       "editor-native",
       "ide-sources",
       "ide-directory",
-      "saved-map:native"
+      "error-location"
     ],
     "compiler": [
       "native-host",

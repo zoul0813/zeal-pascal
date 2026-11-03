@@ -49,12 +49,12 @@ class Selection(unittest.TestCase):
                     ['tools/test-real.py', '--native']]
         self.assertEqual(runner.dependencies(ordinary, 3), ({1}, {2}))
 
-    def test_expansion_retains_every_original_check(self):
+    def test_expansion_retains_every_current_check(self):
         definition = json.loads(runner.PLAN.read_text())
         expanded = runner.expand_commands(definition)
         original = runner.expand_commands(definition, monolithic=True)
-        self.assertEqual(len(original), 66)
-        self.assertEqual(len(expanded), 140)
+        self.assertEqual(len(original), 65)
+        self.assertEqual(len(expanded), 139)
         expected = [command + shlex.split(suffix) for command in original
                     for suffix in definition.get('chunks', {}).get(' '.join(command), [''])]
         self.assertEqual(expanded, expected)

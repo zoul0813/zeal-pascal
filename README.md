@@ -239,6 +239,20 @@ read and checked when needed; startup does not scan their payloads or require an
 extra read to verify EOF. Informal user timing on physical TF hardware puts startup
 below two seconds, down from roughly 45 seconds before direct bank loading.
 
+Banks follow functional ownership: IDE/menu/display in bank 1, editor/block
+operations in bank 13, and shared source/file/transport services in bank 3. Compiler
+statements, parsing, calls, expressions, types, metadata, files, devices and
+lifecycle have designated banks 2, 4–7, 9–12 and 14–15. Runtime templates occupy bank 8
+and part of bank 11; transfer assets are contiguous in compiler bank 15. Resident
+mapping, console and source primitives keep caller-window pointers accessible.
+Byte emission and the disk sector cache are resident, avoiding a code-bank
+transition for every emitted byte. The runtime prefix is copied in bounded blocks.
+
+Memory Run executes the compiled image in place. Typed constants and program
+mutations survive subsequent Runs until recompilation, as documented by TP3.
+Only absent address-window backing is allocated; there is no fresh 48 KiB image
+clone per Run. Zeal resource cleanup and the retained IDE return gate still apply.
+
 At the startup message prompt, Y enables compiler explanations and N keeps
 numeric diagnostics. Missing explanations still leave the error number usable.
 The menu retains the last successful compilation's Main line count and code/data
@@ -281,16 +295,17 @@ One include level is supported, as in the recovered dialect; nested and
 self-inclusion are rejected. Repeated includes share one source identity.
 
 Main stays the compilation root when an error selects an included Work file.
-Compile and direct-run errors verify source identity before opening the actual
-file and positioning its cursor. As in TP3, there is one Work buffer: navigation
+Compile and direct-run errors retain the source filename and position before
+opening the actual file and positioning its cursor. As in TP3, there is one Work buffer: navigation
 to another file saves dirty Work first, and compiling a different Main saves
 dirty Work before reading Main. Repairing an include and pressing R saves that
 include to its actual file, then recompiles Main from disk. W reloads files from
 disk; its dirty-current prompt offers save/discard/cancel, and Quit resolves only
 the current Work. Failed/canceled saves or loads retain Work. A self-contained
-Work program still compiles/runs from RAM without saving. Saved COM/CHN and ZMP
+Work program still compiles/runs from RAM without saving. Saved COM/CHN
 output names follow Main when set. The IDE allocates no persistent source-catalog
-page; compiler/build source tables still support includes and error locations.
+page; compilation borrows Work and packs include text into one owned arena. Parsing
+releases include text, retaining compact filenames and statement positions only.
 
 Saved programs report runtime and I/O errors with a hexadecimal PC. Select the
 program's Main or Work source, choose O then F, and enter that PC (one to four
@@ -302,7 +317,7 @@ and saved-mode Start/End settings that produced the reported PC. Source changes 
 offsets. Overlay lookup remains unsupported.
 
 In Com-file mode, compiling the default source writes
-`T:/src/pascal/UNTITLED.COM` and `T:/src/pascal/UNTITLED.ZMP`.
+`T:/src/pascal/UNTITLED.COM`; no source-map sidecar is written.
 Run `T:/src/pascal/UNTITLED.COM` from ZShell. These are native Zeal Z80
 executables. Source must be saved separately with S.
 Saved compilation emits and backpatches code in a private `.$$$` disk workspace,
@@ -313,7 +328,7 @@ transient map/source-table pages after publication. R in saved mode recompiles a
 build before execution, then runs the disk executable. It does not reload a RAM
 cache after the child exits. Work stays in RAM. Disk compilation trades storage I/O for RAM capacity.
 
-H cHn-file mode writes a compact `.CHN` code payload and its `.ZMP` source map.
+H cHn-file mode writes a compact `.CHN` code payload.
 It omits the ordinary executable's runtime, globals and placement gaps. It uses
 the same direct output protocol. CHN files require a compatible caller;
 they cannot run directly from ZShell or R. A saved Pascal program can activate
@@ -362,8 +377,8 @@ Run/Execute to retain the previous thirteen-bank execution memory budget.
 This does not enable Pascal overlay compilation yet.
 
 Ctrl-U cancels compilation, including image preparation, scanning, code
-placement and final header/map construction. It also cancels source, Save As, block and executable/
-map publication between transfer chunks. Escape acknowledges the interruption;
+placement and final header/map construction. It also cancels source, Save As, block and executable
+publication between transfer chunks. Escape acknowledges the interruption;
 source edits and queued typing remain available. Filling the 32-key IDE typeahead
 queue also stops the operation instead of dropping ordinary keys. Incomplete
 builds are released, and the next R compiles again.
@@ -407,17 +422,10 @@ Directory operations create no files or paths. The footer says `Free space
 unavailable` because the supported SDK provides no free-capacity query.
 
 Source Save replaces the previous .BAK without an additional approval prompt,
-as TP3 does. Executable and map files are written separately and checked for
-reported transfer and close errors. There are no staged NEW/OLD/PRIOR copies,
-paired commits or repeated readback comparisons. The old map is removed before
-replacing an executable, so it cannot describe new code after an interrupted
-write. Generated outputs may be incomplete after failure and must be rebuilt.
-The pinned HostFS requires checked remove/recreate instead of in-place truncation.
-Zeal has no atomic rename/fsync guarantee.
-
-On the pinned machine, B: is a 64 KiB EEPROM volume; T: is the TF card. Direct
-publication writes the executable and map directly. During saved compilation,
-the private `.$$$` workspace also occupies disk space until the build closes.
+as TP3 does. The executable is written directly and checked for
+write/close errors. Error-location records remain private RAM data; F reconstructs
+locations by compiling source, so no ZMP reader or sidecar publication is needed.
+Saved compilation keeps its 128-byte disk sector cache only until the build closes.
 Native error 22 indicates no free space/resources. Historical ZP transaction
 folders are not created or managed by the current implementation. Memory mode
 needs no disk space: O, M, Q returns to the menu, then R compiles/runs from RAM.
@@ -507,8 +515,7 @@ establish full Turbo Pascal conformance.
 Generated code and static storage can occupy up to29,696 bytes above the fixed
 16 KiB runtime prefix, leaving at least2 KiB of initial stack space. Memory compilation
 uses an additional temporary page when code staging exceeds 16 KiB during parsing.
-After parsing, late helpers can use an unpacked source catalog's unused tail;
-larger catalogs retain separate staging. All staging ends before execution.
+All staging ends before execution.
 Work source can span banks up to 65,534 bytes, subject to available physical RAM.
 Globals share the actual native static/code capacity; they have no separate
 16 KiB compiler ceiling. Stack/heap checks still apply to actual program use.
@@ -519,9 +526,10 @@ Generated Pascal programs retain the complete math/runtime implementation.
 The compile API accepts one root Source; include contents are read from disk,
 with no parked-buffer overrides or input-catalog allocation.
 
-Owned root snapshots can share unused space with internal compilation source
-records; borrowed Work stays separate. Canonical source bytes, lengths and error
-mappings are retained. Larger sources use a separate table page. Symbols, types, routine records, relocations and temporary source
+The compiler borrows Work while editing is suspended. Include text shares an
+append-only page arena and is released after parsing. Compact filenames, lengths
+and statement positions remain for error locations; no canonical source copy
+is retained. Symbols, types, routine records, relocations and temporary source
 references share a growing compiler page arena. Small tables share physical
 pages; all arena pages are released when compilation ownership ends. Available
 physical RAM still limits compilation and execution capacity.

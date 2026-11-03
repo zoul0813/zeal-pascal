@@ -3,8 +3,6 @@
 #include <zos_vfs.h>
 
 extern uint8_t console_scratch[256];
-extern uint8_t get_bank(void) NATIVE;
-extern void code_restore(uint8_t page) NATIVE;
 static uint16_t word(uint8_t at) {
     return console_scratch[at]|((uint16_t)console_scratch[at+1]<<8);
 }

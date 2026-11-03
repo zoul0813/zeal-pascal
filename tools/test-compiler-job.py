@@ -35,12 +35,12 @@ checks={'native completion':memory.get(sym['_test_done'])==255 and word('_test_s
     'RAM and saved native programs execute':(disk/'JOBS.TXT').is_file()and(disk/'JOBS.TXT').read_bytes()==b'JOB-OK\r\n'*2,
     'Memory and saved compilation never silently save sources':all((disk/name).read_bytes()==content for name,content in fixtures.items()if name.endswith(('.PAS','.INC'))),
     'all owned transactions are cleaned':not any(p.name.startswith('ZP')for p in disk.iterdir()),
-    'include reads cannot retarget main outputs':(disk/'JOB.COM').is_file()and(disk/'JOB.ZMP').is_file()and not(disk/'PART.COM').exists()}
+    'include reads cannot retarget main outputs':(disk/'JOB.COM').is_file()and not(disk/'JOB.ZMP').exists()and not(disk/'PART.COM').exists()}
 try:
-    image=(disk/'JOB.COM').read_bytes();mapping=(disk/'JOB.ZMP').read_bytes();chain=(disk/'JOB.CHN').read_bytes()
-    from artifact_format import validate_pair
-    records=validate_pair(image,mapping)
-    checks['versioned main/map have checked ranges and source records']=len(records)==2
+    image=(disk/'JOB.COM').read_bytes();chain=(disk/'JOB.CHN').read_bytes()
+    from artifact_format import validate_image
+    validate_image(image)
+    checks['versioned main has checked image ranges']=True
     checks['versioned CHN has checked header and extent']=chain[:5]==b'ZCHN\2'and len(chain)==96+struct.unpack_from('<H',chain,12)[0]and chain[20:84]==bytes(64)
 except(OSError,ValueError,struct.error,AssertionError)as error:
     checks['independent artifact validation']=False

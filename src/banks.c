@@ -8,7 +8,6 @@
  * ordinary SDCC ABI is sufficient: no banked return addresses or hidden bank
  * state cross a syscall, far-page access, or Pascal RAM entry. */
 extern uint8_t code_select(uint8_t bank) NATIVE;
-extern void code_restore(uint8_t page) NATIVE;
 extern int app_main(void);
 uint8_t compiler_compile_project(const Source *root,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options);
 void compiler_build_close(Build *b);
@@ -29,7 +28,7 @@ static uint8_t capture_path(char *out,const char *name);
 uint8_t files_worker_control(uint8_t mode);
 
 uint8_t worker_control(uint8_t mode) {
-    uint8_t old=code_select(2),ok=files_worker_control(mode);
+    uint8_t old=code_select(CODE_SHARED),ok=files_worker_control(mode);
     code_restore(old); return ok;
 }
 
@@ -56,7 +55,7 @@ int main(int argc,char **argv) {
     if(!code_phase_restore())return 1;
 #endif
     code_ready();
-    old=code_select(0); result=app_main(); code_restore(old);
+    old=code_select(CODE_IDE); result=app_main(); code_restore(old);
     return result;
 }
 uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
@@ -76,38 +75,38 @@ uint8_t compile_request(const Source *root,Build *build,CompileFailure *failure,
     if(!compiler_resources_ready()||!code_phase_restore()) {
         memset(failure,0,sizeof(*failure));failure->diagnostic.code=COMPILE_PLATFORM_FAILURE;return 0;
     }
-    old=code_select(14);ok=compiler_compile_request(root,build,failure,mode,options);
+    old=code_select(CODE_PHASE_FIRST);ok=compiler_compile_request(root,build,failure,mode,options);
     code_restore(old);return ok;
 }
 void build_close(Build *b) {
-    uint8_t old=code_select(6); compiler_build_close(b); code_restore(old);
+    uint8_t old=code_select(CODE_BUILD); compiler_build_close(b); code_restore(old);
 }
 uint8_t build_check(const Source *s,const Build *b) {
-    uint8_t old=code_select(6),ok=compiler_build_check(s,b);
+    uint8_t old=code_select(CODE_BUILD),ok=compiler_build_check(s,b);
     code_restore(old); return ok;
 }
 uint8_t build_ready(const Source *s,const Build *b) {
-    uint8_t old=code_select(6),ok=compiler_build_ready(s,b);
+    uint8_t old=code_select(CODE_BUILD),ok=compiler_build_ready(s,b);
     code_restore(old); return ok;
 }
 uint8_t build_locate(const Source *s,const Build *b,uint16_t pc,uint16_t *position) {
-    uint8_t old=code_select(6),ok=compiler_build_locate(s,b,pc,position);
+    uint8_t old=code_select(CODE_BUILD),ok=compiler_build_locate(s,b,pc,position);
     code_restore(old); return ok;
 }
 uint8_t build_location(const Source *s,const Build *b,uint16_t pc,uint8_t *file,uint16_t *position) {
-    uint8_t old=code_select(6),ok=compiler_build_location(s,b,pc,file,position);
+    uint8_t old=code_select(CODE_BUILD),ok=compiler_build_location(s,b,pc,file,position);
     code_restore(old);return ok;
 }
 uint8_t image_get(const Build *b,uint16_t offset) {
-    uint8_t old=code_select(6),value=compiler_image_get(b,offset);
+    uint8_t old=code_select(CODE_BUILD),value=compiler_image_get(b,offset);
     code_restore(old); return value;
 }
 uint8_t save_build(const Source *s,const Build *b,uint8_t interruptible) {
-    uint8_t old=code_select(2),ok=files_save_build(s,b,interruptible);
+    uint8_t old=code_select(CODE_SHARED),ok=files_save_build(s,b,interruptible);
     code_restore(old); return ok;
 }
 uint8_t save_source(Source *s,uint8_t replace_backup,uint8_t interruptible) {
-    uint8_t old=code_select(2),ok=files_save_source(s,replace_backup,interruptible);
+    uint8_t old=code_select(CODE_SHARED),ok=files_save_source(s,replace_backup,interruptible);
     code_restore(old); return ok;
 }
 static uint8_t capture_path(char *out,const char *name) {
@@ -117,7 +116,7 @@ static uint8_t capture_path(char *out,const char *name) {
 uint8_t save_source_as(Source *s,const char *name,uint8_t replace_backup,uint8_t interruptible) {
     char path[128]; uint8_t old,ok;
     if(!capture_path(path,name)) { output_job_begin(0); return 0; }
-    old=code_select(2); ok=files_save_source_as(s,path,replace_backup,interruptible);
+    old=code_select(CODE_SHARED); ok=files_save_source_as(s,path,replace_backup,interruptible);
     code_restore(old); return ok;
 }
 uint8_t load_source(Source *s,const char *name,Diagnostic *d) {
@@ -125,28 +124,28 @@ uint8_t load_source(Source *s,const char *name,Diagnostic *d) {
      * the file bank. Other bank APIs accept only resident objects or scalars. */
     char path[128]; uint8_t old,ok;
     if(!capture_path(path,name)) { memset(d,0,sizeof(*d)); return 0; }
-    old=code_select(2); ok=files_load_source(s,path,d);
+    old=code_select(CODE_SHARED); ok=files_load_source(s,path,d);
     code_restore(old); return ok;
 }
 uint8_t reload_source(Source *s,const char *name,Diagnostic *d) {
     char path[128]; uint8_t old,ok;
     if(!capture_path(path,name)) { memset(d,0,sizeof(*d)); return 0; }
-    old=code_select(2); ok=files_reload_source(s,path,d);
+    old=code_select(CODE_SHARED); ok=files_reload_source(s,path,d);
     code_restore(old); return ok;
 }
 uint8_t run_saved(const Source *s,Build *b,uint8_t *status) {
-    uint8_t old=code_select(2),ok=files_run_saved(s,b,status);
+    uint8_t old=code_select(CODE_SHARED),ok=files_run_saved(s,b,status);
     code_restore(old); return ok;
 }
 uint8_t read_block(Source *block,const char *name,Diagnostic *d) {
     char path[128]; uint8_t old,ok;
     if(!capture_path(path,name)) { memset(d,0,sizeof(*d)); return 0; }
-    old=code_select(2); ok=files_read_block(block,path,d);
+    old=code_select(CODE_SHARED); ok=files_read_block(block,path,d);
     code_restore(old); return ok;
 }
 uint8_t save_block(const Source *s,uint16_t first,uint16_t last,const char *name,uint8_t replace,uint8_t interruptible) {
     char path[128]; uint8_t old,ok;
     if(!capture_path(path,name)) { output_job_begin(0); return 0; }
-    old=code_select(2); ok=files_save_block(s,first,last,path,replace,interruptible);
+    old=code_select(CODE_SHARED); ok=files_save_block(s,first,last,path,replace,interruptible);
     code_restore(old); return ok;
 }

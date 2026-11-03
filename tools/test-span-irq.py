@@ -86,6 +86,8 @@ def span_console(n, sym, blob, events, timings, proof):
                     word = lambda name: int.from_bytes(read(sym[name], 2), 'little')
                     proof.update(native_passed=word('_test_passed'), native_failed=word('_test_failed'),
                                  native_stage=word('_test_stage'))
+                    failures=read(sym['_test_failures'],2*min(proof['native_failed'],64)) if proof['native_failed'] else b''
+                    proof['failure_indices']=[int.from_bytes(failures[i:i+2],'little') for i in range(0,len(failures),2)]
                     proof['original_span_checks_pass'] = (proof['native_passed'] == 891 and
                                                          proof['native_failed'] == 0 and proof['native_stage'] == 79)
                     break
