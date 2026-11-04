@@ -20,6 +20,7 @@ uint8_t compiler_owned[8],compiler_allocating;
 uint8_t compiler_parent_owned[8];
 uint8_t console_scratch[256];
 static int fail_after=-1,fail_drop=-1;
+static uint8_t fail_final_disk_drop;
 static uint8_t clear_error_on_drop;
 static unsigned cleared_drop_errors;
 static unsigned checks,allocation_calls;
@@ -112,6 +113,9 @@ uint8_t page_new(uint8_t role) {
 }
 uint8_t page_drop(uint8_t p) {
     assert(p<64&&owned[p]);if(p==fail_drop)return 0;
+    if(fail_final_disk_drop&&cc.image&&cc.image->valid==2&&compiler_allocating==COMPILER_ALLOC_NONE) {
+        fail_final_disk_drop=0;platform_error=ERR_FAILURE;return 0;
+    }
     if(compiler_allocating==COMPILER_ALLOC_WORKER&&!(compiler_owned[p>>3]&(1u<<(p&7))))return 0;
     owned[p]=0;compiler_owned[p>>3]&=~(1u<<(p&7));compiler_parent_owned[p>>3]&=~(1u<<(p&7));if(clear_error_on_drop){if(platform_error)++cleared_drop_errors;platform_error=0;}return 1;
 }
@@ -1593,6 +1597,13 @@ static void compiler_capacity_cases(void) {
     snprintf(text+n,sizeof(text)-n,"var r:t199;begin r.n:=7;writeln(r.n)end.");
     load(text);check(compile(&s,&b,&d));check(cc.type_count>200);build_close(&b);
     n=(size_t)snprintf(text,sizeof(text),"type\n");
+    for(i=0;i<300;++i)n+=(size_t)snprintf(text+n,sizeof(text)-n,"t%u=record n:integer end;\n",i);
+    snprintf(text+n,sizeof(text)-n,"ordinal=0..100;var x:ordinal;begin x:=7;writeln(integer(x))end.");
+    load(text);check(compile(&s,&b,&d)&&cc.type_count>300);build_close(&b);
+    /* t249 has type ID256: narrowing it would turn a record into Integer. */
+    snprintf(text+n,sizeof(text)-n,"var x:t249;begin writeln(integer(x))end.");
+    load(text);check(!compile(&s,&b,&d)&&d.code==44);build_close(&b);
+    n=(size_t)snprintf(text,sizeof(text),"type\n");
     for(i=0;i<90;++i)n+=(size_t)snprintf(text+n,sizeof(text)-n,"t%u=(e%u);\n",i,i);
     snprintf(text+n,sizeof(text)-n,"var x:t89;s:set of t89;begin x:=e89;s:=[x];writeln(ord(x))end.");
     load(text);check(compile(&s,&b,&d));check(cc.type_count>90);build_close(&b);
@@ -2178,7 +2189,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes","filetokens","params","diskfiles","diskblocks","disklife","diskwide","textdisk","textseek","textnumber","textformat","textrecover","textnest","texteof","textedges","textargs","capacity","textpath","textrename","textrens","stdinput","stdoutput","stdpred","keyonly","keybuffer","keybreak","keyhigh"};
+            const char *fixtures[]={"strbounds","strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes","filetokens","params","diskfiles","diskblocks","disklife","diskwide","textdisk","textseek","textnumber","textformat","textrecover","textnest","texteof","textedges","textargs","capacity","textpath","textrename","textrens","stdinput","stdoutput","stdpred","keyonly","keybuffer","keybreak","keyhigh"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {

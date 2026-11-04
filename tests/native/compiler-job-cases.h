@@ -74,6 +74,12 @@ static void large_job_capacity(void) {
     check(b.valid==2&&b.pages[0]==255&&b.pages[1]==255&&b.pages[2]==255&&b.code_bytes>PAGE_SIZE&&build_check(&s,&b));
     test_image_hash(&b,actual);check(!memcmp(expected,actual,32));
     check(!memcmp(&s,&before,sizeof(s)));build_close(&b);check(cancel_prepared_build());
+    /* F uses the same disk backend without preparing/publishing output. */
+    compiler_disk_requested=1;check(compile_project(&s,&b,&d,1,&options));compiler_disk_requested=0;
+    {uint16_t position;check(b.valid==2&&!host_prepared);
+     check(build_locate(&s,&b,map_number(&b,0,2),&position));}
+    test_image_hash(&b,actual);check(!memcmp(expected,actual,32));
+    build_close(&b);check(pages_used()==24);
     for(allocation=0;allocation<required;++allocation) {
         fail_after=(int)allocation;
         check(!compile_request(&s,&b,&failure,1,&options));fail_after=-1;
@@ -137,6 +143,16 @@ static void disk_compiler_cases(void) {
     CompileOptions options={0,0xfbffu,COMPILE_PROGRAM};CompileFailure failure;Source before;
     uint8_t expected[32],actual[32],kind,quirk;unsigned fixture,operation,attempt,total[CD_OPERATIONS],nth;
     uint16_t i,length,origin,globals;uint32_t version;
+    /* Placement capacity errors must remain errors without keyboard polling. */
+    {
+        CompilerSources sources;memset(&sources,0,sizeof(sources));
+        load("begin end.");memset(&cc,0,sizeof(cc));memset(&b,0,sizeof(b));memset(&d,0,sizeof(d));
+        cc.image=&b;cc.error=&d;cc.sources=&sources;
+        check(cc_disk_begin(&b,&s,0));b.globals_bytes=CC_STATIC_LIMIT-0x4000u;
+        cc_disk_place(&b,0x8000u,0);check(d.code==99&&!compiler_disk_placed);
+        cc_disk_discard(&b);check(!compiler_spool.exists&&!compiler_spool.opened);
+        compiler_sdk_reset();
+    }
     for(fixture=0;fixture<sizeof(programs)/sizeof(programs[0]);++fixture)for(kind=0;kind<2;++kind) {
         load(programs[fixture].text);before=s;version=page_versions[s.page];
         options.start=programs[fixture].start;options.kind=kind?COMPILE_CHAIN:COMPILE_PROGRAM;
@@ -226,6 +242,19 @@ static void disk_compiler_cases(void) {
     check(!compiler_spool.exists&&!compiler_spool.opened&&pages_used()==1&&
           !memcmp(&s,&before,sizeof(s))&&page_versions[s.page]==version);
     compiler_sdk_reset();
+    /* Fail the post-compile release of a disk-loaded Main, after ownership
+     * checks and table cleanup. The dead local Build must not own the fd. */
+    {
+        static const HostSource root_file[]={{"H:/LOOKUP.PAS","begin writeln(7)end."}};
+        Source root;memset(&root,0,sizeof(root));root.page=255;strcpy(root.path,root_file[0].path);
+        disk_sources=root_file;disk_source_count=1;fail_final_disk_drop=1;
+        check(!compile_request(&root,&b,&failure,1,&options));
+        check(!fail_final_disk_drop&&failure.diagnostic.code==COMPILE_PLATFORM_FAILURE&&!b.valid);
+        check(!compiler_spool.exists&&!compiler_spool.opened&&pages_used()==1);
+        check(compile_request(&root,&b,&failure,1,&options));build_close(&b);check(cancel_prepared_build());
+        check(!compiler_spool.exists&&!compiler_spool.opened&&pages_used()==1);
+        disk_sources=0;disk_source_count=0;
+    }
 }
 
 static void compiler_job_cases(void) {
@@ -253,6 +282,13 @@ static void compiler_job_cases(void) {
     check(!b.valid&&pages_used()==1&&!memcmp(&s,&before,sizeof(s)));
     load("overlay procedure One;begin end;begin One end.");
     check(!compile_request(&s,&b,&failure,0,0)&&failure.diagnostic.code==77&&pages_used()==1);
+    {CompileOptions options={0,0xfbffu,COMPILE_PROGRAM};uint8_t mode;
+     for(mode=1;mode<=2;++mode) {
+        options.kind=mode==2?COMPILE_CHAIN:COMPILE_PROGRAM;
+        check(!compile_request(&s,&b,&failure,mode,&options)&&failure.diagnostic.code==12);
+        check(pages_used()==1&&!host_prepared&&!compiler_spool.exists&&!compiler_spool.opened);
+     }
+     prepares=host_prepares;cancels=host_cancels;}
     disk_sources=disk;disk_source_count=2;
     load("program Include;\n{$I BAD.INC}\nbegin end.");before=s;
     check(!compile_request(&s,&b,&failure,0,0));

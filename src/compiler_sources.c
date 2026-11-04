@@ -96,6 +96,7 @@ uint8_t cc_sources_prepare(const Source *root) ROUTINES {
  * statement positions survive with the build; no include text is retained. */
 uint8_t cc_sources_finish(void) ROUTINES {
     if(!cc_references_end()||!sources_finish(&cc.image->sources)){cc_fail(99);return 0;}
+    cc.sources->refs=0;
     return 1;
 }
 uint8_t cc_source_resume(void) ROUTINES {

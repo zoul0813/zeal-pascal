@@ -8,7 +8,9 @@ static uint16_t string_value(void) {
     uint16_t bytes;
     if(cc.token==')'||cc.token==','||cc.token==T_EOF) { cc_fail(41); return 0; }
     type=cc_text_value(cc_expression()); kind=cc_family(type);
-    bytes=kind==K_CHAR?2:kind==K_STRING&&CCT(type,width)?CCT(type,width):256;
+    /* Preserve TP3's permissive V-/raw string lengths without clipping them
+     * to a declared capacity. Every String/Copy slot can hold 255 bytes. */
+    bytes=kind==K_CHAR?2:256;
     if(kind==K_CHAR) {
         cc_temporary(2); cc_emit(0x3e); cc_emit(1); cc_emit(0x12);
         cc_emit(0x13); cc_emit(0x7d); cc_emit(0x12); cc_op16(0x21,0); cc_emit(0x39);

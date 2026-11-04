@@ -100,12 +100,11 @@ int app_main(void) {
             execution("begin stackptr:=$C800;halt end.",4,0);
             execution("begin stackptr:=$C800;exit end.",1,0);
             execution("begin stackptr:=$C800 end.",1,0);
-            /* Packing makes code/heap smaller. Grow the actual heap into the native
-             * stack window so these cases test1022/1024 headroom, independently of
-             * code size and the separate C800 platform floor. */
+            /* C services use their own module stack. Check the remaining
+             * Pascal gate/job headroom and the independent C800 floor. */
             checked_error("var f:file of integer;begin assign(f,'H:/BADSTACK.DAT');\nstackptr:=$C7FF end.",0xff,"stackptr");
             checked_error("var f:file of integer;pad:^byte;begin assign(f,'H:/BADSTACK.DAT');\n"
-                "if hi(heapptr)<$C8 then getmem(pad,$C800-heapptr);\nstackptr:=heapptr+1022;\nrewrite(f)end.",0xff,"rewrite");
+                "if hi(heapptr)<$C8 then getmem(pad,$C800-heapptr);\nstackptr:=heapptr+128;\nrewrite(f)end.",0xff,"rewrite");
             execution("var f:file of integer;i:integer;pad:^byte;begin assign(f,'H:/LOWHALT.DAT');\n"
                 "rewrite(f);i:=81;write(f,i);\nif hi(heapptr)<$C8 then getmem(pad,$C800-heapptr);\n"
                 "stackptr:=heapptr+1024;halt end.",4,0);

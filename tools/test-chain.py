@@ -128,7 +128,7 @@ def ide():
         checks.update({'every checkpoint reaches its actual native reader/screen':all(frame.startswith(f'{pc:04x} ')for(_,pc),frame in zip(labels,frames)),
             'H selects CHN and invalidates an old cache':read('chain-mode',opts+4,1)==b'\1'and read('chain-mode',build+4,1)==b'\0',
             'compile saves a compact chain and releases its RAM image without saving dirty source':read('compiled',build+4,1)==b'\0'and word('compiled',build+5)==96+word('compiled',build+9)and read('compiled',work+1,1)==b'\1',
-            'R compiles CHN on disk for rejection without a guest or RAM image':read('direct-run-rejected',build+4,1)==b'\2'and read('direct-run-rejected',build,3)==b'\xff'*3 and word('compiled',build+9)==word('direct-run-rejected',build+9)and read('direct-run-rejected',sym['_ram_result'],128)==bytes(128),
+            'R closes the disk CHN after rejection without entering a guest':read('direct-run-rejected',build+4,1)==b'\0'and read('direct-run-rejected',build,3)==b'\xff'*3 and word('compiled',build+9)==word('direct-run-rejected',build+9)and read('direct-run-rejected',sym['_ram_result'],128)==bytes(128),
             'physical VRAM explains direct-run rejection':b'Run CHN files with Chain(F)' in read('run-message',0x4000,640),
             'H-mode F finds the selected CHN using matching unsaved source':read('found',sym['_ide_state'],1)==b'\3'and read('found',work+1,1)==b'\1',
             'F returns to the exact chain statement in the editor':read('found-source',sym['_ide_state'],1)==b'\2'and word('found-source',work+4)==(prefix+source).index(b'n:=7'),

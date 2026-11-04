@@ -5,6 +5,9 @@
 .globl read_line,read_string,input_begin,input_value,input_end,memory_mode,io_error
 .globl buflen,cbreak,user_break
 .globl input_mode_value
+.globl input_reset,io_frame
+.globl input_state_begin,input_reset_count,echo_fd
+.globl _key_reset
 .globl normal_error,error_code,error_namespace
 .globl runtime_prefix_end
 .globl character,neg_hl,false_text,true_text
@@ -149,8 +152,15 @@ ram:
     ld (memory_mode),a
 start:
     ld ix,#0                    ; terminate the actual Pascal frame chain
+    xor a
+    ld (io_status),a
+    ld (error_code),a
+    ld (error_namespace),a
+    call input_reset
+    call _key_reset
     ld hl,#0
     ld (recursion_ceiling),hl
+    ld (io_frame),hl
     ld hl,#0xfe70               ; runtime-owned persistent module control
     ld de,#0xfe71
     ld bc,#31
@@ -1788,6 +1798,16 @@ fill_bytes_loop:
     ld a,b
     or c
     jr nz,fill_bytes_loop
+    ret
+; Runtime input is session state, separate from persistent Pascal data.
+input_reset:
+    ld hl,#input_state_begin
+    ld de,#input_state_begin+1
+    ld bc,#input_reset_count
+    ld (hl),#0
+    ldir
+    ld a,#255
+    ld (echo_fd),a
     ret
 runtime_prefix_end::
 .area _CODE

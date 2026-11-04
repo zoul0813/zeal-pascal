@@ -3,8 +3,10 @@
 #include "sources.h"
 #include "keys.h"
 #include "compiler_job.h"
+#include "compiler_disk.h"
 #include "compiler_messages.h"
 #include <zos_sys.h>
+#include <zos_errors.h>
 #include <zos_vfs.h>
 #include <zos_keyboard.h>
 #include <zos_video.h>
@@ -53,6 +55,12 @@ static void invalidate(void) {
     /* Work may be an include; its revision is independent of Main's. */
     build_close(&build);
     build.code_bytes=build.globals_bytes=0;
+}
+static void scratch_conflict(uint8_t error) {
+    if(error==ERR_ALREADY_EXIST) {
+        output("\nScratch file exists: ");output(cc_disk_path());
+        output("\nRemove it or rename it, then retry.\n");
+    }
 }
 static void lookup_failure(void) {
     output("\nSource lookup failed; Work retained. Press Escape");
@@ -389,7 +397,9 @@ static uint8_t compile_work(uint8_t running) {
     if(!ok) {
         build.code_bytes=build.globals_bytes=0;
         if(d.code==COMPILE_PLATFORM_FAILURE) {
-            file_error("Compile failed, native error ",platform_error);
+            uint8_t error=platform_error;
+            file_error("Compile failed, native error ",error);
+            scratch_conflict(error);
             search_ack("Source retained");return 0;
         }
         if(d.code==COMPILE_INTERRUPTED) {
@@ -470,7 +480,7 @@ static void option_address(uint8_t start) {
 static uint8_t find_saved(void) {
     char text[128],root[128],found_path[128];uint16_t found_position=0;
     Source source,located;Diagnostic error;
-    uint16_t pc,line,column;uint8_t field,file,loaded=0,ok;
+    uint16_t pc,line,column;uint8_t field,file,loaded=0,ok,interrupted,native_error;
     strcpy(root,main_file[0]?main_file:work.path);
     for(;;) {
         screen_clear();output("Find run-time error\nEnter PC: ");
@@ -491,13 +501,21 @@ static uint8_t find_saved(void) {
         loaded=1;
     }
     output("\nFinding position from source (Ctrl-U cancels)...\n");
+    compiler_disk_requested=saved_mode!=0;
     ok=compile_project(&source,&build,&error,1,&compile_options);
+    compiler_disk_requested=0;
+    native_error=error.code==COMPILE_PLATFORM_FAILURE?platform_error:0;
+    interrupted=error.code==COMPILE_INTERRUPTED?compile_interrupt_reason():0;
     if(ok)ok=build_location(&source,&build,pc,&file,&found_position)&&
         sources_get(&build.sources,file,&located);
     if(ok)strcpy(found_path,located.path);
     build_close(&build);
     if(loaded)source_discard(&work,&source);
-    if(!ok){lookup_failure();return 0;}
+    if(!ok){
+        if(interrupted)search_ack(interrupted==2?"Lookup interrupted: typeahead full":"*** LOOKUP INTERRUPTED");
+        else {scratch_conflict(native_error);lookup_failure();}
+        return 0;
+    }
     if(!select_error_source(found_path)) {lookup_failure();return 0;}
     if(strcmp(found_path,root)&&!main_file[0])strcpy(main_file,root);
     pc=source_editor_offset(&work,found_position);
@@ -717,6 +735,7 @@ int app_main(void) {
             if((saved_mode||!build.valid||!sources_get(&build.sources,0,&root)||!build_ready(&root,&build))&&!compile_work(1))continue;
             if(!sources_get(&build.sources,0,&root)) { lookup_failure();continue; }
             if(saved_mode==2) {
+                build_close(&build);
                 screen_clear();search_ack("Run CHN files with Chain(F) from a saved Pascal program");continue;
             }
             screen_clear(); output("Validating and preparing program...\n");

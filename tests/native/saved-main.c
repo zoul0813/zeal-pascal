@@ -1,5 +1,7 @@
 #include "harness.h"
 #include "sources.h"
+#include "compiler.h"
+#include "compiler_disk.h"
 volatile uint16_t test_passed,test_failed,test_stage,test_index,test_pc,test_io_pc;
 volatile uint16_t test_failures[64];
 volatile uint8_t test_done;
@@ -31,11 +33,39 @@ int app_main(void) {
     check(load_source(&s,"H:/project/many.pas",&d));
     check(compile(&s,&b,&d)&&b.sources.count==21&&b.sources.text_page==255);
     check(run_build(&s,&b)&&ram_result[26]==1);build_close(&b);
+    /* Permissive lengths and V- formals must never overrun String slots. */
+    check(load_source(&s,"H:/project/strings.pas",&d));
+    check(compile(&s,&b,&d)&&run_build(&s,&b)&&ram_result[26]==1);build_close(&b);
+    check(load_source(&s,"H:/project/casts.pas",&d));
+    check(compile(&s,&b,&d)&&run_build(&s,&b)&&ram_result[26]==1);build_close(&b);
+    /* The lookup compiler uses disk capacity, with no output preparation. */
+    check(load_source(&s,"H:/project/deep.pas",&d));
+    {CompileOptions options={0,0xfbffu,COMPILE_PROGRAM};
+     compiler_disk_requested=1;check(compile_project(&s,&b,&d,1,&options));compiler_disk_requested=0;
+     check(b.valid==2&&save_build(&s,&b,0));
+     {uint8_t status=255;check(run_saved(&s,&b,&status)&&status==0);}}
+    build_close(&b);
+    /* A checked I/O failure must not retain the old IOCALL landing. */
+    check(load_source(&s,"H:/project/ioframe.pas",&d));
+    check(compile(&s,&b,&d));
+    check(run_build(&s,&b)&&ram_result[26]==3);
+    check(run_build(&s,&b)&&ram_result[26]==1);build_close(&b);
     /* TP3 initializes typed constants at compilation, not each Memory Run. */
     check(load("const counter:integer=0;begin counter:=counter+1;writeln(counter)end."));
     check(compile(&s,&b,&d));
     check(run_build(&s,&b)&&ram_result[26]==1);
+    /* Leftover runtime internals must reset without resetting counter. */
+    far_set(b.pages[0],RT_IOSTATUS-0x4000u,9);
+    far_set(b.pages[0],cc_runtime_private(RP_LINE_VALID)-0x4000u,7);
+    far_set(b.pages[0],cc_runtime_private(RP_LINE_EOF)-0x4000u,1);
+    far_set(b.pages[0],cc_runtime_private(RP_LINE_REMAINING)-0x4000u,9);
+    far_set(b.pages[0],RT_HEAPPTR-0x4000u,0xf0);far_set(b.pages[0],RT_HEAPPTR-0x4000u+1,0xff);
+    b.versions[0]=page_versions[b.pages[0]];
     check(run_build(&s,&b)&&ram_result[26]==1&&build_check(&s,&b));
+    check(image_get(&b,RT_IOSTATUS-0x4000u)==0&&
+        image_get(&b,cc_runtime_private(RP_LINE_VALID)-0x4000u)==0&&
+        image_get(&b,cc_runtime_private(RP_LINE_EOF)-0x4000u)==0&&
+        image_get(&b,cc_runtime_private(RP_LINE_REMAINING)-0x4000u)==0);
     /* The final record must terminate lookup without wrapping a 16-bit sum.
      * All entries cover PC0, so PC1 scans the entire near-full map. */
     check(buffer_reserve(b.map_page,65528u));

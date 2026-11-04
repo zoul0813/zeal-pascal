@@ -12,7 +12,7 @@ uint8_t compiler_disk_requested;uint8_t compiler_disk_placed;
 static const Build *owner;
 static int8_t disk=-1;
 static char scratch[128];
-static uint8_t cache[128];uint8_t zero[128];uint8_t cached;uint8_t dirty;uint8_t placed;uint8_t sealed;uint8_t chain_kind;uint8_t owned;
+static uint8_t cache[128],zero[128],cached,dirty,placed,sealed,chain_kind,owned;
 static uint16_t cache_at,extent,code_at,code_bytes,globals,code_base,code_used;
 
 static uint8_t failure(void) {
@@ -66,6 +66,7 @@ static uint8_t sector(uint16_t at) {
 uint8_t cc_disk_active(const Build *b) {return owner==b&&disk>=0;}
 uint8_t cc_disk_ready(const Build *b) {return cc_disk_active(b)&&sealed;}
 uint8_t cc_disk_chain(const Build *b) {return cc_disk_active(b)&&chain_kind;}
+const char *cc_disk_path(void) {return scratch;}
 void cc_disk_discard(const Build *b) {
     uint8_t primary=platform_error;uint8_t e=0;
     if(owner!=b)return;
@@ -102,7 +103,7 @@ static uint8_t raw_get(uint16_t at) {return disk>=0&&sector(at)?cache[at&127u]:0
 static uint8_t global_space(uint16_t code_length) {
     uint16_t wanted,at,n,i;uint8_t bytes[128];
     if((uint32_t)PREFIX_BYTES+owner->globals_bytes+code_length>CC_STATIC_LIMIT-0x4000u) {
-        if(cc.polling&&!cc.error->code)cc_fail(99);return 0;
+        cc_fail(99);return 0;
     }
     wanted=(PREFIX_BYTES+owner->globals_bytes+127u)&0xff80u;
     if(wanted<=code_base)return 1;
@@ -137,6 +138,7 @@ uint8_t cc_disk_get(uint16_t at) {
     return raw_get(code_base+at-CC_CODE_BASE);
 }
 void cc_disk_place(Build *b,uint16_t origin,uint16_t bytes) {
+    if(!global_space(code_used))return;
     code_at=origin-0x4000u;code_bytes=bytes;globals=b->globals_bytes;placed=compiler_disk_placed=1;
 }
 static uint16_t image_offset(uint16_t at) {

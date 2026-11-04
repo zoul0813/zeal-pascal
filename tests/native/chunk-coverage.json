@@ -173,7 +173,7 @@
         "execution(\"begin stackptr:=$C800;exit end.\",1,0)",
         "execution(\"begin stackptr:=$C800 end.\",1,0)",
         "checked_error(\"var f:file of integer;begin assign(f,'H:/BADSTACK.DAT');\\nstackptr:=$C7FF end.\",0xff,\"stackptr\")",
-        "checked_error(\"var f:file of integer;pad:^byte;begin assign(f,'H:/BADSTACK.DAT');\\n\"\"if hi(heapptr)<$C8 then getmem(pad,$C800-heapptr);\\nstackptr:=heapptr+1022;\\nrewrite(f)end.\",0xff,\"rewrite\")",
+        "checked_error(\"var f:file of integer;pad:^byte;begin assign(f,'H:/BADSTACK.DAT');\\n\"\"if hi(heapptr)<$C8 then getmem(pad,$C800-heapptr);\\nstackptr:=heapptr+128;\\nrewrite(f)end.\",0xff,\"rewrite\")",
         "execution(\"var f:file of integer;i:integer;pad:^byte;begin assign(f,'H:/LOWHALT.DAT');\\n\"\"rewrite(f);i:=81;write(f,i);\\nif hi(heapptr)<$C8 then getmem(pad,$C800-heapptr);\\n\"\"stackptr:=heapptr+1024;halt end.\",4,0)",
         "execution(\"var f:file of integer;i:integer;pad:^byte;begin assign(f,'H:/LOWEXIT.DAT');\\n\"\"rewrite(f);i:=82;write(f,i);\\nif hi(heapptr)<$C8 then getmem(pad,$C800-heapptr);\\n\"\"stackptr:=heapptr+1024;exit end.\",1,0)",
         "execution(\"var f:file of integer;i:integer;pad:^byte;begin assign(f,'H:/LOWEND.DAT');\\n\"\"rewrite(f);i:=83;write(f,i);\\nif hi(heapptr)<$C8 then getmem(pad,$C800-heapptr);\\n\"\"stackptr:=heapptr+1024 end.\",1,0)",
@@ -192,7 +192,7 @@
         "check(close(capture)==0)",
         "check(pages_used()==code_required)"
       ],
-      "current_calls_reason": "User-directed TP3 audit11-13: explicit Close replaces implicit scope/heap finalization; remove recovery-directory policy and account for inline file blocks."
+      "current_calls_reason": "Native C services moved to module stacks. The negative Rewrite case tests128 bytes of Pascal gate/job headroom; the old1022-byte C-stack requirement no longer applies. Assertion count/order and historical baseline remain intact."
     },
     "tests/native/options-main.c": {
       "sha256": "70197a8251adbaf1828c4af365508a9c2aa3e2f1f521422a681ce70516c2bfa3",

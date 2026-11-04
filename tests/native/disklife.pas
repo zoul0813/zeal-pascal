@@ -28,7 +28,7 @@ begin
   assign(p^.f,'H:/RELEASE.DAT');rewrite(p^.f);
   i:=55;write(p^.f,i);close(p^.f);release(markptr);
 end;
-begin recurptr:=stackptr-2048;
+begin
   savedRP:=recurptr;first:=0;nested(3);if recurptr<>savedRP then halt;heapfiles;
   writeln('DISK-LIFETIME-OK');
 end.

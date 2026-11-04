@@ -3,6 +3,8 @@
 .globl memory_mode,call_error,val_dispatch,buflen,cbreak,user_break
 .globl _key_event,c_save,c_restore,io_check,io_fail,io_status
 .globl line_history
+.globl input_state_begin,input_state_end
+.globl input_reset_count
 .globl input_ready,input_advance,input_source,line_next,line_remaining,line_eof,line_valid
 .globl input_key,input_raw_key,input_mode,input_cleanup,input_fail,input_error,echo_fd,input_echo,input_open,input_close
 .globl input_mode_value,input_break,input_console_area,input_raw_buffer
@@ -15,6 +17,7 @@
 .equ input_raw_buffer, 0xfd00
 .equ raw_capacity, 32
 .area _REAL_DATA
+input_state_begin:
 line_next: .ds 2
 line_remaining: .ds 1
 line_valid: .ds 1               ; bit0 primary current; bit1 pending B+; bit2 primary sticky EOF
@@ -30,6 +33,8 @@ echo_byte: .ds 1                ; echo cannot overwrite retained raw events
 raw_pending: .ds 1
 raw_next: .ds 2
 input_token: .ds 31             ; short string: at most30 numeric bytes
+input_state_end:
+.equ input_reset_count,input_state_end-input_state_begin-1
 .area _CODE
 ; Bit0 forces a fresh B+ line. Bit1 primes bare Read immediately; fields stay
 ; lazy until their destination callbacks finish. Primary Input/Output share a

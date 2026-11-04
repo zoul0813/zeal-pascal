@@ -239,7 +239,7 @@ static TypeId intrinsic(uint8_t op) {
 static TypeId factor(void) {
     int16_t id,fn=-1;
     uint16_t before,value_before=cc.temporaries;
-    uint8_t negative;TypeId kind=K_INTEGER;
+    uint8_t negative;TypeId kind=K_INTEGER,cast_source;
     if(++cc.depth==0||!cc_stack_check()) { cc_fail(99); --cc.depth; return 0; }
     if(cc.token=='^') cc_control_literal();
     if(cc_is("nil")) { cc_op16(0x21,0); kind=K_NIL; cc_next(); }
@@ -272,14 +272,14 @@ static TypeId factor(void) {
     else if(cc.token==T_ID) {
         id=cc_lookup();
         if((id>=0&&CCS(id,role)==S_TYPE)||(id<0&&(fn=cc_predefined_type())>=0)) {
-            kind=id>=0?CCS(id,type):(uint8_t)fn;
+            kind=id>=0?CCS(id,type):(TypeId)fn;
             cc_next(); cc_expect('(',4);
             before=cc.temporaries;
-            negative=cc_text_value(expression()); cc_expect(')',5);
+            cast_source=cc_text_value(expression()); cc_expect(')',5);
             if(cc_family(kind)==K_POINTER||cc_family(kind)==K_REAL) cc_fail(30);
             else if(!cc_ordinal(kind)) cc_fail(44);
-            else if(cc_family(kind)==K_CHAR&&cc_family(negative)==K_STRING) cc_call(RT_STRINGCHAR);
-            else if(!cc_ordinal(negative)) cc_fail(cc_family(negative)==K_REAL?31:44);
+            else if(cc_family(kind)==K_CHAR&&cc_family(cast_source)==K_STRING) cc_call(RT_STRINGCHAR);
+            else if(!cc_ordinal(cast_source)) cc_fail(cc_family(cast_source)==K_REAL?31:44);
             cc_check_range(kind);
             if(CCT(kind,width)==1) { cc_emit(0x26); cc_emit(0); }
             cc_release(before);
@@ -350,7 +350,7 @@ static uint8_t text(TypeId kind) { return cc_family(kind)==K_STRING||cc_family(k
 static void hold_left(TypeId kind,uint16_t before) {
     if(cc_char_array(kind)) cc_text_value(kind);
     else if(cc_family(kind)==K_STRING&&cc.temporaries==before) {
-        cc_string_snapshot(CCT(kind,width)?CCT(kind,width):256);
+        cc_string_snapshot(256);
     }
 }
 /* Right-hand string results may lie below the saved left operand. Reading

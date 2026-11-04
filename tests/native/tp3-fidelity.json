@@ -215,12 +215,13 @@
         46,
         0,
         3
-      ]
+      ],
+      "repeated_memory_runs": "Native seed persists in the Build. Original two-run behavior was not established; state starts0 refers to a freshly compiled image."
     },
     "strings": {
       "audit_id": "TP3-29",
-      "change": "Use declared string capacities for borrowed snapshots and Copy results, width+1 for Char arrays,128 for ParamStr. Keep maximum256 slots where capacity is unknown or padding/concatenation can reach255.",
-      "regressions": "strlife.pas requires short borrowed/Copy/Char-array operands to stay below128 measured CPU stack bytes while preserving value and recovering StackPtr."
+      "change": "Source String snapshots and Copy use256-byte slots to preserve actual length bytes, including V- formals and unchecked overlong values. Char arrays use width+1, ParamStr128 and proven numeric bounds remain reduced.",
+      "regressions": "strbounds covers FillChar/length200/V- with Copy/Pos/concat/Write and stack canary; strlife allows384 bytes for256-byte String slots plus frame, retains Char-array128 bound and exact StackPtr restoration."
     },
     "console": {
       "audit_id": "TP3-30",
@@ -231,19 +232,20 @@
         "enabled": 1500,
         "saved": 848
       },
-      "native_regression": "184 control assertions including CTLFIXED in RAM/COM; full pause/queue/redirection/boundary gates pass."
+      "native_regression": "184 control assertions including CTLFIXED in RAM/COM; full pause/queue/redirection/boundary gates pass.",
+      "limitation": "Unchecked out-of-object stores reaching private native addresses are outside the fixed-False omission proof."
     },
     "recursion": {
       "audit_id": "TP3-25",
       "documented": "Manual286\u2013287/PDF308\u2013309: separate recursion stack; default RecurPtr=StackPtr-1024; A- saves and restores workspace.",
       "observed_original": "Original recursive local address stays constant; RecurPtr moves on entry and returns on exit. Assigned RecurPtr survives ordinary expressions.",
       "capture": "analysis/tp3-pass2-implementation/original-recursion/workspace/capture/report.json",
-      "native_adaptation": "Native Pascal workspace widths are copied; the existing native CPU lexical/callback frame ABI and Zeal bounds checks remain. Raw pointer numeric values and private workspace extents are native.",
+      "native_adaptation": "Static Pascal workspace saved/restored on the separate recursion stack; default split1024. Native file/transfer C uses private existing-module tail stacks, outside that split; Pascal gate/job frames retain64/256-byte guards.",
       "recursive_callback_evidence": {
         "capture": "analysis/tp3-pass2-implementation/original-recursive-callback/callback/capture/report.json",
         "original": "An older nested callback pointer invoked inside a recursive call sees the current static workspace (101,100), not the older activation values (102,101). Callback numeric address is stable in TP3; native adapter addresses/lifetime representation remain a Zeal ABI detail."
       },
-      "native_stack_services": "Ordinary helpers retain64 bytes of CPU headroom. Actual C file services reserve1024 additional bytes at entry; loading a file module no longer enlarges every later guard. Recursive file fixtures reposition RecurPtr before use; the documented1024-byte default is unchanged. Heavy native String argument lists can also require a larger gap; these fixtures reposition RecurPtr before use.",
+      "native_stack_services": "C file/transfer services use private module tail stacks; Pascal file/transfer call frames retain64/256-byte guards. RAM/COM recursive DiskLife/DiskWide use the default1024-byte split. Large native String argument lists may still need a larger CPU-stack gap.",
       "native_regression": "2109 core compiler/runtime assertions with zero failures;94 bridge assertions;143 hook assertions; RAM/COM recursive file lifetime, file type/storage, Text nesting, scope/heap cleanup and Inline fixtures. Final capture and input-stability checks are recorded in /private/tmp/tp3-stage6-*.log."
     },
     "memory_parameters": {
@@ -272,9 +274,9 @@
     },
     "disk_publication": {
       "audit_id": "TP3-11",
-      "change": "Source Save retains only previous source BAK and streams canonical Work text with trailing-space trimming, with no snapshot page. Executable and map are sequential direct writes. Remove ZP directories, NEW/OLD/PRIOR staging, paired commits/rollback, repeated readback and immediate saved-run revalidation.",
-      "retained": "Reported write/count/close errors, checked regular-file replacement for HostFS truncation, old-map invalidation before executable replacement, source RAM/identity retention on failure, BAK-preserving restore attempt.",
-      "limits": "Generated outputs may be incomplete on failure and need rebuilding. No atomic replacement or silent-medium-corruption detection is promised. Compilation still builds code in RAM; TP3-10 streaming emission remains open.",
+      "change": "Source Save retains only previous source BAK and streams canonical Work text with trailing-space trimming, with no snapshot page. Saved jobs emit to a .$$$ disk workspace and stream final COM/CHN directly. No ZMP sidecars, ZP transaction directories, paired rollback, repeated readback or immediate saved-run revalidation.",
+      "retained": "Reported write/count/close errors, checked regular-file replacement for HostFS truncation, source RAM retention on failure and BAK-preserving restore attempt. A foreign scratch collision is retained and reported with its exact path and remove/rename guidance.",
+      "limits": "Generated outputs may be incomplete on failure and need rebuilding. No atomic replacement or silent-medium-corruption detection is promised. The historical production measurement below predates streaming disk emission (recorded separately in disk_emission).",
       "production_measurement": {
         "before_library_bytes": 220210,
         "after_library_bytes": 211730,
@@ -343,7 +345,7 @@
     },
     "startup_phases": {
       "audit_id": "TP3-06",
-      "native_adaptation": "Fifteen total code banks after packing the compiler jobs with source services. Retain thirteen at startup; load two compiler-phase banks on first compilation. Validate the full library extent and EOF before startup.",
+      "native_adaptation": "Fifteen total code banks; retain thirteen at startup and load two compiler-phase banks on first compilation. Read each declared bank directly into its mapped16KiB page and compare the returned count. No full-library pre-read or EOF pass.",
       "saving_bytes": 49152,
       "scope": "Startup saves 49152 bytes against the original sixteen-bank eager load; total compiler bank count falls from 16 to 15, saving 16384 bytes while compiler phases are loaded. This does not establish an overall speedup.",
       "regressions": [
@@ -436,42 +438,88 @@
       "overlays_unchanged": true,
       "startup_policy_unchanged": true,
       "opus_consulted": false
+    },
+    "opus_catchup_20261103": {
+      "baseline_commit": "e9003b5",
+      "review_baseline": "013e79b",
+      "review_reports": [
+        "reviews/tp3-catchup-storage-20261103.md",
+        "reviews/tp3-catchup-runtime-20261103.md"
+      ],
+      "fixes": [
+        "Disk owner cleanup after failed final handoff; exact foreign-scratch conflict guidance; source-only F uses saved disk backend; CHN Run rejection closes Build; stale source-reference count retired.",
+        "Preserve all actual String length bytes with256-byte source/Copy slots; keep proven bounded temporaries. TypeId casts retain16-bit IDs.",
+        "File and transfer C stacks occupy existing module tails; nested FileCleanup uses retained relay. Default1024-byte Pascal recursion split works without fixture overrides.",
+        "Memory Run resets runtime-owned IO/error/input/key state while retaining Pascal data."
+      ],
+      "native_captures": {
+        "core": "analysis/native-slice/20261103T205941.426141Z-7220",
+        "files": "analysis/native-slice/20261103T205941.545320Z-7223",
+        "execute": "analysis/native-slice/20261103T205941.556341Z-7222",
+        "error_location": "analysis/native-slice/20261103T213829.759556Z-22333",
+        "ui": "analysis/native-slice/20261103T212002.595792Z-15618",
+        "chain": "analysis/native-slice/20261103T210753.766140Z-10371"
+      },
+      "artifacts": {
+        "bin": {
+          "bytes": 15068,
+          "sha256": "23d80e0115f67597ca220d192d848c1f6027828a0068350c994b9d09d14999b3"
+        },
+        "zpl": {
+          "bytes": 198136,
+          "sha256": "6f86ac274540619baf3ea9f21b83acefecadd8e9a16c7828dacd53ad81e884a8"
+        }
+      },
+      "combined_bytes": 213204,
+      "bytes_added_since_e9003b5": 58,
+      "no_extra_banks": true,
+      "scope": "Focused native emulator and sanitized host proof. Full plan and physical hardware not rerun. Original Random N<=0 behavior remains unverified; arbitrary unchecked private-memory corruption is outside console omission proof.",
+      "followup_fixes": [
+        "F preserves scratch-collision errors across loaded-Main release and generic source lookup cannot misattribute old scratch paths.",
+        "Nonpolling disk placement reports99 on capacity failure and stops before prefix writes.",
+        "Memory Run startup clears io_frame; final41-assertion test raises checked I/O error then verifies a zero landing before second-run I/O."
+      ],
+      "unresolved": [
+        "Repeated Assign without Close can exhaust16 native descriptors; closing on Assign breaks verified saved recursive FIBs. Requires lifetime-design/necessity review.",
+        "Original TP3 Random and generated typeahead persistence across repeated Memory Runs remain unverified."
+      ],
+      "review_status": "Both initial reviews and follow-ups succeeded. Final reset/docs/test edits follow the final Opus turn; fingerprints are stale and are not finalized. No third review claimed."
     }
   },
   "current_implementation": {
     "code_banks": 15,
     "startup_code_banks": 13,
-    "resident_bytes": 15054,
-    "library_bytes": 198092,
-    "linked_payload_bytes": 213146,
+    "resident_bytes": 15068,
+    "library_bytes": 198136,
+    "linked_payload_bytes": 213204,
     "native_metadata_directory_bytes_saved": 334,
     "source_logical_limit_bytes": 65534,
     "saved_code_sector_buffer_bytes": 128,
     "saved_image_ram_pages": 0,
     "qualification": "Bounded native emulator and host acceptance; not complete TP3 equivalence or physical hardware qualification.",
     "bank_bytes": [
-      13941,
+      14186,
       12640,
       14253,
       14119,
       11504,
-      12716,
-      14736,
+      12631,
+      14715,
       16243,
-      11749,
-      10935,
-      10419,
+      11638,
+      10853,
+      10438,
       11887,
       13611,
-      14565,
-      14728
+      14578,
+      14794
     ],
     "statement_map_record_bytes": 8,
     "saved_map_sidecars": false,
     "canonical_source_snapshots": false
   },
   "verification": {
-    "host_compiler_checks": 177734,
+    "host_compiler_checks": 178039,
     "host_editor_checks": 4010,
     "host_source_checks": 45809,
     "host_output_checks": 349746,
@@ -481,8 +529,8 @@
       "UndefinedBehaviorSanitizer"
     ],
     "native_capacity_report": "analysis/native-slice/20261102T045844.288585Z-43270/tp3-open-items.json",
-    "native_core_report": "analysis/native-slice/20261103T145427.665538Z-49428/report.json",
-    "native_execute_report": "analysis/native-slice/20261102T050904.009974Z-46955/execute-call-report.json",
+    "native_core_report": "analysis/native-slice/20261103T205941.426141Z-7220/report.json",
+    "native_execute_report": "analysis/native-slice/20261103T205941.556341Z-7222/execute-call-report.json",
     "opus_consulted": false,
     "native_core_passed": 2109,
     "native_core_failed": 0,
@@ -490,7 +538,8 @@
     "native_execute_compiler_assertions": 78,
     "native_compiler_handoff_passed": 944,
     "native_compiler_handoff_failed": 0,
-    "native_error_location_passed": 28,
-    "native_sources_passed": 65
+    "native_error_location_passed": 41,
+    "native_sources_passed": 65,
+    "earlier_run_counts_note": "native_compiler_handoff944 and native_sources65 refer to the pre-review e9003b5 captures retained under memory_and_banks_20261103.native_reports; these two suites were not rerun for this review."
   }
 }

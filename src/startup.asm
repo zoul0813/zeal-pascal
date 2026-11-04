@@ -162,7 +162,7 @@ _code_pages:: .ds 16
 _code_owned:: .ds 1
 _boot_error:: .ds 1
 _code_required:: .ds 1
-_code_version:: .ds 4          ; packager fills count and exact library SHA-256
+_code_version:: .ds 4          ; host-derived library build identifier
 .area _SYSTEM
 .area _TEXT
 .area _RODATA

@@ -211,7 +211,7 @@ set_source_files_properties(src/compiler_files.c src/compiler_io.c PROPERTIES
 # Byte emission and the disk sector cache are called by every compiler bank.
 # Retain them beside MMU primitives to avoid a bank transition per output byte.
 set_source_files_properties(src/compiler_emit.c src/compiler_disk.c PROPERTIES COMPILE_OPTIONS "--opt-code-size")
-set_property(SOURCE src/output.c src/image.c tests/native/job-main.c APPEND PROPERTY OBJECT_DEPENDS
+set_property(SOURCE src/main.c src/output.c src/image.c tests/native/job-main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/compiler_disk.h)
 set_source_files_properties(src/platform.c PROPERTIES COMPILE_OPTIONS "--opt-code-size")
 set_source_files_properties(src/compiler_chain.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK2;--constseg;BANK2")
@@ -274,7 +274,8 @@ target_compile_options(zcontroltest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_executable(zmaptest src/startup.asm src/banks.c tests/native/saved-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 target_include_directories(zmaptest PRIVATE src)
 target_compile_options(zmaptest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
-set_property(SOURCE tests/native/saved-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/path.h)
+set_property(SOURCE tests/native/saved-main.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/path.h ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/compiler_disk.h)
 add_executable(zdevtest src/startup.asm src/banks.c tests/native/devices-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 target_include_directories(zdevtest PRIVATE src)
 target_compile_options(zdevtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)

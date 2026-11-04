@@ -6,6 +6,7 @@ uint8_t cc_disk_begin(Build *b,const Source *root,uint8_t chain);
 uint8_t cc_disk_active(const Build *b);
 uint8_t cc_disk_ready(const Build *b);
 uint8_t cc_disk_chain(const Build *b);
+const char *cc_disk_path(void);
 void cc_disk_place(Build *b,uint16_t origin,uint16_t bytes);
 void cc_disk_seal(Build *b);
 void cc_disk_adopt(const Build *from,Build *to);

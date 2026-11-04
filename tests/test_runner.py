@@ -53,8 +53,8 @@ class Selection(unittest.TestCase):
         definition = json.loads(runner.PLAN.read_text())
         expanded = runner.expand_commands(definition)
         original = runner.expand_commands(definition, monolithic=True)
-        self.assertEqual(len(original), 65)
-        self.assertEqual(len(expanded), 139)
+        self.assertEqual(len(original), 66)
+        self.assertEqual(len(expanded), 140)
         expected = [command + shlex.split(suffix) for command in original
                     for suffix in definition.get('chunks', {}).get(' '.join(command), [''])]
         self.assertEqual(expanded, expected)

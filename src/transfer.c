@@ -67,7 +67,7 @@ void transfer_dispatch(TransferJob *job) CHAIN_CALL {
         transfer_load.ready=0; /* a rejected new request cannot commit old code */
         if(job->path<0xc800u||job->path>0xfb80u||
            job->caller.stack_pointer<0xcc00u||
-           job->caller.heap_frontier>job->caller.stack_pointer-1024u) {
+           job->caller.heap_frontier>job->caller.stack_pointer-256u) {
             job->error=0x20;job->detail=ERR_ENTRY_CORRUPTED;return;
         }
         for(i=0;i<sizeof(path);++i) {path[i]=PTR(job->path)[i];if(!path[i])break;}

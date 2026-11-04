@@ -11,8 +11,6 @@
  * physical Enter/Escape/Delete to CR/ESC/DEL; Ctrl-J remains LF. Each linked
  * image owns its own modifiers and release state. */
 uint8_t key_event(uint8_t raw) KEYCALL;
-#ifndef ZP_PASCAL_KEYS
-/* A native child may consume modifier releases while the IDE is suspended. */
+/* Begin an input session; a child may consume releases while the IDE waits. */
 void key_reset(void) KEYCALL;
-#endif
 #endif

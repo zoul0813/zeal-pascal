@@ -64,7 +64,8 @@
     "tools/test-ide-interrupt.py --console",
     "tools/test-ide-sources.py --messages",
     "tools/test-options.py --paths",
-    "tools/test-runtime-layout.py @params"
+    "tools/test-runtime-layout.py @params",
+    "tools/test-review-ui.py"
   ],
   "redundant": [
     "tools/test-native.py --core-only",
@@ -181,7 +182,8 @@
       "editor-native",
       "ide-sources",
       "ide-directory",
-      "error-location"
+      "error-location",
+      "review-ui"
     ],
     "compiler": [
       "native-host",

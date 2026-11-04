@@ -4,8 +4,12 @@
 .area _TEXT
 ; A=file operation mode, DE=stack job. Save the enclosing transport's prefix,
 ; mode and borrowed handle across a nested FileGate call. Mode1 never frees.
+; Only six-byte FileCleanup jobs cross this boundary. Relay them through the
+; retained transition gap: the coordinator's C stack disappears when F1 maps
+; the file module. FC00..FC7F is free in saved transfers (never Memory Run).
 _transfer_file_call::
     push af
+    ld (transfer_file_job),de
     ld a,(0xfe74)
     push af
     ld a,(0xfe76)
@@ -16,11 +20,22 @@ _transfer_file_call::
     ld (0xfe74),a
     ld a,(0xfe75)
     ld (0xfe76),a
+    ld (transfer_file_sp),sp
+    ex de,hl
+    ld de,#0xfe68
+    ld bc,#6
+    ldir
     ld hl,#7
     add hl,sp
     ld a,(hl)                 ; saved A, above the saved flags byte
-    ex de,hl
+    ld hl,#0xfe68
+    ld sp,#0xfc80
     call 0xfe90
+    ld sp,(transfer_file_sp)
+    ld hl,#0xfe68
+    ld de,(transfer_file_job)
+    ld bc,#6
+    ldir
     pop af
     ld (0xfe7e),a
     pop af
@@ -85,3 +100,6 @@ commit_word:
     jp (hl)
 commit_end:
 transfer_commit_end::
+.area _DATA
+transfer_file_sp: .ds 2
+transfer_file_job: .ds 2

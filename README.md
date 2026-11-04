@@ -11,8 +11,9 @@ artifacts were unchanged for that correction. This is bounded host/emulator
 acceptance, not exhaustive equivalence or physical hardware qualification.
 Optimization is next; overlays and optional CRT/graphics/library work remain deferred.
 
-Explore [six self-contained applications](examples/README.md): a text adventure,
-persistent stock database, loan calculator, concordance, Life simulation and
+Explore [nine self-contained applications](examples/README.md): a text adventure,
+persistent stock database, loan calculator, recursive expression interpreter,
+Queens solver, two-program measurement lab, concordance, Life simulation and
 heap-backed task manager. Each includes a standalone `.bin`, source, run
 instructions and a short demo.
 
@@ -474,6 +475,18 @@ platform adaptation. No private association registry or lazy registry page remai
 A32-byte native descriptor ledger prevents copied/forged blocks from closing
 another variable's OS handle. Assign initializes the association without implicitly
 closing a prior descriptor; use explicit Close before reassigning an open file.
+
+For file-heavy Pascal deployments, provision32 or64 entries through the kernel's
+supported configuration: `CONFIG_KERNEL_MAX_OPENED_DEVICES` (per-program files
+and devices) and `CONFIG_KERNEL_MAX_OPENED_FILES` (kernel open-file slots).
+Both settings support16..128. Console devices and other open resources also
+consume capacity. This is capacity planning, not a fix for abandoned handles:
+the current Pascal runtime still accepts only descriptor numbers0..15, so larger
+kernel pools require a matching runtime change before Pascal can benefit.
+The default16-entry configuration remains supported;32/64 is not a current
+Pascal requirement or a measured minimum. Descriptor retirement remains an open
+runtime issue independently of pool size.
+
 Disk Text files support formatted Write/Writeln, Char/String/Integer/Byte/Real
 Read/ReadLn, Eof, Eoln, SeekEof and SeekEoln. Text output uses CR/LF and a final
 Ctrl-Z; input accepts physical EOF as well. Eof/Eoln inspect the next byte;
@@ -607,9 +620,9 @@ still consume a header. HeapPtr exposes the heap frontier. RecurPtr is the
 read/write pointer to TP3's separate recursion stack, initially StackPtr minus
 1024 bytes. `$A-` saves and restores each routine's Pascal workspace there;
 ordinary expressions and CPU-stack checks leave RecurPtr unchanged. Reposition
-it before those stacks or the heap are in use. Zeal's C file services need
-1024 bytes plus native call/helper space on the CPU stack: recursive programs
-using them must lower RecurPtr first (the file fixtures use StackPtr minus2048).
+it before those stacks or the heap are in use. Native file and transfer C services use private stacks in their existing module
+pages, preserving the documented default recursion split. Their Pascal call
+frames still receive ordinary stack checks.
 Large native String argument lists can also need a larger CPU-stack gap.
 Bounds checks reject collisions with live recursion data. StackPtr reads the
 CPU stack; assigning a saved value restores it
@@ -723,16 +736,27 @@ Real6-range argument reduction; ArcTan returns the principal radian angle.
 Their private calculations retain enough precision for the specified accuracy
 and correctly handle the minimum-magnitude input.
 
-String snapshots and Copy results use their declared capacity when known;
-Char-array conversion reserves its width plus the length byte. ParamStr reserves
-128 bytes for the native127-byte command tail. Unknown-capacity results,
-concatenation and padded fields retain a256-byte slot where255 characters are
-possible. These bounds preserve evaluation order and invocation ownership.
+Assign overwrites the file binding without Pascal Close. On Zeal, an older native
+handle may still belong to a saved recursive workspace, so it stays owned until
+explicit Close after restoration or terminal cleanup. Repeated Assign without
+Close can exhaust the16 native descriptors. Closing an outer call's handle
+without reopening it when that call resumes breaks recursive-file behavior.
+Acquiring disk handles per file operation is being investigated as a way to
+release them while preserving the saved Pascal file state.
+
+Source String snapshots and Copy results reserve256 bytes: V- formals, Move,
+FillChar and unchecked indexing can expose a length beyond the declared capacity.
+Lengths are preserved rather than clipped. Numeric formatting snapshots retain
+their proven bounds; Char-array conversion uses width plus one, and ParamStr
+reserves128 bytes for the native127-byte command tail. These bounds preserve
+evaluation order, invocation ownership and the caller stack.
 
 When `$C-` fixes CBreak false and no source construct can change it, generated
 programs omit the console flow wrappers and their keyboard dependency. CBreak
 references, hooks, absolute aliases, raw memory/code, Ptr, External and transfers
 retain the support. Explicit keyboard/interrupt use keeps its required engine.
+Unchecked out-of-object stores can still alter native private addresses; those
+effects are outside this omission proof.
 The small `writeln('x')` example generates652 bytes with fixed `$C-`, versus1500
 with console control enabled. Enabled flow still classifies stdout per character
 because callbacks can rebind it; no descriptor cache is added.

@@ -10,8 +10,8 @@
 .equ transfer_unwind_bytes, transfer_frame_bytes+2
 .area _HEADER (ABS)
 .org 0x8000
-; HL is the once-evaluated ordinary FileJob. The compiler reserves256 bytes
-; plus 1024 bytes of C service stack before entry.
+; HL is the once-evaluated ordinary FileJob. The compiler reserves256 bytes;
+; module C runs on its own stack, outside the Pascal recursion split.
 transfer_call_start::
     ld a,(0x4164)
     or a

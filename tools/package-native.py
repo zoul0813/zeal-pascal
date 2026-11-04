@@ -300,7 +300,7 @@ def validate_trampoline(path):
             or symbols['worker_control_data'] != 0xfd50
             or symbols['worker_gate'] != 0xfda0
             or symbols['worker_return'] != 0xfe40
-            or not 0xfe40 < symbols['worker_end'] <= 0x10000):
+            or not 0xfe40 < symbols['worker_end'] <= 0xfe68):
         raise ValueError('RAM transition/service extents overlap or escape their page')
     expected = b'ZWRK\x01' + bytes(11)
     if bytes(memory.get(at, 0) for at in range(0xfd50, 0xfd60)) != expected:
@@ -313,10 +313,12 @@ def validate_trampoline(path):
 
 def validate_file_runtime(path, transfer=False):
     memory, symbols = read_hex(path), read_symbols(path)
-    limit=0x7800 if transfer else 0x8000
+    # C stack lives in the module tail: 1 KiB for files, plus a disjoint
+    # 1 KiB alias stack for Execute in the transfer coordinator.
+    limit=0x7800 if transfer else 0x7c00
     if not memory or min(memory) != 0x4000 or max(memory) >= limit:
         raise ValueError('file runtime exceeds its owned code/data extent')
-    entries=('_transfer_dispatch','_transfer_cleanup')if transfer else('_zf_dispatch','_zf_cleanup')
+    entries=('transfer_dispatch_entry','transfer_cleanup_entry')if transfer else('file_dispatch_entry','file_cleanup_entry')
     for entry, name in zip((0x4000,0x4003),entries):
         if bytes(memory.get(entry+i, 0) for i in range(3)) != b'\xc3'+struct.pack('<H', symbols[name]):
             raise ValueError('file module entry misplaced: '+name)

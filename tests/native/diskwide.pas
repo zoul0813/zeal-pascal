@@ -11,4 +11,4 @@ begin
   for i:=1 to 300 do if b[i]<>i mod 251 then halt;
   close(f);
 end;
-begin recurptr:=stackptr-2048; transfer;writeln('DISK-WIDE-OK')end.
+begin transfer;writeln('DISK-WIDE-OK')end.

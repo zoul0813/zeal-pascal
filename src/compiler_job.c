@@ -120,6 +120,7 @@ platform:
     if(!platform_error)platform_error=ERR_FAILURE;
 done:
     compiler_invocation=0;
+    if(!ok)cc_disk_discard(&built);
     {
         uint8_t primary=platform_error;
         if(!compiler_resources_ready()) {ok=0;failure->diagnostic.code=COMPILE_PLATFORM_FAILURE;}

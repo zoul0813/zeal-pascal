@@ -30,7 +30,8 @@ static uint16_t field(uint8_t numeric) {
     else if(kind==K_ARRAY||kind==K_RECORD) cc_fail(62);
     else if(kind==K_SET) cc_fail(66);
     else if(kind>K_CHAR&&kind!=K_REAL) cc_fail(44);
-    if(kind==K_STRING&&cc.temporaries==before) cc_string_snapshot(CCT(type,width)?CCT(type,width):256);
+    /* V- formals and raw memory writes can expose any byte-sized length. */
+    if(kind==K_STRING&&cc.temporaries==before) cc_string_snapshot(256);
     push_word();
     if(cc.token==':') {cc_next();integer_field();}
     else cc_op16(0x21,kind==K_REAL?18:0);

@@ -117,6 +117,7 @@ uint8_t cc_place_code(void) FRONTEND {
     }
     cc.image->code_origin=origin;cc.image->code_bytes=count;
     if(cc_disk_active(cc.image))cc_disk_place(cc.image,origin,count);
+    if(cc.error->code)return 0;
     /* Bind the private key dispatch only after final placement is known.
      * Both RAM and saved images own their typeahead state and exact target. */
     if(cc.keyboard_entry)

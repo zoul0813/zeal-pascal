@@ -131,7 +131,7 @@ static void engine(void) {
     cc_patch(bootstrap);
     cc_emit(0xfd); cc_emit(0xe5); cc_emit(0xe5); /* old IY and caller job */
     cc_op16(0x3a,0xfe74); cc_emit(0xb7); ready=cc_forward(0xc2);
-    guard(1024); /* first load, before increasing the active emergency budget */
+    guard(64); /* allocation/unpack assembly; C uses the module's own stack */
     cc_op16(0x3a,0xfe78); cc_emit(0xb7); normal=cc_forward(0xca);
     cc_emit(0xaf); cc_op16(0x11,0); cc_op16(0xcd,0xfda0); allocated=cc_forward(0xc3);
     cc_patch(normal);
@@ -159,7 +159,7 @@ static void engine(void) {
     cc_op16(0x21,0xfe90); cc_op16(0x22,0xfc81);
     cc_patch(bootstrap);
     cc_patch(ready);
-    guard(1024); /* reserve C service stack only while entering the module */
+    guard(64); /* retained gate/register frame, independent of the C stack */
     cc_emit(0xe1); cc_emit(0xe5); cc_emit(0xe5); cc_emit(0xfd); cc_emit(0xe1); /* IY=job */
     cc_op16(0x2a,RT_HEAPFLOOR); index_store(0x75,14); index_store(0x74,15);
     cc_op16(0x2a,RT_HEAPPTR); index_store(0x75,16); index_store(0x74,17);
@@ -219,7 +219,7 @@ static void invoke(uint16_t base) {
 uint16_t cc_file_default_output(void) FRONTEND {
     uint16_t entry=cc.emitted,base;
     TypeId type;
-    guard(1024);
+    guard(64);
     cc_op16(0x2a,RT_PC); cc_emit(0xe5);
     cc_op16(0x21,4); cc_emit(0x39); cc_emit(0x46);
     cc_temporary(2); cc_emit(0x3e); cc_emit(1); cc_emit(0x12); cc_emit(0x13); cc_emit(0x78); cc_emit(0x12);
