@@ -108,3 +108,8 @@
 # Operation-scoped disk-handle review.
 !/reviews/disk-handles-20261104.md
 !/reviews/disk-handles-evidence-20261104.json
+
+# Native Pascal CRT acceptance and reconciled review.
+!/tools/test-crt.py
+!/reviews/crt-20261104.md
+!/reviews/crt-evidence-20261104.json

@@ -1,0 +1,179 @@
+{
+  "date": "2026-11-04",
+  "scope": "Eleven native Pascal CRT/timing procedures; CP/M services and native printer omitted; input/error hooks and overlays deferred. Bounded emulator and sanitized host qualification; physical display/timing and full product acceptance not claimed.",
+  "procedures": [
+    "ClrScr",
+    "ClrEol",
+    "GotoXY",
+    "InsLine",
+    "DelLine",
+    "CrtInit",
+    "CrtExit",
+    "LowVideo",
+    "NormVideo",
+    "HighVideo",
+    "Delay"
+  ],
+  "runtime_extent_bytes": 16191,
+  "pascal_crt_assertions_per_mode": 57651,
+  "pascal_crt_assertions_total": 115302,
+  "native_crt_supervisor_assertions": 167,
+  "sanitized_host": {
+    "command": "python3 tools/test-native-host.py --sanitize",
+    "exit_code": 0,
+    "compiler_identity_allocation_assertions": 178526,
+    "key_assertions": [
+      104,
+      98
+    ],
+    "editor_assertions": 4010,
+    "source_assertions": 45809,
+    "runner_tests": 23,
+    "chunk_tests": 6,
+    "log_sha256": "20764111cfe789dd3a296327783e16bd3ebf42ef9af44168a5b266e02797bcd8"
+  },
+  "reports": {
+    "crt": {
+      "report": "analysis/native-slice/20261104T173009.962108Z-46203/crt-report.json",
+      "report_sha256": "9b842d8f7a29b550f2db925f765d4e7f134d98a49b795ed5d6b9368abbd8d8c8",
+      "passed": true,
+      "checks": {
+        "native millisecond sleep arguments, zero and25 in RAM andCOM; pending I/O suppresses sleep": true,
+        "native completion": true,
+        "RAM/COM screen, cursor/color restoration, bounds, syntax, ownership and machine-state assertions": true,
+        "exact program results after whole-screen character/attribute comparisons": true,
+        "implementation and artifacts unchanged during validation": true
+      },
+      "native_assertions_passed": 167
+    },
+    "hooks": {
+      "report": "analysis/native-slice/20261104T171056.905612Z-37431/hooks-report.json",
+      "report_sha256": "2d435c7028caf864873b9af315e7944d4563e95a5db07220ff91b45072db8be7",
+      "passed": true,
+      "checks": {
+        "native completion": true,
+        "RAM/saved callback frames, default restoration, pending errors, source and mappings": true,
+        "exact formatted/captured device and console results": true,
+        "saved default adapter and independent default Usr reach actual physical video": true,
+        "saved Aux adapter bypasses its replacement, directly and from a captured callback": true,
+        "explicit Close finalizes callback, caller and heap files": true,
+        "all source/build/platform inputs unchanged": true
+      },
+      "native_assertions_passed": 143,
+      "qualification_stage": "Passing pre-follow-up-correction snapshot; no claim these earlier binaries contain the final cursor-only corrections. Final host/CRT/complete Chain reports bind the final source and affected binaries."
+    },
+    "params": {
+      "report": "analysis/native-slice/20261104T171056.836655Z-37427/params-report.json",
+      "report_sha256": "dd2b99d1036272d2be7c20c65302fefe831dae10ba9a128f9aab91b35b65b767",
+      "passed": true,
+      "checks": {
+        "native completion marker": true,
+        "RAM/COM, oversize rejection, page ownership, stack/MMU/IFF and immutable build assertions": true,
+        "exact case, spaces/tabs, literal quotes, 127-byte/64-word boundaries and no RAM tail leakage": true,
+        "pending I/O failure survives parameter queries without modifying the read-only fixture": true,
+        "implementation and artifacts unchanged during validation": true
+      },
+      "native_assertions_passed": 77,
+      "qualification_stage": "Passing pre-follow-up-correction snapshot; no claim these earlier binaries contain the final cursor-only corrections. Final host/CRT/complete Chain reports bind the final source and affected binaries."
+    },
+    "editor_source_errors": {
+      "report": "analysis/native-slice/20261104T171227.837396Z-38006/editor-report.json",
+      "report_sha256": "2025adbb6bbb6d8537b4f1b84e5bf4f25dc008f2f74977bbead5e1976c5b77cc",
+      "passed": true,
+      "checks": {
+        "runtime-error checkpoints reach the actual IDE reader": true,
+        "edited source compiles/runs to actual runtime02 diagnostic": true,
+        "runtime error retains exact dirty editor snapshot identity": true,
+        "recovered source saves exact edited bytes and original backup": true,
+        "Escape returns to diagnosed statement with edited source": true,
+        "source/build/emulator inputs unchanged": true
+      },
+      "native_assertions_passed": null,
+      "qualification_stage": "Passing pre-follow-up-correction snapshot; no claim these earlier binaries contain the final cursor-only corrections. Final host/CRT/complete Chain reports bind the final source and affected binaries."
+    },
+    "chain_full": {
+      "report": "analysis/native-slice/20261104T173009.913496Z-46202/chain-report.json",
+      "report_sha256": "38effda3c9fafb99bdfac814d31eb639e5e07f5e70d334d3c8d09bd16320a2f3",
+      "passed": true,
+      "checks": {
+        "native component completes": true,
+        "native compilation, CHN run rejection, publication, F lookup and ownership": true,
+        "source files remain unchanged": true,
+        "successful replacement cleans only its transaction directories": true,
+        "CHN compilation does not produce an ordinary COM": true,
+        "independent CHN/COM format bounds match": true,
+        "chain uses the requested Start/End and omits runtime/globals": true,
+        "test-only replay enters the real generated program and reaches Done": true,
+        "ordinary shared string and Integer retain caller values": true,
+        "all program prefix/private hook bindings replace stale caller data": true,
+        "replacement initializes writable typed constant and uses native callbacks correctly": true,
+        "all physical IDE checkpoints reached": true,
+        "every checkpoint reaches its actual native reader/screen": true,
+        "H selects CHN and invalidates an old cache": true,
+        "compile saves a compact chain and releases its RAM image without saving dirty source": true,
+        "R closes the disk CHN after rejection without entering a guest": true,
+        "physical VRAM explains direct-run rejection": true,
+        "H-mode F finds the selected CHN using matching unsaved source": true,
+        "F returns to the exact chain statement in the editor": true,
+        "C restores ordinary output kind and discards the CHN cache": true,
+        "Main identity and dirty source survive all mode/recovery transitions": true,
+        "CHN output needs no source-map sidecar": true,
+        "no implicit PAS save or COM creation": true,
+        "all inputs remain unchanged": true
+      },
+      "native_assertions_passed": 27
+    }
+  },
+  "artifacts": {
+    "build/zpascal.bin": {
+      "bytes": 15068,
+      "sha256": "5e7e42bcfb955b6a48e461191b90e3b5cd34d78882a1bb68c592b5f6489c70a4"
+    },
+    "build/zpascal.zpl": {
+      "bytes": 201492,
+      "sha256": "4f946a493f6ad9b97f196dae1d68abee78fdc73cbf8e81cb6aa9d03921aafe1e"
+    },
+    "build/pascal_runtime.zpl": {
+      "bytes": 16191,
+      "sha256": "1da9d420f5598640ed57fa37b099faf09c76fa60dbae31a212b1b341aadf53a3"
+    },
+    "build/pascal_runtime.private": {
+      "bytes": 50,
+      "sha256": "114992330e0837add3aace328ff3d03519f8e4e1c242975b60d39bec98c38a1a"
+    },
+    "build/pascal_runtime.profile": {
+      "bytes": 4,
+      "sha256": "aa506280f469d080a31952366e8c8ebe96a05201f858a0c5e08bca9834b871c0"
+    },
+    "build/zcrttest.bin": {
+      "bytes": 15664,
+      "sha256": "5fe8dbfeb2e6bdca78efa625baf18c3e144a44050f80f7142f1cab26d7ceabd6"
+    },
+    "build/zcrttest.zpl": {
+      "bytes": 178347,
+      "sha256": "8a7b40b3d2de2e483bbe4aff35f9c28b8c5ee7c5f43bd8dd49cba2f9e5bac752"
+    }
+  },
+  "source_sha256": {
+    "src/compiler.c": "1cf745d81376910d0597477c3c9d3fd2abc9af333c294db9e6eb134ebdd4dc30",
+    "src/compiler.h": "58b14ced96e0635c480521f0f32290b011a7949c1a5a960f5e5d7a63a0dd69d7",
+    "src/compiler_console.c": "f13518d341351ee217de942a88a5a6433c92bf06b4118c4e5061fb5120ed24fc",
+    "src/compiler_activation.c": "7f657cb7b2eba6fa0eb762dbd8823fbbc0e0935544e19329b2aa14ebed0924b0",
+    "src/runtime.asm": "65b6371efa9919a2d382899b3da623acd267a80fb9f741c256adfbdc1ab39408",
+    "tools/package-native.py": "2c69d478b614e2fd604480ed4891bc6d92cddc62d48f94ed0938a40a2578b6aa",
+    "tests/native/crt.pas": "35f5d15832ca07d1e1c725e7b4f2b0de60c6d17f5720cf2664465466dd222779",
+    "tests/native/crt-main.c": "8523e2110371c0ef1afcaf4b213e3372da7f75e581db3ec4d1ff28517391fd15",
+    "tests/native/core-host.c": "f348f0804a523a2f664222d5142b537925f263e74ff39b29ee977e4427d9c68a",
+    "tools/test-crt.py": "3d29afdea277a7b7245aedb460c8d500fc2942dbc9233506d971611edd208cc7",
+    "tools/test-chain.py": "2a36a853ef82e72290e68d4e3b5dfc80e44d6772351c2ffbaa5a430747ef6c01",
+    "tools/test-plan.json": "4bc2289f01778a4faa6d7ad918ec14bd657b58a79758f368cf7405b923d8a5fd",
+    "tests/test_runner.py": "a5e0d5efa6e0a5b744e45797c78206ca922a20db194f487e748c4958ad0ab6c3"
+  },
+  "review": "reviews/crt-20261104.md",
+  "review_status": "Two read-only Opus passes completed. Final cursor-row guard and software cursor snapshot fixes were implemented and tested after the follow-up; no additional review or unchanged-input finalization is claimed. Extra review rounds require an explicit user request under project policy.",
+  "kernel_saved_cursor_evidence": {
+    "file": "/Users/higginsd/Projects/zeal/zeal-dev-environment/home/Zeal-8-bit-OS/target/zeal8bit/video.asm",
+    "sha256": "f34a3db62431322b857b789da0252bf26f2e9df0d73e0e0759134aa047f3b197",
+    "finding": "stdout_print_buffer uses A9 SAVE/RESTORE at source lines519/524. Pascal CrtInit now keeps cursor coordinates in program-owned storage. The pending-wrap regression deliberately overwrites A9 saved cursor before CrtExit."
+  }
+}

@@ -115,8 +115,9 @@ def ide():
     clear=n.kernel_symbols()['_video_vram_set'];labels.append(('run-message',clear))
     commands+=[f'bp 0x{clear:x}','tap ESC','run 100000000','tap O','run 100000000','regs','mmu']
     commands += [f'rb 0x{0x4000+at:x} 128'for at in range(0,640,128)]+[f'bc 0x{clear:x}','run 100000000']
-    # Enter the first Pascal PC, beyond the96-byte entry and4-byte ABI identifier.
-    commands+=typed('f0064')+state('found',['tap ENTER'])+state('found-source',['tap ESC'],100000000)
+    # Enter the first Pascal PC, after the96-byte entry,4-byte ABI identifier
+    # and four-byte per-program terminal-session reset.
+    commands+=typed('f0068')+state('found',['tap ENTER'])+state('found-source',['tap ESC'],100000000)
     commands+=n.control('K')+typed('docq')+state('ordinary-mode',['tap SPACE'],100000000)
     commands+=['run 100000000']+typed('qn')+['quit']
     raw=n.execute('chain-ide',commands,{'project/main.pas':source},timeout=900)

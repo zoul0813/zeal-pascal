@@ -5,11 +5,11 @@ This is an incremental implementation of the recovered Turbo Pascal 3 dialect;
 full language, editor and runtime conformance is still in progress.
 
 The CP/M-80 Turbo Pascal 3 language and native IDE regression matrix is qualified.
-All66 commands have passing results:65 in a frozen parallel run and one host
+The previous66-command matrix has passing results:65 in a frozen parallel run and one host
 publication test after correcting its link setup. Compiler sources and native
 artifacts were unchanged for that correction. This is bounded host/emulator
 acceptance, not exhaustive equivalence or physical hardware qualification.
-Optimization is next; overlays and optional CRT/graphics/library work remain deferred.
+Optimization is next; overlays and remaining input/error-hook work remain deferred.
 
 Explore [nine self-contained applications](examples/README.md): a text adventure,
 persistent stock database, loan calculator, recursive expression interpreter,
@@ -30,13 +30,13 @@ excluded:
 python3 tools/run-tests.py
 ```
 
-The explicit [test plan](tools/test-plan.json) retains 66 acceptance commands
-covering all 52 product test runners. The default expands language conformance
+The explicit [test plan](tools/test-plan.json) contains 67 acceptance commands
+covering all 54 product test runners. The default expands language conformance
 into four disjoint shards, editor acceptance into 16 independent workflows,
 and integrated native acceptance into 26 isolated families/workflows:
-146 scheduled chunks with the same checks, including the math, file, text,
+141 scheduled chunks with the same checks, including the math, file, text,
 compiler-options and publication-interruption partitions. `--monolithic` uses the unchunked
-66-command plan. Native validation still takes substantial time. Four workers
+67-command plan. Native validation still takes substantial time. Four workers
 run independent commands in parallel by default; use
 `--jobs 8` for eight workers on the M1 Pro, `--jobs 6` for six, or
 `--jobs 1` for serial diagnostics. Modes sharing a
@@ -138,7 +138,7 @@ assertion count derived from the original harness. Disk/output oracles follow
 the family that produces them. The maximum-layout test retains its preceding
 layout calculation, and rename-error coverage retains the original destination
 creation. Without `--case`, each driver retains its original all-case path;
-`--monolithic` selects the 66 original acceptance commands.
+`--monolithic` selects the 67 acceptance commands.
 
 Disposable disks copy immutable bases, with APFS cloning when available and a
 normal-copy fallback. Ordinary filesystem checks use T:. The existing compressed
@@ -339,6 +339,8 @@ the same explicit Start and End addresses. Matching initial global declarations
 share their storage and open-file position. Successful Chain never returns to
 the caller. Failed loads support `$I-`/IOResult; Memory mode reports I/O21.
 R explains the required caller while retaining the compiled CHN file.
+A Chain starts a new terminal session: a caller's active CrtInit snapshot cannot
+be restored by the replacement's CrtExit. Pair CrtInit/CrtExit within each program.
 CHN source lookup through O,F is available. Switching output kinds
 invalidates the cached build; it does not save source.
 
@@ -960,12 +962,35 @@ keyboard flow control. Native input batching retains complete release events;
 polling restores the borrowed input mode and echo descriptor.
 
 The implemented directives are A, B, C, I checking, R, U, V, W and X.
-Pascal CRT calls (ClrScr, ClrEol, GotoXY, InsLine, DelLine, CrtInit/CrtExit,
-LowVideo/NormVideo/HighVideo and Delay), replacement input/error callbacks,
-and overlays remain pending; Chain/Execute, CHN compilation and source-map
-lookup are implemented. CP/M BIOS/BDOS services are intentionally
-unavailable on Zeal; explicit unsupported-target diagnostics for them are still
-pending. These gaps are separate from the editor's display functions.
+Pascal CRT calls are implemented: ClrScr, ClrEol, GotoXY, InsLine, DelLine,
+CrtInit/CrtExit, LowVideo/NormVideo/HighVideo and Delay. Screen operations target
+the physical Zeal80x40 text display independently of redirected Output and Pascal
+output callbacks. They preserve RAM mapping, the video I/O mapper and caller
+interrupt state. Character and attribute rows move together, including after
+hardware scrolling. LowVideo selects light gray on black; NormVideo and HighVideo
+select white on black. GotoXY uses one-based coordinates and reports runtime91
+outside1..80,1..40, even with R-. Delay accepts0..32767milliseconds through the
+native sleep service; negative durations report91.
+
+CrtInit saves the current cursor, scrolling, text color and cursor rendition,
+then selects normal video. CrtExit restores the latest saved state once;
+without a preceding CrtInit in that Run it does nothing. Calls are paired, not nested;
+CrtInit does not clear the display or change keyboard mode. These are native
+lifecycle semantics; CP/M installation escape strings are not emitted. Palette,
+video-mode switching and restoration of screen contents are not part of these
+calls. Screen operations require the supported80x40 text mode; another mode
+reports I/O20. I/O failures honor I+/I- and IOResult. A pending I/O error suppresses
+screen changes and sleeping until retrieved.
+
+Replacement input/error callbacks and overlays remain pending. Chain/Execute,
+CHN compilation and ordinary error lookup are implemented. CP/M BIOS/BDOS
+services and a native printer adapter are intentionally omitted on Zeal.
+The legacy Lst binding can still be redirected through its Pascal output hook;
+its default adapter reports unavailable. CP/M service names currently receive
+the ordinary unknown-identifier diagnostic.
+
+Focused CRT validation: `python3 tools/test-crt.py` after `zde cmake`.
+Physical display/timing qualification remains separate from emulator acceptance.
 
 Overlay declarations in Memory mode now report compiler error77 at the
 `overlay` keyword, retaining source and releasing the failed build. Native

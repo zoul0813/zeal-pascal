@@ -9,7 +9,7 @@
 .globl input_state_begin,input_reset_count,echo_fd
 .globl _key_reset
 .globl normal_error,error_code,error_namespace
-.globl runtime_prefix_end
+.globl runtime_prefix_end,crt_active
 .globl character,neg_hl,false_text,true_text
 .globl io_call,io_result,io_check,io_fail,io_status
 .globl tail_length,tail
@@ -154,6 +154,7 @@ start:
     ld ix,#0                    ; terminate the actual Pascal frame chain
     xor a
     ld (io_status),a
+    ld (crt_active),a
     ld (error_code),a
     ld (error_namespace),a
     call input_reset
@@ -715,6 +716,7 @@ normal_error:
     ld l,#15
     rst 8
 
+crt_active: .db 0               ; per-run terminal snapshot lifetime
 memory_mode: .db 0
 error_code: .db 0
 error_namespace: .db 0

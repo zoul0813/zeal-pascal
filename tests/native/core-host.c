@@ -996,7 +996,11 @@ static void startup_cases(void) {
     }
     options.start=0;options.kind=COMPILE_CHAIN;
     check(compile_project(&s,&b,&d,0,&options)&&build_check(&s,&b));
-    check(b.code_bytes==bytes-EXECUTE_ENTRY_BYTES+CC_ACTIVATION_BYTES);
+    check(b.code_bytes==bytes-EXECUTE_ENTRY_BYTES+CC_ACTIVATION_BYTES+4);
+    /* The session clear follows the fixed activation/profile extent. */
+    check(image_get(&b,96+CC_ACTIVATION_BYTES)==0xaf);
+    check(image_get(&b,97+CC_ACTIVATION_BYTES)==0x32);
+    check((image_get(&b,98+CC_ACTIVATION_BYTES)|((uint16_t)image_get(&b,99+CC_ACTIVATION_BYTES)<<8))==cc_runtime_private(RP_CRT_ACTIVE));
     build_close(&b);check(pages_used()==1);
 }
 
@@ -2189,7 +2193,7 @@ int main(int argc,char **argv) {
         check(source_import(&s,text,n,&d)); check(compile(&s,&b,&d));
         ordered_map(); build_close(&b);
         {
-            const char *fixtures[]={"strbounds","strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes","filetokens","params","diskfiles","diskblocks","disklife","diskwide","textdisk","textseek","textnumber","textformat","textrecover","textnest","texteof","textedges","textargs","capacity","textpath","textrename","textrens","stdinput","stdoutput","stdpred","keyonly","keybuffer","keybreak","keyhigh"};
+            const char *fixtures[]={"crt","strbounds","strindex","strops","strop255","arrays","arrayarg","chararr","records","variants","withrec","zerorec","sets","setshape","setargs","setabi","pointers","ptrargs","ordchar","heapmark","heapfree","pointerabi","absolute","absframe","rawmemory","nativeio","gotos","reals","realabi","formatout","strformat","valparse","readinput","endchar","sqrt","sqrtshadow","logexp","trig","trigshadow","random","randshadow","randomseed","filetypes","filetokens","params","diskfiles","diskblocks","disklife","diskwide","textdisk","textseek","textnumber","textformat","textrecover","textnest","texteof","textedges","textargs","capacity","textpath","textrename","textrens","stdinput","stdoutput","stdpred","keyonly","keybuffer","keybreak","keyhigh"};
             unsigned fixture;
             char path[80];
             for(fixture=0;fixture<sizeof(fixtures)/sizeof(fixtures[0]);++fixture) {

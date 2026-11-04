@@ -8,6 +8,8 @@
 void cc_activation_begin(void) FRONTEND {
     uint8_t i;
     for(i=0;i<CC_ACTIVATION_BYTES;++i)cc_emit(0);
+    /* Chain starts a new program session without running prefix start. */
+    cc_emit(0xaf);cc_op16(0x32,cc_runtime_private(RP_CRT_ACTIVE));
 }
 static uint8_t byte(uint16_t address) {
     uint16_t p=address-0x4000u;
