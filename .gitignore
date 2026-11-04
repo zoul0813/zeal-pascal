@@ -103,3 +103,8 @@
 !/reviews/tp3-catchup-runtime-20261103.md
 !/reviews/tp3-catchup-kernel-evidence.txt
 !/reviews/tp3-catchup-verification.txt
+
+
+# Operation-scoped disk-handle review.
+!/reviews/disk-handles-20261104.md
+!/reviews/disk-handles-evidence-20261104.json

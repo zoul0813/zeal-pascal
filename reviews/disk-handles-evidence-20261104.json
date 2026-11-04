@@ -1,0 +1,340 @@
+{
+  "scope": "Operation-scoped native disk handles; current dirty worktree before-image captured at task start. Other catch-up and example edits are pre-existing.",
+  "host": {
+    "file_assertions": 1522,
+    "chain_file_assertions": 120,
+    "sanitizers": [
+      "ASan",
+      "UBSan"
+    ],
+    "compiler_suite": "178039 compiler,4010 editor,45809 source,104+98 keys,23 runner and6 chunk checks pass with sanitizers; final /tmp/zpascal-scope-compiler-host4.log",
+    "packaging_checks": 63,
+    "chunk_accounting_checks": 6
+  },
+  "native": {
+    "file_component": {
+      "passed": true,
+      "capture_directory": "analysis/native-slice/20261104T113607.663752Z-20734",
+      "native_assertions_passed": 1712,
+      "native_assertions_failed": 0
+    },
+    "chain_files": {
+      "passed": true,
+      "capture_directory": "analysis/native-slice/20261104T113607.629349Z-20733",
+      "native_assertions": 157,
+      "failed": 0
+    },
+    "files_integration": {
+      "passed": true,
+      "capture_directory": "analysis/native-slice/20261104T113607.670066Z-20735",
+      "native_assertions_passed": 469,
+      "native_assertions_failed": 0
+    },
+    "focused_ram_com": {
+      "passed": true,
+      "capture_directory": "analysis/native-slice/20261104T113607.688299Z-20739",
+      "native_assertions": 45
+    },
+    "execute": {
+      "passed": true,
+      "capture_directory": "analysis/native-slice/20261104T113607.672246Z-20737"
+    },
+    "chain_call": {
+      "passed": true,
+      "capture_directory": "analysis/native-slice/20261104T114122.131694Z-23581",
+      "compiler_assertions": 42
+    }
+  },
+  "artifacts": {
+    "before": {
+      "resident_bytes": 15068,
+      "bank_bytes": [
+        14186,
+        12640,
+        14253,
+        14119,
+        11504,
+        12631,
+        14715,
+        16243,
+        11638,
+        10853,
+        10438,
+        11887,
+        13611,
+        14578,
+        14794
+      ],
+      "executable_bytes": 15068,
+      "library_bytes": 198136,
+      "library_sha256": "6f86ac274540619baf3ea9f21b83acefecadd8e9a16c7828dacd53ad81e884a8",
+      "static_end": 52328,
+      "c_stack_reserve": 13208
+    },
+    "after": {
+      "resident_bytes": 15068,
+      "bank_bytes": [
+        14186,
+        12640,
+        14253,
+        14119,
+        11504,
+        12631,
+        14715,
+        16243,
+        11638,
+        10853,
+        10202,
+        11887,
+        13611,
+        14578,
+        14794
+      ],
+      "executable_bytes": 15068,
+      "library_bytes": 197900,
+      "library_sha256": "a3652c69d74c702a11cc9817ca0be61ef80a97ae4328cfbc4676622d265346e1",
+      "static_end": 52328,
+      "c_stack_reserve": 13208
+    },
+    "before_module": {
+      "passed": true,
+      "module_bytes": 14676,
+      "data_end": 31680,
+      "sha256": "5ae08ba9374277f54aff00b464409380bba6443bd237e3116823e18a1ae9e5be"
+    },
+    "after_module": {
+      "passed": true,
+      "module_bytes": 13671,
+      "data_end": 30646,
+      "sha256": "0b35349ffeb4291745e07d30c6c994db0605e877360eaf018ee562025130f206"
+    },
+    "package_bytes_saved": 236,
+    "module_bytes_saved": 1005,
+    "code_banks": 15,
+    "startup_banks": 13,
+    "extra_banks": 0
+  },
+  "host_benchmark": {
+    "before": {
+      "passed": true,
+      "opens": 4,
+      "closes": 3,
+      "reads": 129,
+      "writes": 130,
+      "handles_left": 0
+    },
+    "after": {
+      "passed": true,
+      "opens": 261,
+      "closes": 260,
+      "reads": 129,
+      "writes": 130,
+      "handles_left": 0
+    }
+  },
+  "timing_status": "Final minimal-access native mode (read-only/read, write-only/write): both markers and exact260-byte finalized data match. Start marker follows Rewrite; end marker follows128 writes, Close, Reset,128 reads and Close. IDE/compiler/startup excluded. Emulated CPU cycles, no physical stopwatch claim.",
+  "limitations": [
+    "No physical hardware stopwatch measurements.",
+    "No cache or retained kernel fd between Pascal calls. Raw native Close does not perform Pascal finalization.",
+    "Still-logically-open files can resume after failed Execute; no idle native fd exists to invalidate. This is a deliberate adapter consequence, not an original failed-Execute equivalence claim.",
+    "Repeated small TF record I/O is about2.95x the previous emulated CPU cycles in this controlled workload; HostFS about1.15x. It is a measured tradeoff, not a general whole-program or hardware speed claim.",
+    "Reopen follows the saved pathname. Keep paths stable while logically open; no inode/identity registry or cache. Only the historical fd field is inert; unchecked Pascal memory can retarget paths."
+  ],
+  "native_timing": {
+    "before-hostfs": {
+      "passed": true,
+      "markers": 2,
+      "ticks": [
+        107299941,
+        2043351230,
+        2051897151
+      ],
+      "cycles": 8545921,
+      "capture": "analysis/native-slice/20261104T110601.891749Z-3664/timing-before-hostfs"
+    },
+    "before-tf": {
+      "passed": true,
+      "markers": 2,
+      "ticks": [
+        107300711,
+        2044036429,
+        2072856607
+      ],
+      "cycles": 28820178,
+      "capture": "analysis/native-slice/20261104T110601.891749Z-3664/timing-before-tf"
+    },
+    "after-hostfs": {
+      "passed": true,
+      "markers": 2,
+      "ticks": [
+        107299941,
+        2042227927,
+        2052055361
+      ],
+      "cycles": 9827434,
+      "capture": "analysis/native-slice/20261104T113607.678432Z-20738/timing-after-hostfs"
+    },
+    "after-tf": {
+      "passed": true,
+      "markers": 2,
+      "ticks": [
+        107300711,
+        2042959497,
+        2128071588
+      ],
+      "cycles": 85112091,
+      "capture": "analysis/native-slice/20261104T113607.678432Z-20738/timing-after-tf"
+    },
+    "hostfs_ratio": 1.1499561018642694,
+    "tf_ratio": 2.9532118434521815
+  },
+  "final_regressions": [
+    "Typed and Text Close acquisition failure retains pending finalization. Host tests include native descriptor pressure, exact final bytes, and write-only native permissions.",
+    "Native Pascal forced missing-path Close + IOResult + restored-path retry succeeds on the same typed/Text FIB in RAM and COM. Shared-path Rename is deliberate fault injection, not a supported mutation guarantee.",
+    "Native recursive Text writers continue outer output after inner reassign, then verify AB/EOF.",
+    "Actual OS commit failure restores an open data FIB; Write continues without re-Assign and exact two-component RECOVER.DAT bytes are checked.",
+    "Reported raw native-close errors can follow committed data; actual/FilePos/flags remain advanced and are tested.",
+    "Truncated-path physical cursor clamp reports99 with zero retained handles."
+  ],
+  "kernel_close_evidence": {
+    "path": "/Users/higginsd/Projects/zeal/zeal-dev-environment/home/Zeal-8-bit-OS/kernel/fs/zealfs_v1.asm",
+    "sha256": "39412860ac8b52c061c6623532f6a224d79630f858909662d79e217199ba1e7b",
+    "excerpt": [
+      "563:     ; Close an opened file. On ZealFS this doesn't do anything special apart from",
+      "564:     ; calling the driver's close routine.",
+      "565:     ; Note: _vfs_work_buffer can be used at our will here",
+      "566:     ; Parameters:",
+      "567:     ;       HL - (RW) Address of the user field in the opened file structure",
+      "568:     ;       DE - Driver address",
+      "569:     ; Returns:",
+      "570:     ;       A  - 0 on success, error value else",
+      "571:     ; Alters:",
+      "572:     ;       A, BC, DE, HL",
+      "573:     PUBLIC zos_zealfs_close",
+      "574: zos_zealfs_close:",
+      "575:     ; If the opened file was opened with WRITE flags, the size may have been updated,",
+      "576:     ; thus, we need to write the new file size on the disk. Prepare the write routine.",
+      "577:     call zos_zealfs_prepare_driver_write_safe",
+      "578:     ; Keep HL on the stack, we are going to need it to get the info about the file.",
+      "579:     push hl",
+      "580:     GET_DRIVER_CLOSE_FROM_DE()",
+      "581:     ; Put the close routine address on the stack and get the opened file structure",
+      "582:     ex (sp), hl",
+      "583:     ; Check if the file was opened with write flag",
+      "584:     ld d, h",
+      "585:     ld e, l",
+      "586:     DISKS_FILE_IS_WRITE(opn_file_usr_t)",
+      "587:     ; If the Z flag is set, we should \"return\". ret here will jump to driver's close routine",
+      "588:     ; as it is on the stack",
+      "589:     ret z",
+      "590:     ; We have to update the file size on the disk. Get the file entry offset.",
+      "591:     ex de, hl",
+      "592:     ld e, (hl)",
+      "593:     inc hl",
+      "594:     ld d, (hl)",
+      "595:     DISKS_FILE_GET_SIZE(opn_file_usr_t + 1)",
+      "596:     ; HL points to the size field, exchange it with DE",
+      "597:     ex de, hl",
+      "598:     ; Make HL point to the size field in the disk file entry",
+      "599:     ld bc, zealfs_entry_size",
+      "600:     add hl, bc",
+      "601:     ; Perform a write on the disk (16-bit size)",
+      "602:     ld bc, 2",
+      "603:     call RAM_EXE_WRITE",
+      "604:     ; Store close routine address in HL",
+      "605:     pop hl",
+      "606:     ; Check error",
+      "607:     or a",
+      "608:     ret nz",
+      "609:     ; Jump to close routine",
+      "610:     jp (hl)"
+    ]
+  },
+  "benchmark_pascal_source_template": "const marker:array[1..1]of byte=($C9);\nvar f:file of integer;i,v:integer;\nprocedure stamp;external $80B7;\nbegin\n  if addr(marker)<>$80B7 then halt;\n  Assign(f,'%DRIVE%:/BENCHIO.DAT');Rewrite(f);\n  stamp;\n  for i:=1 to 128 do begin v:=i;Write(f,v)end;\n  Close(f);Reset(f);\n  for i:=1 to 128 do begin Read(f,v);if v<>i then halt end;\n  Close(f);stamp;\nend.\n",
+  "final_source_hashes": {
+    "src/file_runtime.c": "1df1c15e8efbd9ef3511cfb9c35de281ddf7063797b6b336a212d17ce8409587",
+    "src/file_runtime.h": "eab21057f015d5bf41e889197637b2d7812227af2ac48c4d6cb47cecdde412b8",
+    "tests/native/diskscope.pas": "ea1efca060bdc755384abe83d14b0b95b06f21819564effa6c02ca1215e62c71",
+    "tests/native/execute-failure.pas": "1f699648c519d8b67b928f25e060aecf56e99e706550a0b06d6a81ee0ad0c8bb"
+  },
+  "supplemental_native_timing": {
+    "before-text-tf-com": {
+      "passed": true,
+      "markers": 2,
+      "ticks": [
+        107300711,
+        2060930889,
+        2092004976
+      ],
+      "cycles": 31074087,
+      "capture": "analysis/native-slice/20261104T115906.579819Z-31278/timing-before-text-tf-com"
+    },
+    "after-text-tf-com": {
+      "passed": true,
+      "markers": 2,
+      "ticks": [
+        107300711,
+        2059822956,
+        2153739717
+      ],
+      "cycles": 93916761,
+      "capture": "analysis/native-slice/20261104T115906.579819Z-31278/timing-after-text-tf-com"
+    },
+    "before-typed-hostfs-ram": {
+      "passed": true,
+      "markers": 2,
+      "ticks": [
+        107299941,
+        1697599060,
+        1706224009
+      ],
+      "cycles": 8624949,
+      "capture": "analysis/native-slice/20261104T115906.579819Z-31278/timing-before-typed-hostfs-ram"
+    },
+    "after-typed-hostfs-ram": {
+      "passed": true,
+      "markers": 2,
+      "ticks": [
+        107299941,
+        1696580450,
+        1720604886
+      ],
+      "cycles": 24024436,
+      "capture": "analysis/native-slice/20261104T115906.579819Z-31278/timing-after-typed-hostfs-ram"
+    },
+    "before-typed-tf-ram": {
+      "passed": true,
+      "markers": 2,
+      "ticks": [
+        107300711,
+        1698284259,
+        1727183465
+      ],
+      "cycles": 28899206,
+      "capture": "analysis/native-slice/20261104T115906.579819Z-31278/timing-before-typed-tf-ram"
+    },
+    "after-typed-tf-ram": {
+      "passed": true,
+      "markers": 2,
+      "ticks": [
+        107300711,
+        1697312020,
+        1796621113
+      ],
+      "cycles": 99309093,
+      "capture": "analysis/native-slice/20261104T115906.579819Z-31278/timing-after-typed-tf-ram"
+    }
+  },
+  "supplemental_tf_overwrite": {
+    "passed": true,
+    "checks": {
+      "native transfers51/0": true,
+      "TF interior overwrite preserves size and later components": true,
+      "TF block bytes": true,
+      "TF wide record bytes": true
+    },
+    "capture": "analysis/native-slice/20261104T115905.318288Z-31259"
+  },
+  "supplemental_timing_scope": "Text:128 formatted WriteLn(f,i:6) lines plus explicit Close, exact CR/LF/Ctrl-Z oracle, COM. Typed RAM: same128-write/128-read workload through parent service gate. Two markers and exact bytes verified for every case; emulated CPU cycles only.",
+  "review_status": "Initial Opus review and one follow-up completed. Follow-up reports no actionable code correctness regressions. README/fidelity status annotations and supplemental evidence were added afterward; final documentation fingerprints differ and no third review or unchanged-fingerprint finalization is claimed."
+}

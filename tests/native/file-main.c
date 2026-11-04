@@ -23,13 +23,12 @@ static uint16_t position(const char *text) {
     }
     return 0xffff;
 }
-/* The independent probe consumes only handles owned by the RAM child.
- * Saved programs have no parent resource service; their ordinary cleanup
- * remains covered by the lifetime corpus and exact external disk bytes. */
-static void cleanup_error(const char *path,const char *where) {
+/* Between Pascal operations no child disk handles remain. The probe must
+ * leave borrowed IDE handles intact; explicit Close still finalizes data. */
+static void cleanup_scoped(const char *path,uint8_t kind) {
     check(load_source(&s,path,&d));
-    execute_loaded(3,0x99,position(where));
-    check(ram_result[27]==3&&ram_io_detail==6&&ram_cleanup_detail==0);
+    execute_loaded(kind,0,0);
+    check(ram_io_detail==0&&ram_cleanup_detail==0);
 }
 int app_main(void) {
     int8_t capture;
@@ -92,7 +91,7 @@ int app_main(void) {
             execution_file("H:/DISKABI.PAS",1,0,0);
             check(load_source(&s,"H:/DISKFAIL.PAS",&d));
             execute_loaded(3,2,position("i:=1 div 0"));
-            check(ram_result[27]==2&&ram_io_detail==0&&ram_cleanup_detail==6);
+            check(ram_result[27]==2&&ram_io_detail==0&&ram_cleanup_detail==0);
             test_groups[4]=1;
         }
         if(chunk_wants(6)) {
@@ -118,8 +117,8 @@ int app_main(void) {
         }
         test_stage=40;
         if(chunk_wants(7)) {
-            cleanup_error("H:/SCOPE.PAS","close(local)");
-            cleanup_error("H:/EXIT.PAS","close(local)");
+            cleanup_scoped("H:/SCOPE.PAS",1);
+            cleanup_scoped("H:/EXIT.PAS",1);
             execution_file("H:/IGNORE.PAS",1,0,0);
             check(ram_cleanup_detail==0);
             execution_file("H:/EXITOFF.PAS",1,0,0);
@@ -127,11 +126,11 @@ int app_main(void) {
             test_groups[6]=1;
         }
         if(chunk_wants(8)) {
-            cleanup_error("H:/DISPOSE.PAS","close(p^.f)");
-            cleanup_error("H:/FREE.PAS","close(p^.f)");
-            cleanup_error("H:/RELEASE.PAS","close(p^.f)");
-            cleanup_error("H:/FINISH.PAS","close(f)");
-            cleanup_error("H:/HALT.PAS","close(f)");
+            cleanup_scoped("H:/DISPOSE.PAS",1);
+            cleanup_scoped("H:/FREE.PAS",1);
+            cleanup_scoped("H:/RELEASE.PAS",1);
+            cleanup_scoped("H:/FINISH.PAS",1);
+            cleanup_scoped("H:/HALT.PAS",4);
             test_groups[7]=1;
         }
     }

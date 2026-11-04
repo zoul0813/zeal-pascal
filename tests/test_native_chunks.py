@@ -19,7 +19,7 @@ runner=importlib.util.module_from_spec(runner_spec);runner_spec.loader.exec_modu
 def calls(source):
     tokens = re.findall(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|/\*[\s\S]*?\*/|//[^\n]*|\w+|[^\s]', source)
     tokens = [t for t in tokens if not t.startswith(('/*','//'))]
-    names = {'check','execution_file','execution','checked_error','execute_loaded','invalid','cleanup_error'}
+    names = {'check','execution_file','execution','checked_error','execute_loaded','invalid','cleanup_error','cleanup_scoped'}
     found = []
     for i,t in enumerate(tokens[:-1]):
         if t not in names or tokens[i+1] != '(': continue
@@ -58,7 +58,7 @@ class NativeChunks(unittest.TestCase):
             self.assertEqual(re.findall(r'test_stage\s*=\s*([^;]+);',result.stdout.decode()),row['stages'])
 
     def test_counts_reconstruct_passing_baseline(self):
-        self.assertEqual({k:v['legacy_assertions']for k,v in self.specs.items()},
+        self.assertEqual({k:v.get('baseline_legacy_assertions',v['legacy_assertions'])for k,v in self.specs.items()},
                          {'math':468,'files':480,'options':253,'text':255})
         for spec in self.specs.values():
             self.assertEqual(sum(spec['groups'].values())-spec.get('duplicated_group_checks',0),

@@ -1814,7 +1814,7 @@ runtime_prefix_end::
 heap_error:
     ld hl,(0x40be)
     jp stack_error
-; Terminal cleanup releases native handles without an implicit Pascal Close.
+; Terminal cleanup releases module backing without an implicit Pascal Close.
 file_cleanup::
     ld c,a
     ld a,(0xfe74)

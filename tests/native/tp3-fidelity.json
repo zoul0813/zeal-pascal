@@ -270,7 +270,8 @@
       "change": "Replace16-byte tokens plus160-byte registry records with176-byte inline file blocks. Remove generation/frame/heap lifetime ownership, recursive file initialization and automatic routine/Exit/Dispose/FreeMem/Release closing. Explicit Close finalizes Pascal counts/EOF; terminal and Execute cleanup only raw-close OS descriptors. Chain leaves file associations open.",
       "native_adaptation": "All native families use176 bytes, including untyped files, to hold127-byte Zeal paths without an association registry. A32-byte16-handle address ledger prevents closing borrowed OS descriptors. Native pointer/heap/transfer validation remains.",
       "memory": "No16KiB registry page on first use. Unused variables now cost176 instead of16 bytes; assigned per-file payload was already176 bytes before page slack.",
-      "native_proof": "Full native core2109/2109; file suite483/483; standalone file runtime1122/1122; Chain files143/143; terminal gate76/76; bridges94/94; hooks143/143; Text nesting68/68 and Rename56/56. Production Chain and Execute and native long-path Save109/109 pass. Omitted-Close byte oracles require unfinalized headers/EOF; explicit-Close oracles require finalized bytes."
+      "native_proof": "Full native core2109/2109; file suite483/483; standalone file runtime1122/1122; Chain files143/143; terminal gate76/76; bridges94/94; hooks143/143; Text nesting68/68 and Rename56/56. Production Chain and Execute and native long-path Save109/109 pass. Omitted-Close byte oracles require unfinalized headers/EOF; explicit-Close oracles require finalized bytes.",
+      "superseded_by": "operation_scoped_handles_20261104: historical handle-ledger and raw-close cleanup descriptions below are superseded; inline FIB layout and explicit Pascal Close finalization remain."
     },
     "disk_publication": {
       "audit_id": "TP3-11",
@@ -480,18 +481,42 @@
         "Memory Run startup clears io_frame; final41-assertion test raises checked I/O error then verifies a zero landing before second-run I/O."
       ],
       "unresolved": [
-        "Repeated Assign without Close can exhaust16 native descriptors; closing on Assign breaks verified saved recursive FIBs. Requires lifetime-design/necessity review.",
         "Original TP3 Random and generated typeahead persistence across repeated Memory Runs remain unverified."
       ],
-      "review_status": "Both initial reviews and follow-ups succeeded. Final reset/docs/test edits follow the final Opus turn; fingerprints are stale and are not finalized. No third review claimed."
+      "review_status": "Both initial reviews and follow-ups succeeded. Final reset/docs/test edits follow the final Opus turn; fingerprints are stale and are not finalized. No third review claimed.",
+      "subsequently_resolved": [
+        {
+          "issue": "Repeated Assign without Close can exhaust16 native descriptors; closing on Assign breaks verified saved recursive FIBs. Requires lifetime-design/necessity review.",
+          "resolved_by": "operation_scoped_handles_20261104"
+        }
+      ]
+    },
+    "operation_scoped_handles_20261104": {
+      "classification": "Deliberate native hardware adaptation; documented TP3 explicit Close finalization and observed recursive FIB preservation are retained.",
+      "behavior": "Native disk handles live only within one Pascal file-runtime invocation. Saved inline state resumes by path and cursor without truncate/create; reads use O_RDONLY and writes O_WRONLY. No descriptor cache, recursion registry or file epoch. Devices retain their adapters.",
+      "proof": "Host1522 file/120 Chain assertions; native1712 file-owner,157 Chain-file,469 integrated and45 focused assertions, plus production Chain/Execute and packaging63. Counts/captures/hashes in scoped evidence.",
+      "close_retry": "A failed acquisition during Close retains pending finalization. Host descriptor-pressure and native forced-missing-path IOResult/retry cases finalize exact typed/Text data on the same FIB.",
+      "kernel": "No kernel changes. Runtime16-entry ledger is removed; host SDK-configured descriptors32..63 pass. Default16 works with20 logically open bindings.32/64 are optional kernel capacity headroom.",
+      "performance": {
+        "workload": "128 two-byte writes, Close/Reset,128 reads,Close, marker-bounded inside COM",
+        "hostfs_cycles_before": 8545921,
+        "hostfs_cycles_after": 9827434,
+        "tf_cycles_before": 28820178,
+        "tf_cycles_after": 85112091,
+        "hardware_stopwatch": false
+      },
+      "evidence": "reviews/disk-handles-evidence-20261104.json",
+      "review": "reviews/disk-handles-20261104.md",
+      "limitations": "Keep open paths stable. Native close errors can follow committed transfers. No full TP3 equivalence or full-plan/hardware qualification.",
+      "supplemental_proof": "TF interior overwrite, block and wide-record exact-byte oracles pass (51 native assertions). Marker-bounded Text TF COM costs3.02x; typed RAM Run costs2.79x HostFS and3.44x TF. See evidence for cycle counts and captures."
     }
   },
   "current_implementation": {
     "code_banks": 15,
     "startup_code_banks": 13,
     "resident_bytes": 15068,
-    "library_bytes": 198136,
-    "linked_payload_bytes": 213204,
+    "library_bytes": 197900,
+    "linked_payload_bytes": 212968,
     "native_metadata_directory_bytes_saved": 334,
     "source_logical_limit_bytes": 65534,
     "saved_code_sector_buffer_bytes": 128,
@@ -508,7 +533,7 @@
       16243,
       11638,
       10853,
-      10438,
+      10202,
       11887,
       13611,
       14578,
@@ -516,7 +541,9 @@
     ],
     "statement_map_record_bytes": 8,
     "saved_map_sidecars": false,
-    "canonical_source_snapshots": false
+    "canonical_source_snapshots": false,
+    "operation_scoped_disk_handles": true,
+    "native_descriptor_ledger_bytes": 0
   },
   "verification": {
     "host_compiler_checks": 178039,

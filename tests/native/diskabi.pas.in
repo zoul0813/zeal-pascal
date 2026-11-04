@@ -17,7 +17,7 @@ begin
     if mem[$FE78]<>0 then assign(f,'H:/RAMLOSS.DAT')
     else assign(f,'H:/SAVLOSS.DAT');
     rewrite(f);i:=14;write(f,i);
-    if mem[$FE78]<>0 then if dropfiles<>1 then halt;
+    if mem[$FE78]<>0 then if dropfiles<>0 then halt;
     i:=1 div 0;
   end;
 end.

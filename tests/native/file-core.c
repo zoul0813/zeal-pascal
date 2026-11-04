@@ -6,8 +6,9 @@
 #include <stdio.h>
 uint8_t zf_user_memory[65536];
 #define VM(at) (zf_user_memory+(at))
+extern uint8_t model_fd_first,model_fd_limit;
 extern uint8_t model_pages,model_handles,model_close_error,model_read_error,model_write_error;
-extern uint8_t model_zero_write,model_short,model_readonly;
+extern uint8_t model_zero_write,model_short,model_readonly,model_writeonly;
 extern uint8_t model_curdir_error;
 extern uint8_t model_rm_error,model_corrupt_write;
 extern uint8_t model_oversize_read,model_oversize_write;
@@ -103,7 +104,7 @@ static void basic(void) {
     invocation.count=0; check(call(ZF_SEEK)==0);
     memcpy(saved_token,VM(0xc000),ZF_FILE_BYTES); memcpy(VM(0xc400),saved_token,ZF_FILE_BYTES);
     invocation.object=0xc400;
-    check(call(ZF_CLOSE)==0); /* a copied FIB cannot close the other object's OS handle */
+    check(call(ZF_CLOSE)==0); /* copied disk state resumes independently; no native fd is retained */
     assign("H:/COPY.DAT"); check(call(ZF_REWRITE)==0); put(0xd200,77); check(call(ZF_WRITE)==0);
     check(call(ZF_CLOSE)==0);
     invocation.object=0xc000; check(call(ZF_READ)==0&&get(0xd200)==11);
@@ -120,8 +121,8 @@ static void lifetime(void) {
     put(0xe400,176);memset(VM(0xe402),0xa5,ZF_FILE_BYTES);
     assign("H:/HEAP.DAT");check(call(ZF_REWRITE)==0);
     put(0xd200,42);check(call(ZF_WRITE)==0);
-    /* Freeing/reusing Pascal storage has no file operation. Terminal cleanup
-     * must still close its OS handle without dereferencing or flushing it. */
+    /* Freeing/reusing Pascal storage has no file operation. No native handle
+     * remains, and terminal cleanup must not dereference/finalize dead state. */
     invocation.heap_frontier=0xe400;memset(VM(0xe402),0xcc,ZF_FILE_BYTES);
     clean(ZF_END_PROGRAM,0,0);
     defaults();assign("H:/HEAP.DAT");check(call(ZF_RESET)==0);
@@ -184,6 +185,37 @@ static void many(void) {
     }
     /* More associations than native open handles, without registry pages. */
     invocation.object=0xc000+19u*ZF_FILE_BYTES; check(call(ZF_REWRITE)==0); check(call(ZF_CLOSE)==0);
+    clean(ZF_END_PROGRAM,0,0);
+}
+/* More logically open bindings than kernel descriptors, plus same-address
+ * recursive Text restoration across a retained lookahead byte. */
+static void scoped_disks(void) {
+    uint16_t i;int8_t borrowed;uint16_t count;uint8_t first[4];
+    defaults();
+    for(i=0;i<64;++i) {
+        assign("H:/SCOPED.DAT");check(call(ZF_REWRITE)==0);
+        put(0xd200,i);check(call(ZF_WRITE)==0);
+#ifndef __SDCC
+        check(model_handles==0);
+#endif
+    }
+    check(call(ZF_CLOSE)==0);
+    for(i=0;i<20;++i) {
+        invocation.object=0xc000+i*ZF_FILE_BYTES;memset(VM(invocation.object),0,ZF_FILE_BYTES);
+        assign("H:/SCOPED.DAT");check(call(ZF_RESET)==0);
+    }
+    for(i=0;i<20;++i) {
+        invocation.object=0xc000+i*ZF_FILE_BYTES;check(call(ZF_READ)==0&&get(0xd200)==63);
+        check(call(ZF_CLOSE)==0);
+    }
+    defaults();assign("H:/SCOPED.DAT");check(call(ZF_RESET)==0);
+    borrowed=open("H:/SCOPED.DAT",O_RDONLY);check(borrowed>=0);
+    if(borrowed>=0) {
+        put(0xc012,(uint8_t)borrowed); /* A forged native fd has no authority. */
+        check(call(ZF_READ)==0&&get(0xd200)==63);check(call(ZF_CLOSE)==0);
+        count=4;check(read(borrowed,first,&count)==0&&count==4&&first[0]==1);
+        check(close(borrowed)==0);
+    }
     clean(ZF_END_PROGRAM,0,0);
 }
 static void wide_components(void) {
@@ -250,6 +282,18 @@ static void text_files(void) {
     check(call(ZF_CLOSE)==0); clean(ZF_END_PROGRAM,0,0);
 
     text_defaults("H:/AUTOTEXT.DAT"); check(call(ZF_REWRITE)==0); text_value("AUTO");
+    clean(ZF_END_PROGRAM,0,0);
+}
+static void text_resume(void) {
+    static const uint8_t text[]={'A',13,10,'B',26};
+    seed("H:/RESTEXT.TXT",text,sizeof(text));text_defaults("H:/RESTEXT.TXT");
+    check(call(ZF_RESET)==0);check(call(ZF_EOF)==0&&!invocation.result);
+    memcpy(saved_token,VM(0xc000),ZF_FILE_BYTES);
+    assign("H:/INNERTXT.TXT");check(call(ZF_REWRITE)==0);text_value("inner");check(call(ZF_CLOSE)==0);
+    memcpy(VM(0xc000),saved_token,ZF_FILE_BYTES);invocation.count=ZF_TEXT_CHAR;
+    check(call(ZF_TEXT_READ)==0&&VM(0xd200)[0]=='A');check(call(ZF_TEXT_READLN)==0);
+    check(call(ZF_EOLN)==0&&!invocation.result);check(call(ZF_TEXT_READ)==0&&VM(0xd200)[0]=='B');
+    check(call(ZF_EOF)==0&&invocation.result);check(call(ZF_CLOSE)==0);
     clean(ZF_END_PROGRAM,0,0);
 }
 static void file_paths(void) {
@@ -645,6 +689,57 @@ static void rename_faults(void) {
     check(call(ZF_TEXT_READ)==0&&VM(0xd200)[0]==0x5a);
     check(call(ZF_CLOSE)==0); clean(ZF_END_PROGRAM,0,0);
 }
+static void resume_faults(void) {
+    defaults();assign("H:/SCOPED.DAT");check(call(ZF_RESET)==0);
+    model_fail_open_at=model_open_calls+1;
+    check(call(ZF_READ)==0x99&&invocation.actual==0&&model_handles==0);
+    model_fail_open_at=0;check(call(ZF_READ)==0&&get(0xd200)==63);
+    check(call(ZF_CLOSE)==0);
+    /* A kernel configured beyond16 descriptors needs no port-side fd pool. */
+    model_fd_first=32;model_fd_limit=64;
+    check(call(ZF_RESET)==0);check(call(ZF_READ)==0&&get(0xd200)==63);
+    check(call(ZF_CLOSE)==0&&model_handles==0);
+    model_fd_first=2;model_fd_limit=16;
+    text_defaults("H:/RESTEXT.TXT");check(call(ZF_RESET)==0);
+    model_read_error=ERR_FAILURE;model_close_error=ERR_NO_SUCH_ENTRY;
+    invocation.count=ZF_TEXT_CHAR;check(call(ZF_TEXT_READ)==0x99&&invocation.detail==ERR_FAILURE&&model_handles==0);
+    model_read_error=model_close_error=0;
+    check(call(ZF_TEXT_READ)==0&&VM(0xd200)[0]=='A');check(call(ZF_CLOSE)==0);
+    clean(ZF_END_PROGRAM,0,0);
+}
+static void close_retries(void) {
+    int8_t fd;uint8_t data[8];uint16_t count;
+    defaults();assign("H:/CLOSERET.DAT");check(call(ZF_REWRITE)==0);
+    put(0xd200,123);check(call(ZF_WRITE)==0);
+    model_fail_open_at=model_open_calls+1;
+    check(call(ZF_CLOSE)==0xf0&&model_handles==0&&(VM(0xc000)[0]&0x20));
+    model_fail_open_at=0;check(call(ZF_CLOSE)==0);
+    fd=open("H:/CLOSERET.DAT",O_RDONLY);count=7;check(fd>=0);
+    if(fd>=0){check(read(fd,data,&count)==0&&count==6&&!memcmp(data,"\1\0\2\0\173\0",6));check(close(fd)==0);}
+    text_defaults("H:/CLOSERET.TXT");check(call(ZF_REWRITE)==0);text_value("end");
+    model_fd_limit=2;check(call(ZF_CLOSE)==0xf3&&model_handles==0);
+    model_fd_limit=16;check(call(ZF_CLOSE)==0);
+    fd=open("H:/CLOSERET.TXT",O_RDONLY);count=5;check(fd>=0);
+    if(fd>=0){check(read(fd,data,&count)==0&&count==4&&!memcmp(data,"end\32",4));check(close(fd)==0);}
+    text_defaults("H:/WRITEONLY.TXT");check(call(ZF_REWRITE)==0);model_writeonly=1;
+    text_value("write-only");check(call(ZF_CLOSE)==0&&model_handles==0);model_writeonly=0;
+    fd=open("H:/WRITEONLY.TXT",O_RDONLY);count=8;check(fd>=0);
+    if(fd>=0){check(read(fd,data,&count)==0&&count==8&&!memcmp(data,"write-on",8));check(close(fd)==0);}
+    defaults();assign("H:/CLOSERET.DAT");check(call(ZF_REWRITE)==0);put(0xd200,77);
+    model_close_error=ERR_FAILURE;
+    check(call(ZF_WRITE)==0xf0&&invocation.actual==1&&(VM(0xc000)[0]&0x20));
+    check(call(ZF_POSITION)==0&&invocation.result==1);
+    model_close_error=0;check(call(ZF_CLOSE)==0);
+    /* Another binding truncating a live Text path cannot silently redirect
+     * its saved cursor. Native clamping is reported and the handle released. */
+    {static const uint8_t sample[]="abcdef";uint8_t i;
+     seed("H:/CLAMP.TXT",sample,6);text_defaults("H:/CLAMP.TXT");check(call(ZF_RESET)==0);
+     invocation.count=ZF_TEXT_CHAR;for(i=0;i<3;++i)check(call(ZF_TEXT_READ)==0);
+     invocation.object=0xc400;assign("H:/CLAMP.TXT");check(call(ZF_REWRITE)==0);check(call(ZF_CLOSE)==0);
+     invocation.object=0xc000;check(call(ZF_TEXT_READ)==0x99&&!invocation.actual&&model_handles==0);
+     check(call(ZF_CLOSE)==0);}
+    clean(ZF_END_PROGRAM,0,0);
+}
 static void faults(void) {
     uint8_t handles;
     defaults(); assign("H:/ERROR.DAT"); check(call(ZF_REWRITE)==0);
@@ -656,10 +751,10 @@ static void faults(void) {
     model_read_error=ERR_FAILURE; put(0xd200,0xaaaa);
     check(call(ZF_READ)==0x99&&invocation.actual==0&&get(0xd200)==0xaaaa);
     model_read_error=0; model_close_error=ERR_FAILURE;
-    check(call(ZF_CLOSE)==0xf0); check(model_handles==0); check(call(ZF_CLOSE)==0);
+    check(call(ZF_READ)==0xf0&&invocation.actual==1); check(model_handles==0); check(call(ZF_CLOSE)==0);
     model_close_error=0; check(call(ZF_RESET)==0); check(call(ZF_CLOSE)==0);
     check(call(ZF_RESET)==0); model_close_error=ERR_NO_SUCH_ENTRY;
-    check(call(ZF_CLOSE)==0xff&&invocation.detail==ERR_NO_SUCH_ENTRY&&model_handles==0);
+    check(call(ZF_READ)==0xff&&invocation.detail==ERR_NO_SUCH_ENTRY&&model_handles==0);check(call(ZF_CLOSE)==0);
     model_close_error=0;
     model_readonly=1; check(call(ZF_RESET)==0); check(call(ZF_READ)==0&&get(0xd200)==1234);
     check(call(ZF_WRITE)==3); check(call(ZF_CLOSE)==0); model_readonly=0;
@@ -667,11 +762,11 @@ static void faults(void) {
     put(0xd200,5678); check(call(ZF_WRITE)==0);
     invocation.object=0xc000; check(call(ZF_REWRITE)==0);
     put(0xd200,1234); check(call(ZF_WRITE)==0);
-    handles=model_handles; check(handles==2); model_close_error=ERR_FAILURE;
+    handles=model_handles; check(handles==0); model_close_error=ERR_FAILURE;
     ending.operation=ZF_END_PROGRAM; zf_cleanup(&ending);
-    check(ending.error==0xf0&&ending.detail==ERR_FAILURE&&model_handles==0&&model_pages==0);
+    check(ending.error==0&&model_handles==0&&model_pages==0);
     model_close_error=0;
-    /* Terminal cleanup releases descriptors without performing Pascal Close. */
+    /* Terminal cleanup leaves unfinished Pascal metadata unfinalized. */
     defaults(); assign("H:/OTHER.DAT"); model_short=1; check(call(ZF_RESET)==0);
     check(call(ZF_SIZE)==0&&invocation.result==0); check(call(ZF_CLOSE)==0);
     assign("H:/ERROR.DAT"); check(call(ZF_RESET)==0);
@@ -690,9 +785,9 @@ static void faults(void) {
 #endif
 int main(void) {
     check(sizeof(FileJob)==ZF_JOB_BYTES&&sizeof(FileCleanup)==6);
-    basic(); lifetime(); boundaries(); block_files(); many(); wide_components(); text_files(); file_paths(); renames(); standard_files(); keyboard_files(); console_files(); printer_files(); callback_output_files();
+    basic(); lifetime(); boundaries(); block_files(); many(); scoped_disks(); wide_components(); text_files(); text_resume(); file_paths(); renames(); standard_files(); keyboard_files(); console_files(); printer_files(); callback_output_files();
 #ifndef __SDCC
-    serial_files(); faults(); rename_faults(); check(model_pages==0&&model_handles==0);
+    serial_files(); faults(); rename_faults(); resume_faults(); close_retries(); check(model_pages==0&&model_handles==0);
     printf("%u file runtime assertions passed, %u failed\n",test_passed,test_failed);
 #else
     test_done=255; test_complete();

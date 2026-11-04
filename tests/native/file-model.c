@@ -8,7 +8,7 @@
 #include <assert.h>
 
 uint8_t zf_memory_mode,model_pages,model_handles,model_close_error,model_read_error,model_write_error;
-uint8_t model_zero_write,model_short,model_readonly;
+uint8_t model_zero_write,model_short,model_readonly,model_writeonly;
 uint8_t model_curdir_error;
 uint8_t model_rm_error,model_corrupt_write;
 uint8_t model_free_error;
@@ -23,7 +23,8 @@ uint16_t model_serial_ioctl_calls,model_serial_fail_ioctl_at,model_serial_seek_c
 static char current_directory[128]="A:/";
 static uint8_t memory[32][16384],owned[32];
 static struct { char path[128]; uint8_t data[73728]; uint32_t size; uint8_t directory; } files[64];
-static struct { uint8_t used,file,flags; uint32_t position,cached_size; } handles[16];
+uint8_t model_fd_first=2,model_fd_limit=16;
+static struct { uint8_t used,file,flags; uint32_t position,cached_size; } handles[128];
 uint8_t zf_service(uint8_t operation,uint16_t argument) { (void)operation;(void)argument;assert(0);return 1; }
 zos_err_t curdir(char *out) {
     if(model_curdir_error) return (zos_err_t)model_curdir_error;
@@ -62,9 +63,10 @@ zos_dev_t open(const char *name,uint8_t flags) {
     }
     if(files[i].directory) return -ERR_NOT_A_FILE;
     if(model_readonly&&(flags&(O_WRONLY|O_RDWR))) return -ERR_READ_ONLY;
+    if(model_writeonly&&!(flags&O_WRONLY)) return -ERR_BAD_MODE;
     }
-    for(n=2;n<16;++n) if(!handles[n].used) break;
-    if(n==16) return -ERR_CANNOT_REGISTER_MORE;
+    for(n=model_fd_first;n<model_fd_limit;++n) if(!handles[n].used) break;
+    if(n==model_fd_limit) return -ERR_CANNOT_REGISTER_MORE;
     handles[n].cached_size=i<64?files[i].size:0;
     if(i<64&&(flags&O_TRUNC)) files[i].size=0;
     handles[n].used=1; handles[n].file=i; handles[n].flags=flags; handles[n].position=0;
@@ -72,12 +74,12 @@ zos_dev_t open(const char *name,uint8_t flags) {
 }
 zos_err_t close(zos_dev_t fd) {
     uint8_t fault=++model_close_calls==model_fail_close_at;
-    assert(fd>=2&&fd<16&&handles[(uint8_t)fd].used);
+    assert(fd>=2&&fd<model_fd_limit&&handles[(uint8_t)fd].used);
     handles[(uint8_t)fd].used=0; --model_handles;
     return fault?ERR_FAILURE:(zos_err_t)model_close_error;
 }
 zos_err_t ioctl(zos_dev_t fd,uint8_t command,void *argument) {
-    assert(fd>=2&&fd<16&&handles[(uint8_t)fd].used&&handles[(uint8_t)fd].file==64);
+    assert(fd>=2&&fd<model_fd_limit&&handles[(uint8_t)fd].used&&handles[(uint8_t)fd].file==64);
     if(++model_serial_ioctl_calls==model_serial_fail_ioctl_at) return ERR_FAILURE;
     if(command==SERIAL_CMD_GET_ATTR) *(uint8_t *)argument=model_serial_attr;
     else if(command==SERIAL_CMD_SET_ATTR) model_serial_attr=(uint8_t)(uintptr_t)argument;
@@ -85,7 +87,7 @@ zos_err_t ioctl(zos_dev_t fd,uint8_t command,void *argument) {
     return 0;
 }
 zos_err_t dstat(zos_dev_t fd,zos_stat_t *out) {
-    assert(fd>=2&&fd<16&&handles[(uint8_t)fd].used);
+    assert(fd>=2&&fd<model_fd_limit&&handles[(uint8_t)fd].used);
     if(handles[(uint8_t)fd].file==64) return ERR_NOT_SUPPORTED;
     if(handles[(uint8_t)fd].flags&(O_RDWR|O_WRONLY)) return ERR_INVALID_FILESYSTEM;
     memset(out,0,sizeof(*out)); out->s_flags=1; out->s_size=files[handles[(uint8_t)fd].file].size; return 0;
@@ -112,7 +114,7 @@ zos_err_t mkdir(const char *name) {
 zos_err_t seek(zos_dev_t fd,int32_t *at,zos_whence_t whence) {
     uint8_t n=(uint8_t)fd;
     uint32_t offset=(uint32_t)*at;
-    assert(fd>=2&&fd<16&&handles[n].used);
+    assert(fd>=2&&fd<model_fd_limit&&handles[n].used);
     if(handles[n].file==64) { ++model_serial_seek_calls; return ERR_NOT_SUPPORTED; }
     if(whence==SEEK_CUR) offset+=handles[n].position;
     if(whence==SEEK_END) offset+=handles[n].cached_size;
@@ -122,7 +124,7 @@ zos_err_t seek(zos_dev_t fd,int32_t *at,zos_whence_t whence) {
 zos_err_t read(zos_dev_t fd,void *out,uint16_t *size) {
     uint8_t n=(uint8_t)fd,file=handles[n].file;
     uint32_t left;
-    assert(fd>=2&&fd<16&&handles[n].used);
+    assert(fd>=2&&fd<model_fd_limit&&handles[n].used);
     if(++model_read_calls==model_fail_read_at) return ERR_FAILURE;
     if(model_read_calls==model_zero_read_at) { *size=0; return 0; }
     if(model_oversize_read) { ++*size; return 0; }
@@ -141,7 +143,7 @@ zos_err_t read(zos_dev_t fd,void *out,uint16_t *size) {
 }
 zos_err_t write(zos_dev_t fd,const void *in,uint16_t *size) {
     uint8_t n=(uint8_t)fd,file=handles[n].file;
-    assert(fd>=2&&fd<16&&handles[n].used);
+    assert(fd>=2&&fd<model_fd_limit&&handles[n].used);
     if(++model_write_calls==model_fail_write_at) return ERR_FAILURE;
     if(model_oversize_write) { ++*size; return 0; }
     if(model_write_error) return (zos_err_t)model_write_error;

@@ -347,8 +347,10 @@ Saved programs can replace themselves with an ordinary native Zeal executable:
 The native loader accepts nonempty files smaller than 48 KiB. A validated Pascal
 startup enables its private handoff; other native executables need no Pascal
 header. Memory mode reports I/O21. `$I-`/IOResult handles load failures. An attempted
-OS replacement closes ordinary files but retains filename associations if it
-fails, so Reset can reopen them. Failed replacement restores the caller image.
+OS replacement leaves no idle disk handles to retire. Failed replacement restores
+the caller image and preserves logically open file associations: continue using
+those files or Close them explicitly. Reset on an already-open binding requires
+Close or a new Assign first.
 Executing a saved caller through R returns to the IDE after the replacement exits,
 preserving Work source.
 
@@ -465,27 +467,54 @@ or truncating a file. `$I-` and IOResult support recovery from ordinary I/O erro
 Programs must explicitly Close files before routine return, Dispose, FreeMem,
 Release or program termination to finalize typed counts and Text EOF. This follows
 the TP3 manual's warning that omitting Close can lose data. Terminal and Execute
-cleanup release native OS descriptors without Pascal finalization; Chain retains
-open associations. Saved file programs include their disk runtime.
+cleanup does not perform Pascal finalization; Chain retains logically open
+associations. Saved file programs include their disk runtime.
 
 Text, typed and untyped native file variables contain a176-byte inline control
 block. TP3 Text/typed blocks are also176 bytes; its untyped block is48 bytes.
 The larger native untyped block holds Zeal paths of up to127 bytes, a documented
 platform adaptation. No private association registry or lazy registry page remains.
-A32-byte native descriptor ledger prevents copied/forged blocks from closing
-another variable's OS handle. Assign initializes the association without implicitly
-closing a prior descriptor; use explicit Close before reassigning an open file.
+Disk operations acquire a native handle only while accessing the file, then
+release it before returning to Pascal. Later access reopens the existing path
+without create/truncate and restores its position. The inline block retains
+mode, logical count/position, Text cursor and lookahead across recursive workspace
+saves; no descriptor cache or recursion ownership registry is used. Native handle
+release does not finalize typed counts or append Text EOF. Explicit Pascal Close
+still owns those effects. Assign overwrites the association without implicit
+Pascal Close, so Close it first when its pending metadata must be preserved.
+Copied or forged descriptor fields in Pascal memory have no native authority.
+Read/write operations resume with read-only/write-only native handles. Read-only
+handles avoid unnecessary ZealFS size writeback at close. A failed acquisition during Pascal Close retains
+pending finalization state so `$I-` callers can retrieve IOResult and retry Close.
+A reported native close error can follow an already-completed data transfer;
+its data and logical position remain advanced. Do not blindly replay a Write
+or BlockWrite after that error. No rollback of completed transfers is promised.
+Keep a logically open file's pathname stable: deleting, renaming or replacing
+it through another binding can make resume fail or select the replacement file.
+A saved Text cursor beyond the new EOF reports I/O99. Unchecked memory changes
+to the file block's path can also retarget access; only its fd field is inert.
+
+There is an I/O cost: a controlled128 two-byte Write/128 Read benchmark measured
+about1.15x the former HostFS CPU cycles and2.95x on TF in the pinned emulator.
+This measures the I/O loop, not compiler or IDE startup. Each BlockRead/BlockWrite
+call uses one handle for its complete transfer. This removes retained native
+handles without adding banks, but repeated small-record TF I/O is slower.
+Supplemental measurements put128 formatted WriteLn lines on TF at3.02x the
+former COM cycles. The typed benchmark in RAM Run mode measured2.79x on HostFS
+and3.44x on TF, including the parent runtime service gate. All measurements use
+marker-bounded emulator CPU cycles and verify exact output bytes.
+Measurements and artifact hashes are in
+[the scoped evidence](reviews/disk-handles-evidence-20261104.json).
 
 For file-heavy Pascal deployments, provision32 or64 entries through the kernel's
 supported configuration: `CONFIG_KERNEL_MAX_OPENED_DEVICES` (per-program files
 and devices) and `CONFIG_KERNEL_MAX_OPENED_FILES` (kernel open-file slots).
 Both settings support16..128. Console devices and other open resources also
-consume capacity. This is capacity planning, not a fix for abandoned handles:
-the current Pascal runtime still accepts only descriptor numbers0..15, so larger
-kernel pools require a matching runtime change before Pascal can benefit.
-The default16-entry configuration remains supported;32/64 is not a current
-Pascal requirement or a measured minimum. Descriptor retirement remains an open
-runtime issue independently of pool size.
+consume capacity. The runtime accepts native descriptors beyond15 and has no
+separate descriptor pool. Logically open Pascal disk files do not each occupy a
+kernel entry between operations. The default16-entry configuration remains
+supported;32/64 provides optional resource headroom, not a Pascal requirement or
+a measured minimum. Repeated disk Assign/Rewrite no longer retains old handles.
 
 Disk Text files support formatted Write/Writeln, Char/String/Integer/Byte/Real
 Read/ReadLn, Eof, Eoln, SeekEof and SeekEoln. Text output uses CR/LF and a final
@@ -736,14 +765,6 @@ Real6-range argument reduction; ArcTan returns the principal radian angle.
 Their private calculations retain enough precision for the specified accuracy
 and correctly handle the minimum-magnitude input.
 
-Assign overwrites the file binding without Pascal Close. On Zeal, an older native
-handle may still belong to a saved recursive workspace, so it stays owned until
-explicit Close after restoration or terminal cleanup. Repeated Assign without
-Close can exhaust the16 native descriptors. Closing an outer call's handle
-without reopening it when that call resumes breaks recursive-file behavior.
-Acquiring disk handles per file operation is being investigated as a way to
-release them while preserving the saved Pascal file state.
-
 Source String snapshots and Copy results reserve256 bytes: V- formals, Move,
 FillChar and unchecked indexing can expose a length beyond the declared capacity.
 Lengths are preserved rather than clipped. Numeric formatting snapshots retain
@@ -918,7 +939,8 @@ other state required by that calling convention.
 `{$U+}` enables physical Ctrl-C interruption at statements and loop conditions;
 `{$U-}` is the default and leaves Ctrl-C available as raw Kbd character 3.
 The switch restores its containing-file value after an include. User break
-closes program files and returns to the interrupted source in Memory mode.
+performs no Pascal Close; no disk handles remain open. It returns to the
+interrupted source in Memory mode.
 Polling preserves ordinary keys in a shared 255-character typeahead queue;
 at capacity it leaves further events with the keyboard driver until reads
 make space. It preserves operands, flags, alternate registers and Pascal frames.

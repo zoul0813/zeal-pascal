@@ -17,6 +17,7 @@ fixtures.update({'project/main.pas':b'program Saved;var n:integer;begin\n{$I par
                  'project/parts/fail.inc':b'n:=1 div 0;\n'})
 fixtures['project/many.pas']=('\n'.join('{$I many/I%02d.INC}'%i for i in range(20))+'\nbegin writeln(n00+n19)end.\n').encode()
 for i in range(20):fixtures['project/many/I%02d.INC'%i]=('const n%02d=%d;\n'%(i,i)).encode()
+fixtures['project/diskscope.pas']=(ROOT/'tests/native/diskscope.pas').read_bytes()
 fixtures['project/strings.pas']=(ROOT/'tests/native/strbounds.pas').read_bytes()
 fixtures['project/casts.pas']=('type\n'+''.join('t%d=record n:integer end;\n'%i for i in range(300))+
     "ordinal=0..100;var x:ordinal;begin x:=7;if integer(x)<>7 then halt;writeln('WIDE-TYPE-CAST-OK')end.\n").encode()
@@ -33,6 +34,7 @@ folder=n.RUN/'error-location/hostfs'
 checks={'native completion':m.get(sym['_test_done'])==255 and word('_test_stage')==6,
         'source-only lookup, map bounds, return and cleanup':word('_test_failed')==0 and word('_test_passed')>=20,
         'overlong/V-minus strings and wide casts execute safely':all(tag in (folder/'LOOKUP.TXT').read_bytes()for tag in (b'STRING-LENGTH-SAFE',b'WIDE-TYPE-CAST-OK',b'DEEP-DISK-OK',b'IO-FRAME-RESET-OK')),
+        'operation-scoped files work in RAM and disk COM':(folder/'LOOKUP.TXT').read_bytes().count(b'DISK-SCOPE-OK')==2,
         'typed constants retain values across Memory Runs':(folder/'LOOKUP.TXT').read_bytes().endswith(b'1\r\n2\r\n'),
         'no saved program or source-map input required':not (folder/'project/main.COM').exists() and not (folder/'project/main.ZMP').exists()}
 report={'passed':all(checks.values()),'checks':checks,'native_assertions':word('_test_passed'),

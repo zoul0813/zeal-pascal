@@ -91,13 +91,13 @@ def main():
         cleanup_abi[operand:operand+2]=(address+176).to_bytes(2,'little')
     cleanup=(ROOT/'tests/native/diskcleanup.pas.in').read_text().replace(
         '%ABI_LENGTH%',str(len(abi))).replace('%ABI_BYTES%',',\n'.join(','.join(map(str,cleanup_abi[i:i+20])) for i in range(0,len(cleanup_abi),20)))
-    open_file="assign(f,'H:/CLEAN.DAT');rewrite(f);i:=7;write(f,i);if dropfiles<>1 then halt;"
-    heap_file="new(p);assign(p^.f,'H:/CLEAN.DAT');rewrite(p^.f);i:=7;write(p^.f,i);if dropfiles<>1 then halt;\n"
+    open_file="assign(f,'H:/CLEAN.DAT');rewrite(f);i:=7;write(f,i);if dropfiles<>0 then halt;"
+    heap_file="new(p);assign(p^.f,'H:/CLEAN.DAT');rewrite(p^.f);i:=7;write(p^.f,i);if dropfiles<>0 then halt;\n"
     scenarios={
         'SCOPE': ('','close(local);', 'scoped;'),
         'EXIT': ('','close(local);exit;', 'scoped;'),
-        'IGNORE': ('{$I-}','close(local);', 'scoped;if ioresult<>$99 then halt;'),
-        'EXITOFF': ('','{$I-}close(local);exit;{$I+}', 'scoped;if ioresult<>$99 then halt;'),
+        'IGNORE': ('{$I-}','close(local);', 'scoped;if ioresult<>0 then halt;'),
+        'EXITOFF': ('','{$I-}close(local);exit;{$I+}', 'scoped;if ioresult<>0 then halt;'),
         'DISPOSE': ('','',heap_file+'close(p^.f);dispose(p);'),
         'FREE': ('','',heap_file+'close(p^.f);freemem(p,sizeof(item));'),
         'RELEASE': ('','','mark(markptr);'+heap_file+'close(p^.f);release(markptr);'),
@@ -136,7 +136,7 @@ def main():
               'RAMLOSS.DAT':bytes.fromhex('000002000e00'),'SAVLOSS.DAT':bytes.fromhex('000002000e00'),
               'WIDE.DAT':bytes.fromhex('01002c01')+bytes(i%251 for i in range(1,301))}
     expected.update({f'REC{i}.DAT':bytes((1,0,2,0,i,0)) for i in range(4)})
-    expected['CLEAN.DAT']=bytes.fromhex('000002000700')
+    expected['CLEAN.DAT']=bytes.fromhex('010002000700')
     owners = {'TYPED.DAT':('transfers',),'BLOCKS.DAT':('transfers',),'WIDE.DAT':('transfers',),
               'HEAPIO.DAT':('lifetime',),'RELEASE.DAT':('lifetime',),'HALTIO.DAT':('lifetime',),
               'FAULTIO.DAT':('lifetime',),'ABI.DAT':('abi',),'RAMLOSS.DAT':('abi',),'SAVLOSS.DAT':('abi',),
@@ -162,7 +162,7 @@ def main():
     if chunks.wants('ide-error'): checks.update(error_source_checks())
     checks['implementation and artifacts unchanged during validation']=all(
         n.sha(Path(p))==digest for p,digest in hashes.items())
-    report = {'scope': 'Native typed/block file transfers, inline file storage, explicit Close and native terminal descriptor cleanup and RAM/self-contained COM execution; Text/devices, full paths/Rename, copied/variant adoption and full file conformance remain pending',
+    report = {'scope': 'Native typed/block file transfers, inline file storage, explicit Close and operation-scoped native handles and RAM/self-contained COM execution; Text/devices, full paths/Rename, copied/variant adoption and full file conformance remain pending',
               'passed': all(checks.values()), 'capture_directory': str(n.RUN.relative_to(ROOT)),
               'case': chunks.case, 'expected_native_assertions': expected_assertions,
               'native_assertions_passed': word('_test_passed'),

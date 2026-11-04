@@ -14,7 +14,6 @@
 #define DIRTY 8u
 #define LOOKAHEAD 16u
 #define FILE_MARKER 0x465au
-#define NATIVE_HANDLES 16u
 #include <stddef.h>
 typedef struct {
     uint8_t flags,next;
@@ -27,12 +26,11 @@ typedef char file_block_size[sizeof(Record)==ZF_FILE_BYTES?1:-1];
 typedef char file_count_offset[offsetof(Record,count)==4?1:-1];
 typedef char file_path_offset[offsetof(Record,path)==48?1:-1];
 uint16_t zf_service_value;
-/* Zeal does not retire a guest's OS descriptors automatically. This ledger
- * tracks only native handles we actually opened, never file associations,
- * variables, heap allocations, generations or Pascal activation lifetimes. */
-static uint16_t handles[NATIVE_HANDLES];
+/* One disk handle lives only for this synchronous call. Pascal state, including
+ * recursive snapshots, never retains native descriptor authority. */
+static int8_t native_fd;
 static FileJob *job;
-#define record ((Record *)USER(job->object))
+static Record *record;
 static uint8_t bytes[128];
 /* Open requests finish before Rename begins comparing its streams. Both
  * buffers belong to this synchronous transport phase; no callback or retained
@@ -77,13 +75,6 @@ static int8_t open_path(const char *path,uint8_t flags) {
         error=zf_service(2,(uint16_t)(uintptr_t)&transport.request);
         fd=error?-(int8_t)error:(int8_t)zf_service_value;
     }
-    if(fd>=0) {
-        if((uint8_t)fd>=NATIVE_HANDLES) {
-            if(MEMORY_MODE)zf_service(3,(uint8_t)fd);else close(fd);
-            return -(int8_t)ERR_INVALID_PARAMETER;
-        }
-        handles[(uint8_t)fd]=job->object;
-    }
     return fd;
 }
 static int8_t open_file(uint8_t flags) { return open_path(record->path,flags); }
@@ -94,8 +85,6 @@ static uint8_t remove_file(void) {
     strcpy(transport.request.path,record->path);return rm(transport.request.path);
 }
 static uint8_t close_file(uint8_t fd) {
-    if(fd>=NATIVE_HANDLES||handles[fd]!=job->object)return ERR_INVALID_PARAMETER;
-    handles[fd]=0; /* VFS consumes even a failed close. */
     return MEMORY_MODE?zf_service(3,fd):close((int8_t)fd);
 }
 static uint8_t within(uint16_t at,uint16_t size,uint16_t low,uint16_t high) {
@@ -162,13 +151,13 @@ static uint8_t standards(void) {
         for(j=0;j<i;++j)if(word(table+2+4*j)==object)goto invalid;
     }
     for(i=0;i<count;++i) {
-        at=table+2+4*i;job->object=word(at);identity=word(at+2);
+        at=table+2+4*i;object=word(at);record=(Record *)USER(object);identity=word(at+2);
         if(bound(0,0)&&record->standard==identity)continue;
         initialize(0,0);record->standard=identity;
         record->device=identity>=ZF_STANDARD_KBD?identity:0;
         record->state=device_access(identity);flags();
     }
-    job->object=saved;return 1;
+    record=(Record *)USER(saved);return 1;
 invalid:
     fail(0x1ff,0);return 0;
 }
@@ -193,7 +182,7 @@ static uint8_t bookkeeping_status(uint32_t size,uint32_t position) {
 }
 static uint8_t write_bytes(const uint8_t *data,uint16_t *size) {
     uint16_t wanted=*size;
-    uint8_t error=write((int8_t)record->fd,data,size);
+    uint8_t error=write((int8_t)native_fd,data,size);
     int32_t next=0,end=0,restored;
     uint32_t advanced;
     /* Serial has no file cursor/size metadata. Never reinterpret a real device
@@ -203,13 +192,13 @@ static uint8_t write_bytes(const uint8_t *data,uint16_t *size) {
         if(*size<=wanted) native_position+=*size;
         return 0;
     }
-    if(!wanted||seek((int8_t)record->fd,&next,SEEK_CUR)) return error;
+    if(!wanted||seek((int8_t)native_fd,&next,SEEK_CUR)) return error;
     if((uint32_t)next<=native_position) return error;
     advanced=(uint32_t)next-native_position;
     if(advanced>wanted) return error;
-    if(seek((int8_t)record->fd,&end,SEEK_END)) return error;
+    if(seek((int8_t)native_fd,&end,SEEK_END)) return error;
     restored=next;
-    if(seek((int8_t)record->fd,&restored,SEEK_SET)||restored!=next) return error;
+    if(seek((int8_t)native_fd,&restored,SEEK_SET)||restored!=next) return error;
     if(bookkeeping_status((uint32_t)end,(uint32_t)next)!=error) return error;
     *size=(uint16_t)advanced; native_position=(uint32_t)next;
     return 0;
@@ -223,7 +212,7 @@ static uint16_t transfer(uint16_t address,uint16_t count,uint8_t writing) {
         n=count-done; if(n>sizeof(bytes)) n=sizeof(bytes);
         if(writing) memcpy(bytes,USER(address+done),n);
         size=n;
-        error=writing?write_bytes(bytes,&size):read((int8_t)record->fd,bytes,&size);
+        error=writing?write_bytes(bytes,&size):read((int8_t)native_fd,bytes,&size);
         /* The SDK leaves size unchanged on error; it is not a transferred
          * byte count. Never copy stale input or claim completion from it. */
         if(error) { native_error(error,writing); break; }
@@ -237,7 +226,7 @@ static uint16_t transfer(uint16_t address,uint16_t count,uint8_t writing) {
 }
 static uint8_t seek_file(uint32_t at) {
     uint32_t requested=at;
-    uint8_t error=seek((int8_t)record->fd,(int32_t *)&at,SEEK_SET);
+    uint8_t error=seek((int8_t)native_fd,(int32_t *)&at,SEEK_SET);
     if(error) native_error(error,0);
     else if(at!=requested) fail(0x99,0); /* native seek clamps at EOF */
     else native_position=at;
@@ -253,7 +242,7 @@ static uint8_t header(uint8_t writing) {
     }
     while(done<4) {
         size=4-done;
-        error=writing?write_bytes(bytes+done,&size):read((int8_t)record->fd,bytes+done,&size);
+        error=writing?write_bytes(bytes+done,&size):read((int8_t)native_fd,bytes+done,&size);
         if(error) { native_error(error,writing); return 0; }
         if(!size||size>4-done) { fail(writing?0xf0:0x99,0); return 0; }
         if(!writing) native_position+=size;
@@ -288,22 +277,40 @@ static void text_bytes(uint16_t count) {
         else done+=size;
     }
 }
+/* Resume never recreates/truncates or rereads Pascal's unfinalized header. */
+static uint8_t disk_open(uint8_t writing) {
+    if(native_fd>=0)return 1;
+    /* Read-only resume avoids ZealFS size writeback on close. Pascal access
+     * permissions remain in state and are checked before acquisition. */
+    native_fd=open_file(writing?O_WRONLY:O_RDONLY);
+    if(native_fd<0) {native_error((uint8_t)-native_fd,writing);return 0;}
+    if(!record->family) {text_position();return seek_file(native_position);}
+    return 1;
+}
+static void disk_release(void) {
+    uint8_t error;
+    if(native_fd<0)return;
+    error=close_file((uint8_t)native_fd);native_fd=-1;
+    if(error)fail(error==ERR_NO_SUCH_ENTRY?0xff:error==ERR_CANNOT_REGISTER_MORE?0xf3:0xf0,error);
+}
 static uint8_t serial_open(void) {
     int8_t fd;
-    if(record->fd!=0xffffu) return 1;
+    if(native_fd>=0) return 1;
     fd=open_path("#SER0",O_RDWR);
     if(fd<0) { fail(-fd==ERR_CANNOT_REGISTER_MORE?0xf3:0x20,(uint8_t)-fd); return 0; }
-    record->fd=(uint8_t)fd; return 1;
+    native_fd=(uint8_t)fd; return 1;
 }
 static uint8_t text_peek(void) {
     uint16_t size=1;
     uint8_t error;
     if(!(record->state&LOOKAHEAD)) {
         if(record->device&&!serial_open()) return 26;
-        error=read((int8_t)record->fd,bytes,&size);
+        if(!record->device&&!disk_open(0))return 26;
+        error=read((int8_t)native_fd,bytes,&size);
         if(error) { native_error(error,0); return 26; }
         if(size>1) { fail(0x99,ERR_INVALID_PARAMETER); return 26; }
         if(!size&&record->device) { fail(0x99,0); return 26; }
+        if(!record->device) {native_position+=size;text_remember();}
         record->next=size?bytes[0]:26;
         record->state|=LOOKAHEAD;
     }
@@ -375,6 +382,7 @@ static void text_readln(void) {
 }
 static void text_write(uint8_t newline) {
     uint16_t n;
+    if(!record->device&&!disk_open(1))return;
     text_position();
     if(newline) { bytes[0]=13; bytes[1]=10; text_bytes(2); }
     else {
@@ -386,21 +394,20 @@ static void text_write(uint8_t newline) {
 }
 static void flush(void) {
     if(record->family==1&&(record->state&DIRTY)) {
-        if(header(1)) record->state&=(uint16_t)~DIRTY;
+        if(disk_open(1)&&header(1)) record->state&=(uint16_t)~DIRTY;
     }
 }
 static void close_record(void) {
-    uint16_t primary=job->error,detail=job->detail;
-    uint8_t error;
-    if(record->device||!(record->state&OPENED)) return;
-    job->error=0; job->detail=0;
-    if(!record->family&&(record->state&WRITABLE)) {
-        text_position(); bytes[0]=26; text_bytes(1); text_remember();
-    } else flush();
-    error=close_file((uint8_t)record->fd);
-    record->state=0; record->fd=0xffffu; /* VFS consumes even a failed close. */
-    if(error) fail(error==ERR_NO_SUCH_ENTRY?0xff:error==ERR_CANNOT_REGISTER_MORE?0xf3:0xf0,error);
-    if(primary) { job->error=primary; job->detail=detail; }
+    if(record->device||!(record->state&OPENED))return;
+    if((!record->family&&(record->state&WRITABLE))||
+       (record->family==1&&(record->state&DIRTY))) {
+        /* A failed acquisition has not attempted finalization. Keep the FIB
+         * open so an unchecked caller can retrieve IOResult and retry Close. */
+        if(!disk_open(1))return;
+        if(!record->family) {bytes[0]=26;text_bytes(1);text_remember();}
+        else flush();
+    }
+    record->state=0;
 }
 static void activate(uint8_t rewriting) {
     int8_t fd;
@@ -423,7 +430,7 @@ static void activate(uint8_t rewriting) {
         flags=O_RDONLY; fd=open_file(flags);
     }
     if(fd<0) { native_error((uint8_t)-fd,rewriting); return; }
-    record->fd=(uint8_t)fd; record->position=0; record->count=0;
+    native_fd=fd; record->position=0; record->count=0;
     record->next=record->physical_low=record->physical_high=0;
     record->state=OPENED|(flags&O_WRONLY?WRITABLE:flags&O_RDWR?READABLE|WRITABLE:READABLE);
     if(record->family==1) header(rewriting);
@@ -440,7 +447,7 @@ static void component(uint8_t writing) {
     if(!readable(job->data,size)) { fail(0x1ff,0); return; }
     if(!writing&&record->position>=record->count) { fail(0x99,0); return; }
     if(writing&&record->position==65535u) { fail(0xf2,0); return; }
-    if(!seek_file(4ul+(uint32_t)record->position*size)) return;
+    if(!disk_open(writing)||!seek_file(4ul+(uint32_t)record->position*size)) return;
     if(transfer(job->data,size,writing)!=size) { if(!job->error) fail(0x99,0); return; }
     ++record->position; job->actual=1;
     if(writing) {
@@ -455,7 +462,7 @@ static void blocks(uint8_t writing,uint8_t partial) {
     if(!access(writing)) return;
     if(size>65535u||!readable(job->data,(uint16_t)size)) { fail(0x1ff,0); return; }
     if((uint32_t)record->position+job->count>65535u) { fail(0xf2,0); return; }
-    if(!seek_file((uint32_t)record->position*128u)) return;
+    if(!disk_open(writing)||!seek_file((uint32_t)record->position*128u)) return;
     for(i=0;i<job->count;++i) {
         if(transfer(job->data+i*128u,128,writing)!=128) break;
         ++record->position; ++job->actual;
@@ -589,10 +596,10 @@ static void serial_stream(void) {
     uint8_t error,restore=0;
     if(job->operation==ZF_TEXT_BEGIN&&!(job->count&2)) return;
     if(job->operation==ZF_TEXT_WRITE&&!USER(job->data)[0]) return;
-    record->fd=0xffffu;
+    native_fd=-1;
     if(writing) {
-        if(!serial_open()) { record->fd=0xffffu; return; }
-        fd=(int8_t)record->fd;
+        if(!serial_open()) { native_fd=-1; return; }
+        fd=(int8_t)native_fd;
         error=ioctl(fd,SERIAL_CMD_GET_ATTR,&serial_attribute);
         if(!error) {
             restore=1;
@@ -609,15 +616,15 @@ static void serial_stream(void) {
     default: text_predicate(job->operation); break;
     }
     if(restore) {
-        fd=(int8_t)record->fd;
+        fd=(int8_t)native_fd;
         error=ioctl(fd,SERIAL_CMD_SET_ATTR,(void *)(uintptr_t)serial_attribute);
         if(error) fail(0xf0,error);
     }
-    if(record->fd!=0xffffu) {
-        error=close_file((uint8_t)record->fd);
+    if(native_fd>=0) {
+        error=close_file((uint8_t)native_fd);
         if(error) fail(0xf0,error);
     }
-    record->fd=0xffffu;
+    native_fd=-1;
 }
 /* The file module validates ownership while mapped; the restored prefix owns
  * keyboard services. Only the authenticated binding's small lookahead state
@@ -654,7 +661,7 @@ static void logical_stream(void) {
 static void dispatch(FileJob *invocation) {
     uint16_t family,width;
     uint8_t valid,error;
-    job=invocation;
+    job=invocation;record=(Record *)USER(job->object);
     if(job->operation!=ZF_STREAM_RETURN) {
         job->error=0; job->detail=0; job->result=0; job->actual=0; job->stream=0; job->lookahead=0;
     }
@@ -671,11 +678,6 @@ static void dispatch(FileJob *invocation) {
         if(job->operation==ZF_ASSIGN&&!standard_identity())valid=0;
         else {fail(0x1ff,0);return;}
     }
-    if(valid&&(record->state&OPENED)&&
-       (record->fd>=NATIVE_HANDLES||handles[record->fd]!=job->object)) {
-        /* Execute closed the OS handle without finalizing the Pascal file. */
-        record->state&=(uint16_t)~(OPENED|READABLE|WRITABLE|DIRTY);
-    }
     if(job->operation==ZF_STREAM_RETURN) {
         if(!valid||record->device<ZF_STANDARD_KBD||record->device>ZF_STANDARD_USR||
            record->device==ZF_STANDARD_LST||record->device==ZF_STANDARD_AUX||
@@ -684,7 +686,7 @@ static void dispatch(FileJob *invocation) {
         else {
             record->next=(uint8_t)job->lookahead;
             record->state=(record->state&~LOOKAHEAD)|((job->lookahead&0x100u)?LOOKAHEAD:0);
-
+            flags();
         }
         return;
     }
@@ -700,7 +702,7 @@ static void dispatch(FileJob *invocation) {
                   job->operation==ZF_EOF||(job->operation>=ZF_EOLN&&job->operation<=ZF_SEEKEOLN))
             job->stream=record->standard;
         else fail(0x20,0);
-        return;
+        flags();return;
     }
     if(job->operation==ZF_ASSIGN) {
         if(!assigned_path()) { fail(0x20,ERR_INVALID_PATH); return; }
@@ -708,14 +710,15 @@ static void dispatch(FileJob *invocation) {
         if(error&&family) { fail(0x20,0); return; }
         initialize(family,width);
         record->device=error; record->state=error?device_access(error):0; record->next=0;
-        strcpy(record->path,transport.request.path); return;
+        strcpy(record->path,transport.request.path);flags();return;
     }
     if(!valid) {
         fail(family==2?4:job->operation==ZF_READ||job->operation==ZF_TEXT_READ||
              job->operation==ZF_TEXT_READLN||job->operation==ZF_TEXT_BEGIN||job->operation==ZF_EOF||
              (job->operation>=ZF_EOLN&&job->operation<=ZF_SEEKEOLN)?2:3,0); return;
     }
-    if(record->device) { logical_stream(); return; }
+    if(record->device) { logical_stream();flags();return; }
+    /* No descriptor is ever read from the copied/forged FIB slot. */
     switch(job->operation) {
     case ZF_TRANSFER_PATH: case ZF_TRANSFER_EXECUTE:
         width=(uint16_t)strlen(record->path)+1;
@@ -776,22 +779,15 @@ static void dispatch(FileJob *invocation) {
         break;
     default: fail(0x20,ERR_NOT_IMPLEMENTED); break;
     }
-
+    flags(); /* Reflect validated state changes even if transfer/close failed. */
 }
 void zf_dispatch(FileJob *invocation) ZFILE_CALL {
+    native_fd=-1;
     dispatch(invocation);
-    if(!job->error&&readable(job->object,ZF_FILE_BYTES)&&record->marker==FILE_MARKER)flags();
+    disk_release();
 }
-/* Close releases Pascal output buffers/metadata; terminal OS cleanup does
- * not perform an implicit Pascal Close, nor inspect possibly dead variables. */
+/* All native descriptors are released before returning to Pascal. This retained
+ * ABI boundary performs no implicit Pascal Close or walk of dead variables. */
 void zf_cleanup(FileCleanup *ending) ZFILE_CALL {
-    uint8_t fd,error;
     ending->error=ending->detail=0;
-    if(ending->operation==ZF_END_PROGRAM||ending->operation==ZF_END_EXECUTE) {
-        for(fd=0;fd<NATIVE_HANDLES;++fd)if(handles[fd]) {
-            handles[fd]=0;
-            error=MEMORY_MODE?zf_service(3,fd):close((int8_t)fd);
-            if(error&&!ending->error) {ending->error=0xf0;ending->detail=error;}
-        }
-    }
 }

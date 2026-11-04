@@ -45,6 +45,12 @@ int app_main(void) {
      check(b.valid==2&&save_build(&s,&b,0));
      {uint8_t status=255;check(run_saved(&s,&b,&status)&&status==0);}}
     build_close(&b);
+    check(load_source(&s,"H:/project/diskscope.pas",&d));
+    check(compile(&s,&b,&d)&&run_build(&s,&b)&&ram_result[26]==1);
+    build_close(&b);
+    {CompileOptions options={0,0xfbffu,COMPILE_PROGRAM};uint8_t status=255;
+     compiler_disk_requested=1;check(compile_project(&s,&b,&d,1,&options));compiler_disk_requested=0;
+     check(save_build(&s,&b,0)&&run_saved(&s,&b,&status)&&status==0);build_close(&b);}
     /* A checked I/O failure must not retain the old IOCALL landing. */
     check(load_source(&s,"H:/project/ioframe.pas",&d));
     check(compile(&s,&b,&d));

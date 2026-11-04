@@ -207,7 +207,7 @@ def execute(n):
     state=n.memory(raw);out=n.RUN/'execute-call-commit-failure/hostfs';text=(out/'RESULT.TXT').read_bytes()
     checks['real OS failure after file cleanup restores With, association and all physical owners']=(
         bool(mutation) and state.get(ps['_test_done'])==255 and all(state.get(ps['_test_failed']+i)==0 for i in range(2))
-        and text.endswith(b'EXECUTE-COMMIT-RETRY-OK\r\n') and (out/'RECOVER.DAT').read_bytes()==b'\1\0\2\0\xd2\4')
+        and text.endswith(b'EXECUTE-COMMIT-RETRY-OK\r\n') and (out/'RECOVER.DAT').read_bytes()==b'\2\0\2\0\xd2\4\xd2\4')
     mutation.clear();fault_payload=raw_exit
     raw=n.execute('execute-call-native-commit-failure',fault_commands,
         {parent+'.bin':media[parent+'.bin'],'CALLER.COM':images['EXEFAIL'],
@@ -217,7 +217,7 @@ def execute(n):
     checks['ordinary native target disappearance after snapshot restores caller and exact page inventory']=(
         bool(mutation) and state.get(ps['_test_done'])==255 and all(state.get(ps['_test_failed']+i)==0 for i in range(2))
         and (out/'RESULT.TXT').read_bytes().endswith(b'EXECUTE-COMMIT-RETRY-OK\r\n')
-        and (out/'RECOVER.DAT').read_bytes()==b'\1\0\2\0\xd2\4')
+        and (out/'RECOVER.DAT').read_bytes()==b'\2\0\2\0\xd2\4\xd2\4')
     mark=re.search(rb'EXECUTE-STACK-LOW:(-?\d+)\r\n',text)
     low=int(mark[1])&65535 if mark else None
     checks['native caller stack watermark stays inside the 1024-byte service reserve']=low is not None and (low==0 or 0xf800<=low<0xfa00)

@@ -10,7 +10,7 @@ procedure scoped;
 var local:ints;
 begin
   assign(local,'H:/CLEAN.DAT');rewrite(local);i:=7;write(local,i);
-  if dropfiles<>1 then halt;
+  if dropfiles<>0 then halt;
   %SCOPE_EXIT%
 end{SCOPE};
 {$I+}

@@ -41,8 +41,8 @@ typedef struct {
      * an unchecked input failure. This is data, never descriptor authority. */
     uint16_t lookahead;
 } FileJob;
-/* Terminal and Execute cleanup release native descriptors only. They never
- * flush Pascal files, inspect dead variables or retire source/heap lifetimes. */
+/* Retained cleanup ABI: operations release native handles before returning.
+ * Terminal/Execute cleanup never finalizes or walks Pascal file variables. */
 typedef struct { uint16_t operation,error,detail; } FileCleanup;
 void zf_dispatch(FileJob *job) ZFILE_CALL;
 /* No auxiliary file-storage pages are allocated. */

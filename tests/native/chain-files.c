@@ -1,5 +1,5 @@
-/* Inline file blocks across a code-only handoff, explicit Close and native
- * terminal/Execute descriptor cleanup. This does not replace caller code. */
+/* Inline file blocks across code-only handoff and failed Execute cleanup.
+ * Disk handles are operation-scoped; Pascal Close explicitly finalizes. */
 #include "file_runtime.h"
 #include <string.h>
 #include <zos_vfs.h>
@@ -112,8 +112,13 @@ static void execute_files(void) {
 #endif
     check(!executing.job.error&&!memcmp(saved,VM(0xc000),ZF_FILE_BYTES));
     for(i=0;i<8;++i)if(executing.guard[i]!=0xa5)break;check(i==8);
-    select(0xc000);check(call(ZF_RESET)==0);check(call(ZF_SIZE)==0&&job.result==0);check(call(ZF_CLOSE)==0);
-    select(0xe402);check(call(ZF_RESET)==0);check(call(ZF_SIZE)==0&&job.result==0);check(call(ZF_CLOSE)==0);
+    /* Keep the same FIB after failed replacement: Reset still rejects an open
+     * binding, while ordinary Write resumes and explicit Close finalizes. */
+    select(0xc000);check(call(ZF_RESET)==0x20);output(0xc000,22);check(call(ZF_CLOSE)==0);
+    check(call(ZF_RESET)==0);check(call(ZF_SIZE)==0&&job.result==2);
+    check(call(ZF_READ)==0&&(VM(0xd200)[0]==11));check(call(ZF_READ)==0&&VM(0xd200)[0]==22);check(call(ZF_CLOSE)==0);
+    select(0xe402);output(0xe402,44);check(call(ZF_CLOSE)==0);
+    check(call(ZF_RESET)==0);check(call(ZF_SIZE)==0&&job.result==2);check(call(ZF_CLOSE)==0);
     check(cleanup(ZF_END_PROGRAM)==0);
 }
 static void child(void) {
@@ -144,9 +149,9 @@ static void results(void) {
 #ifndef __SDCC
 static void faults(void) {
     parent();model_close_error=ERR_FAILURE;
-    check(cleanup(ZF_END_EXECUTE)==0xf0&&ending.detail==ERR_FAILURE&&model_handles==0&&model_pages==0);
+    check(cleanup(ZF_END_EXECUTE)==0&&model_handles==0&&model_pages==0);
     model_close_error=0;check(cleanup(ZF_END_PROGRAM)==0&&model_handles==0);
-    select(0xc000);check(call(ZF_RESET)==0);check(call(ZF_SIZE)==0&&job.result==0);check(call(ZF_CLOSE)==0);
+    named(0xc000,"H:/CGLOBAL.DAT");check(call(ZF_RESET)==0);check(call(ZF_SIZE)==0&&job.result==0);check(call(ZF_CLOSE)==0);
 }
 #endif
 int main(void) {

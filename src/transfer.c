@@ -29,7 +29,7 @@ uint8_t transfer_cleanup(FileCleanup *job) CHAIN_CALL {
     if(BYTE(ZT_FILE)) {
         memset(&files,0,sizeof(files));files.operation=ZF_END_PROGRAM;
         /* Mode1 never frees a file module on an undocumented return register.
-         * Its cleanup reports native descriptor failures in the owned job. */
+         * Its cleanup uses the owned job; no idle disk descriptors remain. */
         transfer_file_call(1,&files);
         if(files.error)first(job,files.error,files.detail);
         else {

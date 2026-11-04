@@ -23,7 +23,7 @@
     },
     "files": {
       "target": "zfiletest",
-      "legacy_assertions": 480,
+      "legacy_assertions": 466,
       "groups": {
         "types": 84,
         "transfers": 42,
@@ -31,14 +31,16 @@
         "errors": 34,
         "abi": 31,
         "stack": 116,
-        "cleanup-scope": 52,
-        "cleanup-heap": 70
+        "cleanup-scope": 48,
+        "cleanup-heap": 60
       },
       "workflows": [
         "ide-error"
       ],
       "setup_checks": 6,
-      "selector_checks": 3
+      "selector_checks": 3,
+      "baseline_legacy_assertions": 480,
+      "assertion_change": "Operation-scoped handles remove14 obsolete error-PC/location checks for seven stale-descriptor injections; their normal/Halt completion, empty child handle set and explicit-Close disk bytes remain checked."
     },
     "options": {
       "target": "zoptionstest",
