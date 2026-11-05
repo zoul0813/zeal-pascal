@@ -583,6 +583,15 @@ int16_t cc_named_type(void) FRONTEND {
     if(id>=0&&CCS(id,role)==S_TYPE) return CCS(id,type);
     return id<0?cc_predefined_type():-1;
 }
+/* Native color names are ordinary predefined Integer constants. Callers
+ * resolve user declarations first, exactly as for MaxInt and Pi. */
+int16_t cc_predefined_color(void) FRONTEND {
+    static const char *const names[]={"black","blue","green","cyan","red","magenta","brown","lightgray",
+        "darkgray","lightblue","lightgreen","lightcyan","lightred","lightmagenta","yellow","white"};
+    uint8_t i;
+    for(i=0;i<16;++i)if(cc_is(names[i]))return i;
+    return -1;
+}
 void cc_constant(TypeId *type,uint16_t *value) FRONTEND {
     int16_t id;
     uint8_t sign=0;
@@ -603,6 +612,7 @@ void cc_constant(TypeId *type,uint16_t *value) FRONTEND {
         else if(id<0&&(cc_is("true")||cc_is("false"))) { *type=K_BOOLEAN; *value=cc_is("true"); }
         else if(id<0&&cc_is("maxint")) *value=32767;
         else if(id<0&&cc_is("pi")) { *type=K_REAL; *value=REAL_PI; }
+        else if(id<0&&(id=cc_predefined_color())>=0) *value=(uint16_t)id;
         else cc_fail(41);
     } else cc_fail(25);
     if(sign&&!cc_numeric(*type)) cc_fail(25);

@@ -113,3 +113,7 @@
 !/tools/test-crt.py
 !/reviews/crt-20261104.md
 !/reviews/crt-evidence-20261104.json
+
+# Native color/query acceptance and reconciled review.
+!/reviews/color-20261104.md
+!/reviews/color-evidence-20261104.json

@@ -273,7 +273,7 @@ def editing_checks():
 
 
 def source_error_checks():
-    source = b'begin\nwriteln(7 div 0)\nend.'
+    source = b'begin\nTextBackground(Black);TextColor(Black);\nwriteln(7 div 0)\nend.'
     # The retained one-billion-cycle checkpoints stopped inside compilation
     # and startup loading. Observe the real reader, with room for both phases.
     ide = IDE('ERROR.PAS', cycles=10000000000)
@@ -282,13 +282,27 @@ def source_error_checks():
         ide.key(key)
     ide.key('RIGHT_BRACKET', shift=True)
     ide.key('K', ctrl=True); ide.key('D'); ide.key('R'); ide.state('diagnostic')
-    ide.key('ESC'); ide.state('source')
+    clear = n.kernel_symbols()['_video_vram_set']
+    ide.commands += [f'bc 0x{ide.reader:x}', f'bp 0x{clear:x}']
+    ide.key('ESC')
+    ide.frames.append(('diagnostic screen', 'screen'))
+    ide.commands += ['regs', 'mmu']
+    for base in (0x4000, 0x5000):
+        for offset in range(0, 3200, 256):
+            ide.commands += [f'rb 0x{base+offset:x} {min(256, 3200-offset)}']
+    ide.commands += [f'bc 0x{clear:x}', f'bp 0x{ide.reader:x}', 's', 'run 10000000000']
+    ide.state('source')
     ide.block('D'); ide.key('S'); ide.key('ESC')
     frames = ide.finish('editor-source-error', {'ERROR.PAS': source})
     s, b, r = ide.sym['_work'], ide.sym['_build'], ide.sym['_ram_result']
     first, last = frames['diagnostic'], frames['source']
     snapshot = b'{edit}'+source
     return {
+        'black-on-black program leaves readable IDE runtime diagnostic':
+            b'Runtime error 02' in b''.join(frames['diagnostic screen'])
+            and all(attr == 15 for row, attrs in zip(frames['diagnostic screen'],
+                        frames['diagnostic screen attributes'])
+                    for char, attr in zip(row, attrs) if char != 32),
         'runtime-error checkpoints reach the actual IDE reader':
             frames['diagnostic pc']==frames['source pc']==ide.reader,
         'edited source compiles/runs to actual runtime02 diagnostic':

@@ -36,6 +36,7 @@ static uint16_t data(uint16_t *coefficient,uint8_t *word) {
             if(family!=K_INTEGER)cc_fail(sign&&family!=K_REAL?25:22);
             value=CCS(id,address);
         } else if(id<0&&cc_is("maxint"))value=32767;
+        else if(id<0&&(id=cc_predefined_color())>=0)value=(uint16_t)id;
         else if(id<0&&(cc_is("true")||cc_is("false")||cc_is("pi")))cc_fail(sign&&!cc_is("pi")?25:22);
         else if(sign)cc_fail(25);
         else if(id>=0) {*word=1;value=address((uint16_t)id,coefficient);}

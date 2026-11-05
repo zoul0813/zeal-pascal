@@ -88,7 +88,7 @@ typedef struct {
     uint16_t keyboard_entry,keyboard_poll,keyboard_status,keyboard_state,interrupt_entry;
     uint16_t keyboard_probe,keyboard_enqueue,keyboard_console_probe;
     uint8_t console_used;uint8_t console_dynamic;
-    uint16_t crt_entries[11],crt_state,crt_row;
+    uint16_t crt_entries[15],crt_state,crt_row;
     uint16_t hook_variables[HOOK_COUNT],hook_defaults[HOOK_COUNT];
     uint16_t hook_output_calls,hook_mask_call;
     uint16_t hook_character,hook_echo,hook_open;
@@ -209,6 +209,8 @@ void cc_file_engine_finish(void) FRONTEND;
 void cc_user_interrupt(void) FRONTEND;
 void cc_console_finish(void) FRONTEND;
 uint8_t cc_crt_statement(void) FRONTEND;
+void cc_crt_query(uint8_t vertical) FRONTEND;
+int16_t cc_predefined_color(void) FRONTEND;
 void cc_error_finish(void) FRONTEND;
 void cc_params_finish(void) FRONTEND;
 void cc_random_finish(void) FRONTEND;

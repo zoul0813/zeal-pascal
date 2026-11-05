@@ -39,6 +39,7 @@ def main():
     fixtures = {f'{target}.{ext}': (ROOT/f'build/{target}.{ext}').read_bytes()
                 for ext in ('bin', 'zpl')}
     fixtures['CRT.PAS'] = (ROOT/'tests/native/crt.pas').read_bytes()
+    fixtures['COLORS.PAS'] = (ROOT/'tests/native/colors.pas').read_bytes()
     raw = n.execute('crt-component', commands, fixtures, timeout=1200,console_class=CRTConsole)
     memory = n.memory(raw)
     word = lambda name: memory.get(sym[name], 0) | memory.get(sym[name]+1, 0) << 8
@@ -46,12 +47,12 @@ def main():
     sleeps = re.findall(r'\[DBG\] PC='+f'{sleeper:04x}'+r' .*?DE=([0-9a-fA-F]{4})', raw, re.S)
     checks = {
         'native millisecond sleep arguments, zero and25 in RAM andCOM; pending I/O suppresses sleep':
-            sleeps == ['0000', '0019', '0000', '0019'] + ['0019']*7,
+            sleeps == ['0000', '0019', '0000', '0019'] + ['0019']*13,
         'native completion': memory.get(sym['_test_done']) == 255 and word('_test_stage') == 6,
         'RAM/COM screen, cursor/color restoration, bounds, syntax, ownership and machine-state assertions':
-            word('_test_failed') == 0 and word('_test_passed') == 167,
+            word('_test_failed') == 0 and word('_test_passed') == 446,
         'exact program results after whole-screen character/attribute comparisons':
-            output.is_file() and output.read_bytes() == b'CRT-OK:-7885\r\nCRT-OK:-7885\r\nCRT-IO-OK\r\nCRT-IO-OK\r\nCRT-RESTART-OK\r\n',
+            output.is_file() and output.read_bytes() == b'CRT-OK:-7885\r\nCRT-OK:-7885\r\nCOLOR-POS:  7:  9\r\nCOLOR-OK:1815\r\nCOLOR-POS:  7:  9\r\nCOLOR-OK:1815\r\nCRT-IO-OK\r\nCRT-IO-OK\r\nCRT-RESTART-OK\r\n',
         'implementation and artifacts unchanged during validation':
             all(n.sha(Path(p)) == digest for p, digest in hashes.items()),
     }

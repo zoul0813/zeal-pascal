@@ -141,11 +141,11 @@ TypeId cc_aggregate_actual(TypeId type) BACKEND {
     } else cc_fail(41);
     return type;
 }
-enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR,F_LENGTH,F_COPY,F_POS,F_CONCAT,F_PTR,F_MEMAVAIL,F_MAXAVAIL,F_STACKPTR,F_TRUNC,F_ROUND,F_INT,F_FRAC,F_SQRT,F_LN,F_EXP,F_SIN,F_COS,F_ARCTAN,F_RANDOM,F_IORESULT,F_PARAMCOUNT,F_PARAMSTR };
+enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR,F_LENGTH,F_COPY,F_POS,F_CONCAT,F_PTR,F_MEMAVAIL,F_MAXAVAIL,F_STACKPTR,F_TRUNC,F_ROUND,F_INT,F_FRAC,F_SQRT,F_LN,F_EXP,F_SIN,F_COS,F_ARCTAN,F_RANDOM,F_IORESULT,F_PARAMCOUNT,F_PARAMSTR,F_WHEREX,F_WHEREY };
 static void integer_value(void) { if(cc_family(expression())!=K_INTEGER) cc_fail(23); }
 static void push_value(void) { cc_guard(); cc_emit(0xe5); }
 static int16_t predefined_function(void) {
-    static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length","copy","pos","concat","ptr","memavail","maxavail","stackptr","trunc","round","int","frac","sqrt","ln","exp","sin","cos","arctan","random","ioresult","paramcount","paramstr"};
+    static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length","copy","pos","concat","ptr","memavail","maxavail","stackptr","trunc","round","int","frac","sqrt","ln","exp","sin","cos","arctan","random","ioresult","paramcount","paramstr","wherex","wherey"};
     uint8_t i;
     for(i=0;i<sizeof(functions)/sizeof(functions[0]);++i) if(cc_is(functions[i])) return i;
     return -1;
@@ -157,6 +157,7 @@ static TypeId intrinsic(uint8_t op) {
     uint8_t saved;
     int16_t id;
     cc_next();
+    if(op==F_WHEREX||op==F_WHEREY) { cc_crt_query(op==F_WHEREY); return K_BYTE; }
     if(op==F_IORESULT) { cc_call(RT_IORESULT); return K_INTEGER; }
     if(op==F_PARAMCOUNT) { cc_params(0); return K_INTEGER; }
     if(op==F_RANDOM&&cc.token!='(') { cc_random(0); return K_REAL; }
@@ -294,6 +295,7 @@ static TypeId factor(void) {
             cc_op16(0x21,cc_is("true")?1:0); kind=K_BOOLEAN; cc_next();
         } else if(id<0&&cc_is("maxint")) { cc_op16(0x21,32767); cc_next();
         } else if(id<0&&cc_is("pi")) { cc_real_emit(REAL_PI); kind=K_REAL; cc_next();
+        } else if(id<0&&(fn=cc_predefined_color())>=0) { cc_op16(0x21,(uint16_t)fn); cc_next();
         } else if(id<0) cc_fail(41);
         else if(CCS(id,role)==S_CONSTANT) {
             kind=CCS(id,type);

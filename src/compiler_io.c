@@ -175,7 +175,11 @@ void cc_error_finish(void) FRONTEND {
     cc_address(0x21,name);cc_op16(0x11,0xfcd0);cc_op16(0x01,sizeof(video));cc_emit(0xed);cc_emit(0xb0);
     cc_op16(0x01,0xfcd0);cc_op16(0x21,0x0102);cc_emit(0xcf);
     cc_emit(0xb7);finish=cc_forward(0xfa);
-    cc_op16(0x32,0xfcbd);cc_emit(0x67);cc_emit(0x2e);cc_emit(1);
+    cc_op16(0x32,0xfcbd);
+    /* Fatal diagnostics must remain visible even after black-on-black output. */
+    cc_emit(0x67);cc_emit(0x2e);cc_emit(7);cc_emit(0x0e);cc_emit(5);
+    cc_op16(0x11,15);cc_emit(0xcf); /* CMD_SET_COLORS: white on black */
+    cc_op16(0x3a,0xfcbd);cc_emit(0x67);cc_emit(0x2e);cc_emit(1);
     cc_op16(0x11,0xfc80);cc_op16(0x3a,0xfcbe);cc_emit(0x4f);cc_emit(0x06);cc_emit(0);cc_emit(0xcf);
     cc_op16(0x3a,0xfcbd);cc_emit(0x67);cc_emit(0x2e);cc_emit(3);cc_emit(0xcf);
     cc_patch(finish);cc_op16(0x3a,0xfcbf);cc_emit(0x67);cc_emit(0x2e);cc_emit(15);cc_emit(0xcf);

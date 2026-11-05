@@ -163,7 +163,7 @@ static void diagnostic(uint8_t kind,uint16_t code,const char *path,
     uint16_t line,col;
     uint8_t located;
     ide_state=3;
-    screen_clear();
+    screen_mark(0);screen_clear();
     output(kind==0?"User break":kind==1?"Compiler error ":kind==2?"Runtime error ":"I/O error ");
     if(kind==1) output_number(code); else if(kind) output_hex(code,2);
     if(messages&&kind==1)compiler_message((uint8_t)code);
@@ -732,6 +732,7 @@ int app_main(void) {
             } while(c!='q');
         }
         else if(c=='r') {
+            uint8_t ran,error;
             if((saved_mode||!build.valid||!sources_get(&build.sources,0,&root)||!build_ready(&root,&build))&&!compile_work(1))continue;
             if(!sources_get(&build.sources,0,&root)) { lookup_failure();continue; }
             if(saved_mode==2) {
@@ -740,22 +741,28 @@ int app_main(void) {
             }
             screen_clear(); output("Validating and preparing program...\n");
             if(saved_mode) {
-                if(!run_saved(&root,&build,&status)) {
+                ran=run_saved(&root,&build,&status);error=platform_error;
+                screen_mark(0);platform_error=error;
+                if(!ran) {
                     file_error("Saved program failed validation/exec. Native error ",platform_error);search_ack("");
                 } else { output("\nProgram returned, status "); output_number(status);output("\n"); }
-            } else if(!run_build(&root,&build)) { output("Native run failed; source retained. Press Escape"); while(key_read()!=27) {} }
-            else if(ram_result[26]==6) {
-                output("Native platform failure "); output_number(ram_result[28]);
-                output(". Source retained. Press Escape"); while(key_read()!=27) {}
-            } else if(ram_result[26]==3||ram_result[26]==5) {
-                pc=ram_result[30]|((uint16_t)ram_result[31]<<8);
-                if(build_location(&root,&build,pc,&file,&position)&&
-                   sources_get(&build.sources,file,&failed)) {
-                    if(file&&!main_file[0])strcpy(main_file,root.path);
-                    diagnostic(ram_result[26]==5?0:ram_result[27],ram_result[28],failed.path,position,pc,1);
-                }
-                else { output("Source lookup failed. Press Escape"); while(key_read()!=27) {} }
-            } else { output("\nProgram returned.\n"); }
+            } else {
+                ran=run_build(&root,&build);error=platform_error;
+                screen_mark(0);platform_error=error;
+                if(!ran) { output("Native run failed; source retained. Press Escape"); while(key_read()!=27) {} }
+                else if(ram_result[26]==6) {
+                    output("Native platform failure "); output_number(ram_result[28]);
+                    output(". Source retained. Press Escape"); while(key_read()!=27) {}
+                } else if(ram_result[26]==3||ram_result[26]==5) {
+                    pc=ram_result[30]|((uint16_t)ram_result[31]<<8);
+                    if(build_location(&root,&build,pc,&file,&position)&&
+                       sources_get(&build.sources,file,&failed)) {
+                        if(file&&!main_file[0])strcpy(main_file,root.path);
+                        diagnostic(ram_result[26]==5?0:ram_result[27],ram_result[28],failed.path,position,pc,1);
+                    }
+                    else { output("Source lookup failed. Press Escape"); while(key_read()!=27) {} }
+                } else { output("\nProgram returned.\n"); }
+            }
         } else if(c=='q'&&quit_work())break;
     }
     build_close(&build);source_close(&work);console_close(); return 0;

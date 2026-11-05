@@ -780,7 +780,7 @@ references, hooks, absolute aliases, raw memory/code, Ptr, External and transfer
 retain the support. Explicit keyboard/interrupt use keeps its required engine.
 Unchecked out-of-object stores can still alter native private addresses; those
 effects are outside this omission proof.
-The small `writeln('x')` example generates652 bytes with fixed `$C-`, versus1500
+The small `writeln('x')` example generates664 bytes with fixed `$C-`, versus1512
 with console control enabled. Enabled flow still classifies stdout per character
 because callbacks can rebind it; no descriptor cache is added.
 
@@ -981,6 +981,38 @@ video-mode switching and restoration of screen contents are not part of these
 calls. Screen operations require the supported80x40 text mode; another mode
 reports I/O20. I/O failures honor I+/I- and IOResult. A pending I/O error suppresses
 screen changes and sleeping until retrieved.
+
+Zeal color extensions add TextColor(0..15), TextBackground(0..15), and the
+TP-style constants Black, Blue, Green, Cyan, Red, Magenta, Brown, LightGray,
+DarkGray, LightBlue, LightGreen, LightCyan, LightRed, LightMagenta, Yellow and
+White (values0..15). Each setter reads the live ZVB attribute and changes only
+its own nibble. All16 background colors are supported; bit7 is background
+intensity and no Blink constant is provided. The cursor uses the reversed
+foreground/background attribute. These controls affect subsequent characters;
+existing cells retain their own character and color bytes in readable ZVB RAM.
+
+WhereX and WhereY return one-based Byte coordinates without moving the cursor,
+relative to the full80x40 screen. WhereX returns81 while the board is waiting
+to wrap after column80; WhereY still reports that current row. On an I- failure
+queries return0 and retain IOResult. GotoXY accepts only1..80, so GotoXY(WhereX,WhereY)
+cannot restore pending wrap; handle X81 explicitly or use paired CrtInit/CrtExit
+when restoring terminal state. Color arguments outside0..15 raise runtime91
+before any hardware update, even with R-. Existing TP3 intensity routines retain
+the behavior documented above. TextAttr, Window and ReadKey are separate work.
+
+Normal exit and Halt from standalone programs retain the selected colors unless
+the program resets them or pairs CrtInit/CrtExit. Fatal saved-program runtime/I/O diagnostics
+select white on black; return to the IDE restores its readable white-on-black pen.
+
+Example native color use (no uses clause is required):
+
+```pascal
+begin
+  TextBackground(Blue); TextColor(Yellow); ClrScr;
+  GotoXY(3,2); WriteLn('Zeal Pascal');
+  WriteLn('Cursor: ',WhereX,',',WhereY)
+end.
+```
 
 Replacement input/error callbacks and overlays remain pending. Chain/Execute,
 CHN compilation and ordinary error lookup are implemented. CP/M BIOS/BDOS

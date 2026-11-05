@@ -36,10 +36,17 @@ def main():
             f"rb 0x{sym['_ram_result']:x} 128",f'bc 0x{key:x}']
     def screen(label,trigger,rows=3):
         labels.append((label,'screen'));clear=kernel['_video_vram_set']
-        result=[f'bp 0x{clear:x}']+trigger+['run 1000000000','regs','mmu']
+        result=[f'bp 0x{clear:x}']+trigger
+        if label != 'source-retained':
+            # Escape dismisses status or is ignored at the menu. Open Options
+            # to force a supported clear, sampling the completed prior screen.
+            result += ['run 100000000', 'tap O']
+        result += ['run 1000000000','regs','mmu']
         for base in (0x4000,0x5000):
             for at in range(0,rows*80,256):result+=[f'rb 0x{base+at:x} {min(256,rows*80-at)}']
         result += [f"rb 0x{kernel['_vfs_current_dir']:x} 128",f"rb 0x{kernel['_page_owners']:x} 32",f"rb 0x{kernel['mmu_bitmap']:x} 4",f'bc 0x{clear:x}','run 100000000']
+        if label != 'source-retained':
+            result += n.type_text('q', ticks=100000000) + ['run 100000000']
         return result
     commands=['run 100000000']+typed('cd H:/\n')+['run 100000000']+n.program_launch()+['run 10000000']
     commands+=typed('nwH:/project/main.pas\ne')+typed(prefix.decode())
