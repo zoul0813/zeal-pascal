@@ -57,6 +57,19 @@ add_custom_command(TARGET compact_runtime_bin POST_BUILD
     BYPRODUCTS ${CMAKE_BINARY_DIR}/compact_runtime.private ${CMAKE_BINARY_DIR}/compact_runtime.runtime.json
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --compact-runtime
         ${CMAKE_BINARY_DIR}/compact_runtime.ihx VERBATIM)
+# Integer core at the legacy private gate/data addresses. The optional Real
+# compiler can switch native implementations without changing emitted operands.
+add_executable(integer_runtime src/runtime.asm src/real_adapter.asm src/format.asm src/input.asm
+    $<TARGET_OBJECTS:compact_integer> $<TARGET_OBJECTS:key_runtime>)
+set_target_properties(integer_runtime PROPERTIES LINKER_LANGUAGE ASM)
+target_link_options(integer_runtime PRIVATE "SHELL:-b _REAL_ADAPTER=0x4c73"
+    "SHELL:-b _REAL=0x4d8a" "SHELL:-b _REAL_DATA=0x7ea6"
+    "SHELL:-b _TEXT=0x4bd6" "SHELL:-b _CODE=0x77cd")
+zos_add_outputs(integer_runtime WITH_EXTENSION zpl)
+add_custom_command(TARGET integer_runtime_bin POST_BUILD
+    BYPRODUCTS ${CMAKE_BINARY_DIR}/integer_runtime.private ${CMAKE_BINARY_DIR}/integer_runtime.runtime.json
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --runtime
+        ${CMAKE_BINARY_DIR}/integer_runtime.ihx VERBATIM)
 add_executable(ram_trampoline src/trampoline.asm)
 zos_add_outputs(ram_trampoline WITH_EXTENSION zpl)
 add_custom_command(TARGET ram_trampoline_bin POST_BUILD
@@ -244,7 +257,7 @@ set_source_files_properties(src/compiler_strings.c PROPERTIES COMPILE_OPTIONS "-
 # Our startup and the installed SDK use the same command-tail ABI. The launcher
 # initializes C data, then verifies/loads its library before entering a bank.
 set(CMAKE_C_LINK_EXECUTABLE "<CMAKE_LINKER> <LINK_FLAGS> <LINK_LIBRARIES> <TARGET> <OBJECTS>")
-add_executable(zpascal src/startup.asm src/banks.c src/main.c src/editor.c src/source_blocks.c $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
+add_executable(zpascal src/startup.asm src/banks.c src/main.c src/editor.c src/source_blocks.c $<TARGET_OBJECTS:optional_real_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 target_sources(zpascal PRIVATE src/main_display.c)
 set_source_files_properties(src/main_display.c PROPERTIES
     COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK1;--constseg;BANK1")
@@ -252,7 +265,8 @@ set_property(SOURCE src/main.c src/main_display.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/main_display.h)
 set_property(SOURCE src/main_display.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/editor.h ${CMAKE_SOURCE_DIR}/src/zp.h)
-target_include_directories(zpascal PRIVATE src)
+target_compile_definitions(zpascal PRIVATE ZP_OPTIONAL_REAL)
+target_include_directories(zpascal PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(zpascal PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_executable(zptest src/startup.asm src/banks.c tests/native/main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 target_include_directories(zptest PRIVATE src)
@@ -436,6 +450,8 @@ foreach(target zcompacttest zcorpus zjobtest zmemberstest zexecutecalltest zpasc
     set(package_mode)
     if(target STREQUAL "zcompacttest")
         set(package_mode --compact-experiment)
+    elseif(target STREQUAL "zpascal")
+        set(package_mode --optional-real)
     endif()
     add_custom_target(${target}_bin ALL
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py ${package_mode} $<TARGET_FILE:${target}>
@@ -828,3 +844,112 @@ endforeach()
 add_custom_target(zunitcorpus_bin
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py $<TARGET_FILE:zunitcorpus>
     DEPENDS zunitcorpus ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+
+# Optional built-in Real component. Production uses the sparse integer core.
+# Legacy controls and the experimental unit compiler retain the full template.
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/integer_head.bin
+    ${CMAKE_BINARY_DIR}/integer_tail.bin ${CMAKE_BINARY_DIR}/real_patch.bin
+    ${CMAKE_BINARY_DIR}/optional_runtime.h ${CMAKE_BINARY_DIR}/optional_runtime.json
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-optional-runtime.py ${CMAKE_BINARY_DIR}
+    DEPENDS integer_runtime_bin runtime_profile
+        ${CMAKE_BINARY_DIR}/integer_runtime.zpl ${CMAKE_BINARY_DIR}/integer_runtime.private
+        ${CMAKE_BINARY_DIR}/pascal_runtime.zpl ${CMAKE_BINARY_DIR}/pascal_runtime.private
+        ${CMAKE_BINARY_DIR}/pascal_runtime.profile
+        ${CMAKE_SOURCE_DIR}/tools/package-optional-runtime.py ${CMAKE_SOURCE_DIR}/tools/package-native.py
+        ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_BINARY_DIR}/pascal_runtime.runtime.json
+        ${CMAKE_BINARY_DIR}/integer_runtime.map
+    VERBATIM)
+add_custom_target(optional_runtime_assets DEPENDS ${CMAKE_BINARY_DIR}/optional_runtime.h
+    ${CMAKE_BINARY_DIR}/integer_head.bin ${CMAKE_BINARY_DIR}/integer_tail.bin
+    ${CMAKE_BINARY_DIR}/real_patch.bin)
+file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm CONTENT
+".area _BANK8\n.globl _real_patch_start,_real_patch_end\n_real_patch_start:\n.incbin \"${CMAKE_BINARY_DIR}/real_patch.bin\"\n_real_patch_end:\n.area _BANK10\n.globl _integer_head\n_integer_head:\n.incbin \"${CMAKE_BINARY_DIR}/integer_head.bin\"\n.area _BANK12\n.globl _integer_tail\n_integer_tail:\n.incbin \"${CMAKE_BINARY_DIR}/integer_tail.bin\"\n.area _RODATA\n.globl _trampoline_start,_trampoline_end\n_trampoline_start:\n.incbin \"${CMAKE_BINARY_DIR}/ram_trampoline.zpl\"\n_trampoline_end:\n")
+set_source_files_properties(${CMAKE_BINARY_DIR}/optional_runtime_asset.asm PROPERTIES
+    OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/integer_head.bin;${CMAKE_BINARY_DIR}/integer_tail.bin;${CMAKE_BINARY_DIR}/real_patch.bin;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
+set(OPTIONAL_CORE ${PASCAL_CORE})
+list(REMOVE_ITEM OPTIONAL_CORE ${CMAKE_BINARY_DIR}/runtime_asset.asm)
+add_library(optional_real_core OBJECT ${OPTIONAL_CORE} src/compiler_runtime.c
+    ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm)
+target_compile_definitions(optional_real_core PRIVATE ZP_IDE_PATHS ZP_OPTIONAL_REAL)
+target_include_directories(optional_real_core PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_options(optional_real_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+add_dependencies(optional_real_core optional_runtime_assets ram_trampoline_bin transfer_assets
+    runtime_profile file_runtime_bin file_gate_bin module_unpack_bin)
+set_source_files_properties(src/compiler_runtime.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK5;--constseg;BANK5")
+set_property(SOURCE src/compiler_asset.c src/compiler_runtime.c APPEND PROPERTY
+    OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/optional_runtime.h)
+# Independent full-runtime IDE for byte-for-byte regression controls.
+add_executable(zlegacypascal src/startup.asm src/banks.c src/main.c src/editor.c
+    src/main_display.c src/source_blocks.c
+    $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler>
+    $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
+    ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm)
+target_include_directories(zlegacypascal PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_options(zlegacypascal PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+add_dependencies(zlegacypascal transfer_assets)
+target_link_options(zlegacypascal PRIVATE "SHELL:-b _INITIALIZED=0xc000")
+foreach(bank RANGE 1 15)
+    math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
+    target_link_options(zlegacypascal PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
+endforeach()
+add_custom_target(zlegacypascal_bin
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py $<TARGET_FILE:zlegacypascal>
+    DEPENDS zlegacypascal ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+
+add_executable(zoptionaltest src/startup.asm src/banks.c tests/native/optional-real-main.c
+    tests/native/machine.asm $<TARGET_OBJECTS:optional_real_core>
+    $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
+    ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm)
+target_compile_definitions(zoptionaltest PRIVATE ZP_OPTIONAL_REAL ZP_TEST_COMPILER)
+target_include_directories(zoptionaltest PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_options(zoptionaltest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+set_source_files_properties(tests/native/optional-real-main.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
+set_property(SOURCE tests/native/optional-real-main.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/library.h
+    ${CMAKE_BINARY_DIR}/optional_runtime.h)
+add_dependencies(zoptionaltest optional_runtime_assets transfer_assets)
+target_link_options(zoptionaltest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
+foreach(bank RANGE 1 15)
+    math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
+    target_link_options(zoptionaltest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
+endforeach()
+add_custom_target(zoptionaltest_bin
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zoptionaltest>
+    DEPENDS zoptionaltest ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+
+# The SDK has no compiler depfiles. New optional sources need the same explicit
+# ABI dependencies as the existing compiler and native fixtures.
+set_property(SOURCE src/compiler_runtime.c tests/native/optional-real-main.c
+    APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/library.h
+    ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sources.h
+    ${CMAKE_SOURCE_DIR}/src/real.h ${CMAKE_SOURCE_DIR}/src/chain_abi.h
+    ${CMAKE_SOURCE_DIR}/src/output_transport.h ${CMAKE_SOURCE_DIR}/src/compiler_disk.h)
+
+add_library(optional_test_execution OBJECT tests/native/harness-execute.c)
+target_compile_definitions(optional_test_execution PRIVATE ZP_OPTIONAL_REAL)
+target_include_directories(optional_test_execution PRIVATE src)
+target_compile_options(optional_test_execution PRIVATE --std-c99 --opt-code-size
+    "SHELL:--codeseg BANK3" "SHELL:--constseg BANK3")
+
+# Reuse the existing language/Real/format corpus with production selection on.
+add_executable(zoptionalcorpus src/startup.asm src/banks.c tests/native/main.c
+    tests/native/harness.c tests/native/machine.asm
+    $<TARGET_OBJECTS:optional_real_core> $<TARGET_OBJECTS:real_compiler>
+    $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
+    $<TARGET_OBJECTS:optional_test_execution> $<TARGET_OBJECTS:test_evidence>
+    ${CMAKE_BINARY_DIR}/transfer_test_asset.asm)
+target_compile_definitions(zoptionalcorpus PRIVATE ZP_OPTIONAL_REAL ZP_TEST_COMPILER)
+target_include_directories(zoptionalcorpus PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_options(zoptionalcorpus PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+add_dependencies(zoptionalcorpus transfer_assets)
+target_link_options(zoptionalcorpus PRIVATE "SHELL:-b _INITIALIZED=0xc000")
+foreach(bank RANGE 1 15)
+    math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
+    target_link_options(zoptionalcorpus PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
+endforeach()
+add_custom_target(zoptionalcorpus_bin
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zoptionalcorpus>
+    DEPENDS zoptionalcorpus ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)

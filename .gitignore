@@ -162,3 +162,17 @@
 !/docs/startup-pages-experiment.md
 !/docs/startup-pages-evidence.json
 !/reviews/startup-pages-v1.md
+
+# Optional native Real component and production qualification.
+!/tools/package-optional-runtime.py
+!/tools/test-optional-real.py
+!/tools/test-optional-runtime-host.py
+!/tools/test-optional-standalone.py
+!/tools/test-optional-failures.py
+!/docs/optional-real.md
+!/docs/optional-real-evidence.json
+!/reviews/optional-real-v1.md
+!/tools/test-optional-corpus.py
+!/tools/test-optional-interrupt.py
+!/tools/test-optional-chain.py
+!/tools/test-optional-media.py

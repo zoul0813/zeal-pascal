@@ -102,6 +102,9 @@ typedef struct {
     uint16_t error_entry;
     uint16_t transfer_entry; /* call fixup head until transfer finish, then entry */
     uint16_t unpack_entry; /* shared module decoder fixup head, then entry */
+#ifdef ZP_OPTIONAL_REAL
+    uint8_t real_needed;
+#endif
 } Compiler;
 extern Compiler cc;
 /* Field tags contain the byte offset and16-bit-width flag. Private host and
@@ -194,6 +197,14 @@ void cc_store_indirect(TypeId type) FRONTEND;
 void cc_call(uint16_t address) FRONTEND;
 void cc_next(void) FRONTEND;
 void cc_control_literal(void) FRONTEND;
+#ifdef ZP_OPTIONAL_REAL
+#define cc_require_real() do {if(!cc.suppress&&!cc.error->code)cc.real_needed=1;}while(0)
+uint8_t cc_integer_read(uint16_t at,uint8_t *out,uint16_t count) SOURCE_BLOCK_CALL;
+uint8_t cc_integer_get(uint16_t at) SOURCE_BLOCK_CALL;
+uint8_t cc_real_runtime_finish(void) SOURCE_BLOCK_CALL;
+#else
+#define cc_require_real() ((void)0)
+#endif
 uint16_t cc_runtime_size(void);
 uint8_t cc_runtime_get(uint16_t offset);
 uint8_t cc_runtime_read(uint16_t offset,uint8_t *out,uint16_t count);

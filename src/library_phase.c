@@ -22,21 +22,24 @@ void code_phase_bind(int8_t fd) SOURCE_BLOCK_CALL {
     code_phase_fd=fd;
 }
 static uint8_t failure(uint8_t error) {platform_error=boot_error=error;return 0;}
-uint8_t code_phase_park(void) SOURCE_BLOCK_CALL {
-    uint8_t bank,error,index,page;
-    resume_mask=valid;
-    for(bank=0;bank<code_owned;++bank)if(CODE_DEFERRED(bank)) {
-        index=bank;page=code_phase_pending[index];
-        if(page!=255) {
-            error=pfree(page);if(error)return failure(error);
-            code_phase_pending[index]=255;
-        }
-        page=code_pages[bank];
-        if(page!=255) {
-            error=pfree(page);if(error)return failure(error);
-            code_pages[bank]=255;valid&=(uint16_t)~(1u<<index);
-        }
+static uint8_t drop_bank(uint8_t bank) {
+    uint8_t page=code_phase_pending[bank],error;
+    if(page!=255) {
+        error=pfree(page);if(error)return failure(error);
+        code_phase_pending[bank]=255;
     }
+    page=code_pages[bank];
+    if(page!=255) {
+        error=pfree(page);if(error)return failure(error);
+        code_pages[bank]=255;valid&=(uint16_t)~(1u<<bank);
+    }
+    return 1;
+}
+uint8_t code_phase_park(void) SOURCE_BLOCK_CALL {
+    uint8_t bank;
+    resume_mask=valid;
+    for(bank=0;bank<code_owned;++bank)
+        if(CODE_DEFERRED(bank)&&!drop_bank(bank))return 0;
     return 1;
 }
 /* The immutable size directory already owns these extents; avoid retaining
@@ -76,7 +79,16 @@ static uint8_t restore(uint16_t wanted) {
     platform_error=boot_error=0;
     return 1;
 }
+#ifdef ZP_OPTIONAL_REAL
+uint8_t code_phase_restore(void) SOURCE_BLOCK_CALL {return restore(65535u&~(1u<<CODE_RUNTIME));}
+uint8_t code_phase_real(void) SOURCE_BLOCK_CALL {return restore(1u<<CODE_RUNTIME);}
+uint8_t code_phase_real_release(void) SOURCE_BLOCK_CALL {
+    if(!drop_bank(CODE_RUNTIME))return 0;
+    resume_mask&=(uint16_t)~(1u<<CODE_RUNTIME);return 1;
+}
+#else
 uint8_t code_phase_restore(void) SOURCE_BLOCK_CALL {return restore(65535u);}
+#endif
 void code_phase_return(void) SOURCE_BLOCK_CALL {
     uint8_t primary=platform_error;
     restore(resume_mask);platform_error=primary;

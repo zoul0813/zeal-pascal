@@ -24,13 +24,13 @@ int main(void) {
     /* The directory includes disk-only pages. Do not deliberately give a
      * working IDE enough pages to enter its input loop in this failure test. */
     startup_banks=0;
-    for(i=0;i<banks;++i)if(i!=5&&i!=9&&i<13)++startup_banks;
-    check(startup_banks==11);
+    for(i=0;i<banks;++i)if(i!=5&&i!=7&&i!=9&&i<13)++startup_banks;
+    check(startup_banks==10);
     fd=open("H:/BOOTPOS.TEST",O_RDONLY);
     if(fd>=0) {
         check(close(fd)==0);count=0;
         while(count<32&&palloc(&page)==0)held[count++]=page;
-        wanted=3+startup_banks+1;check(wanted==15&&count>=wanted);
+        wanted=3+startup_banks+1;check(wanted==14&&count>=wanted);
         free_count=wanted;while(free_count--)check(pfree(held[--count])==0);
         status=255;check(exec(EXEC_PRESERVE_PROGRAM,"H:/zpascal.bin",args,&status)==0&&status==0);
         free_count=0;while(count<32&&palloc(&page)==0){held[count++]=page;++free_count;}

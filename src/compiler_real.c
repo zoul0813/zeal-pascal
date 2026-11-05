@@ -45,6 +45,7 @@ void cc_real_hold(void) FRONTEND {
     cc_op16(0x21,0); cc_emit(0x39);
 }
 static void math_call(uint8_t op) {
+    cc_require_real();
     cc_emit(0x3e); cc_emit(op);
     cc_reserve(256); cc_op16(0xcd,RT_REAL);
 }

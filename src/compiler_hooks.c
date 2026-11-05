@@ -5,6 +5,7 @@
  * entries; the fixed prefix is patched only in that program's owned image. */
 void cc_hook_variable(uint16_t id) ROUTINES {
     if(CCS(id,address)||cc.suppress||cc.error->code) return;
+    cc_require_real();
     if((uint32_t)GLOBAL_BASE+cc.image->globals_bytes+2>=CC_STATIC_LIMIT) { cc_fail(98); return; }
     CCS_SET(id,address,GLOBAL_BASE+cc.image->globals_bytes); cc.image->globals_bytes+=2;
     cc.hook_variables[CCS(id,initial_type)]=CCS(id,address);

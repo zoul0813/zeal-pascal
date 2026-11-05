@@ -897,7 +897,7 @@ def library_failure_checks():
                        f"[DBG] PC={sym['_code_ready']:04x} " in text
                        and observed.get(sym['_boot_error']) == 0
                        and len(mappings) == 2 and mappings[0] == mappings[1]
-                       and all((p == 255 if i in {5,9} or i >= 13 else 32 <= p < 64)
+                       and all((p == 255 if i in {5,7,9} or i >= 13 else 32 <= p < 64)
                                for i,p in enumerate(pages))))
     # Component launcher loads deferred phases before entering its test body.
     phase = symbols('zptest')

@@ -199,6 +199,7 @@ static void routine(uint8_t interface_heading) {
     if(interface_heading&&cc_is("external")){cc_fail(UNIT_UNSUPPORTED);return;}
 #endif
     if(cc_is("external")) {
+        cc_require_real();
         if(!cc.suppress)cc.console_dynamic=1;
         if(flags&RF_FORWARD) {cc_fail(12);return;}
         cc_next(); cc_constant(&actual,&value);

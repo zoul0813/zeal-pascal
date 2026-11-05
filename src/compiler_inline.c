@@ -58,6 +58,7 @@ void cc_inline(void) FRONTEND {
     uint16_t value,term,coefficient,part;
     uint8_t force;uint8_t word;uint8_t subtract;
     if(!cc.suppress)cc.console_dynamic=1;
+    cc_require_real();
     cc_next();cc_expect('(',4);
     cc_guard(); /* No generated instruction may split the raw byte stream. */
     do {

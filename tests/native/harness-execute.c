@@ -7,6 +7,14 @@ static uint8_t saved_corpus(void) {
      * to keep the retained native cores linked in the corpus test image. */
     return stage>=9&&stage<=53&&(stage&1u)&&stage!=47;
 }
+/* Assert the explicit warm-cache contract for each compiler variant. */
+uint8_t cached_code_pages(void) SOURCE_BLOCK_CALL {
+#ifdef ZP_OPTIONAL_REAL
+    return code_required-1; /* Only the temporary Real page stays unloaded. */
+#else
+    return code_required;
+#endif
+}
 void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) SOURCE_BLOCK_CALL {
     uint8_t owned,i;
     uint8_t before[7],after[7];
@@ -47,7 +55,7 @@ void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) SOURCE
         check(exec(EXEC_PRESERVE_PROGRAM,"H:/SLICE.COM",0,&status)==0&&status==0);
         check(pages_used()==owned);
         status=255; check(run_saved(&s,&b,&status)&&status==0);
-        check(!b.valid&&pages_used()==code_required+1);
+        check(!b.valid&&pages_used()==cached_code_pages()+1);
     }
     if(test_stage==7) {
         uint8_t status=255;
@@ -57,8 +65,8 @@ void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) SOURCE
     if(saved_corpus()) {
         uint8_t status=255;
         check(run_saved(&s,&b,&status)&&status==(kind==3?code:kind==5?1:0));
-        check(!b.valid&&pages_used()==code_required+1);
+        check(!b.valid&&pages_used()==cached_code_pages()+1);
     }
     build_close(&b);
-    check(pages_used()==code_required+1);
+    check(pages_used()==cached_code_pages()+1);
 }

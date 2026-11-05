@@ -18,6 +18,7 @@ static void patch(uint16_t at,uint16_t value) {
     cc_word(at,value);cc_relocate(at);
 }
 void cc_transfer_statement(uint16_t base) FRONTEND {
+    cc_require_real();
 #ifdef ZP_COMPACT_EXPERIMENT
     /* This proof has no compact transfer ABI. Never embed a coordinator
      * whose cleanup/profile operands belong to the normal runtime. */

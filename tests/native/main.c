@@ -162,7 +162,7 @@ static void invalid_ordinal(const char *text) {
     check(!compile(&s,&b,&d)&&d.code==31);
     test_machine(after);
     check(!memcmp(before,after,7));
-    check(!memcmp(&s,&original,sizeof(s))&&page_versions[s.page]==version&&pages_used()==code_required+1);
+    check(!memcmp(&s,&original,sizeof(s))&&page_versions[s.page]==version&&pages_used()==cached_code_pages()+1);
 }
 static void pointer_tests(void) {
     int8_t capture=open("H:/POINTERS.TXT",O_WRONLY|O_CREAT|O_TRUNC);
@@ -332,7 +332,7 @@ static void media_tests(void) {
     status=255; check(run_saved(&s,&b,&status)&&status==0);
     build_close(&b);
     if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
-    check(pages_used()==code_required+1);
+    check(pages_used()==cached_code_pages()+1);
 }
 static void basic_tests(void) {
     uint8_t line[129]; uint16_t i;
@@ -345,9 +345,9 @@ static void basic_tests(void) {
     check(!source_import(&s,line,128,&d)&&d.code==100&&s.length==11);
     check(!source_replace(&s,0,0,line,128)&&s.length==11);
     check(source_replace(&s,5,5,(const uint8_t*)"!",1)&&s.dirty);
-    check(!compile(&s,&b,&d)&&d.code==58&&pages_used()==code_required+1);
+    check(!compile(&s,&b,&d)&&d.code==58&&pages_used()==cached_code_pages()+1);
     check(load("begin writeln(32768) end."));
-    check(!compile(&s,&b,&d)&&d.code==56&&pages_used()==code_required+1);
+    check(!compile(&s,&b,&d)&&d.code==56&&pages_used()==cached_code_pages()+1);
     check(load("begin writeln(-(32768)) end."));
     check(!compile(&s,&b,&d)&&d.code==56);
     test_stage=2;
@@ -411,7 +411,7 @@ static void basic_tests(void) {
         check(save_source_as(&s,s.path,0,0)&&!memcmp(&s,&before,sizeof(s)));
     }
     check(load_source(&s,"H:/NEWFILE",&d)&&!strcmp(s.path,"H:/NEWFILE.PAS")&&!s.length&&!s.dirty);
-    check(pages_used()==code_required+1);
+    check(pages_used()==cached_code_pages()+1);
     test_stage=7;
     strcpy(s.path,"H:/NAME.PAS");
     capture=open("H:/INPUT.TXT",O_WRONLY|O_CREAT|O_TRUNC);
@@ -435,7 +435,7 @@ static uint8_t select_group(void) {
 int app_main(void) {
     uint8_t group;
     if(!console_open()) { test_failed=1; test_done=255; for(;;) {} }
-    check(pages_used()==code_required&&code_capture(0));
+    check(pages_used()==cached_code_pages()&&code_capture(0));
     check(source_new(&s,"H:/SLICE.PAS"));
     if(select_group())for(group=1;group<=18;++group) {
         if(test_group&&test_group!=group)continue;
@@ -446,7 +446,7 @@ int app_main(void) {
         }
         test_groups[group-1]=1;
     }
-    source_close(&s); check(pages_used()==code_required);
+    source_close(&s); check(pages_used()==cached_code_pages());
     check(code_capture(1));
     test_stage=6; test_done=255;
     test_complete(); return 0;

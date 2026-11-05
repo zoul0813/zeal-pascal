@@ -27,8 +27,8 @@ def main():
     checks={
         'authenticated IDE startup':frame.startswith(f"{sym['_code_ready']:04x} ") and bytes(mem.get(0x4000+i,0)for i in range(32))==(ROOT/'build/zpascal.bin').read_bytes()[:32],
         'logical bank directory retained':mem.get(sym['_code_owned'])==count==15,
-        'exactly eleven allocated distinct startup code pages':len(live)==len(set(live))==11 and all(32<=p<64 for p in live),
-        'expression file and lifecycle pages stay unallocated':all((p==255 if i in {5,9}or i>=13 else 32<=p<64)for i,p in enumerate(pages)),
+        'exactly ten allocated distinct startup code pages':len(live)==len(set(live))==10 and all(32<=p<64 for p in live),
+        'expression Real file and lifecycle pages stay unallocated':all((p==255 if i in {5,7,9}or i>=13 else 32<=p<64)for i,p in enumerate(pages)),
         'no unready allocations hidden in pending owners':pending==[255]*16}
     report={'scope':__doc__,'passed':False,'input_sha256':hashes,'build_output_sha256':artifacts,'external_sha256':external,
         'before_startup_code_pages':13,'startup_code_pages':len(live),'released_startup_pages':13-len(live),'startup_bytes_saved':(13-len(live))*16384,
@@ -41,7 +41,7 @@ def main():
         for key,ok in results:checks[label+': '+key]=ok
         save();print(label,all(ok for _,ok in results),flush=True)
     # Positive counterpart to the exhaustion fixture: a real allocator budget
-    # of15 pages (3 process +11 code +1 Work) must reach the IDE reader.
+    # of14 pages (3 process +10 code +1 Work) must reach the IDE reader.
     boot=n.symbols('zpbootfail');key=sym['_key_read']
     command=['run 100000000']+n.type_text('H:/zpbootfail.bin')+['bp 0x4000','tap ENTER','run 2000000000','s','run 2000000000','bc 0x4000',f'bp 0x{key:x}','s','run 8000000000','regs','mmu','rb 0x4000 32',f"rb 0x{sym['_work']:x} 1",f"rb 0x{sym['_code_pages']:x} 16"]
     command += [f'bc 0x{key:x}']+n.type_text('nq',ticks=2000000)+[f"bp 0x{boot['_boot_complete']:x}",'run 100000000','regs','rb 0x4000 32',f"rb 0x{boot['_boot_done']:x} 1",f"rb 0x{boot['_boot_failed']:x} 2",'quit']
@@ -50,11 +50,11 @@ def main():
     ok=False
     if reader and finished:
         entry=n.memory(reader[-1]);end=n.memory(finished[-1]);live=[entry.get(sym['_code_pages']+i,0)for i in range(count)if entry.get(sym['_code_pages']+i,0)!=255]
-        ok=(len(live)==len(set(live))==11 and 32<=entry.get(sym['_work'],0)<64
+        ok=(len(live)==len(set(live))==10 and 32<=entry.get(sym['_work'],0)<64
             and bytes(entry.get(0x4000+i,0)for i in range(32))==(ROOT/'build/zpascal.bin').read_bytes()[:32]
             and bytes(end.get(0x4000+i,0)for i in range(32))==(ROOT/'build/zpbootfail.bin').read_bytes()[:32]
             and end.get(boot['_boot_done'])==255 and end.get(boot['_boot_failed'])==0 and end.get(boot['_boot_failed']+1)==0)
-    checks['real fifteen-page allocator budget reaches IDE Work and quits without leaks']=ok;save()
+    checks['real fourteen-page allocator budget reaches IDE Work and quits without leaks']=ok;save()
     checks['unchanged source artifacts emulator and ROM']=all(sha(ROOT/p)==h for p,h in {**hashes,**artifacts}.items())and all(sha(Path(p))==h for p,h in external.items())
     report['passed']=all(checks.values());save();print(out/'report.json');assert report['passed'],out/'report.json'
 if __name__=='__main__':main()

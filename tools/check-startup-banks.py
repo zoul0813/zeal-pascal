@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check normal IDE object imports against the two startup-cold code banks."""
+"""Check normal IDE object imports against the startup-cold compiler and Real banks."""
 import json
 import hashlib
 from pathlib import Path
@@ -8,14 +8,14 @@ ROOT=Path(__file__).resolve().parents[1]
 def main():
     mapping=(ROOT/'build/zpascal.map').read_text()
     symbols={name:int(value,16)for value,name in re.findall(r'^\s+([0-9A-F]{8})\s+([_\w]+)\s',mapping,re.M)}
-    cold={name for name,value in symbols.items()if value>>16 in (6,10)}
+    cold={name for name,value in symbols.items()if value>>16 in (6,8,10)}
     cold|={'b'+name for name in cold if name.startswith('_')}
     allowed={'compiler.c.rel','compiler_compile.c.rel','compiler_crt.c.rel','compiler_expr.c.rel',
-        'compiler_files.c.rel','compiler_hooks.c.rel','compiler_io.c.rel','compiler_routines.c.rel','compiler_strings.c.rel'}
-    providers={'compiler_expr.c.rel','compiler_interrupt.c.rel','compiler_files.c.rel','compiler_io.c.rel'}
+        'compiler_runtime.c.rel','compiler_files.c.rel','compiler_hooks.c.rel','compiler_io.c.rel','compiler_routines.c.rel','compiler_strings.c.rel'}
+    providers={'optional_runtime_asset.asm.rel','compiler_expr.c.rel','compiler_interrupt.c.rel','compiler_files.c.rel','compiler_io.c.rel'}
     imports={};defined=set();violations=[]
     inputs={ROOT/'build/zpascal.map',ROOT/'build/zpascal.bin',ROOT/'build/zpascal.zpl',Path(__file__).resolve()}
-    for target in ('zp_core','image_compiler','real_compiler','ide_paths','zpascal'):
+    for target in ('optional_real_core','image_compiler','real_compiler','ide_paths','zpascal'):
         for path in sorted((ROOT/'build/CMakeFiles'/(target+'.dir')).rglob('*.rel')):
             inputs.add(path)
             content=path.read_text();defs=set(re.findall(r'^S (\S+) Def',content,re.M))&cold
@@ -33,7 +33,7 @@ def main():
         inputs.add(path)
         for number,line in enumerate(path.read_text().splitlines(),1):
             if '_code_pages' in line:assembly.append(f'{path.name}:{number}: {line.strip()}')
-            if re.search(r'_code_pages\s*\+\s*(?:5|9)\b',line):violations.append('hard-coded cold slot '+str(path))
+            if re.search(r'_code_pages\s*\+\s*(?:5|7|9)\b',line):violations.append('hard-coded cold slot '+str(path))
     report={'passed':not violations,'imports':imports,'assembly_code_page_references':assembly,'violations':violations,
         'input_sha256':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()for p in sorted(inputs)}}
     print(json.dumps(report,indent=2));assert report['passed']

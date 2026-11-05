@@ -144,6 +144,11 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     }
 #endif
     if(d->code||!cc_sources_finish())goto failed;
+#ifdef ZP_OPTIONAL_REAL
+    /* Parsing has written only CBreak in the prefix. Upgrade immutable code
+     * before finalization installs keyboard, hook and error-handler bindings. */
+    if(!cc_real_runtime_finish())goto failed;
+#endif
     cc_params_finish();cc_random_finish();
     cc_file_engine_finish();cc_keyboard_finish();cc_interrupt_finish();
     cc_transfer_finish();cc_file_stream_finish();cc_hooks_finish();cc_console_finish();cc_file_finish();cc_error_finish();

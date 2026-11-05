@@ -328,6 +328,7 @@ void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND {
                 cc_formatted_value(); store(6,cc.temporaries-base-ZF_JOB_BYTES);
             } else {
                 actual=cc_reference(41); kind=cc_family(actual); cc_release(base+ZF_JOB_BYTES);
+                if(kind==K_REAL)cc_require_real();
                 if(kind!=K_STRING&&kind!=K_CHAR&&kind!=K_INTEGER&&kind!=K_REAL) { cc_fail(66); break; }
                 if(kind==K_INTEGER&&CCT(actual,width)==1) kind=K_BYTE;
                 if(kind==K_STRING||kind==K_CHAR) store(6,0);

@@ -30,6 +30,7 @@ static uint16_t field(uint8_t numeric) {
     else if(kind==K_ARRAY||kind==K_RECORD) cc_fail(62);
     else if(kind==K_SET) cc_fail(66);
     else if(kind>K_CHAR&&kind!=K_REAL) cc_fail(44);
+    if(kind==K_REAL)cc_require_real();
     /* V- formals and raw memory writes can expose any byte-sized length. */
     if(kind==K_STRING&&cc.temporaries==before) cc_string_snapshot(256);
     push_word();
@@ -106,6 +107,7 @@ void cc_val(void) FRONTEND {
     if(cc_family(code_type)!=K_INTEGER||CCT(code_type,width)!=2) cc_fail(24);
     cc_release(argument_before);push_word();cc_expect(')',5);
     cc_op16(0x21,0);cc_emit(0x39);cc_emit(0x3e);
+    if(cc_family(type)==K_REAL)cc_require_real();
     cc_emit(cc_family(type)==K_REAL?ZR_VAL_REAL:ZR_VAL_INTEGER);
     cc_reserve(256);cc_op16(0xcd,RT_VAL);cc_release(before);
 }
@@ -126,6 +128,7 @@ void cc_read(uint8_t newline) FRONTEND {
         cc_next();
         do {
             type=cc_reference(41);kind=cc_family(type);
+            if(kind==K_REAL)cc_require_real();
             if(kind!=K_INTEGER&&kind!=K_REAL&&kind!=K_CHAR&&kind!=K_STRING) cc_fail(66);
             cc_release(before);
             cc_emit(0x06);cc_emit(kind==K_INTEGER&&CCT(type,width)==1?K_BYTE:kind);

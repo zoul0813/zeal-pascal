@@ -7,7 +7,13 @@ enum { CODE_IDE=0,CODE_STATEMENTS,CODE_SHARED,CODE_FRONTEND,CODE_ROUTINES,
        CODE_FILE_RUNTIME,CODE_DEVICES,CODE_EDITOR,CODE_COMPILE,CODE_TRANSFER };
 /* BANK5 contains the phase loader itself and must remain loaded. The parser
  * expression/interrupt and file/I/O generators have no editor entry points. */
+#ifdef ZP_OPTIONAL_REAL
+#define CODE_DEFERRED(bank) ((bank)==CODE_EXPRESSIONS||(bank)==CODE_FILE_COMPILER||(bank)==CODE_RUNTIME||(bank)>=CODE_COMPILE)
+uint8_t code_phase_real(void) SOURCE_BLOCK_CALL;
+uint8_t code_phase_real_release(void) SOURCE_BLOCK_CALL;
+#else
 #define CODE_DEFERRED(bank) ((bank)==CODE_EXPRESSIONS||(bank)==CODE_FILE_COMPILER||(bank)>=CODE_COMPILE)
+#endif
 #define DEFAULT_LIBRARY "T:/lib/zpascal.zpl"
 extern uint8_t code_pages[CODE_BANK_LIMIT],code_owned,boot_error;
 extern uint16_t code_sizes[CODE_BANK_LIMIT];

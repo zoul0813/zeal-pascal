@@ -1,13 +1,24 @@
 #include "compiler.h"
+#ifdef ZP_OPTIONAL_REAL
+#include "optional_runtime.h"
+#endif
 #ifdef __SDCC
 #include "library.h"
 #endif
 
 /* The immutable template lives at offset zero in verified library bank 8.
  * Access through the MMU helper; no bank-local pointer escapes to a caller. */
-uint16_t cc_runtime_size(void) { return (uint16_t)(runtime_end-runtime_start); }
+uint16_t cc_runtime_size(void) {
+#ifdef ZP_OPTIONAL_REAL
+    return OPTIONAL_RUNTIME_BYTES;
+#else
+    return (uint16_t)(runtime_end-runtime_start);
+#endif
+}
 uint8_t cc_runtime_get(uint16_t offset) {
-#ifdef __SDCC
+#ifdef ZP_OPTIONAL_REAL
+    return cc_integer_get(offset);
+#elif defined(__SDCC)
     return far_get(code_pages[CODE_RUNTIME],offset);
 #else
     return runtime_start[offset];
@@ -16,7 +27,9 @@ uint8_t cc_runtime_get(uint16_t offset) {
 /* Callers use retained scratch and spans bounded to256 bytes. */
 uint8_t cc_runtime_read(uint16_t offset,uint8_t *out,uint16_t count) {
     if(count>256u||(uint32_t)offset+count>cc_runtime_size())return 0;
-#ifdef __SDCC
+#ifdef ZP_OPTIONAL_REAL
+    return cc_integer_read(offset,out,count);
+#elif defined(__SDCC)
     return far_read(code_pages[CODE_RUNTIME],offset,out,count);
 #else
     memcpy(out,runtime_start+offset,count);return 1;
@@ -40,7 +53,10 @@ uint8_t cc_runtime_copy(uint8_t page) {
     return 1;
 }
 uint16_t cc_runtime_private(uint8_t entry) {
-#ifdef __SDCC
+#ifdef ZP_OPTIONAL_REAL
+    uint16_t offset=cc_runtime_size()+2u*entry;
+    return cc_integer_get(offset)|((uint16_t)cc_integer_get(offset+1)<<8);
+#elif defined(__SDCC)
     uint16_t offset=cc_runtime_size()+2*entry;
     return far_get(code_pages[CODE_RUNTIME],offset)|((uint16_t)far_get(code_pages[CODE_RUNTIME],offset+1)<<8);
 #else

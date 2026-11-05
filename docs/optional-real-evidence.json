@@ -1,0 +1,2382 @@
+{
+  "baseline_commit": "4880b4c",
+  "scope": "Optional native Real selection in the separate Pascal-units worktree; fixed standalone layout.",
+  "passed": true,
+  "measurements": {
+    "startup_code_pages": 10,
+    "previous_startup_code_pages": 11,
+    "additional_startup_bytes_saved": 16384,
+    "warm_compiler_code_pages": 14,
+    "temporary_real_page": 1,
+    "library_bytes": 201639,
+    "legacy_control_library_bytes": 202383,
+    "resident_bytes": 15275,
+    "generated_prefix_bytes": 16384,
+    "generated_execution_pages_saved": 0
+  },
+  "clean_zde_build_byte_identity": {
+    "bin": true,
+    "zpl": true
+  },
+  "product_and_fixture_sha256": {
+    ".gitignore": "bc0eb58f517daa4b474f51c949ab618fc5be0484de62ac0311268c887327fa25",
+    "CMakeLists.txt": "d4ded9a741340e342fd2402b585689eae6f639e988e07f64e6ded9c8b7ba7a45",
+    "src/compiler.h": "750a5253767109b64ff0184151b4dc01ae074e9254c3db4894b4a7ca27eb6bce",
+    "src/compiler_asset.c": "b64de711e5294bc224cb5a13504185d118a8b3b19fe5cad8eccc2f082a96aff1",
+    "src/compiler_chain.c": "feef6b23bfd74f9773727d48c70db7a34ae6aa1c921bc1ef245db9500be15ba4",
+    "src/compiler_compile.c": "93bca93a5aac560b1ba1bbce7e8d29fe4c4b7a61e8e26913a037ed452ede5a74",
+    "src/compiler_files.c": "8424c98cdd6369bd12c2d435ab0d78f1e1397befc5eaead605ccf7044966effb",
+    "src/compiler_hooks.c": "39a8c131230cdd63e2cfc4084531fa411422ae2e3a7c7ec7ce98486612c4a3ee",
+    "src/compiler_inline.c": "d0f45b8e875d23f355803fc0cd4a460037cffaacf9b56e69e6167dc5a752b81e",
+    "src/compiler_io.c": "d1fa32727591ed39cc62699cb5cb1031bbd8ccad49bbba4e0b6f52f705ede7ac",
+    "src/compiler_real.c": "8b7250ff9df600e7fd69b1b6aa2230ee9634b54f13e860c80800fef33b222af1",
+    "src/compiler_routines.c": "d43c34fd58444814d032111494f40d6ccca67f3655442941742d31ffb3048992",
+    "src/library.h": "1707d09697fef2772c1dfbd15fff9ece0cdef2baf042f36ae294d835483f53e1",
+    "src/library_phase.c": "d2526c4f9bcf7d81f6c2ffd55703e5d2d6dbe29f268a38e0c6f82867bd964699",
+    "tests/native/code-capture.c": "084012559ad6f19d338aefe41dd8a2ca983c92cabd6641c7928d49bf4238dcc3",
+    "tests/native/harness-execute.c": "91db8082a6e0cf3aa47e241dc772bbc254f83dd6d7cdc2ddb90033a6a91cf451",
+    "tests/native/harness.h": "c559185ae3753ea7781a129f99b4f2a16504f05f97d404e5687c029e473f8021",
+    "tests/native/main.c": "3d93bf0e7804c7d1db798464079fc73dab860504ac90d4900828057ffc3368bd",
+    "tests/native/startup-fail.c": "c837ace04e5ae47ccc8cf5d4b870379be99e28edc1c0e06ea6b8df035fcab4f5",
+    "tools/check-startup-banks.py": "67be2a1f006ebe4b79aba2720f827fa9b4cc97272a8e1df7dfd1279bdfe8a199",
+    "tools/package-native.py": "f5a48bd93193d9b19d9109d64fedda2630f85492081dc6e6e57de1926c756dc6",
+    "tools/test-native.py": "59396970ac08a94b7cef0f61aef38f62867205c1f3fc45a5b176b8db716f0ee6",
+    "tools/test-startup-pages.py": "6f3fa870db7b69d4df8c993807a48f195c3a35f241f6579a85b982a0fb6f2a81",
+    "docs/optional-real.md": "224e716f8101b43f207fcb83102946394338b15f1465a65c3ae88220ee4dace5",
+    "src/compiler_runtime.c": "ac2f3d539d8afa28ac69e44b7208531821fd131c5dc6d7df9a55ce13257c7351",
+    "tests/native/optional-real-main.c": "03f709d0891d4adff32e3cac1ca13d9f60c31aa48beaf0930fc197afd289551d",
+    "tools/package-optional-runtime.py": "8c410ffec3476a476b4d8444906a2132713300f9cf531e399724c256efa3465f",
+    "tools/test-optional-chain.py": "174678c46b42978f4dcf083ef316aab75df4c645fe38200f9cee5c3bf06a1ec7",
+    "tools/test-optional-corpus.py": "0d9888ef359cae0d372224b7d39d1afeb48cffaec8237a13d2bf548ceb7ba113",
+    "tools/test-optional-failures.py": "9384bf85942dab167abff83b399220aca6e8e9b5b3672e080eebb62638ff18d6",
+    "tools/test-optional-interrupt.py": "9cf14a74c846f33c0fbaaa9ebf53575da61c1bce67f229ab6c72b49bead48e67",
+    "tools/test-optional-real.py": "73b205dfa014fb06c6c8dba1fc34a9f2fadff579978969179420e7b7245d1c21",
+    "tools/test-optional-runtime-host.py": "edea4050a895a313144fb8acc2d37c1449eb80d4a16c82333f4b19459ff8b66c",
+    "tools/test-optional-standalone.py": "69b599021066bc48bb1029d8c89f3f4ff5c456ee0e230d762ea13eaa802f4c9b"
+  },
+  "artifact_sha256": {
+    "build/zpascal.bin": "479f72229eee46f83ffd157c1aeccfbfbc12d5e3c043e3877676648727986dbc",
+    "build/zpascal.map": "1aad0aa525e8b3f2b6795aa8b15207601f9bbdaaf64b79b878ca99faf8a3c1b4",
+    "build/zpascal.zpl": "5aeeb096f1f720fd1a3101828512051de14a37112b8c03fdd8578b63edc3936e",
+    "build/zpascal.banks.json": "337f38694b10e9ab09f00254ebebbefae097a680a6f1e39010d9a07621a6ca71",
+    "build/zlegacypascal.bin": "dfd852ee068aa696f7e462b9cd4ffd61f630f6a5626eb5fe6939f803b6179dcf",
+    "build/zlegacypascal.map": "f8a35e7c68dce3c3dc44ee222b381e15cc3a08bb030f69a302b509d93ff570ee",
+    "build/zlegacypascal.zpl": "bc4af4b3e1b7d18af64523342e3b2263914df78bf89b988d62279a352437b4f7",
+    "build/zlegacypascal.banks.json": "df5666aa54b3f85324bef8849b9e1cc5d3de249e75e5e2f3d726c42d3db106dd",
+    "build/zoptionaltest.bin": "d35edc7a08e604b76300606d9cab8bd02bc79d537d67e845791103075ab43361",
+    "build/zoptionaltest.map": "8d198377567641094a171447e1f25012f7b0b151d3de89c43bfa305dfab30e00",
+    "build/zoptionaltest.zpl": "d03c59c91bd0cb2739a00268f3aa87a1f6919532924b4430764cf53f422a5c58",
+    "build/zoptionaltest.banks.json": "3fe5a399f20460e93bcda457571cd532107ececd83d2655a9f6bd44da253b434",
+    "build/zoptionalcorpus.bin": "df2c2a8bb3ac992b2dbe085509d6826fa7626723d0533abb9f5eb3fb1179fd0e",
+    "build/zoptionalcorpus.map": "24c456383c4076ebc49f2636d6193e10adf7ae97a2071e0b8615cfb07e7d938f",
+    "build/zoptionalcorpus.zpl": "737d008ecdd18e6977aba8a04c26265e24d163f9d67b9b327941e41c61846a16",
+    "build/zoptionalcorpus.banks.json": "ecdad3fdd755958a998b927964c264235d8ac13b7a1b86e274edaed38bff194e",
+    "build/zexparent.bin": "db2981ec1b616d9435192fc44ebb5f220df2b0f7fe3d0cf97462d1fdd66bb575",
+    "build/zexparent.map": "0bc44f8d2ff6a3456780cfd6b1300a899c255526d6372e7707cf851d5e03700b",
+    "build/zpbootfail.bin": "b6848e72f99d652a68a7bcb7d7277b9d0364694fdc73dbaca6983ae9f38fbda5",
+    "build/zpbootfail.map": "dba674e5ad4d25969ef6b837650ffadbea6749b29d77cafdb88e57e8d961277d"
+  },
+  "checks": {
+    "production_selection": {
+      "path": "analysis/native-slice/20261105T172618.355262Z-73954/optional-real-report.json",
+      "sha256": "d05e9da2a43de6ba49b1ea22d95452267aff48fbbaa7a261940f6e1616787784",
+      "result": {
+        "passed": true,
+        "optional": {
+          "passed": true,
+          "checks": {
+            "all authenticated checkpoints": true,
+            "cold startup code pages": true,
+            "cold runtime component stays on disk": true,
+            "INT-memory returns to resident reader": true,
+            "INT-memory no unready handles": true,
+            "INT-memory compiler cache budget": true,
+            "INT-saved returns to resident reader": true,
+            "INT-saved no unready handles": true,
+            "INT-saved compiler cache budget": true,
+            "INT-run returns to resident reader": true,
+            "INT-run no unready handles": true,
+            "INT-run compiler cache budget": true,
+            "INT valid Memory build": true,
+            "INT RAM run normal": true,
+            "INT child parks compiler/library pages": true,
+            "INT saved compilation releases image cache": true,
+            "COPY-memory returns to resident reader": true,
+            "COPY-memory no unready handles": true,
+            "COPY-memory compiler cache budget": true,
+            "COPY-saved returns to resident reader": true,
+            "COPY-saved no unready handles": true,
+            "COPY-saved compiler cache budget": true,
+            "COPY-run returns to resident reader": true,
+            "COPY-run no unready handles": true,
+            "COPY-run compiler cache budget": true,
+            "COPY valid Memory build": true,
+            "COPY RAM run normal": true,
+            "COPY child parks compiler/library pages": true,
+            "COPY saved compilation releases image cache": true,
+            "SCREEN-memory returns to resident reader": true,
+            "SCREEN-memory no unready handles": true,
+            "SCREEN-memory compiler cache budget": true,
+            "SCREEN-saved returns to resident reader": true,
+            "SCREEN-saved no unready handles": true,
+            "SCREEN-saved compiler cache budget": true,
+            "SCREEN-run returns to resident reader": true,
+            "SCREEN-run no unready handles": true,
+            "SCREEN-run compiler cache budget": true,
+            "SCREEN valid Memory build": true,
+            "SCREEN RAM run normal": true,
+            "SCREEN child parks compiler/library pages": true,
+            "SCREEN saved compilation releases image cache": true,
+            "READINT-memory returns to resident reader": true,
+            "READINT-memory no unready handles": true,
+            "READINT-memory compiler cache budget": true,
+            "READINT-saved returns to resident reader": true,
+            "READINT-saved no unready handles": true,
+            "READINT-saved compiler cache budget": true,
+            "READINT-run returns to resident reader": true,
+            "READINT-run no unready handles": true,
+            "READINT-run compiler cache budget": true,
+            "READINT valid Memory build": true,
+            "READINT RAM run normal": true,
+            "READINT child parks compiler/library pages": true,
+            "READINT saved compilation releases image cache": true,
+            "READREAL-memory returns to resident reader": true,
+            "READREAL-memory no unready handles": true,
+            "READREAL-memory compiler cache budget": true,
+            "READREAL-saved returns to resident reader": true,
+            "READREAL-saved no unready handles": true,
+            "READREAL-saved compiler cache budget": true,
+            "READREAL-run returns to resident reader": true,
+            "READREAL-run no unready handles": true,
+            "READREAL-run compiler cache budget": true,
+            "READREAL valid Memory build": true,
+            "READREAL RAM run normal": true,
+            "READREAL child parks compiler/library pages": true,
+            "READREAL saved compilation releases image cache": true,
+            "TEXTINT-memory returns to resident reader": true,
+            "TEXTINT-memory no unready handles": true,
+            "TEXTINT-memory compiler cache budget": true,
+            "TEXTINT-saved returns to resident reader": true,
+            "TEXTINT-saved no unready handles": true,
+            "TEXTINT-saved compiler cache budget": true,
+            "TEXTINT-run returns to resident reader": true,
+            "TEXTINT-run no unready handles": true,
+            "TEXTINT-run compiler cache budget": true,
+            "TEXTINT valid Memory build": true,
+            "TEXTINT RAM run normal": true,
+            "TEXTINT child parks compiler/library pages": true,
+            "TEXTINT saved compilation releases image cache": true,
+            "TEXTREAL-memory returns to resident reader": true,
+            "TEXTREAL-memory no unready handles": true,
+            "TEXTREAL-memory compiler cache budget": true,
+            "TEXTREAL-saved returns to resident reader": true,
+            "TEXTREAL-saved no unready handles": true,
+            "TEXTREAL-saved compiler cache budget": true,
+            "TEXTREAL-run returns to resident reader": true,
+            "TEXTREAL-run no unready handles": true,
+            "TEXTREAL-run compiler cache budget": true,
+            "TEXTREAL valid Memory build": true,
+            "TEXTREAL RAM run normal": true,
+            "TEXTREAL child parks compiler/library pages": true,
+            "TEXTREAL saved compilation releases image cache": true,
+            "MATH-memory returns to resident reader": true,
+            "MATH-memory no unready handles": true,
+            "MATH-memory compiler cache budget": true,
+            "MATH-saved returns to resident reader": true,
+            "MATH-saved no unready handles": true,
+            "MATH-saved compiler cache budget": true,
+            "MATH-run returns to resident reader": true,
+            "MATH-run no unready handles": true,
+            "MATH-run compiler cache budget": true,
+            "MATH valid Memory build": true,
+            "MATH RAM run normal": true,
+            "MATH child parks compiler/library pages": true,
+            "MATH saved compilation releases image cache": true,
+            "FORMAT-memory returns to resident reader": true,
+            "FORMAT-memory no unready handles": true,
+            "FORMAT-memory compiler cache budget": true,
+            "FORMAT-saved returns to resident reader": true,
+            "FORMAT-saved no unready handles": true,
+            "FORMAT-saved compiler cache budget": true,
+            "FORMAT-run returns to resident reader": true,
+            "FORMAT-run no unready handles": true,
+            "FORMAT-run compiler cache budget": true,
+            "FORMAT valid Memory build": true,
+            "FORMAT RAM run normal": true,
+            "FORMAT child parks compiler/library pages": true,
+            "FORMAT saved compilation releases image cache": true,
+            "TRIG-memory returns to resident reader": true,
+            "TRIG-memory no unready handles": true,
+            "TRIG-memory compiler cache budget": true,
+            "TRIG-saved returns to resident reader": true,
+            "TRIG-saved no unready handles": true,
+            "TRIG-saved compiler cache budget": true,
+            "TRIG-run returns to resident reader": true,
+            "TRIG-run no unready handles": true,
+            "TRIG-run compiler cache budget": true,
+            "TRIG valid Memory build": true,
+            "TRIG RAM run normal": true,
+            "TRIG child parks compiler/library pages": true,
+            "TRIG saved compilation releases image cache": true,
+            "EXTERNAL-memory returns to resident reader": true,
+            "EXTERNAL-memory no unready handles": true,
+            "EXTERNAL-memory compiler cache budget": true,
+            "EXTERNAL-saved returns to resident reader": true,
+            "EXTERNAL-saved no unready handles": true,
+            "EXTERNAL-saved compiler cache budget": true,
+            "EXTERNAL-run returns to resident reader": true,
+            "EXTERNAL-run no unready handles": true,
+            "EXTERNAL-run compiler cache budget": true,
+            "EXTERNAL valid Memory build": true,
+            "EXTERNAL RAM run normal": true,
+            "EXTERNAL child parks compiler/library pages": true,
+            "EXTERNAL saved compilation releases image cache": true,
+            "HOOK-memory returns to resident reader": true,
+            "HOOK-memory no unready handles": true,
+            "HOOK-memory compiler cache budget": true,
+            "HOOK-saved returns to resident reader": true,
+            "HOOK-saved no unready handles": true,
+            "HOOK-saved compiler cache budget": true,
+            "HOOK-run returns to resident reader": true,
+            "HOOK-run no unready handles": true,
+            "HOOK-run compiler cache budget": true,
+            "HOOK valid Memory build": true,
+            "HOOK RAM run normal": true,
+            "HOOK child parks compiler/library pages": true,
+            "HOOK saved compilation releases image cache": true,
+            "TRANSFER-memory returns to resident reader": true,
+            "TRANSFER-memory no unready handles": true,
+            "TRANSFER-memory compiler cache budget": true,
+            "TRANSFER-saved returns to resident reader": true,
+            "TRANSFER-saved no unready handles": true,
+            "TRANSFER-saved compiler cache budget": true,
+            "TRANSFER-run returns to resident reader": true,
+            "TRANSFER-run no unready handles": true,
+            "TRANSFER-run compiler cache budget": true,
+            "TRANSFER valid Memory build": true,
+            "TRANSFER RAM run normal": true,
+            "TRANSFER child parks compiler/library pages": true,
+            "TRANSFER saved compilation releases image cache": true,
+            "RANDOM-memory returns to resident reader": true,
+            "RANDOM-memory no unready handles": true,
+            "RANDOM-memory compiler cache budget": true,
+            "RANDOM-saved returns to resident reader": true,
+            "RANDOM-saved no unready handles": true,
+            "RANDOM-saved compiler cache budget": true,
+            "RANDOM-run returns to resident reader": true,
+            "RANDOM-run no unready handles": true,
+            "RANDOM-run compiler cache budget": true,
+            "RANDOM valid Memory build": true,
+            "RANDOM RAM run normal": true,
+            "RANDOM child parks compiler/library pages": true,
+            "RANDOM saved compilation releases image cache": true,
+            "CONVERT-memory returns to resident reader": true,
+            "CONVERT-memory no unready handles": true,
+            "CONVERT-memory compiler cache budget": true,
+            "CONVERT-saved returns to resident reader": true,
+            "CONVERT-saved no unready handles": true,
+            "CONVERT-saved compiler cache budget": true,
+            "CONVERT-run returns to resident reader": true,
+            "CONVERT-run no unready handles": true,
+            "CONVERT-run compiler cache budget": true,
+            "CONVERT valid Memory build": true,
+            "CONVERT RAM run normal": true,
+            "CONVERT child parks compiler/library pages": true,
+            "CONVERT saved compilation releases image cache": true,
+            "TEXTWRITE-memory returns to resident reader": true,
+            "TEXTWRITE-memory no unready handles": true,
+            "TEXTWRITE-memory compiler cache budget": true,
+            "TEXTWRITE-saved returns to resident reader": true,
+            "TEXTWRITE-saved no unready handles": true,
+            "TEXTWRITE-saved compiler cache budget": true,
+            "TEXTWRITE-run returns to resident reader": true,
+            "TEXTWRITE-run no unready handles": true,
+            "TEXTWRITE-run compiler cache budget": true,
+            "TEXTWRITE valid Memory build": true,
+            "TEXTWRITE RAM run normal": true,
+            "TEXTWRITE child parks compiler/library pages": true,
+            "TEXTWRITE saved compilation releases image cache": true,
+            "RAW-memory returns to resident reader": true,
+            "RAW-memory no unready handles": true,
+            "RAW-memory compiler cache budget": true,
+            "RAW-saved returns to resident reader": true,
+            "RAW-saved no unready handles": true,
+            "RAW-saved compiler cache budget": true,
+            "RAW-run returns to resident reader": true,
+            "RAW-run no unready handles": true,
+            "RAW-run compiler cache budget": true,
+            "RAW valid Memory build": true,
+            "RAW RAM run normal": true,
+            "RAW child parks compiler/library pages": true,
+            "RAW saved compilation releases image cache": true,
+            "terminal page release before kernel cleanup": true,
+            "all requested COM outputs": true,
+            "source files retained": true
+          },
+          "labels": [
+            [
+              "ready",
+              18630
+            ],
+            [
+              "INT-memory",
+              26306
+            ],
+            [
+              "INT-enter",
+              17061
+            ],
+            [
+              "INT-run",
+              26306
+            ],
+            [
+              "INT-saved",
+              26306
+            ],
+            [
+              "COPY-memory",
+              26306
+            ],
+            [
+              "COPY-enter",
+              17061
+            ],
+            [
+              "COPY-run",
+              26306
+            ],
+            [
+              "COPY-saved",
+              26306
+            ],
+            [
+              "SCREEN-memory",
+              26306
+            ],
+            [
+              "SCREEN-enter",
+              17061
+            ],
+            [
+              "SCREEN-run",
+              26306
+            ],
+            [
+              "SCREEN-saved",
+              26306
+            ],
+            [
+              "READINT-memory",
+              26306
+            ],
+            [
+              "READINT-enter",
+              17061
+            ],
+            [
+              "READINT-run",
+              26306
+            ],
+            [
+              "READINT-saved",
+              26306
+            ],
+            [
+              "READREAL-memory",
+              26306
+            ],
+            [
+              "READREAL-enter",
+              17061
+            ],
+            [
+              "READREAL-run",
+              26306
+            ],
+            [
+              "READREAL-saved",
+              26306
+            ],
+            [
+              "TEXTINT-memory",
+              26306
+            ],
+            [
+              "TEXTINT-enter",
+              17061
+            ],
+            [
+              "TEXTINT-run",
+              26306
+            ],
+            [
+              "TEXTINT-saved",
+              26306
+            ],
+            [
+              "TEXTREAL-memory",
+              26306
+            ],
+            [
+              "TEXTREAL-enter",
+              17061
+            ],
+            [
+              "TEXTREAL-run",
+              26306
+            ],
+            [
+              "TEXTREAL-saved",
+              26306
+            ],
+            [
+              "MATH-memory",
+              26306
+            ],
+            [
+              "MATH-enter",
+              17061
+            ],
+            [
+              "MATH-run",
+              26306
+            ],
+            [
+              "MATH-saved",
+              26306
+            ],
+            [
+              "FORMAT-memory",
+              26306
+            ],
+            [
+              "FORMAT-enter",
+              17061
+            ],
+            [
+              "FORMAT-run",
+              26306
+            ],
+            [
+              "FORMAT-saved",
+              26306
+            ],
+            [
+              "TRIG-memory",
+              26306
+            ],
+            [
+              "TRIG-enter",
+              17061
+            ],
+            [
+              "TRIG-run",
+              26306
+            ],
+            [
+              "TRIG-saved",
+              26306
+            ],
+            [
+              "EXTERNAL-memory",
+              26306
+            ],
+            [
+              "EXTERNAL-enter",
+              17061
+            ],
+            [
+              "EXTERNAL-run",
+              26306
+            ],
+            [
+              "EXTERNAL-saved",
+              26306
+            ],
+            [
+              "HOOK-memory",
+              26306
+            ],
+            [
+              "HOOK-enter",
+              17061
+            ],
+            [
+              "HOOK-run",
+              26306
+            ],
+            [
+              "HOOK-saved",
+              26306
+            ],
+            [
+              "TRANSFER-memory",
+              26306
+            ],
+            [
+              "TRANSFER-enter",
+              17061
+            ],
+            [
+              "TRANSFER-run",
+              26306
+            ],
+            [
+              "TRANSFER-saved",
+              26306
+            ],
+            [
+              "RANDOM-memory",
+              26306
+            ],
+            [
+              "RANDOM-enter",
+              17061
+            ],
+            [
+              "RANDOM-run",
+              26306
+            ],
+            [
+              "RANDOM-saved",
+              26306
+            ],
+            [
+              "CONVERT-memory",
+              26306
+            ],
+            [
+              "CONVERT-enter",
+              17061
+            ],
+            [
+              "CONVERT-run",
+              26306
+            ],
+            [
+              "CONVERT-saved",
+              26306
+            ],
+            [
+              "TEXTWRITE-memory",
+              26306
+            ],
+            [
+              "TEXTWRITE-enter",
+              17061
+            ],
+            [
+              "TEXTWRITE-run",
+              26306
+            ],
+            [
+              "TEXTWRITE-saved",
+              26306
+            ],
+            [
+              "RAW-memory",
+              26306
+            ],
+            [
+              "RAW-enter",
+              17061
+            ],
+            [
+              "RAW-run",
+              26306
+            ],
+            [
+              "RAW-saved",
+              26306
+            ],
+            [
+              "exit",
+              4228
+            ]
+          ],
+          "capture_directory": "analysis/native-slice/20261105T172618.355262Z-73954",
+          "target": "zpascal"
+        },
+        "input_sha256": {
+          "/private/tmp/zeal-pascal-units/tools/test-optional-real.py": "73b205dfa014fb06c6c8dba1fc34a9f2fadff579978969179420e7b7245d1c21",
+          "/private/tmp/zeal-pascal-units/CMakeLists.txt": "d4ded9a741340e342fd2402b585689eae6f639e988e07f64e6ded9c8b7ba7a45",
+          "/private/tmp/zeal-pascal-units/tools/test-native.py": "59396970ac08a94b7cef0f61aef38f62867205c1f3fc45a5b176b8db716f0ee6",
+          "/private/tmp/zeal-pascal-units/src/banks.c": "2c7264d42fa9a749c9a9c806ed70695fa603296e20ab16f5df7e889033069ac0",
+          "/private/tmp/zeal-pascal-units/src/buffer_access.c": "84cece5cfaaebafab312a64f0c41d885c7b2ddc18b63c4d7f2d4aa15c42012aa",
+          "/private/tmp/zeal-pascal-units/src/buffer_memory.c": "b886eb1d01604d3f868baada03208002dd792c841364e75e35f43f7bbbae5692",
+          "/private/tmp/zeal-pascal-units/src/chain.c": "bc0cc57d9422fa9065f9305662e406c32991221d7645d121030dad543157fdf3",
+          "/private/tmp/zeal-pascal-units/src/chain.h": "8dfef58181bbb676d4722f4b27e1c023c93a89f5c8f76b892b5d45cbf3ac5d25",
+          "/private/tmp/zeal-pascal-units/src/chain_abi.h": "aa4e146a9f5a7ca07cb727bb4b17dc945f94c2487b0712a39d13f6211450c3ea",
+          "/private/tmp/zeal-pascal-units/src/chain_native.asm": "86d9f2d37fc5fd5c0093726f2bc51acb03ff47d70ebe43189933cf051308604c",
+          "/private/tmp/zeal-pascal-units/src/compiler.c": "1cf745d81376910d0597477c3c9d3fd2abc9af333c294db9e6eb134ebdd4dc30",
+          "/private/tmp/zeal-pascal-units/src/compiler.h": "750a5253767109b64ff0184151b4dc01ae074e9254c3db4894b4a7ca27eb6bce",
+          "/private/tmp/zeal-pascal-units/src/compiler_activation.c": "7f657cb7b2eba6fa0eb762dbd8823fbbc0e0935544e19329b2aa14ebed0924b0",
+          "/private/tmp/zeal-pascal-units/src/compiler_artifact.c": "2e4d73649924ef77d405fa7b211278c3503d9878940f558285dda86fa29a8ca3",
+          "/private/tmp/zeal-pascal-units/src/compiler_asset.c": "b64de711e5294bc224cb5a13504185d118a8b3b19fe5cad8eccc2f082a96aff1",
+          "/private/tmp/zeal-pascal-units/src/compiler_bridges.c": "6cf38d1125a23a66e853259e73672bbdd1a4ec0426d83c144b4b49f8bd639a3a",
+          "/private/tmp/zeal-pascal-units/src/compiler_build.c": "db26127612d91665f97f29921242a93f61d50d4572c7b67f0080fe9007092b97",
+          "/private/tmp/zeal-pascal-units/src/compiler_chain.c": "feef6b23bfd74f9773727d48c70db7a34ae6aa1c921bc1ef245db9500be15ba4",
+          "/private/tmp/zeal-pascal-units/src/compiler_compile.c": "93bca93a5aac560b1ba1bbce7e8d29fe4c4b7a61e8e26913a037ed452ede5a74",
+          "/private/tmp/zeal-pascal-units/src/compiler_console.c": "3b3d1fc1fd3094ced1694e4cf09413a9dc4e1e5768ebd04c7cc982e99303a206",
+          "/private/tmp/zeal-pascal-units/src/compiler_crt.c": "cdd1b0f16de665215c69a72cc72173c04ad86f24dc54dc6aefa089bcda7668f9",
+          "/private/tmp/zeal-pascal-units/src/compiler_disk.c": "95c5fb9997839c348443e4ae2e35fdd1fbc93e276d520ed6b3d722b78bf5c638",
+          "/private/tmp/zeal-pascal-units/src/compiler_disk.h": "11d22e0e0ca16bcb39f9684ca51991e16ea6b0b52fb924269ea5bbe43a4adb31",
+          "/private/tmp/zeal-pascal-units/src/compiler_emit.c": "72652af0a1e035a2eaae27312b46ca158c8eacb648d2f104d677f4617564da6a",
+          "/private/tmp/zeal-pascal-units/src/compiler_expr.c": "dd87447da3bfc7a30db97d3388795d3a7ec0d5a85c7680f0166da55f6d405a21",
+          "/private/tmp/zeal-pascal-units/src/compiler_files.c": "8424c98cdd6369bd12c2d435ab0d78f1e1397befc5eaead605ccf7044966effb",
+          "/private/tmp/zeal-pascal-units/src/compiler_fragments.c": "e3cf2f804da01dcacadc7244385856c2822b704811e91e485f1175fab7f46cbf",
+          "/private/tmp/zeal-pascal-units/src/compiler_fragments.h": "1b5fb7881e4340ce021aa708d85ee50288984b90b5d59d6ce1eae45f596ff30b",
+          "/private/tmp/zeal-pascal-units/src/compiler_front.c": "af0199561ba07971f6c85dc55aa589824f84b0263f3c5f03a6ce848b488ec8d8",
+          "/private/tmp/zeal-pascal-units/src/compiler_groups.c": "87f3777963eaeffeb47ba03b148ea0bcfbb1d0ec85c2fd2c084e417fe943ec72",
+          "/private/tmp/zeal-pascal-units/src/compiler_groups.h": "49a4ab4963864781aae580831ef20a68ca9c9a7fb3deac9d2cbaa746f1d030fe",
+          "/private/tmp/zeal-pascal-units/src/compiler_hooks.c": "39a8c131230cdd63e2cfc4084531fa411422ae2e3a7c7ec7ce98486612c4a3ee",
+          "/private/tmp/zeal-pascal-units/src/compiler_image.c": "5bd521bb05eed4743d9f9578e6f50f144cc0177b14179b664901f8d951b43eb5",
+          "/private/tmp/zeal-pascal-units/src/compiler_inline.c": "d0f45b8e875d23f355803fc0cd4a460037cffaacf9b56e69e6167dc5a752b81e",
+          "/private/tmp/zeal-pascal-units/src/compiler_interrupt.c": "3f5ae0f125016190d1cc231f3aa21093ce74d4e06da5a1ef202cc9b7c51150a1",
+          "/private/tmp/zeal-pascal-units/src/compiler_io.c": "d1fa32727591ed39cc62699cb5cb1031bbd8ccad49bbba4e0b6f52f705ede7ac",
+          "/private/tmp/zeal-pascal-units/src/compiler_job.c": "d5a136154631f9af71f1bb63db8f4704f1aa3ae01623b9ddffe6a56a61ddd6b7",
+          "/private/tmp/zeal-pascal-units/src/compiler_job.h": "a80ee375cee89b03ec1e67849a7810b345e1c02bc0fc3d6eb95a8b8ba875af88",
+          "/private/tmp/zeal-pascal-units/src/compiler_job_pages.c": "dcbe8df5601aee00c19c87a688d22fc55a7468625583f3f7569e5e1cd92cbc24",
+          "/private/tmp/zeal-pascal-units/src/compiler_job_result.c": "a6dafe7eb377a862d8c8541c3a45049535de424244748379e4f3f32b5e9492b0",
+          "/private/tmp/zeal-pascal-units/src/compiler_keyboard.c": "776be161f014d2ee2bb7652040524cd43d0c6fae3f0750c1e289b23ca1115a0e",
+          "/private/tmp/zeal-pascal-units/src/compiler_keyboard_engine.c": "887db7ae1010903f1fcb5c4222cb8cb9c75b1034c8079489086812f45e3752ca",
+          "/private/tmp/zeal-pascal-units/src/compiler_late.c": "a205f2247eb6df94b267194ae45498074e313a076d8526956dcf716cd1e81bab",
+          "/private/tmp/zeal-pascal-units/src/compiler_late.h": "3e2a0b0a9091f4044ddf854465da388796b84b3af06143a36b6786447f972e9c",
+          "/private/tmp/zeal-pascal-units/src/compiler_members.c": "6d04a558c0f83cca439b1bcfefdce776334c56ccad31ae984ce0690c14c7207a",
+          "/private/tmp/zeal-pascal-units/src/compiler_members.h": "e117e0fdce4f9c74a5ecd70c0b7a105f1eaf3c10957849a03f33f227464954bc",
+          "/private/tmp/zeal-pascal-units/src/compiler_messages.c": "34ba14f2b45cfaf82332bff2b7ffac47a79a285f00d1d5a1a801dc97cfa3515c",
+          "/private/tmp/zeal-pascal-units/src/compiler_messages.h": "97f85fab701d501658c24471a157b6248214c930362fc479a4c6e2466791162e",
+          "/private/tmp/zeal-pascal-units/src/compiler_module.c": "dfff94a1866128e035dba3ae0440641e03974926b4c2ccc4fcf4a1bd48a38655",
+          "/private/tmp/zeal-pascal-units/src/compiler_params.c": "47010795be1e9a7f8b855e26c57bf57a531502c0b4ee455383c4bbb6df08be61",
+          "/private/tmp/zeal-pascal-units/src/compiler_predicates.c": "bf7e2eb736350421c995f83659d8e6203f0a76166cbafe2559d07002b090297c",
+          "/private/tmp/zeal-pascal-units/src/compiler_random.c": "c3e6bfe4182b608e2ead135abe00457e663f6b6e5776c856f315470727702f65",
+          "/private/tmp/zeal-pascal-units/src/compiler_real.c": "8b7250ff9df600e7fd69b1b6aa2230ee9634b54f13e860c80800fef33b222af1",
+          "/private/tmp/zeal-pascal-units/src/compiler_recursion.c": "2aeeceae01a8239bbbd50ba52a7d292496ce4793b49646e9089c20123a364476",
+          "/private/tmp/zeal-pascal-units/src/compiler_routines.c": "d43c34fd58444814d032111494f40d6ccca67f3655442941742d31ffb3048992",
+          "/private/tmp/zeal-pascal-units/src/compiler_runtime.c": "ac2f3d539d8afa28ac69e44b7208531821fd131c5dc6d7df9a55ce13257c7351",
+          "/private/tmp/zeal-pascal-units/src/compiler_sources.c": "8dc47ab003cbfee93bd2920462e5247459c82dc80194ab80b3963da758278051",
+          "/private/tmp/zeal-pascal-units/src/compiler_state.c": "e0517ecec2ea95420312bf8fa7e588e9929d1b4b9fd65e28fb1e6af5ce93ccad",
+          "/private/tmp/zeal-pascal-units/src/compiler_strings.c": "abab76c7c36c2ad63d9494b9b43685a2fa895b9d97f80f525ad5b633e9131206",
+          "/private/tmp/zeal-pascal-units/src/compiler_tables.c": "065909914cea6c8210fce737c052508359a07c958f82aa8017dde224f93def25",
+          "/private/tmp/zeal-pascal-units/src/compiler_transfer_asset.c": "f4c98a3c0a52e063d16bc37fdd2af729df7f0e04491f99a5ea0edc84525f327f",
+          "/private/tmp/zeal-pascal-units/src/compiler_types.c": "5df077611aa2580b5ec85f9b47d4f441860b721843929bbd2da96455208485ff",
+          "/private/tmp/zeal-pascal-units/src/compiler_units.c": "caad68372d0081a06f85165fce5d9e91579cab0d09696b8b3ab4aa7c9447a8a2",
+          "/private/tmp/zeal-pascal-units/src/compiler_units.h": "7c057b803408a415bdcce4555f6a441825fb9fa61972e27e8eaf6e67cbb987d4",
+          "/private/tmp/zeal-pascal-units/src/compiler_units_link.c": "8ef8618a1d0465dc5d8f471ca219fa77e181e88ba6aaa1cfbc2997fce5865919",
+          "/private/tmp/zeal-pascal-units/src/compiler_units_names.c": "3a21ee1c57db77f831ddb517d5b384cbf841678b5ba452c2605250d6ad9a8375",
+          "/private/tmp/zeal-pascal-units/src/compiler_units_object.c": "79f7e1795b9ce3d4374cf5c94612bb474a2eca5b85ac9be9a142684baa99109c",
+          "/private/tmp/zeal-pascal-units/src/editor.c": "c31ddc50c05d798410a980853179b48aa60d9768bf905f9b0ac81010cb28ce48",
+          "/private/tmp/zeal-pascal-units/src/editor.h": "5e07a789b1ef4a311834a5b0529acc523f6650b609658d7229b14b4542d5ef89",
+          "/private/tmp/zeal-pascal-units/src/execute_entry.asm": "374e1d83dc6872fd4fa914904f4d8308796c0ad56b108c56aef630caef07b781",
+          "/private/tmp/zeal-pascal-units/src/execute_handoff.h": "e479f95f5b3661962b005275aa35978704e2168c10ee0bded22e8a93a6d6b152",
+          "/private/tmp/zeal-pascal-units/src/execute_native.asm": "e83b45bb00c867f35557ed63263335c8c1238eabdc69e83cf0fdeac551f8a0bc",
+          "/private/tmp/zeal-pascal-units/src/file_gate.asm": "a319481d3cea3379d6c40310c143b5006d35931550489847098c93c903c21a2e",
+          "/private/tmp/zeal-pascal-units/src/file_low_copy.asm": "8b6cd05adea505ea5600d14676424a0338aecf42eceb33bdcb6944d1833dd392",
+          "/private/tmp/zeal-pascal-units/src/file_module.asm": "95bbae5aacbc0c4c903022c57600a6fd43532b9587d5381c88f2176060a3b48c",
+          "/private/tmp/zeal-pascal-units/src/file_native.asm": "43bb5cbc7ef31ed078a0eb02733261a1f0545f8492443e5b495c611ecbbd2724",
+          "/private/tmp/zeal-pascal-units/src/file_runtime.c": "81ab2f48c4130d2ad45e94c37e505a79338ed1749d54343729b54d75de04b37f",
+          "/private/tmp/zeal-pascal-units/src/file_runtime.h": "78462f0d31212287b7f7665059f776b6fa97503fc2ac7a753e1a949fbeaa66a8",
+          "/private/tmp/zeal-pascal-units/src/format.asm": "2bb0412f93cdc6458d89fb61e0869a270a3cf55e4280b29c4bf295b9ac08afb8",
+          "/private/tmp/zeal-pascal-units/src/image.c": "2ae34b732a284f6a468b1088c498f6cc13286c1d596af0b93bc6f1233adb9ebe",
+          "/private/tmp/zeal-pascal-units/src/image.h": "e824c36c0484948454852ccae283d1102558dfb72fc0fd34ca8ac1b1907e2678",
+          "/private/tmp/zeal-pascal-units/src/input.asm": "4be17f804def1af67a5e65ff29ccf94d7fa8652596b9a6faa7537b1c4140ab8d",
+          "/private/tmp/zeal-pascal-units/src/keys.c": "6e5867527224e134a6247aa10c0f8c113e9ce9a2292b36bc3794a3cf30d665e3",
+          "/private/tmp/zeal-pascal-units/src/keys.h": "780a8bb57953c9d02cdea57a128a33d7e11fb00908df315483de7d01f84f043f",
+          "/private/tmp/zeal-pascal-units/src/library.c": "495f32632d020a3f8cdb28a769ce068e12d635e95154c8a594005d8c73c8dcfe",
+          "/private/tmp/zeal-pascal-units/src/library.h": "1707d09697fef2772c1dfbd15fff9ece0cdef2baf042f36ae294d835483f53e1",
+          "/private/tmp/zeal-pascal-units/src/library_phase.c": "d2526c4f9bcf7d81f6c2ffd55703e5d2d6dbe29f268a38e0c6f82867bd964699",
+          "/private/tmp/zeal-pascal-units/src/main.c": "57616b29c611ec04241ecff3cba86d58bdc62756879f623adbea8df247235279",
+          "/private/tmp/zeal-pascal-units/src/main_display.c": "e2f389105bb495ca14f7a5ea0b77d042255537b31982087825d11cb5fe5743c9",
+          "/private/tmp/zeal-pascal-units/src/main_display.h": "c6c9cf7f72947f0041a89108b01452d77c1eb41f5535b32b30890763af34d07d",
+          "/private/tmp/zeal-pascal-units/src/module_unpack.asm": "34fca90e2b2137390cabbcb07f67868a816a05643781bde9e6101437021fc9e9",
+          "/private/tmp/zeal-pascal-units/src/native.asm": "1d24a36f15a310e8213aff332d218bd377251e835165bcc2a4f7b5cbc2147e7f",
+          "/private/tmp/zeal-pascal-units/src/native_image.c": "487d3bf485c27a03444798b2c84aa9d5b1e736c99f29cd86e55679358cb13c2b",
+          "/private/tmp/zeal-pascal-units/src/native_image.h": "6264a982281182deb757338ea9b56f79b0648791b76e852287a3c7c404070e95",
+          "/private/tmp/zeal-pascal-units/src/output.c": "654dfedb61ed9653ba07bb1658a62c373c080af6b3453055d88f6ced67717fa9",
+          "/private/tmp/zeal-pascal-units/src/output_transport.c": "e20179573605dff0d3ab7d2b166d7cea8461e6ab48ab4f04bae44b19a52b4a2d",
+          "/private/tmp/zeal-pascal-units/src/output_transport.h": "7b4dd7d8b29a74686f7134406e544f5438e10116f3c52172d985b0a03a199f5b",
+          "/private/tmp/zeal-pascal-units/src/overlay.c": "1841dd31cec836511ab541da9db54b0bccae1abfd8657464149ee7b566aa20b5",
+          "/private/tmp/zeal-pascal-units/src/overlay.h": "ed2e2d7b9ef4fb5f9a0f3de2da315e68890ef36ac1ccc2a5fb91222c05934be3",
+          "/private/tmp/zeal-pascal-units/src/path.c": "8901182d1188ab7cb0d83726e094ab92eee446a9fd7ed43cc285b065c37909fe",
+          "/private/tmp/zeal-pascal-units/src/path.h": "daa6fb1fc2c0472fb6816b9cf5d8607af8a481a7adda171f3d4a12f91e977398",
+          "/private/tmp/zeal-pascal-units/src/platform.c": "9d4ad9217d997cf331d5199082ad0c8ad425a68320ae8437da01b5c264c59912",
+          "/private/tmp/zeal-pascal-units/src/real.c": "11e0b8ab62de4abbdf2bd832eb6ec8eb0973d1056cd6ebd2f90d69bf3cd3bc2a",
+          "/private/tmp/zeal-pascal-units/src/real.h": "3e5048890ce5d7f1e80524fecad3a2cdc4c8c416d963cf2ce0482e104c4e8bfb",
+          "/private/tmp/zeal-pascal-units/src/real_adapter.asm": "8926d0a25e9e839d9693721508f0d3e580dbd342cb5eb491508025ca39183975",
+          "/private/tmp/zeal-pascal-units/src/runtime.asm": "65b6371efa9919a2d382899b3da623acd267a80fb9f741c256adfbdc1ab39408",
+          "/private/tmp/zeal-pascal-units/src/source.c": "d48457f0f9dd770abd45e818cd7a45783bbb98e6a1c64ceae6323175553cb6a6",
+          "/private/tmp/zeal-pascal-units/src/source_blocks.c": "9e32e3872c1e482ea8607b0fa311a9efa03987c2ef6049a35f8817be278fefb8",
+          "/private/tmp/zeal-pascal-units/src/source_internal.h": "8934959e7ed8ea5482da4cb32d170c3db68313389791e954611341ab5db11341",
+          "/private/tmp/zeal-pascal-units/src/source_location.c": "1eed463432e5078682a0cbe6b832d27a3d7b5a004675290b9271113754226910",
+          "/private/tmp/zeal-pascal-units/src/source_move.c": "fa016f7b7a09838ffdab2cd51985f8ab327cc00a135fbf520d63d519b0aeb41d",
+          "/private/tmp/zeal-pascal-units/src/source_move.h": "00d13adf530773debf6b9793d41bb6e8925489089d68b9eb3087168bee442402",
+          "/private/tmp/zeal-pascal-units/src/source_validation.c": "ebd9e8373fd3c18bf0df7631d8e12a6bac377bbd58f8589d41cdf47a878e5ae5",
+          "/private/tmp/zeal-pascal-units/src/source_validation.h": "27ca4b3a26835d939220b710b77693fbe396fc9c924a0463de74faac92a20ffc",
+          "/private/tmp/zeal-pascal-units/src/sources.c": "45ab5328515f6ece161b51f15eec033d8d3e6ec7a6843d8dfda7c90830ce542a",
+          "/private/tmp/zeal-pascal-units/src/sources.h": "26ad76296f1ee41f6fdd8537782c8a2db0899dc66a7ad7ae5aeb898a9a6bf05f",
+          "/private/tmp/zeal-pascal-units/src/startup.asm": "a974bd5335f0aac4501e426e4a53cb13b1fc168d969c5d67d5cc1c23ba708f1d",
+          "/private/tmp/zeal-pascal-units/src/trampoline.asm": "cb3b82909eaca5019b37d8d3693a807b25bd7e239c57faf4a0e028b9fd0f9ea7",
+          "/private/tmp/zeal-pascal-units/src/transcendental.c": "206359c8a7986d88c12956aba6cd67d06676ff87256359992898bd181a1264ba",
+          "/private/tmp/zeal-pascal-units/src/transfer.c": "843c7d77d3160f065a56bab60757ab192e5cdbb17b0cc7f6aab525f80305e255",
+          "/private/tmp/zeal-pascal-units/src/transfer.h": "0055d669572f4faa530d983060e9cba969d7173e353ee367b35487c9c35d43d0",
+          "/private/tmp/zeal-pascal-units/src/transfer_call.asm": "dd5049327c314d3972532df331a7ef7c370bc000ce618347af80faec475ce7e1",
+          "/private/tmp/zeal-pascal-units/src/transfer_gate.asm": "757f6210841c4a9a94cee758704f45a8bbd923bea86248690a1c0d9edb45e65a",
+          "/private/tmp/zeal-pascal-units/src/transfer_module.asm": "7adbd2e3cb880659fbd791273dc83e073ebac42edf8d3d6e8494ae15d7dcf695",
+          "/private/tmp/zeal-pascal-units/src/transfer_native.asm": "a8544f3508cc4f32bacf2039210454723a5d2cfb0f50f384a30c0acd36a1ad66",
+          "/private/tmp/zeal-pascal-units/src/worker.c": "0f88a14a1f33f3c0f4eb20ae755917bc9f55b2dfead3ff83c47b2d19d9fa4d6b",
+          "/private/tmp/zeal-pascal-units/src/worker.h": "9738295e8be73e3de1c5b1779bd29cbaf829710ae8e591e26f3b674c2be345ae",
+          "/private/tmp/zeal-pascal-units/src/zp.h": "0b57955883fa9e4611e041cb0ae68151c49f2710592485b5ee292c062fc0e323",
+          "/private/tmp/zeal-pascal-units/build/zpascal.bin": "479f72229eee46f83ffd157c1aeccfbfbc12d5e3c043e3877676648727986dbc",
+          "/private/tmp/zeal-pascal-units/build/zpascal.zpl": "5aeeb096f1f720fd1a3101828512051de14a37112b8c03fdd8578b63edc3936e",
+          "/private/tmp/zeal-pascal-units/build/zpascal.map": "1aad0aa525e8b3f2b6795aa8b15207601f9bbdaaf64b79b878ca99faf8a3c1b4",
+          "/private/tmp/zeal-pascal-units/build/zpascal.banks.json": "337f38694b10e9ab09f00254ebebbefae097a680a6f1e39010d9a07621a6ca71",
+          "/private/tmp/zeal-pascal-units/build/zlegacypascal.bin": "dfd852ee068aa696f7e462b9cd4ffd61f630f6a5626eb5fe6939f803b6179dcf",
+          "/private/tmp/zeal-pascal-units/build/zlegacypascal.zpl": "bc4af4b3e1b7d18af64523342e3b2263914df78bf89b988d62279a352437b4f7",
+          "/private/tmp/zeal-pascal-units/build/zlegacypascal.map": "f8a35e7c68dce3c3dc44ee222b381e15cc3a08bb030f69a302b509d93ff570ee",
+          "/private/tmp/zeal-pascal-units/build/zlegacypascal.banks.json": "df5666aa54b3f85324bef8849b9e1cc5d3de249e75e5e2f3d726c42d3db106dd",
+          "/Users/higginsd/Projects/zeal/Zeal-NativeEmulator/build/zeal-native": "98a17242c9c239fc70f663721367786699af5597dab6148a32192acf79bdd075",
+          "/Users/higginsd/Projects/zeal/zeal-dev-environment/home/Zeal-8-bit-OS/build/os_with_romdisk.img": "f34d453a1feb17d34c582f64139c5e8a42ac3e0f6642874b1d588695b4036b4a"
+        },
+        "control": {
+          "passed": true,
+          "checks": {
+            "all authenticated checkpoints": true,
+            "cold startup code pages": true,
+            "cold runtime component stays on disk": true,
+            "INT-memory returns to resident reader": true,
+            "INT-memory no unready handles": true,
+            "INT-memory compiler cache budget": true,
+            "INT-saved returns to resident reader": true,
+            "INT-saved no unready handles": true,
+            "INT-saved compiler cache budget": true,
+            "INT-run returns to resident reader": true,
+            "INT-run no unready handles": true,
+            "INT-run compiler cache budget": true,
+            "INT valid Memory build": true,
+            "INT RAM run normal": true,
+            "INT child parks compiler/library pages": true,
+            "INT saved compilation releases image cache": true,
+            "COPY-memory returns to resident reader": true,
+            "COPY-memory no unready handles": true,
+            "COPY-memory compiler cache budget": true,
+            "COPY-saved returns to resident reader": true,
+            "COPY-saved no unready handles": true,
+            "COPY-saved compiler cache budget": true,
+            "COPY-run returns to resident reader": true,
+            "COPY-run no unready handles": true,
+            "COPY-run compiler cache budget": true,
+            "COPY valid Memory build": true,
+            "COPY RAM run normal": true,
+            "COPY child parks compiler/library pages": true,
+            "COPY saved compilation releases image cache": true,
+            "SCREEN-memory returns to resident reader": true,
+            "SCREEN-memory no unready handles": true,
+            "SCREEN-memory compiler cache budget": true,
+            "SCREEN-saved returns to resident reader": true,
+            "SCREEN-saved no unready handles": true,
+            "SCREEN-saved compiler cache budget": true,
+            "SCREEN-run returns to resident reader": true,
+            "SCREEN-run no unready handles": true,
+            "SCREEN-run compiler cache budget": true,
+            "SCREEN valid Memory build": true,
+            "SCREEN RAM run normal": true,
+            "SCREEN child parks compiler/library pages": true,
+            "SCREEN saved compilation releases image cache": true,
+            "READINT-memory returns to resident reader": true,
+            "READINT-memory no unready handles": true,
+            "READINT-memory compiler cache budget": true,
+            "READINT-saved returns to resident reader": true,
+            "READINT-saved no unready handles": true,
+            "READINT-saved compiler cache budget": true,
+            "READINT-run returns to resident reader": true,
+            "READINT-run no unready handles": true,
+            "READINT-run compiler cache budget": true,
+            "READINT valid Memory build": true,
+            "READINT RAM run normal": true,
+            "READINT child parks compiler/library pages": true,
+            "READINT saved compilation releases image cache": true,
+            "READREAL-memory returns to resident reader": true,
+            "READREAL-memory no unready handles": true,
+            "READREAL-memory compiler cache budget": true,
+            "READREAL-saved returns to resident reader": true,
+            "READREAL-saved no unready handles": true,
+            "READREAL-saved compiler cache budget": true,
+            "READREAL-run returns to resident reader": true,
+            "READREAL-run no unready handles": true,
+            "READREAL-run compiler cache budget": true,
+            "READREAL valid Memory build": true,
+            "READREAL RAM run normal": true,
+            "READREAL child parks compiler/library pages": true,
+            "READREAL saved compilation releases image cache": true,
+            "TEXTINT-memory returns to resident reader": true,
+            "TEXTINT-memory no unready handles": true,
+            "TEXTINT-memory compiler cache budget": true,
+            "TEXTINT-saved returns to resident reader": true,
+            "TEXTINT-saved no unready handles": true,
+            "TEXTINT-saved compiler cache budget": true,
+            "TEXTINT-run returns to resident reader": true,
+            "TEXTINT-run no unready handles": true,
+            "TEXTINT-run compiler cache budget": true,
+            "TEXTINT valid Memory build": true,
+            "TEXTINT RAM run normal": true,
+            "TEXTINT child parks compiler/library pages": true,
+            "TEXTINT saved compilation releases image cache": true,
+            "TEXTREAL-memory returns to resident reader": true,
+            "TEXTREAL-memory no unready handles": true,
+            "TEXTREAL-memory compiler cache budget": true,
+            "TEXTREAL-saved returns to resident reader": true,
+            "TEXTREAL-saved no unready handles": true,
+            "TEXTREAL-saved compiler cache budget": true,
+            "TEXTREAL-run returns to resident reader": true,
+            "TEXTREAL-run no unready handles": true,
+            "TEXTREAL-run compiler cache budget": true,
+            "TEXTREAL valid Memory build": true,
+            "TEXTREAL RAM run normal": true,
+            "TEXTREAL child parks compiler/library pages": true,
+            "TEXTREAL saved compilation releases image cache": true,
+            "MATH-memory returns to resident reader": true,
+            "MATH-memory no unready handles": true,
+            "MATH-memory compiler cache budget": true,
+            "MATH-saved returns to resident reader": true,
+            "MATH-saved no unready handles": true,
+            "MATH-saved compiler cache budget": true,
+            "MATH-run returns to resident reader": true,
+            "MATH-run no unready handles": true,
+            "MATH-run compiler cache budget": true,
+            "MATH valid Memory build": true,
+            "MATH RAM run normal": true,
+            "MATH child parks compiler/library pages": true,
+            "MATH saved compilation releases image cache": true,
+            "FORMAT-memory returns to resident reader": true,
+            "FORMAT-memory no unready handles": true,
+            "FORMAT-memory compiler cache budget": true,
+            "FORMAT-saved returns to resident reader": true,
+            "FORMAT-saved no unready handles": true,
+            "FORMAT-saved compiler cache budget": true,
+            "FORMAT-run returns to resident reader": true,
+            "FORMAT-run no unready handles": true,
+            "FORMAT-run compiler cache budget": true,
+            "FORMAT valid Memory build": true,
+            "FORMAT RAM run normal": true,
+            "FORMAT child parks compiler/library pages": true,
+            "FORMAT saved compilation releases image cache": true,
+            "TRIG-memory returns to resident reader": true,
+            "TRIG-memory no unready handles": true,
+            "TRIG-memory compiler cache budget": true,
+            "TRIG-saved returns to resident reader": true,
+            "TRIG-saved no unready handles": true,
+            "TRIG-saved compiler cache budget": true,
+            "TRIG-run returns to resident reader": true,
+            "TRIG-run no unready handles": true,
+            "TRIG-run compiler cache budget": true,
+            "TRIG valid Memory build": true,
+            "TRIG RAM run normal": true,
+            "TRIG child parks compiler/library pages": true,
+            "TRIG saved compilation releases image cache": true,
+            "EXTERNAL-memory returns to resident reader": true,
+            "EXTERNAL-memory no unready handles": true,
+            "EXTERNAL-memory compiler cache budget": true,
+            "EXTERNAL-saved returns to resident reader": true,
+            "EXTERNAL-saved no unready handles": true,
+            "EXTERNAL-saved compiler cache budget": true,
+            "EXTERNAL-run returns to resident reader": true,
+            "EXTERNAL-run no unready handles": true,
+            "EXTERNAL-run compiler cache budget": true,
+            "EXTERNAL valid Memory build": true,
+            "EXTERNAL RAM run normal": true,
+            "EXTERNAL child parks compiler/library pages": true,
+            "EXTERNAL saved compilation releases image cache": true,
+            "HOOK-memory returns to resident reader": true,
+            "HOOK-memory no unready handles": true,
+            "HOOK-memory compiler cache budget": true,
+            "HOOK-saved returns to resident reader": true,
+            "HOOK-saved no unready handles": true,
+            "HOOK-saved compiler cache budget": true,
+            "HOOK-run returns to resident reader": true,
+            "HOOK-run no unready handles": true,
+            "HOOK-run compiler cache budget": true,
+            "HOOK valid Memory build": true,
+            "HOOK RAM run normal": true,
+            "HOOK child parks compiler/library pages": true,
+            "HOOK saved compilation releases image cache": true,
+            "TRANSFER-memory returns to resident reader": true,
+            "TRANSFER-memory no unready handles": true,
+            "TRANSFER-memory compiler cache budget": true,
+            "TRANSFER-saved returns to resident reader": true,
+            "TRANSFER-saved no unready handles": true,
+            "TRANSFER-saved compiler cache budget": true,
+            "TRANSFER-run returns to resident reader": true,
+            "TRANSFER-run no unready handles": true,
+            "TRANSFER-run compiler cache budget": true,
+            "TRANSFER valid Memory build": true,
+            "TRANSFER RAM run normal": true,
+            "TRANSFER child parks compiler/library pages": true,
+            "TRANSFER saved compilation releases image cache": true,
+            "RANDOM-memory returns to resident reader": true,
+            "RANDOM-memory no unready handles": true,
+            "RANDOM-memory compiler cache budget": true,
+            "RANDOM-saved returns to resident reader": true,
+            "RANDOM-saved no unready handles": true,
+            "RANDOM-saved compiler cache budget": true,
+            "RANDOM-run returns to resident reader": true,
+            "RANDOM-run no unready handles": true,
+            "RANDOM-run compiler cache budget": true,
+            "RANDOM valid Memory build": true,
+            "RANDOM RAM run normal": true,
+            "RANDOM child parks compiler/library pages": true,
+            "RANDOM saved compilation releases image cache": true,
+            "CONVERT-memory returns to resident reader": true,
+            "CONVERT-memory no unready handles": true,
+            "CONVERT-memory compiler cache budget": true,
+            "CONVERT-saved returns to resident reader": true,
+            "CONVERT-saved no unready handles": true,
+            "CONVERT-saved compiler cache budget": true,
+            "CONVERT-run returns to resident reader": true,
+            "CONVERT-run no unready handles": true,
+            "CONVERT-run compiler cache budget": true,
+            "CONVERT valid Memory build": true,
+            "CONVERT RAM run normal": true,
+            "CONVERT child parks compiler/library pages": true,
+            "CONVERT saved compilation releases image cache": true,
+            "TEXTWRITE-memory returns to resident reader": true,
+            "TEXTWRITE-memory no unready handles": true,
+            "TEXTWRITE-memory compiler cache budget": true,
+            "TEXTWRITE-saved returns to resident reader": true,
+            "TEXTWRITE-saved no unready handles": true,
+            "TEXTWRITE-saved compiler cache budget": true,
+            "TEXTWRITE-run returns to resident reader": true,
+            "TEXTWRITE-run no unready handles": true,
+            "TEXTWRITE-run compiler cache budget": true,
+            "TEXTWRITE valid Memory build": true,
+            "TEXTWRITE RAM run normal": true,
+            "TEXTWRITE child parks compiler/library pages": true,
+            "TEXTWRITE saved compilation releases image cache": true,
+            "RAW-memory returns to resident reader": true,
+            "RAW-memory no unready handles": true,
+            "RAW-memory compiler cache budget": true,
+            "RAW-saved returns to resident reader": true,
+            "RAW-saved no unready handles": true,
+            "RAW-saved compiler cache budget": true,
+            "RAW-run returns to resident reader": true,
+            "RAW-run no unready handles": true,
+            "RAW-run compiler cache budget": true,
+            "RAW valid Memory build": true,
+            "RAW RAM run normal": true,
+            "RAW child parks compiler/library pages": true,
+            "RAW saved compilation releases image cache": true,
+            "terminal page release before kernel cleanup": true,
+            "all requested COM outputs": true,
+            "source files retained": true
+          },
+          "labels": [
+            [
+              "ready",
+              18630
+            ],
+            [
+              "INT-memory",
+              26316
+            ],
+            [
+              "INT-enter",
+              17061
+            ],
+            [
+              "INT-run",
+              26316
+            ],
+            [
+              "INT-saved",
+              26316
+            ],
+            [
+              "COPY-memory",
+              26316
+            ],
+            [
+              "COPY-enter",
+              17061
+            ],
+            [
+              "COPY-run",
+              26316
+            ],
+            [
+              "COPY-saved",
+              26316
+            ],
+            [
+              "SCREEN-memory",
+              26316
+            ],
+            [
+              "SCREEN-enter",
+              17061
+            ],
+            [
+              "SCREEN-run",
+              26316
+            ],
+            [
+              "SCREEN-saved",
+              26316
+            ],
+            [
+              "READINT-memory",
+              26316
+            ],
+            [
+              "READINT-enter",
+              17061
+            ],
+            [
+              "READINT-run",
+              26316
+            ],
+            [
+              "READINT-saved",
+              26316
+            ],
+            [
+              "READREAL-memory",
+              26316
+            ],
+            [
+              "READREAL-enter",
+              17061
+            ],
+            [
+              "READREAL-run",
+              26316
+            ],
+            [
+              "READREAL-saved",
+              26316
+            ],
+            [
+              "TEXTINT-memory",
+              26316
+            ],
+            [
+              "TEXTINT-enter",
+              17061
+            ],
+            [
+              "TEXTINT-run",
+              26316
+            ],
+            [
+              "TEXTINT-saved",
+              26316
+            ],
+            [
+              "TEXTREAL-memory",
+              26316
+            ],
+            [
+              "TEXTREAL-enter",
+              17061
+            ],
+            [
+              "TEXTREAL-run",
+              26316
+            ],
+            [
+              "TEXTREAL-saved",
+              26316
+            ],
+            [
+              "MATH-memory",
+              26316
+            ],
+            [
+              "MATH-enter",
+              17061
+            ],
+            [
+              "MATH-run",
+              26316
+            ],
+            [
+              "MATH-saved",
+              26316
+            ],
+            [
+              "FORMAT-memory",
+              26316
+            ],
+            [
+              "FORMAT-enter",
+              17061
+            ],
+            [
+              "FORMAT-run",
+              26316
+            ],
+            [
+              "FORMAT-saved",
+              26316
+            ],
+            [
+              "TRIG-memory",
+              26316
+            ],
+            [
+              "TRIG-enter",
+              17061
+            ],
+            [
+              "TRIG-run",
+              26316
+            ],
+            [
+              "TRIG-saved",
+              26316
+            ],
+            [
+              "EXTERNAL-memory",
+              26316
+            ],
+            [
+              "EXTERNAL-enter",
+              17061
+            ],
+            [
+              "EXTERNAL-run",
+              26316
+            ],
+            [
+              "EXTERNAL-saved",
+              26316
+            ],
+            [
+              "HOOK-memory",
+              26316
+            ],
+            [
+              "HOOK-enter",
+              17061
+            ],
+            [
+              "HOOK-run",
+              26316
+            ],
+            [
+              "HOOK-saved",
+              26316
+            ],
+            [
+              "TRANSFER-memory",
+              26316
+            ],
+            [
+              "TRANSFER-enter",
+              17061
+            ],
+            [
+              "TRANSFER-run",
+              26316
+            ],
+            [
+              "TRANSFER-saved",
+              26316
+            ],
+            [
+              "RANDOM-memory",
+              26316
+            ],
+            [
+              "RANDOM-enter",
+              17061
+            ],
+            [
+              "RANDOM-run",
+              26316
+            ],
+            [
+              "RANDOM-saved",
+              26316
+            ],
+            [
+              "CONVERT-memory",
+              26316
+            ],
+            [
+              "CONVERT-enter",
+              17061
+            ],
+            [
+              "CONVERT-run",
+              26316
+            ],
+            [
+              "CONVERT-saved",
+              26316
+            ],
+            [
+              "TEXTWRITE-memory",
+              26316
+            ],
+            [
+              "TEXTWRITE-enter",
+              17061
+            ],
+            [
+              "TEXTWRITE-run",
+              26316
+            ],
+            [
+              "TEXTWRITE-saved",
+              26316
+            ],
+            [
+              "RAW-memory",
+              26316
+            ],
+            [
+              "RAW-enter",
+              17061
+            ],
+            [
+              "RAW-run",
+              26316
+            ],
+            [
+              "RAW-saved",
+              26316
+            ],
+            [
+              "exit",
+              4228
+            ]
+          ],
+          "capture_directory": "analysis/native-slice/20261105T172618.355262Z-73954",
+          "target": "zlegacypascal"
+        },
+        "checks": {
+          "legacy control passes": true,
+          "Real and opaque native output byte identity": true,
+          "integer outputs differ from full runtime": true,
+          "inputs stable": true
+        }
+      }
+    },
+    "startup": {
+      "path": "analysis/startup-pages/20261105T171059.557368Z-60265/report.json",
+      "sha256": "79cb4b29426419de727e372eb5948170dc97c22776018596ea83b2900643ddb4",
+      "result": {
+        "scope": "Measure actual native IDE startup pages and validate sparse cache lifecycle.",
+        "passed": true,
+        "input_sha256": {
+          "CMakeLists.txt": "9dde058352b49225904fee29318bd86401fe75c8f4077c8365161cba84f73814",
+          "tools/test-startup-pages.py": "6f3fa870db7b69d4df8c993807a48f195c3a35f241f6579a85b982a0fb6f2a81",
+          "tools/test-native.py": "59396970ac08a94b7cef0f61aef38f62867205c1f3fc45a5b176b8db716f0ee6",
+          "src/banks.c": "2c7264d42fa9a749c9a9c806ed70695fa603296e20ab16f5df7e889033069ac0",
+          "src/buffer_access.c": "84cece5cfaaebafab312a64f0c41d885c7b2ddc18b63c4d7f2d4aa15c42012aa",
+          "src/buffer_memory.c": "b886eb1d01604d3f868baada03208002dd792c841364e75e35f43f7bbbae5692",
+          "src/chain.c": "bc0cc57d9422fa9065f9305662e406c32991221d7645d121030dad543157fdf3",
+          "src/chain.h": "8dfef58181bbb676d4722f4b27e1c023c93a89f5c8f76b892b5d45cbf3ac5d25",
+          "src/chain_abi.h": "aa4e146a9f5a7ca07cb727bb4b17dc945f94c2487b0712a39d13f6211450c3ea",
+          "src/chain_native.asm": "86d9f2d37fc5fd5c0093726f2bc51acb03ff47d70ebe43189933cf051308604c",
+          "src/compiler.c": "1cf745d81376910d0597477c3c9d3fd2abc9af333c294db9e6eb134ebdd4dc30",
+          "src/compiler.h": "750a5253767109b64ff0184151b4dc01ae074e9254c3db4894b4a7ca27eb6bce",
+          "src/compiler_activation.c": "7f657cb7b2eba6fa0eb762dbd8823fbbc0e0935544e19329b2aa14ebed0924b0",
+          "src/compiler_artifact.c": "2e4d73649924ef77d405fa7b211278c3503d9878940f558285dda86fa29a8ca3",
+          "src/compiler_asset.c": "b64de711e5294bc224cb5a13504185d118a8b3b19fe5cad8eccc2f082a96aff1",
+          "src/compiler_bridges.c": "6cf38d1125a23a66e853259e73672bbdd1a4ec0426d83c144b4b49f8bd639a3a",
+          "src/compiler_build.c": "db26127612d91665f97f29921242a93f61d50d4572c7b67f0080fe9007092b97",
+          "src/compiler_chain.c": "feef6b23bfd74f9773727d48c70db7a34ae6aa1c921bc1ef245db9500be15ba4",
+          "src/compiler_compile.c": "93bca93a5aac560b1ba1bbce7e8d29fe4c4b7a61e8e26913a037ed452ede5a74",
+          "src/compiler_console.c": "3b3d1fc1fd3094ced1694e4cf09413a9dc4e1e5768ebd04c7cc982e99303a206",
+          "src/compiler_crt.c": "cdd1b0f16de665215c69a72cc72173c04ad86f24dc54dc6aefa089bcda7668f9",
+          "src/compiler_disk.c": "95c5fb9997839c348443e4ae2e35fdd1fbc93e276d520ed6b3d722b78bf5c638",
+          "src/compiler_disk.h": "11d22e0e0ca16bcb39f9684ca51991e16ea6b0b52fb924269ea5bbe43a4adb31",
+          "src/compiler_emit.c": "72652af0a1e035a2eaae27312b46ca158c8eacb648d2f104d677f4617564da6a",
+          "src/compiler_expr.c": "dd87447da3bfc7a30db97d3388795d3a7ec0d5a85c7680f0166da55f6d405a21",
+          "src/compiler_files.c": "8424c98cdd6369bd12c2d435ab0d78f1e1397befc5eaead605ccf7044966effb",
+          "src/compiler_fragments.c": "e3cf2f804da01dcacadc7244385856c2822b704811e91e485f1175fab7f46cbf",
+          "src/compiler_fragments.h": "1b5fb7881e4340ce021aa708d85ee50288984b90b5d59d6ce1eae45f596ff30b",
+          "src/compiler_front.c": "af0199561ba07971f6c85dc55aa589824f84b0263f3c5f03a6ce848b488ec8d8",
+          "src/compiler_groups.c": "87f3777963eaeffeb47ba03b148ea0bcfbb1d0ec85c2fd2c084e417fe943ec72",
+          "src/compiler_groups.h": "49a4ab4963864781aae580831ef20a68ca9c9a7fb3deac9d2cbaa746f1d030fe",
+          "src/compiler_hooks.c": "39a8c131230cdd63e2cfc4084531fa411422ae2e3a7c7ec7ce98486612c4a3ee",
+          "src/compiler_image.c": "5bd521bb05eed4743d9f9578e6f50f144cc0177b14179b664901f8d951b43eb5",
+          "src/compiler_inline.c": "d0f45b8e875d23f355803fc0cd4a460037cffaacf9b56e69e6167dc5a752b81e",
+          "src/compiler_interrupt.c": "3f5ae0f125016190d1cc231f3aa21093ce74d4e06da5a1ef202cc9b7c51150a1",
+          "src/compiler_io.c": "d1fa32727591ed39cc62699cb5cb1031bbd8ccad49bbba4e0b6f52f705ede7ac",
+          "src/compiler_job.c": "d5a136154631f9af71f1bb63db8f4704f1aa3ae01623b9ddffe6a56a61ddd6b7",
+          "src/compiler_job.h": "a80ee375cee89b03ec1e67849a7810b345e1c02bc0fc3d6eb95a8b8ba875af88",
+          "src/compiler_job_pages.c": "dcbe8df5601aee00c19c87a688d22fc55a7468625583f3f7569e5e1cd92cbc24",
+          "src/compiler_job_result.c": "a6dafe7eb377a862d8c8541c3a45049535de424244748379e4f3f32b5e9492b0",
+          "src/compiler_keyboard.c": "776be161f014d2ee2bb7652040524cd43d0c6fae3f0750c1e289b23ca1115a0e",
+          "src/compiler_keyboard_engine.c": "887db7ae1010903f1fcb5c4222cb8cb9c75b1034c8079489086812f45e3752ca",
+          "src/compiler_late.c": "a205f2247eb6df94b267194ae45498074e313a076d8526956dcf716cd1e81bab",
+          "src/compiler_late.h": "3e2a0b0a9091f4044ddf854465da388796b84b3af06143a36b6786447f972e9c",
+          "src/compiler_members.c": "6d04a558c0f83cca439b1bcfefdce776334c56ccad31ae984ce0690c14c7207a",
+          "src/compiler_members.h": "e117e0fdce4f9c74a5ecd70c0b7a105f1eaf3c10957849a03f33f227464954bc",
+          "src/compiler_messages.c": "34ba14f2b45cfaf82332bff2b7ffac47a79a285f00d1d5a1a801dc97cfa3515c",
+          "src/compiler_messages.h": "97f85fab701d501658c24471a157b6248214c930362fc479a4c6e2466791162e",
+          "src/compiler_module.c": "dfff94a1866128e035dba3ae0440641e03974926b4c2ccc4fcf4a1bd48a38655",
+          "src/compiler_params.c": "47010795be1e9a7f8b855e26c57bf57a531502c0b4ee455383c4bbb6df08be61",
+          "src/compiler_predicates.c": "bf7e2eb736350421c995f83659d8e6203f0a76166cbafe2559d07002b090297c",
+          "src/compiler_random.c": "c3e6bfe4182b608e2ead135abe00457e663f6b6e5776c856f315470727702f65",
+          "src/compiler_real.c": "8b7250ff9df600e7fd69b1b6aa2230ee9634b54f13e860c80800fef33b222af1",
+          "src/compiler_recursion.c": "2aeeceae01a8239bbbd50ba52a7d292496ce4793b49646e9089c20123a364476",
+          "src/compiler_routines.c": "d43c34fd58444814d032111494f40d6ccca67f3655442941742d31ffb3048992",
+          "src/compiler_runtime.c": "ac2f3d539d8afa28ac69e44b7208531821fd131c5dc6d7df9a55ce13257c7351",
+          "src/compiler_sources.c": "8dc47ab003cbfee93bd2920462e5247459c82dc80194ab80b3963da758278051",
+          "src/compiler_state.c": "e0517ecec2ea95420312bf8fa7e588e9929d1b4b9fd65e28fb1e6af5ce93ccad",
+          "src/compiler_strings.c": "abab76c7c36c2ad63d9494b9b43685a2fa895b9d97f80f525ad5b633e9131206",
+          "src/compiler_tables.c": "065909914cea6c8210fce737c052508359a07c958f82aa8017dde224f93def25",
+          "src/compiler_transfer_asset.c": "f4c98a3c0a52e063d16bc37fdd2af729df7f0e04491f99a5ea0edc84525f327f",
+          "src/compiler_types.c": "5df077611aa2580b5ec85f9b47d4f441860b721843929bbd2da96455208485ff",
+          "src/compiler_units.c": "caad68372d0081a06f85165fce5d9e91579cab0d09696b8b3ab4aa7c9447a8a2",
+          "src/compiler_units.h": "7c057b803408a415bdcce4555f6a441825fb9fa61972e27e8eaf6e67cbb987d4",
+          "src/compiler_units_link.c": "8ef8618a1d0465dc5d8f471ca219fa77e181e88ba6aaa1cfbc2997fce5865919",
+          "src/compiler_units_names.c": "3a21ee1c57db77f831ddb517d5b384cbf841678b5ba452c2605250d6ad9a8375",
+          "src/compiler_units_object.c": "79f7e1795b9ce3d4374cf5c94612bb474a2eca5b85ac9be9a142684baa99109c",
+          "src/editor.c": "c31ddc50c05d798410a980853179b48aa60d9768bf905f9b0ac81010cb28ce48",
+          "src/editor.h": "5e07a789b1ef4a311834a5b0529acc523f6650b609658d7229b14b4542d5ef89",
+          "src/execute_entry.asm": "374e1d83dc6872fd4fa914904f4d8308796c0ad56b108c56aef630caef07b781",
+          "src/execute_handoff.h": "e479f95f5b3661962b005275aa35978704e2168c10ee0bded22e8a93a6d6b152",
+          "src/execute_native.asm": "e83b45bb00c867f35557ed63263335c8c1238eabdc69e83cf0fdeac551f8a0bc",
+          "src/file_gate.asm": "a319481d3cea3379d6c40310c143b5006d35931550489847098c93c903c21a2e",
+          "src/file_low_copy.asm": "8b6cd05adea505ea5600d14676424a0338aecf42eceb33bdcb6944d1833dd392",
+          "src/file_module.asm": "95bbae5aacbc0c4c903022c57600a6fd43532b9587d5381c88f2176060a3b48c",
+          "src/file_native.asm": "43bb5cbc7ef31ed078a0eb02733261a1f0545f8492443e5b495c611ecbbd2724",
+          "src/file_runtime.c": "81ab2f48c4130d2ad45e94c37e505a79338ed1749d54343729b54d75de04b37f",
+          "src/file_runtime.h": "78462f0d31212287b7f7665059f776b6fa97503fc2ac7a753e1a949fbeaa66a8",
+          "src/format.asm": "2bb0412f93cdc6458d89fb61e0869a270a3cf55e4280b29c4bf295b9ac08afb8",
+          "src/image.c": "2ae34b732a284f6a468b1088c498f6cc13286c1d596af0b93bc6f1233adb9ebe",
+          "src/image.h": "e824c36c0484948454852ccae283d1102558dfb72fc0fd34ca8ac1b1907e2678",
+          "src/input.asm": "4be17f804def1af67a5e65ff29ccf94d7fa8652596b9a6faa7537b1c4140ab8d",
+          "src/keys.c": "6e5867527224e134a6247aa10c0f8c113e9ce9a2292b36bc3794a3cf30d665e3",
+          "src/keys.h": "780a8bb57953c9d02cdea57a128a33d7e11fb00908df315483de7d01f84f043f",
+          "src/library.c": "495f32632d020a3f8cdb28a769ce068e12d635e95154c8a594005d8c73c8dcfe",
+          "src/library.h": "1707d09697fef2772c1dfbd15fff9ece0cdef2baf042f36ae294d835483f53e1",
+          "src/library_phase.c": "d2526c4f9bcf7d81f6c2ffd55703e5d2d6dbe29f268a38e0c6f82867bd964699",
+          "src/main.c": "57616b29c611ec04241ecff3cba86d58bdc62756879f623adbea8df247235279",
+          "src/main_display.c": "e2f389105bb495ca14f7a5ea0b77d042255537b31982087825d11cb5fe5743c9",
+          "src/main_display.h": "c6c9cf7f72947f0041a89108b01452d77c1eb41f5535b32b30890763af34d07d",
+          "src/module_unpack.asm": "34fca90e2b2137390cabbcb07f67868a816a05643781bde9e6101437021fc9e9",
+          "src/native.asm": "1d24a36f15a310e8213aff332d218bd377251e835165bcc2a4f7b5cbc2147e7f",
+          "src/native_image.c": "487d3bf485c27a03444798b2c84aa9d5b1e736c99f29cd86e55679358cb13c2b",
+          "src/native_image.h": "6264a982281182deb757338ea9b56f79b0648791b76e852287a3c7c404070e95",
+          "src/output.c": "654dfedb61ed9653ba07bb1658a62c373c080af6b3453055d88f6ced67717fa9",
+          "src/output_transport.c": "e20179573605dff0d3ab7d2b166d7cea8461e6ab48ab4f04bae44b19a52b4a2d",
+          "src/output_transport.h": "7b4dd7d8b29a74686f7134406e544f5438e10116f3c52172d985b0a03a199f5b",
+          "src/overlay.c": "1841dd31cec836511ab541da9db54b0bccae1abfd8657464149ee7b566aa20b5",
+          "src/overlay.h": "ed2e2d7b9ef4fb5f9a0f3de2da315e68890ef36ac1ccc2a5fb91222c05934be3",
+          "src/path.c": "8901182d1188ab7cb0d83726e094ab92eee446a9fd7ed43cc285b065c37909fe",
+          "src/path.h": "daa6fb1fc2c0472fb6816b9cf5d8607af8a481a7adda171f3d4a12f91e977398",
+          "src/platform.c": "9d4ad9217d997cf331d5199082ad0c8ad425a68320ae8437da01b5c264c59912",
+          "src/real.c": "11e0b8ab62de4abbdf2bd832eb6ec8eb0973d1056cd6ebd2f90d69bf3cd3bc2a",
+          "src/real.h": "3e5048890ce5d7f1e80524fecad3a2cdc4c8c416d963cf2ce0482e104c4e8bfb",
+          "src/real_adapter.asm": "8926d0a25e9e839d9693721508f0d3e580dbd342cb5eb491508025ca39183975",
+          "src/runtime.asm": "65b6371efa9919a2d382899b3da623acd267a80fb9f741c256adfbdc1ab39408",
+          "src/source.c": "d48457f0f9dd770abd45e818cd7a45783bbb98e6a1c64ceae6323175553cb6a6",
+          "src/source_blocks.c": "9e32e3872c1e482ea8607b0fa311a9efa03987c2ef6049a35f8817be278fefb8",
+          "src/source_internal.h": "8934959e7ed8ea5482da4cb32d170c3db68313389791e954611341ab5db11341",
+          "src/source_location.c": "1eed463432e5078682a0cbe6b832d27a3d7b5a004675290b9271113754226910",
+          "src/source_move.c": "fa016f7b7a09838ffdab2cd51985f8ab327cc00a135fbf520d63d519b0aeb41d",
+          "src/source_move.h": "00d13adf530773debf6b9793d41bb6e8925489089d68b9eb3087168bee442402",
+          "src/source_validation.c": "ebd9e8373fd3c18bf0df7631d8e12a6bac377bbd58f8589d41cdf47a878e5ae5",
+          "src/source_validation.h": "27ca4b3a26835d939220b710b77693fbe396fc9c924a0463de74faac92a20ffc",
+          "src/sources.c": "45ab5328515f6ece161b51f15eec033d8d3e6ec7a6843d8dfda7c90830ce542a",
+          "src/sources.h": "26ad76296f1ee41f6fdd8537782c8a2db0899dc66a7ad7ae5aeb898a9a6bf05f",
+          "src/startup.asm": "a974bd5335f0aac4501e426e4a53cb13b1fc168d969c5d67d5cc1c23ba708f1d",
+          "src/trampoline.asm": "cb3b82909eaca5019b37d8d3693a807b25bd7e239c57faf4a0e028b9fd0f9ea7",
+          "src/transcendental.c": "206359c8a7986d88c12956aba6cd67d06676ff87256359992898bd181a1264ba",
+          "src/transfer.c": "843c7d77d3160f065a56bab60757ab192e5cdbb17b0cc7f6aab525f80305e255",
+          "src/transfer.h": "0055d669572f4faa530d983060e9cba969d7173e353ee367b35487c9c35d43d0",
+          "src/transfer_call.asm": "dd5049327c314d3972532df331a7ef7c370bc000ce618347af80faec475ce7e1",
+          "src/transfer_gate.asm": "757f6210841c4a9a94cee758704f45a8bbd923bea86248690a1c0d9edb45e65a",
+          "src/transfer_module.asm": "7adbd2e3cb880659fbd791273dc83e073ebac42edf8d3d6e8494ae15d7dcf695",
+          "src/transfer_native.asm": "a8544f3508cc4f32bacf2039210454723a5d2cfb0f50f384a30c0acd36a1ad66",
+          "src/worker.c": "0f88a14a1f33f3c0f4eb20ae755917bc9f55b2dfead3ff83c47b2d19d9fa4d6b",
+          "src/worker.h": "9738295e8be73e3de1c5b1779bd29cbaf829710ae8e591e26f3b674c2be345ae",
+          "src/zp.h": "0b57955883fa9e4611e041cb0ae68151c49f2710592485b5ee292c062fc0e323"
+        },
+        "build_output_sha256": {
+          "build/zpascal.bin": "479f72229eee46f83ffd157c1aeccfbfbc12d5e3c043e3877676648727986dbc",
+          "build/zpascal.map": "1aad0aa525e8b3f2b6795aa8b15207601f9bbdaaf64b79b878ca99faf8a3c1b4",
+          "build/zptest.bin": "e36f9139726ca7ea7ae9754f074dff03a35be33a052c826d5c320ee6e478e7ff",
+          "build/zptest.map": "137d6af55d665b62b45b25e341827443dc309435faa2f7b840dee297b37d5efb",
+          "build/zpbootfail.bin": "b6848e72f99d652a68a7bcb7d7277b9d0364694fdc73dbaca6983ae9f38fbda5",
+          "build/zpbootfail.map": "dba674e5ad4d25969ef6b837650ffadbea6749b29d77cafdb88e57e8d961277d",
+          "build/zpascal.zpl": "5aeeb096f1f720fd1a3101828512051de14a37112b8c03fdd8578b63edc3936e",
+          "build/zptest.zpl": "3fa7ae112a84af899575c0558a3a37db7fe1ffc78230cb091cb93b04f0753395"
+        },
+        "external_sha256": {
+          "/Users/higginsd/Projects/zeal/Zeal-NativeEmulator/build/zeal-native": "98a17242c9c239fc70f663721367786699af5597dab6148a32192acf79bdd075",
+          "/Users/higginsd/Projects/zeal/zeal-dev-environment/home/Zeal-8-bit-OS/build/os_with_romdisk.img": "f34d453a1feb17d34c582f64139c5e8a42ac3e0f6642874b1d588695b4036b4a"
+        },
+        "before_startup_code_pages": 13,
+        "startup_code_pages": 10,
+        "released_startup_pages": 3,
+        "startup_bytes_saved": 49152,
+        "production_library_bytes": 201639,
+        "production_resident_bytes": 15275,
+        "startup_page_vector": [
+          39,
+          40,
+          41,
+          42,
+          43,
+          255,
+          44,
+          255,
+          45,
+          255,
+          46,
+          47,
+          48,
+          255,
+          255
+        ],
+        "checks": {
+          "authenticated IDE startup": true,
+          "logical bank directory retained": true,
+          "exactly ten allocated distinct startup code pages": true,
+          "expression Real file and lifecycle pages stay unallocated": true,
+          "no unready allocations hidden in pending owners": true,
+          "layout: zpascal retained mapping core/control/scratch in page 1": true,
+          "layout: zpascal static storage below checked CPU stack": true,
+          "layout: zpascal raw executable within OS load limit": true,
+          "layout: zpascal resident code and constants below bank window": true,
+          "layout: zpascal code banks fit their 16 KiB window": true,
+          "layout: zptest retained mapping core/control/scratch in page 1": true,
+          "layout: zptest static storage below checked CPU stack": true,
+          "layout: zptest raw executable within OS load limit": true,
+          "layout: zptest resident code and constants below bank window": true,
+          "layout: zptest code banks fit their 16 KiB window": true,
+          "library: library missing rejected before editor entry with code pages released": true,
+          "library: library magic rejected before editor entry with code pages released": true,
+          "library: library truncated-header rejected before editor entry with code pages released": true,
+          "library: library truncated-bank rejected before editor entry with code pages released": true,
+          "library: library old-format rejected before editor entry with code pages released": true,
+          "library: library mixed-build rejected before editor entry with code pages released": true,
+          "library: library version rejected before editor entry with code pages released": true,
+          "library: library count rejected before editor entry with code pages released": true,
+          "library: library header-size rejected before editor entry with code pages released": true,
+          "library: library reserved rejected before editor entry with code pages released": true,
+          "library: library zero-length rejected before editor entry with code pages released": true,
+          "library: library large-bank rejected before editor entry with code pages released": true,
+          "library: library build-version rejected before editor entry with code pages released": true,
+          "library: library bank-layout rejected before editor entry with code pages released": true,
+          "library: library trailing reaches editor boundary with only startup banks loaded": true,
+          "library: library deferred-truncated reaches editor boundary with only startup banks loaded": true,
+          "library: short deferred bank read fails and releases all code pages": true,
+          "allocation: startup allocation failures release partial/all banks and malformed-library retries close handles": true,
+          "lifecycle: quit releases all code banks before SDK exit and restores original program mappings": true,
+          "interactive: interactive checkpoints reach the actual IDE reader": true,
+          "interactive: PS/2 edit -> Memory compile/run -> runtime 02 acknowledgment": true,
+          "interactive: runtime failure retains exact dirty source snapshot": true,
+          "interactive: Escape enters source at exact error byte": true,
+          "interactive: edit repair invalidates build, recompiles and runs successfully": true,
+          "interactive: dirty quit cancellation retains source": true,
+          "interactive: quit returns original ZShell mappings": true,
+          "interactive: ZShell raw nonblocking keyboard convention restored": true,
+          "interactive: read-only installation files; Memory workflow creates no source/output files": true,
+          "interactive: kernel page unchanged at every interactive checkpoint": true,
+          "real fourteen-page allocator budget reaches IDE Work and quits without leaks": true,
+          "unchanged source artifacts emulator and ROM": true
+        },
+        "native_capture": "analysis/native-slice/20261105T171059.579066Z-60265"
+      }
+    },
+    "corpus": {
+      "path": "analysis/optional-real/corpus-20261105T173100.626113Z-77868/report.json",
+      "sha256": "11697dd9d26589af974766e09a61b14c148444e5118220a162a493449293db21",
+      "result": {
+        "scope": "Run existing noninteractive language families against the production optional Real compiler.",
+        "passed": true,
+        "input_sha256": {
+          "CMakeLists.txt": "d4ded9a741340e342fd2402b585689eae6f639e988e07f64e6ded9c8b7ba7a45",
+          "tools/test-optional-corpus.py": "0d9888ef359cae0d372224b7d39d1afeb48cffaec8237a13d2bf548ceb7ba113",
+          "tools/test-native.py": "59396970ac08a94b7cef0f61aef38f62867205c1f3fc45a5b176b8db716f0ee6",
+          "src/banks.c": "2c7264d42fa9a749c9a9c806ed70695fa603296e20ab16f5df7e889033069ac0",
+          "src/buffer_access.c": "84cece5cfaaebafab312a64f0c41d885c7b2ddc18b63c4d7f2d4aa15c42012aa",
+          "src/buffer_memory.c": "b886eb1d01604d3f868baada03208002dd792c841364e75e35f43f7bbbae5692",
+          "src/chain.c": "bc0cc57d9422fa9065f9305662e406c32991221d7645d121030dad543157fdf3",
+          "src/chain.h": "8dfef58181bbb676d4722f4b27e1c023c93a89f5c8f76b892b5d45cbf3ac5d25",
+          "src/chain_abi.h": "aa4e146a9f5a7ca07cb727bb4b17dc945f94c2487b0712a39d13f6211450c3ea",
+          "src/chain_native.asm": "86d9f2d37fc5fd5c0093726f2bc51acb03ff47d70ebe43189933cf051308604c",
+          "src/compiler.c": "1cf745d81376910d0597477c3c9d3fd2abc9af333c294db9e6eb134ebdd4dc30",
+          "src/compiler.h": "750a5253767109b64ff0184151b4dc01ae074e9254c3db4894b4a7ca27eb6bce",
+          "src/compiler_activation.c": "7f657cb7b2eba6fa0eb762dbd8823fbbc0e0935544e19329b2aa14ebed0924b0",
+          "src/compiler_artifact.c": "2e4d73649924ef77d405fa7b211278c3503d9878940f558285dda86fa29a8ca3",
+          "src/compiler_asset.c": "b64de711e5294bc224cb5a13504185d118a8b3b19fe5cad8eccc2f082a96aff1",
+          "src/compiler_bridges.c": "6cf38d1125a23a66e853259e73672bbdd1a4ec0426d83c144b4b49f8bd639a3a",
+          "src/compiler_build.c": "db26127612d91665f97f29921242a93f61d50d4572c7b67f0080fe9007092b97",
+          "src/compiler_chain.c": "feef6b23bfd74f9773727d48c70db7a34ae6aa1c921bc1ef245db9500be15ba4",
+          "src/compiler_compile.c": "93bca93a5aac560b1ba1bbce7e8d29fe4c4b7a61e8e26913a037ed452ede5a74",
+          "src/compiler_console.c": "3b3d1fc1fd3094ced1694e4cf09413a9dc4e1e5768ebd04c7cc982e99303a206",
+          "src/compiler_crt.c": "cdd1b0f16de665215c69a72cc72173c04ad86f24dc54dc6aefa089bcda7668f9",
+          "src/compiler_disk.c": "95c5fb9997839c348443e4ae2e35fdd1fbc93e276d520ed6b3d722b78bf5c638",
+          "src/compiler_disk.h": "11d22e0e0ca16bcb39f9684ca51991e16ea6b0b52fb924269ea5bbe43a4adb31",
+          "src/compiler_emit.c": "72652af0a1e035a2eaae27312b46ca158c8eacb648d2f104d677f4617564da6a",
+          "src/compiler_expr.c": "dd87447da3bfc7a30db97d3388795d3a7ec0d5a85c7680f0166da55f6d405a21",
+          "src/compiler_files.c": "8424c98cdd6369bd12c2d435ab0d78f1e1397befc5eaead605ccf7044966effb",
+          "src/compiler_fragments.c": "e3cf2f804da01dcacadc7244385856c2822b704811e91e485f1175fab7f46cbf",
+          "src/compiler_fragments.h": "1b5fb7881e4340ce021aa708d85ee50288984b90b5d59d6ce1eae45f596ff30b",
+          "src/compiler_front.c": "af0199561ba07971f6c85dc55aa589824f84b0263f3c5f03a6ce848b488ec8d8",
+          "src/compiler_groups.c": "87f3777963eaeffeb47ba03b148ea0bcfbb1d0ec85c2fd2c084e417fe943ec72",
+          "src/compiler_groups.h": "49a4ab4963864781aae580831ef20a68ca9c9a7fb3deac9d2cbaa746f1d030fe",
+          "src/compiler_hooks.c": "39a8c131230cdd63e2cfc4084531fa411422ae2e3a7c7ec7ce98486612c4a3ee",
+          "src/compiler_image.c": "5bd521bb05eed4743d9f9578e6f50f144cc0177b14179b664901f8d951b43eb5",
+          "src/compiler_inline.c": "d0f45b8e875d23f355803fc0cd4a460037cffaacf9b56e69e6167dc5a752b81e",
+          "src/compiler_interrupt.c": "3f5ae0f125016190d1cc231f3aa21093ce74d4e06da5a1ef202cc9b7c51150a1",
+          "src/compiler_io.c": "d1fa32727591ed39cc62699cb5cb1031bbd8ccad49bbba4e0b6f52f705ede7ac",
+          "src/compiler_job.c": "d5a136154631f9af71f1bb63db8f4704f1aa3ae01623b9ddffe6a56a61ddd6b7",
+          "src/compiler_job.h": "a80ee375cee89b03ec1e67849a7810b345e1c02bc0fc3d6eb95a8b8ba875af88",
+          "src/compiler_job_pages.c": "dcbe8df5601aee00c19c87a688d22fc55a7468625583f3f7569e5e1cd92cbc24",
+          "src/compiler_job_result.c": "a6dafe7eb377a862d8c8541c3a45049535de424244748379e4f3f32b5e9492b0",
+          "src/compiler_keyboard.c": "776be161f014d2ee2bb7652040524cd43d0c6fae3f0750c1e289b23ca1115a0e",
+          "src/compiler_keyboard_engine.c": "887db7ae1010903f1fcb5c4222cb8cb9c75b1034c8079489086812f45e3752ca",
+          "src/compiler_late.c": "a205f2247eb6df94b267194ae45498074e313a076d8526956dcf716cd1e81bab",
+          "src/compiler_late.h": "3e2a0b0a9091f4044ddf854465da388796b84b3af06143a36b6786447f972e9c",
+          "src/compiler_members.c": "6d04a558c0f83cca439b1bcfefdce776334c56ccad31ae984ce0690c14c7207a",
+          "src/compiler_members.h": "e117e0fdce4f9c74a5ecd70c0b7a105f1eaf3c10957849a03f33f227464954bc",
+          "src/compiler_messages.c": "34ba14f2b45cfaf82332bff2b7ffac47a79a285f00d1d5a1a801dc97cfa3515c",
+          "src/compiler_messages.h": "97f85fab701d501658c24471a157b6248214c930362fc479a4c6e2466791162e",
+          "src/compiler_module.c": "dfff94a1866128e035dba3ae0440641e03974926b4c2ccc4fcf4a1bd48a38655",
+          "src/compiler_params.c": "47010795be1e9a7f8b855e26c57bf57a531502c0b4ee455383c4bbb6df08be61",
+          "src/compiler_predicates.c": "bf7e2eb736350421c995f83659d8e6203f0a76166cbafe2559d07002b090297c",
+          "src/compiler_random.c": "c3e6bfe4182b608e2ead135abe00457e663f6b6e5776c856f315470727702f65",
+          "src/compiler_real.c": "8b7250ff9df600e7fd69b1b6aa2230ee9634b54f13e860c80800fef33b222af1",
+          "src/compiler_recursion.c": "2aeeceae01a8239bbbd50ba52a7d292496ce4793b49646e9089c20123a364476",
+          "src/compiler_routines.c": "d43c34fd58444814d032111494f40d6ccca67f3655442941742d31ffb3048992",
+          "src/compiler_runtime.c": "ac2f3d539d8afa28ac69e44b7208531821fd131c5dc6d7df9a55ce13257c7351",
+          "src/compiler_sources.c": "8dc47ab003cbfee93bd2920462e5247459c82dc80194ab80b3963da758278051",
+          "src/compiler_state.c": "e0517ecec2ea95420312bf8fa7e588e9929d1b4b9fd65e28fb1e6af5ce93ccad",
+          "src/compiler_strings.c": "abab76c7c36c2ad63d9494b9b43685a2fa895b9d97f80f525ad5b633e9131206",
+          "src/compiler_tables.c": "065909914cea6c8210fce737c052508359a07c958f82aa8017dde224f93def25",
+          "src/compiler_transfer_asset.c": "f4c98a3c0a52e063d16bc37fdd2af729df7f0e04491f99a5ea0edc84525f327f",
+          "src/compiler_types.c": "5df077611aa2580b5ec85f9b47d4f441860b721843929bbd2da96455208485ff",
+          "src/compiler_units.c": "caad68372d0081a06f85165fce5d9e91579cab0d09696b8b3ab4aa7c9447a8a2",
+          "src/compiler_units.h": "7c057b803408a415bdcce4555f6a441825fb9fa61972e27e8eaf6e67cbb987d4",
+          "src/compiler_units_link.c": "8ef8618a1d0465dc5d8f471ca219fa77e181e88ba6aaa1cfbc2997fce5865919",
+          "src/compiler_units_names.c": "3a21ee1c57db77f831ddb517d5b384cbf841678b5ba452c2605250d6ad9a8375",
+          "src/compiler_units_object.c": "79f7e1795b9ce3d4374cf5c94612bb474a2eca5b85ac9be9a142684baa99109c",
+          "src/editor.c": "c31ddc50c05d798410a980853179b48aa60d9768bf905f9b0ac81010cb28ce48",
+          "src/editor.h": "5e07a789b1ef4a311834a5b0529acc523f6650b609658d7229b14b4542d5ef89",
+          "src/execute_entry.asm": "374e1d83dc6872fd4fa914904f4d8308796c0ad56b108c56aef630caef07b781",
+          "src/execute_handoff.h": "e479f95f5b3661962b005275aa35978704e2168c10ee0bded22e8a93a6d6b152",
+          "src/execute_native.asm": "e83b45bb00c867f35557ed63263335c8c1238eabdc69e83cf0fdeac551f8a0bc",
+          "src/file_gate.asm": "a319481d3cea3379d6c40310c143b5006d35931550489847098c93c903c21a2e",
+          "src/file_low_copy.asm": "8b6cd05adea505ea5600d14676424a0338aecf42eceb33bdcb6944d1833dd392",
+          "src/file_module.asm": "95bbae5aacbc0c4c903022c57600a6fd43532b9587d5381c88f2176060a3b48c",
+          "src/file_native.asm": "43bb5cbc7ef31ed078a0eb02733261a1f0545f8492443e5b495c611ecbbd2724",
+          "src/file_runtime.c": "81ab2f48c4130d2ad45e94c37e505a79338ed1749d54343729b54d75de04b37f",
+          "src/file_runtime.h": "78462f0d31212287b7f7665059f776b6fa97503fc2ac7a753e1a949fbeaa66a8",
+          "src/format.asm": "2bb0412f93cdc6458d89fb61e0869a270a3cf55e4280b29c4bf295b9ac08afb8",
+          "src/image.c": "2ae34b732a284f6a468b1088c498f6cc13286c1d596af0b93bc6f1233adb9ebe",
+          "src/image.h": "e824c36c0484948454852ccae283d1102558dfb72fc0fd34ca8ac1b1907e2678",
+          "src/input.asm": "4be17f804def1af67a5e65ff29ccf94d7fa8652596b9a6faa7537b1c4140ab8d",
+          "src/keys.c": "6e5867527224e134a6247aa10c0f8c113e9ce9a2292b36bc3794a3cf30d665e3",
+          "src/keys.h": "780a8bb57953c9d02cdea57a128a33d7e11fb00908df315483de7d01f84f043f",
+          "src/library.c": "495f32632d020a3f8cdb28a769ce068e12d635e95154c8a594005d8c73c8dcfe",
+          "src/library.h": "1707d09697fef2772c1dfbd15fff9ece0cdef2baf042f36ae294d835483f53e1",
+          "src/library_phase.c": "d2526c4f9bcf7d81f6c2ffd55703e5d2d6dbe29f268a38e0c6f82867bd964699",
+          "src/main.c": "57616b29c611ec04241ecff3cba86d58bdc62756879f623adbea8df247235279",
+          "src/main_display.c": "e2f389105bb495ca14f7a5ea0b77d042255537b31982087825d11cb5fe5743c9",
+          "src/main_display.h": "c6c9cf7f72947f0041a89108b01452d77c1eb41f5535b32b30890763af34d07d",
+          "src/module_unpack.asm": "34fca90e2b2137390cabbcb07f67868a816a05643781bde9e6101437021fc9e9",
+          "src/native.asm": "1d24a36f15a310e8213aff332d218bd377251e835165bcc2a4f7b5cbc2147e7f",
+          "src/native_image.c": "487d3bf485c27a03444798b2c84aa9d5b1e736c99f29cd86e55679358cb13c2b",
+          "src/native_image.h": "6264a982281182deb757338ea9b56f79b0648791b76e852287a3c7c404070e95",
+          "src/output.c": "654dfedb61ed9653ba07bb1658a62c373c080af6b3453055d88f6ced67717fa9",
+          "src/output_transport.c": "e20179573605dff0d3ab7d2b166d7cea8461e6ab48ab4f04bae44b19a52b4a2d",
+          "src/output_transport.h": "7b4dd7d8b29a74686f7134406e544f5438e10116f3c52172d985b0a03a199f5b",
+          "src/overlay.c": "1841dd31cec836511ab541da9db54b0bccae1abfd8657464149ee7b566aa20b5",
+          "src/overlay.h": "ed2e2d7b9ef4fb5f9a0f3de2da315e68890ef36ac1ccc2a5fb91222c05934be3",
+          "src/path.c": "8901182d1188ab7cb0d83726e094ab92eee446a9fd7ed43cc285b065c37909fe",
+          "src/path.h": "daa6fb1fc2c0472fb6816b9cf5d8607af8a481a7adda171f3d4a12f91e977398",
+          "src/platform.c": "9d4ad9217d997cf331d5199082ad0c8ad425a68320ae8437da01b5c264c59912",
+          "src/real.c": "11e0b8ab62de4abbdf2bd832eb6ec8eb0973d1056cd6ebd2f90d69bf3cd3bc2a",
+          "src/real.h": "3e5048890ce5d7f1e80524fecad3a2cdc4c8c416d963cf2ce0482e104c4e8bfb",
+          "src/real_adapter.asm": "8926d0a25e9e839d9693721508f0d3e580dbd342cb5eb491508025ca39183975",
+          "src/runtime.asm": "65b6371efa9919a2d382899b3da623acd267a80fb9f741c256adfbdc1ab39408",
+          "src/source.c": "d48457f0f9dd770abd45e818cd7a45783bbb98e6a1c64ceae6323175553cb6a6",
+          "src/source_blocks.c": "9e32e3872c1e482ea8607b0fa311a9efa03987c2ef6049a35f8817be278fefb8",
+          "src/source_internal.h": "8934959e7ed8ea5482da4cb32d170c3db68313389791e954611341ab5db11341",
+          "src/source_location.c": "1eed463432e5078682a0cbe6b832d27a3d7b5a004675290b9271113754226910",
+          "src/source_move.c": "fa016f7b7a09838ffdab2cd51985f8ab327cc00a135fbf520d63d519b0aeb41d",
+          "src/source_move.h": "00d13adf530773debf6b9793d41bb6e8925489089d68b9eb3087168bee442402",
+          "src/source_validation.c": "ebd9e8373fd3c18bf0df7631d8e12a6bac377bbd58f8589d41cdf47a878e5ae5",
+          "src/source_validation.h": "27ca4b3a26835d939220b710b77693fbe396fc9c924a0463de74faac92a20ffc",
+          "src/sources.c": "45ab5328515f6ece161b51f15eec033d8d3e6ec7a6843d8dfda7c90830ce542a",
+          "src/sources.h": "26ad76296f1ee41f6fdd8537782c8a2db0899dc66a7ad7ae5aeb898a9a6bf05f",
+          "src/startup.asm": "a974bd5335f0aac4501e426e4a53cb13b1fc168d969c5d67d5cc1c23ba708f1d",
+          "src/trampoline.asm": "cb3b82909eaca5019b37d8d3693a807b25bd7e239c57faf4a0e028b9fd0f9ea7",
+          "src/transcendental.c": "206359c8a7986d88c12956aba6cd67d06676ff87256359992898bd181a1264ba",
+          "src/transfer.c": "843c7d77d3160f065a56bab60757ab192e5cdbb17b0cc7f6aab525f80305e255",
+          "src/transfer.h": "0055d669572f4faa530d983060e9cba969d7173e353ee367b35487c9c35d43d0",
+          "src/transfer_call.asm": "dd5049327c314d3972532df331a7ef7c370bc000ce618347af80faec475ce7e1",
+          "src/transfer_gate.asm": "757f6210841c4a9a94cee758704f45a8bbd923bea86248690a1c0d9edb45e65a",
+          "src/transfer_module.asm": "7adbd2e3cb880659fbd791273dc83e073ebac42edf8d3d6e8494ae15d7dcf695",
+          "src/transfer_native.asm": "a8544f3508cc4f32bacf2039210454723a5d2cfb0f50f384a30c0acd36a1ad66",
+          "src/worker.c": "0f88a14a1f33f3c0f4eb20ae755917bc9f55b2dfead3ff83c47b2d19d9fa4d6b",
+          "src/worker.h": "9738295e8be73e3de1c5b1779bd29cbaf829710ae8e591e26f3b674c2be345ae",
+          "src/zp.h": "0b57955883fa9e4611e041cb0ae68151c49f2710592485b5ee292c062fc0e323",
+          "tests/native/bridges-main.c": "fe1b4a0723cb63dbb8e6e9ec821ab85a041261d259bd1cd4ec6a589d4ac68e9e",
+          "tests/native/chain-call-main.c": "40ccab9135359dff5d79dc91050df55cb929f7295d6c8f4511cebf3c52c76ed8",
+          "tests/native/chain-call-parent.c": "1794fda17e8b335d8a0671d52ea85183faf9d40ec0b9c4a4099c4c4cbb4db647",
+          "tests/native/chain-files.c": "2895b81ecf09d15cb66141dac7f05566e6b6fc31ef445e67c24a7598a2314d08",
+          "tests/native/chain-host.c": "8b2b67f03708216d05a4a7222148e2f5ac49c754753d73d239c5c815d5b2a51f",
+          "tests/native/chain-load.c": "af50e0f0d870fe95d5ded2e8a2bfc4f71173760111443d0865772937817e5546",
+          "tests/native/chain-main.c": "3f611ed276371ab525007436a1813417e07c5048caca5abe6481ce52b504bdd4",
+          "tests/native/chain-replay.c": "cf23379ddaeaea704a6ea5b75f00c9f67179b28284f6842fe268e80b2b95a26c",
+          "tests/native/code-capture.c": "084012559ad6f19d338aefe41dd8a2ca983c92cabd6641c7928d49bf4238dcc3",
+          "tests/native/compact-main.c": "538fa5a83f01db58e78a5f85515b9c276dbe292d95da92d45627bb327ddd965f",
+          "tests/native/compiler-messages-host.c": "d012942c67bea8bd49d05daddc1aac670ab7a04e3dd49b9c5c4f34ad4d092bf0",
+          "tests/native/conformance-main.c": "e27fe83b50c2d9bf58f412e0c4fc55b79ee4552a85b6069217bbc93ca6591ac4",
+          "tests/native/console-main.c": "631fc413e5370e69e04e83f1358941ea4e2269999c0febfd2b4927e61831f081",
+          "tests/native/control-main.c": "9aa8c9a8869a21669647aed634cd4940014be5de372b4737fda7629f3c4469fa",
+          "tests/native/core-host.c": "4ea022ade066e9e7b83de3fe2b38ee4a04473930761062a86bd029615ee6b904",
+          "tests/native/crt-main.c": "f5353175f9143970d690c6451cfb501375bbcf15ec8dc237ec47e11d1b41e9c3",
+          "tests/native/devices-main.c": "9e595cc8cf25fc4574b2481090faf13d7789639b33d553d754b6cb1a8a4cbc3e",
+          "tests/native/editor-core.c": "b8e14f510a1b93f7f0ffd2b850715be593afae3dcee171a9466159af39764fae",
+          "tests/native/editor-host.c": "279ad3610ab327ee41170ba18b3a0f3216680ef7baf0cfdac1c0dad48f541548",
+          "tests/native/editor-main.c": "9c0ed61623ff4bf09908e6dc96163ca0db388b3810a09395f3abaa2686146b1e",
+          "tests/native/editor-search.c": "5228ab298719bae6453fe816db73132f68b6b59741ffd9a5f3f95bca4fa4e525",
+          "tests/native/examples-main.c": "fd0ea5e0ed00abe8fba5ed6dda39a7a9a10efc156f265f6b6af33f2ad2044aa6",
+          "tests/native/execute-call-main.c": "4640563034e31699a63ec88587877d47c2adebdc9b64aebbb32818f827b2c4c9",
+          "tests/native/execute-child.c": "39768c3e5ab5b1fe4fb296bdc40c0e8b8de974488b693fbc9df1240611013948",
+          "tests/native/execute-parent.c": "fb8b52b2425d370d98c21d8080999c05797b9992352792b12e656e574e000b5b",
+          "tests/native/execute-probe.c": "ad582ad2693386092f0c7941323e193cd0bb1bd8b6961a2306459e68d73dce75",
+          "tests/native/file-core.c": "439ed74a8ba09a2b5bb89ebc5278fb90d1279e2c4b8d26a6651b634bf334e715",
+          "tests/native/file-gate.c": "67e40d0acda9dd2f4a570dce00bb7d3cfc5948a423c3bf4bf2adbc1b34a32a7a",
+          "tests/native/file-main.c": "2159e782d29b94c75eb5e4880b625c576aab279bfc79f1ac92234f243a64e150",
+          "tests/native/file-model.c": "dc9df2ac63ad18ddc3a3787ebf35275b41c644fcf71c4b98b1004350d2c64f30",
+          "tests/native/fragments.c": "315061fa1892fda4d929cd86dbb8bf12078adce2c1e1ecc3336ce03caa770f30",
+          "tests/native/harness-execute.c": "91db8082a6e0cf3aa47e241dc772bbc254f83dd6d7cdc2ddb90033a6a91cf451",
+          "tests/native/harness.c": "740868fb6322cf0978dd6c5d7252ad0ad10126b907359d7a894cb4f1fcff205a",
+          "tests/native/hooks-main.c": "480a81b7a15239a5fb869afb4f50451f0802ca2814a5a24f9d182d06bf49f12d",
+          "tests/native/inline-main.c": "07b024e86c9dac0774af6e766c990394030c34366ea7d88e7bb09a5b0c10d6f6",
+          "tests/native/input-main.c": "424454f402462ea5fb3f2cd3bf599bdf5d0019786b266772968092f01c40533c",
+          "tests/native/io-main.c": "c82ac5706693203e4560dfde57f35a82430eb73b56b51aada01ce0cfe71fa644",
+          "tests/native/job-main.c": "c610e1beaaa50f47dabf23dac147eb9245e06f8ac7e50af426fe8fe2051bf7ae",
+          "tests/native/keyboard-main.c": "0f6239fec05b33d05e307bd7a68da7beeb0c66132304b47bba70c21b8629e705",
+          "tests/native/keys-host.c": "5efe7bbc80abf42ffc906ffabfed9d5f29de1d444a654e1ee91a932056ce601c",
+          "tests/native/language-main.c": "7d0b1602f526969eadf4fb5a24c417f267dbf28f42237117f2917615f40f4092",
+          "tests/native/logical-main.c": "463305336b02310f690f79665ce379e2dcc8d150a9f3daf13bf806ea5a4ee056",
+          "tests/native/low-copy.c": "fcea1085117336ac1e368d4149b0a99c3a091d043c44d76c39fc5e9ba830f3ec",
+          "tests/native/main.c": "3d93bf0e7804c7d1db798464079fc73dab860504ac90d4900828057ffc3368bd",
+          "tests/native/math-main.c": "95b36bbad9b69dbfaa17bced42e60f3a09705cd23165c7cb53121fb3dc813964",
+          "tests/native/members-main.c": "4a1f6bc02b14195103a0d1c29df4d3caa2a5bc1cc66a67118d65ace45cd7a9aa",
+          "tests/native/native-decode-host.c": "fada011b643e950e9aeda061048156eccb5ded821b0424ae60cef67b653d3331",
+          "tests/native/optional-real-main.c": "03f709d0891d4adff32e3cac1ca13d9f60c31aa48beaf0930fc197afd289551d",
+          "tests/native/options-main.c": "f0d42fd0f36b9e0d39e4e1a2e4c4fd03c89c93a33c9c8f1c6f33b5486c129a8f",
+          "tests/native/output-host.c": "8a8cd19b85c161eecf6550c9d137d4344524c656e2e9b0e5ac0bd10682a2897f",
+          "tests/native/overlay-host.c": "ee221bb67d71b4111f9b1da2849ceeed188ebe5788d9d1106a431fc47d87ee2e",
+          "tests/native/overlay-native.c": "d5aef1ee8d35291080d24707dc712b6d14e907f3451d11a606fc31ce4ce91b7b",
+          "tests/native/params-main.c": "202e5cfffe552a634d58f0dbadde6dda57c758e6177a5f52c5517654cc3328e5",
+          "tests/native/real-core.c": "d3756d154240bdb149ec196e223a812a939c39af4b5959656d6aee97dfe71008",
+          "tests/native/saved-main.c": "5bb665c24756993364501e66c35d19369ac49f875c81b9d7b4ea5d692e2e97ee",
+          "tests/native/source-validation-host.c": "9893badf341a5e1d676cbcec57ea3db2e60428c4e7a1c244e5c90c4c1c344c09",
+          "tests/native/sources-main.c": "13ae0bd74de94ca1a6dd990b059870f033a9e9f335a79680dd6abe2f9e1d2d6d",
+          "tests/native/standard-main.c": "55d7a081a8df9c339225952f5f05fb03df34dcebba1d500a06fcc6551cd93b9a",
+          "tests/native/startup-fail.c": "c837ace04e5ae47ccc8cf5d4b870379be99e28edc1c0e06ea6b8df035fcab4f5",
+          "tests/native/stream-hash.c": "6337402b9737c5d8661177450bef0f1c12c0177586b965cbac9832d92aaa73f7",
+          "tests/native/text-main.c": "0d13b6dfc5fc5b0392b56cbf22d587bc709b6cf3bef280c9ca55acb20a25f2e7",
+          "tests/native/transfer-host.c": "276ed3e45782c7f863370502e31b695791d33b7740e8f4c81a1a616e8f3ad284",
+          "tests/native/transfer-parent.c": "2aeb8b48132bec79e3bd1e7b9ada2713b3571391e2d6de6df6d98fb6e4eb586f",
+          "tests/native/units-main.c": "d8eb018e0b488845c41b80e632fd7543e94cca0a39883aa6d4c6a8f21d7f1e18",
+          "tests/native/unpack-native.c": "9ac7259317c67de5e0c55ced32afa2806926931851ffd1f4b1740feb8fb083c7",
+          "tests/native/worker-main.c": "fb1f9ccdecf92e0346ed2a624bd307d08074d5f4c3ade597eb756edf315cf352"
+        },
+        "build_output_sha256": {
+          "build/zoptionalcorpus.bin": "df2c2a8bb3ac992b2dbe085509d6826fa7626723d0533abb9f5eb3fb1179fd0e",
+          "build/zoptionalcorpus.zpl": "737d008ecdd18e6977aba8a04c26265e24d163f9d67b9b327941e41c61846a16",
+          "build/zoptionalcorpus.map": "24c456383c4076ebc49f2636d6193e10adf7ae97a2071e0b8615cfb07e7d938f",
+          "build/zoptionalcorpus.ihx": "712be04aa3f19db20fd08e83eb204fe700d5cb31aeb95d616f26bdcc6656e11f"
+        },
+        "external_sha256": {
+          "/Users/higginsd/Projects/zeal/Zeal-NativeEmulator/build/zeal-native": "98a17242c9c239fc70f663721367786699af5597dab6148a32192acf79bdd075",
+          "/Users/higginsd/Projects/zeal/zeal-dev-environment/home/Zeal-8-bit-OS/build/os_with_romdisk.img": "f34d453a1feb17d34c582f64139c5e8a42ac3e0f6642874b1d588695b4036b4a"
+        },
+        "families": {
+          "control": {
+            "passed": true,
+            "assertions_passed": 64,
+            "assertions_failed": 0,
+            "expected": 64,
+            "failure_indices": []
+          },
+          "ordinals": {
+            "passed": true,
+            "assertions_passed": 144,
+            "assertions_failed": 0,
+            "expected": 144,
+            "failure_indices": []
+          },
+          "cases": {
+            "passed": true,
+            "assertions_passed": 64,
+            "assertions_failed": 0,
+            "expected": 64,
+            "failure_indices": []
+          },
+          "routines": {
+            "passed": true,
+            "assertions_passed": 75,
+            "assertions_failed": 0,
+            "expected": 75,
+            "failure_indices": []
+          },
+          "strings": {
+            "passed": true,
+            "assertions_passed": 106,
+            "assertions_failed": 0,
+            "expected": 106,
+            "failure_indices": []
+          },
+          "string-operations": {
+            "passed": true,
+            "assertions_passed": 209,
+            "assertions_failed": 0,
+            "expected": 209,
+            "failure_indices": []
+          },
+          "arrays": {
+            "passed": true,
+            "assertions_passed": 131,
+            "assertions_failed": 0,
+            "expected": 131,
+            "failure_indices": []
+          },
+          "records": {
+            "passed": true,
+            "assertions_passed": 156,
+            "assertions_failed": 0,
+            "expected": 156,
+            "failure_indices": []
+          },
+          "sets": {
+            "passed": true,
+            "assertions_passed": 132,
+            "assertions_failed": 0,
+            "expected": 132,
+            "failure_indices": []
+          },
+          "pointers": {
+            "passed": true,
+            "assertions_passed": 142,
+            "assertions_failed": 0,
+            "expected": 142,
+            "failure_indices": []
+          },
+          "heap": {
+            "passed": true,
+            "assertions_passed": 233,
+            "assertions_failed": 0,
+            "expected": 233,
+            "failure_indices": []
+          },
+          "memory": {
+            "passed": true,
+            "assertions_passed": 184,
+            "assertions_failed": 0,
+            "expected": 184,
+            "failure_indices": []
+          },
+          "labels": {
+            "passed": true,
+            "assertions_passed": 64,
+            "assertions_failed": 0,
+            "expected": 64,
+            "failure_indices": []
+          },
+          "reals": {
+            "passed": true,
+            "assertions_passed": 143,
+            "assertions_failed": 0,
+            "expected": 143,
+            "failure_indices": []
+          },
+          "formats": {
+            "passed": true,
+            "assertions_passed": 135,
+            "assertions_failed": 0,
+            "expected": 135,
+            "failure_indices": []
+          }
+        },
+        "stability": true,
+        "native_capture": "analysis/native-slice/20261105T173100.644282Z-77868"
+      }
+    },
+    "failures": {
+      "path": "analysis/native-slice/20261105T172429.767165Z-71666/optional-failures-report.json",
+      "sha256": "69a7dd272f0604ed21b290d131cf79ad85609209bb1c2a29c83c16ab59339884",
+      "result": {
+        "passed": true,
+        "checks": {
+          "authenticated completion": true,
+          "all assertions pass": true,
+          "completed recovery and save stage": true
+        },
+        "assertions": 791,
+        "failed": 0,
+        "failure_indices": [],
+        "capture_directory": "analysis/native-slice/20261105T172429.767165Z-71666"
+      }
+    },
+    "cancellation": {
+      "path": "analysis/native-slice/20261105T172717.059453Z-75123/optional-interrupt-report.json",
+      "sha256": "4ade67d9e061bb058a8f40a8048568d571561cc23fa917de7afbb5204e77271d",
+      "result": {
+        "passed": true,
+        "checks": {
+          "patch-cancel-ram authenticated cancellation and retry": true,
+          "patch-cancel-ram cancellation invalidates Build and releases Real": true,
+          "patch-cancel-ram no pending allocations": true,
+          "patch-cancel-ram successful retry": true,
+          "patch-cancel-ram source preserved": true,
+          "patch-cancel-disk authenticated cancellation and retry": true,
+          "patch-cancel-disk cancellation invalidates Build and releases Real": true,
+          "patch-cancel-disk no pending allocations": true,
+          "patch-cancel-disk successful retry": true,
+          "patch-cancel-disk source preserved": true,
+          "patch-cancel-disk saved retry publishes executable": true
+        },
+        "phase_observations": {
+          "patch-cancel-ram": [
+            {
+              "bank": 5,
+              "physical_page": 43,
+              "real_page": 59
+            }
+          ],
+          "patch-cancel-disk": [
+            {
+              "bank": 5,
+              "physical_page": 43,
+              "real_page": 57
+            }
+          ]
+        },
+        "capture_directory": "analysis/native-slice/20261105T172717.059453Z-75123"
+      }
+    },
+    "standalone": {
+      "path": "analysis/native-slice/20261105T173345.129687Z-80934/optional-standalone-report.json",
+      "sha256": "7e9ec09babd98cb52f2bbdeb196f91635c473a4c4f127283ecd3adccf7545266",
+      "result": {
+        "passed": true,
+        "scope": "Execute optional-runtime COMs in fresh sessions without compiler or library files.",
+        "source_report": "analysis/native-slice/20261105T172618.355262Z-73954/optional-real-report.json",
+        "checks": {
+          "INT authenticated supervisor completion": true,
+          "INT successful exit and complete page recovery": true,
+          "INT captured output": true,
+          "INT no compiler source or libraries": true,
+          "INT executable unchanged": true,
+          "COPY authenticated supervisor completion": true,
+          "COPY successful exit and complete page recovery": true,
+          "COPY captured output": true,
+          "COPY no compiler source or libraries": true,
+          "COPY executable unchanged": true,
+          "SCREEN authenticated supervisor completion": true,
+          "SCREEN successful exit and complete page recovery": true,
+          "SCREEN captured output": true,
+          "SCREEN no compiler source or libraries": true,
+          "SCREEN executable unchanged": true,
+          "READINT authenticated supervisor completion": true,
+          "READINT successful exit and complete page recovery": true,
+          "READINT captured output": true,
+          "READINT no compiler source or libraries": true,
+          "READINT executable unchanged": true,
+          "READREAL authenticated supervisor completion": true,
+          "READREAL successful exit and complete page recovery": true,
+          "READREAL captured output": true,
+          "READREAL no compiler source or libraries": true,
+          "READREAL executable unchanged": true,
+          "TEXTINT authenticated supervisor completion": true,
+          "TEXTINT successful exit and complete page recovery": true,
+          "TEXTINT captured output": true,
+          "TEXTINT no compiler source or libraries": true,
+          "TEXTINT executable unchanged": true,
+          "TEXTREAL authenticated supervisor completion": true,
+          "TEXTREAL successful exit and complete page recovery": true,
+          "TEXTREAL captured output": true,
+          "TEXTREAL no compiler source or libraries": true,
+          "TEXTREAL executable unchanged": true,
+          "MATH authenticated supervisor completion": true,
+          "MATH successful exit and complete page recovery": true,
+          "MATH captured output": true,
+          "MATH no compiler source or libraries": true,
+          "MATH executable unchanged": true,
+          "FORMAT authenticated supervisor completion": true,
+          "FORMAT successful exit and complete page recovery": true,
+          "FORMAT captured output": true,
+          "FORMAT no compiler source or libraries": true,
+          "FORMAT executable unchanged": true,
+          "TRIG authenticated supervisor completion": true,
+          "TRIG successful exit and complete page recovery": true,
+          "TRIG captured output": true,
+          "TRIG no compiler source or libraries": true,
+          "TRIG executable unchanged": true,
+          "EXTERNAL authenticated supervisor completion": true,
+          "EXTERNAL successful exit and complete page recovery": true,
+          "EXTERNAL captured output": true,
+          "EXTERNAL no compiler source or libraries": true,
+          "EXTERNAL executable unchanged": true,
+          "HOOK authenticated supervisor completion": true,
+          "HOOK successful exit and complete page recovery": true,
+          "HOOK captured output": true,
+          "HOOK no compiler source or libraries": true,
+          "HOOK executable unchanged": true,
+          "TRANSFER authenticated supervisor completion": true,
+          "TRANSFER successful exit and complete page recovery": true,
+          "TRANSFER captured output": true,
+          "TRANSFER no compiler source or libraries": true,
+          "TRANSFER executable unchanged": true,
+          "RANDOM authenticated supervisor completion": true,
+          "RANDOM successful exit and complete page recovery": true,
+          "RANDOM captured output": true,
+          "RANDOM no compiler source or libraries": true,
+          "RANDOM executable unchanged": true,
+          "CONVERT authenticated supervisor completion": true,
+          "CONVERT successful exit and complete page recovery": true,
+          "CONVERT captured output": true,
+          "CONVERT no compiler source or libraries": true,
+          "CONVERT executable unchanged": true,
+          "TEXTWRITE authenticated supervisor completion": true,
+          "TEXTWRITE successful exit and complete page recovery": true,
+          "TEXTWRITE captured output": true,
+          "TEXTWRITE no compiler source or libraries": true,
+          "TEXTWRITE executable unchanged": true,
+          "RAW authenticated supervisor completion": true,
+          "RAW successful exit and complete page recovery": true,
+          "RAW captured output": true,
+          "RAW no compiler source or libraries": true,
+          "RAW executable unchanged": true
+        },
+        "runs": {
+          "INT": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "2956b7d7d9f5d80446aabb578adb33148f9b853b9af8b71de484d0af3073ca63",
+            "stdout_hex": "494e54454745522d4f4b0d0a"
+          },
+          "COPY": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "13e2d93781562e2594341b195edce854e80a0776866c4572985fee0f9c9b511f",
+            "stdout_hex": "434f50592d4f4b0d0a"
+          },
+          "SCREEN": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "9556b8f70db9f9159f3ece25bea1b9dbdb85059c40cafcefc75a45e76b301987",
+            "stdout_hex": "53435245454e2d4f4b0d0a"
+          },
+          "READINT": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "3857c26ee15da453100f65c8de4b8ba1193ebc87eeceb6e27ed81a81fae88fb0",
+            "stdout_hex": "52454144494e542d4f4b0d0a"
+          },
+          "READREAL": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "fb3e1bd7e96cee75ceff1da1c3b26f6512302b62cf843580ace8365514c2a35f",
+            "stdout_hex": "524541445245414c2d4f4b0d0a"
+          },
+          "TEXTINT": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "08dd0f3bb890f0b8eb6aec223b804076aebed19825f3811b753b0c5e3ce8f70c",
+            "stdout_hex": "54455854494e542d4f4b0d0a"
+          },
+          "TEXTREAL": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "e07d9ffbcf3d65e59ddc57f7a4101b45927ebb4c660387c18f63531ea953af28",
+            "stdout_hex": "544558545245414c2d4f4b0d0a"
+          },
+          "MATH": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "4364a2a355e129ef2042b846bb25c9e8b2965f93d17ac4f7bc44cb77b9afbb0b",
+            "stdout_hex": "4d4154482d4f4b0d0a"
+          },
+          "FORMAT": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "c467b82d7fec6ec10c2273ffb80a671974067093c8734eb3af4d6055c8a21315",
+            "stdout_hex": "464f524d41542d4f4b0d0a"
+          },
+          "TRIG": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "d14988d80555e7f02b886de6e60fd8c2b243973ad04fa251657723c8e18cfcff",
+            "stdout_hex": "545249472d4f4b0d0a"
+          },
+          "EXTERNAL": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "ab0a9de56863e7e977869e0ab48df2545d16844d866cbbec865af5b047dde365",
+            "stdout_hex": "45585445524e414c2d4f4b0d0a"
+          },
+          "HOOK": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "c9f106e50b9eca40e3ed0c1ac6ed39bdba744caa12f9d46613edd2e771fe60f7",
+            "stdout_hex": "484f4f4b2d4f4b0d0a"
+          },
+          "TRANSFER": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "1b0258303608accf7c9950c36355209e4a0bb5b1980a0957697497fb9dffea7a",
+            "stdout_hex": "5452414e534645522d4f4b0d0a"
+          },
+          "RANDOM": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "8abc70039a987e1ecc29f6bed8cafde6ebe3b6cf22d80ebed5fcd7c849bc8caa",
+            "stdout_hex": "52414e444f4d2d4f4b0d0a"
+          },
+          "CONVERT": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "ce1b6ddfdae68ab1ef1edbcb215de8d7e623b1d9941b16695091c685a7e0cfef",
+            "stdout_hex": "434f4e564552542d4f4b0d0a"
+          },
+          "TEXTWRITE": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "4b5a860085537f518689e3fe37e5de33a9ad62548ad1bdf216eb241908d79eff",
+            "stdout_hex": "5445585457524954452d4f4b0d0a"
+          },
+          "RAW": {
+            "removed": [
+              "zpascal.bin",
+              "zpascal.zpl",
+              "zptest.bin",
+              "zptest.zpl"
+            ],
+            "image_sha256": "b27a0f1b17d616ddb60f2d29a839e6b0202164db4298203b85ef091425cf933c",
+            "stdout_hex": "5241572d4f4b0d0a"
+          }
+        },
+        "capture_directory": "analysis/native-slice/20261105T173345.129687Z-80934"
+      }
+    },
+    "chain": {
+      "path": "analysis/native-slice/20261105T173241.704367Z-79770/optional-chain-report.json",
+      "sha256": "14ed59e15283cdb3d91f7fb5a2e607cea60a5e07a8c43c67a418ddd58e5d4d78",
+      "result": {
+        "passed": true,
+        "checks": {
+          "zpascal reaches both saved compile checkpoints": true,
+          "zpascal publishes both artifacts": true,
+          "zlegacypascal reaches both saved compile checkpoints": true,
+          "zlegacypascal publishes both artifacts": true,
+          "production parent and Real CHN match full-runtime control": true,
+          "authenticated standalone success and page recovery": true,
+          "Real CHN executed": true,
+          "no compiler source or libraries": true,
+          "both saved artifacts unchanged": true
+        },
+        "capture_directory": "analysis/native-slice/20261105T173241.704367Z-79770"
+      }
+    },
+    "host_output": {
+      "sha256": "b14bfd91bc75b5490ef9ccb3452a561b755354afafcf51a071a40836ba5a8571",
+      "result": "PASS: 366841 output assertions across 2528 publication/fault/cancellation scenarios\n"
+    },
+    "host_assets": {
+      "sha256": "96834ecaec0b0f53af40b4176f173410f241606a3a5f574cf6f893e6fb53557d",
+      "result": {
+        "passed": true,
+        "checks": {
+          "actual linked core and Real asset": true,
+          "reject magic": true,
+          "reject record count": true,
+          "reject record before code": true,
+          "reject record compressed extent": true,
+          "reject backref before output": true,
+          "reject trailing byte": true,
+          "reject stale embedded Real bytes": true,
+          "reject stale embedded integer bytes": true,
+          "reject private ABI mismatch before packing": true,
+          "reject patching mutable/header addresses": true
+        }
+      }
+    },
+    "bank_audit": {
+      "sha256": "6735a37642f15a5769b5bc2c14b58117e7c0a961b50534e3f3ef5e6240a055c4",
+      "result": {
+        "passed": true,
+        "imports": {
+          "build/CMakeFiles/optional_real_core.dir/src/compiler.c.rel": [
+            "_cc_aggregate_actual",
+            "_cc_expression",
+            "_cc_file_statement",
+            "_cc_index",
+            "_cc_read",
+            "_cc_runtime_statement",
+            "_cc_selection",
+            "_cc_str",
+            "_cc_user_interrupt",
+            "_cc_val",
+            "_cc_write",
+            "b_cc_aggregate_actual",
+            "b_cc_expression",
+            "b_cc_file_statement",
+            "b_cc_index",
+            "b_cc_read",
+            "b_cc_runtime_statement",
+            "b_cc_selection",
+            "b_cc_str",
+            "b_cc_user_interrupt",
+            "b_cc_val",
+            "b_cc_write"
+          ],
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_compile.c.rel": [
+            "_cc_error_finish",
+            "_cc_file_engine_finish",
+            "_cc_file_finish",
+            "_cc_file_stream_finish",
+            "_cc_interrupt_finish",
+            "b_cc_error_finish",
+            "b_cc_file_engine_finish",
+            "b_cc_file_finish",
+            "b_cc_file_stream_finish",
+            "b_cc_interrupt_finish"
+          ],
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_crt.c.rel": [
+            "_cc_expression",
+            "b_cc_expression"
+          ],
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_expr.c.rel": [
+            "_cc_file_function",
+            "_cc_string_snapshot",
+            "b_cc_file_function",
+            "b_cc_string_snapshot"
+          ],
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_files.c.rel": [
+            "_cc_expression",
+            "_cc_formatted_value",
+            "_cc_reference",
+            "_cc_selection",
+            "b_cc_expression",
+            "b_cc_formatted_value",
+            "b_cc_reference",
+            "b_cc_selection"
+          ],
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_hooks.c.rel": [
+            "_cc_file_default_output",
+            "b_cc_file_default_output"
+          ],
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_io.c.rel": [
+            "_cc_expression",
+            "_cc_file_prefix",
+            "_cc_file_transfer",
+            "_cc_reference",
+            "b_cc_expression",
+            "b_cc_file_prefix",
+            "b_cc_file_transfer",
+            "b_cc_reference"
+          ],
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_routines.c.rel": [
+            "_cc_aggregate_actual",
+            "_cc_expression",
+            "_cc_reference",
+            "b_cc_aggregate_actual",
+            "b_cc_expression",
+            "b_cc_reference"
+          ],
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_runtime.c.rel": [
+            "_integer_head",
+            "_real_patch_start"
+          ],
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_strings.c.rel": [
+            "_cc_expression",
+            "_cc_selection",
+            "_cc_string_snapshot",
+            "b_cc_expression",
+            "b_cc_selection",
+            "b_cc_string_snapshot"
+          ]
+        },
+        "assembly_code_page_references": [
+          "native.asm:8: .globl _ram_worker_service, _worker_dispatch, _code_pages",
+          "native.asm:416: ld a,(_code_pages+2)       ; ordinary file/service bank in parent page2",
+          "startup.asm:9: .globl _code_sizes, _code_pages, _code_owned, _boot_error",
+          "startup.asm:78: ld hl,#_code_pages",
+          "startup.asm:110: ld hl,#_code_pages",
+          "startup.asm:154: ld hl,#_code_pages",
+          "startup.asm:163: _code_pages:: .ds 16"
+        ],
+        "violations": [],
+        "input_sha256": {
+          "build/CMakeFiles/ide_paths.dir/src/path.c.rel": "9fa67aa44ffd1fbbc86333ab04f8e6dddd710865fcc2ad24f3a53d5e41fb5ee6",
+          "build/CMakeFiles/image_compiler.dir/src/compiler_image.c.rel": "fe612cf9e5326ee766a3bb53f27b69efbac31a02b35b77c07c54251227b8f1ea",
+          "build/CMakeFiles/image_compiler.dir/src/native_image.c.rel": "82123a6c6f0e27dc2276ae3cc2bd011c457e7b7f9877fa0244c6c610bcf0b733",
+          "build/CMakeFiles/optional_real_core.dir/file_asset.asm.rel": "c1fe2e53720713af6c5c802c9c55f8e0d4a64a0eec0835b6cacde97c5c8e827b",
+          "build/CMakeFiles/optional_real_core.dir/optional_runtime_asset.asm.rel": "93e94b461782409ef6d60d10936ac3d08d26b3e291aaa185ef7badcfc060250d",
+          "build/CMakeFiles/optional_real_core.dir/sdk_glue.asm.rel": "66b6ac4ea6a323a15baa87832cd8b82a203b89177c0f2596b1fa493ae8c87fd8",
+          "build/CMakeFiles/optional_real_core.dir/src/buffer_access.c.rel": "0be1e981941beea75cee22762d514ca0d00cbf873f4117c004ff6cd42d63434c",
+          "build/CMakeFiles/optional_real_core.dir/src/buffer_memory.c.rel": "b6a9968bb4ff05bba1c7fb63a30dbe5a8db3fffe37f68b60d0584e8d33c823f1",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler.c.rel": "df15414c6b407e71dfe014302b6ee99a0b6ff67b8ae2e3a526b6088734843efc",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_activation.c.rel": "2951be485df78c4d5f88b7ea49dfd5b3c1496dd1f9e60fe67ffce724a64b6f4a",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_artifact.c.rel": "96d493f942adc913134395d0c3eb4c761855e86e4bc4f6058b6045812f715f50",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_asset.c.rel": "a7cf118f4fd634f2fbb7811556495548faa5f85b07be8448674303c8e256888b",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_bridges.c.rel": "038b7135bb1cdeb5218925f76466198959304d03bf2f7d8f52bdbf79c72baa67",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_build.c.rel": "432812cc2fe671aed0bbea7504e020e8c4299cde5dee471f43cc6ffe3c72f8c6",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_chain.c.rel": "86210e3c037002f56ee67d00599601f2d040581a4e22316315a13826a1419fd7",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_compile.c.rel": "98ffd50b4b54794bdf22206053c259bbbb92880074dd12986460e7cc19da9131",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_console.c.rel": "62246e6bb117e04160fc6a8295a770c6d8365bc7be5a720491d6622ed9805d3f",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_crt.c.rel": "375dd95a13582917befff3931fead4e30077f7dedc435d4311607e04710fb9ba",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_disk.c.rel": "b4a7009ef44652dbcd86aa18cd60113cce82de6d9c39401559792d824b8d45d9",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_emit.c.rel": "09b940b3fafbcf8261cda703ba6d46df29b389857afc2bc63c28112cc83a0e27",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_expr.c.rel": "ce59f8d65a4ba8e77e935c517a357b04c96e3d376ec97d7b4e3b0cfbee240241",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_files.c.rel": "af9ff6a43e17923860ef471ae215ee9ea24ad1888847c8249f8ddaf1cde14a68",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_front.c.rel": "6d8f8ef75907746fdd408ae9aecc5fc498834eb6971b826f467fbb829f339e98",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_groups.c.rel": "189dc65b1478939e7a5ac1a0be3e520c2f292bcb56330d9eb8a944ade5cd1b48",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_hooks.c.rel": "c01c8e8eaa01bbc5f6bd9abc1e8e5d0ba0645807a2a95effe8a167ad4b8ee1eb",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_inline.c.rel": "5942b5f316f16c2f831fe136ec8a8d41bec36ad3c0f9cbc77bd9d4bca8bcd453",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_interrupt.c.rel": "e6daf54d8a212c0e9095ab6bd5d00e77ef33db797b45b6a8b7d53624c6695655",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_io.c.rel": "7dbdaccb32c23be4fed61312f9d88fff8d03537142ed0a55723c3ebc75dd13b8",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_job.c.rel": "92b948605d8326280a2c7c3eee2377232d195c039851e9f30c574c4af1129307",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_job_pages.c.rel": "95fd641f28ddc69b8241c97ad34e1db2a4d8c1b6d7597270f2d58148933e6c30",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_job_result.c.rel": "8f9671e6dc5ac0d09b4af1b0849f57187a126062263e717c5a9d545cdd409533",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_keyboard.c.rel": "f5b14d8e81317b8bf510391a8846a516e6026337cbad24427b2c32d2dd7ff46a",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_keyboard_engine.c.rel": "6a14b97442283ad081340fe3f5a7c2fac459c04415e5386bb57e246a11da903e",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_late.c.rel": "b25150867239d900e112fefe2c9d4aee04bdd9a5f4a457ad3f5dd603dc880774",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_members.c.rel": "b9a6a4b59ab0c4c88b102591f958cc9dcbff97ea217dee8c37d8f12062bf3774",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_messages.c.rel": "1f35c17cdd3b57cbb3703850a99aba5903913a50dbffd11d4390af47e2a74896",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_module.c.rel": "d14e75baba7a9f3a6b33085f49f8cee3f944878efea07ba3d92824f484cc8f6a",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_params.c.rel": "b8615a0583f86ad1384dd76b6eb38e06bac2fc86ee69b57c7c8e4b818607558d",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_predicates.c.rel": "f07b934f875386c78928182eb1d85bc7c25854a95d770a1dad15ebe181266638",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_random.c.rel": "5050267f0b60b4ce677200b575e57caa6eb6b232ea58e3701bec3d49860edac0",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_real.c.rel": "50ff2262b448f70ae7b7a59a688046c6a275e733ccec7a0867fd9fb40cbe4c85",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_recursion.c.rel": "0bf5ced44e416c50d99c1ef19e43d6b8e21aaef8bea16fc5333287737771cc96",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_routines.c.rel": "bffa7823107c60175e52bd6002cb79d710bffaa0b97b340328ed20b4e0ec8bd4",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_runtime.c.rel": "3b4610bf206d61726ee30927989a6a637e7e72635b99b1ef12a37d256efd72a9",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_sources.c.rel": "6b716c542a8c5e55de07fcb39fe6eb231dfee4e5d3cd48395e1489079ca3054b",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_state.c.rel": "ad77b0840a16754ca986273cd644925c7c4c8601e0721d08714ca7be2a6d6842",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_strings.c.rel": "177ac29741c3f540d2bd2a76361ed56a4fb8024e73cbc59455ef8015ef9adf64",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_tables.c.rel": "19b8bf2f499da752b9078bc8d0378910a5e97f673de01e6c80c7bff74751862a",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_transfer_asset.c.rel": "fc6ff209d26aa4a9844d3c0d7a2f192c45e7347671733240365301951ccca89f",
+          "build/CMakeFiles/optional_real_core.dir/src/compiler_types.c.rel": "b036842a546032d814d0177b588366ae4f4a5580fd38ee13b268be6dffaf75a0",
+          "build/CMakeFiles/optional_real_core.dir/src/image.c.rel": "d01f5bc9e26646b48a915236cf62f171e7d115393a7e2f500819c60e754e348b",
+          "build/CMakeFiles/optional_real_core.dir/src/keys.c.rel": "6ce5d8a82d02e99ab98e445a4057a50da4f2a4e9111b5192009a994ab85fc3c3",
+          "build/CMakeFiles/optional_real_core.dir/src/library.c.rel": "6b6f0bddb831c323c7bb6511d6726284d79a9d4ea2883381c2b7decdd560160f",
+          "build/CMakeFiles/optional_real_core.dir/src/library_phase.c.rel": "aaea606e7ed02dfdc0bb98115125696b0a7b23990d1123631bc78a4565bc92a6",
+          "build/CMakeFiles/optional_real_core.dir/src/native.asm.rel": "7cb1d7d8dc4c6e304580aa7c152e1044f7864ce76431a57a95c7ed1f95e7814b",
+          "build/CMakeFiles/optional_real_core.dir/src/output.c.rel": "c00dca1c8e5377d5ce150f429342f7596ab9a8158e7313e0294eaf822e8bc197",
+          "build/CMakeFiles/optional_real_core.dir/src/output_transport.c.rel": "b5279976c5d5cd9ab71fc183fa3fa7956588151af4abbdc0ee7301d22d8184c9",
+          "build/CMakeFiles/optional_real_core.dir/src/platform.c.rel": "2e1a1e3cc8af3c0e067e6d3ac778319958cd04f6fb0ae53aaf904e49aac6ced5",
+          "build/CMakeFiles/optional_real_core.dir/src/source.c.rel": "df09e3a66125b2b3800699600af8f856e4dadaa9bd1f868a50e63471335dc9a1",
+          "build/CMakeFiles/optional_real_core.dir/src/source_location.c.rel": "0628faea891d401f5cffcc5e14a291f88338a276300e954c6f4b9a7d0d5f860c",
+          "build/CMakeFiles/optional_real_core.dir/src/source_move.c.rel": "e27e0c79497da89605ca4bef292668b2ab47ffc50d8ed15503ba78c29bd7d913",
+          "build/CMakeFiles/optional_real_core.dir/src/source_validation.c.rel": "7e23d008b7e3365d70165ca050258dc336e90dbff1fca344ad27830bb81aab87",
+          "build/CMakeFiles/optional_real_core.dir/src/sources.c.rel": "787a49a28f81dbd0f110bb57b0d524427acbc0eec90d357abfb8be84d9c799d5",
+          "build/CMakeFiles/optional_real_core.dir/src/worker.c.rel": "aa39750ef7185b54c345583ebe0fe552f3c0830abb3337178b1c3151767a9f1d",
+          "build/CMakeFiles/real_compiler.dir/src/real.c.rel": "28ddedce53b0610a9a5fbcb3c3b22581aeaa207bd608ea1886cb1384a2a5fe06",
+          "build/CMakeFiles/zpascal.dir/src/banks.c.rel": "7eae1f410a1a591046627a2f3dc63ce9eb587e45a81aab0b3b63aa920efc4cea",
+          "build/CMakeFiles/zpascal.dir/src/editor.c.rel": "3c25774eed62fa14c753191ce83c500bf0ce7dbbda27e196f82b57eb5c3fc38f",
+          "build/CMakeFiles/zpascal.dir/src/main.c.rel": "79ed34238ab020adf9ab1208f687e0ac1d4d6ad4ebe0d7ab3a28392fb794936f",
+          "build/CMakeFiles/zpascal.dir/src/main_display.c.rel": "3ea628916e52ba2d0a832f8470f6d91046c663ee4d5254d8514642c74ebbe9ac",
+          "build/CMakeFiles/zpascal.dir/src/source_blocks.c.rel": "d9378b51eec8efcd9c8b6eac1ec283fdd81b2e718a0e64d3b9691ecd8a1581e8",
+          "build/CMakeFiles/zpascal.dir/src/startup.asm.rel": "b2b80a86477d8e55961bea07a183bcc02d92e3bcb15fc03afddb63f132797ae6",
+          "build/CMakeFiles/zpascal.dir/transfer_ide_asset.asm.rel": "3845e9c32eb5a74c34af782adf077f73e6ce192e1d21e90b25511c229b2ee34e",
+          "build/zpascal.bin": "479f72229eee46f83ffd157c1aeccfbfbc12d5e3c043e3877676648727986dbc",
+          "build/zpascal.map": "1aad0aa525e8b3f2b6795aa8b15207601f9bbdaaf64b79b878ca99faf8a3c1b4",
+          "build/zpascal.zpl": "5aeeb096f1f720fd1a3101828512051de14a37112b8c03fdd8578b63edc3936e",
+          "src/chain_native.asm": "86d9f2d37fc5fd5c0093726f2bc51acb03ff47d70ebe43189933cf051308604c",
+          "src/execute_entry.asm": "374e1d83dc6872fd4fa914904f4d8308796c0ad56b108c56aef630caef07b781",
+          "src/execute_native.asm": "e83b45bb00c867f35557ed63263335c8c1238eabdc69e83cf0fdeac551f8a0bc",
+          "src/file_gate.asm": "a319481d3cea3379d6c40310c143b5006d35931550489847098c93c903c21a2e",
+          "src/file_low_copy.asm": "8b6cd05adea505ea5600d14676424a0338aecf42eceb33bdcb6944d1833dd392",
+          "src/file_module.asm": "95bbae5aacbc0c4c903022c57600a6fd43532b9587d5381c88f2176060a3b48c",
+          "src/file_native.asm": "43bb5cbc7ef31ed078a0eb02733261a1f0545f8492443e5b495c611ecbbd2724",
+          "src/format.asm": "2bb0412f93cdc6458d89fb61e0869a270a3cf55e4280b29c4bf295b9ac08afb8",
+          "src/input.asm": "4be17f804def1af67a5e65ff29ccf94d7fa8652596b9a6faa7537b1c4140ab8d",
+          "src/module_unpack.asm": "34fca90e2b2137390cabbcb07f67868a816a05643781bde9e6101437021fc9e9",
+          "src/native.asm": "1d24a36f15a310e8213aff332d218bd377251e835165bcc2a4f7b5cbc2147e7f",
+          "src/real_adapter.asm": "8926d0a25e9e839d9693721508f0d3e580dbd342cb5eb491508025ca39183975",
+          "src/runtime.asm": "65b6371efa9919a2d382899b3da623acd267a80fb9f741c256adfbdc1ab39408",
+          "src/startup.asm": "a974bd5335f0aac4501e426e4a53cb13b1fc168d969c5d67d5cc1c23ba708f1d",
+          "src/trampoline.asm": "cb3b82909eaca5019b37d8d3693a807b25bd7e239c57faf4a0e028b9fd0f9ea7",
+          "src/transfer_call.asm": "dd5049327c314d3972532df331a7ef7c370bc000ce618347af80faec475ce7e1",
+          "src/transfer_gate.asm": "757f6210841c4a9a94cee758704f45a8bbd923bea86248690a1c0d9edb45e65a",
+          "src/transfer_module.asm": "7adbd2e3cb880659fbd791273dc83e073ebac42edf8d3d6e8494ae15d7dcf695",
+          "src/transfer_native.asm": "a8544f3508cc4f32bacf2039210454723a5d2cfb0f50f384a30c0acd36a1ad66",
+          "tools/check-startup-banks.py": "67be2a1f006ebe4b79aba2720f827fa9b4cc97272a8e1df7dfd1279bdfe8a199"
+        }
+      }
+    }
+  }
+}

@@ -378,7 +378,38 @@ def validate_file_gate(path, transfer=False):
     print('file gate:',len(payload),'bytes; bounded below command-tail cache')
 
 
-def package(path, runtime_name="pascal_runtime", file_name="file_runtime"):
+def validate_optional_runtime(memory,symbols,directory,real_bank,full,private,profile):
+    meta=json.loads((directory/'optional_runtime.json').read_text())
+    core=bytearray(len(full)+len(private)+len(profile))
+    for name,filename,bank,offset in (
+            ('_integer_head','integer_head.bin',10,0),
+            ('_integer_tail','integer_tail.bin',12,0x37cd)):
+        data=(directory/filename).read_bytes();at=symbols[name]
+        if at>>16!=bank or not 0x8000<=(at&65535)<=(at&65535)+len(data)<=0xc000:
+            raise ValueError('integer core span escapes its compiler bank')
+        if bytes(memory.get(at+i,0)for i in range(len(data)))!=data:
+            raise ValueError('embedded integer core span is stale')
+        core[offset:offset+len(data)]=data
+    if core!=((directory/'integer_runtime.zpl').read_bytes()+private+profile):
+        raise ValueError('sparse integer core differs from its linked image')
+    packed=(directory/'real_patch.bin').read_bytes()
+    if real_bank!=packed or symbols['_real_patch_start']!=0x88000 or symbols['_real_patch_end']!=0x88000+len(packed):
+        raise ValueError('embedded Real component is stale')
+    if packed[:4]!=b'ZRL1' or len(packed)<6:raise ValueError('invalid Real component header')
+    count=struct.unpack_from('<H',packed,4)[0];at=6;last=0xbd6
+    if count!=meta['real_patch_records']:raise ValueError('invalid Real component count')
+    for _ in range(count):
+        if at+4>len(packed):raise ValueError('short Real component record')
+        first,size=struct.unpack_from('<HH',packed,at);at+=4
+        if at+size>len(packed):raise ValueError('short Real component payload')
+        data=unpack_module(packed[at:at+size]);at+=size
+        if first<last or first+len(data)>0x3ea6:raise ValueError('Real component escapes prefix code')
+        core[first:first+len(data)]=data;last=first+len(data)
+    if at!=len(packed) or core!=full+private+profile:
+        raise ValueError('Real component does not reconstruct the verified full runtime')
+
+
+def package(path, runtime_name="pascal_runtime", file_name="file_runtime", optional_real=False):
     memory = read_hex(path)
     symbols = read_symbols(path)
     if symbols['_native_header'] >> 16 != symbols['_native_decode'] >> 16:
@@ -422,11 +453,13 @@ def package(path, runtime_name="pascal_runtime", file_name="file_runtime"):
     if (metadata['sha256']!=hashlib.sha256(template).hexdigest() or
             metadata['private_sha256']!=hashlib.sha256(private).hexdigest() or
             private!=struct.pack('<25H',*metadata['private_input_addresses']) or
-            symbols['_runtime_start']!=0x88000 or
-            symbols['_runtime_end']!=0x88000+len(template) or
-            runtime.with_suffix('.profile').read_bytes()!=profile or
-            payloads[7]!=template+private+profile):
+            runtime.with_suffix('.profile').read_bytes()!=profile):
         raise ValueError('embedded runtime/private metadata or Chain profile is stale or mismatched')
+    if optional_real:
+        validate_optional_runtime(memory,symbols,path.parent,payloads[7],template,private,profile)
+    elif (symbols['_runtime_start']!=0x88000 or
+          symbols['_runtime_end']!=0x88000+len(template) or payloads[7]!=template+private+profile):
+        raise ValueError('embedded runtime extent or bytes are stale or mismatched')
     validate_transfer_assets(memory,symbols,path.parent,banks)
     validate_file_assets(memory,symbols,path.parent,file_name)
     header_bytes = 16 + 2 * len(banks)
@@ -461,6 +494,7 @@ def package(path, runtime_name="pascal_runtime", file_name="file_runtime"):
 if __name__ == '__main__':
     if sys.argv[1]=='--runtime':validate_runtime(Path(sys.argv[2]))
     elif sys.argv[1]=='--compact-runtime':validate_runtime(Path(sys.argv[2]),True)
+    elif sys.argv[1]=='--optional-real':package(Path(sys.argv[2]),optional_real=True)
     elif sys.argv[1]=='--compact-experiment':package(Path(sys.argv[2]),'compact_runtime','compact_file_runtime')
     elif sys.argv[1]=='--compact-runtime-profile':
         path=Path(sys.argv[2]);path.write_bytes(runtime_profile(path.parent,'compact_runtime','compact_file_runtime'))
