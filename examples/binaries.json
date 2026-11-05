@@ -1,6 +1,6 @@
 {
-  "compiler_commit": "1b9c096e5b8c5ec09f391fd1d103ec525d463629",
-  "compiler_sources_sha256": "433fb9abe8a7980d3864dc05684ff2abfc13c000f58a83bb80224cf24a7fabb2",
+  "compiler_commit": "4bf9aef63fb88d9c715d52ee6fdf44835e7dce68",
+  "compiler_sources_sha256": "04bf826a94db6ed81d06d623ea85ed73f59905b7407d9fb02cf3b91efeed1067",
   "format": "Native Zeal executable; unchanged compiler COM image named .bin",
   "build_command": "zde --no-tty cmake --target zexampletest_bin",
   "verification": "python3 tools/test-examples.py --package",
@@ -9,62 +9,68 @@
     "calc/calc.bin": {
       "source": "calc/calc.pas",
       "source_sha256": "08b1a4aa3b7325d2b6ab0dbc54b423131680e9ef8a164ce426d1b812b657683b",
-      "binary_sha256": "2560726ff4621f94ab3982579d1937087035e47bb76918f4ff179aa4df7ec9f1",
-      "binary_bytes": 41005
+      "binary_sha256": "fdd866a2a79564698627489a962400b276413993210b3ba4ae9f21b774840ef6",
+      "binary_bytes": 41017
     },
     "concord/concord.bin": {
       "source": "concord/concord.pas",
       "source_sha256": "3a62609b8f8aea60eee5e993ddc4c81c0fbf7ae30d75d4f6ee24ac53aa3c066f",
-      "binary_sha256": "e5736775e3d3912a2bf074c2da6ae95321e69b5ded109a9c4018a208c0b3fab3",
-      "binary_bytes": 39383
+      "binary_sha256": "63b6818466d240998460813aab2e502aa196cca907172b55a92ec12a83cd26aa",
+      "binary_bytes": 39395
     },
     "life/life.bin": {
       "source": "life/life.pas",
       "source_sha256": "f64c4ac03419423fed44c870585163506aeb6de0180c7257eb8817d24e1bdaf7",
-      "binary_sha256": "488dd1dd63e884a66118a2650620a575eeea47a3faa1bf128d5943ffe68d202e",
-      "binary_bytes": 36571
+      "binary_sha256": "92af0a872322f05801ab63f5a42700f4a98ca4d6885f84a4d4d27b4d6aed8bef",
+      "binary_bytes": 36583
     },
     "lighthouse/lighthouse.bin": {
       "source": "lighthouse/lighthouse.pas",
-      "source_sha256": "aaf3d5efb49142c6b6a4faeb079c8d9514ad13bb37218021e8398d20eacf9aea",
-      "binary_sha256": "639cc65360919fcba79ef78ec91b645e3cf464d3b4056d8321a3cad8a4147832",
-      "binary_bytes": 44070
+      "source_sha256": "c337e905228c9575c2943bcebdf965c4a4a74fcdee3a9a856e997ff17f4e37ef",
+      "binary_sha256": "eec0183719b34a88c88422593742f87744f38e2b88312a8f0ed8af5a1afc8f5c",
+      "binary_bytes": 36929,
+      "includes_sha256": {
+        "lighthouse/include/beam.pas": "1878084feec354d58977d721273d87a12a4301733c87bdd641070502b874bb39",
+        "lighthouse/include/data.pas": "9e8b363cefa9f60505ca2b520fea812302e525169bb335ad4378282e44aa7159",
+        "lighthouse/include/game.pas": "d1c84aaddf97c69118a177046b26b8c0fa7d849e4a0bf0998310388004ef6c44",
+        "lighthouse/include/screen.pas": "5a236ca2b7ce1ed78407a5fb96be5c5211c5d149939142bddeddb8c63a923268"
+      }
     },
     "loan/loan.bin": {
       "source": "loan/loan.pas",
       "source_sha256": "05e3715e2f7bb810a88bc977f98f891523bf4615c7fd9100d21aaba541cccc5e",
-      "binary_sha256": "b3b8c9cc068215f75fed9dcd5287019e710cf5c16fca7793de7990654d3f30e3",
-      "binary_bytes": 39551
+      "binary_sha256": "b3f2b6bfdd177b64af92bda6d6540a6cea170d785dd3b938cd61cf168c345a89",
+      "binary_bytes": 39563
     },
     "measure/measure.bin": {
       "source": "measure/measure.pas",
       "source_sha256": "0a30c67d974dc1a6f7a52c6502d61bd3341a90d509625af7e1da6d28e5eb2a90",
-      "binary_sha256": "8f1876702d195f984f9b300e50683763715a383170d1a91b931c9d8b55826b15",
-      "binary_bytes": 41557
+      "binary_sha256": "429e221d524cef0a14cd6b25117b3111dc7aae0abbee6af50dcde4e540dcda25",
+      "binary_bytes": 41569
     },
     "measure/stats.bin": {
       "source": "measure/stats.pas",
       "source_sha256": "c4aa1240c49b03729a30e543279e7053b16cda1a3158c5f73c9c2e2e42d55546",
-      "binary_sha256": "84ed3041a975df9267bd4b9860b6c4ae33f8401a360f47664439c764c5517fa1",
-      "binary_bytes": 42034
+      "binary_sha256": "df778d475c9c49864b41f8b24ec52c8927d1dce2d49c1c590a693cffae44d078",
+      "binary_bytes": 42046
     },
     "partsbin/partsbin.bin": {
       "source": "partsbin/partsbin.pas",
       "source_sha256": "58d7678b3ec666d7c65224dc777a827ecf444b9b807f247b838c12799b6e535b",
-      "binary_sha256": "5148e94d6d5ac6b246af2b1a821b2f5fa832209e09b3b349faaad4382e9986b5",
-      "binary_bytes": 39082
+      "binary_sha256": "e34db776adf06557737e151b622132734fa59f17cac9b5217d45d1438c2734f7",
+      "binary_bytes": 39094
     },
     "queens/queens.bin": {
       "source": "queens/queens.pas",
       "source_sha256": "3ea1a2f49e2179d0f435f909cdfe28e8dbae9457fbd888edad1902a921262c55",
-      "binary_sha256": "d4fabfb148c1ea18094336ab8ff189da22082d5e8e974e5dd2a6952b90bfd391",
-      "binary_bytes": 35308
+      "binary_sha256": "0867dbd2de8615451b680f8730c123fd3e80b7f6f28c89285c12e04233ffe7fb",
+      "binary_bytes": 35320
     },
     "tasks/tasks.bin": {
       "source": "tasks/tasks.pas",
       "source_sha256": "9599acdd04183f8739502e9c92f1808de77953e1e3fcb0e688cad3242c8e2178",
-      "binary_sha256": "98851a23ff7a4942f6adc58becd17c57e6851045f383e05465e74038f3dc5193",
-      "binary_bytes": 37125
+      "binary_sha256": "2ac19e5c749cbc6c8ce272bc79a0ea3c3348483f44443ae314abb81e1840bc23",
+      "binary_bytes": 37137
     }
   }
 }

@@ -20,6 +20,44 @@ class EndInput(n.PhysicalLine):
 
 
 class ExampleConsole(n.DebugConsole):
+    xy_site = None
+    audit_command = None
+
+    def finish_audit(self):
+        if self.audit_command is not None:
+            if not hasattr(self, 'audits'): self.audits = []
+            self.audits.append({'command': self.audit_command, 'positions': self.positions})
+            (self.directory/'lighthouse-paints.json').write_text(json.dumps(self.audits,indent=2)+'\n')
+            self.audit_command = None
+
+    def stop_xy(self):
+        self.finish_audit()
+        if self.xy_site is not None:
+            super().command(f'bc 0x{self.xy_site:x}')
+            self.xy_site = None
+
+    def ready(self, line, layout, reader, mode):
+        result = super().ready(line, layout, reader, mode)
+        if line.program == 'lighthouse/lighthouse.bin': self.finish_audit()
+        return result
+
+    def native_command(self, command, capture=False):
+        result = super().command(command, capture)
+        if not command.startswith('run ') or self.xy_site is None: return result
+        for _ in range(512):
+            frame = super().command('regs')
+            if f'PC={self.xy_site:04x} ' not in frame: return result
+            data = n.memory(super().command('rb 0x4000 32'))
+            if bytes(data.get(0x4000+i,0) for i in range(32)) != self.xy_header:
+                raise RuntimeError('GotoXY audit stopped in an unrelated native image')
+            if self.audit_command is not None:
+                x = int(re.search(r'DE=([0-9a-fA-F]+)',frame)[1],16)
+                y = int(re.search(r'HL=([0-9a-fA-F]+)',frame)[1],16)
+                self.positions.append([x,y])
+            super().command('s')
+            result = super().command(command, capture)
+        raise RuntimeError('Lighthouse GotoXY audit exceeded its bounded paint count')
+
     def command(self, command, capture=False):
         # Observe VRAM only while the real CRT helper has legitimately mapped it.
         # No debugger writes, mapper changes or product-state repair are used.
@@ -35,7 +73,7 @@ class ExampleConsole(n.DebugConsole):
             for site in sites:
                 super().command(f'bp 0x{site:x}')
             try:
-                result = super().command(command, capture)
+                result = self.native_command(command, capture)
                 frame = super().command('regs') + super().command('mmu')
                 pc = re.search(r'PC=([0-9a-fA-F]+)', frame)
                 if not pc or int(pc[1], 16) not in sites or '4000 -> 100000' not in frame:
@@ -50,17 +88,28 @@ class ExampleConsole(n.DebugConsole):
                           'attributes': [data[0x5000+i] for i in range(3200)]}
                 self.screens.append(screen)
                 (self.directory/'lighthouse-screens.json').write_text(json.dumps(self.screens,indent=2)+'\n')
+                if self.screen_line.upper() in ('Q','QUIT') or 'Press Enter to leave.' in screen['rows'][31]:
+                    self.stop_xy()
                 return result
             finally:
                 for site in sites:
                     super().command(f'bc 0x{site:x}')
-        result = super().command(command, capture)
+        result = self.native_command(command, capture)
         if (getattr(self, 'screen_line', None) is not None and
                 command == f'bc 0x{n.input_layout()["finished"]:x}'):
             self.screen_armed = True
+            image = (self.directory/'hostfs/lighthouse/lighthouse.bin').read_bytes()
+            signature = bytes.fromhex('7d3dd3a17b3dd3a2')
+            assert image.count(signature) == 1, 'Ambiguous native GotoXY observer'
+            self.xy_site = 0x4000+image.index(signature)
+            self.xy_header = image[:32]
+            self.audit_command = self.screen_line
+            self.positions = []
+            super().command(f'bp 0x{self.xy_site:x}')
         return result
 
     def physical_line(self, line):
+        if line.program != 'lighthouse/lighthouse.bin': self.stop_xy()
         if not isinstance(line, EndInput):
             if line.program == 'lighthouse/lighthouse.bin':
                 if not hasattr(self, 'screens'): self.screens = []
@@ -72,6 +121,9 @@ class ExampleConsole(n.DebugConsole):
         if self.held_enter:
             self.command('release ENTER'); self.command('run 4000000'); self.held_enter = False
             self.ready(line, layout, kernel['keyboard_next_key'], kernel['kb_mode'])
+        if line.program == 'lighthouse/lighthouse.bin':
+            self.stop_xy()
+            self.screen_line = None
         marker = n.symbols('zexampletest')['_test_eof_return']
         self.command(f'bp 0x{marker:x}')
         for command in n.control('Z'):
@@ -86,6 +138,7 @@ class ExampleConsole(n.DebugConsole):
         else:
             self.image_stop(n.ImageStop(marker, 'zexampletest.bin'))
         self.command('s')
+        if line.program == 'lighthouse/lighthouse.bin': self.stop_xy()
         self.lines.append({'program': line.program, 'memory_mode': 0, 'text': '<EOF>'})
         (self.directory / 'input-lines.json').write_text(json.dumps(self.lines, indent=2) + '\n')
 
@@ -180,6 +233,9 @@ def main():
             boards_ok &= not rows
     screen_path = n.RUN/'examples/lighthouse-screens.json'
     screens = json.loads(screen_path.read_text()) if screen_path.exists() else []
+    paint_path = n.RUN/'examples/lighthouse-paints.json'
+    paints = json.loads(paint_path.read_text()) if paint_path.exists() else []
+    input_positions = {(1,y) for y in range(32,36)} | {(79,y) for y in range(32,36)} | {(3,32)}
     checks = {
         'native completion, successful compilation/runs and owner cleanup':
             memory.get(sym['_test_done']) == 255 and word('_test_stage') == 9
@@ -188,28 +244,49 @@ def main():
             any('You must reach the lamp first.' in row for screen in screens for row in screen['rows'])
             and any('The cellar door is locked.' in row for screen in screens for row in screen['rows'])
             and adventure == 'The beam sweeps the water. A ship turns toward harbour.\n',
-        'Lighthouse physical dashboard, inventory, winning beam and emphasis':
-            len(screens) == 35 and all(screen['rows'][0] == '+'+'-'*77+'+ ' for screen in screens)
-            and all(screen['rows'][3][52] == '+' and screen['rows'][22][52] == '+' for screen in screens)
+        'Lighthouse CP437 scene, foreground/background colors and final beam':
+            len(screens) == 35
+            and all(screen['rows'][0] == chr(218)+chr(196)*77+chr(191)+' ' for screen in screens)
+            and all(screen['rows'][3][52] == chr(194) and screen['rows'][26][52] == chr(193) for screen in screens)
             and all(screen['rows'][39] == ' '*80 for screen in screens)
-            and all(screen['attributes'][80+2] == 15 and screen['attributes'][7*80+2] == 7 for screen in screens)
+            and all(screen['attributes'][80+2] == 0x1f for screen in screens)
+            and all('Command> ' in screen['rows'][31] for i,screen in enumerate(screens) if i not in (13,34))
+            and screens[1]['rows'][7][2:46] == 'Salt-stained windows rattle in their frames.'
             and 'THE SHORE' in screens[0]['rows'][5]
-            and 'THE COTTAGE' in screens[2]['rows'][5]
-            and '[x] Key' in screens[4]['rows'][7]
-            and 'Ready to light' in screens[9]['rows'][19]
-            and '/**' in screens[13]['rows'][14]
-            and screens[13]['rows'][14][4:42] == '='*17+'/**\\'+'='*17
-            and 'SHINING' in screens[13]['rows'][19]
+            and 'THE COTTAGE' in screens[1]['rows'][5]
+            and '[x] Key' in screens[3]['rows'][7]
+            and 'Ready to light' in screens[8]['rows'][22]
+            and 'SHINING' in screens[13]['rows'][22]
+            and screens[13]['rows'][15][2:23] == chr(176)*3+chr(177)*6+chr(178)*6+chr(219)*6
+            and screens[13]['rows'][15][24:28] == chr(177)+chr(219)*2+chr(177)
+            and screens[13]['rows'][16][41:44] == chr(220)+chr(219)+chr(220)
             and 'Press Enter to leave.' in screens[13]['rows'][31]
             and 'the harbour has its light again.' in screens[13]['rows'][36]
-            and screens[13]['rows'][8][2:43] == 'The lens turns. Light crosses the water. '
-            and all(screens[13]['rows'][y] == '|'+' '*77+'| ' for y in (27,28))
-            and screens[4]['attributes'][7*80+55] == 15
-            and screens[13]['attributes'][14*80+21] == 15
-            and screens[13]['attributes'][14*80+4] == 15
-            and 'Locked' in screens[0]['rows'][15] and 'Open' in screens[6]['rows'][15]
-            and all(screens[9]['rows'][y][55:59] == '[x] ' for y in (7,8,9,10))
-            and all(screen['rows'][y] == '+'+'-'*77+'+ ' for screen in screens for y in (35,38)),
+            and 'The great lens wakes' in screens[13]['rows'][7]
+            and 'The lens turns.' in screens[13]['rows'][8]
+            and all(screens[13]['rows'][y] == chr(179)+' '*77+chr(179)+' ' for y in (29,30))
+            and screens[3]['attributes'][7*80+55] == 0x1a
+            and screens[13]['attributes'][15*80+24] == 0x6e
+            and screens[13]['attributes'][15*80+2] == 0x0e
+            and screens[0]['attributes'][19*80+24] == 0x48
+            and screens[0]['attributes'][23*80+49] == 0x19
+            and screens[0]['attributes'][17*80+39] == 0x18
+            and screens[13]['attributes'][17*80+39] == 0x17
+            and 'Locked' in screens[0]['rows'][16] and 'Open' in screens[5]['rows'][16]
+            and all(screens[8]['rows'][y][55:59] == '[x] ' for y in (7,8,9,10))
+            and all(screen['rows'][y] == chr(195)+chr(196)*77+chr(180)+' ' for screen in screens for y in (35,))
+            and all(screen['rows'][38] == chr(192)+chr(196)*77+chr(217)+' ' for screen in screens),
+        'Lighthouse only paints changed fields and the command area':
+            len(paints) == 35
+            and set(map(tuple,paints[3]['positions'])) == input_positions | {(56,8),(3,28)}
+            and len(paints[3]['positions']) == 11
+            and set(map(tuple,paints[5]['positions'])) == input_positions | {(56,17),(3,28)}
+            and set(map(tuple,paints[8]['positions'])) == input_positions | {(56,11),(56,23)}
+            and set(map(tuple,paints[17]['positions'])) <= input_positions | {(3,28)}
+            and set(map(tuple,paints[18]['positions'])) == input_positions
+            and all(screens[2]['rows'][y] == screens[3]['rows'][y]
+                    and screens[2]['attributes'][y*80:(y+1)*80] == screens[3]['attributes'][y*80:(y+1)*80]
+                    for y in range(12,26)),
         'Lighthouse long input, help, lowercase, quit and EOF restore terminal':
             any('Unknown command.' in row for screen in screens for row in screen['rows'])
             and any('Find supplies, unlock the cellar' in row for screen in screens for row in screen['rows'])
@@ -222,8 +299,9 @@ def main():
             and screens[14]['rows'][31][2:] == 'Command> '+'A'*69
             and screens[14]['rows'][32][:58] == 'A'*58
             and screens[15]['rows'][31][2:12] == 'Command> ?'
-            and screens[15]['rows'][32] == '|'+' '*77+'| '
-            and all(screen['rows'][31][2:11] == 'Command> ' for i,screen in enumerate(screens) if i != 13),
+            and screens[15]['rows'][32] == chr(179)+' '*77+chr(179)+' '
+            and 'A bell sounds offshore.' in screens[17]['rows'][27]
+            and 'A bell sounds offshore.' in screens[18]['rows'][27],
         'database appends, updates, refuses over-issue and persists across launches':
             'Added 74HC00.' in parts and 'Not enough stock.' in parts
             and re.search(r'74HC00\s+Quad NAND gate\s+12', reopen) is not None,
@@ -312,6 +390,12 @@ def main():
             'source': str(source.relative_to(ROOT / 'examples')),
             'source_sha256': n.sha(source), 'binary_sha256': n.sha(image),
             'binary_bytes': image.stat().st_size}
+        # Program entry points live at the example root; include/*.pas contains
+        # shared source fragments, not additional standalone executables.
+        includes = sorted((source.parent / 'include').rglob('*.pas'))
+        if includes:
+            manifest['programs'][str(binary.relative_to(ROOT / 'examples'))]['includes_sha256'] = {
+                str(path.relative_to(ROOT / 'examples')): n.sha(path) for path in includes}
         if args.package:
             binary.write_bytes(image.read_bytes())
         else:

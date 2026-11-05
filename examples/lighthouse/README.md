@@ -2,8 +2,9 @@
 
 A four-room text adventure in a classic 80x40 dashboard: find supplies and light
 a stormbound lighthouse. The room, inventory, cellar door and lamp status remain
-visible while you type commands. Gray scenery and bright headings/items provide
-emphasis using the port's recovered TP3 terminal routines.
+visible while you type commands. CP437 clouds, a striped tower, rocks, waves and a distant ship use per-cell
+foreground/background colors. The frame and scene are drawn once; later turns
+update only changed room, inventory, door, lamp and feedback fields.
 
 ## Run
 
@@ -12,10 +13,8 @@ it (`cd T:/examples/lighthouse` if installed there), then run `./lighthouse.bin`
 The included executable is standalone: it needs neither the IDE nor its ZPL library.
 
 To edit and rebuild, start the installed IDE from this same directory (for example
-`T:/bin/zpascal.bin`) and use W to open `lighthouse.pas`. Choose O, M, Q for
-Memory output, then R. After the run, Escape returns to the IDE. For a saved
-executable choose O, C, Q and C; the compiler writes `lighthouse.COM` and a source
-map. That COM is the same native executable format as the supplied `.bin`.
+`T:/bin/zpascal.bin`) and use W to open `lighthouse.pas`. For a saved
+executable choose O, C, Q and C; the compiler writes `lighthouse.COM`. That COM is the same native executable format as the supplied `.bin`.
 The normal automatic Start and default End settings suffice.
 
 Keep the current directory set to this folder: opening a source file does not
@@ -49,27 +48,53 @@ uses Ctrl-Z at the final winning prompt.
 - Typed constant record/room arrays and With keep the fixed layout in data.
 - CrtInit/CrtExit save and restore terminal cursor, scroll and rendition state.
 - ClrScr, GotoXY and ClrEol maintain the dashboard without scrolling transcripts.
-- LowVideo and HighVideo distinguish scenery, headings and collected items.
-- Delay paces the winning beam, followed by a one-second hold.
+- TextColor and TextBackground give the sidebar, text and CP437 art distinct pens.
+- A displayed-state snapshot avoids repainting unchanged fields.
+- A command table maps complete names and aliases to a Case dispatch.
+- Delay paces the lantern glow, spreading beam and ship reveal, then holds briefly.
 
 ## Files and native behavior
 
-The folder contains `lighthouse.pas`, standalone `lighthouse.bin`, this README, and the four `.in` replay fixtures.
+`lighthouse.pas` is the program entry point. It keeps initialization, command
+dispatch and normal exit handling together, and includes these source files:
+
+- `include/data.pas`: types, room descriptions, artwork tables and shared state.
+- `include/screen.pas`: console helpers, initial layout and cached field updates.
+- `include/game.pas`: room observations and inventory changes.
+- `include/beam.pas`: the lantern, beam and ship animation.
+
+These are textual `{$I filename}` includes, not separately compiled programs or
+units. Open and compile `lighthouse.pas`; the compiler reads the includes relative
+to that source file. Keep the `include` subdirectory when copying or editing the
+sources. The standalone `lighthouse.bin` needs none of these source files to run.
+The package manifest records each included file's hash as well as the main source
+and executable hashes.
+
+The folder also contains this README, a native screen capture, and the four `.in`
+replay fixtures.
 No data files are written. Inventory and progress last for one run.
 
 These are native Zeal programs in the port's current Turbo Pascal 3 dialect.
-The dashboard targets the native Zeal 80-column, 40-row text console. LowVideo
-is light gray on black; HighVideo and NormVideo are both white on black, as in
-the recovered TP3 behavior. These routines do not select arbitrary colors.
-Output uses the physical Con device so cursor positioning and text share a
-screen even if Output is redirected. Redirecting Output captures only the
-one-line epilogue, not a playable transcript. Input remains line-based: press
-Enter after each command; arrow-key menus are not part of this example.
+The dashboard targets the native Zeal 80-column, 40-row text console. Run it
+with normal console input/output in ZShell; redirected output is not a usable
+full-screen display. Colors use the port's TP-style names and native
+TextColor/TextBackground extensions. CP437 bytes are written as `#nnn` literals,
+so the source remains ASCII and needs no Unicode-aware editor or font loader.
 
-The frame avoids the bottom row. Up to 127 physical input characters can wrap
-inside the reserved command area; ReadLn keeps the first 40 in `command`, and
-the next redraw repairs the frame. On Q, Ctrl-Z or a completed game, the screen is cleared and terminal
-state restored before the epilogue. Forced aborts are outside this cleanup path. CrtExit restores state, not old screen pixels.
-Physical-hardware flicker and wall-clock timing have not been measured.
+Static borders, labels, sidebar backgrounds and the harbour picture are painted
+once. A successful TAKE changes only its inventory row and feedback (plus lamp
+readiness when all supplies are present). Moving updates four room fields.
+Only rows 32--35 are cleared between commands to repair wrapped input. Winning
+changes the lantern, beam and ship, then reveals SHINING and the closing text.
+
+TP3 `{$B-}` preserves real line terminators. ReadLn collects a full 127-character
+physical line and a trailing Char; CR distinguishes Enter from physical Ctrl-Z.
+Only the first 40 command characters are used. `{$C-}` disables teletype output
+flow control; Q and Ctrl-Z are the explicit normal exits. Bounds checks stay on.
+
+On Q, Ctrl-Z or a completed game the screen is cleared, saved terminal state is
+restored, and a one-line epilogue is printed. CrtExit restores state, not old
+screen pixels. Forced aborts are outside this cleanup path. Physical-hardware
+flicker and wall-clock timing have not been measured.
 No CP/M BDOS calls are used; historical binary or complete language compatibility
 is not implied.

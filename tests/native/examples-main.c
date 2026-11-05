@@ -9,6 +9,7 @@ Source s; Build b; Diagnostic d;
 static char binary[128];
 void test_complete(void);
 void test_eof_return(void);
+static void screen_replay(const char *output_path);
 /* Use exactly the published native image, with the requested .bin name. */
 static uint8_t publish_bin(void) {
     int8_t file;uint16_t offset=0,size,expected,i;uint8_t ok=1;
@@ -25,6 +26,7 @@ static uint8_t publish_bin(void) {
 }
 static void replay(const char *output_path) {
     int8_t capture;
+    if(test_stage==1){screen_replay(output_path);return;}
     uint8_t status=255,error,owned=pages_used();
     capture=open(output_path,O_WRONLY|O_CREAT|O_TRUNC);check(capture>=0);
     if(capture>=0) {
@@ -42,7 +44,7 @@ static void replay(const char *output_path) {
     check(pages_used()==owned);
 }
 /* CrtExit must restore all eight cursor/scroll/rendition registers.
- * Con writes remain physical while Output is captured for the epilogue. */
+ * Lighthouse uses ordinary physical stdout; its final CR/LF advances Y. */
 static uint8_t terminal[8],original_terminal[8];
 static uint8_t video_register(uint8_t reg) __naked {
     reg;
@@ -89,6 +91,56 @@ static void video_write(uint16_t pair) __naked {
         ret
     __endasm;
 }
+/* Inspect the actual final console row after the guest has returned. */
+static uint8_t screen_byte(uint16_t address) __naked {
+    address;
+    __asm
+        ld a,i
+        push af
+        di
+        in a,(0x8e)
+        push af
+        xor a
+        out (0x8e),a
+        ld a,#0x40
+        in a,(0xf1)
+        push af
+        ld a,#0x40
+        out (0xf1),a
+        ld b,(hl)
+        pop af
+        out (0xf1),a
+        pop af
+        out (0x8e),a
+        pop af
+        jp po,90103$
+        ei
+90103$:
+        ld a,b
+        ret
+    __endasm;
+}
+static void screen_replay(const char *output_path) {
+    int8_t capture;
+    uint8_t status=255,error,owned=pages_used(),x,i,c;
+    uint16_t row,size=0,expected;
+    capture=open(output_path,O_WRONLY|O_CREAT|O_TRUNC);check(capture>=0);
+    if(capture>=0) {
+        /* Keep stdout on VID0: this is a full-screen console application. */
+        error=execute_native(binary,&status);check(error==0&&status==0);
+        check(video_register(0x9c)==0);
+        row=0x4000+((terminal[0]+terminal[2])%40)*80;
+        x=(terminal[1]+terminal[3])%80;
+        for(i=0;i<70;++i) {
+            c=screen_byte(row+x);if(!c)break;
+            console_scratch[size++]=c;x=(x+1)%80;
+        }
+        console_scratch[size++]='\r';console_scratch[size++]='\n';expected=size;
+        check(write(capture,console_scratch,&size)==0&&size==expected);
+        check(close(capture)==0);
+    }
+    check(pages_used()==owned);
+}
 static void save_terminal(void) {
     uint8_t i;
     /* Deliberately different from NormVideo/ClrScr: a missing CrtExit fails. */
@@ -99,8 +151,13 @@ static void save_terminal(void) {
           terminal[3]==3&&terminal[4]==7&&terminal[7]==0x70);
 }
 static void check_terminal(void) {
-    uint8_t i,ok=1;
-    for(i=0;i<8;++i)if(terminal[i]!=video_register(0xa1+i))ok=0;
+    uint8_t i,ok=1,expected;
+    for(i=0;i<8;++i) {
+        expected=terminal[i];
+        if(i==0)expected=(expected+1)%40; /* final Writeln adds one line */
+        else if(i==1)expected=0;        /* and returns to column zero */
+        if(expected!=video_register(0xa1+i))ok=0;
+    }
     check(ok);
 }
 static uint8_t prepare(const char *path) {
