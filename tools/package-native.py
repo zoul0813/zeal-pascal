@@ -41,10 +41,10 @@ def read_symbols(path):
         r'^\s+([0-9A-F]{8})\s+([_\w]+)\s', path.with_suffix('.map').read_text(), re.M)}
 
 
-def runtime_profile(directory):
+def runtime_profile(directory, runtime_name="pascal_runtime"):
     """Host-generated private ABI identifier; target performs only a byte compare."""
     tag = hashlib.sha256(b'ZP80-private-ABI-v2\0')
-    for name in ('pascal_runtime.zpl','pascal_runtime.private','file_runtime.zpl','file_gate.zpl',
+    for name in (runtime_name+'.zpl',runtime_name+'.private','file_runtime.zpl','file_gate.zpl',
                  'transfer_runtime.zpl','transfer_gate.zpl','execute_entry.zpl',
                  'transfer_runtime.packed','file_runtime.packed','module_unpack.zpl'):
         data=(directory/name).read_bytes()
@@ -206,21 +206,35 @@ def validate_transfer_assets(memory,symbols,directory,banks):
         raise ValueError('embedded transfer asset is stale or malformed')
 
 
-def validate_runtime(path):
+def validate_runtime(path, compact=False):
     memory=read_hex(path)
     symbols=read_symbols(path)
-    if not memory or min(memory)!=0x4000 or max(memory)>=0x8000:
+    limit=0x6000 if compact else 0x8000
+    if not memory or min(memory)!=0x4000 or max(memory)>=limit:
         raise ValueError('runtime code/constants exceed their owned prefix')
     if not 0x40a0<=symbols['runtime_prefix_end']<=0x4bd6:
         raise ValueError('runtime assembly prefix overlaps SDK helper text')
-    for area,first,last in (('REAL_ADAPTER',0x4c73,0x4d8a),('REAL',0x4d8a,0x77cd),
-                            ('TEXT',0x4bd6,0x4c73),('CODE',0x77cd,0x7ea6),
-                            ('REAL_DATA',0x7ea6,0x8000)):
+    real_end,code_first,data_first,limit=(0x5000,0x5000,0x5800,0x6000) if compact else (0x77cd,0x77cd,0x7ea6,0x8000)
+    for area,first,last in (('REAL_ADAPTER',0x4c73,0x4d8a),('REAL',0x4d8a,real_end),
+                            ('TEXT',0x4bd6,0x4c73),('CODE',code_first,data_first),
+                            ('REAL_DATA',data_first,limit)):
         at,size=symbols.get('s__'+area,first),symbols.get('l__'+area,0)
         if size and not first<=at<=at+size<=last:
             raise ValueError('runtime '+area+' exceeds its bounded extent')
-    if not 0x4d8a<=symbols['_zr_eval']<0x77cd or symbols['real_buffer']!=0x4136:
-        raise ValueError('runtime Real helper ABI is misplaced')
+    if not 0x4d8a<=symbols['_zr_eval']<real_end or symbols['real_buffer']!=0x4136:
+        raise ValueError('runtime numeric helper ABI is misplaced')
+    if compact:
+        # HEX omits uninitialized storage. Inspect every allocated linker area,
+        # not just the known symbols, before declaring the low interval free.
+        areas=re.findall(r'^(\S+)\s+([0-9A-F]{8})\s+([0-9A-F]{8})\s+=.*?\(([^)]+)\)',
+                         path.with_suffix('.map').read_text(),re.M)
+        if not areas:raise ValueError('missing compact linker areas')
+        allowed={'_TEXT','_REAL_ADAPTER','_REAL','_CODE','_REAL_DATA'}
+        for area,address,size,attributes in areas:
+            address,size=int(address,16),int(size,16)
+            if size and 'ABS' not in attributes:
+                if area not in allowed or not 0x4000<=address<address+size<=limit:
+                    raise ValueError('unexpected compact allocation: '+area)
     if symbols['recursion_ceiling']!=0xfd64:
         raise ValueError('recursion ceiling escaped its private guard workspace')
     if symbols['tail_length']!=0xff00 or symbols['tail']!=0xff01:
@@ -241,7 +255,7 @@ def validate_runtime(path):
             raise ValueError('runtime file helper jump is misplaced: '+name)
     if symbols['heap_floor']!=0x415c or symbols['io_status']!=0x4164:
         raise ValueError('runtime file/I/O state is misplaced')
-    if not all(0x77cd<=symbols[name]<0x7ea6
+    if not all(code_first<=symbols[name]<data_first
                for name in ('format_field','field_output','str_copy','integer_prepare','val_field',
                             'read_line','read_string','input_begin','input_value','input_end')):
         raise ValueError('runtime field helpers exceed their owned extent')
@@ -251,26 +265,26 @@ def validate_runtime(path):
     # The compiler embeds this exact prefix and these private addresses in one
     # verified library. Generated console code need not grow the fixed prefix.
     private=[]
-    for name,width,first,last in (('input_ready',1,0x77cd,0x7ea6),
-                                 ('input_advance',1,0x77cd,0x7ea6),
-                                 ('line_next',2,0x7ea6,0x8000),
-                                 ('line_remaining',1,0x7ea6,0x8000),
-                                 ('line_eof',1,0x7ea6,0x8000),
-                                 ('line_valid',1,0x7ea6,0x8000),
-                                 ('input_key',3,0x77cd,0x7ea6),
-                                 ('input_raw_key',1,0x77cd,0x7ea6),
-                                 ('input_mode',1,0x77cd,0x7ea6),
-                                 ('input_cleanup',1,0x77cd,0x7ea6),
-                                 ('input_fail',1,0x77cd,0x7ea6),
-                                 ('input_error',1,0x77cd,0x7ea6),
-                                 ('echo_fd',1,0x7ea6,0x8000),
-                                 ('input_source',1,0x77cd,0x7ea6),
-                                 ('input_open',1,0x77cd,0x7ea6),
-                                 ('input_echo',1,0x77cd,0x7ea6),
-                                 ('input_close',1,0x77cd,0x7ea6),
+    for name,width,first,last in (('input_ready',1,code_first,data_first),
+                                 ('input_advance',1,code_first,data_first),
+                                 ('line_next',2,data_first,limit),
+                                 ('line_remaining',1,data_first,limit),
+                                 ('line_eof',1,data_first,limit),
+                                 ('line_valid',1,data_first,limit),
+                                 ('input_key',3,code_first,data_first),
+                                 ('input_raw_key',1,code_first,data_first),
+                                 ('input_mode',1,code_first,data_first),
+                                 ('input_cleanup',1,code_first,data_first),
+                                 ('input_fail',1,code_first,data_first),
+                                 ('input_error',1,code_first,data_first),
+                                 ('echo_fd',1,data_first,limit),
+                                 ('input_source',1,code_first,data_first),
+                                 ('input_open',1,code_first,data_first),
+                                 ('input_echo',1,code_first,data_first),
+                                 ('input_close',1,code_first,data_first),
                                  ('user_break',1,0x4169,0x4bd6),
                                  ('input_mode_value',1,0xfd7a,0xfd7b),
-                                 ('input_break',1,0x77cd,0x7ea6),
+                                 ('input_break',1,code_first,data_first),
                                  ('input_console_area',4,0xfd7b,0xfd7f),
                                  ('normal_error',3,0x4169,0x4bd6),
                                  ('error_code',1,0x4169,0x4bd6),
@@ -364,7 +378,7 @@ def validate_file_gate(path, transfer=False):
     print('file gate:',len(payload),'bytes; bounded below command-tail cache')
 
 
-def package(path):
+def package(path, runtime_name="pascal_runtime"):
     memory = read_hex(path)
     symbols = read_symbols(path)
     if symbols['_native_header'] >> 16 != symbols['_native_decode'] >> 16:
@@ -400,11 +414,11 @@ def package(path):
     # Private addresses must accompany their exact prefix, including after an
     # incremental rebuild. A stale assembly asset must never be packaged as a
     # matching compiler/library pair merely because its own hash is consistent.
-    runtime=path.parent/'pascal_runtime.zpl'
+    runtime=path.parent/(runtime_name+'.zpl')
     private=runtime.with_suffix('.private').read_bytes()
     template=runtime.read_bytes()
     metadata=json.loads(runtime.with_suffix('.runtime.json').read_text())
-    profile=runtime_profile(path.parent)
+    profile=runtime_profile(path.parent,runtime_name)
     if (metadata['sha256']!=hashlib.sha256(template).hexdigest() or
             metadata['private_sha256']!=hashlib.sha256(private).hexdigest() or
             private!=struct.pack('<25H',*metadata['private_input_addresses']) or
@@ -446,6 +460,10 @@ def package(path):
 
 if __name__ == '__main__':
     if sys.argv[1]=='--runtime':validate_runtime(Path(sys.argv[2]))
+    elif sys.argv[1]=='--compact-runtime':validate_runtime(Path(sys.argv[2]),True)
+    elif sys.argv[1]=='--compact-experiment':package(Path(sys.argv[2]),'compact_runtime')
+    elif sys.argv[1]=='--compact-runtime-profile':
+        path=Path(sys.argv[2]);path.write_bytes(runtime_profile(path.parent,'compact_runtime'))
     elif sys.argv[1]=='--trampoline':validate_trampoline(Path(sys.argv[2]))
     elif sys.argv[1]=='--file-runtime':validate_file_runtime(Path(sys.argv[2]))
     elif sys.argv[1]=='--file-gate':validate_file_gate(Path(sys.argv[2]))

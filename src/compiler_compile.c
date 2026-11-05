@@ -43,6 +43,11 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     memset(d,0,sizeof(*d));memset(b,0,sizeof(*b));
     memset(b->pages,255,3);b->map_page=255;b->sources.page=255;
     cc.polling=interruptible;
+#ifdef ZP_COMPACT_EXPERIMENT
+    /* A CHN borrows a runtime and shared globals. The compact proof does
+     * not define that contract and must not publish a chain artifact. */
+    if(chain) {d->code=COMPILE_PLATFORM_FAILURE;return 0;}
+#endif
     if(!cc_tables_begin()){d->code=99;goto failed;}
     if(!cc_poll())goto failed;
     if(!cc_sources_prepare(s))goto failed;

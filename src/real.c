@@ -13,6 +13,9 @@ uint8_t zr_assign;
 int16_t zr_width,zr_places;
 uint8_t zr_formatted[66];
 #endif
+/* Test-only compact profile: keep the exact integer Val parser below while
+ * excluding the Real engine. Normal/compiler builds retain their behavior. */
+#ifndef ZP_INTEGER_RUNTIME
 static uint8_t a[6],b[6],work[10],negative_a,negative_b;
 static int16_t exponent_a,exponent_b;
 static uint8_t decimal_value[6],decimal_scale[6];
@@ -307,6 +310,9 @@ static void decimal(uint8_t runtime) {
     if(negative&&zr_result[0]) zr_result[5]^=128;
     zr_integer=0;
 }
+#else
+static uint8_t digit(uint8_t c) {return c>='0'&&c<='9';}
+#endif /* !ZP_INTEGER_RUNTIME */
 #ifndef ZP_REAL_COMPILER
 static void val_integer(void) {
     uint16_t p=0,magnitude=0;
@@ -327,6 +333,7 @@ static void val_integer(void) {
     zr_integer=negative?(int16_t)(0u-magnitude):(int16_t)magnitude;
     zr_assign=1;
 }
+#ifndef ZP_INTEGER_RUNTIME
 static void val(void) {
     zr_error=0;zr_code=0;zr_assign=0;zr_integer=0;clear(zr_result,6);
     if(!zr_length) return;
@@ -413,8 +420,16 @@ static void format_value(void) {
         append_formatted('0'+position/10);append_formatted('0'+position%10);
     }
 }
-#endif
+#endif /* !ZP_INTEGER_RUNTIME */
+#endif /* !ZP_REAL_COMPILER */
 void zr_eval(void) REAL_API {
+#ifdef ZP_INTEGER_RUNTIME
+    uint8_t i;
+    zr_error=0;zr_code=0;zr_assign=0;zr_integer=0;
+    for(i=0;i<6;++i)zr_result[i]=0;
+    if(zr_op!=ZR_VAL_INTEGER) {zr_error=0xff;return;}
+    if(zr_length)val_integer();
+#else
     if(zr_op==ZR_DECIMAL) decimal(0);
 #ifdef ZP_REAL_COMPILER
     /* Only literals and typed-constant integer conversion execute inside the
@@ -427,4 +442,5 @@ void zr_eval(void) REAL_API {
     else if(zr_op>=ZR_LN&&zr_op<=ZR_ARCTAN) zr_transcendental();
     else evaluate(zr_op);
 #endif
+#endif /* ZP_INTEGER_RUNTIME */
 }

@@ -40,6 +40,23 @@ add_custom_command(TARGET pascal_runtime_bin POST_BUILD
     BYPRODUCTS ${CMAKE_BINARY_DIR}/pascal_runtime.private ${CMAKE_BINARY_DIR}/pascal_runtime.runtime.json
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --runtime
         ${CMAKE_BINARY_DIR}/pascal_runtime.ihx VERBATIM)
+# Isolated layout proof, never used by the production IDE/runtime. Public
+# gates stay fixed; the integer-only engine and movable I/O occupy <6000.
+add_library(compact_integer OBJECT src/real.c)
+target_compile_definitions(compact_integer PRIVATE ZP_REAL_RUNTIME ZP_INTEGER_RUNTIME)
+target_compile_options(compact_integer PRIVATE --std-c99 --opt-code-size
+    "SHELL:--codeseg REAL" "SHELL:--constseg REAL" "SHELL:--dataseg REAL_DATA")
+add_executable(compact_runtime src/runtime.asm src/real_adapter.asm src/format.asm src/input.asm
+    $<TARGET_OBJECTS:compact_integer> $<TARGET_OBJECTS:key_runtime>)
+set_target_properties(compact_runtime PROPERTIES LINKER_LANGUAGE ASM)
+target_link_options(compact_runtime PRIVATE "SHELL:-b _REAL_ADAPTER=0x4c73"
+    "SHELL:-b _REAL=0x4d8a" "SHELL:-b _REAL_DATA=0x5800"
+    "SHELL:-b _TEXT=0x4bd6" "SHELL:-b _CODE=0x5000")
+zos_add_outputs(compact_runtime WITH_EXTENSION zpl)
+add_custom_command(TARGET compact_runtime_bin POST_BUILD
+    BYPRODUCTS ${CMAKE_BINARY_DIR}/compact_runtime.private ${CMAKE_BINARY_DIR}/compact_runtime.runtime.json
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --compact-runtime
+        ${CMAKE_BINARY_DIR}/compact_runtime.ihx VERBATIM)
 add_executable(ram_trampoline src/trampoline.asm)
 zos_add_outputs(ram_trampoline WITH_EXTENSION zpl)
 add_custom_command(TARGET ram_trampoline_bin POST_BUILD
@@ -273,6 +290,29 @@ target_compile_options(zcontest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_executable(zcrttest src/startup.asm src/banks.c tests/native/crt-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 target_include_directories(zcrttest PRIVATE src)
 target_compile_options(zcrttest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+# Reuse the native compiler with a compact runtime bank and two fail-closed
+# compiler objects. Ordinary targets retain the normal runtime and compiler.
+# These .COM outputs are experiments, not production deployment artifacts.
+file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/compact_asset.asm CONTENT
+".area _BANK8\n.globl _runtime_start,_runtime_end,_trampoline_start,_trampoline_end\n_runtime_start:\n.incbin \"${CMAKE_BINARY_DIR}/compact_runtime.zpl\"\n_runtime_end:\n.incbin \"${CMAKE_BINARY_DIR}/compact_runtime.private\"\n.incbin \"${CMAKE_BINARY_DIR}/compact_runtime.profile\"\n.area _RODATA\n_trampoline_start:\n.incbin \"${CMAKE_BINARY_DIR}/ram_trampoline.zpl\"\n_trampoline_end:\n")
+set_source_files_properties(${CMAKE_BINARY_DIR}/compact_asset.asm PROPERTIES
+    OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/compact_runtime.zpl;${CMAKE_BINARY_DIR}/compact_runtime.private;${CMAKE_BINARY_DIR}/compact_runtime.profile;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
+add_library(compact_compile OBJECT src/compiler_compile.c src/compiler_chain.c)
+target_include_directories(compact_compile PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_options(compact_compile PRIVATE --std-c99)
+target_compile_definitions(compact_compile PRIVATE ZP_COMPACT_EXPERIMENT ZP_IDE_PATHS)
+add_dependencies(compact_compile transfer_assets)
+add_executable(zcompacttest src/startup.asm src/banks.c tests/native/compact-main.c
+    tests/native/harness.c tests/native/machine.asm ${CMAKE_BINARY_DIR}/compact_asset.asm
+    "$<FILTER:$<TARGET_OBJECTS:zp_core>,EXCLUDE,/(runtime_asset[.]asm|src/compiler_(compile|chain)[.]c)[.]rel$>"
+    $<TARGET_OBJECTS:compact_compile>
+    $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
+target_include_directories(zcompacttest PRIVATE src)
+target_compile_options(zcompacttest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+set_source_files_properties(tests/native/compact-main.c PROPERTIES COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
+set_property(SOURCE tests/native/compact-main.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/tests/native/harness.h ${CMAKE_SOURCE_DIR}/src/compiler.h
+    ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h)
 add_executable(zcontroltest src/startup.asm src/banks.c tests/native/control-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 target_include_directories(zcontroltest PRIVATE src)
 target_compile_options(zcontroltest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
@@ -372,7 +412,7 @@ set_property(SOURCE tests/native/harness-execute.c APPEND PROPERTY OBJECT_DEPEND
     ${CMAKE_SOURCE_DIR}/tests/native/harness.h ${CMAKE_SOURCE_DIR}/src/zp.h
     ${CMAKE_SOURCE_DIR}/src/library.h)
 
-foreach(target zcorpus zjobtest zmemberstest zexecutecalltest zpascal zptest zinputtest zmathtest ziotest zfiletest ztexttest zstdtest zkeytest zkbdtest zcontest zcontroltest zcrttest zmaptest zdevtest zbridgetest zhooktest zlangtest zexampletest zsrctest zinlinetest zparamtest zoptionstest zchaintest zchaincalltest zworkertest zedittest)
+foreach(target zcompacttest zcorpus zjobtest zmemberstest zexecutecalltest zpascal zptest zinputtest zmathtest ziotest zfiletest ztexttest zstdtest zkeytest zkbdtest zcontest zcontroltest zcrttest zmaptest zdevtest zbridgetest zhooktest zlangtest zexampletest zsrctest zinlinetest zparamtest zoptionstest zchaintest zchaincalltest zworkertest zedittest)
     get_target_property(test_sources ${target} SOURCES)
     if("tests/native/harness.c" IN_LIST test_sources)
         target_sources(${target} PRIVATE $<TARGET_OBJECTS:test_execution>)
@@ -392,8 +432,12 @@ foreach(target zcorpus zjobtest zmemberstest zexecutecalltest zpascal zptest zin
     target_link_options(${target} PRIVATE "SHELL:-b _BANK12=0xc8000")
     target_link_options(${target} PRIVATE "SHELL:-b _BANK13=0xd8000")
     target_link_options(${target} PRIVATE "SHELL:-b _BANK14=0xe8000" "SHELL:-b _BANK15=0xf8000")
+    set(package_mode)
+    if(target STREQUAL "zcompacttest")
+        set(package_mode --compact-experiment)
+    endif()
     add_custom_target(${target}_bin ALL
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py $<TARGET_FILE:${target}>
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py ${package_mode} $<TARGET_FILE:${target}>
         DEPENDS ${target} ${CMAKE_SOURCE_DIR}/tools/package-native.py
         COMMENT "Packaging Pascal launcher and verified code library" VERBATIM)
     set_property(TARGET ${target}_bin PROPERTY RAW_BINARY ${CMAKE_BINARY_DIR}/${target}.bin)
@@ -548,6 +592,18 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/pascal_runtime.profile
         ${CMAKE_BINARY_DIR}/file_runtime.packed ${CMAKE_BINARY_DIR}/module_unpack.zpl
         ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 add_custom_target(runtime_profile DEPENDS ${CMAKE_BINARY_DIR}/pascal_runtime.profile)
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/compact_runtime.profile
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --compact-runtime-profile
+        ${CMAKE_BINARY_DIR}/compact_runtime.profile
+    DEPENDS runtime_profile compact_runtime_bin
+        ${CMAKE_BINARY_DIR}/compact_runtime.zpl ${CMAKE_BINARY_DIR}/compact_runtime.private
+        ${CMAKE_BINARY_DIR}/file_runtime.zpl ${CMAKE_BINARY_DIR}/file_gate.zpl
+        ${CMAKE_BINARY_DIR}/transfer_runtime.zpl ${CMAKE_BINARY_DIR}/transfer_gate.zpl
+        ${CMAKE_BINARY_DIR}/execute_entry.zpl ${CMAKE_BINARY_DIR}/transfer_runtime.packed
+        ${CMAKE_BINARY_DIR}/file_runtime.packed ${CMAKE_BINARY_DIR}/module_unpack.zpl
+        ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+add_custom_target(compact_profile DEPENDS ${CMAKE_BINARY_DIR}/compact_runtime.profile)
+add_dependencies(zcompacttest compact_profile)
 add_dependencies(zp_core runtime_profile)
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/transfer_call_data.inc
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --transfer-call-data ${CMAKE_BINARY_DIR}

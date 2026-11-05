@@ -124,3 +124,9 @@
 !/docs/library-exploration.md
 !/docs/library-exploration-evidence.json
 !/reviews/library-exploration-v1.md
+
+# Isolated compact-prefix proof and its reconciled review.
+!/tools/test-compact.py
+!/docs/compact-layout-experiment.md
+!/docs/compact-layout-evidence.json
+!/reviews/compact-layout-v1.md

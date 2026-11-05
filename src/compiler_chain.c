@@ -18,6 +18,11 @@ static void patch(uint16_t at,uint16_t value) {
     cc_word(at,value);cc_relocate(at);
 }
 void cc_transfer_statement(uint16_t base) FRONTEND {
+#ifdef ZP_COMPACT_EXPERIMENT
+    /* This proof has no compact transfer ABI. Never embed a coordinator
+     * whose cleanup/profile operands belong to the normal runtime. */
+    (void)base;cc_fail(COMPILE_PLATFORM_FAILURE);
+#else
     uint16_t at;
     if(cc.suppress||cc.error->code)return;
     cc.console_dynamic=1;
@@ -26,10 +31,16 @@ void cc_transfer_statement(uint16_t base) FRONTEND {
     cc_op16(0xcd,RT_IOCALL);at=cc.emitted;cc_relocate(at);
     cc_emit((uint8_t)cc.transfer_entry);cc_emit((uint8_t)(cc.transfer_entry>>8));cc_emit(cc.io_check);
     cc.transfer_entry=at;
+#endif
 }
 /* Share one packed coordinator across Chain and Execute. Forward operands
  * share the compiler's existing fixup-chain and relocation mechanisms. */
 void cc_transfer_finish(void) FRONTEND {
+#ifdef ZP_COMPACT_EXPERIMENT
+    /* Fail closed even if a deferred root is requested by another emitter. */
+    if(!cc.error->code&&(cc.transfer_entry||cc_root_pending(LATE_ROOT,LATE_TRANSFER)))
+        cc_fail(COMPILE_PLATFORM_FAILURE);
+#else
     uint16_t module,gate,entry,i,offset,at,value,head=cc.transfer_entry;
     if(cc.error->code||(!head&&!cc_root_pending(LATE_ROOT,LATE_TRANSFER)))return;
     module=asset(0);gate=asset(1);entry=asset(2);
@@ -44,4 +55,5 @@ void cc_transfer_finish(void) FRONTEND {
     patch(entry+TRANSFER_CALL_FILE_OPERAND,cc.file_entry);
     cc_unpack_reference(entry+TRANSFER_CALL_UNPACK_OPERAND);
     cc_patch_chain(head,entry);cc.transfer_entry=entry;cc_root_bind(LATE_ROOT,LATE_TRANSFER,entry);
+#endif
 }
