@@ -119,3 +119,8 @@
 # Native color/query acceptance and reconciled review.
 !/reviews/color-20261104.md
 !/reviews/color-evidence-20261104.json
+
+# Library exploration and its hash-bound evidence/review.
+!/docs/library-exploration.md
+!/docs/library-exploration-evidence.json
+!/reviews/library-exploration-v1.md
