@@ -9,11 +9,14 @@ static uint8_t saved_corpus(void) {
 }
 /* Assert the explicit warm-cache contract for each compiler variant. */
 uint8_t cached_code_pages(void) SOURCE_BLOCK_CALL {
+    uint8_t count=code_required;
 #ifdef ZP_OPTIONAL_REAL
-    return code_required-1; /* Only the temporary Real page stays unloaded. */
-#else
-    return code_required;
+    --count;
 #endif
+#ifdef ZP_UNITS_EXPERIMENT
+    --count;
+#endif
+    return count;
 }
 void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) SOURCE_BLOCK_CALL {
     uint8_t owned,i;

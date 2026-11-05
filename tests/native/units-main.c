@@ -22,7 +22,7 @@ static uint8_t copy_named(const char *from,const char *to) {
 }
 static void reject(const char *text,uint8_t expected) {
     check(load(text));check(!compile(&s,&b,&d)&&d.code==expected&&!b.valid);
-    unit_diagnostic=d.code;build_close(&b);check(pages_used()==code_required+1);
+    unit_diagnostic=d.code;build_close(&b);check(pages_used()==cached_code_pages()+1);
 }
 uint8_t unit_bad_author(const char *text);
 static void unsupported(const char *declarations,const char *body) {
@@ -62,7 +62,7 @@ static void fault_location(void) {
         check(position==(uint16_t)(strstr(fault_source,"Fault:=")-fault_source));
         status=255;check(run_saved(&s,&b,&status)&&status==2);
     }
-    build_close(&b);check(pages_used()==code_required+1);
+    build_close(&b);check(pages_used()==cached_code_pages()+1);
 }
 uint8_t unit_bad_author(const char *text) {
     return author("H:/BADUNIT.PAS","H:/BADUNIT.ZPU",text,UNIT_UNSUPPORTED);
@@ -88,7 +88,7 @@ int app_main(void) {
     if(!ok)goto done;
     test_stage=3;
     author("H:/BADUNIT.PAS","H:/BADUNIT.ZPU",
-        "unit BadUnit;interface function F:Real;implementation function F:Real;begin F:=1 end;end.",UNIT_UNSUPPORTED);
+        "unit BadUnit;interface function F:Text;implementation function F:Text;begin end;end.",UNIT_UNSUPPORTED);
     author("H:/BADUNIT.PAS","H:/BADUNIT.ZPU",
         "unit BadUnit;interface procedure P(X:Integer);implementation procedure P(X:Byte);begin end;end.",UNIT_INTERFACE);
     author("H:/BADUNIT.PAS","H:/BADUNIT.ZPU",
@@ -113,7 +113,7 @@ int app_main(void) {
     check(rm("H:/TILEMATH.ZPU")==0);check(rm("H:/OFFSETS.ZPU")==0);
     check(rm("H:/TILEMATH.PAS")==0);check(rm("H:/OFFSETS.PAS")==0);
     status=255;check(exec(EXEC_PRESERVE_PROGRAM,"H:/SLICE.COM",0,&status)==0&&status==0);
-    check(pages_used()==code_required+1);
+    check(pages_used()==cached_code_pages()+1);
     author("H:/VARS.PAS","H:/VARS.ZPU",
         "unit Vars;interface procedure Bump(var X:Integer);implementation procedure Bump(var X:Integer);begin X:=X+1 end;end.",0);
     execution("uses Vars;var N:Integer;begin N:=41;Bump(N);if N<>42 then halt;writeln('UNIT-VAR-OK')end.",1,0);
@@ -164,6 +164,6 @@ int app_main(void) {
 done:
     if(capture>=0){check(swap(capture,DEV_STDOUT)==0);check(close(capture)==0);}
     check(code_capture(1));build_close(&b);source_close(&s);
-    check(pages_used()==code_required);
+    check(pages_used()==cached_code_pages());
     test_done=255;test_complete();return 0;
 }

@@ -18,7 +18,7 @@ static uint32_t object_hash(uint8_t page,uint16_t length) {
     return h;
 }
 static uint8_t tag(TypeId type) {
-    return type==K_INTEGER?0:type==K_BYTE?1:type==K_CHAR?2:type==K_BOOLEAN?3:255;
+    return type==K_INTEGER?0:type==K_BYTE?1:type==K_CHAR?2:type==K_BOOLEAN?3:type==K_REAL?4:255;
 }
 static uint16_t code_word(uint16_t at) {
     uint16_t v=cc_code_get(at);return v|((uint16_t)cc_code_get(at+1)<<8);
@@ -64,13 +64,13 @@ static void symbol_name(uint8_t page,uint16_t *at,uint16_t symbol) {
     uint8_t i,n=CCS(symbol,name_length);SourcePosition start=cc_reference_position(CCS(symbol,name_start));
     for(i=0;i<n;++i)out_byte(page,at,lower(cc_source_byte(start+i)));
 }
-uint8_t cc_units_write(void) ROUTINES {
+uint8_t cc_units_write_object(void) ROUTINES {
     uint16_t at,end,fragments=0,exports=0,pcs=0,owner_id,off,target,delta,r,i,j,first,count;
     uint16_t artifact,page_position,blob,reference,begin,finish,site,all_refs;
     uint8_t page,kind,buffer[64];uint32_t total,export_bytes=0,hash,source_hash;
     if(!supported())return 0;
     if(cc.emitted>cc.sources->unit_start)
-        cc_unit_record(UR_FRAGMENT,cc.sources->unit_start,cc.emitted,cc.sources->unit_owner,0,0);
+        cc_unit_record(UR_FRAGMENT,cc.sources->unit_start,cc.emitted,cc.sources->unit_owner,cc.sources->unit_real,0);
     end=cc_unit_word(UH_USED);
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES) {
         kind=(uint8_t)cc_unit_word(at);
@@ -93,6 +93,7 @@ uint8_t cc_units_write(void) ROUTINES {
     all_refs=cc_unit_word(UH_REFERENCE_COUNT);
     count=fragments+(cc.image->globals_bytes?1:0);
     total=ZPU_HEADER_BYTES;total+=cc_unit_word(UH_NAME_LENGTH);total+=strlen(cc.sources->root->path);
+    total+=count; /* One bounded runtime flag for every fragment, including data. */
     total+=export_bytes;total+=6UL*pcs;total+=(uint32_t)MAP_RECORD_BYTES*cc.entries;
     blob=(uint16_t)total;
     total+=CC_FRAGMENT_HEADER;total+=(uint32_t)CC_FRAGMENT_RECORD*count;
@@ -129,6 +130,9 @@ uint8_t cc_units_write(void) ROUTINES {
         out_word(page,&page_position,owner_id);out_word(page,&page_position,off);out_word(page,&page_position,delta);
     }
     for(i=0;i<cc.entries*MAP_RECORD_BYTES;++i)out_byte(page,&page_position,buffer_get(cc.image->map_page,i));
+    for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_FRAGMENT)
+        out_byte(page,&page_position,(uint8_t)cc_unit_word(at+8));
+    if(cc.image->globals_bytes)out_byte(page,&page_position,0);
     if(page_position!=blob){cc_fail(UNIT_FORMAT);return 0;}
     for(i=0;i<4;++i)out_byte(page,&page_position,(uint8_t)"ZPF1"[i]);
     out_word(page,&page_position,1);out_word(page,&page_position,count);out_word(page,&page_position,all_refs);
@@ -188,23 +192,17 @@ static uint8_t equal_name(uint16_t module,uint16_t at,uint16_t n,const char *nam
     for(i=0;i<n;++i)if(cc_unit_module_byte(module,at+i)!=(uint8_t)name[i])return 0;
     return 1;
 }
-void cc_unit_descriptor(uint16_t module,CompilerFragmentObject *object) ROUTINES {
-    uint16_t seal=module+UNIT_RECORD_BYTES;
-    object->page=(uint8_t)cc_unit_word(module+2);object->offset=cc_unit_word(seal+10);
-    object->bytes=cc_unit_word(module+4)-object->offset;
-    object->lifetime=cc_unit_word(seal+2)|((uint32_t)cc_unit_word(seal+4)<<16);
-    object->version=cc_unit_word(seal+6)|((uint32_t)cc_unit_word(seal+8)<<16);
-    object->binding=cc_unit_word(module+8);
-}
 static uint8_t metadata_valid(uint16_t module,const char *name) {
     uint16_t n,path,at,end,blob,exports,pcs,maps,i,j,k,p,params,fragment,offset,size,old,next;
     uint16_t last_fragment=0,last_site=0,refbase,first,count,site,code_bytes;
     uint32_t expected,actual,wide;
-    uint8_t c,mode,type;CompilerFragmentObject object;
+    uint8_t c,mode,type,abi;CompilerFragmentObject object;
     end=cc_unit_word(module+4);
     if(end<ZPU_HEADER_BYTES)return 0;
     for(i=0;i<4;++i)if(cc_unit_module_byte(module,i)!=(uint8_t)"ZPU1"[i])return 0;
-    if(cc_unit_module_word(module,4)!=ZPU_ABI||cc_unit_module_word(module,6)!=end)return 0;
+    abi=(uint8_t)cc_unit_module_word(module,4);
+    if((cc_unit_module_word(module,4)!=ZPU_ABI&&cc_unit_module_word(module,4)!=ZPU_LEGACY_ABI)||
+       cc_unit_module_word(module,6)!=end)return 0;
     for(i=0;i<4;++i)if(cc_unit_module_byte(module,8+i)!=cc_runtime_profile_get(i)){cc_fail(UNIT_STALE);return 0;}
     expected=module_long(module,28);actual=object_hash((uint8_t)cc_unit_word(module+2),end);
     if(expected!=actual)return 0;
@@ -241,7 +239,7 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
         params=cc_unit_module_word(module,at+4);fragment=cc_unit_module_word(module,at+6);offset=cc_unit_module_word(module,at+8);
         wide=(uint32_t)at+10+n+2UL*params;
         if(wide>blob||!identifier(module,at+10,n)||c>1||cc_unit_module_byte(module,at+3)||
-           (c?type>3:type!=255)||fragment>=count)return 0;
+           (c?type>(abi==ZPU_LEGACY_ABI?3:4):type!=255)||fragment>=count)return 0;
         size=cc_unit_module_word(module,blob+16+fragment*8+2);if(offset>=size||cc_unit_module_word(module,blob+16+fragment*8)>=code_bytes)return 0;
         old=cc_unit_word(module+10);
         for(j=0;j<i;++j) {
@@ -254,12 +252,12 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
         }
         for(j=0;j<params;++j) {
             mode=cc_unit_module_byte(module,at+10+n+2*j);type=cc_unit_module_byte(module,at+11+n+2*j);
-            if(mode>1||(type>3&&!(mode&&type==255)))return 0;
+            if(mode>1||(type>(abi==ZPU_LEGACY_ABI?3:4)&&!(mode&&type==255)))return 0;
         }
         at=(uint16_t)wide;
     }
     pcs=cc_unit_module_word(module,22);maps=cc_unit_module_word(module,24);
-    wide=at;wide+=6UL*pcs;wide+=8UL*maps;if(wide!=blob)return 0;
+    wide=at;wide+=6UL*pcs;wide+=8UL*maps;if(abi==ZPU_ABI)wide+=count;if(wide!=blob)return 0;
     for(i=0;i<pcs;++i,at+=6) {
         if(!cc_poll())return 0;
         fragment=cc_unit_module_word(module,at);site=cc_unit_module_word(module,at+2);offset=cc_unit_module_word(module,at+4);
@@ -277,9 +275,13 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
         if(first>=n||n>code_bytes||cc_unit_module_word(module,at+4)||
            cc_unit_module_word(module,at+6)>cc_unit_module_word(module,16))return 0;
     }
+    if(abi==ZPU_ABI)for(i=0;i<count;++i) {
+        c=cc_unit_module_byte(module,at+i);
+        if(c>ZPU_REAL||(i+1==count&&cc_unit_module_word(module,34)&&c))return 0;
+    }
     return !cc.error->code;
 }
-uint16_t cc_units_load(const char *name,const char *path) ROUTINES {
+uint16_t cc_units_load_object(const char *name,const char *path) ROUTINES {
     uint16_t module=0,at=0,n,i,seal,source_id;uint8_t buffer[64],page,ok=1;
     int8_t fd;Source loaded;Diagnostic diagnostic;char source_path[128],canonical[128];uint32_t checksum,version;
     fd=output_open_path(path,O_RDONLY);if(fd<0){cc_fail(UNIT_MISSING);return 0;}

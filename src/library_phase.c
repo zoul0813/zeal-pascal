@@ -4,9 +4,9 @@
 
 int8_t code_phase_fd=-1;
 uint8_t code_phase_pending[CODE_BANK_LIMIT]={
-    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255
 };
-static uint16_t valid,resume_mask;
+static uint32_t valid,resume_mask;
 
 /* Keep the original open handle and declared bank offsets for later reads. */
 void code_phase_bind(int8_t fd) SOURCE_BLOCK_CALL {
@@ -16,7 +16,7 @@ void code_phase_bind(int8_t fd) SOURCE_BLOCK_CALL {
     for(bank=0;bank<code_required;++bank) {
         if(CODE_DEFERRED(bank)) {
             index=bank;
-            if(code_pages[bank]!=255)valid|=(uint16_t)(1u<<index);
+            if(code_pages[bank]!=255)valid|=(1UL<<index);
         }
     }
     code_phase_fd=fd;
@@ -31,7 +31,7 @@ static uint8_t drop_bank(uint8_t bank) {
     page=code_pages[bank];
     if(page!=255) {
         error=pfree(page);if(error)return failure(error);
-        code_pages[bank]=255;valid&=(uint16_t)~(1u<<bank);
+        code_pages[bank]=255;valid&=~(1UL<<bank);
     }
     return 1;
 }
@@ -49,13 +49,13 @@ static uint32_t bank_offset(uint8_t bank) {
     for(i=0;i<bank;++i)at+=code_sizes[i];
     return at;
 }
-static uint8_t restore(uint16_t wanted) {
+static uint8_t restore(uint32_t wanted) {
     uint8_t bank,index,page,error;
     int32_t seek_to;
-    for(bank=0;bank<code_owned;++bank)if(CODE_DEFERRED(bank)&&(wanted&(1u<<bank))) {
+    for(bank=0;bank<code_owned;++bank)if(CODE_DEFERRED(bank)&&(wanted&(1UL<<bank))) {
         index=bank;
-        if((valid&(1u<<index))&&code_pages[bank]!=255)continue;
-        valid&=(uint16_t)~(1u<<index);
+        if((valid&(1UL<<index))&&code_pages[bank]!=255)continue;
+        valid&=~(1UL<<index);
         if(code_phase_fd<0)return failure(ERR_INVALID_FILEDEV);
         if(code_pages[bank]!=255)return failure(ERR_INVALID_PARAMETER);
         page=code_phase_pending[index];
@@ -74,20 +74,34 @@ static uint8_t restore(uint16_t wanted) {
             return failure(error);
         }
         code_pages[bank]=page;code_phase_pending[index]=255;
-        valid|=(uint16_t)(1u<<index);
+        valid|=(1UL<<index);
     }
     platform_error=boot_error=0;
     return 1;
 }
+uint8_t code_phase_restore(void) SOURCE_BLOCK_CALL {
+    uint32_t wanted=0xffffffffUL;
 #ifdef ZP_OPTIONAL_REAL
-uint8_t code_phase_restore(void) SOURCE_BLOCK_CALL {return restore(65535u&~(1u<<CODE_RUNTIME));}
-uint8_t code_phase_real(void) SOURCE_BLOCK_CALL {return restore(1u<<CODE_RUNTIME);}
+    wanted&=~(1UL<<CODE_RUNTIME);
+#endif
+#ifdef ZP_UNITS_EXPERIMENT
+    wanted&=~(1UL<<CODE_UNIT_IO);
+#endif
+    return restore(wanted);
+}
+#ifdef ZP_OPTIONAL_REAL
+uint8_t code_phase_real(void) SOURCE_BLOCK_CALL {return restore(1UL<<CODE_RUNTIME);}
 uint8_t code_phase_real_release(void) SOURCE_BLOCK_CALL {
     if(!drop_bank(CODE_RUNTIME))return 0;
-    resume_mask&=(uint16_t)~(1u<<CODE_RUNTIME);return 1;
+    resume_mask&=~(1UL<<CODE_RUNTIME);return 1;
 }
-#else
-uint8_t code_phase_restore(void) SOURCE_BLOCK_CALL {return restore(65535u);}
+#endif
+#ifdef ZP_UNITS_EXPERIMENT
+uint8_t code_phase_unit_io(void) SOURCE_BLOCK_CALL {return restore(1UL<<CODE_UNIT_IO);}
+uint8_t code_phase_unit_io_release(void) SOURCE_BLOCK_CALL {
+    if(!drop_bank(CODE_UNIT_IO))return 0;
+    resume_mask&=~(1UL<<CODE_UNIT_IO);return 1;
+}
 #endif
 void code_phase_return(void) SOURCE_BLOCK_CALL {
     uint8_t primary=platform_error;

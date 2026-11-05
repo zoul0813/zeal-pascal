@@ -1,5 +1,6 @@
 #include "compiler_units.h"
 #include "compiler_job.h"
+#include "library.h"
 #include "compiler_disk.h"
 #include "output_transport.h"
 #include <zos_errors.h>
@@ -54,7 +55,7 @@ uint8_t cc_units_begin(void) ROUTINES {
         if(!cc_poll()||!far_fill(owner.page,at,0,256)){if(!cc.error->code)cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
     }
     page_initialized(owner.page,PAGE_SIZE);cc.sources->unit_page=owner.page;
-    cc.sources->unit_start=cc.emitted;cc.sources->unit_owner=0;return 1;
+    cc.sources->unit_start=cc.emitted;cc.sources->unit_owner=0;cc.sources->unit_real=0;return 1;
 }
 uint8_t cc_units_close(void) ROUTINES {
     uint16_t at,end;uint8_t p,ok=1,i;uint32_t life;
@@ -94,11 +95,11 @@ void cc_units_global(uint8_t opcode,uint16_t address) ROUTINES {
 void cc_units_owner(uint16_t scope) ROUTINES {
     if(!cc.sources->unit_mode||cc.sources->unit_owner==scope||cc.error->code)return;
     if(cc.emitted>cc.sources->unit_start)
-        cc_unit_record(UR_FRAGMENT,cc.sources->unit_start,cc.emitted,cc.sources->unit_owner,0,0);
-    cc.sources->unit_start=cc.emitted;cc.sources->unit_owner=scope;
+        cc_unit_record(UR_FRAGMENT,cc.sources->unit_start,cc.emitted,cc.sources->unit_owner,cc.sources->unit_real,0);
+    cc.sources->unit_start=cc.emitted;cc.sources->unit_owner=scope;cc.sources->unit_real=0;
 }
 static uint8_t primitive(TypeId type) {
-    return type==K_INTEGER||type==K_BOOLEAN||type==K_CHAR||type==K_BYTE;
+    return type==K_INTEGER||type==K_BOOLEAN||type==K_CHAR||type==K_BYTE||type==K_REAL;
 }
 void cc_units_export(uint16_t symbol,uint16_t scope) ROUTINES {
     uint16_t first=cc_rget(scope,R_PARAMETERS),count=cc_rget(scope,R_COUNT),i,end=cc_unit_word(UH_USED);

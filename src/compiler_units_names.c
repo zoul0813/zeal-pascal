@@ -1,4 +1,5 @@
 #include "compiler_units.h"
+#include "library.h"
 
 /* Unit namespace and primitive signature materialization share the compiler
  * metadata bank. Cached object bytes and state stay in owned far pages. */
@@ -50,7 +51,7 @@ static uint16_t find_export(uint16_t module,const char *name) {
     return 0;
 }
 static TypeId primitive_type(uint8_t tag) {
-    return tag==0?K_INTEGER:tag==1?K_BYTE:tag==2?K_CHAR:tag==3?K_BOOLEAN:TYPE_NONE;
+    return tag==0?K_INTEGER:tag==1?K_BYTE:tag==2?K_CHAR:tag==3?K_BOOLEAN:tag==4?K_REAL:TYPE_NONE;
 }
 static int16_t materialize(uint16_t module,uint16_t export) {
     uint16_t at,end=cc_unit_word(UH_USED),scope,symbol,count,i,id,parameters;
@@ -105,3 +106,31 @@ void cc_units_call(uint8_t opcode,uint16_t scope) ROUTINES {
     cc_fail(UNIT_INTERFACE);
 }
 
+
+void cc_unit_descriptor(uint16_t module,CompilerFragmentObject *object) ROUTINES {
+    uint16_t seal=module+UNIT_RECORD_BYTES;
+    object->page=(uint8_t)cc_unit_word(module+2);object->offset=cc_unit_word(seal+10);
+    object->bytes=cc_unit_word(module+4)-object->offset;
+    object->lifetime=cc_unit_word(seal+2)|((uint32_t)cc_unit_word(seal+4)<<16);
+    object->version=cc_unit_word(seal+6)|((uint32_t)cc_unit_word(seal+8)<<16);
+    object->binding=cc_unit_word(module+8);
+}
+/* Release the I/O code page only after returning to the retained unit bank.
+ * Failed release keeps its owned handle for the normal phase/terminal retry. */
+static uint8_t io_finish(uint8_t ok) {
+    uint8_t primary=platform_error;
+    if(!code_phase_unit_io_release()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    if(!ok)platform_error=primary;
+    return ok;
+}
+uint8_t cc_units_write(void) ROUTINES {
+    uint8_t ok;
+    if(!code_phase_unit_io()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    ok=cc_units_write_object();return io_finish(ok);
+}
+uint16_t cc_units_load(const char *name,const char *path) ROUTINES {
+    uint16_t module;
+    if(!code_phase_unit_io()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    module=cc_units_load_object(name,path);
+    return io_finish(module!=0)?module:0;
+}

@@ -21,7 +21,9 @@ enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CO
 #define UH_REFERENCE_COUNT 12u
 #define UH_NAME 32u
 #define ZPU_HEADER_BYTES 36u
-#define ZPU_ABI 1u
+#define ZPU_ABI 2u
+#define ZPU_LEGACY_ABI 1u
+#define ZPU_REAL 1u
 int8_t cc_units_output(void) ROUTINES;
 uint32_t unit_source_fingerprint(const Source *source) SOURCE_BLOCK_CALL;
 uint8_t cc_units_hold(uint8_t page,uint32_t lifetime,uint8_t role) ROUTINES;
@@ -46,6 +48,8 @@ void cc_units_owner(uint16_t owner) ROUTINES;
 void cc_units_export(uint16_t symbol,uint16_t scope) ROUTINES;
 void cc_units_global(uint8_t opcode,uint16_t address) ROUTINES;
 uint8_t cc_units_write(void) ROUTINES;
+uint8_t cc_units_write_object(void) ROUTINES;
+uint16_t cc_units_load_object(const char *name,const char *path) ROUTINES;
 uint8_t cc_units_link(void) ROUTINES;
 uint16_t cc_unit_record(uint16_t kind,uint16_t a,uint16_t b,uint16_t c,uint16_t d,uint16_t e) ROUTINES;
 uint16_t cc_unit_word(uint16_t at) ROUTINES;

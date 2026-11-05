@@ -58,7 +58,7 @@ typedef struct {
     const CompileOptions *options;
     struct CompilerGroups *groups; /* Invocation-owned; NULL without overlays. */
 #ifdef ZP_UNITS_EXPERIMENT
-    uint8_t unit_page,unit_mode,unit_cbreak;uint16_t unit_qualifier;
+    uint8_t unit_page,unit_mode,unit_cbreak,unit_real;uint16_t unit_qualifier;
     uint16_t unit_owner,unit_start;
 #endif
 } CompilerSources;
@@ -197,13 +197,15 @@ void cc_store_indirect(TypeId type) FRONTEND;
 void cc_call(uint16_t address) FRONTEND;
 void cc_next(void) FRONTEND;
 void cc_control_literal(void) FRONTEND;
+#if defined(ZP_OPTIONAL_REAL) || defined(ZP_UNITS_EXPERIMENT)
+void cc_require_real(void) FRONTEND;
+#else
+#define cc_require_real() ((void)0)
+#endif
 #ifdef ZP_OPTIONAL_REAL
-#define cc_require_real() do {if(!cc.suppress&&!cc.error->code)cc.real_needed=1;}while(0)
 uint8_t cc_integer_read(uint16_t at,uint8_t *out,uint16_t count) SOURCE_BLOCK_CALL;
 uint8_t cc_integer_get(uint16_t at) SOURCE_BLOCK_CALL;
 uint8_t cc_real_runtime_finish(void) SOURCE_BLOCK_CALL;
-#else
-#define cc_require_real() ((void)0)
 #endif
 uint16_t cc_runtime_size(void);
 uint8_t cc_runtime_get(uint16_t offset);

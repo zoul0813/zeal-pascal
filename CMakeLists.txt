@@ -796,7 +796,7 @@ set_source_files_properties(src/compiler_units.c src/compiler_units_link.c PROPE
 set_source_files_properties(src/compiler_units_names.c PROPERTIES
     COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK9;--constseg;BANK9")
 set_source_files_properties(src/compiler_units_object.c PROPERTIES
-    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK13;--constseg;BANK13")
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK17;--constseg;BANK17")
 foreach(source IN LISTS PASCAL_CORE)
     if(source MATCHES "\\.c$")
         set_property(SOURCE ${source} APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_units.h)
@@ -805,10 +805,15 @@ endforeach()
 set_property(SOURCE src/compiler_units.c src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/compiler_fragments.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_units.h
     ${CMAKE_SOURCE_DIR}/src/compiler_fragments.h ${CMAKE_SOURCE_DIR}/src/compiler.h)
+add_library(unit_test_execution OBJECT tests/native/harness-execute.c)
+target_compile_definitions(unit_test_execution PRIVATE ZP_UNITS_EXPERIMENT)
+target_include_directories(unit_test_execution PRIVATE src)
+target_compile_options(unit_test_execution PRIVATE --std-c99 --opt-code-size
+    "SHELL:--codeseg BANK3" "SHELL:--constseg BANK3")
 add_executable(zunittest src/startup.asm src/banks.c tests/native/units-main.c
     tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:unit_core> $<TARGET_OBJECTS:unit_fragment_core>
     $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
-    $<TARGET_OBJECTS:test_execution> $<TARGET_OBJECTS:test_evidence> ${CMAKE_BINARY_DIR}/transfer_test_asset.asm)
+    $<TARGET_OBJECTS:unit_test_execution> $<TARGET_OBJECTS:test_evidence> ${CMAKE_BINARY_DIR}/transfer_test_asset.asm)
 target_compile_definitions(zunittest PRIVATE ZP_UNITS_EXPERIMENT ZP_TEST_COMPILER)
 target_include_directories(zunittest PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(zunittest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
@@ -818,7 +823,7 @@ set_property(SOURCE tests/native/units-main.c src/banks.c APPEND PROPERTY OBJECT
     ${CMAKE_SOURCE_DIR}/src/compiler_units.h ${CMAKE_SOURCE_DIR}/src/compiler.h)
 add_dependencies(zunittest transfer_assets)
 target_link_options(zunittest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 16)
+foreach(bank RANGE 1 17)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunittest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -831,13 +836,13 @@ add_custom_target(zunittest_bin
 add_executable(zunitcorpus src/startup.asm src/banks.c tests/native/main.c
     tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:unit_core> $<TARGET_OBJECTS:unit_fragment_core>
     $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
-    $<TARGET_OBJECTS:test_execution> $<TARGET_OBJECTS:test_evidence> ${CMAKE_BINARY_DIR}/transfer_test_asset.asm)
+    $<TARGET_OBJECTS:unit_test_execution> $<TARGET_OBJECTS:test_evidence> ${CMAKE_BINARY_DIR}/transfer_test_asset.asm)
 target_compile_definitions(zunitcorpus PRIVATE ZP_UNITS_EXPERIMENT ZP_TEST_COMPILER)
 target_include_directories(zunitcorpus PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(zunitcorpus PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_dependencies(zunitcorpus transfer_assets)
 target_link_options(zunitcorpus PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 16)
+foreach(bank RANGE 1 17)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunitcorpus PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -953,3 +958,36 @@ endforeach()
 add_custom_target(zoptionalcorpus_bin
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zoptionalcorpus>
     DEPENDS zoptionalcorpus ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+
+# Combine native units with the existing optional Real engine. Both compile
+# switches belong to every compiler translation unit sharing CompilerSources.
+add_library(unit_runtime_core OBJECT ${OPTIONAL_CORE} src/compiler_runtime.c
+    src/compiler_units.c src/compiler_units_object.c src/compiler_units_names.c
+    src/compiler_units_link.c ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm)
+target_compile_definitions(unit_runtime_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL)
+target_include_directories(unit_runtime_core PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_options(unit_runtime_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+add_dependencies(unit_runtime_core optional_runtime_assets ram_trampoline_bin transfer_assets
+    runtime_profile file_runtime_bin file_gate_bin module_unpack_bin)
+add_executable(zunitrealtest src/startup.asm src/banks.c tests/native/unit-real-main.c
+    tests/native/machine.asm $<TARGET_OBJECTS:unit_runtime_core>
+    $<TARGET_OBJECTS:unit_fragment_core> $<TARGET_OBJECTS:real_compiler>
+    $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
+    ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm)
+target_compile_definitions(zunitrealtest PRIVATE ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL ZP_TEST_COMPILER)
+target_include_directories(zunitrealtest PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_options(zunitrealtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+set_source_files_properties(tests/native/unit-real-main.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
+set_property(SOURCE tests/native/unit-real-main.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/compiler_units.h
+    ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
+add_dependencies(zunitrealtest transfer_assets)
+target_link_options(zunitrealtest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
+foreach(bank RANGE 1 17)
+    math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
+    target_link_options(zunitrealtest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
+endforeach()
+add_custom_target(zunitrealtest_bin
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zunitrealtest>
+    DEPENDS zunitrealtest ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)

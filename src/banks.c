@@ -157,7 +157,7 @@ uint8_t compile_unit(const Source *source,Build *scratch,Diagnostic *diagnostic,
                      int8_t output,uint8_t interruptible) {
     uint8_t old,ok;
     if(!code_phase_restore()){memset(diagnostic,0,sizeof(*diagnostic));diagnostic->code=COMPILE_PLATFORM_FAILURE;return 0;}
-    old=code_select(15);ok=compiler_compile_unit(source,scratch,diagnostic,output,interruptible);
+    old=code_select(CODE_UNITS);ok=compiler_compile_unit(source,scratch,diagnostic,output,interruptible);
     code_restore(old);return ok;
 }
 #endif

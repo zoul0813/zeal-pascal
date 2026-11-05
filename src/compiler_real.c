@@ -1,5 +1,17 @@
 #include "compiler.h"
 
+#if defined(ZP_OPTIONAL_REAL) || defined(ZP_UNITS_EXPERIMENT)
+void cc_require_real(void) FRONTEND {
+    if(cc.suppress||cc.error->code)return;
+#ifdef ZP_OPTIONAL_REAL
+    cc.real_needed=1;
+#endif
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc.sources->unit_mode)cc.sources->unit_real=1;
+#endif
+}
+#endif
+
 static uint8_t source_byte(SourcePosition at) { return cc_source_byte(at); }
 static uint8_t digit(uint8_t c) { return c>='0'&&c<='9'; }
 /* Real constant references retain the original literal and one sign bit.
