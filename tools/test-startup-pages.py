@@ -19,17 +19,17 @@ def main():
     artifacts.update({f'build/{target}.zpl':sha(ROOT/f'build/{target}.zpl')for target in ('zpascal','zptest')})
     spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py');n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
     sym=n.symbols('zpascal');count=n.code_banks();external={str(p):sha(p)for p in (n.EMULATOR,n.ROM)}
-    commands=['run 100000000']+n.program_launch()+['regs','mmu','rb 0x4000 32',f"rb 0x{sym['_code_pages']:x} 16",f"rb 0x{sym['_code_phase_pending']:x} 16",f"rb 0x{sym['_code_owned']:x} 1",'quit']
+    commands=['run 100000000']+n.program_launch()+['regs','mmu','rb 0x4000 32',f"rb 0x{sym['_code_pages']:x} {count}",f"rb 0x{sym['_code_phase_pending']:x} {count}",f"rb 0x{sym['_code_owned']:x} 1",'quit']
     raw=n.execute('startup-pages',commands,timeout=180);frame=re.split(r'\[DBG\] PC=',raw)[-1];mem=n.memory(frame)
     pages=[mem.get(sym['_code_pages']+i,0)for i in range(count)]
-    pending=[mem.get(sym['_code_phase_pending']+i,0)for i in range(16)]
+    pending=[mem.get(sym['_code_phase_pending']+i,0)for i in range(count)]
     live=[p for p in pages if p!=255]
     checks={
         'authenticated IDE startup':frame.startswith(f"{sym['_code_ready']:04x} ") and bytes(mem.get(0x4000+i,0)for i in range(32))==(ROOT/'build/zpascal.bin').read_bytes()[:32],
-        'logical bank directory retained':mem.get(sym['_code_owned'])==count==15,
+        'logical bank directory retained':mem.get(sym['_code_owned'])==count==17,
         'exactly ten allocated distinct startup code pages':len(live)==len(set(live))==10 and all(32<=p<64 for p in live),
         'expression Real file and lifecycle pages stay unallocated':all((p==255 if i in {5,7,9}or i>=13 else 32<=p<64)for i,p in enumerate(pages)),
-        'no unready allocations hidden in pending owners':pending==[255]*16}
+        'no unready allocations hidden in pending owners':pending==[255]*count}
     report={'scope':__doc__,'passed':False,'input_sha256':hashes,'build_output_sha256':artifacts,'external_sha256':external,
         'before_startup_code_pages':13,'startup_code_pages':len(live),'released_startup_pages':13-len(live),'startup_bytes_saved':(13-len(live))*16384,
         'production_library_bytes':(ROOT/'build/zpascal.zpl').stat().st_size,'production_resident_bytes':(ROOT/'build/zpascal.bin').stat().st_size,
@@ -43,7 +43,7 @@ def main():
     # Positive counterpart to the exhaustion fixture: a real allocator budget
     # of14 pages (3 process +10 code +1 Work) must reach the IDE reader.
     boot=n.symbols('zpbootfail');key=sym['_key_read']
-    command=['run 100000000']+n.type_text('H:/zpbootfail.bin')+['bp 0x4000','tap ENTER','run 2000000000','s','run 2000000000','bc 0x4000',f'bp 0x{key:x}','s','run 8000000000','regs','mmu','rb 0x4000 32',f"rb 0x{sym['_work']:x} 1",f"rb 0x{sym['_code_pages']:x} 16"]
+    command=['run 100000000']+n.type_text('H:/zpbootfail.bin')+['bp 0x4000','tap ENTER','run 2000000000','s','run 2000000000','bc 0x4000',f'bp 0x{key:x}','s','run 8000000000','regs','mmu','rb 0x4000 32',f"rb 0x{sym['_work']:x} 1",f"rb 0x{sym['_code_pages']:x} {count}"]
     command += [f'bc 0x{key:x}']+n.type_text('nq',ticks=2000000)+[f"bp 0x{boot['_boot_complete']:x}",'run 100000000','regs','rb 0x4000 32',f"rb 0x{boot['_boot_done']:x} 1",f"rb 0x{boot['_boot_failed']:x} 2",'quit']
     positive=n.execute('startup-budget-positive',command,{'zpbootfail.bin':(ROOT/'build/zpbootfail.bin').read_bytes(),'BOOTPOS.TEST':b'1'},timeout=300)
     parts=re.split(r'\[DBG\] PC=',positive)[1:];reader=[f for f in parts if f.startswith(f'{key:04x} ')];finished=[f for f in parts if any(f.startswith(f'{pc:04x} ')for pc in (boot['_boot_complete'],boot['_boot_complete']+1))]

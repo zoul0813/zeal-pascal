@@ -196,7 +196,7 @@ static void routine(uint8_t interface_heading) {
     if(cc.error->code) return;
     flags=(uint8_t)cc_rget(scope,R_FLAGS);
 #ifdef ZP_UNITS_EXPERIMENT
-    if(interface_heading&&cc_is("external")){cc_fail(UNIT_UNSUPPORTED);return;}
+    if(cc.sources->unit_mode&&cc_is("external")){cc_fail(UNIT_UNSUPPORTED);return;}
 #endif
     if(cc_is("external")) {
         cc_require_real();

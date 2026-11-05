@@ -4,10 +4,12 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import subprocess
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py')
 n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
 def main():
+    subprocess.run(['zde','--no-tty','cmake','--target','zunitrealtest_bin','--parallel','6'],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
     target='zunitrealtest';symbols=n.symbols(target)
     fixtures={target+'.'+ext:(ROOT/f'build/{target}.{ext}').read_bytes()for ext in ('bin','zpl')}
     commands=['run 100000000']+n.program_launch(target)+[f"bp 0x{symbols['_test_stop']:x}",'run 20000000000','s','regs','rb 0x4000 32']
@@ -21,13 +23,13 @@ def main():
             'all native assertions pass':word('_test_passed')==word('_test_index')and word('_test_passed')>100 and word('_test_failed')==0,
             'library deletion stage completed':word('_test_stage')==3}
     folder=n.RUN/'unit-real/hostfs';output=(folder/'UNITREAL.TXT').read_bytes()if(folder/'UNITREAL.TXT').exists()else b''
-    for name,count in [('INTEGER',2),('COPY',2),('SCALE',3),('TRANSITIVE',3),('UNUSED',2)]:
+    for name,count in [('INTEGER',2),('COPY',2),('SCALE',3),('TRANSITIVE',3),('UNUSED',2),('LEGACY',3)]:
         checks[name+' execution markers']=output.count(('UNIT-'+name+'-OK\r\n').encode())==count
     core=(ROOT/'build/integer_runtime.zpl').read_bytes();full=(ROOT/'build/pascal_runtime.zpl').read_bytes()
-    for name,real in [('PLAIN',False),('COPY',False),('SCALE',True),('TRANSIT',True),('UNUSED',False)]:
+    for name,real in [('PLAIN',False),('COPY',False),('SCALE',True),('TRANSIT',True),('UNUSED',False),('OLDCLIENT',True),('FAULTRUN',True)]:
         path=folder/(name+'.COM')
         checks[name+' selects correct Real engine']=path.is_file()and path.read_bytes()[3466:14285]==(full if real else core)[3466:14285]
-    checks['unit source and library deleted']=not(folder/'MIXED.PAS').exists()and not(folder/'MIXED.ZPU').exists()
+    checks['unit source and library deleted']=not(folder/'MIXED.PAS').exists()and not(folder/'MIXED.ZPU').exists()and not(folder/'LEGACY.PAS').exists()and not(folder/'LEGACY.ZPU').exists()
     report={'passed':all(checks.values()),'checks':checks,'assertions':word('_test_passed'),'failed':word('_test_failed'),
             'failure_indices':[state.get(symbols['_test_failures']+2*i,0)|(state.get(symbols['_test_failures']+2*i+1,0)<<8)for i in range(min(word('_test_failed'),64))],
             'capture_directory':str(n.RUN.relative_to(ROOT))}

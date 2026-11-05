@@ -2,6 +2,7 @@
 #define ZP_COMPILER_JOB_H
 #include "sources.h"
 /* Diagnostic captured before synchronous compiler cleanup. */
+#define COMPILER_UNIT_MODE 3u
 typedef struct {Diagnostic diagnostic;char path[128];uint8_t interrupted;} CompileFailure;
 uint8_t compile_request(const Source *root,Build *build,CompileFailure *failure,
     uint8_t mode,const CompileOptions *options);

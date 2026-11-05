@@ -74,7 +74,7 @@ def main():
     checks = {
         'authenticated native completion':frame.startswith('fc01 ') and memory.get(sym['_test_done']) == 255
             and bytes(memory.get(0x4000+i,0) for i in range(32)) == binary[:32],
-        'native assertions without failures':word('_test_passed') == word('_test_index') == 323 and word('_test_failed') == 0,
+        'native assertions without failures':word('_test_passed') == word('_test_index') == 329 and word('_test_failed') == 0,
         'RAM saved and library-free execution markers':stdout.count(b'PASCAL-UNITS-OK\r\n') == 5,
         'VAR and local shadowing execution markers':stdout.count(b'UNIT-VAR-OK\r\n') == 2 and stdout.count(b'UNIT-SHADOW-OK\r\n') == 2 and stdout.count(b'UNIT-KINDS-OK\r\n') == 2,
         'private implementation and remaining scalar ABI execution':stdout.count(b'UNIT-PRIVATE-OK\r\n') == 2,

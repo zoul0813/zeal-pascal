@@ -257,7 +257,7 @@ set_source_files_properties(src/compiler_strings.c PROPERTIES COMPILE_OPTIONS "-
 # Our startup and the installed SDK use the same command-tail ABI. The launcher
 # initializes C data, then verifies/loads its library before entering a bank.
 set(CMAKE_C_LINK_EXECUTABLE "<CMAKE_LINKER> <LINK_FLAGS> <LINK_LIBRARIES> <TARGET> <OBJECTS>")
-add_executable(zpascal src/startup.asm src/banks.c src/main.c src/editor.c src/source_blocks.c $<TARGET_OBJECTS:optional_real_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
+add_executable(zpascal src/startup.asm src/banks.c src/main.c src/editor.c src/source_blocks.c $<TARGET_OBJECTS:unit_runtime_core> $<TARGET_OBJECTS:unit_fragment_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 target_sources(zpascal PRIVATE src/main_display.c)
 set_source_files_properties(src/main_display.c PROPERTIES
     COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK1;--constseg;BANK1")
@@ -265,7 +265,7 @@ set_property(SOURCE src/main.c src/main_display.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/main_display.h)
 set_property(SOURCE src/main_display.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/editor.h ${CMAKE_SOURCE_DIR}/src/zp.h)
-target_compile_definitions(zpascal PRIVATE ZP_OPTIONAL_REAL)
+target_compile_definitions(zpascal PRIVATE ZP_OPTIONAL_REAL ZP_UNITS_EXPERIMENT)
 target_include_directories(zpascal PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(zpascal PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_executable(zptest src/startup.asm src/banks.c tests/native/main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
@@ -451,6 +451,7 @@ foreach(target zcompacttest zcorpus zjobtest zmemberstest zexecutecalltest zpasc
     if(target STREQUAL "zcompacttest")
         set(package_mode --compact-experiment)
     elseif(target STREQUAL "zpascal")
+        target_link_options(${target} PRIVATE "SHELL:-b _BANK16=0x108000" "SHELL:-b _BANK17=0x118000")
         set(package_mode --optional-real)
     endif()
     add_custom_target(${target}_bin ALL
@@ -783,7 +784,7 @@ target_include_directories(unit_fragment_core PRIVATE src)
 target_compile_options(unit_fragment_core PRIVATE --std-c99 --opt-code-size
     "SHELL:--codeseg BANK16" "SHELL:--constseg BANK16")
 add_library(unit_core OBJECT ${PASCAL_CORE} src/compiler_units.c
-    src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c)
+    src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/unit_output.c)
 target_compile_definitions(unit_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT)
 target_include_directories(unit_core PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(unit_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
@@ -791,8 +792,8 @@ add_dependencies(unit_core pascal_runtime_bin ram_trampoline_bin transfer_assets
     runtime_profile file_runtime_bin file_gate_bin module_unpack_bin)
 set_source_files_properties(src/compiler_units.c src/compiler_units_link.c PROPERTIES
     COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK16;--constseg;BANK16")
-# Cold unit artifact I/O shares the existing mostly empty editor page. It
-# adds no permanent RAM page; its near buffers remain on the retained stack.
+# Unit namespace materialization stays in a warm compiler page; artifact I/O
+# uses its own transient page and keeps near buffers on the retained stack.
 set_source_files_properties(src/compiler_units_names.c PROPERTIES
     COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK9;--constseg;BANK9")
 set_source_files_properties(src/compiler_units_object.c PROPERTIES
@@ -934,7 +935,7 @@ set_property(SOURCE src/compiler_runtime.c tests/native/optional-real-main.c
     ${CMAKE_SOURCE_DIR}/src/output_transport.h ${CMAKE_SOURCE_DIR}/src/compiler_disk.h)
 
 add_library(optional_test_execution OBJECT tests/native/harness-execute.c)
-target_compile_definitions(optional_test_execution PRIVATE ZP_OPTIONAL_REAL)
+target_compile_definitions(optional_test_execution PRIVATE ZP_OPTIONAL_REAL ZP_UNITS_EXPERIMENT)
 target_include_directories(optional_test_execution PRIVATE src)
 target_compile_options(optional_test_execution PRIVATE --std-c99 --opt-code-size
     "SHELL:--codeseg BANK3" "SHELL:--constseg BANK3")
@@ -942,16 +943,16 @@ target_compile_options(optional_test_execution PRIVATE --std-c99 --opt-code-size
 # Reuse the existing language/Real/format corpus with production selection on.
 add_executable(zoptionalcorpus src/startup.asm src/banks.c tests/native/main.c
     tests/native/harness.c tests/native/machine.asm
-    $<TARGET_OBJECTS:optional_real_core> $<TARGET_OBJECTS:real_compiler>
+    $<TARGET_OBJECTS:unit_runtime_core> $<TARGET_OBJECTS:unit_fragment_core> $<TARGET_OBJECTS:real_compiler>
     $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
     $<TARGET_OBJECTS:optional_test_execution> $<TARGET_OBJECTS:test_evidence>
     ${CMAKE_BINARY_DIR}/transfer_test_asset.asm)
-target_compile_definitions(zoptionalcorpus PRIVATE ZP_OPTIONAL_REAL ZP_TEST_COMPILER)
+target_compile_definitions(zoptionalcorpus PRIVATE ZP_OPTIONAL_REAL ZP_UNITS_EXPERIMENT ZP_TEST_COMPILER)
 target_include_directories(zoptionalcorpus PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(zoptionalcorpus PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_dependencies(zoptionalcorpus transfer_assets)
 target_link_options(zoptionalcorpus PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 15)
+foreach(bank RANGE 1 17)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zoptionalcorpus PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -963,7 +964,7 @@ add_custom_target(zoptionalcorpus_bin
 # switches belong to every compiler translation unit sharing CompilerSources.
 add_library(unit_runtime_core OBJECT ${OPTIONAL_CORE} src/compiler_runtime.c
     src/compiler_units.c src/compiler_units_object.c src/compiler_units_names.c
-    src/compiler_units_link.c ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm)
+    src/compiler_units_link.c src/unit_output.c ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm)
 target_compile_definitions(unit_runtime_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL)
 target_include_directories(unit_runtime_core PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(unit_runtime_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
@@ -991,3 +992,20 @@ endforeach()
 add_custom_target(zunitrealtest_bin
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zunitrealtest>
     DEPENDS zunitrealtest ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+
+set_source_files_properties(src/unit_output.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK17;--constseg;BANK17")
+set_property(SOURCE src/unit_output.c src/compiler_job.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/unit_output.h ${CMAKE_SOURCE_DIR}/src/compiler_units.h
+    ${CMAKE_SOURCE_DIR}/src/compiler_job.h ${CMAKE_SOURCE_DIR}/src/library.h
+    ${CMAKE_SOURCE_DIR}/src/output_transport.h ${CMAKE_SOURCE_DIR}/src/compiler.h)
+
+set_property(SOURCE src/main.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/compiler_job.h)
+set_property(SOURCE src/unit_output.c src/compiler_units.c src/compiler_units_object.c
+    src/compiler_units_names.c src/compiler_units_link.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sources.h
+    ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/compiler_job.h
+    ${CMAKE_SOURCE_DIR}/src/compiler_disk.h ${CMAKE_SOURCE_DIR}/src/path.h
+    ${CMAKE_SOURCE_DIR}/src/output_transport.h ${CMAKE_SOURCE_DIR}/src/real.h
+    ${CMAKE_SOURCE_DIR}/src/chain_abi.h)

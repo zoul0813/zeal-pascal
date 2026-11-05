@@ -384,6 +384,22 @@ static void save_as_work(void) {
 static uint8_t compile_work(uint8_t running) {
     Diagnostic d;CompileFailure failure;Source root;uint8_t ok;
     const char *path=main_file[0]?main_file:work.path;
+#ifdef ZP_UNITS_EXPERIMENT
+    if(saved_mode==COMPILER_UNIT_MODE) {
+        if(running){screen_clear();search_ack("Compile units with C; run a program that uses the unit");return 0;}
+        /* Imports bind matching source for the existing error-location contract. */
+        if(work.dirty&&!save_work_auto())return 0;
+        if(!strcmp(path,work.path)) {
+            /* Source publication trims line tails. Compile that same text so
+             * imported fingerprints and error offsets agree with the editor. */
+            if(!load_source(&work,work.path,&d)) {
+                file_error(d.code?"Source error ":"Native file error ",d.code?d.code:platform_error);
+                search_ack("Source retained");return 0;
+            }
+            editor_forget();
+        }
+    }
+#endif
     invalidate();screen_clear();
     if(!strcmp(path,work.path))root=work;
     else {
@@ -391,6 +407,10 @@ static uint8_t compile_work(uint8_t running) {
         if(work.dirty&&!save_work_auto())return 0;
         memset(&root,0,sizeof(root));root.page=255;strcpy(root.path,path);
     }
+#ifdef ZP_UNITS_EXPERIMENT
+    if(saved_mode==COMPILER_UNIT_MODE)output("Compiling unit (Ctrl-U cancels)...\n");
+    else
+#endif
     output(saved_mode==2?"Compiling native CHN (Ctrl-U cancels)...\n":saved_mode?"Compiling to native COM (Ctrl-U cancels)...\n":"Compiling to Memory (Ctrl-U cancels)...\n");
     ok=compile_request(&root,&build,&failure,saved_mode,saved_mode?&compile_options:0);
     d=failure.diagnostic;
@@ -399,7 +419,7 @@ static uint8_t compile_work(uint8_t running) {
         if(d.code==COMPILE_PLATFORM_FAILURE) {
             uint8_t error=platform_error;
             file_error("Compile failed, native error ",error);
-            scratch_conflict(error);
+            if(saved_mode!=COMPILER_UNIT_MODE)scratch_conflict(error);
             search_ack("Source retained");return 0;
         }
         if(d.code==COMPILE_INTERRUPTED) {
@@ -410,6 +430,11 @@ static uint8_t compile_work(uint8_t running) {
         if(strcmp(failure.path,root.path)&&!main_file[0])strcpy(main_file,root.path);
         diagnostic(1,d.code,failure.path,d.start,0,0);return 0;
     }
+#ifdef ZP_UNITS_EXPERIMENT
+    if(saved_mode==COMPILER_UNIT_MODE) {
+        output("Wrote ");output(failure.path);output("\n");return 0;
+    }
+#endif
     if(!sources_get(&build.sources,0,&root)) { cancel_prepared_build();lookup_failure();return 0; }
     if(saved_mode) {
         output("Saving executable (Ctrl-U cancels)...\n");
@@ -447,7 +472,15 @@ static uint8_t hexadecimal(const char *text,uint16_t *value) {
 }
 static void options_screen(void) {
     CompileLimits limits;
-    screen_clear();output("Compiler options\nM Memory  C Com-file  H cHn-file  F Find run-time error  Q Return\n");
+    screen_clear();output("Compiler options\nM Memory  C Com-file  H cHn-file  ");
+#ifdef ZP_UNITS_EXPERIMENT
+    output("U Unit-file  ");
+#endif
+    if(saved_mode!=COMPILER_UNIT_MODE)output("F Find run-time error  ");
+    output("Q Return\n");
+#ifdef ZP_UNITS_EXPERIMENT
+    if(saved_mode==COMPILER_UNIT_MODE){output("Compiled unit (.ZPU) selected\n");return;}
+#endif
     if(!saved_mode) {output("Memory selected\n");return;}
     compile_limits(build.code_bytes?build.globals_bytes:0,build.code_bytes,&compile_options,&limits);
     output(saved_mode==2?"Native cHn-file selected\nS Start  E End\nStart: ":"Native Com-file selected\nS Start  E End\nStart: ");
@@ -687,6 +720,10 @@ int app_main(void) {
         ide_state=1;
         if(menu) {
             screen_clear();show_directory();
+#ifdef ZP_UNITS_EXPERIMENT
+            if(saved_mode==COMPILER_UNIT_MODE)output("Zeal Pascal - Unit-file\nWork: ");
+            else
+#endif
             output(saved_mode==2?"Zeal Pascal - native cHn-file\nWork: ":saved_mode?"Zeal Pascal - native Com-file\nWork: ":"Zeal Pascal - Memory\nWork: "); output(work.path);
             output(work.dirty?" *\n":"\n");output("Main: ");
             if(main_file[0])output(main_file);else output("(Work)");
@@ -716,16 +753,21 @@ int app_main(void) {
             menu=1;options_screen();
             do {
                 c=suffix(key_read());
-                if(c=='m'||c=='c'||c=='h') {
-                    status=c=='m'?0:c=='c'?1:2;
+                if(c=='m'||c=='c'||c=='h'
+#ifdef ZP_UNITS_EXPERIMENT
+                   ||c=='u'
+#endif
+                ) {
+                    status=c=='m'?0:c=='c'?1:c=='h'?2:COMPILER_UNIT_MODE;
                     if(saved_mode!=status) {
-                        if(compile_options.kind!=(status==2?COMPILE_CHAIN:COMPILE_PROGRAM))build.code_bytes=build.globals_bytes=0;
+                        if(saved_mode==COMPILER_UNIT_MODE||status==COMPILER_UNIT_MODE||
+                           compile_options.kind!=(status==2?COMPILE_CHAIN:COMPILE_PROGRAM))build.code_bytes=build.globals_bytes=0;
                         saved_mode=status;compile_options.kind=status==2?COMPILE_CHAIN:COMPILE_PROGRAM;build_close(&build);
                     }
                     options_screen();
                 }
-                else if(saved_mode&&(c=='s'||c=='e')) {option_address(c=='s');options_screen();}
-                else if(c=='f') {
+                else if(saved_mode&&saved_mode!=COMPILER_UNIT_MODE&&(c=='s'||c=='e')) {option_address(c=='s');options_screen();}
+                else if(c=='f'&&saved_mode!=COMPILER_UNIT_MODE) {
                     if(find_saved())break;
                     options_screen();
                 }

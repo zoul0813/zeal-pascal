@@ -15,7 +15,7 @@ def main():
     providers={'optional_runtime_asset.asm.rel','compiler_expr.c.rel','compiler_interrupt.c.rel','compiler_files.c.rel','compiler_io.c.rel'}
     imports={};defined=set();violations=[]
     inputs={ROOT/'build/zpascal.map',ROOT/'build/zpascal.bin',ROOT/'build/zpascal.zpl',Path(__file__).resolve()}
-    for target in ('optional_real_core','image_compiler','real_compiler','ide_paths','zpascal'):
+    for target in ('unit_runtime_core','image_compiler','real_compiler','ide_paths','zpascal'):
         for path in sorted((ROOT/'build/CMakeFiles'/(target+'.dir')).rglob('*.rel')):
             inputs.add(path)
             content=path.read_text();defs=set(re.findall(r'^S (\S+) Def',content,re.M))&cold

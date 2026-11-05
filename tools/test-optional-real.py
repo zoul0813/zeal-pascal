@@ -36,7 +36,7 @@ assert all(max(map(len,source.splitlines()))<=127 for _,source in CASES.values()
 
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 def session(target,cases,optional):
-    sym=n.symbols(target);kernel=n.kernel_symbols();key=sym['_key_read'];work=sym['_work'];build=sym['_build']
+    sym=n.symbols(target);count=n.code_banks(target);unit_core='_cc_units_write_object'in sym;kernel=n.kernel_symbols();key=sym['_key_read'];work=sym['_work'];build=sym['_build']
     labels=[];typed=lambda s:n.type_text(s,ticks=100000000)
     fixtures={f'{target}.{ext}':(ROOT/f'build/{target}.{ext}').read_bytes()for ext in ('bin','zpl')}
     fixtures.update({name+'.PAS':CASES[name][1]for name in cases})
@@ -45,10 +45,10 @@ def session(target,cases,optional):
         labels.append((label,address))
         return [n.ImageStop(address,target+'.bin'),'mmu','rb 0x4000 32',f'rb 0x{work:x} 140',
                 f'rb 0x{build:x} {n.BUILD_BYTES}',f"rb 0x{sym['_ram_result']:x} 128",
-                f"rb 0x{sym['_code_phase_pending']:x} 16",f"rb 0x{sym['_code_pages']:x} 16"]
+                f"rb 0x{sym['_code_phase_pending']:x} {count}",f"rb 0x{sym['_code_pages']:x} {count}"]
     labels.append(('ready',sym['_code_ready']))
     commands=['run 100000000']+n.program_launch(target)+['regs','mmu','rb 0x4000 32',
-        f"rb 0x{sym['_code_phase_pending']:x} 16",f"rb 0x{sym['_code_pages']:x} 16",'run 100000000']+typed('n')+['run 100000000']
+        f"rb 0x{sym['_code_phase_pending']:x} {count}",f"rb 0x{sym['_code_pages']:x} {count}",'run 100000000']+typed('n')+['run 100000000']
     for name in cases:
         commands+=typed('wH:/'+name+'.PAS\n')+['tap C']+probe(name+'-memory')
         commands+=['tap R']+probe(name+'-enter',sym['_ram_enter'])
@@ -66,7 +66,7 @@ def session(target,cases,optional):
     def checkpoint(command,response,directory):
         if command==f'rb 0x{build:x} {n.BUILD_BYTES}':
             mem=n.memory(response);observed['build']=bytes(mem.get(build+i,0)for i in range(n.BUILD_BYTES))
-        if command==f"rb 0x{sym['_code_pages']:x} 16":
+        if command==f"rb 0x{sym['_code_pages']:x} {count}":
             label=labels[observed['snapshot']][0];observed['snapshot']+=1
             if label.endswith('-memory')and observed['build'][4]!=1:
                 raise AssertionError('Memory compile did not produce a valid build at '+label)
@@ -86,8 +86,8 @@ def session(target,cases,optional):
             for stage in ('memory','saved','run'):
                 label=name+'-'+stage
                 checks[label+' returns to resident reader']=frames[label][1].startswith(f'{key:04x} ')and read(label,0x4000,32)==fixtures[target+'.bin'][:32]
-                checks[label+' no unready handles']=read(label,sym['_code_phase_pending'],16)==bytes([255])*16
-                checks[label+' compiler cache budget']=len(live(label))==(14 if optional else 15)
+                checks[label+' no unready handles']=read(label,sym['_code_phase_pending'],count)==bytes([255])*count
+                checks[label+' compiler cache budget']=len(live(label))==count-int(optional)-int(unit_core)
             checks[name+' valid Memory build']=read(name+'-memory',build+4,1)==b'\1'
             checks[name+' RAM run normal']=read(name+'-run',sym['_ram_result']+26,1)==b'\1'and read(name+'-run',sym['_ram_result']+28,1)==b'\0'
             checks[name+' child parks compiler/library pages']=len(live(name+'-enter'))==(10 if optional else 11)

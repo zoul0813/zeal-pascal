@@ -88,7 +88,7 @@ int app_main(void) {
     if(!ok)goto done;
     test_stage=3;
     author("H:/BADUNIT.PAS","H:/BADUNIT.ZPU",
-        "unit BadUnit;interface function F:Text;implementation function F:Text;begin end;end.",UNIT_UNSUPPORTED);
+        "unit BadUnit;interface procedure P(var X:Text);implementation procedure P(var X:Text);begin end;end.",UNIT_UNSUPPORTED);
     author("H:/BADUNIT.PAS","H:/BADUNIT.ZPU",
         "unit BadUnit;interface procedure P(X:Integer);implementation procedure P(X:Byte);begin end;end.",UNIT_INTERFACE);
     author("H:/BADUNIT.PAS","H:/BADUNIT.ZPU",
@@ -139,6 +139,7 @@ int app_main(void) {
     unsupported("var F:Text;","assign(F,'H:/X')");
     unsupported("var N:Integer;","N:=random(3)");
     unsupported("","inline($00)");unsupported("","randomize");unsupported("","clrscr");
+    unsupported("procedure Hidden;external $4000;","Hidden");
     unsupported("var A:Integer absolute $100;","A:=1");
     unsupported("","ConOutPtr:=0");unsupported("","CBreak:=true");
     unsupported("procedure Q(BufLen:Integer);begin end;\n","BufLen:=1");

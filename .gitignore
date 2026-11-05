@@ -182,3 +182,5 @@
 !/docs/ide-units.md
 !/docs/ide-units-evidence.json
 !/reviews/ide-units-v1.md
+!/tools/test-ide-units.py
+!/tools/test-ide-unit-failures.py

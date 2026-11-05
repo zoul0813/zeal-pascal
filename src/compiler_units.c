@@ -80,6 +80,12 @@ uint8_t cc_units_close(void) ROUTINES {
     if(!ok||!page_drop(owner.page)){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
     memset(&owner,0,sizeof(owner));cc.sources->unit_page=255;return 1;
 }
+/* A synchronous job's bitmap is the cleanup authority after the parser
+ * returns. Drop private aliases before that owner reclaims its scratch pages. */
+void cc_units_handoff_cleanup(void) ROUTINES {
+    if(owner.lifetime&&(compiler_owned[owner.page>>3]&(1u<<(owner.page&7))))
+        memset(&owner,0,sizeof(owner));
+}
 void cc_units_note(uint16_t kind,uint16_t site,uint16_t value) ROUTINES {
     if(!cc.sources->unit_mode||cc.suppress||cc.error->code)return;
     {uint16_t at=cc_unit_record(kind,site,value,0,0,0),tail;

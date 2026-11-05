@@ -152,15 +152,17 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
      * before finalization installs keyboard, hook and error-handler bindings. */
     if(!cc_real_runtime_finish())goto failed;
 #endif
+#ifdef ZP_UNITS_EXPERIMENT
+    /* Helpers inspect initial runtime state, including a CHN's empty prefix.
+     * Place CBreak after import/link peak RAM and before helper selection. */
+    if(!cc_disk_active(b)&&!cc_image_page(0))goto failed;
+    cc_put(RT_CBREAK-0x4000u,sources.unit_cbreak);
+#endif
     cc_params_finish();cc_random_finish();
     cc_file_engine_finish();cc_keyboard_finish();cc_interrupt_finish();
     cc_transfer_finish();cc_file_stream_finish();cc_hooks_finish();cc_console_finish();cc_file_finish();cc_error_finish();
     cc_unpack_finish();
     if(!options||options->kind!=COMPILE_CHAIN)cc_startup_finish();
-#ifdef ZP_UNITS_EXPERIMENT
-    if(!cc_disk_active(b)&&!cc_image_page(0))goto failed;
-    cc_put(RT_CBREAK-0x4000u,sources.unit_cbreak);
-#endif
     if(d->code||!cc_place_code())goto failed;
     if(!release_stages())goto failed;
     if(!cc_seal(s,options))goto failed;

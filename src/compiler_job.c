@@ -6,6 +6,12 @@
 #include "compiler_disk.h"
 #include "output_transport.h"
 #include <zos_errors.h>
+#include <zos_vfs.h>
+#ifdef ZP_UNITS_EXPERIMENT
+#include "compiler_units.h"
+#include "unit_output.h"
+#include "library.h"
+#endif
 
 /* The IDE is suspended for this synchronous invocation. Only captured source
  * descriptors and the final Build cross banks; neither needs a wire format. */
@@ -56,6 +62,59 @@ static uint8_t retain_sources(const Source *root,Build *b) {
     b->versions[4]=root->page==255?0:page_versions[root->page];
     return build_check(root,b);
 }
+#ifdef ZP_UNITS_EXPERIMENT
+static uint8_t unit_request(const Source *root,CompileFailure *failure) {
+    Source source;Build scratch;Diagnostic diagnostic;
+    int8_t fd=-1;uint8_t ok=0,primary,cleanup,reason;
+    memset(&scratch,0,sizeof(scratch));memset(scratch.pages,255,3);
+    scratch.map_page=scratch.sources.page=255;
+    strcpy(failure->path,root->path);output_job_begin(1);
+    if(!parent_poll()||!capture_source(root,&source)) {
+        if(parent_interrupted){failure->diagnostic.code=COMPILE_INTERRUPTED;failure->interrupted=parent_interrupted;}
+        goto done;
+    }
+    compiler_allocating=COMPILER_ALLOC_WORKER;
+    if(source.page==255&&!read_block(&source,root->path,&failure->diagnostic)) {
+        if(!failure->diagnostic.code)failure->diagnostic.code=90;
+        goto done;
+    }
+    if(!code_phase_unit_io())goto done;
+    fd=unit_output_begin(root);
+    if(!code_phase_unit_io_release()||fd<0)goto done;
+    ok=compile_unit(&source,&scratch,&diagnostic,fd,1);
+    if(!ok) {
+        failure->diagnostic=diagnostic;
+        if(diagnostic.code==COMPILE_INTERRUPTED)failure->interrupted=compile_interrupt_reason();
+        else strcpy(failure->path,compile_error_path());
+    }
+done:
+    if(fd>=0)ok=output_finish(fd,ok);
+    primary=platform_error;
+    build_close(&scratch);
+    cc_units_handoff_cleanup();
+    cleanup=compiler_resources_ready();
+    if(!cleanup){ok=0;failure->diagnostic.code=COMPILE_PLATFORM_FAILURE;}
+    else platform_error=primary;
+    primary=platform_error;
+    if(code_phase_unit_io()) {
+        if(!ok)platform_error=primary;
+        if(ok)ok=unit_output_publish(root,failure->path);
+        reason=output_interrupt_reason();primary=platform_error;
+        output_job_end();
+        if(!unit_output_discard()){ok=0;failure->diagnostic.code=COMPILE_PLATFORM_FAILURE;}
+        else platform_error=primary;
+        if(!code_phase_unit_io_release()){ok=0;failure->diagnostic.code=COMPILE_PLATFORM_FAILURE;}
+        if(!ok&&reason&&!platform_error&&
+           (!failure->diagnostic.code||failure->diagnostic.code==COMPILE_PLATFORM_FAILURE)) {
+            failure->diagnostic.code=COMPILE_INTERRUPTED;failure->interrupted=reason;
+        }
+    } else {ok=0;failure->diagnostic.code=COMPILE_PLATFORM_FAILURE;}
+    output_job_end();
+    if(!ok&&!failure->diagnostic.code)failure->diagnostic.code=COMPILE_PLATFORM_FAILURE;
+    if(!ok&&failure->diagnostic.code==COMPILE_PLATFORM_FAILURE&&!platform_error)platform_error=ERR_FAILURE;
+    return ok;
+}
+#endif
 uint8_t compile_request(const Source *root,Build *b,CompileFailure *failure,
     uint8_t mode,const CompileOptions *options) {
     Source source;Build built;Diagnostic diagnostic;
@@ -64,6 +123,9 @@ uint8_t compile_request(const Source *root,Build *b,CompileFailure *failure,
     memset(failure,0,sizeof(*failure));memset(b,0,sizeof(*b));memset(b->pages,255,3);b->map_page=b->sources.page=255;
     platform_error=0;parent_interrupted=0;
     if(!compiler_resources_ready()||!cancel_prepared_build())goto platform;
+#ifdef ZP_UNITS_EXPERIMENT
+    if(mode==COMPILER_UNIT_MODE)return unit_request(root,failure);
+#endif
     if(options)effective=*options;
     if(mode>2||(mode==2&&(!options||effective.kind!=COMPILE_CHAIN))||
        (mode!=2&&effective.kind!=COMPILE_PROGRAM)||effective.end<0xcfffu||effective.end>0xfbffu||
@@ -94,6 +156,9 @@ uint8_t compile_request(const Source *root,Build *b,CompileFailure *failure,
     ok=compile_project(&source,&built,&diagnostic,1,&effective);
     compiler_disk_requested=0;
     compiler_invocation=0;
+#ifdef ZP_UNITS_EXPERIMENT
+    cc_units_handoff_cleanup();
+#endif
     if(!ok) {
         if(diagnostic.code==COMPILE_INTERRUPTED) {
             failure->diagnostic=diagnostic;failure->interrupted=compile_interrupt_reason();

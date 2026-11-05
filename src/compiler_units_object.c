@@ -282,8 +282,8 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
     return !cc.error->code;
 }
 uint16_t cc_units_load_object(const char *name,const char *path) ROUTINES {
-    uint16_t module=0,at=0,n,i,seal,source_id;uint8_t buffer[64],page,ok=1;
-    int8_t fd;Source loaded;Diagnostic diagnostic;char source_path[128],canonical[128];uint32_t checksum,version;
+    uint16_t module=0,at=0,n,i,seal;uint8_t buffer[64],page,ok=1;
+    int8_t fd;uint32_t version;
     fd=output_open_path(path,O_RDONLY);if(fd<0){cc_fail(UNIT_MISSING);return 0;}
     module=cc_unit_owned_page();if(!module){output_finish(fd,0);return 0;}page=(uint8_t)cc_unit_word(module+2);
     for(;;) {
@@ -296,24 +296,5 @@ uint16_t cc_units_load_object(const char *name,const char *path) ROUTINES {
     cc_unit_put(seal+6,(uint16_t)version);cc_unit_put(seal+8,(uint16_t)(version>>16));
     cc_unit_put(module+8,cc_unit_word(UH_MODULES)+1);
     if(!metadata_valid(module,name)){cc_fail(UNIT_FORMAT);return 0;}
-    n=cc_unit_module_byte(module,19);at=ZPU_HEADER_BYTES+cc_unit_module_byte(module,18);
-    for(i=0;i<n;++i)source_path[i]=(char)cc_unit_module_byte(module,at+i);source_path[n]=0;
-    if(!sources_canonical(source_path,canonical)||strcmp(source_path,canonical)){cc_fail(UNIT_FORMAT);return 0;}
-    if(sources_find(&cc.image->sources,source_path)>=0){cc_fail(UNIT_FORMAT);return 0;}
-    if(!read_block(&loaded,source_path,&diagnostic)) {
-        sources_release(&cc.image->sources,&loaded);cc_fail(UNIT_STALE);return 0;
-    }
-    checksum=unit_source_fingerprint(&loaded);
-    if(loaded.length!=cc_unit_module_word(module,16)||checksum!=module_long(module,12)) {
-        sources_release(&cc.image->sources,&loaded);cc_fail(UNIT_STALE);return 0;
-    }
-    /* Imported signatures/maps carry their own positions; parser lookup never
-     * borrows unit text. Keep the descriptor and fingerprint, not a second
-     * full source buffer. Error navigation reloads the verified disk source. */
-    ok=sources_release(&cc.image->sources,&loaded);
-    loaded.page=255;source_id=(uint16_t)sources_reference(&cc.image->sources,&loaded);
-    if(!ok||source_id>=255||!sources_fingerprint(&cc.image->sources,(uint8_t)source_id,checksum)) {
-        cc_fail(99);return 0;
-    }
-    cc_unit_put(module+6,source_id);cc_unit_put(UH_MODULES,cc_unit_word(UH_MODULES)+1);return module;
+    return module;
 }

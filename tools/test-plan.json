@@ -66,7 +66,12 @@
     "tools/test-ide-sources.py --messages",
     "tools/test-options.py --paths",
     "tools/test-runtime-layout.py @params",
-    "tools/test-review-ui.py"
+    "tools/test-review-ui.py",
+    "tools/test-units.py",
+    "tools/test-unit-real.py",
+    "tools/test-ide-units.py",
+    "tools/test-ide-unit-failures.py",
+    "tools/test-optional-corpus.py"
   ],
   "redundant": [
     "tools/test-native.py --core-only",

@@ -38,6 +38,7 @@ uint16_t cc_units_load(const char *name,const char *path) ROUTINES;
 uint8_t cc_units_requested(void) ROUTINES;
 uint8_t cc_units_begin(void) ROUTINES;
 uint8_t cc_units_close(void) ROUTINES;
+void cc_units_handoff_cleanup(void) ROUTINES;
 void cc_units_header(void) ROUTINES;
 void cc_units_interface(void) ROUTINES;
 void cc_units_imports(void) ROUTINES;

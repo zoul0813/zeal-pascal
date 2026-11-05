@@ -19,7 +19,7 @@ int main(void) {
     banks=0;
     if(expected_fd>=0) {
         check(read(expected_fd,library_header,&bytes)==0&&bytes==6);
-        banks=library_header[5]; check(banks>0&&banks<=16); check(close(expected_fd)==0);
+        banks=library_header[5]; check(banks>0&&banks<=17); check(close(expected_fd)==0);
     }
     /* The directory includes disk-only pages. Do not deliberately give a
      * working IDE enough pages to enter its input loop in this failure test. */
