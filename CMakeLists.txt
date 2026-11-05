@@ -743,3 +743,18 @@ foreach(native_target IN LISTS native_targets)
         endif()
     endif()
 endforeach()
+
+# Isolated symbolic fragment-link proof; no production compiler/parser wiring.
+add_executable(zfragmenttest tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
+    src/compiler_fragments.c src/native.asm tests/native/fragments.c
+    tests/native/fragments.asm tests/native/machine.asm)
+target_include_directories(zfragmenttest PRIVATE src)
+target_compile_options(zfragmenttest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+set_source_files_properties(tests/native/fragments.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;TEST;--constseg;TEST;--dataseg;TEST_DATA")
+set_property(SOURCE src/compiler_fragments.c tests/native/fragments.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/compiler_fragments.h ${CMAKE_SOURCE_DIR}/src/zp.h)
+target_link_options(zfragmenttest PRIVATE "SHELL:-b _HOME=0x7000" "SHELL:-b _TEST=0x8000" "SHELL:-b _TEST_DATA=0xc000")
+zos_add_outputs(zfragmenttest)
+add_custom_target(fragment_toolchain
+    COMMAND ${CMAKE_C_COMPILER} --version VERBATIM)

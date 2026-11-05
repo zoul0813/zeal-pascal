@@ -138,3 +138,9 @@
 !/reviews/compact-file-access-v1.md
 
 !/tools/test-low-file.py
+
+# Isolated symbolic-fragment linking proof.
+!/tools/test-fragments.py
+!/docs/unit-fragment-experiment.md
+!/docs/unit-fragment-evidence.json
+!/reviews/unit-fragments-v1.md
