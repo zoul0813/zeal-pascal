@@ -104,6 +104,8 @@
 !/reviews/tp3-catchup-kernel-evidence.txt
 !/reviews/tp3-catchup-verification.txt
 
+# Measure Lab working dataset.
+/examples/measure/values.dat
 
 # Operation-scoped disk-handle review.
 !/reviews/disk-handles-20261104.md

@@ -1,44 +1,70 @@
 {
+  "compiler_commit": "1b9c096e5b8c5ec09f391fd1d103ec525d463629",
+  "compiler_sources_sha256": "433fb9abe8a7980d3864dc05684ff2abfc13c000f58a83bb80224cf24a7fabb2",
   "format": "Native Zeal executable; unchanged compiler COM image named .bin",
   "build_command": "zde --no-tty cmake --target zexampletest_bin",
   "verification": "python3 tools/test-examples.py --package",
-  "runtime_sha256": "7cdbcd73378e0a31ab9382ac1a808b03744f2ffbfab9bc8f2d2fd38e5a416727",
+  "runtime_sha256": "1da9d420f5598640ed57fa37b099faf09c76fa60dbae31a212b1b341aadf53a3",
   "programs": {
+    "calc/calc.bin": {
+      "source": "calc/calc.pas",
+      "source_sha256": "08b1a4aa3b7325d2b6ab0dbc54b423131680e9ef8a164ce426d1b812b657683b",
+      "binary_sha256": "2560726ff4621f94ab3982579d1937087035e47bb76918f4ff179aa4df7ec9f1",
+      "binary_bytes": 41005
+    },
     "concord/concord.bin": {
       "source": "concord/concord.pas",
-      "source_sha256": "a93b2e91f5b6fa794af077195388c36d9c9ca2a49462e108e45df8ffda4eae9e",
-      "binary_sha256": "b8a1531f59790d08de3f70848a7f9937361fb7234fc620a3b35ba212d46b0332",
-      "binary_bytes": 39779
+      "source_sha256": "3a62609b8f8aea60eee5e993ddc4c81c0fbf7ae30d75d4f6ee24ac53aa3c066f",
+      "binary_sha256": "e5736775e3d3912a2bf074c2da6ae95321e69b5ded109a9c4018a208c0b3fab3",
+      "binary_bytes": 39383
     },
     "life/life.bin": {
       "source": "life/life.pas",
-      "source_sha256": "e988cf8b56d2a1ce030361f45c041a42b8aafb7a5d5214382f41ea9576064f03",
-      "binary_sha256": "d2f5b80d9a973fcdcf70c89014d1bc4aa1f942dbc7e170e8382046a830a97c50",
-      "binary_bytes": 37136
+      "source_sha256": "f64c4ac03419423fed44c870585163506aeb6de0180c7257eb8817d24e1bdaf7",
+      "binary_sha256": "488dd1dd63e884a66118a2650620a575eeea47a3faa1bf128d5943ffe68d202e",
+      "binary_bytes": 36571
     },
     "lighthouse/lighthouse.bin": {
       "source": "lighthouse/lighthouse.pas",
-      "source_sha256": "ea593d81f47ba104e8b1d5fdcb1e97d45a8a413824a3b2739b4315142227d70d",
-      "binary_sha256": "d6b812303c9a41bc256cdd6b476e01f78b8ef93e7ee7af1c75e625d7e74b2b26",
-      "binary_bytes": 38382
+      "source_sha256": "aaf3d5efb49142c6b6a4faeb079c8d9514ad13bb37218021e8398d20eacf9aea",
+      "binary_sha256": "639cc65360919fcba79ef78ec91b645e3cf464d3b4056d8321a3cad8a4147832",
+      "binary_bytes": 44070
     },
     "loan/loan.bin": {
       "source": "loan/loan.pas",
-      "source_sha256": "22b9330902d80d2032a847c6b46bc2980f27368734fa8693e934280fec6971e6",
-      "binary_sha256": "114d4a94bed6c7a195b552617306faff5bfb0759488a7e36602f821fe126c7d2",
-      "binary_bytes": 40186
+      "source_sha256": "05e3715e2f7bb810a88bc977f98f891523bf4615c7fd9100d21aaba541cccc5e",
+      "binary_sha256": "b3b8c9cc068215f75fed9dcd5287019e710cf5c16fca7793de7990654d3f30e3",
+      "binary_bytes": 39551
+    },
+    "measure/measure.bin": {
+      "source": "measure/measure.pas",
+      "source_sha256": "0a30c67d974dc1a6f7a52c6502d61bd3341a90d509625af7e1da6d28e5eb2a90",
+      "binary_sha256": "8f1876702d195f984f9b300e50683763715a383170d1a91b931c9d8b55826b15",
+      "binary_bytes": 41557
+    },
+    "measure/stats.bin": {
+      "source": "measure/stats.pas",
+      "source_sha256": "c4aa1240c49b03729a30e543279e7053b16cda1a3158c5f73c9c2e2e42d55546",
+      "binary_sha256": "84ed3041a975df9267bd4b9860b6c4ae33f8401a360f47664439c764c5517fa1",
+      "binary_bytes": 42034
     },
     "partsbin/partsbin.bin": {
       "source": "partsbin/partsbin.pas",
-      "source_sha256": "80dda07516f8c9cb96b728749578db6c3cb572c80f65fc4ce7759f5194c87c67",
-      "binary_sha256": "c2e7b42c3b5257d5eef466cd032fe227052f9ff921571b2c04ba6c2205f2ef4e",
-      "binary_bytes": 39179
+      "source_sha256": "58d7678b3ec666d7c65224dc777a827ecf444b9b807f247b838c12799b6e535b",
+      "binary_sha256": "5148e94d6d5ac6b246af2b1a821b2f5fa832209e09b3b349faaad4382e9986b5",
+      "binary_bytes": 39082
+    },
+    "queens/queens.bin": {
+      "source": "queens/queens.pas",
+      "source_sha256": "3ea1a2f49e2179d0f435f909cdfe28e8dbae9457fbd888edad1902a921262c55",
+      "binary_sha256": "d4fabfb148c1ea18094336ab8ff189da22082d5e8e974e5dd2a6952b90bfd391",
+      "binary_bytes": 35308
     },
     "tasks/tasks.bin": {
       "source": "tasks/tasks.pas",
-      "source_sha256": "7f72f520215dd6159692446681046dcf692de729c7402e53dff9f652497c2293",
-      "binary_sha256": "64dae9c7709469ac45aa43bc831a69b4e6d2357a98e6ef009da649012204532c",
-      "binary_bytes": 37566
+      "source_sha256": "9599acdd04183f8739502e9c92f1808de77953e1e3fcb0e688cad3242c8e2178",
+      "binary_sha256": "98851a23ff7a4942f6adc58becd17c57e6851045f383e05465e74038f3dc5193",
+      "binary_bytes": 37125
     }
   }
 }

@@ -55,7 +55,8 @@ second run. To repeat from scratch, back up or remove only the generated
 
 Use a writable TF or HostFS directory with free space. Updates are flushed but
 are not transactional or power-loss safe. This is an educational database;
-keep a backup of data you care about. Its typed-file header and record layout
+keep a backup of data you care about. The program explicitly closes the file
+on normal quit or Ctrl-Z at any prompt to finalize its typed record count. Its typed-file header and record layout
 belong to this native port; no CP/M file interchange is claimed.
 
 These are native Zeal programs in the port's current Turbo Pascal 3 dialect.
