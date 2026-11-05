@@ -89,8 +89,10 @@ _code_restore::                ; A=previous physical page
     out (0xf2),a
     ret
 _code_release::
+    ; The first deferred slot is zero-based5. Below six remaining slots no
+    ; deferred owner survives, and BANK5's phase loader may itself be freed.
     ld a,(_code_owned)
-    cp #14
+    cp #6
     jr c,release_loop
     ld a,(_code_phase_fd)
     bit 7,a

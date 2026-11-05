@@ -48,7 +48,7 @@ uint32_t page_lifetime(uint8_t p) {
 uint8_t pages_used(void) {
     uint8_t i,n=0; /* Parked compiler-phase slots own no physical page. */
     for(i=0;i<code_owned;++i)if(code_pages[i]!=255)++n;
-    for(i=CODE_PHASE_FIRST;i<code_owned;++i)if(code_phase_pending[i-CODE_PHASE_FIRST]!=255)++n;
+    for(i=0;i<code_owned;++i)if(code_phase_pending[i]!=255)++n;
     for(i=0;i<32;++i) if(ledger[i].role) ++n;
     return n;
 }

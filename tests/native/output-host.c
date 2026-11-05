@@ -122,7 +122,7 @@ zos_err_t exec(zos_exec_mode_t mode,const char *path,const char *args[],uint8_t 
     check(mode==EXEC_PRESERVE_PROGRAM&&!strcmp(path,target[0]));
     check(!build.valid&&build.map_page==255&&owned()==1);
     if(code_owned) {
-        unsigned i;for(i=CODE_PHASE_FIRST;i<code_owned;++i)check(code_pages[i]==255);
+        unsigned i;for(i=0;i<code_owned;++i)if(CODE_DEFERRED(i))check(code_pages[i]==255);
     }
     if(fault()||exec_error)return exec_error?exec_error:ERR_FAILURE;
     if(exec_corrupt_map)files[find(target[1])].bytes[exec_corrupt_map==1?0:build.map_length-1]^=1;
@@ -513,13 +513,13 @@ static void phase_prove(void) {
         page=code_pages[i];if(page==255)continue;
         check(page>=32&&page<64&&roles[page]==128);++n;
         for(j=0;j<i;++j)check(code_pages[j]!=page);
-        if(i<CODE_PHASE_FIRST)for(j=0;j<code_sizes[i];++j)check(memory[page][j]==(uint8_t)(i*19+j*7+3));
+        if(!CODE_DEFERRED(i))for(j=0;j<code_sizes[i];++j)check(memory[page][j]==(uint8_t)(i*19+j*7+3));
     }
-    for(i=CODE_PHASE_FIRST;i<code_owned;++i) {
-        page=code_phase_pending[i-CODE_PHASE_FIRST];if(page==255)continue;
+    for(i=0;i<code_owned;++i) {
+        page=code_phase_pending[i];if(page==255)continue;
         check(page>=32&&page<64&&roles[page]==128&&code_pages[i]==255);++n;
         for(j=0;j<code_owned;++j)check(code_pages[j]!=page);
-        for(j=CODE_PHASE_FIRST;j<i;++j)check(code_phase_pending[j-CODE_PHASE_FIRST]!=page);
+        for(j=0;j<i;++j)check(code_phase_pending[j]!=page);
     }
     check(phase_owned()==n&&owned()==1&&!memcmp(&source,&before,sizeof(source))&&
           !memcmp(memory[source.page],fresh,sizeof(fresh))&&equals("T:/ZPKEEP/FOREIGN",(const uint8_t*)"keep",4));
@@ -544,8 +544,8 @@ static void phase_setup(void) {
 static void phase_cleanup(void) {
     unsigned i;fail_at=0;phase_free_failure=-1;allocation_failure=0;output_job_end();
     phase_prove();
-    for(i=CODE_PHASE_FIRST;i<code_owned;++i)if(code_phase_pending[i-CODE_PHASE_FIRST]!=255) {
-        check(!pfree(code_phase_pending[i-CODE_PHASE_FIRST]));code_phase_pending[i-CODE_PHASE_FIRST]=255;
+    for(i=0;i<code_owned;++i)if(code_phase_pending[i]!=255) {
+        check(!pfree(code_phase_pending[i]));code_phase_pending[i]=255;
     }
     for(i=0;i<code_owned;++i)if(code_pages[i]!=255) {check(!pfree(code_pages[i]));code_pages[i]=255;}
     code_owned=0;
@@ -681,12 +681,59 @@ static void late_failures(void) {
           !groups.late.references&&cc.hook_output_calls==parent&&cc.emitted==0xbff3);
     check((cc_code_get(parent)|((uint16_t)cc_code_get(parent+1)<<8))==parent);group_cleanup();
 }
+/* Host model of the native terminal release entry; native acceptance checks
+ * the actual assembly separately. It never borrows another page's owner. */
+void code_release(void) {
+    if(code_owned>CODE_EXPRESSIONS&&code_phase_fd>=0&&!code_phase_park())return;
+    while(code_owned) {
+        uint8_t p=code_pages[code_owned-1];
+        if(p!=255&&pfree(p))return;
+        --code_owned;
+    }
+    if(code_phase_fd>=0){int8_t fd=code_phase_fd;code_phase_fd=-1;close(fd);}
+}
+static void release_failures(void) {
+    unsigned i;uint8_t failed;
+    for(i=0;i<code_required;++i) {
+        phase_setup();failed=code_pages[i];phase_free_failure=failed;
+        code_release();check(code_owned==(CODE_DEFERRED(i)?code_required:i+1)&&code_phase_fd>=0&&roles[failed]==128);
+        phase_free_failure=-1;code_release();check(!code_owned&&code_phase_fd<0&&!phase_owned());
+    }
+    /* A failed read/free leaves an unready capability for terminal retry. */
+    phase_setup();failed=code_pages[CODE_EXPRESSIONS];check(code_phase_park());
+    files[fds[(uint8_t)code_phase_fd].file].length=1;phase_free_failure=failed;
+    check(!code_phase_restore()&&code_phase_pending[CODE_EXPRESSIONS]==failed);
+    code_release();check(code_owned==15&&code_phase_pending[CODE_EXPRESSIONS]==failed);
+    phase_free_failure=-1;code_release();check(!code_owned&&!phase_owned()&&code_phase_fd<0);
+}
+static void initial_library(void) {
+    unsigned i,total,iteration;int f;
+    /* phase_setup authors independently patterned payloads and size vectors. */
+    for(iteration=0;;++iteration) {
+        phase_setup();phase_cleanup();f=find("T:/PHASE.ZPL");
+        memcpy(files[f].bytes,"ZPL1",4);files[f].bytes[4]=2;files[f].bytes[5]=code_required;
+        files[f].bytes[6]=16+2*code_required;files[f].bytes[7]=0;
+        for(i=0;i<4;++i){files[f].bytes[8+i]=(uint8_t)(files[f].length>>(8*i));files[f].bytes[12+i]=code_version[i];}
+        for(i=0;i<code_required;++i){files[f].bytes[16+2*i]=(uint8_t)code_sizes[i];files[f].bytes[17+2*i]=(uint8_t)(code_sizes[i]>>8);}
+        events=0;fail_at=iteration;
+        if(!iteration) {
+            check(code_load("T:/PHASE.ZPL")&&code_owned==15&&phase_owned()==11);total=events;
+            phase_prove();
+            for(i=0;i<code_owned;++i)check(CODE_DEFERRED(i)?code_pages[i]==255:code_pages[i]!=255);
+            check(code_phase_restore()&&phase_owned()==15);phase_prove();
+        } else {
+            check(!code_load("T:/PHASE.ZPL")&&boot_error&&!code_owned&&code_phase_fd<0&&!phase_owned()&&!opened());
+        }
+        fail_at=0;code_release();check(!code_owned&&code_phase_fd<0&&!phase_owned()&&!opened());
+        if(iteration==total)break;
+    }
+}
 static void phase_cache(void) {
     unsigned i,total,at;int f;uint8_t status,failed_page;
-    phase_setup();check(code_phase_park()&&phase_owned()==13&&code_pages[13]==255&&code_pages[14]==255);
+    phase_setup();check(code_phase_park()&&phase_owned()==11&&code_pages[13]==255&&code_pages[14]==255);
     events=0;check(code_phase_restore()&&phase_owned()==15);total=events;
     at=events;check(code_phase_restore()&&events==at&&!polls);
-    for(i=13;i<15;++i) {
+    for(i=0;i<code_required;++i)if(CODE_DEFERRED(i)) {
         unsigned j;for(j=0;j<code_sizes[i];++j)check(memory[code_pages[i]][j]==(uint8_t)(i*19+j*7+3));
     }
     phase_cleanup();
@@ -696,11 +743,11 @@ static void phase_cache(void) {
         fail_at=0;check(code_phase_restore()&&phase_owned()==15);phase_cleanup();
     }
     phase_setup();check(code_phase_park());shorts=1;
-    check(!code_phase_restore()&&phase_owned()==13&&boot_error==ERR_ENTRY_CORRUPTED&&mapped_page==32);
+    check(!code_phase_restore()&&phase_owned()==11&&boot_error==ERR_ENTRY_CORRUPTED&&mapped_page==32);
     shorts=0;check(code_phase_restore()&&phase_owned()==15&&!polls);phase_cleanup();
     for(i=3;i<=4;++i) {
         phase_setup();check(code_phase_park());bad_io=(uint8_t)i;fail_read=1;reads=0;
-        check(!code_phase_restore()&&platform_error==ERR_ENTRY_CORRUPTED&&phase_owned()==13);
+        check(!code_phase_restore()&&platform_error==ERR_ENTRY_CORRUPTED&&phase_owned()==11);
         bad_io=fail_read=0;check(code_phase_restore()&&phase_owned()==15);phase_cleanup();
     }
     /* Payload bytes are trusted; a successful read is not rehashed. */
@@ -710,24 +757,28 @@ static void phase_cache(void) {
     phase_setup();f=fds[(uint8_t)code_phase_fd].file;
     strcpy(files[f].path,"T:/ORIGINAL.ZPL");seed("T:/PHASE.ZPL",(const uint8_t*)"wrong",5);
     check(code_phase_park()&&code_phase_restore()&&equals("T:/PHASE.ZPL",(const uint8_t*)"wrong",5));phase_cleanup();
-    phase_setup();failed_page=code_pages[CODE_PHASE_FIRST];check(code_phase_park());f=fds[(uint8_t)code_phase_fd].file;
+    phase_setup();failed_page=code_pages[CODE_COMPILE];check(code_phase_park());f=fds[(uint8_t)code_phase_fd].file;
     at=files[f].length;files[f].length=16+2*code_required+13*17;phase_free_failure=failed_page;
-    check(!code_phase_restore()&&boot_error==ERR_ENTRY_CORRUPTED&&code_pages[13]==255&&code_phase_pending[0]==failed_page&&phase_owned()==14);
+    check(!code_phase_restore()&&boot_error==ERR_ENTRY_CORRUPTED&&code_pages[13]==255&&code_phase_pending[CODE_COMPILE]==failed_page&&phase_owned()==14);
     i=reads;check(!code_phase_restore()&&reads>i&&boot_error==ERR_ENTRY_CORRUPTED&&phase_owned()==14);
     phase_prove();files[f].length=at;phase_free_failure=-1;
     check(code_phase_restore()&&phase_owned()==15);phase_cleanup();
-    phase_setup();phase_free_failure=code_pages[CODE_PHASE_FIRST+1];check(!code_phase_park()&&platform_error&&phase_owned()==14);
+    phase_setup();phase_free_failure=code_pages[CODE_TRANSFER];check(!code_phase_park()&&platform_error&&phase_owned()==12);
     phase_free_failure=-1;code_phase_return();check(platform_error&&phase_owned()==15);phase_cleanup();
     phase_setup();check(code_phase_park());f=fds[(uint8_t)code_phase_fd].file;
     files[f].length=1;
-    check(!code_phase_restore()&&boot_error==ERR_ENTRY_CORRUPTED&&phase_owned()==13);phase_cleanup();
+    check(!code_phase_restore()&&boot_error==ERR_ENTRY_CORRUPTED&&phase_owned()==11);phase_cleanup();
     phase_setup();check(code_phase_park());check(!close(code_phase_fd));code_phase_fd=-1;
-    check(!code_phase_restore()&&platform_error==ERR_INVALID_FILEDEV&&phase_owned()==13);phase_cleanup();
+    check(!code_phase_restore()&&platform_error==ERR_INVALID_FILEDEV&&phase_owned()==11);phase_cleanup();
+    /* Execute from a cold IDE must not warm compiler-only pages. */
+    phase_setup();check(code_phase_park());status=255;
+    check(!execute_native(target[0],&status)&&status==7&&phase_owned()==11);
+    check(code_phase_restore()&&phase_owned()==15);phase_cleanup();
     /* Restoring an idle compiler cache cannot change a completed child's
      * native result/status or its primary platform error. */
     phase_setup();status=255;exec_corrupt_phase=1;platform_error=0;
     strcpy((char*)console_scratch,target[0]);
-    check(!execute_native((char*)console_scratch,&status)&&status==7&&!platform_error&&boot_error==ERR_ENTRY_CORRUPTED&&phase_owned()==13);
+    check(!execute_native((char*)console_scratch,&status)&&status==7&&!platform_error&&boot_error==ERR_ENTRY_CORRUPTED&&phase_owned()==11);
     f=fds[(uint8_t)code_phase_fd].file;files[f].length=16+2*code_required+13*17+300+417;
     check(code_phase_restore());phase_cleanup();
     phase_setup();status=255;exec_error=ERR_NOT_SUPPORTED;
@@ -790,6 +841,8 @@ int main(void) {
     late_spool();
     late_failures();
     phase_cache();
+    initial_library();
+    release_failures();
     printf("PASS: %u output assertions across %u publication/fault/cancellation scenarios\n",assertions,scenarios);
     return 0;
 }

@@ -155,3 +155,10 @@
 # Private implementation and declaration-shadowing acceptance.
 !/docs/private-unit-evidence.json
 !/reviews/private-units-v1.md
+
+# In-progress startup RAM optimization and qualification.
+!/tools/test-startup-pages.py
+!/tools/check-startup-banks.py
+!/docs/startup-pages-experiment.md
+!/docs/startup-pages-evidence.json
+!/reviews/startup-pages-v1.md

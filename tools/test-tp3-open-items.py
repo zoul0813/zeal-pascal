@@ -52,8 +52,10 @@ def main():
     if len(observed) != 2:
         raise RuntimeError('native startup/reference checkpoint failed; see '+str(n.RUN))
     pages = read(observed[0], sym['_code_pages'], 16)
-    checks['startup loads exactly thirteen distinct code banks'] = (
-        len(set(pages[:13])) == 13 and all(32 <= p < 64 for p in pages[:13]) and pages[13:bank_count] == b'\xff'*(bank_count-13))
+    checks['startup loads exactly eleven distinct code banks'] = (
+        len({p for p in pages[:bank_count] if p != 255}) == 11
+        and all((p == 255 if i in {5,9} or i >= 13 else 32 <= p < 64)
+                for i,p in enumerate(pages[:bank_count])))
     checks['compiler phases share fifteen total library banks'] = bank_count == 15
     result = read(observed[1], sym['_ram_result'], 128)
     checks['reference produces the genuine native divide-by-zero result'] = result[26:29] == bytes([3, 2, 2])

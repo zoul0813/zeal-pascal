@@ -3,30 +3,30 @@
 #include <zos_vfs.h>
 
 int8_t code_phase_fd=-1;
-uint8_t code_phase_pending[CODE_BANK_LIMIT-CODE_PHASE_FIRST];
-static uint8_t valid;
-static uint32_t offsets[CODE_BANK_LIMIT-CODE_PHASE_FIRST];
+uint8_t code_phase_pending[CODE_BANK_LIMIT]={
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255
+};
+static uint16_t valid,resume_mask;
 
 /* Keep the original open handle and declared bank offsets for later reads. */
 void code_phase_bind(int8_t fd) SOURCE_BLOCK_CALL {
     uint8_t bank,index;
-    uint32_t at=16u+2u*code_required;
-    valid=0;
+    valid=resume_mask=0;
     memset(code_phase_pending,255,sizeof(code_phase_pending));
     for(bank=0;bank<code_required;++bank) {
-        if(bank>=CODE_PHASE_FIRST) {
-            index=bank-CODE_PHASE_FIRST;offsets[index]=at;
-            if(code_pages[bank]!=255)valid|=(uint8_t)(1u<<index);
+        if(CODE_DEFERRED(bank)) {
+            index=bank;
+            if(code_pages[bank]!=255)valid|=(uint16_t)(1u<<index);
         }
-        at+=code_sizes[bank];
     }
     code_phase_fd=fd;
 }
 static uint8_t failure(uint8_t error) {platform_error=boot_error=error;return 0;}
 uint8_t code_phase_park(void) SOURCE_BLOCK_CALL {
     uint8_t bank,error,index,page;
-    for(bank=CODE_PHASE_FIRST;bank<code_owned;++bank) {
-        index=bank-CODE_PHASE_FIRST;page=code_phase_pending[index];
+    resume_mask=valid;
+    for(bank=0;bank<code_owned;++bank)if(CODE_DEFERRED(bank)) {
+        index=bank;page=code_phase_pending[index];
         if(page!=255) {
             error=pfree(page);if(error)return failure(error);
             code_phase_pending[index]=255;
@@ -34,18 +34,25 @@ uint8_t code_phase_park(void) SOURCE_BLOCK_CALL {
         page=code_pages[bank];
         if(page!=255) {
             error=pfree(page);if(error)return failure(error);
-            code_pages[bank]=255;valid&=(uint8_t)~(1u<<index);
+            code_pages[bank]=255;valid&=(uint16_t)~(1u<<index);
         }
     }
     return 1;
 }
-uint8_t code_phase_restore(void) SOURCE_BLOCK_CALL {
+/* The immutable size directory already owns these extents; avoid retaining
+ * a second array of offsets in scarce page3 data. At most five seeks use it. */
+static uint32_t bank_offset(uint8_t bank) {
+    uint32_t at=16u+2u*code_required;uint8_t i;
+    for(i=0;i<bank;++i)at+=code_sizes[i];
+    return at;
+}
+static uint8_t restore(uint16_t wanted) {
     uint8_t bank,index,page,error;
     int32_t seek_to;
-    for(bank=CODE_PHASE_FIRST;bank<code_owned;++bank) {
-        index=bank-CODE_PHASE_FIRST;
+    for(bank=0;bank<code_owned;++bank)if(CODE_DEFERRED(bank)&&(wanted&(1u<<bank))) {
+        index=bank;
         if((valid&(1u<<index))&&code_pages[bank]!=255)continue;
-        valid&=(uint8_t)~(1u<<index);
+        valid&=(uint16_t)~(1u<<index);
         if(code_phase_fd<0)return failure(ERR_INVALID_FILEDEV);
         if(code_pages[bank]!=255)return failure(ERR_INVALID_PARAMETER);
         page=code_phase_pending[index];
@@ -54,8 +61,8 @@ uint8_t code_phase_restore(void) SOURCE_BLOCK_CALL {
             code_phase_pending[index]=page;
         }
         if(page<32||page>=64)return failure(ERR_INVALID_PARAMETER);
-        seek_to=(int32_t)offsets[index];error=seek(code_phase_fd,&seek_to,SEEK_SET);
-        if(!error&&(uint32_t)seek_to!=offsets[index])error=ERR_ENTRY_CORRUPTED;
+        seek_to=(int32_t)bank_offset(bank);error=seek(code_phase_fd,&seek_to,SEEK_SET);
+        if(!error&&(uint32_t)seek_to!=bank_offset(bank))error=ERR_ENTRY_CORRUPTED;
         if(!error&&!code_read_bank(code_phase_fd,page,code_sizes[bank]))error=boot_error;
         if(error) {
             /* A failed free retains an unready page for retry/terminal release.
@@ -64,14 +71,15 @@ uint8_t code_phase_restore(void) SOURCE_BLOCK_CALL {
             return failure(error);
         }
         code_pages[bank]=page;code_phase_pending[index]=255;
-        valid|=(uint8_t)(1u<<index);
+        valid|=(uint16_t)(1u<<index);
     }
     platform_error=boot_error=0;
     return 1;
 }
+uint8_t code_phase_restore(void) SOURCE_BLOCK_CALL {return restore(65535u);}
 void code_phase_return(void) SOURCE_BLOCK_CALL {
     uint8_t primary=platform_error;
-    code_phase_restore();platform_error=primary;
+    restore(resume_mask);platform_error=primary;
 }
 uint8_t execute_native(const char *path,uint8_t *status) SOURCE_BLOCK_CALL {
     char owned[128];uint8_t error;

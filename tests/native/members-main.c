@@ -5,11 +5,12 @@
 #include "file_runtime.h"
 
 volatile uint16_t test_passed,test_failed,test_stage;
-volatile uint8_t test_done;
+volatile uint8_t test_done,release_original;
 volatile uint16_t test_failures[64],test_index;
 Source s;Build b;Diagnostic d;
 void test_complete(void);
 void test_phase_restore_marker(void) NATIVE;
+void test_release_retry(void) NATIVE;
 
 #include "late-cases.h"
 static void group_code(uint16_t bytes,uint8_t value,uint16_t maps,uint16_t relocs) {
@@ -49,7 +50,7 @@ static void group_cases(void) {
           record.parent_group==0&&record.parent_member==0&&record.owner==1&&record.parent==1&&record.closed);
     check(cc_group_member_get(&groups,1,&id,&ordinal,&member)&&id==0&&ordinal==0&&member.offset==144&&
           member.origin==0xbff0&&member.bytes==56&&member.entry==0xc020&&member.maps==2&&member.relocs==2);
-    check(cc_group_member_get(&groups,255,&id,&ordinal,&member)&&id==0&&ordinal==1&&member.offset==288&&member.bytes==24);
+    check(cc_group_member_get(&groups,255,&id,&ordinal,&member)&&id==0&&ordinal==1&&member.offset==248&&member.bytes==24);
     check(groups.store.length==308);
     for(i=0;i<56;++i) {
         uint16_t p=0xbff0u+i;
@@ -69,32 +70,43 @@ static void group_cases(void) {
 }
 static void phase_cases(void) {
     uint8_t machine_before[7],machine_after[7],owned=pages_used(),status=255,bad=0,ok,bank;
-    uint8_t phases=code_required-CODE_PHASE_FIRST;
+    uint8_t phases=0,held[32],count=0,page;
     Source original;Build prior;
-    char path[]="H:/PHASE.PAS",text[]="begin end.";
+    for(bank=0;bank<code_required;++bank)if(CODE_DEFERRED(bank))++phases;
+    char path[]="H:/PHASE.PAS",text[]="begin end.",saved[]="H:/PHASE.COM";
     int8_t fd;
     test_machine(machine_before);fd=open("H:/PHASE.BAD",O_RDONLY);
     if(fd>=0) {bad=1;check(!close(fd));}
     check(source_new(&s,path));if(s.page==255)return;
     check(source_replace(&s,0,0,(const uint8_t*)text,10));original=s;
     check(code_capture(0));
-    check(code_required>CODE_PHASE_FIRST&&code_required<=CODE_BANK_LIMIT);
+    check(code_required>CODE_COMPILE&&code_required<=CODE_BANK_LIMIT);
     check(code_phase_fd>=0&&code_phase_park());
-    for(bank=CODE_PHASE_FIRST;bank<code_required;++bank)
-        check(code_pages[bank]==255&&code_phase_pending[bank-CODE_PHASE_FIRST]==255);
+    for(bank=0;bank<code_required;++bank)if(CODE_DEFERRED(bank))
+        check(code_pages[bank]==255&&code_phase_pending[bank]==255);
     check(pages_used()==owned+1-phases); /* One source page, all phases parked. */
     test_phase_restore_marker();
     if(bad) {
         prior=b;
         check(!compile(&s,&b,&d)&&d.code==COMPILE_PLATFORM_FAILURE&&boot_error==ERR_ENTRY_CORRUPTED);
         check(!memcmp(&s,&original,sizeof(s))&&!memcmp(&b,&prior,sizeof(b))&&pages_used()==owned+1-phases);
-        for(bank=CODE_PHASE_FIRST;bank<code_required;++bank)
-            check(code_pages[bank]==255&&code_phase_pending[bank-CODE_PHASE_FIRST]==255);
+        for(bank=0;bank<code_required;++bank)if(CODE_DEFERRED(bank))
+            check(code_pages[bank]==255&&code_phase_pending[bank]==255);
         test_phase_restore_marker();
     }
+    /* Leave exactly one native allocator page: the first cold load succeeds
+     * and the next fails before touching the caller's source/build. */
+    prior=b;
+    while(count<32&&palloc(&page)==0)held[count++]=page;
+    check(count>0);if(count)check(pfree(held[--count])==0);
+    check(!compile(&s,&b,&d)&&d.code==COMPILE_PLATFORM_FAILURE&&boot_error);
+    check(!memcmp(&s,&original,sizeof(s))&&!memcmp(&b,&prior,sizeof(b))&&
+          code_pages[CODE_EXPRESSIONS]!=255&&pages_used()==owned+2-phases);
+    while(count)check(pfree(held[--count])==0);
+    check(compile(&s,&b,&d)&&b.valid);build_close(&b);
     check(code_phase_restore()&&pages_used()==owned+1);
-    for(bank=CODE_PHASE_FIRST;bank<code_required;++bank)
-        check(code_pages[bank]!=255&&code_phase_pending[bank-CODE_PHASE_FIRST]==255);
+    for(bank=0;bank<code_required;++bank)if(CODE_DEFERRED(bank))
+        check(code_pages[bank]!=255&&code_phase_pending[bank]==255);
     check(code_capture(1));
     ok=compile(&s,&b,&d);check(ok&&b.valid);
     if(ok) {
@@ -102,8 +114,32 @@ static void phase_cases(void) {
         check(save_build(&s,&b,0));check(run_saved(&s,&b,&status)&&status==0);
         build_close(&b);
     }
+    check(code_phase_park());status=255;
+    check(!execute_native(saved,&status)&&status==0&&pages_used()==owned+1-phases);
+    for(bank=0;bank<code_required;++bank)if(CODE_DEFERRED(bank))
+        check(code_pages[bank]==255&&code_phase_pending[bank]==255);
+    check(code_phase_restore());
     check(!memcmp(&s,&original,sizeof(s)));source_close(&s);check(pages_used()==owned);
     test_machine(machine_after);check(!memcmp(machine_before,machine_after,7));
+}
+/* The first release fails below the phase loader. Poison that freed page
+ * before retry: executing its stale bytes would halt instead of passing. */
+static void release_failure(void) {
+    uint8_t original=code_pages[CODE_SHARED],loader=code_pages[CODE_ROUTINES],held[32],count=0,page,poisoned=0;
+    uint16_t at;
+    release_original=original;code_pages[CODE_SHARED]=0;code_release();
+    check(code_owned==CODE_SHARED+1&&boot_error&&code_phase_fd>=0);
+    code_pages[CODE_SHARED]=original;
+    while(count<32&&palloc(&page)==0) {
+        held[count++]=page;
+        if(page==loader) {
+            poisoned=1;
+            for(at=0;at<PAGE_SIZE;at+=256)check(far_fill(page,at,0x76,256));
+        }
+    }
+    check(poisoned);
+    while(count)check(pfree(held[--count])==0);
+    boot_error=0;test_release_retry(); /* Resident entry never returns. */
 }
 int app_main(void) {
     CompilerMemberStore store;
@@ -114,6 +150,9 @@ int app_main(void) {
     int8_t fd;
     if(!console_open())return 1;
     fd=open("H:/RETURN.TEST",O_RDONLY);if(fd>=0) {exit_mode=1;check(!close(fd));}
+    fd=open("H:/RELEASE.TEST",O_RDONLY);if(fd>=0){exit_mode=2;check(!close(fd));}
+    fd=open("H:/PARK.TEST",O_RDONLY);if(fd>=0){exit_mode=3;check(!close(fd));}
+    fd=open("H:/PENDING.TEST",O_RDONLY);if(fd>=0){exit_mode=4;check(!close(fd));}
     owned=pages_used();test_machine(before);
     memset(&cc,0,sizeof(cc));memset(&member,0,sizeof(member));
     b.pages[2]=page_new(PAGE_IMAGE);b.map_page=page_new(PAGE_MAP);
@@ -165,6 +204,15 @@ done:
         memset(&b,0,sizeof(b));memset(b.pages,255,3);b.map_page=255;b.sources.page=255;
         test_stage=4;phase_cases();
     }
-    test_stage=6;test_done=255;if(exit_mode)return test_failed?1:0;
+    test_stage=6;test_done=255;
+    if(exit_mode==2)release_failure();
+    if(exit_mode>=3) {
+        check(code_phase_park());
+        if(exit_mode==4) {
+            uint8_t pending=255;check(palloc(&pending)==0);
+            if(pending!=255)code_phase_pending[CODE_EXPRESSIONS]=pending;
+        }
+    }
+    if(exit_mode)return test_failed?1:0;
     test_complete();return 0;
 }

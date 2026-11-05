@@ -897,8 +897,8 @@ def library_failure_checks():
                        f"[DBG] PC={sym['_code_ready']:04x} " in text
                        and observed.get(sym['_boot_error']) == 0
                        and len(mappings) == 2 and mappings[0] == mappings[1]
-                       and all(32 <= p < 64 for p in pages[:13])
-                       and all(p == 255 for p in pages[13:])))
+                       and all((p == 255 if i in {5,9} or i >= 13 else 32 <= p < 64)
+                               for i,p in enumerate(pages))))
     # Component launcher loads deferred phases before entering its test body.
     phase = symbols('zptest')
     commands = ['run 100000000'] + type_text('H:/zptest.bin H:/BAD.ZPL')
@@ -972,13 +972,13 @@ def allocation_checks():
     # Every partial-allocation case reloads/hashes the available bank prefix.
     # This is a growing quadratic workload, not one ordinary library launch.
     commands += [f"bp 0x{boot['_boot_complete']:x}", 'run 120000000000', 'regs',
-                 f"rb 0x{boot['_boot_done']:x} 1", f"rb 0x{boot['_boot_failed']:x} 1", 'quit']
+                 f"rb 0x{boot['_boot_done']:x} 1", f"rb 0x{boot['_boot_failed']:x} 2", 'quit']
     boot_text = execute('boot-allocation', commands,
                         {'zpbootfail.bin': (ROOT / 'build/zpbootfail.bin').read_bytes(),
                          'BAD.ZPL': b'BAD!' + (ROOT / 'build/zpascal.zpl').read_bytes()[4:]}, timeout=360)
     boot_memory = memory(boot_text)
     checks.append(('startup allocation failures release partial/all banks and malformed-library retries close handles',
-                   boot_memory.get(boot['_boot_done']) == 255 and boot_memory.get(boot['_boot_failed']) == 0))
+                   boot_memory.get(boot['_boot_done']) == 255 and boot_memory.get(boot['_boot_failed']) == 0 and boot_memory.get(boot['_boot_failed']+1) == 0))
     return checks
 
 

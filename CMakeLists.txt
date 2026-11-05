@@ -214,7 +214,7 @@ set_source_files_properties(src/editor.c PROPERTIES
 set_source_files_properties(src/source_blocks.c PROPERTIES
     COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK13;--constseg;BANK13")
 # Compiler-only phases are parked while running a program and authenticated
-# again before compiling, preserving the existing thirteen-bank Run budget.
+# again before compiling, also releasing the expression and file generators for an eleven-bank Run budget.
 set_source_files_properties(src/compiler_groups.c src/compiler_late.c src/compiler_compile.c src/compiler_job.c src/compiler_job_result.c PROPERTIES
     COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK14;--constseg;BANK14")
 set_source_files_properties(src/library_phase.c PROPERTIES

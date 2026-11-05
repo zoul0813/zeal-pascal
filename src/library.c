@@ -31,7 +31,8 @@ uint8_t code_read_bank(int8_t fd,uint8_t page,uint16_t size) {
  * before descending through/freeing the always-resident code-bank slots. */
 uint8_t code_phase_cleanup(void) {return code_phase_park();}
 uint8_t code_load(const char *path) {
-    uint8_t bank,count,page,i,ok=0,e;
+    uint8_t bank,count,page,i,ok=0,e,deferred=0;
+    int32_t seek_to;
     uint32_t declared,total;
     int8_t fd;
     if(code_owned||code_phase_fd>=0) {boot_error=ERR_ALREADY_OPENED;return 0;}
@@ -54,17 +55,25 @@ uint8_t code_load(const char *path) {
         total+=code_sizes[bank];
     }
     if(declared!=total) goto corrupt;
+    total=16u+2u*count;
     for(bank=0;bank<count;++bank) {
         page=255;
-        if(bank<CODE_PHASE_FIRST) {
+        if(!CODE_DEFERRED(bank)) {
             boot_error=palloc(&page);
             if(boot_error) goto close_file;
             if(page<32||page>=64) { boot_error=ERR_INVALID_PARAMETER; goto close_file; }
         }
         code_pages[code_owned++]=page;
-        if(page!=255&&!code_read_bank(fd,page,code_sizes[bank]))goto close_file;
+        if(page!=255) {
+            /* Deferred pages can precede a retained page. Seek to its actual
+             * payload extent rather than reading from a skipped page. */
+            seek_to=(int32_t)total;boot_error=seek(fd,&seek_to,SEEK_SET);
+            if(!boot_error&&(uint32_t)seek_to!=total)boot_error=ERR_ENTRY_CORRUPTED;
+            if(boot_error||!code_read_bank(fd,page,code_sizes[bank]))goto close_file;
+        } else deferred=1;
+        total+=code_sizes[bank];
     }
-    if(count>CODE_PHASE_FIRST) {code_phase_bind(fd);return 1;}
+    if(deferred) {code_phase_bind(fd);return 1;}
     ok=1; goto close_file;
 corrupt:
     boot_error=ERR_ENTRY_CORRUPTED;

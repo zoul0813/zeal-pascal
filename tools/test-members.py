@@ -16,12 +16,12 @@ spec.loader.exec_module(n)
 def main():
     target = 'zmemberstest'
     sym = n.symbols(target)
-    # Bank14 begins the parkable compiler phases; it is not the bank count.
+    # Bank14 is the compile entry; sparse phases also include BANK6/BANK10.
     assert sym['_compiler_compile_project'] >> 16 == 14
     assert sym['_code_phase_restore'] >> 16 < 14
-    phase_first = (sym['_compiler_compile_project'] >> 16)-1
+    phase_first = 5  # First deferred page: expression/interrupt compiler.
     bank_count = n.code_banks(target)
-    phase_count = bank_count-phase_first
+    phase_count = 2 + bank_count-13
     fixtures = {f'{target}.{ext}': (ROOT/f'build/{target}.{ext}').read_bytes() for ext in ('bin', 'zpl')}
     library = fixtures[target+'.zpl']
     assert phase_first < bank_count <= 16
@@ -53,12 +53,12 @@ def main():
     header = b'ZPMS\2\0' + struct.pack('<6H', 24, 0xbff1, 528, 15, 3, 4) + bytes(6)
     code = bytes(((at-0x8000)*3+9 if at < 0xc000 else (at-0xc000)*5+1) & 255
                  for at in range(0xbff1, 0xc201))
-    maps = bytes((at*7+3) & 255 for at in range(199, 247))
+    maps = bytes((at*7+3) & 255 for at in range(16, 40))
     relocs = bytes((at*11+5) & 255 for at in range(12, 28))
     expected = header + code + maps + relocs
     def frame(origin, entry, code, first_map, maps, first_reloc, relocs):
         return (b'ZPMS\2\0'+struct.pack('<6H', 24, origin, len(code), entry-origin, maps, relocs)+bytes(6)
-                +code+bytes((at*7+3)&255 for at in range(96+71+first_map*16, 96+71+(first_map+maps)*16))
+                +code+bytes((at*7+3)&255 for at in range(first_map*8, (first_map+maps)*8))
                 +bytes((at*11+5)&255 for at in range(first_reloc*4, (first_reloc+relocs)*4)))
     nested_first = frame(0xbff8, 0xbffc, bytes(range(0x30, 0x30+20)), 3, 2, 4, 2)
     nested_second = frame(0xbff8, 0xc000, bytes(range(0x40, 0x40+40)), 3, 1, 4, 1)
@@ -80,7 +80,7 @@ def main():
         while offset+24<=len(payload):
             h=payload[offset:offset+24]
             header_bytes,origin,code_bytes,entry,maps,relocs,lates=struct.unpack_from('<7H',h,6)
-            end=offset+24+code_bytes+maps*16+relocs*4+lates*8
+            end=offset+24+code_bytes+maps*8+relocs*4+lates*8
             if (h[:6]!=b'ZPMS\2\0' or header_bytes!=24 or maps or end>len(payload)
                     or not code_bytes or entry>=code_bytes or h[20:24]!=bytes(4)):return []
             code=payload[offset+24:offset+24+code_bytes]
@@ -100,7 +100,7 @@ def main():
     owners=records_from('OWNERS.SPL');owner_ok=False
     if len(owners)==2:
         origin,code,terms,frame=owners[0]
-        owner_ok=([key for site,key,coefficient,flags in terms]==[1,2,3,4,6,7,8]
+        owner_ok=([key for site,key,coefficient,flags in terms]==[1,2,3,5,6,7]
                   and all(code[site-origin:site-origin+2]==b'\0\0'for site,key,coefficient,flags in terms)
                   and not owners[1][2] and owners[1][0]>=origin+len(code)
                   )
@@ -119,8 +119,8 @@ def main():
     def probes():
         result=['regs','mmu']
         for name,size in (('_test_done',1),('_test_passed',2),('_test_failed',2),('_test_stage',2),
-                          ('_code_owned',1),('_code_phase_fd',1),('_code_pages',bank_count),('_code_phase_pending',phase_count),
-                          ('_test_failures',128)):
+                          ('_code_owned',1),('_code_phase_fd',1),('_boot_error',1),('_code_pages',bank_count),('_code_phase_pending',bank_count),
+                          ('_test_failures',128),('_release_original',1)):
             result += [f'rb 0x{sym[name]:x} {size}']
         return result
     altered=[]
@@ -177,6 +177,46 @@ def main():
             and ended.get(sym['_code_phase_fd'])==255 and ended.get(sym['_boot_error'])==0
             and ended.get(sym['_test_done'])==255 and final_word('_test_failed')==0)
     checks['real terminal cleanup frees all code pages and closes the retained library before OS exit']=cleanup_ok
+    # Stop in the parent immediately before both real child entry paths.
+    run_probe=['run 100000000']+n.program_launch(target)+[f"bp 0x{sym['_ram_enter']:x}",'run 60000000000']+probes()
+    run_probe += [f"bc 0x{sym['_ram_enter']:x}",f"bp 0x{sym['_exec']:x}",'s','run 60000000000']+probes()+['quit']
+    run_raw=n.execute('member-run-pages',run_probe,fixtures,timeout=600)
+    run_frames=re.split(r'\[DBG\] PC=',run_raw)[1:]
+    for label,address in [('RAM',sym['_ram_enter']),('saved',sym['_exec'])]:
+        found=[f for f in run_frames if f.startswith(f'{address:04x} ')]
+        ok=False
+        if found:
+            state=n.memory(found[-1]);pages=[state.get(sym['_code_pages']+i,0)for i in range(bank_count)]
+            live=[p for p in pages if p!=255]
+            ok=(len(live)==len(set(live))==11 and all(32<=p<64 for p in live)
+                and all((p==255 if i in {5,9}or i>=13 else p!=255)for i,p in enumerate(pages))
+                and all(state.get(sym['_code_phase_pending']+i,0)==255 for i in range(bank_count)))
+        checks['exactly eleven code pages before '+label+' child entry']=ok
+    # Repeat real terminal release from cold/pending states. Inspect kernel
+    # owners before the OS can automatically clean up application leaks.
+    for label,flag in [('cold','PARK.TEST'),('pending','PENDING.TEST'),('partial-retry','RELEASE.TEST')]:
+        retry=label=='partial-retry';done=sym['_test_release_retry_done'] if retry else sym['_exit']
+        command=['run 100000000']+n.program_launch(target)+[f'bp 0x{release:x}', 'run 60000000000']+probes()
+        command += [f'bc 0x{release:x}',f'bp 0x{done:x}','s','run 60000000000']+probes()
+        command += [f'bc 0x{done:x}',f'bp 0x{kernel_exit:x}','s','run 1000000000','regs','mmu',f'rb 0x{owners:x} 32','quit']
+        text=n.execute('member-terminal-'+label,command,{**fixtures,flag:b'1'},timeout=600)
+        frames=re.split(r'\[DBG\] PC=',text)[1:];chosen=[]
+        for address in (release,done,kernel_exit):
+            matches=[f for f in frames if f.startswith(f'{address:04x} ')]
+            chosen.append(matches[-1] if matches else '')
+        ok=False
+        if all(chosen):
+            entry,ended,freed=map(n.memory,chosen)
+            code=[entry.get(sym['_code_pages']+i,255)for i in range(bank_count)]
+            if retry:code[2]=entry.get(sym['_release_original'],0)
+            pending=[entry.get(sym['_code_phase_pending']+i,255)for i in range(bank_count)]
+            retained=[p for p in code+pending if p!=255]
+            expected=15 if retry else 12 if label=='pending' else 11
+            ok=(len(retained)==len(set(retained))==expected and all(32<=p<64 for p in retained)
+                and ended.get(sym['_test_done'])==255 and ended.get(sym['_test_failed'])==0 and ended.get(sym['_test_failed']+1)==0
+                and ended.get(sym['_code_owned'])==0 and ended.get(sym['_code_phase_fd'])==255 and ended.get(sym['_boot_error'])==0
+                and 'c000 -> 088000' in chosen[2] and all(freed.get(owners+p-32,255)==0 for p in retained))
+        checks['real terminal '+label+' frees all owned code/pending pages before OS cleanup']=ok
     checks['input artifacts unchanged']=all(n.sha(Path(p))==value for p,value in hashes.items())
     report = {'scope': __doc__, 'passed': all(checks.values()), 'checks': checks,
               'library_bank_count':bank_count,'parked_phase_banks':phase_count,

@@ -2,10 +2,12 @@
 #define ZP_LIBRARY_H
 #include "zp.h"
 #define CODE_BANK_LIMIT 16
-#define CODE_PHASE_FIRST 13u /* Zero-based: compiler lifecycle and transfer assets. */
 enum { CODE_IDE=0,CODE_STATEMENTS,CODE_SHARED,CODE_FRONTEND,CODE_ROUTINES,
        CODE_EXPRESSIONS,CODE_BUILD,CODE_RUNTIME,CODE_METADATA,CODE_FILE_COMPILER,
        CODE_FILE_RUNTIME,CODE_DEVICES,CODE_EDITOR,CODE_COMPILE,CODE_TRANSFER };
+/* BANK5 contains the phase loader itself and must remain loaded. The parser
+ * expression/interrupt and file/I/O generators have no editor entry points. */
+#define CODE_DEFERRED(bank) ((bank)==CODE_EXPRESSIONS||(bank)==CODE_FILE_COMPILER||(bank)>=CODE_COMPILE)
 #define DEFAULT_LIBRARY "T:/lib/zpascal.zpl"
 extern uint8_t code_pages[CODE_BANK_LIMIT],code_owned,boot_error;
 extern uint16_t code_sizes[CODE_BANK_LIMIT];
@@ -18,12 +20,13 @@ void code_release(void) NATIVE;
  * No phase page is executable after a failed reload. Child completion is
  * independent of a cache reload failure; the next compile retries it. */
 extern int8_t code_phase_fd;
-extern uint8_t code_phase_pending[CODE_BANK_LIMIT-CODE_PHASE_FIRST];
+extern uint8_t code_phase_pending[CODE_BANK_LIMIT];
 uint8_t code_read_exact(int8_t fd,uint16_t count);
 uint8_t code_read_bank(int8_t fd,uint8_t page,uint16_t size);
 void code_phase_bind(int8_t fd) SOURCE_BLOCK_CALL;
 uint8_t code_phase_park(void) SOURCE_BLOCK_CALL;
 uint8_t code_phase_restore(void) SOURCE_BLOCK_CALL;
+/* Restore only the warm set captured by the last synchronous park. */
 void code_phase_return(void) SOURCE_BLOCK_CALL;
 uint8_t code_phase_cleanup(void);
 #endif

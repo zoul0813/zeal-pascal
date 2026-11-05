@@ -51,7 +51,7 @@ int main(int argc,char **argv) {
     }
 #ifdef ZP_TEST_COMPILER
     /* Compiler component fixtures start at the compiler boundary. The IDE
-     * startup test instead observes the deferred, thirteen-bank session. */
+     * startup test instead observes the deferred editor session. */
     if(!code_phase_restore())return 1;
 #endif
     code_ready();
@@ -64,7 +64,7 @@ uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
 uint8_t compile_project(const Source *root,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options) {
     uint8_t old,ok;
     if(!code_phase_restore()) {memset(d,0,sizeof(*d));d->code=COMPILE_PLATFORM_FAILURE;return 0;}
-    old=code_select(CODE_PHASE_FIRST);ok=compiler_compile_project(root,b,d,interruptible,options);
+    old=code_select(CODE_COMPILE);ok=compiler_compile_project(root,b,d,interruptible,options);
     code_restore(old);return ok;
 }
 uint8_t compiler_compile_request(const Source *root,Build *build,CompileFailure *failure,
@@ -75,7 +75,7 @@ uint8_t compile_request(const Source *root,Build *build,CompileFailure *failure,
     if(!compiler_resources_ready()||!code_phase_restore()) {
         memset(failure,0,sizeof(*failure));failure->diagnostic.code=COMPILE_PLATFORM_FAILURE;return 0;
     }
-    old=code_select(CODE_PHASE_FIRST);ok=compiler_compile_request(root,build,failure,mode,options);
+    old=code_select(CODE_COMPILE);ok=compiler_compile_request(root,build,failure,mode,options);
     code_restore(old);return ok;
 }
 void build_close(Build *b) {

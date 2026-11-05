@@ -134,10 +134,11 @@ ZP_ZEAL_ROOT=/Users/higginsd/Projects/zeal python3 tools/test-unit-corpus.py
 These are incremental native builds with retained source, executable, emulator
 and ROM hashes, not clean-toolchain reproducibility or physical-hardware proof.
 Publishing units from the IDE and integrating worker-owned authoring remain
-separate work. At this checkpoint, production zpascal.zpl is202277 bytes and
-startup loads13 code pages. This checkpoint does not reduce either. Deferring
-additional compiler banks, optional runtime extraction and IDE authoring remain
-separate work.
+separate work. At that historical milestone, production zpascal.zpl was202277
+bytes and startup loaded13 code pages. The subsequent
+[startup page experiment](startup-pages-experiment.md) reduces startup to11 pages
+by deferring additional compiler pages. Optional runtime extraction and IDE
+authoring remain separate.
 
 
 The private-unit follow-up is reviewed separately in
