@@ -390,12 +390,14 @@ static uint8_t compile_work(uint8_t running) {
         /* Imports bind matching source for the existing error-location contract. */
         if(work.dirty&&!save_work_auto())return 0;
         if(!strcmp(path,work.path)) {
+            uint16_t cursor=work.cursor;
             /* Source publication trims line tails. Compile that same text so
              * imported fingerprints and error offsets agree with the editor. */
-            if(!load_source(&work,work.path,&d)) {
+            if(!reload_source(&work,work.path,&d)) {
                 file_error(d.code?"Source error ":"Native file error ",d.code?d.code:platform_error);
                 search_ack("Source retained");return 0;
             }
+            work.cursor=cursor<work.length?cursor:work.length;
             editor_forget();
         }
     }
