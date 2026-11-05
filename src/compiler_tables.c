@@ -187,7 +187,7 @@ void cc_rput(uint16_t scope,uint8_t field,uint16_t value) FRONTEND {
 
 uint16_t cc_new_symbol(uint8_t role) FRONTEND {
     uint16_t id=cc.symbol_count;
-    int16_t old=cc_lookup();
+    int16_t old=cc_lookup_decl();
     if(cc.token!=T_ID) cc_fail(53);
     else if(old>=0&&CCS(old,owner)==cc.scope&&CCS(old,role)!=S_SYSTEM&&CCS(old,role)!=S_STANDARD&&CCS(old,role)!=S_HOOK) cc_fail(43);
     else if(id==SYMBOL_LIMIT) cc_fail(99);

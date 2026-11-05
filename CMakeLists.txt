@@ -758,3 +758,73 @@ target_link_options(zfragmenttest PRIVATE "SHELL:-b _HOME=0x7000" "SHELL:-b _TES
 zos_add_outputs(zfragmenttest)
 add_custom_target(fragment_toolchain
     COMMAND ${CMAKE_C_COMPILER} --version VERBATIM)
+
+# End-to-end unit compiler experiment: all compiler TUs share the conditional
+# source/cursor ABI. Legacy and compact targets retain their macro-off core.
+add_library(unit_fragment_core OBJECT src/compiler_fragments.c)
+target_compile_definitions(unit_fragment_core PRIVATE ZP_UNITS_EXPERIMENT)
+target_include_directories(unit_fragment_core PRIVATE src)
+target_compile_options(unit_fragment_core PRIVATE --std-c99 --opt-code-size
+    "SHELL:--codeseg BANK16" "SHELL:--constseg BANK16")
+add_library(unit_core OBJECT ${PASCAL_CORE} src/compiler_units.c
+    src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c)
+target_compile_definitions(unit_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT)
+target_include_directories(unit_core PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_options(unit_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+add_dependencies(unit_core pascal_runtime_bin ram_trampoline_bin transfer_assets
+    runtime_profile file_runtime_bin file_gate_bin module_unpack_bin)
+set_source_files_properties(src/compiler_units.c src/compiler_units_link.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK16;--constseg;BANK16")
+# Cold unit artifact I/O shares the existing mostly empty editor page. It
+# adds no permanent RAM page; its near buffers remain on the retained stack.
+set_source_files_properties(src/compiler_units_names.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK9;--constseg;BANK9")
+set_source_files_properties(src/compiler_units_object.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK13;--constseg;BANK13")
+foreach(source IN LISTS PASCAL_CORE)
+    if(source MATCHES "\\.c$")
+        set_property(SOURCE ${source} APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_units.h)
+    endif()
+endforeach()
+set_property(SOURCE src/compiler_units.c src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/compiler_fragments.c
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_units.h
+    ${CMAKE_SOURCE_DIR}/src/compiler_fragments.h ${CMAKE_SOURCE_DIR}/src/compiler.h)
+add_executable(zunittest src/startup.asm src/banks.c tests/native/units-main.c
+    tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:unit_core> $<TARGET_OBJECTS:unit_fragment_core>
+    $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
+    $<TARGET_OBJECTS:test_execution> $<TARGET_OBJECTS:test_evidence> ${CMAKE_BINARY_DIR}/transfer_test_asset.asm)
+target_compile_definitions(zunittest PRIVATE ZP_UNITS_EXPERIMENT ZP_TEST_COMPILER)
+target_include_directories(zunittest PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_options(zunittest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+set_source_files_properties(tests/native/units-main.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
+set_property(SOURCE tests/native/units-main.c src/banks.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/compiler_units.h ${CMAKE_SOURCE_DIR}/src/compiler.h)
+add_dependencies(zunittest transfer_assets)
+target_link_options(zunittest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
+foreach(bank RANGE 1 16)
+    math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
+    target_link_options(zunittest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
+endforeach()
+add_custom_target(zunittest_bin
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py $<TARGET_FILE:zunittest>
+    DEPENDS zunittest ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+
+# Reuse the existing corpus against the macro-on compiler, including its
+# prefix and ordinary lookup paths. This is separate from production zptest.
+add_executable(zunitcorpus src/startup.asm src/banks.c tests/native/main.c
+    tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:unit_core> $<TARGET_OBJECTS:unit_fragment_core>
+    $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
+    $<TARGET_OBJECTS:test_execution> $<TARGET_OBJECTS:test_evidence> ${CMAKE_BINARY_DIR}/transfer_test_asset.asm)
+target_compile_definitions(zunitcorpus PRIVATE ZP_UNITS_EXPERIMENT ZP_TEST_COMPILER)
+target_include_directories(zunitcorpus PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_options(zunitcorpus PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+add_dependencies(zunitcorpus transfer_assets)
+target_link_options(zunitcorpus PRIVATE "SHELL:-b _INITIALIZED=0xc000")
+foreach(bank RANGE 1 16)
+    math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
+    target_link_options(zunitcorpus PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
+endforeach()
+add_custom_target(zunitcorpus_bin
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py $<TARGET_FILE:zunitcorpus>
+    DEPENDS zunitcorpus ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)

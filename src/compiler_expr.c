@@ -465,12 +465,18 @@ uint8_t cc_runtime_statement(void) BACKEND {
     if(raw_kind()) { raw_store(raw_kind()==2); return 1; }
     if(cc_is("move")||cc_is("fillchar")) { block_statement(cc_is("fillchar")); return 1; }
     if(cc_is("stackptr")) {
+#ifdef ZP_UNITS_EXPERIMENT
+        if(cc.sources->unit_mode)cc.console_dynamic=1;
+#endif
         cc_next(); cc_expect(T_ASSIGN,7); integer_value(); cc_release(before);
         cc_call(RT_STACKSET); return 1;
     }
     op=cc_is("new")?0:cc_is("getmem")?1:cc_is("mark")?2:
        cc_is("dispose")?3:cc_is("freemem")?4:cc_is("release")?5:255;
     if(op==255) return 0;
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc.sources->unit_mode)cc.console_dynamic=1;
+#endif
     cc_next(); cc_expect('(',4);
     if(op<=3) {
         id=cc.token==T_ID?cc_lookup():-1;

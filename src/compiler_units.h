@@ -1,0 +1,55 @@
+#ifndef ZP_COMPILER_UNITS_H
+#define ZP_COMPILER_UNITS_H
+#include "compiler.h"
+#include "compiler_fragments.h"
+
+/* Experimental first end-to-end unit path. Nothing here is linked by the
+ * legacy/compact targets. Artifacts bind the exact normal runtime profile;
+ * public signatures initially contain primitive scalar routines only.
+ * A caller owns the fresh output descriptor, including close/publication. */
+enum { UNIT_FORMAT=248,UNIT_UNSUPPORTED,UNIT_MISSING,UNIT_STALE,UNIT_AMBIGUOUS,UNIT_INTERFACE };
+enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CODE };
+#define RF_UNIT_IMPORT 16u
+#define UNIT_RECORD_BYTES 12u
+#define UNIT_RECORD_BASE 256u
+#define UH_USED 0u
+#define UH_RECORDS 2u
+#define UH_MODULES 4u
+#define UH_NAME_LENGTH 6u
+#define UH_REFERENCES 8u
+#define UH_REFERENCE_TAIL 10u
+#define UH_REFERENCE_COUNT 12u
+#define UH_NAME 32u
+#define ZPU_HEADER_BYTES 36u
+#define ZPU_ABI 1u
+int8_t cc_units_output(void) ROUTINES;
+uint32_t unit_source_fingerprint(const Source *source) SOURCE_BLOCK_CALL;
+uint8_t cc_units_hold(uint8_t page,uint32_t lifetime,uint8_t role) ROUTINES;
+uint16_t cc_unit_owned_page(void) ROUTINES;
+uint8_t cc_unit_module_ready(uint16_t module) ROUTINES;
+uint8_t cc_unit_module_byte(uint16_t module,uint16_t at) ROUTINES;
+uint16_t cc_unit_module_word(uint16_t module,uint16_t at) ROUTINES;
+void cc_unit_descriptor(uint16_t module,CompilerFragmentObject *object) ROUTINES;
+uint8_t cc_unit_fragment(uint16_t preferred,uint16_t *fragment,uint16_t *offset) ROUTINES;
+uint8_t compile_unit(const Source *source,Build *scratch,Diagnostic *diagnostic,int8_t output,uint8_t interruptible);
+uint16_t cc_units_load(const char *name,const char *path) ROUTINES;
+uint8_t cc_units_requested(void) ROUTINES;
+uint8_t cc_units_begin(void) ROUTINES;
+uint8_t cc_units_close(void) ROUTINES;
+void cc_units_header(void) ROUTINES;
+void cc_units_interface(void) ROUTINES;
+void cc_units_imports(void) ROUTINES;
+int16_t cc_units_lookup(void) ROUTINES;
+void cc_units_call(uint8_t opcode,uint16_t scope) ROUTINES;
+void cc_units_note(uint16_t kind,uint16_t site,uint16_t value) ROUTINES;
+void cc_units_owner(uint16_t owner) ROUTINES;
+void cc_units_export(uint16_t symbol,uint16_t scope) ROUTINES;
+void cc_units_global(uint8_t opcode,uint16_t address) ROUTINES;
+uint8_t cc_units_write(void) ROUTINES;
+uint8_t cc_units_link(void) ROUTINES;
+uint16_t cc_unit_record(uint16_t kind,uint16_t a,uint16_t b,uint16_t c,uint16_t d,uint16_t e) ROUTINES;
+uint16_t cc_unit_word(uint16_t at) ROUTINES;
+void cc_unit_put(uint16_t at,uint16_t value) ROUTINES;
+uint8_t cc_unit_byte(uint16_t at) ROUTINES;
+void cc_unit_set(uint16_t at,uint8_t value) ROUTINES;
+#endif

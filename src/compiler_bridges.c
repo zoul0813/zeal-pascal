@@ -1,4 +1,7 @@
 #include "compiler_late.h"
+#ifdef ZP_UNITS_EXPERIMENT
+#include "compiler_units.h"
+#endif
 
 /* Captured callback descriptors and their emitted native frames share one
  * owner. Routine declarations/calls use the banked entry reference below. */
@@ -8,6 +11,9 @@ static void cursor_load(void) { indexed(0x6e,250); indexed(0x66,251); }
 
 void cc_entry_reference(uint8_t opcode,uint16_t scope) ROUTINES {
     uint16_t entry=cc_rget(scope,R_ENTRY);
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc_rget(scope,R_FLAGS)&RF_UNIT_IMPORT){cc_units_call(opcode,scope);return;}
+#endif
     if(cc_rget(scope,R_FLAGS)&RF_EXTERNAL) cc_op16(opcode,entry);
     else if(entry) cc_address(opcode,entry);
     else cc_rput(scope,R_CALLS,cc_link(opcode,cc_rget(scope,R_CALLS)));

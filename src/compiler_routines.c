@@ -1,4 +1,7 @@
 #include "compiler_groups.h"
+#ifdef ZP_UNITS_EXPERIMENT
+#include "compiler_units.h"
+#endif
 
 /* Routine metadata grows with the source and available compiler pages. */
 static uint16_t new_scope(uint16_t symbol) {
@@ -125,16 +128,55 @@ static void parameters(uint16_t scope) {
     } while(!cc.error->code);
     cc_expect(')',5);
 }
-static void routine(void) {
+#ifdef ZP_UNITS_EXPERIMENT
+/* Existing forward declarations retain their parameter slots and names. A
+ * repeated unit implementation heading validates those same declarations;
+ * it never allocates a second, different workspace. */
+static void repeated_heading(uint16_t id,uint16_t scope) {
+    uint16_t first=cc_rget(scope,R_PARAMETERS),count=cc_rget(scope,R_COUNT),i=0,start,j;
+    uint8_t role,k,c;TypeId type;SourcePosition name;
+    if(cc.token=='(') {
+        cc_next();
+        do {
+            role=cc_is("var")?S_REFERENCE:S_VALUE;if(role==S_REFERENCE)cc_next();start=i;
+            for(;;) {
+                if(i>=count||cc.token!=T_ID||CCS(first+i,role)!=role){cc_fail(UNIT_INTERFACE);return;}
+                name=cc_reference_position(CCS(first+i,name_start));
+                if(strlen(cc.name)!=CCS(first+i,name_length)){cc_fail(UNIT_INTERFACE);return;}
+                for(k=0;k<CCS(first+i,name_length);++k) {
+                    c=cc_source_byte(name+k);if(c>='A'&&c<='Z')c+=32;
+                    if(c!=(uint8_t)cc.name[k]){cc_fail(UNIT_INTERFACE);return;}
+                }
+                ++i;cc_next();if(cc.token!=',')break;cc_next();
+            }
+            if(role==S_REFERENCE&&cc.token!=':')type=TYPE_NONE;
+            else {cc_expect(':',2);type=(TypeId)cc_named_type();if(type==TYPE_NONE)cc_fail(UNIT_INTERFACE);cc_next();}
+            for(j=start;j<i;++j)if(CCS(first+j,type)!=type)cc_fail(UNIT_INTERFACE);
+            if(cc.token!=';')break;cc_next();
+        } while(!cc.error->code);
+        cc_expect(')',5);
+        if(i!=count)cc_fail(UNIT_INTERFACE);
+    } else if(count&&cc.token!=';')cc_fail(UNIT_INTERFACE);
+    if(CCS(id,role)==S_FUNCTION&&cc.token==':') {
+        cc_next();type=(TypeId)cc_named_type();
+        if(type!=CCS(id,type))cc_fail(UNIT_INTERFACE);cc_next();
+    }
+}
+#endif
+static void routine(uint8_t interface_heading) {
     uint8_t role=cc_is("function")?S_FUNCTION:S_PROCEDURE;uint16_t parent=cc.scope;uint16_t scope;uint8_t flags;
     uint16_t id,global_start=cc.image->globals_bytes,value;
     SourcePosition position;
     int16_t old,type;TypeId actual;
-    cc_next(); old=cc.token==T_ID?cc_lookup():-1;
+    cc_next(); old=cc.token==T_ID?cc_lookup_decl():-1;
     if(old>=0&&CCS(old,owner)==parent&&CCS(old,role)==role&&
        (cc_rget(CCS(old,initial_type),R_FLAGS)&RF_FORWARD)&&
        !(cc_rget(CCS(old,initial_type),R_FLAGS)&RF_DEFINED)) {
-        id=(uint16_t)old; scope=CCS(id,initial_type); cc_next(); cc_expect(';',1);
+        id=(uint16_t)old; scope=CCS(id,initial_type); cc_next();
+#ifdef ZP_UNITS_EXPERIMENT
+        if(cc.sources->unit_mode&&cc.token!=';')repeated_heading(id,scope);
+#endif
+        cc_expect(';',1);
     } else {
         id=cc_new_symbol(role); scope=new_scope(id);
         if(cc.error->code) return;
@@ -153,6 +195,9 @@ static void routine(void) {
     }
     if(cc.error->code) return;
     flags=(uint8_t)cc_rget(scope,R_FLAGS);
+#ifdef ZP_UNITS_EXPERIMENT
+    if(interface_heading&&cc_is("external")){cc_fail(UNIT_UNSUPPORTED);return;}
+#endif
     if(cc_is("external")) {
         if(!cc.suppress)cc.console_dynamic=1;
         if(flags&RF_FORWARD) {cc_fail(12);return;}
@@ -167,14 +212,34 @@ static void routine(void) {
         /* An entry exists before nested bodies and forward definitions. Raw
          * Inline expressions can therefore use it without embedding fixup
          * lists in user instruction bytes or changing later Addr identities. */
+#ifdef ZP_UNITS_EXPERIMENT
+        if(cc.sources->unit_mode&&!parent)cc_units_owner(scope);
+#endif
         CCS_SET(id,address,cc.emitted);cc_rput(scope,R_ENTRY,cc.emitted);
         cc_rput(scope,R_CALLS,cc_link(0xc3,0));
         position=cc_reference_position(CCS(id,name_start));
         cc_mapping(CCS(id,address)-CC_CODE_BASE,cc.emitted-CC_CODE_BASE,position,position);
+#ifdef ZP_UNITS_EXPERIMENT
+        if(cc.sources->unit_mode&&!parent)cc_units_owner(0);
+#endif
     }
+#ifdef ZP_UNITS_EXPERIMENT
+    if(interface_heading) {
+        cc_rput(scope,R_FLAGS,flags|RF_FORWARD);cc_units_export(id,scope);return;
+    }
+#else
+    (void)interface_heading;
+#endif
     if(cc_is("forward")) { cc_rput(scope,R_FLAGS,flags|RF_FORWARD); cc_next(); cc_expect(';',1); return; }
     cc_rput(scope,R_FLAGS,flags|RF_DEFINED); cc.scope=scope;
-    cc_block(); cc.scope=parent; cc_expect(';',1);
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc.sources->unit_mode&&!parent)cc_units_owner(scope);
+#endif
+    cc_block(); cc.scope=parent;
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc.sources->unit_mode&&!parent)cc_units_owner(0);
+#endif
+    cc_expect(';',1);
 }
 SourcePosition cc_block(void) ROUTINES {
     uint16_t first,jump=0,i,entry,code;
@@ -183,15 +248,22 @@ SourcePosition cc_block(void) ROUTINES {
     if(++cc.nesting==0||!cc_stack_check()) { cc_fail(99); --cc.nesting; return cc.token_start; }
     /* C selects CBreak's initial value at the program block's start. Later
      * source switches do not become assignments to this runtime variable. */
+#ifdef ZP_UNITS_EXPERIMENT
+    /* Initial CBreak belongs to final prefix placement. Deferring this one
+     * root setting keeps the untouched template out of import/link peak RAM. */
+    if(!scope&&!cc.sources->unit_mode)cc.sources->unit_cbreak=cc.sources->file?
+        (cc.sources->parent_flags>>6)&1:cc.console_control;
+#else
     if(!scope)cc_put(RT_CBREAK-0x4000u,cc.sources->file?
         (cc.sources->parent_flags>>6)&1:cc.console_control);
+#endif
     while(!cc.error->code) {
         if(cc_is("label")) cc_labels();
         else if(cc_is("var")||cc_is("const")||cc_is("type")) {
             first=cc.symbol_count; cc_declarations(); cc_typed_storage(first);
         } else if(cc_is("procedure")||cc_is("function")) {
             if(!jump) jump=cc_forward(0xc3);
-            routine();
+            routine(0);
         } else break;
     }
     for(i=1;i<=cc.routine_count&&!cc.error->code;++i)
@@ -206,6 +278,11 @@ SourcePosition cc_block(void) ROUTINES {
     cc.with_bound=cc.with_limit;
     start=cc.token_start;
     /* Direct Memory has no output owner for overlay group files. */
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc.sources->unit_mode&&!scope) {
+        if(!cc_is("end"))cc_fail(UNIT_UNSUPPORTED);else cc_next();
+    } else
+#endif
     if(!cc_is("begin")) cc_fail(cc.sources->memory&&cc_is("overlay")?77:12);
     else start=cc_statement();
     cc_labels_finish();
@@ -283,3 +360,11 @@ TypeId cc_invoke(uint16_t id) ROUTINES {
     }
     return role==S_FUNCTION?CCS(routine_id,type):TYPE_NONE;
 }
+
+#ifdef ZP_UNITS_EXPERIMENT
+void cc_units_interface(void) ROUTINES {
+    while(!cc.error->code&&(cc_is("procedure")||cc_is("function")))routine(1);
+    if(!cc_is("implementation")){cc_fail(UNIT_UNSUPPORTED);return;}
+    cc_next();
+}
+#endif

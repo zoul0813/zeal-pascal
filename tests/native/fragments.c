@@ -76,7 +76,7 @@ static void seal(CompilerFragmentObject *o) {o->lifetime=page_lifetime(o->page);
 static void object(CompilerFragmentObject *o,uint16_t id,uint8_t count,const uint16_t *sizes,
                    uint8_t relocations,const uint16_t *refs,const uint16_t *owners) {
     uint16_t i,j,offset=0,r=0,start=16u+8u*count+8u*relocations;
-    o->page=page_new(PAGE_COMPILER);check(o->page!=255);if(o->page==255)return;
+    o->offset=0;o->binding=0;o->page=page_new(PAGE_COMPILER);check(o->page!=255);if(o->page==255)return;
     o->bytes=start;for(i=0;i<count;++i)o->bytes+=sizes[i];
     for(i=0;i<o->bytes;++i)far_set(o->page,i,0);
     far_set(o->page,0,'Z');far_set(o->page,1,'P');far_set(o->page,2,'F');far_set(o->page,3,'1');
@@ -293,7 +293,7 @@ static void patches_and_cycles(void) {
 }
 static void dense(CompilerFragmentObject *o,uint16_t identity,uint16_t count) {
     uint16_t i,start=16+8*count;
-    o->page=page_new(PAGE_COMPILER);check(o->page!=255);if(o->page==255)return;
+    o->offset=0;o->binding=0;o->page=page_new(PAGE_COMPILER);check(o->page!=255);if(o->page==255)return;
     o->bytes=start+count;
     for(i=0;i<o->bytes;++i)far_set(o->page,i,0);
     far_set(o->page,0,'Z');far_set(o->page,1,'P');far_set(o->page,2,'F');far_set(o->page,3,'1');
@@ -312,7 +312,7 @@ static void capacity(void) {
     check(page_drop(dense_objects[2].page));dense(dense_objects+2,12,461);alloc_calls=0;
     check(cc_fragment_link(dense_objects,3,&root,1,0x8000,0xf400,&image)==CF_CAPACITY&&alloc_calls==0&&used==5);
     for(j=0;j<3;++j)check(page_drop(dense_objects[j].page));check(used==2);
-    full.page=page_new(PAGE_COMPILER);check(full.page!=255);full.bytes=PAGE_SIZE;
+    full.offset=0;full.binding=0;full.page=page_new(PAGE_COMPILER);check(full.page!=255);full.bytes=PAGE_SIZE;
     for(i=0;i<PAGE_SIZE;++i)far_set(full.page,i,0);
     far_set(full.page,0,'Z');far_set(full.page,1,'P');far_set(full.page,2,'F');far_set(full.page,3,'1');
     poke(&full,4,13);poke(&full,6,1);poke(&full,10,PAGE_SIZE-24);poke(&full,18,PAGE_SIZE-24);
@@ -348,6 +348,48 @@ static void independent(void) {
 #endif
 }
 
+/* Embedded containers keep immutable source bytes; each invocation binds the
+ * same stored local identity independently and queries retained placements. */
+static void embedded_layout(void) {
+    static const uint16_t sizes[]={3,1,2},refs[]={1,1,2,0},owners[]={0};
+    CompilerFragmentObject embedded[2];CompilerFragmentRoot root;CompilerFragmentLayout layout;
+    uint16_t i,address=0;uint32_t version;
+    object(embedded,1,3,sizes,1,refs,owners);
+    object(embedded+1,1,3,sizes,1,refs,owners);
+    for(i=embedded[0].bytes;i;--i)far_set(embedded[0].page,i+35,far_get(embedded[0].page,i-1));
+    embedded[0].offset=36;embedded[0].binding=17;embedded[1].binding=18;seal(embedded);
+    version=embedded[0].version;alloc_calls=0;polls=0;
+    check(cc_fragment_validate(embedded,2)==CF_OK&&alloc_calls==0&&used==2);
+    check(page_versions[embedded[0].page]==version);
+    cc_fragment_layout_init(&layout);root.identity=17;root.fragment=0;
+    check(cc_fragment_link_with_layout(embedded,2,&root,1,0x8000,0xf400,&image,&layout)==CF_OK);
+    check(image.valid&&image.bytes==5&&image.fragments==2&&used==4);
+    check(getword(0x8001)==0x8003);
+    check(cc_fragment_layout_get(&layout,17,0,&address)==CF_OK&&address==0x8000);
+    check(cc_fragment_layout_get(&layout,17,2,&address)==CF_OK&&address==0x8003);
+    check(cc_fragment_layout_get(&layout,17,1,&address)==CF_TARGET);
+    check(cc_fragment_layout_get(&layout,18,0,&address)==CF_TARGET);
+    check(cc_fragment_layout_get(&layout,17,3,&address)==CF_TARGET);
+    check(cc_fragment_layout_get(&layout,17,0,0)==CF_ARGUMENT);
+    check(page_versions[embedded[0].page]==version);
+    check(cc_fragment_image_close(&image)&&used==3);
+    check(cc_fragment_layout_get(&layout,17,0,&address)==CF_OK&&address==0x8000);
+    fail_free=1;free_page=layout.page;
+    check(!cc_fragment_layout_close(&layout)&&used==3);
+    fail_free=0;check(cc_fragment_layout_close(&layout)&&used==2);
+    check(cc_fragment_layout_get(&layout,17,0,&address)==CF_ARGUMENT);
+    check(cc_fragment_plan(embedded,2,&root,1,0x8000,0xf400,&image,&layout)==CF_OK);
+    check(image.valid&&image.bytes==5&&image.pages[0]==255&&image.pages[1]==255&&used==3);
+    check(cc_fragment_layout_get(&layout,17,2,&address)==CF_OK&&address==0x8003);
+    check(cc_fragment_image_close(&image)&&used==3);
+    check(cc_fragment_layout_close(&layout)&&used==2);
+    embedded[1].binding=17;check(cc_fragment_validate(embedded,2)==CF_OBJECT);embedded[1].binding=18;
+    embedded[0].offset=PAGE_SIZE;check(cc_fragment_validate(embedded,2)==CF_OBJECT);embedded[0].offset=36;
+    far_set(embedded[0].page,36,0);check(cc_fragment_validate(embedded,2)==CF_OWNERSHIP);
+    seal(embedded);check(cc_fragment_validate(embedded,2)==CF_OBJECT);
+    check(page_drop(embedded[0].page));check(page_drop(embedded[1].page));check(!used);
+}
+
 int main(void) {
     free_page=255;mutate_page=255;cc_fragment_image_init(&image);build_objects();
 #ifdef __SDCC
@@ -361,6 +403,7 @@ int main(void) {
     }
     negative();faults();ownership_and_edges();patches_and_cycles();capacity();independent();
     check(cc_fragment_image_close(&image));check(!used);
+    embedded_layout();
 #ifndef __SDCC
     maximum_objects();
 #endif

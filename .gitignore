@@ -144,3 +144,10 @@
 !/docs/unit-fragment-experiment.md
 !/docs/unit-fragment-evidence.json
 !/reviews/unit-fragments-v1.md
+
+# Experimental native Pascal unit compiler and acceptance.
+!/tools/test-units.py
+!/tools/test-unit-corpus.py
+!/docs/pascal-units-experiment.md
+!/docs/pascal-units-evidence.json
+!/reviews/pascal-units-v1.md

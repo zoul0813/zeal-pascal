@@ -3,6 +3,9 @@
 #endif
 #include "compiler.h"
 #include "compiler_disk.h"
+#ifdef ZP_UNITS_EXPERIMENT
+#include "compiler_units.h"
+#endif
 #if defined(__SDCC) || defined(ZP_COMPILER_JOBS)
 #include "compiler_job.h"
 #endif
@@ -27,6 +30,16 @@ static uint8_t disk_prefix(uint8_t chain) {
     return 1;
 }
 
+static uint8_t release_stages(void) {
+    if(cc.stage_page!=255) {
+        if(!page_drop(cc.stage_page)){cc_fail(99);return 0;}cc.stage_page=255;
+    }
+    if(cc.primary_stage!=255) {
+        if(!page_drop(cc.primary_stage)){cc_fail(99);return 0;}cc.primary_stage=255;
+    }
+    return 1;
+}
+
 uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options) {
     uint16_t i,j,n;uint8_t native_error,chain=options&&options->kind==COMPILE_CHAIN;
     SourcePosition begin;
@@ -39,6 +52,9 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     if(compiler_invocation)sources.memory=compiler_memory_mode;
 #endif
     cc.input=&active;cc.sources=&sources;cc.image=b;cc.error=d;
+#ifdef ZP_UNITS_EXPERIMENT
+    sources.unit_page=255;sources.unit_mode=cc_units_requested();
+#endif
     cc.stage_page=255;cc.primary_stage=255;
     memset(d,0,sizeof(*d));memset(b,0,sizeof(*b));
     memset(b->pages,255,3);b->map_page=255;b->sources.page=255;
@@ -47,6 +63,9 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     /* A CHN borrows a runtime and shared globals. The compact proof does
      * not define that contract and must not publish a chain artifact. */
     if(chain) {d->code=COMPILE_PLATFORM_FAILURE;return 0;}
+#endif
+#ifdef ZP_UNITS_EXPERIMENT
+    if(!cc_units_close())goto failed;
 #endif
     if(!cc_tables_begin()){d->code=99;goto failed;}
     if(!cc_poll())goto failed;
@@ -62,6 +81,11 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
          * staging. Materialize it on a global initializer's first write or
          * after relocation releases its workspace. */
         if(i==1)continue;
+#ifdef ZP_UNITS_EXPERIMENT
+        /* Defer the untouched runtime prefix until first mutation/finalization.
+         * A compiled unit never needs an executable prefix. */
+        if(!i)continue;
+#endif
         b->pages[i]=page_new(PAGE_IMAGE);
         if(b->pages[i]==255){d->code=99;goto failed;}
         /* Initialize the runtime prefix directly, then clear its tail. Both
@@ -92,34 +116,55 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     cc_new_type(K_REAL,6,0,0,0);
     cc_system_init();
     cc_next();
+#ifdef ZP_UNITS_EXPERIMENT
+    b->code_origin=CC_CODE_BASE;cc.emitted=CC_CODE_BASE;
+    if(cc_units_requested()) {
+        sources.unit_mode=1;cc_units_header();
+    } else
+#endif
     if(cc_is("program")) {
         cc_next();cc_expect(T_ID,53);
         if(cc.token=='('){cc_next();cc_expect(T_ID,53);while(cc.token==','){cc_next();cc_expect(T_ID,53);}cc_expect(')',5);}
         cc_expect(';',1);
     }
-    b->code_origin=CC_CODE_BASE;cc.emitted=CC_CODE_BASE;
+    b->code_origin=CC_CODE_BASE;
+#ifndef ZP_UNITS_EXPERIMENT
+    cc.emitted=CC_CODE_BASE;
+#else
+    if(!sources.unit_mode&&cc_is("uses"))cc_units_imports();
+#endif
     if(options&&options->kind==COMPILE_CHAIN)cc_activation_begin();
     begin=cc_block();j=pc();cc_expect('.',10);
     if(cc.token!=T_EOF)cc_fail(58);
     cc_finish(RT_DONE);cc_mapping(j,pc(),begin,begin);
+#ifdef ZP_UNITS_EXPERIMENT
+    if(sources.unit_mode) {
+        if(d->code||!cc_units_write()||!cc_units_close()||!cc_sources_finish()||!release_stages())goto failed;
+        cc.polling=0;return 1;
+    }
+#endif
     if(d->code||!cc_sources_finish())goto failed;
     cc_params_finish();cc_random_finish();
     cc_file_engine_finish();cc_keyboard_finish();cc_interrupt_finish();
     cc_transfer_finish();cc_file_stream_finish();cc_hooks_finish();cc_console_finish();cc_file_finish();cc_error_finish();
     cc_unpack_finish();
+#ifdef ZP_UNITS_EXPERIMENT
+    if(d->code||!cc_units_link()||!cc_units_close())goto failed;
+#endif
     if(!options||options->kind!=COMPILE_CHAIN)cc_startup_finish();
+#ifdef ZP_UNITS_EXPERIMENT
+    if(!cc_disk_active(b)&&!cc_image_page(0))goto failed;
+    cc_put(RT_CBREAK-0x4000u,sources.unit_cbreak);
+#endif
     if(d->code||!cc_place_code())goto failed;
-    if(cc.stage_page!=255) {
-        if(page_drop(cc.stage_page))cc.stage_page=255;
-        else {d->code=99;goto failed;}
-    }
-    if(cc.primary_stage!=255) {
-        if(!page_drop(cc.primary_stage)){d->code=99;goto failed;}cc.primary_stage=255;
-    }
+    if(!release_stages())goto failed;
     if(!cc_seal(s,options))goto failed;
     return 1;
 failed:
     native_error=platform_error;cc.polling=0;
+#ifdef ZP_UNITS_EXPERIMENT
+    cc_units_close();
+#endif
     if(cc.primary_stage!=255&&page_drop(cc.primary_stage))cc.primary_stage=255;
     if(cc.stage_page!=255&&(page_drop(cc.stage_page)))cc.stage_page=255;
     /* Error replies still need source identities, but not the abandoned

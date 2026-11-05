@@ -1,4 +1,7 @@
 #include "compiler.h"
+#ifdef ZP_UNITS_EXPERIMENT
+#include "compiler_units.h"
+#endif
 
 /* Raw Inline operands describe storage slots, not loads. Recursive slots
  * retain static workspace addresses; a VAR slot contains the referent pointer.
@@ -9,6 +12,9 @@ static uint16_t address(uint16_t id,uint16_t *coefficient) {
     while(CCS(id,role)==S_ALIAS)id=CCS(id,address);
     if(CCS(id,role)==S_PROCEDURE||CCS(id,role)==S_FUNCTION||CCS(id,role)==S_RESULT) {
         scope=CCS(id,role)==S_RESULT?CCS(id,owner):CCS(id,initial_type);
+#ifdef ZP_UNITS_EXPERIMENT
+        if(cc_rget(scope,R_FLAGS)&RF_UNIT_IMPORT){cc_fail(UNIT_UNSUPPORTED);return 0;}
+#endif
         *coefficient=(cc_rget(scope,R_FLAGS)&RF_EXTERNAL)?0:1;
         return cc_rget(scope,R_ENTRY);
     }

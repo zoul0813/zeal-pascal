@@ -149,3 +149,15 @@ uint8_t save_block(const Source *s,uint16_t first,uint16_t last,const char *name
     old=code_select(CODE_SHARED); ok=files_save_block(s,first,last,path,replace,interruptible);
     code_restore(old); return ok;
 }
+
+#ifdef ZP_UNITS_EXPERIMENT
+uint8_t compiler_compile_unit(const Source *source,Build *scratch,Diagnostic *diagnostic,
+                              int8_t output,uint8_t interruptible);
+uint8_t compile_unit(const Source *source,Build *scratch,Diagnostic *diagnostic,
+                     int8_t output,uint8_t interruptible) {
+    uint8_t old,ok;
+    if(!code_phase_restore()){memset(diagnostic,0,sizeof(*diagnostic));diagnostic->code=COMPILE_PLATFORM_FAILURE;return 0;}
+    old=code_select(15);ok=compiler_compile_unit(source,scratch,diagnostic,output,interruptible);
+    code_restore(old);return ok;
+}
+#endif

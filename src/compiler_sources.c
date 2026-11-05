@@ -72,6 +72,9 @@ void cc_source_seek(SourcePosition position) ROUTINES {
     cc.sources->file=file;cc.sources->input_base=sources_offset(&cc.image->sources,file);cc.scan=(uint16_t)position;
 }
 void cc_source_save(SourceCursor *cursor) ROUTINES {
+#ifdef ZP_UNITS_EXPERIMENT
+    cursor->unit_qualifier=cc.sources->unit_qualifier;
+#endif
     cursor->first=cc.token_start;cursor->last=cc.token_end;
     cursor->scan=cc.scan;cursor->token=cc.token;cursor->file=cc.sources->file;
     cursor->flags=flags();cursor->limit=cc.with_limit;
@@ -86,6 +89,9 @@ void cc_source_restore(const SourceCursor *cursor) ROUTINES {
     cc_next();if(cursor->token==T_STRING&&cc.token=='^')cc_control_literal();
     cc.scan=cursor->scan;cc.token=cursor->token;
     cc.token_start=cursor->first;cc.token_end=cursor->last;
+#ifdef ZP_UNITS_EXPERIMENT
+    cc.sources->unit_qualifier=cursor->unit_qualifier;
+#endif
 }
 uint8_t cc_sources_prepare(const Source *root) ROUTINES {
     cc.sources->root=root;*cc.input=*root;
@@ -133,6 +139,9 @@ void cc_source_include(uint8_t comment) ROUTINES {
     if(!sources_path(name,directory,path)){cc_fail(90);return;}
     id=sources_find(&cc.image->sources,path);
     if(id==0){cc_fail(93);return;}
+#ifdef ZP_UNITS_EXPERIMENT
+    if(id>0&&(!sources_get(&cc.image->sources,(uint8_t)id,&loaded)||loaded.page==255)){cc_fail(93);return;}
+#endif
     if(id<0) {
         if(!read_block(&loaded,path,&diagnostic)) {
             cc.error->code=diagnostic.code==98?99:diagnostic.code?diagnostic.code:90;

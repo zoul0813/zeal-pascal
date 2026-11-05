@@ -33,6 +33,12 @@ uint8_t cc_image_page(uint8_t index) FRONTEND {
         if(!cc_poll())return 0;
         if(!far_fill(cc.image->pages[index],i,0,256)){cc_fail(99);return 0;}
     }
+#ifdef ZP_UNITS_EXPERIMENT
+    /* The prefix is materialized on first mutation, or after unit linking.
+     * Preserve template initialization before any emitted patch can see it. */
+    if(!index&&!(cc.sources->options&&cc.sources->options->kind==COMPILE_CHAIN)&&
+       !cc_runtime_copy(cc.image->pages[index])){cc_fail(99);return 0;}
+#endif
     page_initialized(cc.image->pages[index],PAGE_SIZE);return 1;
 }
 static uint16_t stage_offset(uint16_t offset) {
@@ -70,6 +76,9 @@ static uint8_t separate_globals(void) {
     return 1;
 }
 void cc_global_put(uint16_t p,uint8_t value) FRONTEND {
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc.sources->unit_mode){cc_fail(249);return;}
+#endif
     if(cc.error->code)return;
     if(cc_disk_active(cc.image)){cc_disk_global_put(p,value);return;}
     if(!cc.placing&&p>=CC_CODE_BASE&&!separate_globals())return;

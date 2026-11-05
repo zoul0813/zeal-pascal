@@ -86,6 +86,13 @@ static const char *const explanations[101]={
 
 void compiler_message(uint8_t code) SOURCE_BLOCK_CALL {
     const char *text;
+#ifdef ZP_UNITS_EXPERIMENT
+    {static const char *const unit_messages[]={
+        "Invalid compiled unit", "Unit feature unsupported in this experiment",
+        "Compiled unit file unavailable", "Unit source/profile changed; recompile unit",
+        "Ambiguous unit export; qualify its name", "Unit interface/implementation mismatch"};
+    if(code>=248&&code<=253){output(": ");output(unit_messages[code-248]);return;}}
+#endif
     if(code>=sizeof(explanations)/sizeof(explanations[0]))return;
     text=explanations[code];
     if(text) {output(": ");output(text);}

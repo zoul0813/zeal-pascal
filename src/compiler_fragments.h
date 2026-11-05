@@ -1,9 +1,17 @@
 #ifndef ZP_COMPILER_FRAGMENTS_H
 #define ZP_COMPILER_FRAGMENTS_H
 #include "zp.h"
+#if defined(__SDCC) && defined(ZP_UNITS_EXPERIMENT)
+#define CC_FRAGMENT_CALL __banked
+#else
+#define CC_FRAGMENT_CALL
+#endif
 
 /* Private native linker proof, not the Pascal .ZPU interface/ABI format.
- * Each immutable source occupies one caller-owned PAGE_COMPILER page. The
+ * Each immutable source is a bounded slice of one caller-owned PAGE_COMPILER
+ * page; offset permits a compiled-unit container to precede its fragment data.
+ * Optional binding gives an invocation identity. References to that object's
+ * stored identity are local and follow its binding; other IDs stay explicit. The
  * caller retains descriptors/roots in near RAM until this synchronous call
  * returns. No borrowed pointer into a mapped window survives a far operation.
  *
@@ -22,7 +30,7 @@
 #define CC_FRAGMENT_OBJECTS 32u
 #define CC_FRAGMENT_LIMIT (PAGE_SIZE/4u)
 enum { CF_OK,CF_ARGUMENT,CF_OBJECT,CF_TARGET,CF_CAPACITY,CF_MEMORY,CF_CANCELLED,CF_OWNERSHIP };
-typedef struct {uint8_t page;uint16_t bytes;uint32_t lifetime,version;} CompilerFragmentObject;
+typedef struct {uint8_t page;uint16_t bytes;uint32_t lifetime,version;uint16_t offset,binding;} CompilerFragmentObject;
 typedef struct {uint16_t identity,fragment;} CompilerFragmentRoot;
 typedef struct {
     uint8_t pages[2],workspace,valid;
@@ -30,13 +38,28 @@ typedef struct {
     uint16_t origin,bytes,entry,fragments;
 } CompilerFragmentImage;
 
-void cc_fragment_image_init(CompilerFragmentImage *image);
+/* Optional immutable placement catalog, separately owned while a compiler
+ * copies code, relocations and maps into its final image. The convenience
+ * linker releases this catalog as before; only the explicit layout API keeps
+ * it. No source descriptor or caller-stack pointer is retained. */
+typedef struct {
+    uint8_t page,objects;uint16_t fragments;
+    uint32_t lifetime,version;
+    uint16_t identities[CC_FRAGMENT_OBJECTS],bases[CC_FRAGMENT_OBJECTS+1];
+} CompilerFragmentLayout;
+uint8_t cc_fragment_validate(const CompilerFragmentObject *objects,uint8_t count) CC_FRAGMENT_CALL;
+void cc_fragment_layout_init(CompilerFragmentLayout *layout) CC_FRAGMENT_CALL;
+uint8_t cc_fragment_layout_close(CompilerFragmentLayout *layout) CC_FRAGMENT_CALL;
+uint8_t cc_fragment_layout_get(const CompilerFragmentLayout *layout,uint16_t identity,
+                               uint16_t fragment,uint16_t *address) CC_FRAGMENT_CALL;
+
+void cc_fragment_image_init(CompilerFragmentImage *image) CC_FRAGMENT_CALL;
 /* On any failure valid stays zero. Failed releases retain their owned page
  * handles so close can retry; never drop a page whose lifetime changed.
  * After any link failure other than CF_ARGUMENT, the caller must call close,
  * which may need retrying. CF_ARGUMENT can leave an existing valid image
  * untouched. */
-uint8_t cc_fragment_image_close(CompilerFragmentImage *image);
+uint8_t cc_fragment_image_close(CompilerFragmentImage *image) CC_FRAGMENT_CALL;
 /* Validate even unreachable source records before emission. Roots retain
  * transitive references, including recursive cycles. Independently place only
  * selected fragments in catalog/fragment order within8000..limit<=F400.
@@ -48,5 +71,14 @@ uint8_t cc_fragment_image_close(CompilerFragmentImage *image);
  * the standalone fixture supplies a test implementation. */
 uint8_t cc_fragment_link(const CompilerFragmentObject *objects,uint8_t count,
                         const CompilerFragmentRoot *roots,uint16_t root_count,
-                        uint16_t origin,uint16_t limit,CompilerFragmentImage *image);
+                        uint16_t origin,uint16_t limit,CompilerFragmentImage *image) CC_FRAGMENT_CALL;
+uint8_t cc_fragment_link_with_layout(const CompilerFragmentObject *objects,uint8_t count,
+                        const CompilerFragmentRoot *roots,uint16_t root_count,
+                        uint16_t origin,uint16_t limit,CompilerFragmentImage *image,
+                        CompilerFragmentLayout *layout) CC_FRAGMENT_CALL;
+/* Validate, select and place without allocating/copying output pages. The
+ * caller owns emission. Close both result owners exactly as for full linking. */
+uint8_t cc_fragment_plan(const CompilerFragmentObject *objects,uint8_t count,
+    const CompilerFragmentRoot *roots,uint16_t root_count,uint16_t origin,uint16_t limit,
+    CompilerFragmentImage *image,CompilerFragmentLayout *layout) CC_FRAGMENT_CALL;
 #endif

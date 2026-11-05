@@ -1,5 +1,8 @@
 #include "compiler.h"
 #include "compiler_disk.h"
+#ifdef ZP_UNITS_EXPERIMENT
+#include "compiler_units.h"
+#endif
 
 static const char *const reserved[] = {
     "absolute","and","array","begin","case","const","div","do","downto","else","end",
@@ -113,6 +116,9 @@ void cc_reserve(uint16_t bytes) FRONTEND {
     /* Runtime consumes inline size/PC words and preserves both register sets. */
     cc_op16(0xcd,RT_GUARD);
     cc_emit((uint8_t)bytes); cc_emit((uint8_t)(bytes>>8));
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc.sources->unit_mode)cc_units_note(UR_PC,cc.emitted,CC_CODE_BASE+pc);
+#endif
     cc_emit((uint8_t)pc); cc_emit((uint8_t)(pc>>8));
 }
 void cc_guard(void) FRONTEND { cc_reserve(0); }
@@ -155,6 +161,9 @@ void cc_preserve_registers(uint8_t restore) FRONTEND {
 /* Terminal entries restore their own emergency stack before doing cleanup.
  * Capturing their source PC must not push onto a caller-selected boundary SP. */
 void cc_finish(uint16_t entry) FRONTEND {
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc.sources->unit_mode)cc_units_note(UR_PC,cc.emitted+1,cc.emitted);
+#endif
     cc_op16(0x21,cc.emitted-CC_CODE_BASE);
     cc_op16(0x22,RT_PC);
     cc_emit(0x06); cc_emit(cc.io_check); cc_op16(0xc3,entry);
@@ -231,6 +240,9 @@ void cc_control_literal(void) FRONTEND {
     cc.scan=(uint16_t)cc.token_start; cc.literal_length=0; literal();
 }
 void cc_next(void) FRONTEND {
+#ifdef ZP_UNITS_EXPERIMENT
+    cc.sources->unit_qualifier=0;
+#endif
     uint8_t c,q,base,value;
     uint16_t n=0;
     uint32_t wide;
@@ -338,7 +350,7 @@ void cc_next(void) FRONTEND {
 
 void cc_expect(uint16_t t,uint8_t code) FRONTEND { if(cc.token!=t) cc_fail(code); else cc_next(); }
 
-int16_t cc_lookup(void) FRONTEND {
+int16_t cc_lookup_decl(void) FRONTEND {
     Symbol symbol;Source view;uint16_t loaded=0xffffu,base=0;
     uint16_t i; int16_t field; uint8_t j;uint16_t scope=cc.scope;uint8_t n=(uint8_t)strlen(cc.name);
     for(j=cc.with_depth;j;--j) {
@@ -351,6 +363,10 @@ int16_t cc_lookup(void) FRONTEND {
             if(!(i&63u)&&!cc_poll())return -1;
             if(!cc_symbol_read(i,&symbol))return -1;
             if(symbol.role>=S_FIELD||symbol.owner!=scope)continue;
+#ifdef ZP_UNITS_EXPERIMENT
+            if((symbol.role==S_PROCEDURE||symbol.role==S_FUNCTION)&&
+               (cc_rget(symbol.initial_type,R_FLAGS)&RF_UNIT_IMPORT))continue;
+#endif
             if(symbol.role==S_STANDARD) {
                 if(cc_is(standard_names[symbol.initial_type-1])) {
                     CCS_SET(i,type,text_file_type()); return (int16_t)i;
@@ -367,7 +383,11 @@ int16_t cc_lookup(void) FRONTEND {
             if(symbol.role==S_SYSTEM) {
                 for(j=0;j<sizeof(system_variables)/sizeof(system_variables[0]);++j)
                     if(symbol.address==system_variables[j].address&&cc_is(system_variables[j].name)) {
-                        if(!cc.suppress&&symbol.address==RT_CBREAK)cc.console_dynamic=1;
+                        if(!cc.suppress&&(symbol.address==RT_CBREAK
+#ifdef ZP_UNITS_EXPERIMENT
+                            ||cc.sources->unit_mode
+#endif
+                            ))cc.console_dynamic=1;
                         return (int16_t)i;
                     }
                 continue;
@@ -383,6 +403,29 @@ int16_t cc_lookup(void) FRONTEND {
     }
     return -1;
 }
+#ifdef ZP_UNITS_EXPERIMENT
+int16_t cc_lookup(void) FRONTEND {
+    int16_t id;
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc.sources->unit_qualifier)return cc_units_lookup();
+#endif
+    id=cc_lookup_decl();
+#ifdef ZP_UNITS_EXPERIMENT
+    if(id<0&&cc.sources->unit_page!=255&&!cc.sources->unit_mode)return cc_units_lookup();
+#endif
+    return id;
+}
+static void storage_address(uint8_t opcode,uint16_t id) {
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc.sources->unit_mode&&CCS(id,address)>=GLOBAL_BASE&&CCS(id,role)!=S_ADDRESS) {
+        cc_units_global(opcode,CCS(id,address));return;
+    }
+#endif
+    cc_op16(opcode,CCS(id,address));
+}
+#else
+#define storage_address(opcode,id) cc_op16((opcode),CCS((id),address))
+#endif
 static int16_t find_field(TypeId type,uint16_t field) {
     uint16_t i,variant;
     uint8_t n=(uint8_t)strlen(cc.name);
@@ -457,7 +500,7 @@ void cc_slot(uint16_t id) FRONTEND {
     if(CCS(id,role)==S_ALIAS) cc_symbol_address(CCS(id,address));
     else if(CCS(id,role)==S_ADDRESS) cc_op16(0x21,CCS(id,address));
     else if(CCS(id,role)==S_TYPED) cc_address(0x21,CCS(id,address));
-    else cc_op16(0x21,CCS(id,address));
+    else storage_address(0x21,id);
 }
 TypeId cc_standard_reference(uint8_t identity) FRONTEND {
     uint16_t i;
@@ -479,7 +522,7 @@ void cc_destination(uint16_t id) FRONTEND {
     if(indirect_symbol(id)) {
         cc_guard(); cc_emit(0xe5); cc_symbol_address(id); cc_emit(0xeb); cc_emit(0xe1);
     } else if(CCS(id,role)==S_TYPED) cc_address(0x11,CCS(id,address));
-    else cc_op16(0x11,CCS(id,address));
+    else storage_address(0x11,id);
 }
 void cc_load_symbol(uint16_t id) FRONTEND {
     if(CCS(id,role)==S_HOOK) cc_hook_variable(id);
@@ -492,9 +535,9 @@ void cc_load_symbol(uint16_t id) FRONTEND {
         cc_load_indirect(CCS(id,type));
     }
     else if(CCT(CCS(id,type),width)==1) {
-        if(CCS(id,role)==S_TYPED) cc_address(0x3a,CCS(id,address)); else cc_op16(0x3a,CCS(id,address));
+        if(CCS(id,role)==S_TYPED) cc_address(0x3a,CCS(id,address)); else storage_address(0x3a,id);
         cc_emit(0x6f); cc_emit(0x26); cc_emit(0);
-    } else if(CCS(id,role)==S_TYPED) cc_address(0x2a,CCS(id,address)); else cc_op16(0x2a,CCS(id,address));
+    } else if(CCS(id,role)==S_TYPED) cc_address(0x2a,CCS(id,address)); else storage_address(0x2a,id);
 }
 void cc_store_symbol(uint16_t id) FRONTEND {
     uint8_t op;
@@ -507,7 +550,7 @@ void cc_store_symbol(uint16_t id) FRONTEND {
         return;
     }
     if(op==0x32) cc_emit(0x7d);
-    if(CCS(id,role)==S_TYPED) cc_address(op,CCS(id,address)); else cc_op16(op,CCS(id,address));
+    if(CCS(id,role)==S_TYPED) cc_address(op,CCS(id,address)); else storage_address(op,id);
 }
 void cc_check_range(TypeId type) FRONTEND {
     if(type==TYPE_NONE) { cc_fail(44); return; }
@@ -563,6 +606,9 @@ void cc_constant_literal(uint16_t at) FRONTEND {
     if(cc.error->code)return;
     cc_source_seek(((SourcePosition)cursor.file<<16)|cursor.scan);
     cc.token=cursor.token;cc.token_start=cursor.first;cc.token_end=cursor.last;
+#ifdef ZP_UNITS_EXPERIMENT
+    cc.sources->unit_qualifier=cursor.unit_qualifier;
+#endif
 }
 void cc_emit_literal(void) FRONTEND {
     uint16_t i,address=cc.emitted+3;

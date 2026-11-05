@@ -57,11 +57,18 @@ typedef struct {
     uint8_t parent_flags;uint8_t parent_limit;
     const CompileOptions *options;
     struct CompilerGroups *groups; /* Invocation-owned; NULL without overlays. */
+#ifdef ZP_UNITS_EXPERIMENT
+    uint8_t unit_page,unit_mode,unit_cbreak;uint16_t unit_qualifier;
+    uint16_t unit_owner,unit_start;
+#endif
 } CompilerSources;
 typedef struct {
     SourcePosition first,last;
     uint16_t scan,token,parent_scan;
     uint8_t file;uint8_t flags;uint8_t limit;uint8_t parent_flags;uint8_t parent_limit;
+#ifdef ZP_UNITS_EXPERIMENT
+    uint16_t unit_qualifier;
+#endif
 } SourceCursor;
 typedef struct {
     uint16_t symbol_count;
@@ -229,6 +236,11 @@ void cc_unpack_reference(uint16_t operand) FRONTEND;
 void cc_unpack_finish(void) FRONTEND;
 void cc_expect(uint16_t t,uint8_t code) FRONTEND;
 int16_t cc_lookup(void) FRONTEND;
+#ifdef ZP_UNITS_EXPERIMENT
+int16_t cc_lookup_decl(void) FRONTEND;
+#else
+#define cc_lookup_decl cc_lookup
+#endif
 void cc_system_init(void) FRONTEND;
 TypeId cc_standard_reference(uint8_t identity) FRONTEND;
 TypeId cc_new_type(TypeId family,uint16_t width,int16_t low,int16_t high,TypeId capacity) FRONTEND;
