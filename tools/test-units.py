@@ -8,7 +8,6 @@ import os
 from pathlib import Path
 import re
 import struct
-import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -44,12 +43,7 @@ def main():
     def save():
         (out/'report.json').write_text(json.dumps(report, indent=2)+'\n')
     save()
-    command = ['zde','--no-tty','cmake','--target','zunittest_bin','--parallel','6']
-    with (out/'build.log').open('w') as log:
-        result = subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
-    report['build'] = {'command':command,'returncode':result.returncode,'log_sha256':sha(out/'build.log')}
-    save()
-    assert result.returncode == 0, out/'build.log'
+    report['build'] = {'policy': 'prebuilt; orchestrator builds before freezing inputs'}
     artifacts = {f'build/zunittest.{ext}': sha(ROOT/f'build/zunittest.{ext}') for ext in ('bin','zpl','map','ihx')}
     spec = importlib.util.spec_from_file_location('native', ROOT/'tools/test-native.py')
     native = importlib.util.module_from_spec(spec)

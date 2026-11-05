@@ -71,7 +71,9 @@
     "tools/test-unit-real.py",
     "tools/test-ide-units.py",
     "tools/test-ide-unit-failures.py",
-    "tools/test-optional-corpus.py"
+    "tools/test-optional-corpus.py",
+    "tools/test-optional-real.py",
+    "tools/test-optional-chain.py"
   ],
   "redundant": [
     "tools/test-native.py --core-only",

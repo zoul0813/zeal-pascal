@@ -7,11 +7,9 @@ import json
 import os
 from pathlib import Path
 import re
-import subprocess
 ROOT=Path(__file__).resolve().parents[1]
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 def main():
-    subprocess.run(['zde','--no-tty','cmake','--target','zoptionalcorpus_bin','--parallel','6'],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
     out=ROOT/'analysis/optional-real'/('corpus-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')+f'-{os.getpid()}')
     out.mkdir(parents=True)
     inputs=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),ROOT/'tools/test-native.py']+sorted(p for p in (ROOT/'src').iterdir() if p.is_file())+sorted((ROOT/'tests/native').glob('*.c'))

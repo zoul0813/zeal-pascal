@@ -1,5 +1,6 @@
 """Host regression for dependency handling in the parallel acceptance runner."""
 import json
+import os
 import importlib.util
 import shlex
 from pathlib import Path
@@ -53,8 +54,8 @@ class Selection(unittest.TestCase):
         definition = json.loads(runner.PLAN.read_text())
         expanded = runner.expand_commands(definition)
         original = runner.expand_commands(definition, monolithic=True)
-        self.assertEqual(len(original), 72)
-        self.assertEqual(len(expanded), 146)
+        self.assertEqual(len(original), 74)
+        self.assertEqual(len(expanded), 148)
         expected = [command + shlex.split(suffix) for command in original
                     for suffix in definition.get('chunks', {}).get(' '.join(command), [''])]
         self.assertEqual(expanded, expected)
@@ -211,6 +212,35 @@ class Selection(unittest.TestCase):
 
 
 class RunnerDependencies(unittest.TestCase):
+    def test_native_build_happens_once_before_frozen_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            for name in ('tools','build','tests','fakebin'):(root/name).mkdir()
+            for name in ('CMakeLists.txt','tests/test_runner.py','tests/test_native_chunks.py'):(root/name).write_text('')
+            shutil.copy(runner.ROOT/'tools/run-tests.py',root/'tools/run-tests.py')
+            (root/'tools/test-native-host.py').write_text('')
+            names={'test-units.py':'zunittest_bin','test-unit-real.py':'zunitrealtest_bin','test-optional-corpus.py':'zoptionalcorpus_bin'}
+            for name,target in names.items():
+                (root/'tools'/name).write_text(f'from pathlib import Path\nassert Path("build/{target}.bin").read_bytes()==b"built"\n')
+            (root/'tools/test-plan.json').write_text(json.dumps({'full':['tools/test-native-host.py',*('tools/'+name for name in names)],'redundant':[]}))
+            fake=root/'fakebin/zde'
+            fake.write_text(f'#!{sys.executable}\nimport sys\nfrom pathlib import Path\nargs=sys.argv\nfor target in args[args.index("--target")+1:args.index("--parallel")]:Path("build/"+target+".bin").write_bytes(b"built")\nwith Path("build-calls.txt").open("a")as out:out.write("build\\n")\n')
+            fake.chmod(0o755)
+            env={**os.environ,'PATH':str(fake.parent)+os.pathsep+os.environ.get('PATH','')}
+            result=subprocess.run([sys.executable,'tools/run-tests.py','--only','units','--only','unit-real','--only','optional-corpus'],cwd=root,env=env,capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            self.assertEqual((root/'build-calls.txt').read_text(),'build\n')
+            report=json.loads(next((root/'analysis/test-runs').glob('*/suite.json')).read_text())
+            self.assertEqual(report['status'],'passed-focused')
+            self.assertEqual(report['changed_inputs'],[])
+            # A signal during preflight must stop and reap the build child
+            # before releasing the checkout lock or starting any test.
+            fake.write_text(f'#!{sys.executable}\nimport os,signal,time\nfrom pathlib import Path\nPath("build-child.pid").write_text(str(os.getpid()))\nos.kill(os.getppid(),signal.SIGTERM)\ntime.sleep(30)\nPath("orphan.ran").touch()\n')
+            result=subprocess.run([sys.executable,'tools/run-tests.py','--only','units'],cwd=root,env=env,capture_output=True,text=True,timeout=15)
+            self.assertEqual(result.returncode,130,result.stdout+result.stderr)
+            self.assertFalse((root/'orphan.ran').exists())
+            with self.assertRaises(ProcessLookupError):os.kill(int((root/'build-child.pid').read_text()),0)
+
     def run_plan(self, host_fails=False, extra=(), expected=1):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

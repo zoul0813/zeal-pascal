@@ -4,12 +4,10 @@ import importlib.util
 import json
 from pathlib import Path
 import re
-import subprocess
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py')
 n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
 def main():
-    subprocess.run(['zde','--no-tty','cmake','--target','zunitrealtest_bin','--parallel','6'],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
     target='zunitrealtest';symbols=n.symbols(target)
     fixtures={target+'.'+ext:(ROOT/f'build/{target}.{ext}').read_bytes()for ext in ('bin','zpl')}
     commands=['run 100000000']+n.program_launch(target)+[f"bp 0x{symbols['_test_stop']:x}",'run 20000000000','s','regs','rb 0x4000 32']

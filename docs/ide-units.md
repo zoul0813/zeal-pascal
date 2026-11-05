@@ -7,7 +7,8 @@ The declared unit name determines the output: `MATHSRC.PAS` containing
 be compiled and used by a program. Dirty Work is saved first through the
 existing source-save/backup path. Work is then refreshed from saved text,
 including the existing trailing-space trimming, so imported error offsets match
-the displayed source.
+the displayed source. Missing or unreadable source leaves Work intact; a
+successful refresh preserves its cursor, clamped to the saved length.
 
 For example, compile this as a Unit-file:
 
@@ -46,7 +47,7 @@ linking; logical bank17 handles unit artifact I/O and publication transiently.
 The optional Real page and unit I/O page are released after their phases.
 Startup and generated-program execution do not keep these pages resident.
 
-The combined IDE bank container grows to238748 bytes on disk; this integration
+The combined IDE bank container grows to238798 bytes on disk; this integration
 does not claim a smaller `.ZPL`. Generated programs retain the existing fixed
 16 KiB runtime prefix. Omitting the Real engine changes included bytes, but does
 not yet reduce generated-program execution-page allocation.
@@ -78,3 +79,7 @@ publication is not an atomic filesystem transaction.
 Qualification and independent review are recorded in `ide-units-evidence.json`
 and `../reviews/ide-units-v1.md`. Emulator evidence is not physical hardware
 qualification.
+
+Run the registered checks through `tools/run-tests.py`; it builds selected native
+prerequisites with ZDE before freezing artifacts and starting parallel readers.
+For a standalone driver invocation, build its native target first with ZDE.

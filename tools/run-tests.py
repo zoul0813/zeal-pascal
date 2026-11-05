@@ -108,6 +108,21 @@ def inputs():
             for p in sorted(set(paths))}
 
 
+def native_targets(plan):
+    # Build once under the checkout lock, before freezing artifacts or starting
+    # parallel readers. Individual unit drivers never mutate the build tree.
+    targets = {
+        'tools/test-units.py': ('zunittest_bin',),
+        'tools/test-unit-real.py': ('zunitrealtest_bin',),
+        'tools/test-optional-corpus.py': ('zoptionalcorpus_bin',),
+        'tools/test-ide-units.py': ('zpascal_bin', 'zexparent_bin'),
+        'tools/test-ide-unit-failures.py': ('zpascal_bin',),
+        'tools/test-optional-real.py': ('zpascal_bin', 'zlegacypascal_bin'),
+        'tools/test-optional-chain.py': ('zpascal_bin', 'zlegacypascal_bin', 'zexparent_bin'),
+    }
+    return sorted({target for command in plan for target in targets.get(command[0], ())})
+
+
 def resolve(command, host_log, params_reports):
     command = list(command)
     if '@observed' in command:
@@ -201,7 +216,7 @@ def main():
         return 1
     directory = runs / datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
     directory.mkdir(parents=True)
-    frozen = inputs()
+    frozen = {}
     report = {'status': 'running', 'passed': False, 'commands': plan, 'jobs': args.jobs,
               'scope': scope, 'full_acceptance': False, 'selected_passed': False, 'selection': patterns,
               'input_sha256': frozen, 'results': [], 'skipped': []}
@@ -230,6 +245,29 @@ def main():
     save()
     print(f'Reports: {directory}', flush=True)
     try:
+        targets = native_targets(plan)
+        if targets:
+            print(f'Building native prerequisites: {", ".join(targets)}', flush=True)
+            with (directory / 'native-build.log').open('w') as output:
+                child = subprocess.Popen(['zde', '--no-tty', 'cmake', '--target', *targets,
+                                          '--parallel', '6'], cwd=ROOT, stdout=output,
+                                         stderr=subprocess.STDOUT, start_new_session=True)
+                active[0] = {'child': child, 'output': output}
+                while child.poll() is None:
+                    if cancelled:
+                        raise KeyboardInterrupt
+                    try:
+                        child.wait(timeout=0.1)
+                    except subprocess.TimeoutExpired:
+                        pass
+                if cancelled:
+                    raise KeyboardInterrupt
+                if child.returncode:
+                    raise RuntimeError(f'Native prerequisite build failed; see {directory}/native-build.log')
+                del active[0]
+        frozen = inputs()
+        report['input_sha256'] = frozen
+        save()
         while pending or active:
             if cancelled:
                 raise KeyboardInterrupt
