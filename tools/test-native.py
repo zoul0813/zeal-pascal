@@ -735,7 +735,9 @@ def full_media_checks():
     # native probe is retained locally, never counted as a passing check.
     typed = lambda text: type_text(text, ticks=2000000)
     commands = ['run 100000000'] + program_launch()
-    commands += ['run 10000000'] + typed('nwB:/UNTITLED.PAS\ne{kept}') + control('K') + typed('doc')
+    # A new path makes C/R/S fail at create, before truncating an existing
+    # file could reach the pinned OS's known growth-into-exhaustion fault.
+    commands += ['run 10000000'] + typed("nwB:/EXHAUST.PAS\ne{kept}begin\nwriteln('MEDIA')\nend.\n") + control('K') + typed('doc')
     commands += ['tap Q',ImageStop(sym['_key_read'],'zpascal.bin')]
     for key in ('C', 'R'):
         # Saved compilation now prepares its transaction before compiling.
@@ -744,8 +746,9 @@ def full_media_checks():
         commands += [f'tap {key}',ImageStop(sym['_output_number'],'zpascal.bin'),
                      f"rb 0x{sym['_work']:x} 140",'s',ImageStop(sym['_key_read'],'zpascal.bin'),
                      'tap ESC',ImageStop(sym['_key_read'],'zpascal.bin')]
-    commands += ['tap S',ImageStop(sym['_key_read'],'zpascal.bin'),'tap Y',
-                 ImageStop(sym['_output_number'],'zpascal.bin'),f"rb 0x{sym['_work']:x} 140"]
+    # Save reports failure immediately; it has no overwrite confirmation.
+    commands += ['tap S',ImageStop(sym['_output_number'],'zpascal.bin'),
+                 f"rb 0x{sym['_work']:x} 140"]
     commands += ['quit']
     text = execute('full-media', commands, eeprom_image=MEDIA/'eeprom-full.img',timeout=360)
     frames = [frame for frame in re.split(r'\[DBG\] PC=', text)[1:]
@@ -816,8 +819,10 @@ def default_path_checks():
     observed = frames(compiled)
     files = zealfs_files((RUN / 'paths-com/tf.img').read_bytes())
     checks.append(('COM publication creates entered parent directories without saving source or creating the default path',
-                   len(observed) == 1 and observed[0].get(build + 4) == 1 and observed[0].get(work + 1) == 1
-                   and '/work/deep/hello.COM' in files and '/work/deep/hello.ZMP' not in files
+                   len(observed) == 1 and observed[0].get(build + 4) == 0 and observed[0].get(work + 1) == 1
+                   and bytes(observed[0].get(build+i,0) for i in range(4)) == bytes([255])*4
+                   and files.get('/work/deep/hello.COM',b'')[3:8] == b'ZP80\x02'
+                   and '/work/deep/hello.ZMP' not in files
                    and '/work/deep/hello.pas' not in files and '/src/' not in files
                    and not any('/ZP' in name for name in files)))
     commands = launch() + [f'bc 0x{key:x}'] + typed('e' + text.decode())

@@ -24,7 +24,7 @@ def main():
     for command in ('H:/mkdir T:/listdir','H:/mkdir T:/listdir/sub',
         'H:/cp H:/card-lower.pas T:/listdir/card.pas','H:/cp H:/card-upper.pas T:/listdir/CARD.PAS',
         'H:/cp H:/readme.txt T:/listdir/readme.txt'):
-        setup+=n.type_text(command+'\n',ticks=2000000)+['run 1000000000']
+        setup+=n.type_text(command+'\n',ticks=2000000)+['run 100000000']
     setup+=['quit']
     extra={name:(n.COREUTILS/name).read_bytes()for name in ('mkdir','cp')}
     n.execute('directory-card-setup',setup,{**fixtures,**extra},tf_image=template,eeprom_image=n.blank_eeprom(),timeout=180)
@@ -35,8 +35,8 @@ def main():
     inputs+=list((ROOT/'src').glob('*'))+list((ROOT/'tests/native').glob('*'))
     inputs += [ROOT/f'build/zpascal.{ext}'for ext in ('bin','zpl','map','banks.json')]
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()}
-    labels=[];typed=lambda text:n.type_text(text,ticks=100000000)
-    editing=lambda text:n.type_text(text,ticks=100000000)
+    labels=[];typed=lambda text:n.type_text(text,ticks=2000000)
+    editing=lambda text:n.type_text(text,ticks=2000000)
     control=lambda letter:n.control(letter)[:-1]+['run 100000000']
     def state(label,trigger,cycles=4000000000):
         labels.append((label,'state'))
@@ -45,16 +45,29 @@ def main():
         return [f'bp 0x{key:x}']+trigger+[f'run {cycles}','regs','mmu',
             f"rb 0x{sym['_ide_state']:x} 1",f'rb 0x{work:x} 140',f'rb 0x{build:x} {n.BUILD_BYTES}',
             f'rb 0x{editor:x} 223',f"rb 0x{sym['_main_file']:x} 128",
-            f"rb 0x{sym['_ram_result']:x} 128",f'bc 0x{key:x}']
+            f"rb 0x{sym['_ram_result']:x} 128",f"rb 0x{sym['_code_pages']:x} 16",f'bc 0x{key:x}']
     def screen(label,trigger,rows=16):
         labels.append((label,'screen'))
         if isinstance(trigger,str):trigger=['tap '+trigger]
         assert all(not part.startswith('run ')for part in trigger)
-        result=[f'bp 0x{clear:x}']+trigger+['run 4000000000','regs','mmu']
+        if label.endswith('menu'):
+            # Refresh the actual menu through Options/Return before sampling;
+            # Logged drive itself leaves its input prompt on screen.
+            trigger=trigger+['run 100000000']+typed('oq')+['run 100000000']
+        result=trigger+[f'bp 0x{clear:x}'] if label.endswith('menu') else [f'bp 0x{clear:x}']+trigger
+        if label not in ('page-one','page-two','source-retained'):
+            # Ordinary menu input and acknowledgment Escape do not clear.
+            # Options supplies a supported clear; inspect the prior screen
+            # before it writes, then leave Options after the snapshot.
+            result+=['run 100000000','tap O']
+        result+=['run 4000000000','regs','mmu']
         for offset in range(0,rows*80,256):result+=[f'rb 0x{0x4000+offset:x} {min(256,rows*80-offset)}']
         for symbol,size in (('_vfs_current_dir',128),('_dev_table',32),('_page_owners',32),('mmu_bitmap',4)):
             result+=[f'rb 0x{kernel[symbol]:x} {size}']
-        return result+[f'bc 0x{clear:x}','run 400000000']
+        result += [f'bc 0x{clear:x}','run 100000000']
+        if label not in ('page-one','page-two','source-retained'):
+            result += typed('q')+['run 100000000']
+        return result
     commands=['run 100000000']+typed('cd H:/\n')+['run 100000000']+n.program_launch()+['run 10000000']
     commands+=typed('nwH:/project/main.pas\ne')+editing(prefix.decode())+control('K')+typed('b')+control('K')+typed('d')
     commands+=typed('mH:/project/main.pas\n')+state('baseline','C')+screen('baseline-menu','SPACE')
@@ -101,7 +114,7 @@ def main():
             assert size%80==0,(label,size)
             screens[label]=[data(label,0x4000+offset,80).replace(b'\0',b' ').decode('ascii',errors='replace').rstrip()for offset in range(0,size,80)]
             checks[label+' inspects actual character VRAM']=part.startswith(f'{clear:04x} ')and '4000 -> 100000' in part
-        listing=lambda label:[row for row in screens[label][2:]if row and row!='No matching entries'and not row.startswith(('Free space unavailable','Press Escape','More:'))]
+        listing=lambda label:[row for row in screens[label][2:]if row and row not in ('No matching entries','>')and not row.startswith(('Free space unavailable','Press Escape','More:'))]
         expected_all={'a1.pas','aB.pas','a12.pas','noext','Multi.part.pas','Caps.PAS','star*file.pas','12345678901.pas','Sub.pas/'}
         checks['native TF masks retain case']=listing('tf-lower-screen')==['card.pas']and listing('tf-upper-screen')==['CARD.PAS']
         checks['explicit directory lists files and marks subdirectories']=set(listing('tf-directory-screen'))=={'card.pas','CARD.PAS','readme.txt','sub/'}
@@ -122,7 +135,30 @@ def main():
         checks['empty/escaped/interrupted fields and pager abort return to menu']=all(data(label,sym['_ide_state'],1)==b'\x01'for label in ('empty-drive','canceled-drive','interrupted-drive','canceled-directory','interrupted-directory','after-paging'))
         closed=[label for label,kind in labels if kind=='screen'and label not in ('page-one','page-two')]
         checks['directory descriptors close on EOF, errors and pager cancellation']=all(data(label,kernel['_dev_table'],32)==data('baseline-menu',kernel['_dev_table'],32)for label in closed)
-        checks['page and allocator ownership remains unchanged']=all(data(label,kernel['_page_owners'],32)==data('baseline-menu',kernel['_page_owners'],32)and data(label,kernel['mmu_bitmap'],4)==data('baseline-menu',kernel['mmu_bitmap'],4)for label,kind in labels if kind=='screen')
+        checks['directory and drive commands retain page and allocator ownership']=all(data(label,kernel['_page_owners'],32)==data('baseline-menu',kernel['_page_owners'],32)and data(label,kernel['mmu_bitmap'],4)==data('baseline-menu',kernel['mmu_bitmap'],4)for label,kind in labels if kind=='screen'and label!='source-retained')
+        # Run may fill an absent Build window using a parked compiler page.
+        # Restoring that code bank then gets a different physical handle.
+        # Account for both exact logical sets, preserving every other owner.
+        before=baseline[build];after=data('cached-run',build,n.BUILD_BYTES)
+        count=n.code_banks();old_code=data('baseline',sym['_code_pages'],count)
+        new_code=data('cached-run',sym['_code_pages'],count)
+        added_image=[after[i]for i in range(3)if before[i]==255]
+        owners=bytearray(data('baseline-menu',kernel['_page_owners'],32))
+        bitmap=bytearray(data('baseline-menu',kernel['mmu_bitmap'],4))
+        owner=owners[before[0]-32]if 32<=before[0]<64 else 0
+        valid=n.same_build_after_run(before,after)and owner!=0 and all(32<=p<64 for p in old_code+new_code+bytes(added_image))
+        valid=valid and len(set(old_code))==len(set(new_code))==count
+        valid=valid and len(added_image)==len(set(added_image))and not(set(new_code)&set(added_image))
+        old_pool=set(old_code);new_pool=set(new_code)|set(added_image)
+        for page in old_pool-new_pool:
+            if not 32<=page<64:continue
+            i=page-32;valid=valid and owners[i]==owner and not(bitmap[i//8]&(1<<(i%8)))
+            owners[i]=0;bitmap[i//8]|=1<<(i%8)
+        for page in new_pool-old_pool:
+            if not 32<=page<64:continue
+            i=page-32;valid=valid and owners[i]==0 and bool(bitmap[i//8]&(1<<(i%8)))
+            owners[i]=owner;bitmap[i//8]&=~(1<<(i%8))
+        checks['Run retains exactly its image windows and restored compiler pages']=valid and data('source-retained',kernel['_page_owners'],32)==owners and data('source-retained',kernel['mmu_bitmap'],4)==bitmap
         checks['R after logged-drive changes reuses valid absolute-root cache']=n.same_build_after_run(baseline[build],data('cached-run',build,n.BUILD_BYTES))and data('cached-run',sym['_ram_result']+26,1)==b'\x01'
         checks['actual source display retains unsaved comment and original program']=all(any(line.decode()in row for row in screens['source-retained'])for line in (prefix.rstrip(),source.splitlines()[0],source.splitlines()[2]))
         checks['clean IDE exit releases all non-loader pages']=frames['ide-exit'][1].startswith(f"{kernel['zos_loader_exit']:04x} ")and data('ide-exit',kernel['_page_owners'],32).count(2)==3
