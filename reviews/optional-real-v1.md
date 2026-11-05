@@ -179,3 +179,67 @@ The earlier questions on `absolute`/`Mem`, `.gitignore`, `platform.c`, job page 
 The full-src emitter search is retained in `analysis/optional-real-review/real-emitter-audit.txt`, with its hash in the evidence. Production Pascal overlay syntax is currently rejected (`compiler_routines.c`); the separately staged native overlay/group C fixtures do not implement Pascal overlay compilation. Thus no supported overlay member path resets Real demand. `cc` is initialized once per compile and engine demand remains in that invocation.
 
 **Remaining review gate.** These fixes changed code after the second review. The two successful turns are recorded, but their completion is not reused for the current snapshot and runner finalization is not claimed. All required verification for this checkpoint passes. One additional restricted Opus pass requires the user's explicit request under the project skill's two-turn limit. No additional review has been started.
+
+## Opus turn 20261105T192028-d26413aa
+
+Mode: code; read-only
+
+# Extra review of optional-real-v1 at f968c6c
+
+**Verdict:** Findings 6, 7 and 8 and both prior questions are resolved in the supplied source, and I found no blocker, high-severity defect or decoder defect. Do not close this review yet: Finding 9 is still open in the supplied snapshot, and the legacy half of Finding 8 has no reported rerun. I ran nothing, so all results below are your reported evidence.
+
+## Prior findings and questions
+
+| Item | Status | Assessment |
+|---|---|---|
+| **6. Disk thrashing** | Resolved in source | Back-references now read only the history at offset 12288, and output goes strictly forward through `cc_put`. A record cannot reference an earlier record because `distance>done` is rejected and `done` starts at 0 for each record. A 4096-byte distance reads the old byte before overwriting that slot. Polling and bounds checks are preserved. With a 7935-byte patch at offset 0, there is no overlap. About 92 flushes matches 11310/128 plus the four record starts. The 92 and the timing figures are reported values, and their report is missing (Finding 10). |
+| **7. Standalone shrink** | Resolved | The gate now asserts top-level `passed`, derives its cases from labels, rejects an empty or unknown set, and fails on a missing COM. |
+| **8. Page assertion** | Resolved in source | The observer now has an explicit contract for each variant, and `zoptionalcorpus` links the separately compiled object. The legacy rerun is still a gap (Finding 11). |
+| **9. Evidence binding** | **Not resolved in the supplied snapshot** | See Finding 10. |
+| **Question 1. Emitter audit** | Closed | The all-`src` search shows `RT_REAL` only in `math_call`. `RT_FORMAT` and the `cc_val` and `cc_read` paths are flagged at parse time. The `RT_VAL` and `RT_INPUT_VALUE` code emitted late in `compiler_files.c` picks Real only from a job kind already flagged in `cc_file_transfer`. This also closes my remaining limit on Finding 1. |
+| **Question 2. Overlay members** | Closed | `cc_block` has no overlay branch, so `overlay` always fails. `compile_project` zeroes `sources`, and no supplied production path sets `groups`. `cc` is cleared once per compile, so no supported path resets `real_needed`. |
+
+## Established finding
+
+### 10. Medium: the evidence index still describes the pre-fix build
+- **Location:** `docs/optional-real-evidence.json`, including its copy in `changes.diff`. The claims it contradicts are in Finding 9's reconciliation in `reviews/optional-real-v1.md` and the assignment.
+- **Impact:** The decoder fix, media measurements and final-source gates cannot be traced to this checkpoint. The evidence file presents a passing result for a different binary.
+- **Evidence:**
+  - `library_bytes` and the startup report's `production_library_bytes` are 201639, while `docs/optional-real.md` and the assignment state 201725. The startup report ties that 201639 size to `build/zpascal.zpl` hash `5aeeb096...`, so the recorded production artifact is not the current build.
+  - `CMakeLists.txt` is still `d4ded9a7...`, the hash quoted in my second turn, although `post-review.diff` changes that file.
+  - There is no `media` report, and `tools/test-optional-media.py` is not hashed.
+  - There are no file, path or Ctrl-C workflow reports, and no hash for the emitter audit.
+  - `clean_zde_build_byte_identity` still contains only two booleans, with no logs, config, source or artifact hashes.
+  - Capture paths still carry the earlier run timestamps, such as `20261105T1726...`.
+- **Limit:** A packaging error could explain this, but `changes.diff` shows the same content, so I cannot treat it as one.
+- **Fix:**
+  1. Regenerate the index from the final captures, keeping historical 17-case and CHN evidence in a clearly separate section.
+  2. Verify that its source and artifact hashes match f968c6c.
+  3. Include the media report, workflow reports, build records and audit hash.
+
+## Verification gap
+
+### 11. Low: no reported legacy rerun of the changed shared fixtures
+- **Location:** `tests/native/main.c`, `tests/native/harness-execute.c`, `tests/native/code-capture.c`, and the `zp_core` and `unit_core` targets that link them.
+- **Trigger and impact:** `main.c` and `code-capture.c` are shared with `zptest` and `zunitcorpus`, and `harness-execute.c` also serves the other `test_execution` targets. The assignment reports the optional corpus, which proves only the `code_required-1` branch. The legacy `code_required` branch has no reported execution.
+- **Fix:** Run `tools/test-native.py --core-only` on the final source and bind the capture. If the unit fixtures stay in the milestone's claims, also run `zunitcorpus`.
+
+## Question
+
+1. **`PAGE_SIZE` in the `#if` guard:** `zp.h` was not supplied. `#if REAL_PATCH_BYTES > REAL_HISTORY_OFFSET` works only if `PAGE_SIZE` is a preprocessor macro. If it is an enum, the preprocessor treats it as 0 and the guard can never fire. The packer's `0x3000` check still protects the build, so this affects only the claim that both layers enforce the limit.
+
+## Review limits
+
+- Your historical/current separation is reasonable. The history fix changes only the shared decoder and packer checks, and selection did not change. One current Real byte-identity pass exercises the same fixed patch stream that every Real and opaque non-CHN program uses, and CHN skips decoding. This holds only once Finding 10 binds that rerun.
+- I did not inspect build outputs, captures, `zp.h`, `compiler_artifact.c` or the SDK's `zos_add_outputs`.
+- Hashes were compared only with each other and with the supplied text.
+- Generated execution-page savings remain unclaimed, user `.ZPU` integration remains separate, and the diff shows no change to original CP/M or third-party sources.
+
+### Codex reconciliation
+
+10. **Accepted and corrected.** The generated final-source evidence had accidentally been written to `build/zpbootfail.banks.json`, leaving the tracked index on the earlier build. That misplaced local file was preserved for audit and the corrected index was written to its intended path, re-opened, and checked against actual files. The current root measurement is201725 bytes and the production ZPL hash is320b7786471be1c200b59845833d632ea76332ac0f9e3c722f8947910190d456. The index now includes media profiles (92 authenticated flushes on both TF and EEPROM), final-source workflow captures, build log/config hashes, emitter-audit hash and the separate historical17-case/CHN section. All516 implementation/fixture files were compared byte-for-byte with f968c6c; implementation and artifact hashes and final-source capture bindings were then independently recomputed and verified. This correction changes evidence only. The prior reconciliation's claim that the tracked index already contained those records was incorrect.
+11. **Accepted and verified.** Rebuilt zptest and zunitcorpus through ZDE. The full legacy core run (`tools/test-native.py --core-only`) passes2109 assertions with zero failures and authenticated input/completion. The unit corpus passes1982 assertions across15 families with unchanged expected counts. Both capture reports and their hashes are bound in the final-source evidence index, alongside the final legacy/unit artifacts. This verifies the explicit legacy cache contract and the shared main/code-capture fixtures in both variants.
+
+**Guard question resolved.** `src/zp.h` defines `PAGE_SIZE` as the preprocessor macro `#define PAGE_SIZE 16384u`, so the native compile-time overlap check is active. The definition and header hash are included in the evidence index.
+
+**Final source assessment.** The extra Opus pass found no decoder defect or code blocker. Codex verified the corrected evidence and completed the requested legacy/unit regressions. No implementation source changed after f968c6c or during/after the extra pass. All technical findings are reconciled. The evidence correction and added regression records were completed after the pass and were not re-reviewed by Opus. Formal runner finalization is not claimed because its frozen evidence input changed. No further Opus invocation was started.

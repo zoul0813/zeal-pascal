@@ -63,12 +63,11 @@ programs.
 
 ## Review checkpoint
 
-Two read-only Opus turns accepted the original dispositions and found a disk
+Two read-only Opus turns accepted the original dispositions and identified a disk
 cache performance issue in the follow-up. The sequential decoder fix and stronger
-acceptance observers were implemented and tested afterward. The current source
-has not received another Opus pass, and the review workflow is unfinalized.
-The repository requires an explicit user request for an additional review turn.
-This commit is a tested checkpoint with that review gate recorded.
+acceptance observers were then implemented and tested. The user requested an
+additional restricted review on2026-11-05. Its findings, reconciliation and final
+status are recorded in [the review decision record](../reviews/optional-real-v1.md).
 
 ## Qualification
 
