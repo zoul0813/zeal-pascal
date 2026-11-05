@@ -41,12 +41,12 @@ def read_symbols(path):
         r'^\s+([0-9A-F]{8})\s+([_\w]+)\s', path.with_suffix('.map').read_text(), re.M)}
 
 
-def runtime_profile(directory, runtime_name="pascal_runtime"):
+def runtime_profile(directory, runtime_name="pascal_runtime", file_name="file_runtime"):
     """Host-generated private ABI identifier; target performs only a byte compare."""
     tag = hashlib.sha256(b'ZP80-private-ABI-v2\0')
-    for name in (runtime_name+'.zpl',runtime_name+'.private','file_runtime.zpl','file_gate.zpl',
+    for name in (runtime_name+'.zpl',runtime_name+'.private',file_name+'.zpl','file_gate.zpl',
                  'transfer_runtime.zpl','transfer_gate.zpl','execute_entry.zpl',
-                 'transfer_runtime.packed','file_runtime.packed','module_unpack.zpl'):
+                 'transfer_runtime.packed',file_name+'.packed','module_unpack.zpl'):
         data=(directory/name).read_bytes()
         tag.update(name.encode('ascii')+b'\0'+struct.pack('<I',len(data))+data)
     return tag.digest()[:4]
@@ -115,11 +115,11 @@ def validate_module_unpack(path):
         raise ValueError('module decoder differs from its linked bytes')
 
 
-def validate_file_assets(memory,symbols,directory):
-    packed=(directory/'file_runtime.packed').read_bytes()
-    if unpack_module(packed)!=(directory/'file_runtime.zpl').read_bytes():
+def validate_file_assets(memory,symbols,directory,file_name="file_runtime"):
+    packed=(directory/(file_name+'.packed')).read_bytes()
+    if unpack_module(packed)!=(directory/(file_name+'.zpl')).read_bytes():
         raise ValueError('packed file constant differs from its checked module')
-    for start,end,name in (('_file_start','_file_end','file_runtime.packed'),
+    for start,end,name in (('_file_start','_file_end',file_name+'.packed'),
                            ('_file_gate_start','_file_gate_end','file_gate.zpl'),
                            ('_unpack_start','_unpack_end','module_unpack.zpl')):
         data=(directory/name).read_bytes();a=symbols[start];z=symbols[end]
@@ -355,7 +355,7 @@ def validate_file_runtime(path, transfer=False):
     payload = bytes(memory.get(at, 0) for at in range(0x4000, max(memory)+1))
     if path.with_suffix('.zpl').read_bytes() != payload:
         raise ValueError('file runtime binary differs from its checked link image')
-    if path.stem in ('file_runtime','transfer_runtime'):
+    if path.stem in ('file_runtime','compact_file_runtime','transfer_runtime'):
         packed=pack_module(payload)
         if unpack_module(packed)!=payload:raise ValueError('module packing roundtrip failed')
         path.with_suffix('.packed').write_bytes(packed)
@@ -378,7 +378,7 @@ def validate_file_gate(path, transfer=False):
     print('file gate:',len(payload),'bytes; bounded below command-tail cache')
 
 
-def package(path, runtime_name="pascal_runtime"):
+def package(path, runtime_name="pascal_runtime", file_name="file_runtime"):
     memory = read_hex(path)
     symbols = read_symbols(path)
     if symbols['_native_header'] >> 16 != symbols['_native_decode'] >> 16:
@@ -418,7 +418,7 @@ def package(path, runtime_name="pascal_runtime"):
     private=runtime.with_suffix('.private').read_bytes()
     template=runtime.read_bytes()
     metadata=json.loads(runtime.with_suffix('.runtime.json').read_text())
-    profile=runtime_profile(path.parent,runtime_name)
+    profile=runtime_profile(path.parent,runtime_name,file_name)
     if (metadata['sha256']!=hashlib.sha256(template).hexdigest() or
             metadata['private_sha256']!=hashlib.sha256(private).hexdigest() or
             private!=struct.pack('<25H',*metadata['private_input_addresses']) or
@@ -428,7 +428,7 @@ def package(path, runtime_name="pascal_runtime"):
             payloads[7]!=template+private+profile):
         raise ValueError('embedded runtime/private metadata or Chain profile is stale or mismatched')
     validate_transfer_assets(memory,symbols,path.parent,banks)
-    validate_file_assets(memory,symbols,path.parent)
+    validate_file_assets(memory,symbols,path.parent,file_name)
     header_bytes = 16 + 2 * len(banks)
     total = header_bytes + sum(map(len, payloads))
     library = (struct.pack('<4sBBHII', b'ZPL1', 2, len(banks), header_bytes, total, 0)
@@ -461,9 +461,9 @@ def package(path, runtime_name="pascal_runtime"):
 if __name__ == '__main__':
     if sys.argv[1]=='--runtime':validate_runtime(Path(sys.argv[2]))
     elif sys.argv[1]=='--compact-runtime':validate_runtime(Path(sys.argv[2]),True)
-    elif sys.argv[1]=='--compact-experiment':package(Path(sys.argv[2]),'compact_runtime')
+    elif sys.argv[1]=='--compact-experiment':package(Path(sys.argv[2]),'compact_runtime','compact_file_runtime')
     elif sys.argv[1]=='--compact-runtime-profile':
-        path=Path(sys.argv[2]);path.write_bytes(runtime_profile(path.parent,'compact_runtime'))
+        path=Path(sys.argv[2]);path.write_bytes(runtime_profile(path.parent,'compact_runtime','compact_file_runtime'))
     elif sys.argv[1]=='--trampoline':validate_trampoline(Path(sys.argv[2]))
     elif sys.argv[1]=='--file-runtime':validate_file_runtime(Path(sys.argv[2]))
     elif sys.argv[1]=='--file-gate':validate_file_gate(Path(sys.argv[2]))

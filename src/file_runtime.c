@@ -28,6 +28,10 @@ typedef char file_path_offset[offsetof(Record,path)==48?1:-1];
 uint16_t zf_service_value;
 /* One disk handle lives only for this synchronous call. Pascal state, including
  * recursive snapshots, never retains native descriptor authority. */
+#if defined(__SDCC) && defined(ZP_COMPACT_EXPERIMENT)
+typedef char low_copy_layout[(sizeof(FileLowCopy)==6&&offsetof(FileLowCopy,buffer)==2&&
+    offsetof(FileLowCopy,count)==4&&offsetof(FileLowCopy,writing)==5)?1:-1];
+#endif
 static int8_t native_fd;
 static FileJob *job;
 static Record *record;
@@ -110,6 +114,27 @@ static uint8_t readable(uint16_t at,uint16_t size) {
     return within(at,size,0x8000,job->static_end)||
         within(at,size,job->stack_pointer,0xfc00)||heap_span(at,size);
 }
+/* Only typed/untyped data transfers opt into the experimental low interval.
+ * File blocks, descriptors, paths and Text metadata retain readable() checks. */
+#ifdef ZP_COMPACT_EXPERIMENT
+static uint8_t transfer_span(uint16_t at,uint16_t size) {
+    return within(at,size,0x6000u,0x8000u)||readable(at,size);
+}
+static uint8_t copy_data(uint16_t address,uint8_t count,uint8_t writing) {
+    if(address<0x8000u) {
+        FileLowCopy request;
+        request.address=address;request.buffer=bytes;
+        request.count=count;request.writing=writing;
+        if(zf_low_copy(&request)) {fail(0x1ff,0);return 0;}
+        return 1;
+    }
+    if(writing)memcpy(bytes,USER(address),count);
+    else memcpy(USER(address),bytes,count);
+    return 1;
+}
+#else
+#define transfer_span readable
+#endif
 static uint8_t descriptor(uint16_t *family,uint16_t *width) {
     if(!within(job->descriptor,3,job->code_origin,job->static_end)) return 0;
     *family=USER(job->descriptor)[0]; *width=word(job->descriptor+1);
@@ -210,14 +235,22 @@ static uint16_t transfer(uint16_t address,uint16_t count,uint8_t writing) {
     uint8_t error;
     while(done<count) {
         n=count-done; if(n>sizeof(bytes)) n=sizeof(bytes);
-        if(writing) memcpy(bytes,USER(address+done),n);
+#ifdef ZP_COMPACT_EXPERIMENT
+        if(writing&&!copy_data(address+done,(uint8_t)n,1))break;
+#else
+        if(writing)memcpy(bytes,USER(address+done),n);
+#endif
         size=n;
         error=writing?write_bytes(bytes,&size):read((int8_t)native_fd,bytes,&size);
         /* The SDK leaves size unchanged on error; it is not a transferred
          * byte count. Never copy stale input or claim completion from it. */
         if(error) { native_error(error,writing); break; }
         if(size>n) { fail(writing?0xf0:0x99,ERR_INVALID_PARAMETER); break; }
-        if(!writing&&size) memcpy(USER(address+done),bytes,size);
+#ifdef ZP_COMPACT_EXPERIMENT
+        if(!writing&&size&&!copy_data(address+done,(uint8_t)size,0))break;
+#else
+        if(!writing&&size)memcpy(USER(address+done),bytes,size);
+#endif
         if(!writing) native_position+=size;
         done+=size;
         if(!size) { if(writing) fail(0xf0,0); break; }
@@ -444,7 +477,7 @@ static void component(uint8_t writing) {
     uint16_t size=record->width;
     if(record->family!=1) { fail(0x20,0); return; }
     if(!access(writing)) return;
-    if(!readable(job->data,size)) { fail(0x1ff,0); return; }
+    if(!transfer_span(job->data,size)) { fail(0x1ff,0); return; }
     if(!writing&&record->position>=record->count) { fail(0x99,0); return; }
     if(writing&&record->position==65535u) { fail(0xf2,0); return; }
     if(!disk_open(writing)||!seek_file(4ul+(uint32_t)record->position*size)) return;
@@ -460,7 +493,7 @@ static void blocks(uint8_t writing,uint8_t partial) {
     uint32_t size=(uint32_t)job->count*128u;
     if(record->family!=2) { fail(0x20,0); return; }
     if(!access(writing)) return;
-    if(size>65535u||!readable(job->data,(uint16_t)size)) { fail(0x1ff,0); return; }
+    if(size>65535u||!transfer_span(job->data,(uint16_t)size)) { fail(0x1ff,0); return; }
     if((uint32_t)record->position+job->count>65535u) { fail(0xf2,0); return; }
     if(!disk_open(writing)||!seek_file((uint32_t)record->position*128u)) return;
     for(i=0;i<job->count;++i) {

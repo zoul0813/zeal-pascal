@@ -7,6 +7,20 @@
 #include <string.h>
 #include <assert.h>
 
+#ifdef ZP_COMPACT_EXPERIMENT
+extern uint8_t zf_user_memory[65536];
+uint16_t model_low_copies,model_low_fail_at;
+uint8_t zf_low_copy(const FileLowCopy *request) {
+    if(request->address<0x6000u||request->address>=0x8000u||
+       !request->count||request->count>128||request->writing>1||
+       request->count>0x8000u-request->address||!request->buffer)return 6;
+    if(++model_low_copies==model_low_fail_at)return 6;
+    if(request->writing)memcpy(request->buffer,zf_user_memory+request->address,request->count);
+    else memcpy(zf_user_memory+request->address,request->buffer,request->count);
+    return 0;
+}
+#endif
+
 uint8_t zf_memory_mode,model_pages,model_handles,model_close_error,model_read_error,model_write_error;
 uint8_t model_zero_write,model_short,model_readonly,model_writeonly;
 uint8_t model_curdir_error;

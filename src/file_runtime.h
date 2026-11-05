@@ -52,4 +52,14 @@ void zf_cleanup(FileCleanup *job) ZFILE_CALL;
 #define ZF_FILE_BYTES 176u
 extern uint16_t zf_service_value;
 uint8_t zf_service(uint8_t operation,uint16_t argument) ZFILE_CALL;
+#ifdef ZP_COMPACT_EXPERIMENT
+/* Private module-local copy request, never serialized or supplied by Pascal.
+ * Native pointers are16 bits; the assembly bridge validates all spans. */
+typedef struct {
+    uint16_t address;
+    uint8_t *buffer;
+    uint8_t count,writing;
+} FileLowCopy;
+uint8_t zf_low_copy(const FileLowCopy *request) ZFILE_CALL;
+#endif
 #endif

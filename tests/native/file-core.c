@@ -783,11 +783,105 @@ static void faults(void) {
     clean(ZF_END_PROGRAM,0,0);
 }
 #endif
+#if defined(ZP_COMPACT_EXPERIMENT) && !defined(__SDCC)
+extern uint16_t model_low_copies;
+extern uint16_t model_low_fail_at;
+static void rejected_low(uint16_t operation,uint16_t address,uint16_t count,uint16_t guards) {
+    uint16_t i,reads=model_read_calls,writes=model_write_calls,copies=model_low_copies,opens=model_open_calls;
+    invocation.data=address;invocation.count=count;memset(VM(address),0xa5,guards);
+    check(call(operation)==0x1ff&&!invocation.actual);
+    check(model_read_calls==reads&&model_write_calls==writes&&model_low_copies==copies&&model_open_calls==opens&&!model_handles);
+    for(i=0;i<guards;++i)check(VM(address)[i]==0xa5);
+    check(call(ZF_POSITION)==0&&!invocation.result);
+}
+static void compact_negative_spans(void) {
+    static const uint8_t typed[]={1,0,2,0,0x22,0x11};
+    uint8_t block[256];uint16_t i;
+    defaults();seed("H:/LOWHOST.DAT",typed,sizeof(typed));assign("H:/LOWHOST.DAT");check(call(ZF_RESET)==0);
+    rejected_low(ZF_READ,0x5fff,0,2);rejected_low(ZF_WRITE,0x5fff,0,2);
+    rejected_low(ZF_READ,0x7fff,0,2);rejected_low(ZF_WRITE,0x7fff,0,2);
+    check(call(ZF_CLOSE)==0);check(rm("H:/LOWHOST.DAT")==0);
+    for(i=0;i<sizeof(block);++i)block[i]=(uint8_t)i;
+    defaults();VM(0xd100)[0]=2;put(0xd101,128);seed("H:/LOWHOST.DAT",block,sizeof(block));
+    assign("H:/LOWHOST.DAT");check(call(ZF_RESET)==0);
+    rejected_low(ZF_BLOCKREAD,0x5fff,1,128);rejected_low(ZF_BLOCKWRITE,0x5fff,1,128);
+    rejected_low(ZF_BLOCKREAD,0x7fc0,1,128);rejected_low(ZF_BLOCKWRITE,0x7fc0,1,128);
+    rejected_low(ZF_BLOCKREAD,0x6000,65,2);rejected_low(ZF_BLOCKWRITE,0x6000,65,2);
+    rejected_low(ZF_BLOCKREAD,0x6000,511,2);rejected_low(ZF_BLOCKWRITE,0x6000,511,2);
+    check(call(ZF_CLOSE)==0);check(rm("H:/LOWHOST.DAT")==0);
+}
+static void compact_bridge_faults(void) {
+    uint8_t original[256],actual[256],writing,point;
+    uint16_t i,writes,size;int8_t fd;
+    for(i=0;i<256;++i)original[i]=(uint8_t)i;
+    for(writing=0;writing<=1;++writing)for(point=1;point<=2;++point) {
+        defaults();VM(0xd100)[0]=2;put(0xd101,128);
+        seed("H:/LOWHOST.DAT",original,sizeof(original));assign("H:/LOWHOST.DAT");check(call(ZF_RESET)==0);
+        invocation.data=0x6000;invocation.count=2;
+        memset(VM(0x6000),writing?0x9a:0xee,256);writes=model_write_calls;
+        model_low_fail_at=model_low_copies+point;
+        check(call(writing?ZF_BLOCKWRITE:ZF_BLOCKREAD)==0x1ff&&invocation.actual==point-1&&!model_handles);
+        model_low_fail_at=0;
+        check(call(ZF_POSITION)==0&&invocation.result==point-1);
+        for(i=0;i<256;++i)check(VM(0x6000)[i]==(writing?0x9a:i<128u*(point-1)?original[i]:0xee));
+        if(writing) {
+            check(model_write_calls==writes+point-1);
+            fd=open("H:/LOWHOST.DAT",O_RDONLY);check(fd>=0);size=sizeof(actual);
+            if(fd>=0){check(read(fd,actual,&size)==0&&size==sizeof(actual));check(close(fd)==0);}
+            for(i=0;i<256;++i)check(actual[i]==(i<128u*(point-1)?0x9a:original[i]));
+        }
+        check(call(ZF_CLOSE)==0);check(rm("H:/LOWHOST.DAT")==0);
+    }
+}
+static void compact_transfers(void) {
+    uint16_t i,copies,writes;
+    defaults();VM(0xd100)[0]=2;put(0xd101,128);assign("H:/LOWHOST.DAT");
+    check(call(ZF_REWRITE)==0);invocation.data=0x6000;invocation.count=64;
+    VM(0x5fff)[0]=0xa6;VM(0x8000)[0]=0xa7;
+    for(i=0;i<8192;++i)VM(0x6000)[i]=(uint8_t)(i%251);
+    copies=model_low_copies;
+    check(call(ZF_BLOCKWRITE)==0&&invocation.actual==64&&model_low_copies==copies+64);
+    check(call(ZF_CLOSE)==0);check(call(ZF_RESET)==0);
+    memset(VM(0x6000),0,8192);copies=model_low_copies;
+    check(call(ZF_BLOCKREAD)==0&&invocation.actual==64&&model_low_copies==copies+64);
+    for(i=0;i<8192;++i)check(VM(0x6000)[i]==i%251);
+    check(VM(0x5fff)[0]==0xa6&&VM(0x8000)[0]==0xa7);
+    writes=model_write_calls;copies=model_low_copies;invocation.count=1;
+    invocation.data=0x5fff;check(call(ZF_BLOCKWRITE)==0x1ff&&model_write_calls==writes&&model_low_copies==copies);
+    invocation.data=0x7fc0;check(call(ZF_BLOCKWRITE)==0x1ff&&model_write_calls==writes&&model_low_copies==copies);
+    invocation.data=0x6000;invocation.count=513;
+    check(call(ZF_BLOCKWRITE)==0x1ff&&model_write_calls==writes&&model_low_copies==copies);
+    invocation.count=0;check(call(ZF_BLOCKWRITE)==0&&!invocation.actual&&model_low_copies==copies);
+    invocation.count=0;check(call(ZF_SEEK)==0);invocation.count=1;
+    memset(VM(0x6000),0xa5,128);copies=model_low_copies;model_read_error=ERR_FAILURE;
+    check(call(ZF_BLOCKREAD)==0x99&&!invocation.actual&&model_low_copies==copies&&!model_handles);
+    for(i=0;i<128;++i)check(VM(0x6000)[i]==0xa5);
+    model_read_error=0;model_oversize_read=1;
+    check(call(ZF_BLOCKREAD)==0x99&&!invocation.actual&&model_low_copies==copies);
+    for(i=0;i<128;++i)check(VM(0x6000)[i]==0xa5);
+    model_oversize_read=0;model_write_error=ERR_FAILURE;
+    check(call(ZF_BLOCKWRITE)==0xf0&&!invocation.actual&&!model_handles);
+    model_write_error=0;model_short=1;
+    check(call(ZF_BLOCKREAD)==0&&invocation.actual==1);
+    for(i=0;i<128;++i)check(VM(0x6000)[i]==i);
+    model_short=0;check(call(ZF_CLOSE)==0);check(rm("H:/LOWHOST.DAT")==0);
+    defaults();put(0xd101,300);assign("H:/LOWHOST.DAT");check(call(ZF_REWRITE)==0);
+    invocation.data=0x6000;for(i=0;i<300;++i)VM(0x6000)[i]=(uint8_t)(i%251);
+    check(call(ZF_WRITE)==0&&invocation.actual==1);check(call(ZF_CLOSE)==0);
+    check(call(ZF_RESET)==0);memset(VM(0x6000),0,300);
+    check(call(ZF_READ)==0&&invocation.actual==1);
+    for(i=0;i<300;++i)check(VM(0x6000)[i]==i%251);
+    check(call(ZF_CLOSE)==0);check(rm("H:/LOWHOST.DAT")==0);
+}
+#endif
 int main(void) {
     check(sizeof(FileJob)==ZF_JOB_BYTES&&sizeof(FileCleanup)==6);
     basic(); lifetime(); boundaries(); block_files(); many(); scoped_disks(); wide_components(); text_files(); text_resume(); file_paths(); renames(); standard_files(); keyboard_files(); console_files(); printer_files(); callback_output_files();
 #ifndef __SDCC
     serial_files(); faults(); rename_faults(); resume_faults(); close_retries(); check(model_pages==0&&model_handles==0);
+#ifdef ZP_COMPACT_EXPERIMENT
+    compact_transfers();compact_negative_spans();compact_bridge_faults();check(model_pages==0&&model_handles==0);
+#endif
     printf("%u file runtime assertions passed, %u failed\n",test_passed,test_failed);
 #else
     test_done=255; test_complete();

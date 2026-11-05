@@ -5,27 +5,46 @@ import gzip
 import hashlib
 import importlib.util
 import json
+import os
+import re
 import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def host():
-    out = ROOT/'analysis/file-runtime/host'
+def host(compact=False):
+    out = ROOT/('analysis/file-runtime/host-compact' if compact else 'analysis/file-runtime/host')
     out.mkdir(parents=True, exist_ok=True)
-    sdk = ROOT.parent/'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
+    sdk = Path(os.environ.get('ZP_ZEAL_ROOT', str(ROOT.parent)))/'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
     command = ['cc', '-std=c99', '-Wall', '-Wextra', '-Werror',
                '-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-g',
                '-DZP_FILE_HOST', '-D__SDCC_VERSION_MAJOR=4', '-D__SDCC_VERSION_MINOR=2',
                '-D__sdcccall(x)=', '-Isrc', '-I'+str(sdk)]
+    if compact:command += ['-DZP_COMPACT_EXPERIMENT']
     command += ['-D'+name+'=zf_model_'+name for name in ('open', 'close', 'read', 'write', 'seek', 'ioctl', 'exit')]
     command += ['src/path.c', 'src/file_runtime.c', 'tests/native/file-core.c', 'tests/native/file-model.c',
                 '-o', str(out/'file-core')]
+    sources = [ROOT/name for name in ('tools/test-file-runtime.py', 'src/path.c', 'src/path.h',
+               'src/file_runtime.c', 'src/file_runtime.h', 'tests/native/file-core.c', 'tests/native/file-model.c')]
+    sources += sorted(sdk.rglob('*.h'))
+    sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+    hashes = {str(path): sha(path) for path in sources}
     subprocess.run(command, cwd=ROOT, check=True)
-    result = subprocess.run([str(out/'file-core')], cwd=ROOT, check=True, capture_output=True, text=True)
-    (out/'result.txt').write_text(result.stdout)
+    result = subprocess.run([str(out/'file-core')], cwd=ROOT, capture_output=True, text=True)
+    (out/'result.txt').write_text(result.stdout+result.stderr)
+    expected = 12583 if compact else 1522
+    summary = re.fullmatch(r'(\d+) file runtime assertions passed, (\d+) failed\n?', result.stdout)
+    checks = {'successful process': result.returncode == 0,
+              'exact assertion count': bool(summary) and tuple(map(int, summary.groups())) == (expected, 0),
+              'unchanged inputs': all(sha(Path(path)) == digest for path, digest in hashes.items())}
+    report = {'passed': all(checks.values()), 'checks': checks, 'expected_assertions': expected,
+              'actual_assertions': int(summary[1]) if summary else None, 'compile_command': command,
+              'input_sha256': hashes, 'binary_sha256': sha(out/'file-core'),
+              'output_sha256': sha(out/'result.txt')}
+    (out/'report.json').write_text(json.dumps(report, indent=2)+'\n')
     print(result.stdout, end='')
+    assert report['passed'], report
 
 
 def native():
@@ -74,7 +93,7 @@ def native():
                 'RNLARGE.NEW':bytes((i*7+3)&255 for i in range(4096))*17}
     checks = {'native component completes': memory.get(sym['_test_done']) == 255,
               'native disk, ownership, lifetime, stack canary and MMU/IFF assertions':
-                  word('_test_failed') == 0 and word('_test_passed') >= 500,
+                  word('_test_failed') == 0 and word('_test_passed') == 1712,
               'unchanged code and artifacts': all(n.sha(Path(p)) == digest for p, digest in hashes.items())}
     for name, data in expected.items():
         checks['exact disk bytes: '+name] = (directory/name).is_file() and (directory/name).read_bytes() == data
@@ -102,7 +121,9 @@ def native():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--host', action='store_true')
+    parser.add_argument('--compact-host', action='store_true')
     parser.add_argument('--native', action='store_true')
     args = parser.parse_args()
     if args.host: host()
+    if args.compact_host:host(True)
     if args.native: native()

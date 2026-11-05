@@ -304,7 +304,8 @@ target_compile_definitions(compact_compile PRIVATE ZP_COMPACT_EXPERIMENT ZP_IDE_
 add_dependencies(compact_compile transfer_assets)
 add_executable(zcompacttest src/startup.asm src/banks.c tests/native/compact-main.c
     tests/native/harness.c tests/native/machine.asm ${CMAKE_BINARY_DIR}/compact_asset.asm
-    "$<FILTER:$<TARGET_OBJECTS:zp_core>,EXCLUDE,/(runtime_asset[.]asm|src/compiler_(compile|chain)[.]c)[.]rel$>"
+    ${CMAKE_BINARY_DIR}/compact_file_asset.asm
+    "$<FILTER:$<TARGET_OBJECTS:zp_core>,EXCLUDE,/((runtime|file)_asset[.]asm|src/compiler_(compile|chain)[.]c)[.]rel$>"
     $<TARGET_OBJECTS:compact_compile>
     $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 target_include_directories(zcompacttest PRIVATE src)
@@ -533,6 +534,32 @@ zos_add_outputs(file_runtime WITH_EXTENSION zpl)
 add_custom_command(TARGET file_runtime_bin POST_BUILD BYPRODUCTS ${CMAKE_BINARY_DIR}/file_runtime.packed
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --file-runtime
         ${CMAKE_BINARY_DIR}/file_runtime.ihx VERBATIM)
+add_executable(zlowcopytest tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
+    tests/native/low-copy.c tests/native/low-copy.asm tests/native/machine.asm src/file_low_copy.asm)
+target_include_directories(zlowcopytest PRIVATE src)
+target_compile_definitions(zlowcopytest PRIVATE ZP_COMPACT_EXPERIMENT)
+target_compile_options(zlowcopytest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+set_property(SOURCE tests/native/low-copy.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/file_runtime.h)
+zos_add_outputs(zlowcopytest)
+# Experimental low-buffer transport; normal file_runtime remains unchanged.
+add_library(compact_file_core OBJECT src/path.c src/file_runtime.c src/file_native.asm src/file_low_copy.asm)
+target_include_directories(compact_file_core PRIVATE src)
+target_compile_definitions(compact_file_core PRIVATE ZP_COMPACT_EXPERIMENT)
+target_compile_options(compact_file_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+add_executable(compact_file_runtime src/file_module.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
+    $<TARGET_OBJECTS:compact_file_core>)
+set_target_properties(compact_file_runtime PROPERTIES LINKER_LANGUAGE ASM)
+zos_add_outputs(compact_file_runtime WITH_EXTENSION zpl)
+add_custom_command(TARGET compact_file_runtime_bin POST_BUILD
+    BYPRODUCTS ${CMAKE_BINARY_DIR}/compact_file_runtime.packed
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --file-runtime
+        ${CMAKE_BINARY_DIR}/compact_file_runtime.ihx VERBATIM)
+file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/compact_file_asset.asm CONTENT
+".area _BANK11\n.globl _file_start,_file_end,_file_gate_start,_file_gate_end,_unpack_start,_unpack_end\n_file_start:\n.incbin \"${CMAKE_BINARY_DIR}/compact_file_runtime.packed\"\n_file_end:\n_file_gate_start:\n.incbin \"${CMAKE_BINARY_DIR}/file_gate.zpl\"\n_file_gate_end:\n_unpack_start:\n.incbin \"${CMAKE_BINARY_DIR}/module_unpack.zpl\"\n_unpack_end:\n")
+set_source_files_properties(${CMAKE_BINARY_DIR}/compact_file_asset.asm PROPERTIES
+    OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/compact_file_runtime.packed;${CMAKE_BINARY_DIR}/file_gate.zpl;${CMAKE_BINARY_DIR}/module_unpack.zpl")
+add_dependencies(zcompacttest compact_file_runtime_bin)
 add_executable(module_unpack src/module_unpack.asm)
 zos_add_outputs(module_unpack WITH_EXTENSION zpl)
 add_custom_command(TARGET module_unpack_bin POST_BUILD
@@ -595,7 +622,8 @@ add_custom_target(runtime_profile DEPENDS ${CMAKE_BINARY_DIR}/pascal_runtime.pro
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/compact_runtime.profile
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --compact-runtime-profile
         ${CMAKE_BINARY_DIR}/compact_runtime.profile
-    DEPENDS runtime_profile compact_runtime_bin
+    DEPENDS runtime_profile compact_runtime_bin compact_file_runtime_bin
+        ${CMAKE_BINARY_DIR}/compact_file_runtime.zpl ${CMAKE_BINARY_DIR}/compact_file_runtime.packed
         ${CMAKE_BINARY_DIR}/compact_runtime.zpl ${CMAKE_BINARY_DIR}/compact_runtime.private
         ${CMAKE_BINARY_DIR}/file_runtime.zpl ${CMAKE_BINARY_DIR}/file_gate.zpl
         ${CMAKE_BINARY_DIR}/transfer_runtime.zpl ${CMAKE_BINARY_DIR}/transfer_gate.zpl

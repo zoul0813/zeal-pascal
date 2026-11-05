@@ -130,3 +130,11 @@
 !/docs/compact-layout-experiment.md
 !/docs/compact-layout-evidence.json
 !/reviews/compact-layout-v1.md
+
+# Follow-on compact low-file transfer proof.
+!/tools/test-low-copy.py
+!/docs/low-file-experiment.md
+!/docs/low-file-evidence.json
+!/reviews/compact-file-access-v1.md
+
+!/tools/test-low-file.py

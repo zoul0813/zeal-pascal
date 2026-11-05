@@ -86,11 +86,53 @@ def allocation_guards():
     return len(trials)
 
 
+def file_binding_guards():
+    package = module('file_package', ROOT/'tools/package-native.py')
+    mutations = module('profile_mutations', ROOT/'tools/test-runtime-profile.py')
+    names = ['compact_runtime.'+ext for ext in ('zpl','private','profile','runtime.json')]
+    names += ['compact_file_runtime.zpl','compact_file_runtime.packed',
+              'file_runtime.zpl','file_runtime.packed','file_gate.zpl','transfer_runtime.zpl',
+              'transfer_runtime.packed','transfer_gate.zpl','transfer_call.zpl',
+              'execute_entry.zpl','module_unpack.zpl']
+    names += ['zcompacttest.'+ext for ext in ('ihx','map','bin','zpl')]
+    trials=0
+    with tempfile.TemporaryDirectory(prefix='compact-file-binding-') as folder:
+        directory = Path(folder)
+        for name in names:shutil.copyfile(ROOT/'build'/name, directory/name)
+        image = directory/'zcompacttest.ihx'
+        original = {name: (directory/name).read_bytes() for name in names}
+        def rejected(expected, file_name='compact_file_runtime'):
+            nonlocal trials
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    package.package(image,'compact_runtime',file_name)
+            except ValueError as error:
+                assert expected in str(error), str(error)
+            else:
+                raise AssertionError('mixed file component accepted')
+            for ext in ('bin','zpl'):
+                name='zcompacttest.'+ext
+                assert (directory/name).read_bytes()==original[name]
+            trials+=1
+        with contextlib.redirect_stdout(io.StringIO()):
+            package.package(image,'compact_runtime','compact_file_runtime')
+        for name in ('compact_file_runtime.zpl','compact_file_runtime.packed'):
+            blob=bytearray(original[name]);blob[-1]^=1;(directory/name).write_bytes(blob)
+            rejected('metadata or Chain profile')
+            (directory/name).write_bytes(original[name])
+        rejected('metadata or Chain profile','file_runtime')
+        symbols=package.read_symbols(image)
+        image.write_text(mutations.flip_hex(original['zcompacttest.ihx'].decode(),symbols['_file_start']))
+        rejected('embedded file/unpack assets')
+    return trials
+
+
 def main():
     n = module('native', ROOT/'tools/test-native.py')
     n.RUN.mkdir(parents=True, exist_ok=True)
     parity = integer_parity(n.RUN)
     guards = allocation_guards()
+    file_guards = file_binding_guards()
     target = 'zcompacttest'
     symbols = n.symbols(target)
     runtime = n.symbols('compact_runtime')
@@ -114,13 +156,14 @@ def main():
     n.input_layout = input_layout
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(),
               ROOT/'tools/package-native.py', ROOT/'tools/test-native.py',
-              ROOT/'tools/test-real.py', n.EMULATOR, n.ROM]
+              ROOT/'tools/test-real.py', ROOT/'tools/test-runtime-profile.py', n.EMULATOR, n.ROM]
     inputs += sorted((ROOT/'src').glob('*'))
     inputs += sorted((ROOT/'tests/native').glob('*'))
     inputs += [ROOT/'build'/name for name in (
         'compact_runtime.zpl', 'compact_runtime.private', 'compact_runtime.profile',
         'compact_runtime.map', 'pascal_runtime.zpl', 'pascal_runtime.map',
-        'zcompacttest.bin', 'zcompacttest.zpl', 'zcompacttest.map')]
+        'zcompacttest.bin', 'zcompacttest.zpl', 'zcompacttest.map',
+        'compact_file_runtime.zpl', 'compact_file_runtime.packed', 'compact_file_runtime.map')]
     hashes = {str(path): n.sha(path) for path in inputs if path.is_file()}
     class CompactConsole(n.DebugConsole):
         def command(self, command, capture=False):
@@ -154,6 +197,9 @@ def main():
     commands += [f"rb 0x{symbols['_test_failures']:x} 128", 'quit']
     fixtures = {f'{target}.{ext}': (ROOT/f'build/{target}.{ext}').read_bytes()
                 for ext in ('bin', 'zpl')}
+    fixtures['LOWTAIL.DAT'] = bytes(range(128))+b'\x7e'
+    fixtures['READTYPE.DAT'] = b'\x01\x00\x02\x00\x34\x12'
+    fixtures['READBLOCK.DAT'] = bytes(range(256))
     raw = n.execute('compact', commands, fixtures, timeout=900, console_class=CompactConsole)
     frame = re.split(r'\[DBG\] PC=', raw)[-1]
     memory = n.memory(frame)
@@ -172,14 +218,27 @@ def main():
         'authenticated native completion': bool(re.match(r'fc0[01] ', frame)) and
             bytes(memory.get(0x4000+i, 0) for i in range(32)) == fixtures[target+'.bin'][:32]
             and memory.get(symbols['_test_done']) == 255 and word('_test_stage') == 6,
-        'exact native assertion count and zero failures': word('_test_failed') == 0 and word('_test_passed') == 249,
+        'exact native assertion count and zero failures': word('_test_failed') == 0 and word('_test_passed') == 787,
         'RAM and saved integer Val, 8192-byte CRT preservation, high-buffer files, physical integer input':
             all(output.count(marker+b'\r\n') == 2 for marker in
-                (b'LOW-VAL-OK', b'LOW-CRT-OK', b'HIGH-FILE-OK', b'LOW-INPUT-OK')),
+                (b'LOW-VAL-OK', b'LOW-CRT-OK', b'HIGH-FILE-OK', b'LOW-INPUT-OK',
+                 b'LOW-FILE-OK', b'LOW-TYPED-OK', b'LOW-EDGE-OK', b'LOW-PARTIAL-OK', b'LOW-ZERO-OK', b'LOW-PATH-OK', b'HIGH-ALIAS-OK')),
         'exact high-buffer roundtrip file': (hostfs/'HIGH.DAT').is_file() and
             (hostfs/'HIGH.DAT').read_bytes() == bytes(range(128)),
-        'low-buffer file rejected before transfer': (hostfs/'LOW.DAT').is_file() and
-            (hostfs/'LOW.DAT').read_bytes() == b'',
+        'exact whole low interval file': (hostfs/'LOW.DAT').is_file() and
+            (hostfs/'LOW.DAT').read_bytes() == bytes(i % 251 for i in range(8192)),
+        'exact wide typed and last-byte files': (hostfs/'LOWTYPE.DAT').is_file() and
+            (hostfs/'LOWTYPE.DAT').read_bytes() == b'\x01\x00\x2c\x01'+bytes(i % 251 for i in range(1,301)) and
+            (hostfs/'LOWBYTE.DAT').is_file() and (hostfs/'LOWBYTE.DAT').read_bytes() == b'\x01\x00\x01\x00\xe7',
+        'zero transfer leaves an empty file': (hostfs/'LOWZERO.DAT').is_file() and (hostfs/'LOWZERO.DAT').read_bytes() == b'',
+        'invalid low spans rejected before transfer': all((hostfs/name).is_file() and (hostfs/name).read_bytes() == b''
+            for name in ('BADMIN.DAT','BADCROSS.DAT','BAD65.DAT','BAD511.DAT')),
+        'typed invalid writes preserve headers': all((hostfs/name).is_file() and
+            (hostfs/name).read_bytes() == b'\x00\x00\x02\x00' for name in ('TWMIN.DAT','TWCROSS.DAT')),
+        'live page2 FIB and canary survive aliasing': (hostfs/'ALIAS.DAT').is_file() and
+            (hostfs/'ALIAS.DAT').read_bytes() == bytes(i % 251 for i in range(512)),
+        'low file blocks remain unsupported': not (hostfs/'BADFIB.DAT').exists(),
+        'existing path marshalling supports low string': (hostfs/'LOWPATH.DAT').is_file() and (hostfs/'LOWPATH.DAT').read_bytes() == b'',
         'immutable compiler and runtime banks match loaded library before and after':
             (hostfs/'CODE0.BIN').is_file() and (hostfs/'CODE1.BIN').is_file() and
             (hostfs/'CODE0.BIN').read_bytes() == (hostfs/'CODE1.BIN').read_bytes() ==
@@ -187,9 +246,9 @@ def main():
         'all retained source, artifacts, emulator and ROM unchanged': all(
             n.sha(Path(path)) == digest for path, digest in hashes.items()),
     }
-    report = {'scope': 'Experimental integer-only prefix, explicit low-page data in native-compiled RAM/COM; no automatic allocation, file low-buffer support, banking or unit compiler',
+    report = {'scope': 'Experimental compact prefix and bounded typed/untyped low-page file data in native-compiled RAM/COM; no automatic allocation, low metadata, banking or unit compiler',
               'passed': all(checks.values()), 'checks': checks,
-              'host_integer_parity_cases': parity, 'compact_allocation_rejection_cases': guards,
+              'host_integer_parity_cases': parity, 'compact_allocation_rejection_cases': guards, 'compact_file_binding_rejections': file_guards,
               'native_assertions_passed': word('_test_passed'),
               'native_assertions_failed': word('_test_failed'),
               'failure_indices': [memory.get(symbols['_test_failures']+i, 0) |

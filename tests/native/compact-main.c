@@ -36,6 +36,33 @@ static void rejected_transfer(const char *text) {
     build_close(&b);check(pages_used()==code_required+1);
 }
 
+/* Shared rejection cases also get a RAM-only bytewise destination oracle.
+ * COM exit/error behavior is checked by the ordinary harness for these sources. */
+static const char typed_min[]=
+    "var pad:array[1..512]of byte;f:file of integer;n:integer absolute $5fff;\n"
+    "begin n:=$a5a5;assign(f,'H:/READTYPE.DAT');reset(f);read(f,n)end.";
+static const char typed_cross[]=
+    "var pad:array[1..512]of byte;f:file of integer;n:integer absolute $7fff;\n"
+    "begin n:=$a5a5;assign(f,'H:/READTYPE.DAT');reset(f);read(f,n)end.";
+static const char block_min[]=
+    "var pad:array[1..512]of byte;f:file;low:array[0..127]of byte absolute $5fff;\n"
+    "actual:integer;begin fillchar(low,128,$a5);assign(f,'H:/READBLOCK.DAT');\n"
+    "reset(f);blockread(f,low,1,actual)end.";
+static const char block_cross[]=
+    "var pad:array[1..512]of byte;f:file;low:array[0..127]of byte absolute $7fc0;\n"
+    "actual:integer;begin fillchar(low,128,$a5);assign(f,'H:/READBLOCK.DAT');\n"
+    "reset(f);blockread(f,low,1,actual)end.";
+static void rejected_read_guard(const char *text,uint16_t address,uint16_t count) {
+    uint16_t i;
+    check(load(text));check(compile(&s,&b,&d));
+    if(b.valid) {
+        check(run_build(&s,&b)&&ram_result[26]==3&&ram_result[28]==0xff);
+        for(i=0;i<count;++i)check(image_get(&b,address-0x4000u+i)==0xa5);
+        check(build_check(&s,&b));
+    }
+    build_close(&b);check(pages_used()==code_required+1);
+}
+
 int app_main(void) {
     int8_t capture;
     if(!console_open())return 1;
@@ -68,11 +95,62 @@ int app_main(void) {
         "writeln('HIGH-FILE-OK')end.",1,0);
     execution("var n:integer absolute $6000;m:integer;begin readln(n,m);\n"
         "if(n<>-32768)or(m<>32767)then halt;writeln('LOW-INPUT-OK')end.",1,0);
-    /* Current transport rejects a low-page buffer before reading its bytes,
-     * even with I-: namespace2/FF is a memory-authority failure, not I/O. */
-    checked_error("var f:file;low:array[0..127]of byte absolute $6000;\n"
-        "actual:integer;begin assign(f,'H:/LOW.DAT');rewrite(f);\n"
-        "{$I-}blockwrite(f,low,1,actual);{$I+}close(f)end.",0xff,"blockwrite");
+    /* Whole low interval, including the last byte, traverses module staging. */
+    execution("var high:byte;f:file;low:array[0..8191]of byte absolute $6000;\n"
+        "guard:byte absolute $5fff;i,actual:integer;begin high:=$a7;guard:=$a6;\n"
+        "for i:=0 to 8191 do low[i]:=i mod 251;assign(f,'H:/LOW.DAT');rewrite(f);\n"
+        "blockwrite(f,low,64,actual);if actual<>64 then halt;close(f);\n"
+        "fillchar(low,8192,0);reset(f);blockread(f,low,64,actual);close(f);\n"
+        "if actual<>64 then halt;for i:=0 to 8191 do if low[i]<>i mod 251 then halt;\n"
+        "if(guard<>$a6)or(high<>$a7)then halt;writeln('LOW-FILE-OK')end.",1,0);
+    execution("type data=array[1..300]of byte;var f:file of data;\n"
+        "low:data absolute $6000;i:integer;begin for i:=1 to 300 do low[i]:=i mod 251;\n"
+        "assign(f,'H:/LOWTYPE.DAT');rewrite(f);write(f,low);close(f);fillchar(low,300,0);\n"
+        "reset(f);read(f,low);close(f);for i:=1 to 300 do if low[i]<>i mod 251 then halt;\n"
+        "writeln('LOW-TYPED-OK')end.",1,0);
+    execution("var f:file of byte;last:byte absolute $7fff;begin last:=231;\n"
+        "assign(f,'H:/LOWBYTE.DAT');rewrite(f);write(f,last);close(f);last:=0;\n"
+        "reset(f);read(f,last);close(f);if last<>231 then halt;writeln('LOW-EDGE-OK')end.",1,0);
+    execution("var f:file;low:array[0..255]of byte absolute $6000;i,actual:integer;begin\n"
+        "fillchar(low,256,$cc);assign(f,'H:/LOWTAIL.DAT');reset(f);\n"
+        "blockread(f,low,2,actual);close(f);if actual<>1 then halt;\n"
+        "for i:=0 to 127 do if low[i]<>i then halt;if low[128]<>126 then halt;\n"
+        "for i:=129 to 255 do if low[i]<>$cc then halt;writeln('LOW-PARTIAL-OK')end.",1,0);
+    execution("var f:file;low:byte absolute $6000;actual:integer;begin low:=77;\n"
+        "assign(f,'H:/LOWZERO.DAT');rewrite(f);blockwrite(f,low,0,actual);close(f);\n"
+        "if(actual<>0)or(low<>77)then halt;writeln('LOW-ZERO-OK')end.",1,0);
+    checked_error("var f:file;low:array[0..127]of byte absolute $5fff;actual:integer;\n"
+        "begin assign(f,'H:/BADMIN.DAT');rewrite(f);\n"
+        "{$I-}blockwrite(f,low,1,actual)end.",0xff,"blockwrite");
+    checked_error("var f:file;low:array[0..127]of byte absolute $7fc0;actual:integer;\n"
+        "begin assign(f,'H:/BADCROSS.DAT');rewrite(f);\n"
+        "{$I-}blockwrite(f,low,1,actual)end.",0xff,"blockwrite");
+    checked_error("var f:file absolute $6000;begin\nassign(f,'H:/BADFIB.DAT')end.",0xff,"assign");
+    /* Assign already snapshots its path on the high caller stack. Reuse it. */
+    execution("var f:file;s:string[20] absolute $6000;begin s:='H:/LOWPATH.DAT';\n"
+        "assign(f,s);rewrite(f);close(f);writeln('LOW-PATH-OK')end.",1,0);
+    checked_error("var f:file of integer;n:integer absolute $5fff;begin\n"
+        "assign(f,'H:/TWMIN.DAT');rewrite(f);write(f,n)end.",0xff,"write(f,n)");
+    checked_error("var f:file of integer;n:integer absolute $7fff;begin\n"
+        "assign(f,'H:/TWCROSS.DAT');rewrite(f);write(f,n)end.",0xff,"write(f,n)");
+    checked_error(typed_min,0xff,"read(f");checked_error(typed_cross,0xff,"read(f");
+    checked_error(block_min,0xff,"blockread");checked_error(block_cross,0xff,"blockread");
+    rejected_read_guard(typed_min,0x5fff,2);rejected_read_guard(typed_cross,0x7fff,2);
+    rejected_read_guard(block_min,0x5fff,128);rejected_read_guard(block_cross,0x7fc0,128);
+    checked_error("var f:file;low:array[0..8191]of byte absolute $6000;actual:integer;\n"
+        "begin assign(f,'H:/BAD65.DAT');rewrite(f);blockwrite(f,low,65,actual)end.",0xff,"blockwrite");
+    checked_error("var f:file;low:array[0..8191]of byte absolute $6000;actual:integer;\n"
+        "begin assign(f,'H:/BAD511.DAT');rewrite(f);blockwrite(f,low,511,actual)end.",0xff,"blockwrite");
+    /* Force live FIB, canary and code into the page2 alias offsets. */
+    execution("var pad:array[0..8191]of byte;f:file;high:array[0..255]of byte;\n"
+        "low:array[0..511]of byte absolute $6000;i,actual:integer;begin\n"
+        "if(addr(f)<>$a000)or(addr(high)<>$a0b0)then halt;fillchar(high,256,$5a);\n"
+        "for i:=0 to 511 do low[i]:=i mod 251;assign(f,'H:/ALIAS.DAT');rewrite(f);\n"
+        "blockwrite(f,low,4,actual);if(actual<>4)or(filepos(f)<>4)or(filesize(f)<>4)then halt;\n"
+        "close(f);fillchar(low,512,0);reset(f);blockread(f,low,4,actual);\n"
+        "if(actual<>4)or(filepos(f)<>4)or(filesize(f)<>4)then halt;close(f);\n"
+        "for i:=0 to 511 do if low[i]<>i mod 251 then halt;\n"
+        "for i:=0 to 255 do if high[i]<>$5a then halt;writeln('HIGH-ALIAS-OK')end.",1,0);
     rejected_transfer("var f:file;begin chain(f)end.");
     rejected_transfer("var f:file;begin execute(f)end.");
     {
