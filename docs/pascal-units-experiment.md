@@ -65,7 +65,7 @@ separate compact-layout experiment with units. Code-review findings and disposit
 
 ## Observed native acceptance
 
-The [hash-bound evidence](pascal-units-evidence.json) records279 native unit
+The [current private-unit evidence](private-unit-evidence.json) records323 native unit
 assertions, all passing. The target authors real Pascal units and executes their
 clients in RAM and saved COM form. It executes Integer and Boolean value parameters/results and VAR parameters
 for Integer, Byte, Char and Boolean, plus a private typed constant, two imports,
@@ -87,13 +87,26 @@ sources, truncated artifacts, qualified misses, include/descriptor aliasing,
 and runtime-helper dependencies (system variables, heap operations, console,
 Text, keyboard, random, CRT and Inline). Each authoring test checks page cleanup;
 the host compares captured compiler bytes before and after all executions.
-Byte/Char value parameters and results and untyped VAR are accepted by the
-implementation but are not exercised by these positive unit fixtures. Private
-helpers, transitive/nested unit calls, recursion and compound unit statements
-also need direct unit-level acceptance. The ordinary-program corpus does not
-substitute for those checks. A known conservative rejection remains: declaring
-a local name that shadows a restricted runtime symbol (such as BufLen) can mark
-the unit unsupported. Fixed public runtime services such as IOResult remain
+The private-unit fixture now executes Byte/Char value parameters and results,
+untyped VAR via Move, a private transitive helper and an actual call to a forward
+routine before its body, a nested routine, A- recursion with preserved locals,
+unit-global storage at nonzero offsets, and for/case/with statements over arrays,
+records and indexed strings. Repeated calls produce46 and50 in both RAM and COM.
+An unused private sibling's unique literal is present in its compiled unit and
+absent from the saved client. This is acceptance for those concrete paths, not
+exhaustive coverage of every private implementation combination.
+
+Restricted-name shadowing is fixed for the tested parameter, variable and routine
+declarations in the experimental compiler: their declaration lookup no longer
+commits runtime dependencies. A rare existing false rejection remains for a
+variant-record tag named after a restricted runtime symbol; its type probe still
+uses expression lookup. The fixture shadows system,
+hook and absolute-storage symbols through parameters, a private routine and a
+unit-global variable. Real uses still reject, including a sibling's real BufLen
+use after an unrelated parameter shadow. The normal compiler keeps its prior
+lookup behavior.
+
+Fixed public runtime services such as IOResult remain
 available; IOResult clears the program's shared I/O status, just as in an ordinary
 routine. The optional-helper gate does not make library routines pure.
 Container fuzzing, all resource limits and injected unit-loader cleanup failures
@@ -121,5 +134,15 @@ ZP_ZEAL_ROOT=/Users/higginsd/Projects/zeal python3 tools/test-unit-corpus.py
 These are incremental native builds with retained source, executable, emulator
 and ROM hashes, not clean-toolchain reproducibility or physical-hardware proof.
 Publishing units from the IDE and integrating worker-owned authoring remain
-separate work. The next verification step is exercising private unit implementations and fixing
-restricted-name shadowing. IDE authoring and optional runtime extraction follow.
+separate work. At this checkpoint, production zpascal.zpl is202277 bytes and
+startup loads13 code pages. This checkpoint does not reduce either. Deferring
+additional compiler banks, optional runtime extraction and IDE authoring remain
+separate work.
+
+
+The private-unit follow-up is reviewed separately in
+[private-units-v1](../reviews/private-units-v1.md), against the preceding dirty
+prototype. The historical initial unit evidence remains in
+[pascal-units-evidence.json](pascal-units-evidence.json). Current verification
+keeps the same1982 macro-on corpus assertions and64 control/75 routine normal
+assertions, with matching production IDE executable/library hashes.

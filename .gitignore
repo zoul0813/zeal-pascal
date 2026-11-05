@@ -151,3 +151,7 @@
 !/docs/pascal-units-experiment.md
 !/docs/pascal-units-evidence.json
 !/reviews/pascal-units-v1.md
+
+# Private implementation and declaration-shadowing acceptance.
+!/docs/private-unit-evidence.json
+!/reviews/private-units-v1.md

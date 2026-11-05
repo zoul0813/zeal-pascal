@@ -38,6 +38,7 @@ def main():
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(), ROOT/'tools/test-native.py']
     inputs += sorted(p for p in (ROOT/'src').iterdir() if p.is_file())
     inputs += [ROOT/'tests/native'/p for p in ('units-main.c','harness.c','harness-execute.c','code-capture.c','machine.asm')]
+    inputs += [ROOT/'tests/native/private-unit.pas']
     hashes = {str(p.relative_to(ROOT)): sha(p) for p in inputs}
     report = {'scope': __doc__, 'passed': False, 'input_sha256': hashes}
     def save():
@@ -61,7 +62,8 @@ def main():
         commands.append(f'rb 0x{sym[name]:x} 2')
     commands += [f"rb 0x{sym['_test_failures']:x} 128",'quit']
     raw = native.execute('units', commands,
-        {f'zunittest.{ext}':(ROOT/f'build/zunittest.{ext}').read_bytes() for ext in ('bin','zpl')}, timeout=300)
+        {**{f'zunittest.{ext}':(ROOT/f'build/zunittest.{ext}').read_bytes() for ext in ('bin','zpl')},
+         'PRIVATE.PAS':(ROOT/'tests/native/private-unit.pas').read_bytes()}, timeout=300)
     frame = re.split(r'\[DBG\] PC=',raw)[-1]
     memory = native.memory(frame)
     word = lambda name: memory.get(sym[name],0) | memory.get(sym[name]+1,0)<<8
@@ -72,9 +74,12 @@ def main():
     checks = {
         'authenticated native completion':frame.startswith('fc01 ') and memory.get(sym['_test_done']) == 255
             and bytes(memory.get(0x4000+i,0) for i in range(32)) == binary[:32],
-        'native assertions without failures':word('_test_passed') == word('_test_index') == 279 and word('_test_failed') == 0,
+        'native assertions without failures':word('_test_passed') == word('_test_index') == 323 and word('_test_failed') == 0,
         'RAM saved and library-free execution markers':stdout.count(b'PASCAL-UNITS-OK\r\n') == 5,
         'VAR and local shadowing execution markers':stdout.count(b'UNIT-VAR-OK\r\n') == 2 and stdout.count(b'UNIT-SHADOW-OK\r\n') == 2 and stdout.count(b'UNIT-KINDS-OK\r\n') == 2,
+        'private implementation and remaining scalar ABI execution':stdout.count(b'UNIT-PRIVATE-OK\r\n') == 2,
+        'unused private sibling omitted':b'PRIVATE-DEAD-CODE-9B71' in (directory/'PRIVATEOPS.ZPU').read_bytes()
+            and b'PRIVATE-DEAD-CODE-9B71' not in (directory/'PRIVATE.COM').read_bytes(),
         'normal runtime byte identity':sha(ROOT/'build/pascal_runtime.zpl') == '1da9d420f5598640ed57fa37b099faf09c76fa60dbae31a212b1b341aadf53a3',
         'compiler bytes preserved':all((directory/name).read_bytes() == library[16+2*library[5]:] for name in ('CODE0.BIN','CODE1.BIN')),
         'compiled program independent of unused body':(directory/'SMALL.COM').read_bytes() == (directory/'LARGE.COM').read_bytes(),

@@ -33,9 +33,9 @@ static void unsupported(const char *declarations,const char *body) {
 static const char client[]="uses TileMath,Offsets;var N:Integer;begin\n"
     "N:=TileMath.TileOffset(2,3);if N<>242 then halt;\n"
     "if Offsets.AddOne(N)<>243 then halt;writeln('PASCAL-UNITS-OK')end.";
-static uint8_t author(const char *path,const char *output,const char *text,uint8_t expected) {
+static uint8_t author_loaded(const char *path,const char *output,uint8_t expected) {
     Source source;Build scratch;Diagnostic diagnostic;uint8_t ok,owned=pages_used();int8_t fd;
-    check(seed_unit(path,text));check(read_block(&source,path,&diagnostic));
+    check(read_block(&source,path,&diagnostic));
     if(source.page==255)return 0;
     rm(output);fd=open(output,O_WRONLY|O_CREAT|O_TRUNC);check(fd>=0);if(fd<0){source_close(&source);return 0;}
     memset(&scratch,0,sizeof(scratch));memset(scratch.pages,255,3);scratch.map_page=scratch.sources.page=255;
@@ -44,6 +44,9 @@ static uint8_t author(const char *path,const char *output,const char *text,uint8
     check((expected?!ok&&diagnostic.code==expected:ok&&!diagnostic.code)&&!scratch.valid);
     check(close(fd)==0);build_close(&scratch);source_close(&source);
     check(pages_used()==owned);return ok;
+}
+static uint8_t author(const char *path,const char *output,const char *text,uint8_t expected) {
+    check(seed_unit(path,text));return author_loaded(path,output,expected);
 }
 static const char fault_source[]="unit Faults;interface function Fault(X:Integer):Integer;implementation\n"
     "function Fault(X:Integer):Integer;begin Fault:=1 div X end;end.";
@@ -136,6 +139,9 @@ int app_main(void) {
     unsupported("var F:Text;","assign(F,'H:/X')");
     unsupported("var N:Integer;","N:=random(3)");
     unsupported("","inline($00)");unsupported("","randomize");unsupported("","clrscr");
+    unsupported("var A:Integer absolute $100;","A:=1");
+    unsupported("","ConOutPtr:=0");unsupported("","CBreak:=true");
+    unsupported("procedure Q(BufLen:Integer);begin end;\n","BufLen:=1");
     author("H:/KINDS.PAS","H:/KINDS.ZPU",
         "unit Kinds;interface\nprocedure Change(var B:Byte;var C:Char;var F:Boolean);\n"
         "function Flip(F:Boolean):Boolean;implementation\nconst Delta:Integer=1;\n"
@@ -146,6 +152,13 @@ int app_main(void) {
         "B:=41;C:='A';F:=false;Change(B,C,F);\n"
         "if(B<>42)or(C<>'B')or(not F)or Flip(F)then halt;\n"
         "writeln('UNIT-KINDS-OK')end.",1,0);
+    author_loaded("H:/PRIVATE.PAS","H:/PRIVATEOPS.ZPU",0);
+    execution("uses PrivateOps;var N:Integer;begin\n"
+        "if Exercise(5)<>46 then halt;if Exercise(7)<>50 then halt;\n"
+        "N:=41;PrivateOps.ShadowHook(N);if N<>42 then halt;\n"
+        "if EchoByte(255)<>255 then halt;if EchoChar('Z')<>'Z' then halt;\n"
+        "Untyped(N);if N<>17 then halt;writeln('UNIT-PRIVATE-OK')end.",1,0);
+    check(copy_named("H:/SLICE.COM","H:/PRIVATE.COM"));
     fault_location();
     unit_diagnostic=d.code;
 done:

@@ -375,7 +375,9 @@ int16_t cc_lookup_decl(void) FRONTEND {
             }
             if(symbol.role==S_HOOK) {
                 if(cc_is(hook_names[symbol.initial_type])) {
+#ifndef ZP_UNITS_EXPERIMENT
                     if(!cc.suppress)cc.console_dynamic=1;
+#endif
                     return (int16_t)i;
                 }
                 continue;
@@ -383,18 +385,18 @@ int16_t cc_lookup_decl(void) FRONTEND {
             if(symbol.role==S_SYSTEM) {
                 for(j=0;j<sizeof(system_variables)/sizeof(system_variables[0]);++j)
                     if(symbol.address==system_variables[j].address&&cc_is(system_variables[j].name)) {
-                        if(!cc.suppress&&(symbol.address==RT_CBREAK
-#ifdef ZP_UNITS_EXPERIMENT
-                            ||cc.sources->unit_mode
+#ifndef ZP_UNITS_EXPERIMENT
+                        if(!cc.suppress&&symbol.address==RT_CBREAK)cc.console_dynamic=1;
 #endif
-                            ))cc.console_dynamic=1;
                         return (int16_t)i;
                     }
                 continue;
             }
             if(symbol.name_length!=n) continue;
             if(name_matches_view(symbol.name_start,n,&view,&loaded,&base)) {
+#ifndef ZP_UNITS_EXPERIMENT
                 if(!cc.suppress&&symbol.role==S_ADDRESS)cc.console_dynamic=1;
+#endif
                 return (int16_t)i;
             }
         }
@@ -410,6 +412,14 @@ int16_t cc_lookup(void) FRONTEND {
     if(cc.sources->unit_qualifier)return cc_units_lookup();
 #endif
     id=cc_lookup_decl();
+    /* Declaring a shadow must not count as using the outer runtime symbol.
+     * Only expression/statement lookup commits runtime dependencies. */
+    if(id>=0&&!cc.suppress) {
+        uint8_t role=CCS(id,role);
+        if(role==S_HOOK||role==S_ADDRESS||
+           (role==S_SYSTEM&&(cc.sources->unit_mode||CCS(id,address)==RT_CBREAK)))
+            cc.console_dynamic=1;
+    }
 #ifdef ZP_UNITS_EXPERIMENT
     if(id<0&&cc.sources->unit_page!=255&&!cc.sources->unit_mode)return cc_units_lookup();
 #endif
