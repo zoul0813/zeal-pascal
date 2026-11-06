@@ -58,17 +58,21 @@ linking; logical bank 17 handles unit artifact I/O and publication transiently.
 The optional Real page and unit I/O page are released after their phases.
 Startup and generated-program execution do not keep these pages resident.
 
-The source-independent import build uses 238600 bytes in its bank container,
+The source-independent import checkpoint uses 238600 bytes in its bank container,
 198 bytes below the preceding IDE checkpoint. Generated programs retain the
 existing fixed 16 KiB runtime prefix. Omitting the Real engine changes included
-bytes. Generated-program execution-page allocation remains fixed.
+bytes. Requirement-based execution-page allocation is described in
+`program-pages.md`.
 
-New artifacts use ABI2 under the `ZPU1` magic. A validated requirement byte for
-each fragment records Real-engine demand. Raw Real storage/copy alone does not
-request the engine. Referenced fragments with arithmetic, conversion, or other
-Real operations request it before runtime finalization. ABI1 remains readable;
-selected ABI1 fragments conservatively request Real because their private
-implementation requirements were not recorded.
+The unreleased format is ABI1 under the `ZPU1` magic. There are no compatibility
+readers for earlier experimental layouts; the first release will establish the
+ABI1 contract. A validated byte for each fragment records Real-engine and
+independent-memory demand. Raw Real storage/copy alone does not request the
+engine. Only referenced fragments propagate either requirement. Small programs
+using bounded leaf routines can use two execution pages. Format, bounds, flag
+and private runtime-fingerprint checks remain mandatory. Rebuild experimental
+unit artifacts after compiler/runtime changes.
+The allocation contract and measurements are in `program-pages.md`.
 
 ## Supported scope and failure behavior
 
