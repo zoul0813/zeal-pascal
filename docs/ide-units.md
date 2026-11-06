@@ -41,6 +41,11 @@ same authoring path, and parser includes have their own source identities. Only 
 programs contain their selected code and runtime and run after compiler files,
 unit artifacts, and source files have been deleted.
 
+After error navigation into a unit, Main still selects the client program.
+Before rebuilding the edited unit, use **M Main**, submit an empty filename,
+then select **Options → U Unit-file** and press **C**. Clear Main so the unit
+source in Work becomes the compilation root.
+
 ## Memory and format
 
 `.ZPL` remains the IDE/compiler bank container. `.ZPU` is the separately compiled
