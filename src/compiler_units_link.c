@@ -1,4 +1,5 @@
 #include "compiler_units.h"
+#include "library.h"
 
 /* This is an experimental resource limit, not an artifact-field limit. The
  * near arrays live only during final linking on the compiler's retained C
@@ -25,7 +26,7 @@ static uint8_t append_metadata(uint16_t module,const CompilerFragmentLayout *lay
         count=cc_unit_module_word(module,blob+16+fragment*8+6);
         for(i=0;i<count;++i) {
             if(!cc_poll())return 0;site=cc_unit_module_word(module,refbase+8*(first+i));
-            if(!location(layout,module,cc_unit_module_word(module,refbase+8*(first+i)+4),&target)) {
+            if(!location(layout,cc_unit_target(module,cc_unit_module_word(module,refbase+8*(first+i)+2)),cc_unit_module_word(module,refbase+8*(first+i)+4),&target)) {
                 cc_fail(UNIT_FORMAT);return 0;
             }
             cc_word(address+site,target+cc_unit_module_word(module,refbase+8*(first+i)+6));
@@ -58,7 +59,7 @@ static uint8_t append_metadata(uint16_t module,const CompilerFragmentLayout *lay
     }
     return !cc.error->code;
 }
-uint8_t cc_units_link(void) ROUTINES {
+uint8_t cc_units_link_object(void) ROUTINES {
     CompilerFragmentObject objects[CC_FRAGMENT_OBJECTS];CompilerFragmentRoot roots[UNIT_LINK_ROOTS];
     CompilerFragmentLayout layout;CompilerFragmentImage linked;
     uint16_t modules[CC_FRAGMENT_OBJECTS],at,end,count=0,root_count=0,module,export,fragment,offset,address,i,origin;

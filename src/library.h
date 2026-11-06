@@ -1,10 +1,10 @@
 #ifndef ZP_LIBRARY_H
 #define ZP_LIBRARY_H
 #include "zp.h"
-#define CODE_BANK_LIMIT 17
+#define CODE_BANK_LIMIT 18
 enum { CODE_IDE=0,CODE_STATEMENTS,CODE_SHARED,CODE_FRONTEND,CODE_ROUTINES,
        CODE_EXPRESSIONS,CODE_BUILD,CODE_RUNTIME,CODE_METADATA,CODE_FILE_COMPILER,
-       CODE_FILE_RUNTIME,CODE_DEVICES,CODE_EDITOR,CODE_COMPILE,CODE_TRANSFER,CODE_UNITS,CODE_UNIT_IO };
+       CODE_FILE_RUNTIME,CODE_DEVICES,CODE_EDITOR,CODE_COMPILE,CODE_TRANSFER,CODE_UNITS,CODE_UNIT_IO,CODE_UNIT_META };
 /* BANK5 contains the phase loader itself and must remain loaded. The parser
  * expression/interrupt and file/I/O generators have no editor entry points. */
 #ifdef ZP_OPTIONAL_REAL
@@ -15,7 +15,11 @@ uint8_t code_phase_real_release(void) SOURCE_BLOCK_CALL;
 #define CODE_DEFERRED(bank) ((bank)==CODE_EXPRESSIONS||(bank)==CODE_FILE_COMPILER||(bank)>=CODE_COMPILE)
 #endif
 #ifdef ZP_UNITS_EXPERIMENT
+uint8_t code_phase_unit_link_begin(void) SOURCE_BLOCK_CALL;
+uint8_t code_phase_unit_link_end(void) SOURCE_BLOCK_CALL;
 uint8_t code_phase_unit_io(void) SOURCE_BLOCK_CALL;
+uint8_t code_phase_unit_meta(void) SOURCE_BLOCK_CALL;
+uint8_t code_phase_unit_meta_release(void) SOURCE_BLOCK_CALL;
 uint8_t code_phase_unit_io_release(void) SOURCE_BLOCK_CALL;
 #endif
 extern char code_library_directory[128];

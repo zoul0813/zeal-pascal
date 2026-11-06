@@ -220,3 +220,9 @@
 
 # Final integrated allocation/Crt approval evidence.
 !/docs/crt-final-approval.json
+
+# Unit dependency graph milestone.
+!/src/compiler_units_graph.c
+!/docs/unit-dependencies.md
+!/docs/unit-dependencies-evidence.json
+!/reviews/unit-dependencies-v1.md

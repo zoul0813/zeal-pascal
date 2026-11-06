@@ -30,14 +30,19 @@ static uint16_t add_reference(uint16_t site,uint16_t value,uint16_t hint) {
     while(next&&cc_unit_word(next+2)<site) {
         if(!cc_poll())return 0;previous=next;next=cc_unit_word(next+6);
     }
-    if(next&&cc_unit_word(next+2)==site){cc_fail(UNIT_FORMAT);return 0;}
+    if(next&&cc_unit_word(next+2)==site) {
+        if(cc_unit_word(next)==UR_EXTERNAL)return next;
+        cc_fail(UNIT_FORMAT);return 0;
+    }
     record=cc_unit_record(UR_CODE,site,value,next,0,0);if(!record)return 0;
     if(previous)cc_unit_put(previous+6,record);else cc_unit_put(UH_REFERENCES,record);
     cc_unit_put(UH_REFERENCE_COUNT,cc_unit_word(UH_REFERENCE_COUNT)+1);return record;
 }
 static uint8_t supported(void) {
-    uint8_t i;
-    if(cc.sources->file||cc.image->sources.count!=1||cc.console_dynamic||cc.console_used||cc.standard_table_operand||cc.file_stream_operand||
+    uint8_t i;Source source;
+    for(i=1;i<cc.image->sources.count;++i)
+        if(!sources_get(&cc.image->sources,i,&source)||source.page!=255)goto bad;
+    if(cc.sources->file||cc.console_dynamic||cc.console_used||cc.standard_table_operand||cc.file_stream_operand||
        cc.keyboard_poll||cc.keyboard_status||cc.keyboard_state||cc.keyboard_probe||cc.keyboard_enqueue||
        cc.keyboard_console_probe||cc.random_state||cc.hook_character||cc.hook_echo||cc.hook_open||cc.random_entry||cc.parameter_entry||
        cc.file_entry||cc.keyboard_entry||cc.interrupt_entry||cc.hook_output_calls||cc.hook_mask_call||
@@ -65,7 +70,7 @@ static void symbol_name(uint8_t page,uint16_t *at,uint16_t symbol) {
 }
 uint8_t cc_units_write_object(void) ROUTINES {
     uint16_t at,end,fragments=0,exports=0,pcs=0,owner_id,off,target,delta,r,i,j,first,count;
-    uint16_t artifact,page_position,blob,reference,begin,finish,site,all_refs;
+    uint16_t artifact,page_position,blob,reference,begin,finish,site,all_refs,dependencies=0,dependency_bytes=0,head,next,module,export;
     uint8_t page,kind,buffer[64];uint32_t total,export_bytes=0,hash,source_hash;
     if(!supported())return 0;
     if(cc.emitted>cc.sources->unit_start)
@@ -80,6 +85,22 @@ uint8_t cc_units_write_object(void) ROUTINES {
             export_bytes+=10UL+CCS(i,name_length)+2UL*cc_rget(j,R_COUNT);
         }
     }
+    /* Imported call chains become symbolic external fragment references.
+     * Their native operands remain placeholders until the final program link. */
+    for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES) {
+        if(cc_unit_word(at)==UR_MODULE&&cc_unit_word(at+8)) {
+            ++dependencies;dependency_bytes+=8+cc_unit_module_byte(at,18);
+        }
+        if(cc_unit_word(at)!=UR_IMPORT)continue;
+        module=cc_unit_word(at+4);export=cc_unit_word(at+6);head=cc_unit_word(at+8);
+        while(head&&!cc.error->code) {
+            next=code_word(head);reference=add_reference(head,0,0);if(!reference)return 0;
+            cc_unit_put(reference,UR_EXTERNAL);cc_unit_put(reference+4,module);
+            cc_unit_put(reference+8,cc_unit_module_word(module,export+6));
+            cc_unit_put(reference+10,cc_unit_module_word(module,export+8));head=next;
+        }
+    }
+    if(dependencies>=CC_FRAGMENT_OBJECTS){cc_fail(99);return 0;}
     reference=0;
     for(i=0;i<cc.relocations;++i) {
         if(!cc_poll())return 0;r=i*RELOCATION_BYTES;
@@ -92,12 +113,13 @@ uint8_t cc_units_write_object(void) ROUTINES {
     all_refs=cc_unit_word(UH_REFERENCE_COUNT);
     count=fragments+(cc.image->globals_bytes?1:0);
     total=ZPU_HEADER_BYTES;total+=cc_unit_word(UH_NAME_LENGTH);total+=strlen(cc.sources->root->path);
+    total+=dependency_bytes;
     total+=count; /* One bounded runtime flag for every fragment, including data. */
     total+=export_bytes;total+=6UL*pcs;total+=(uint32_t)MAP_RECORD_BYTES*cc.entries;
     blob=(uint16_t)total;
     total+=CC_FRAGMENT_HEADER;total+=(uint32_t)CC_FRAGMENT_RECORD*count;
     total+=(uint32_t)CC_FRAGMENT_RELOCATION*all_refs;total+=cc.emitted-CC_CODE_BASE;total+=cc.image->globals_bytes;
-    if(total>PAGE_SIZE||blob>ZPU_HEADER_BYTES+PAGE_SIZE){cc_fail(99);return 0;}
+    if(total>ZPU_ARTIFACT_LIMIT||blob>ZPU_HEADER_BYTES+ZPU_ARTIFACT_LIMIT){cc_fail(99);return 0;}
     artifact=cc_unit_owned_page();if(!artifact)return 0;page=(uint8_t)cc_unit_word(artifact+2);
     for(at=0;at<total;++at)far_set(page,at,0);
     for(i=0;i<4;++i)far_set(page,i,(uint8_t)"ZPU1"[i]);
@@ -108,9 +130,20 @@ uint8_t cc_units_write_object(void) ROUTINES {
     far_set(page,18,(uint8_t)cc_unit_word(UH_NAME_LENGTH));far_set(page,19,(uint8_t)strlen(cc.sources->root->path));
     at_word(page,32,cc.emitted-CC_CODE_BASE);at_word(page,34,cc.image->globals_bytes);
     at_word(page,20,exports);at_word(page,22,pcs);at_word(page,24,cc.entries);at_word(page,26,blob);
+    at_word(page,36,dependencies);
+    at_word(page,40,ZPU_HEADER_BYTES+cc_unit_word(UH_NAME_LENGTH)+(uint16_t)strlen(cc.sources->root->path));
+    at_word(page,42,ZPU_HEADER_BYTES+cc_unit_word(UH_NAME_LENGTH)+(uint16_t)strlen(cc.sources->root->path)+dependency_bytes);
+    at_word(page,44,ZPU_HEADER_BYTES+cc_unit_word(UH_NAME_LENGTH)+(uint16_t)strlen(cc.sources->root->path)+dependency_bytes);
     page_position=ZPU_HEADER_BYTES;
     for(i=0;i<cc_unit_word(UH_NAME_LENGTH);++i)out_byte(page,&page_position,cc_unit_byte(UH_NAME+i));
     for(i=0;cc.sources->root->path[i];++i)out_byte(page,&page_position,(uint8_t)cc.sources->root->path[i]);
+    for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_MODULE&&cc_unit_word(at+8)) {
+        i=cc_unit_module_byte(at,18);
+        out_byte(page,&page_position,(uint8_t)i);out_byte(page,&page_position,0);
+        out_word(page,&page_position,cc_unit_word(at+8)+1);
+        for(j=0;j<4;++j)out_byte(page,&page_position,cc_unit_module_byte(at,28+j));
+        for(j=0;j<i;++j)out_byte(page,&page_position,cc_unit_module_byte(at,ZPU_HEADER_BYTES+j));
+    }
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_EXPORT) {
         i=cc_unit_word(at+2);j=cc_unit_word(at+4);first=cc_rget(j,R_PARAMETERS);r=cc_rget(j,R_COUNT);
         if(!cc_unit_fragment(cc_rget(j,R_ENTRY),&owner_id,&off))return 0;
@@ -153,11 +186,15 @@ uint8_t cc_units_write_object(void) ROUTINES {
     while(reference) {
         if(!cc_poll())return 0;site=cc_unit_word(reference+2);
         if(!cc_unit_fragment(site,&owner_id,&off))return 0;
-        if(cc_unit_word(reference)==UR_GLOBAL) {
+        module=1;
+        if(cc_unit_word(reference)==UR_EXTERNAL) {
+            module=cc_unit_word(cc_unit_word(reference+4)+8)+1;
+            owner_id=cc_unit_word(reference+8);delta=cc_unit_word(reference+10);
+        } else if(cc_unit_word(reference)==UR_GLOBAL) {
             owner_id=fragments;delta=cc_unit_word(reference+4)-GLOBAL_BASE;
             if(delta>=cc.image->globals_bytes){cc_fail(UNIT_FORMAT);return 0;}
         } else if(!cc_unit_fragment(cc_unit_word(reference+4),&owner_id,&delta))return 0;
-        out_word(page,&page_position,off);out_word(page,&page_position,1);
+        out_word(page,&page_position,off);out_word(page,&page_position,module);
         out_word(page,&page_position,owner_id);out_word(page,&page_position,delta);
         reference=cc_unit_word(reference+6);
     }
@@ -211,14 +248,14 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
     blob=cc_unit_module_word(module,26);cc_unit_put(module+UNIT_RECORD_BYTES+10,blob);
     if((uint32_t)blob+CC_FRAGMENT_HEADER>end)return 0;
     cc_unit_descriptor(module,&object);
-    if(cc_fragment_validate(&object,1)!=CF_OK)return 0;
+    if(cc_fragment_validate_source(&object)!=CF_OK)return 0;
     code_bytes=cc_unit_module_word(module,32);
     count=cc_unit_module_word(module,blob+6);refbase=blob+CC_FRAGMENT_HEADER+count*CC_FRAGMENT_RECORD;
     /* Local identities are rebound by the caller, never by mutating the
      * checksum-bound source page. Initial units cannot import other units. */
     if(cc_unit_module_word(module,blob+4)!=1)return 0;
     for(i=0;i<cc_unit_module_word(module,blob+8);++i)
-        if(cc_unit_module_word(module,refbase+i*8+2)!=1)return 0;
+        if(!cc_unit_module_word(module,refbase+i*8+2)||cc_unit_module_word(module,refbase+i*8+2)>cc_unit_module_word(module,36)+1)return 0;
     if(!code_bytes||cc_unit_module_word(module,blob+10)!=(uint32_t)code_bytes+cc_unit_module_word(module,34))return 0;
     k=count;
     if(cc_unit_module_word(module,34)) {
@@ -230,7 +267,23 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
         at=blob+16+i*8;wide=(uint32_t)cc_unit_module_word(module,at)+cc_unit_module_word(module,at+2);
         if(wide>code_bytes)return 0;
     }
-    at=ZPU_HEADER_BYTES+n+path;cc_unit_put(module+10,at);exports=cc_unit_module_word(module,20);
+    at=ZPU_HEADER_BYTES+n+path;
+    if(cc_unit_module_word(module,36)>=CC_FRAGMENT_OBJECTS||cc_unit_module_word(module,38)||
+       cc_unit_module_word(module,46)||cc_unit_module_word(module,40)!=at)return 0;
+    for(i=0;i<cc_unit_module_word(module,36);++i) {
+        if((uint32_t)at+8>blob)return 0;
+        k=cc_unit_module_byte(module,at);
+        if(!k||k>11||cc_unit_module_byte(module,at+1)||cc_unit_module_word(module,at+2)!=i+2||
+           (uint32_t)at+8+k>blob||!identifier(module,at+8,k))return 0;
+        for(j=ZPU_HEADER_BYTES+n+path;j<at;j+=8+cc_unit_module_byte(module,j)) {
+            if(cc_unit_module_byte(module,j)!=k)continue;
+            for(p=0;p<k;++p)if(cc_unit_module_byte(module,j+8+p)!=cc_unit_module_byte(module,at+8+p))break;
+            if(p==k)return 0;
+        }
+        at+=8+k;
+    }
+    if(cc_unit_module_word(module,42)!=at||cc_unit_module_word(module,44)!=at)return 0;
+    cc_unit_put(module+10,at);exports=cc_unit_module_word(module,20);
     for(i=0;i<exports;++i) {
         if(!cc_poll())return 0;
         if((uint32_t)at+10>blob)return 0;
@@ -283,14 +336,15 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
 uint16_t cc_units_load_object(const char *name,const char *path,const char *fallback) ROUTINES {
     uint16_t module=0,at=0,n,i,seal;uint8_t buffer[64],page,ok=1;
     int8_t fd;uint32_t version;
-    fd=output_open_path(path,O_RDONLY);
+    fd=path[0]?output_open_path(path,O_RDONLY):-ERR_NO_SUCH_ENTRY;
+    if(!path[0])platform_error=ERR_NO_SUCH_ENTRY;
     if(fd<0&&platform_error==ERR_NO_SUCH_ENTRY&&fallback&&strcmp(path,fallback))
         fd=output_open_path(fallback,O_RDONLY);
     if(fd<0){cc_fail(UNIT_MISSING);return 0;}
     module=cc_unit_owned_page();if(!module){output_finish(fd,0);return 0;}page=(uint8_t)cc_unit_word(module+2);
     for(;;) {
         if(!cc_poll()){ok=0;break;}n=sizeof(buffer);platform_error=read(fd,buffer,&n);
-        if(platform_error||n>sizeof(buffer)||(uint32_t)at+n>PAGE_SIZE){ok=0;break;}
+        if(platform_error||n>sizeof(buffer)||(uint32_t)at+n>ZPU_ARTIFACT_LIMIT){ok=0;break;}
         if(!n)break;for(i=0;i<n;++i)far_set(page,at++,buffer[i]);
     }
     if(!output_finish(fd,ok)){cc_fail(UNIT_FORMAT);return 0;}

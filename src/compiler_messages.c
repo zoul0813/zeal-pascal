@@ -87,6 +87,7 @@ static const char *const explanations[101]={
 void compiler_message(uint8_t code) SOURCE_BLOCK_CALL {
     const char *text;
 #ifdef ZP_UNITS_EXPERIMENT
+    if(code==247){output(": Cyclic unit dependency");return;}
     {static const char *const unit_messages[]={
         "Invalid compiled unit", "Unsupported unit feature",
         "Compiled unit file unavailable", "Unit runtime profile changed; recompile unit",

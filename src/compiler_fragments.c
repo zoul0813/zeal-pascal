@@ -50,13 +50,18 @@ static uint8_t object_id(Link *l,uint16_t identity,uint8_t *object) {
 }
 static uint8_t target(Link *l,uint8_t object,uint16_t relocation,uint16_t *id,uint16_t *addend) {
     uint8_t to;uint16_t fragment,identity=ref(l,object,relocation,2);
-    if(l->objects[object].binding&&identity==word(l,object,4))identity=l->objects[object].binding;
+    if(l->objects[object].binding_count) {
+        const CompilerFragmentObject *o=l->objects+object;uint16_t at;
+        if(!identity||identity>o->binding_count)return fail(l,CF_TARGET);
+        at=o->bindings+2u*(identity-1u);
+        identity=far_get(o->page,at)|((uint16_t)far_get(o->page,at+1)<<8);
+    } else if(l->objects[object].binding&&identity==word(l,object,4))identity=l->objects[object].binding;
     if(!object_id(l,identity,&to))return 0;
     fragment=ref(l,object,relocation,4);*addend=ref(l,object,relocation,6);
     if(fragment>=l->counts[to]||*addend>=field(l,to,fragment,2))return fail(l,CF_TARGET);
     *id=l->bases[to]+fragment;return !l->error;
 }
-static uint8_t validate(Link *l) {
+static uint8_t validate(Link *l,uint8_t resolve) {
     uint8_t i,j;uint16_t n,r,p,f,first,count,size,at,previous,id,addend;
     uint32_t end;
     l->bases[0]=0;
@@ -65,6 +70,8 @@ static uint8_t validate(Link *l) {
         if(l->objects[i].bytes<CC_FRAGMENT_HEADER||l->objects[i].bytes>PAGE_SIZE||
            (uint32_t)l->objects[i].offset+l->objects[i].bytes>PAGE_SIZE)return fail(l,CF_OBJECT);
         if(!live(l->objects+i))return fail(l,CF_OWNERSHIP);
+        if((uint32_t)l->objects[i].bindings+2u*l->objects[i].binding_count>PAGE_SIZE)
+            return fail(l,CF_OBJECT);
         for(j=0;j<i;++j)if(l->objects[i].page==l->objects[j].page)return fail(l,CF_OBJECT);
         if(byte(l,i,0)!='Z'||byte(l,i,1)!='P'||byte(l,i,2)!='F'||byte(l,i,3)!='1'||
            word(l,i,12)||word(l,i,14))return fail(l,CF_OBJECT);
@@ -91,7 +98,8 @@ static uint8_t validate(Link *l) {
                 p=ref(l,i,r+at,0);
                 if((uint32_t)p+2>size||(at&&p<previous))return fail(l,CF_OBJECT);
                 previous=p+2;
-                if(!target(l,i,r+at,&id,&addend))return 0;
+                if(!ref(l,i,r+at,2))return fail(l,CF_TARGET);
+                if(resolve&&!target(l,i,r+at,&id,&addend))return 0;
             }
             n+=size;r+=count;
         }
@@ -155,7 +163,7 @@ static uint8_t link(const CompilerFragmentObject *objects,uint8_t count,
        root_count>CC_FRAGMENT_LIMIT||origin<0x8000u||limit>0xf400u||origin>=limit)return CF_ARGUMENT;
     if((layout&&layout->page!=255)||image->valid||image->pages[0]!=255||image->pages[1]!=255||image->workspace!=255)return CF_ARGUMENT;
     memset(&l,0,sizeof(l));l.objects=objects;l.image=image;l.count=count;
-    if(!validate(&l))return l.error;
+    if(!validate(&l,1))return l.error;
     image->workspace=page_new(PAGE_COMPILER);
     if(image->workspace==255)return CF_MEMORY;
     image->workspace_lifetime=page_lifetime(image->workspace);
@@ -250,7 +258,7 @@ uint8_t cc_fragment_validate(const CompilerFragmentObject *objects,uint8_t count
     Link l;
     if(!objects||!count||count>CC_FRAGMENT_OBJECTS)return CF_ARGUMENT;
     memset(&l,0,sizeof(l));l.objects=objects;l.count=count;
-    if(!validate(&l))return l.error;
+    if(!validate(&l,1))return l.error;
     return CF_OK;
 }
 
@@ -259,4 +267,10 @@ uint8_t cc_fragment_plan(const CompilerFragmentObject *objects,uint8_t count,
     CompilerFragmentImage *image,CompilerFragmentLayout *layout) CC_FRAGMENT_CALL {
     if(!layout)return CF_ARGUMENT;
     return link(objects,count,roots,root_count,origin,limit,image,layout,1);
+}
+
+uint8_t cc_fragment_validate_source(const CompilerFragmentObject *object) CC_FRAGMENT_CALL {
+    Link l;if(!object)return CF_ARGUMENT;
+    memset(&l,0,sizeof(l));l.objects=object;l.count=1;
+    return validate(&l,0)?CF_OK:l.error;
 }

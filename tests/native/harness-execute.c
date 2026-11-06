@@ -15,7 +15,7 @@ uint8_t cached_code_pages(void) SOURCE_BLOCK_CALL {
     --count;
 #endif
 #ifdef ZP_UNITS_EXPERIMENT
-    --count;
+    count-=2; /* Artifact I/O and dependency/type metadata are transient. */
 #endif
     return count;
 }

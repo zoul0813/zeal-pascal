@@ -8,7 +8,7 @@
  * public signatures initially contain primitive scalar routines only.
  * A caller owns the fresh output descriptor, including close/publication. */
 enum { UNIT_FORMAT=248,UNIT_UNSUPPORTED,UNIT_MISSING,UNIT_STALE,UNIT_AMBIGUOUS,UNIT_INTERFACE };
-enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CODE };
+enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CODE,UR_STATE,UR_EXTERNAL,UR_TYPE };
 #define RF_UNIT_IMPORT 16u
 #define UNIT_RECORD_BYTES 12u
 #define UNIT_RECORD_BASE 256u
@@ -20,7 +20,12 @@ enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CO
 #define UH_REFERENCE_TAIL 10u
 #define UH_REFERENCE_COUNT 12u
 #define UH_NAME 32u
-#define ZPU_HEADER_BYTES 36u
+#define ZPU_HEADER_BYTES 48u
+#define ZPU_ARTIFACT_LIMIT (PAGE_SIZE-2u*CC_FRAGMENT_OBJECTS)
+#define UNIT_CYCLE 247u
+#define UM_VISIBLE 1u
+#define UM_LOADING 2u
+#define UM_READY 4u
 /* Unreleased format: evolve this contract directly until the ABI1 release. */
 #define ZPU_ABI 1u
 #define ZPU_REAL 1u
@@ -37,6 +42,12 @@ void cc_unit_descriptor(uint16_t module,CompilerFragmentObject *object) ROUTINES
 uint8_t cc_unit_fragment(uint16_t preferred,uint16_t *fragment,uint16_t *offset) ROUTINES;
 uint8_t compile_unit(const Source *source,Build *scratch,Diagnostic *diagnostic,int8_t output,uint8_t interruptible);
 uint16_t cc_units_load(const char *name,const char *path) ROUTINES;
+uint16_t cc_units_find(const char *name) ROUTINES;
+uint16_t cc_units_state(uint16_t module) ROUTINES;
+uint16_t cc_units_graph(const char *name,uint8_t visible) ROUTINES;
+uint16_t cc_units_graph_load(const char *name,uint8_t visible) ROUTINES;
+uint8_t cc_units_graph_validate(void) ROUTINES;
+uint16_t cc_unit_target(uint16_t module,uint16_t identity) ROUTINES;
 uint8_t cc_units_requested(void) ROUTINES;
 uint8_t cc_units_begin(void) ROUTINES;
 uint8_t cc_units_close(void) ROUTINES;
@@ -54,6 +65,7 @@ uint8_t cc_units_write(void) ROUTINES;
 uint8_t cc_units_write_object(void) ROUTINES;
 uint16_t cc_units_load_object(const char *name,const char *path,const char *fallback) ROUTINES;
 uint8_t cc_units_link(void) ROUTINES;
+uint8_t cc_units_link_object(void) ROUTINES;
 uint16_t cc_unit_record(uint16_t kind,uint16_t a,uint16_t b,uint16_t c,uint16_t d,uint16_t e) ROUTINES;
 uint16_t cc_unit_word(uint16_t at) ROUTINES;
 void cc_unit_put(uint16_t at,uint16_t value) ROUTINES;

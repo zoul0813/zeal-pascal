@@ -76,7 +76,7 @@ static void seal(CompilerFragmentObject *o) {o->lifetime=page_lifetime(o->page);
 static void object(CompilerFragmentObject *o,uint16_t id,uint8_t count,const uint16_t *sizes,
                    uint8_t relocations,const uint16_t *refs,const uint16_t *owners) {
     uint16_t i,j,offset=0,r=0,start=16u+8u*count+8u*relocations;
-    o->offset=0;o->binding=0;o->page=page_new(PAGE_COMPILER);check(o->page!=255);if(o->page==255)return;
+    o->bindings=0;o->binding_count=0;o->offset=0;o->binding=0;o->page=page_new(PAGE_COMPILER);check(o->page!=255);if(o->page==255)return;
     o->bytes=start;for(i=0;i<count;++i)o->bytes+=sizes[i];
     for(i=0;i<o->bytes;++i)far_set(o->page,i,0);
     far_set(o->page,0,'Z');far_set(o->page,1,'P');far_set(o->page,2,'F');far_set(o->page,3,'1');
@@ -293,7 +293,7 @@ static void patches_and_cycles(void) {
 }
 static void dense(CompilerFragmentObject *o,uint16_t identity,uint16_t count) {
     uint16_t i,start=16+8*count;
-    o->offset=0;o->binding=0;o->page=page_new(PAGE_COMPILER);check(o->page!=255);if(o->page==255)return;
+    o->bindings=0;o->binding_count=0;o->offset=0;o->binding=0;o->page=page_new(PAGE_COMPILER);check(o->page!=255);if(o->page==255)return;
     o->bytes=start+count;
     for(i=0;i<o->bytes;++i)far_set(o->page,i,0);
     far_set(o->page,0,'Z');far_set(o->page,1,'P');far_set(o->page,2,'F');far_set(o->page,3,'1');
@@ -312,7 +312,7 @@ static void capacity(void) {
     check(page_drop(dense_objects[2].page));dense(dense_objects+2,12,461);alloc_calls=0;
     check(cc_fragment_link(dense_objects,3,&root,1,0x8000,0xf400,&image)==CF_CAPACITY&&alloc_calls==0&&used==5);
     for(j=0;j<3;++j)check(page_drop(dense_objects[j].page));check(used==2);
-    full.offset=0;full.binding=0;full.page=page_new(PAGE_COMPILER);check(full.page!=255);full.bytes=PAGE_SIZE;
+    full.bindings=0;full.binding_count=0;full.offset=0;full.binding=0;full.page=page_new(PAGE_COMPILER);check(full.page!=255);full.bytes=PAGE_SIZE;
     for(i=0;i<PAGE_SIZE;++i)far_set(full.page,i,0);
     far_set(full.page,0,'Z');far_set(full.page,1,'P');far_set(full.page,2,'F');far_set(full.page,3,'1');
     poke(&full,4,13);poke(&full,6,1);poke(&full,10,PAGE_SIZE-24);poke(&full,18,PAGE_SIZE-24);
@@ -390,6 +390,28 @@ static void embedded_layout(void) {
     check(page_drop(embedded[0].page));check(page_drop(embedded[1].page));check(!used);
 }
 
+/* File-local IDs bind independently, including cross-file references. */
+static void dependency_bindings(void) {
+    static const uint16_t sizes[]={3},refs[]={1,2,0,0},owners[]={0};
+    CompilerFragmentObject inputs[2];CompilerFragmentRoot root;
+    object(inputs,1,1,sizes,1,refs,owners);dense(inputs+1,1,1);
+    inputs[0].binding=17;inputs[1].binding=23;
+    inputs[0].bindings=inputs[0].bytes;inputs[0].binding_count=2;
+    poke(inputs,inputs[0].bindings,17);poke(inputs,inputs[0].bindings+2,23);seal(inputs);
+    check(cc_fragment_validate_source(inputs)==CF_OK);
+    check(cc_fragment_validate(inputs,2)==CF_OK);
+    root.identity=17;root.fragment=0;
+    check(cc_fragment_link(inputs,2,&root,1,0x8000,0xf400,&image)==CF_OK);
+    check(image.fragments==2&&image.bytes==4&&getword(0x8001)==0x8003);
+    check(cc_fragment_image_close(&image));
+    poke(inputs,inputs[0].bindings+2,99);seal(inputs);
+    check(cc_fragment_validate_source(inputs)==CF_OK);
+    check(cc_fragment_validate(inputs,2)==CF_TARGET);
+    inputs[0].binding_count=1;check(cc_fragment_validate(inputs,2)==CF_TARGET);
+    inputs[0].bindings=PAGE_SIZE;check(cc_fragment_validate(inputs,2)==CF_OBJECT);
+    check(page_drop(inputs[0].page));check(page_drop(inputs[1].page));check(!used);
+}
+
 int main(void) {
     free_page=255;mutate_page=255;cc_fragment_image_init(&image);build_objects();
 #ifdef __SDCC
@@ -403,7 +425,7 @@ int main(void) {
     }
     negative();faults();ownership_and_edges();patches_and_cycles();capacity();independent();
     check(cc_fragment_image_close(&image));check(!used);
-    embedded_layout();
+    embedded_layout();dependency_bindings();
 #ifndef __SDCC
     maximum_objects();
 #endif

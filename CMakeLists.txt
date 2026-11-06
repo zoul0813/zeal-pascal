@@ -452,7 +452,7 @@ foreach(target zcompacttest zcorpus zjobtest zmemberstest zexecutecalltest zpasc
     if(target STREQUAL "zcompacttest")
         set(package_mode --compact-experiment)
     elseif(target STREQUAL "zpascal")
-        target_link_options(${target} PRIVATE "SHELL:-b _BANK16=0x108000" "SHELL:-b _BANK17=0x118000")
+        target_link_options(${target} PRIVATE "SHELL:-b _BANK16=0x108000" "SHELL:-b _BANK17=0x118000" "SHELL:-b _BANK18=0x128000")
         set(package_mode --optional-real)
     endif()
     add_custom_target(${target}_bin ALL
@@ -785,13 +785,13 @@ target_include_directories(unit_fragment_core PRIVATE src)
 target_compile_options(unit_fragment_core PRIVATE --std-c99 --opt-code-size
     "SHELL:--codeseg BANK16" "SHELL:--constseg BANK16")
 add_library(unit_core OBJECT ${PASCAL_CORE} src/compiler_units.c
-    src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/unit_output.c)
+    src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/unit_output.c)
 target_compile_definitions(unit_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT)
 target_include_directories(unit_core PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(unit_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
 add_dependencies(unit_core pascal_runtime_bin ram_trampoline_bin transfer_assets
     runtime_profile file_runtime_bin file_gate_bin module_unpack_bin)
-set_source_files_properties(src/compiler_units.c src/compiler_units_link.c PROPERTIES
+set_source_files_properties(src/compiler_units.c src/compiler_units_graph.c PROPERTIES
     COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK16;--constseg;BANK16")
 # Unit namespace materialization stays in a warm compiler page; artifact I/O
 # uses its own transient page and keeps near buffers on the retained stack.
@@ -804,7 +804,7 @@ foreach(source IN LISTS PASCAL_CORE)
         set_property(SOURCE ${source} APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_units.h)
     endif()
 endforeach()
-set_property(SOURCE src/compiler_units.c src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/compiler_fragments.c
+set_property(SOURCE src/compiler_units.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/compiler_fragments.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_units.h
     ${CMAKE_SOURCE_DIR}/src/compiler_fragments.h ${CMAKE_SOURCE_DIR}/src/compiler.h)
 add_library(unit_test_execution OBJECT tests/native/harness-execute.c)
@@ -825,7 +825,7 @@ set_property(SOURCE tests/native/units-main.c src/banks.c APPEND PROPERTY OBJECT
     ${CMAKE_SOURCE_DIR}/src/compiler_units.h ${CMAKE_SOURCE_DIR}/src/compiler.h)
 add_dependencies(zunittest transfer_assets)
 target_link_options(zunittest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 17)
+foreach(bank RANGE 1 18)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunittest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -844,7 +844,7 @@ target_include_directories(zunitcorpus PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(zunitcorpus PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_dependencies(zunitcorpus transfer_assets)
 target_link_options(zunitcorpus PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 17)
+foreach(bank RANGE 1 18)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunitcorpus PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -953,7 +953,7 @@ target_include_directories(zoptionalcorpus PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(zoptionalcorpus PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_dependencies(zoptionalcorpus transfer_assets)
 target_link_options(zoptionalcorpus PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 17)
+foreach(bank RANGE 1 18)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zoptionalcorpus PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -964,7 +964,7 @@ add_custom_target(zoptionalcorpus_bin
 # Combine native units with the existing optional Real engine. Both compile
 # switches belong to every compiler translation unit sharing CompilerSources.
 add_library(unit_runtime_core OBJECT ${OPTIONAL_CORE} src/compiler_runtime.c
-    src/compiler_units.c src/compiler_units_object.c src/compiler_units_names.c
+    src/compiler_units.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c
     src/compiler_units_link.c src/unit_output.c ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm)
 target_compile_definitions(unit_runtime_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL ZP_PROGRAM_PAGES)
 target_include_directories(unit_runtime_core PRIVATE src ${CMAKE_BINARY_DIR})
@@ -986,7 +986,7 @@ set_property(SOURCE tests/native/unit-real-main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 add_dependencies(zunitrealtest transfer_assets)
 target_link_options(zunitrealtest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 17)
+foreach(bank RANGE 1 18)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunitrealtest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1041,7 +1041,7 @@ set_property(SOURCE tests/native/screen-main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 add_dependencies(zscreentest transfer_assets screen_library zexparent_bin)
 target_link_options(zscreentest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 17)
+foreach(bank RANGE 1 18)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zscreentest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1051,3 +1051,9 @@ add_custom_target(zscreentest_bin ALL
 
 add_dependencies(zpascal screen_library)
 add_dependencies(zunitrealtest screen_library)
+
+set_source_files_properties(src/compiler_units_link.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK18;--constseg;BANK18")
+set_property(SOURCE src/compiler_units_graph.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/compiler_units.h
+    ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)

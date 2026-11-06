@@ -371,8 +371,10 @@ TypeId cc_invoke(uint16_t id) ROUTINES {
 
 #ifdef ZP_UNITS_EXPERIMENT
 void cc_units_interface(void) ROUTINES {
+    if(cc_is("uses"))cc_units_imports();
     while(!cc.error->code&&(cc_is("procedure")||cc_is("function")))routine(1);
     if(!cc_is("implementation")){cc_fail(UNIT_UNSUPPORTED);return;}
     cc_next();
+    if(cc_is("uses"))cc_units_imports();
 }
 #endif

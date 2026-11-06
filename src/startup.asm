@@ -136,7 +136,7 @@ release_library:
     ld (_boot_error),a
     ret
 ; The SDK's standard banked-call trampoline calls these callbacks. Logical
-; bank IDs are 1..17; saved tokens are actual RAM pages 32..63. Both callbacks
+; bank IDs are 1..18; saved tokens are actual RAM pages 32..63. Both callbacks
 ; preserve BC/DE/HL. There is no software current-bank state to go stale.
 _get_bank::                     ; C alias for the SDK mapping callback
 get_bank::
@@ -159,8 +159,8 @@ set_bank::
 map_bank:
     out (0xf2),a
     ret
-_code_sizes:: .ds 34
-_code_pages:: .ds 17
+_code_sizes:: .ds 36
+_code_pages:: .ds 18
 _code_owned:: .ds 1
 _boot_error:: .ds 1
 _code_required:: .ds 1

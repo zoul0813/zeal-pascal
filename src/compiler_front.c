@@ -430,7 +430,7 @@ int16_t cc_lookup(void) FRONTEND {
             cc.console_dynamic=1;
     }
 #ifdef ZP_UNITS_EXPERIMENT
-    if(id<0&&cc.sources->unit_page!=255&&!cc.sources->unit_mode)return cc_units_lookup();
+    if(id<0&&cc.sources->unit_page!=255)return cc_units_lookup();
 #endif
     return id;
 }

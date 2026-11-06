@@ -9,31 +9,21 @@ static uint8_t module_name(uint16_t module,const char *name) {
     for(i=0;i<n;++i)if(cc_unit_module_byte(module,ZPU_HEADER_BYTES+i)!=(uint8_t)name[i])return 0;
     return 1;
 }
-static uint16_t find_module(const char *name) {
+uint16_t cc_units_find(const char *name) ROUTINES {
     uint16_t at,end=cc_unit_word(UH_USED);
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)
         if(cc_unit_word(at)==UR_MODULE&&cc_unit_word(at+8)&&module_name(at,name))return at;
     return 0;
 }
 void cc_units_imports(void) ROUTINES {
-    char name[128],filename[16],directory[128],path[128];uint16_t i,n;
-    if(cc.sources->unit_mode) {
-        cc_fail(UNIT_UNSUPPORTED);return;
-    }
+    char name[128];uint16_t n;
     if(!cc_units_begin())return;
     cc_next();
     for(;;) {
         if(cc.token!=T_ID){cc_fail(53);return;}
         n=(uint16_t)strlen(cc.name);if(!n||n>11){cc_fail(UNIT_UNSUPPORTED);return;}
         strcpy(name,cc.name);
-        if(!find_module(name)) {
-            if(cc_unit_word(UH_MODULES)==CC_FRAGMENT_OBJECTS){cc_fail(99);return;}
-            for(i=0;i<n;++i)filename[i]=name[i]>='a'&&name[i]<='z'?name[i]-32:name[i];
-            strcpy(filename+n,".ZPU");strcpy(directory,cc.input->path);
-            i=(uint16_t)strlen(directory);while(i&&directory[i-1]!='/')--i;directory[i]=0;
-            if(!sources_path(filename,directory,path)){cc_fail(UNIT_MISSING);return;}
-            if(!cc_units_load(name,path))return;
-        }
+        if(!cc_units_graph(name,1))return;
         cc_next();if(cc.token!=',')break;cc_next();
     }
     cc_expect(';',1);
@@ -77,8 +67,8 @@ static int16_t materialize(uint16_t module,uint16_t export) {
 }
 int16_t cc_units_lookup(void) ROUTINES {
     uint16_t module=0,export=0,at,end,match=0,candidate=0;SourceCursor cursor;
-    if(cc.sources->unit_page==255||cc.sources->unit_mode||cc.token!=T_ID)return -1;
-    if(!cc.sources->unit_qualifier&&(module=find_module(cc.name))!=0) {
+    if(cc.sources->unit_page==255||cc.token!=T_ID)return -1;
+    if(!cc.sources->unit_qualifier&&(module=cc_units_find(cc.name))!=0&&(cc_unit_word(cc_units_state(module)+4)&UM_VISIBLE)) {
         cc_source_save(&cursor);cc_next();
         if(cc.token=='.') {
             cc_next();if(cc.token!=T_ID){cc_fail(53);return -1;}
@@ -87,6 +77,7 @@ int16_t cc_units_lookup(void) ROUTINES {
     }
     end=cc_unit_word(UH_USED);
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_MODULE&&cc_unit_word(at+8)) {
+        if(!(cc_unit_word(cc_units_state(at)+4)&UM_VISIBLE))continue;
         if(cc.sources->unit_qualifier&&cc.sources->unit_qualifier!=cc_unit_word(at+8))continue;
         export=find_export(at,cc.name);
         if(export) {
@@ -100,6 +91,8 @@ int16_t cc_units_lookup(void) ROUTINES {
 void cc_units_call(uint8_t opcode,uint16_t scope) ROUTINES {
     uint16_t at,end=cc_unit_word(UH_USED),site;
     if(cc.suppress||cc.error->code)return;
+    /* Only known leaf-unit calls qualify for the shared-page stack model. */
+    if(cc.sources->unit_mode)cc_require_full_memory();
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_IMPORT&&cc_unit_word(at+2)==scope) {
         if(cc_unit_module_byte(cc_unit_word(at+4),cc_unit_word(at+6)+3)&ZPU_CALLER_IO) {
             if(opcode!=0xcd){cc_fail(UNIT_UNSUPPORTED);return;}
@@ -118,6 +111,8 @@ void cc_unit_descriptor(uint16_t module,CompilerFragmentObject *object) ROUTINES
     object->lifetime=cc_unit_word(seal+2)|((uint32_t)cc_unit_word(seal+4)<<16);
     object->version=cc_unit_word(seal+6)|((uint32_t)cc_unit_word(seal+8)<<16);
     object->binding=cc_unit_word(module+8);
+    object->bindings=cc_unit_word(module+4);
+    object->binding_count=(uint8_t)(cc_unit_module_word(module,36)+1);
 }
 /* Release the I/O code page only after returning to the retained unit bank.
  * Failed release keeps its owned handle for the normal phase/terminal retry. */
@@ -173,4 +168,30 @@ uint16_t cc_units_load(const char *name,const char *path) ROUTINES {
     module=cc_units_load_object(name,path,fallback[0]?fallback:0);
     if(!io_finish(module!=0))return 0;
     return bind_source(module);
+}
+
+uint16_t cc_units_state(uint16_t module) ROUTINES {
+    uint16_t at,end=cc_unit_word(UH_USED);
+    for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)
+        if(cc_unit_word(at)==UR_STATE&&cc_unit_word(at+2)==module)return at;
+    return cc_unit_record(UR_STATE,module,0,0,0,0);
+}
+uint16_t cc_units_graph(const char *name,uint8_t visible) ROUTINES {
+    uint16_t module=cc_units_graph_load(name,visible);
+    return module&&cc_units_graph_validate()?module:0;
+}
+/* The retained coordinator owns the transient final linker's lifetime. */
+uint8_t cc_units_link(void) ROUTINES {
+    uint8_t ok=0,primary;
+    if(cc.sources->unit_page==255)return 1;
+    if(!code_phase_unit_link_begin()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    if(!code_phase_unit_meta())cc_fail(COMPILE_PLATFORM_FAILURE);
+    else {
+        ok=cc_units_link_object();primary=platform_error;
+        if(!code_phase_unit_meta_release()){cc_fail(COMPILE_PLATFORM_FAILURE);ok=0;}
+        else if(!ok)platform_error=primary;
+    }
+    primary=platform_error;
+    if(!code_phase_unit_link_end()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    if(!ok)platform_error=primary;return ok;
 }

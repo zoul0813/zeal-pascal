@@ -420,8 +420,8 @@ def package(path, runtime_name="pascal_runtime", file_name="file_runtime", optio
     # Every loaded byte belongs to exactly one segment. In particular no C
     # data, library, or constant may silently live in the switchable window.
     banks = sorted({at >> 16 for at in memory if at >= 0x10000})
-    if not banks or banks != list(range(1, len(banks) + 1)) or len(banks) > 17:
-        raise ValueError('code banks must be consecutive IDs 1..17')
+    if not banks or banks != list(range(1, len(banks) + 1)) or len(banks) > 18:
+        raise ValueError('code banks must be consecutive IDs 1..18')
     allowed = [(0x4000, 0x8000)] + [(bank << 16 | 0x8000, bank << 16 | 0xc000) for bank in banks]
     if not memory or min(memory) != 0x4000 or any(
             not any(first <= at < last for first, last in allowed) for at in memory):

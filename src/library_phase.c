@@ -4,7 +4,7 @@
 
 int8_t code_phase_fd=-1;
 uint8_t code_phase_pending[CODE_BANK_LIMIT]={
-    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255
 };
 static uint32_t valid,resume_mask;
 
@@ -85,7 +85,7 @@ uint8_t code_phase_restore(void) SOURCE_BLOCK_CALL {
     wanted&=~(1UL<<CODE_RUNTIME);
 #endif
 #ifdef ZP_UNITS_EXPERIMENT
-    wanted&=~(1UL<<CODE_UNIT_IO);
+    wanted&=~((1UL<<CODE_UNIT_IO)|(1UL<<CODE_UNIT_META));
 #endif
     return restore(wanted);
 }
@@ -97,6 +97,15 @@ uint8_t code_phase_real_release(void) SOURCE_BLOCK_CALL {
 }
 #endif
 #ifdef ZP_UNITS_EXPERIMENT
+/* Parsing has ended. The file generator is idle until unit placement ends;
+ * lend its physical slot to the link catalog, then restore before helpers. */
+uint8_t code_phase_unit_link_begin(void) SOURCE_BLOCK_CALL {return drop_bank(CODE_FILE_COMPILER);}
+uint8_t code_phase_unit_link_end(void) SOURCE_BLOCK_CALL {return restore(1UL<<CODE_FILE_COMPILER);}
+uint8_t code_phase_unit_meta(void) SOURCE_BLOCK_CALL {return restore(1UL<<CODE_UNIT_META);}
+uint8_t code_phase_unit_meta_release(void) SOURCE_BLOCK_CALL {
+    if(!drop_bank(CODE_UNIT_META))return 0;
+    resume_mask&=~(1UL<<CODE_UNIT_META);return 1;
+}
 uint8_t code_phase_unit_io(void) SOURCE_BLOCK_CALL {return restore(1UL<<CODE_UNIT_IO);}
 uint8_t code_phase_unit_io_release(void) SOURCE_BLOCK_CALL {
     if(!drop_bank(CODE_UNIT_IO))return 0;

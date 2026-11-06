@@ -1,0 +1,70 @@
+{
+  "checkpoint": "inter-unit dependencies",
+  "native": {
+    "passed": true,
+    "checks": {
+      "authenticated completion": true,
+      "all native assertions pass": true,
+      "library deletion stage completed": true,
+      "INTEGER execution markers": true,
+      "COPY execution markers": true,
+      "SCALE execution markers": true,
+      "TRANSITIVE execution markers": true,
+      "UNUSED execution markers": true,
+      "DEPS execution markers": true,
+      "PLAIN selects correct Real engine": true,
+      "COPY selects correct Real engine": true,
+      "SCALE selects correct Real engine": true,
+      "TRANSIT selects correct Real engine": true,
+      "UNUSED selects correct Real engine": true,
+      "FAULTRUN selects correct Real engine": true,
+      "unit source and library deleted": true
+    },
+    "assertions": 1200,
+    "expected_assertions": 905,
+    "failed": 0,
+    "failure_indices": [],
+    "diagnostics": [],
+    "capture_directory": "analysis/native-slice/20261106T212655.945144Z-71376"
+  },
+  "exact_native_assertions": 1200,
+  "host": {
+    "command": "cc -std=c99 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc src/compiler_fragments.c tests/native/fragments.c",
+    "assertions": 876,
+    "failed": 0
+  },
+  "cold_code_pages": 10,
+  "warm_code_pages": 15,
+  "review": {
+    "status": "pending",
+    "attempt": "unit-dependencies-v1",
+    "reason": "Claude API429 usage_limit_reached; reset reported 2026-11-06 18:40 America/New_York"
+  },
+  "input_sha256": {
+    "src/compiler_units_graph.c": "d06243622138798283608057cb609e62046a27a7d7ddff988ecd44c3bcb1704f",
+    "src/compiler_units_names.c": "967c34265ad71f18c4db25c16ae1b8a2030e4ac13b3ce46fa1ace7fc17818a46",
+    "src/compiler_units_link.c": "974b812adc6fdd39f2ff79208f46aac00fd2b467e0d569db7e70b713c9486538",
+    "src/compiler_units_object.c": "a80f7b7e284fcbd124e1eb4b8d34a2009d4aeb2eff07932b719ce7f7c69a30f8",
+    "src/compiler_fragments.c": "4e3bf01d0370bf681391ae877b687471d4d953a8ad2fa925ccdf36c98d4287ae",
+    "src/library_phase.c": "36d3d82787f4bd3e3d62f6367a71e9a0c778fd5cd96e51e0886993308ab90cc1",
+    "tests/native/unit-real-main.c": "80330d41e2834fcf55ff765b3cea6c844f2d2ca8f0146ea9dc27abeb85b7a72c",
+    "tools/test-unit-real.py": "c38d77002b0b36db1f9657a97a5ca097872a61f5467864911b8c784c4c825a62"
+  },
+  "crt": {
+    "passed": true,
+    "capture_directory": "analysis/native-slice/20261106T212843.933598Z-72549",
+    "native_assertions_passed": 502,
+    "native_assertions_failed": 0,
+    "final_pages": 15,
+    "final_cached": 15,
+    "checks": {
+      "native millisecond sleep arguments, zero and25 in RAM andCOM; pending I/O suppresses sleep": true,
+      "native completion": true,
+      "RAM/COM screen, cursor/color restoration, bounds, syntax, ownership and machine-state assertions": true,
+      "exact program results after whole-screen character/attribute comparisons": true,
+      "saved program runs after library removal": true,
+      "implementation and artifacts unchanged during validation": true,
+      "standalone Screen Chain without compiler or unit libraries": true
+    }
+  }
+}

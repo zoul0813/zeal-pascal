@@ -69,8 +69,8 @@ def main():
          '-fno-sanitize-recover=all', '-g', '-Isrc', 'src/compiler_fragments.c',
          'tests/native/fragments.c', '-o', str(binary)], 'host-build')
     host = run([str(binary)], 'host', out)
-    assert host == '862 fragment assertions passed, 0 failed\n', host
-    report['host'] = {'passed': True, 'assertions': 862, 'binary_sha256': sha(binary)}
+    assert host == '876 fragment assertions passed, 0 failed\n', host
+    report['host'] = {'passed': True, 'assertions': 876, 'binary_sha256': sha(binary)}
     goldens = expected_objects()
     assert all((out/name).read_bytes() == data for name, data in goldens.items())
     spec = importlib.util.spec_from_file_location('native', ROOT/'tools/test-native.py')
@@ -107,8 +107,8 @@ def main():
     checks = {
         'authenticated native completion': frame.startswith('fc01 ') and memory.get(sym['_test_done']) == 255
             and bytes(memory.get(0x4000+i,0) for i in range(32)) == expected_binary[:32],
-        'exact native assertion count and zero failures': word('_test_passed') == 801
-            and word('_test_failed') == 0 and word('_test_index') == 801,
+        'exact native assertion count and zero failures': word('_test_passed') == 815
+            and word('_test_failed') == 0 and word('_test_index') == 815,
         'independent exact native disk object bytes': all((directory/name).read_bytes() == data for name,data in goldens.items()),
         'source and rebuilt artifact stability': all(sha(ROOT/p) == h for p,h in {**hashes,**artifact_hashes}.items()),
         'pinned emulator and ROM stability': all(sha(Path(p)) == h for p,h in external.items())}

@@ -7,14 +7,14 @@
 #include <zos_sys.h>
 #include <zos_vfs.h>
 
-volatile uint16_t test_passed,test_failed,test_index,test_stage,test_failures[64];
+volatile uint16_t test_passed,test_failed,test_index,test_stage,test_failures[64],test_diagnostics[128];
 volatile uint8_t test_done;
 Source s;Build b;Diagnostic d;
 void test_complete(void);
 static void check(uint8_t ok) {
     ++test_index;
     if(ok)++test_passed;
-    else {if(test_failed<64)test_failures[test_failed]=test_index;++test_failed;}
+    else {if(test_failed<64){test_failures[test_failed]=test_index;test_diagnostics[2*test_failed]=d.code;test_diagnostics[2*test_failed+1]=d.start;}++test_failed;}
 }
 static uint8_t load(const char *text) {
     return source_import(&s,(const uint8_t*)text,(uint16_t)strlen(text),&d);
@@ -39,10 +39,10 @@ static const char mixed[]=
 static uint8_t author(const char *path,const char *artifact,const char *text) {
     int8_t fd;uint8_t ok;uint16_t n=(uint16_t)strlen(text);
     check(source_new(&s,path));check(load(text));
-    fd=open(path,O_WRONLY|O_CREAT|O_TRUNC);check(fd>=0);
+    rm(path);fd=open(path,O_WRONLY|O_CREAT|O_TRUNC);check(fd>=0);
     if(fd<0)return 0;
     check(!write(fd,text,&n)&&n==strlen(text));check(!close(fd));
-    fd=open(artifact,O_WRONLY|O_CREAT|O_TRUNC);check(fd>=0);
+    rm(artifact);fd=open(artifact,O_WRONLY|O_CREAT|O_TRUNC);check(fd>=0);
     if(fd<0)return 0;
     ok=compile_unit(&s,&b,&d,fd,0);check(ok&&!d.code&&!b.valid);
     check(!close(fd));closed();source_close(&s);return ok;
@@ -285,6 +285,45 @@ static void argument_calls(void) {
     }
     check(!rm("H:/WIDE.ZPU"));check(!rm("H:/WIDE.PAS"));
 }
+static const char shared_unit[]=
+    "unit Shared;interface procedure Reset;function Next:Integer;\n"
+    "implementation var Count:Integer;procedure Reset;begin Count:=0 end;\n"
+    "function Next:Integer;begin Count:=Count+1;Next:=Count end;end.";
+static void dependency_units(void) {
+    check(author("H:/SHARED.PAS","H:/SHARED.ZPU",shared_unit));
+    check(author("H:/LEFTDEP.PAS","H:/LEFTDEP.ZPU",
+        "unit LeftDep;interface uses Shared;function Step:Integer;\n"
+        "implementation function Step:Integer;begin Step:=Shared.Next end;end."));
+    check(author("H:/RIGHTDEP.PAS","H:/RIGHTDEP.ZPU",
+        "unit RightDep;interface function Other:Integer;\n"
+        "implementation uses Shared;function Other:Integer;begin Other:=Next end;end."));
+    check(!rm("H:/SHARED.PAS"));check(!rm("H:/LEFTDEP.PAS"));check(!rm("H:/RIGHTDEP.PAS"));
+    client("H:/DIAMOND.PAS","uses LeftDep,RightDep,Shared;var N:Integer;begin Reset;\n"
+        "N:=Step;if N<>1 then N:=1 div(N-N);N:=Other;if N<>2 then N:=1 div(N-N);\n"
+        "writeln('UNIT-DEPS-OK')end.");
+    check(source_new(&s,"H:/HIDDEN.PAS"));check(load("uses LeftDep;begin Shared.Reset end."));
+    check(!compile(&s,&b,&d)&&d.code==41);closed();source_close(&s);
+    check(!rm("H:/SHARED.ZPU"));
+    check(source_new(&s,"H:/MISSING.PAS"));check(load("uses LeftDep;begin end."));
+    check(!compile(&s,&b,&d)&&d.code==UNIT_MISSING);closed();source_close(&s);
+    check(author("H:/SHARED.PAS","H:/SHARED.ZPU",shared_unit));
+    /* Replacing the dependency with any different artifact invalidates its users. */
+    check(author("H:/SHARED.PAS","H:/SHARED.ZPU",
+        "unit Shared;interface procedure Reset;function Next:Integer;\n"
+        "implementation procedure Reset;begin end;function Next:Integer;begin Next:=9 end;end."));
+    check(source_new(&s,"H:/STALE.PAS"));check(load("uses LeftDep;begin end."));
+    check(!compile(&s,&b,&d)&&d.code==UNIT_STALE);closed();source_close(&s);
+    /* The current authoring unit cannot depend on itself through another unit. */
+    check(source_new(&s,"H:/SHARED.PAS"));
+    check(load("unit Shared;interface uses LeftDep;implementation end."));
+    {
+        int8_t fd=open("H:/CYCLE.ZPU",O_WRONLY|O_CREAT|O_TRUNC);check(fd>=0);
+        if(fd>=0){check(!compile_unit(&s,&b,&d,fd,0)&&d.code==UNIT_CYCLE);check(!close(fd));}
+    }
+    closed();source_close(&s);
+    check(!rm("H:/SHARED.ZPU"));check(!rm("H:/LEFTDEP.ZPU"));check(!rm("H:/RIGHTDEP.ZPU"));
+    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/DIAMOND.COM",0,&status)&&status==0);}
+}
 int app_main(void) {
     uint8_t status;int8_t capture;
     if(!console_open())return 1;
@@ -308,7 +347,7 @@ int app_main(void) {
     fault_location();page_pressure(1);page_pressure(0);
     layout_helpers();layout_limits();
     client("H:/SHARED.PAS","var N:Integer;begin N:=21*2;if N<>42 then halt end.");
-    execute_shared();argument_calls();
+    execute_shared();argument_calls();dependency_units();
     test_stage=3;check(!rm("H:/MIXED.ZPU"));check(!rm("H:/MIXED.PAS"));
     status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/SHARED.COM",0,&status)&&status==0);
     status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/SHARED.COM",0,&status)&&status==0);

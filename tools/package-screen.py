@@ -78,13 +78,15 @@ def build(directory):
     blob += records+b''.join(struct.pack('<4H',*r) for r in refs)+payload
     unit_name = b'crt'
     metadata = unit_name+source_path+exports+bytes([2]*len(fragments))
-    header = bytearray(36)
+    header = bytearray(48)
     header[:4] = b'ZPU1'
-    struct.pack_into('<HH',header,4,1,36+len(metadata)+len(blob))
+    struct.pack_into('<HH',header,4,1,48+len(metadata)+len(blob))
     header[8:12] = (directory/'pascal_runtime.profile').read_bytes()[:4]
     struct.pack_into('<IHBB3H',header,12,fnv(source_bytes),len(source_bytes),len(unit_name),len(source_path),len(NAMES),0,0)
-    struct.pack_into('<H',header,26,36+len(metadata))
+    struct.pack_into('<H',header,26,48+len(metadata))
     struct.pack_into('<HH',header,32,len(payload),0)
+    start=48+len(unit_name)+len(source_path)
+    struct.pack_into('<6H',header,36,0,0,start,start,start,0)
     artifact = header+metadata+blob
     assert len(artifact) <= 16384
     struct.pack_into('<I',artifact,28,fnv(artifact[:28]+artifact[32:]))

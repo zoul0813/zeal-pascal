@@ -30,7 +30,7 @@
 #define CC_FRAGMENT_OBJECTS 32u
 #define CC_FRAGMENT_LIMIT (PAGE_SIZE/4u)
 enum { CF_OK,CF_ARGUMENT,CF_OBJECT,CF_TARGET,CF_CAPACITY,CF_MEMORY,CF_CANCELLED,CF_OWNERSHIP };
-typedef struct {uint8_t page;uint16_t bytes;uint32_t lifetime,version;uint16_t offset,binding;} CompilerFragmentObject;
+typedef struct {uint8_t page;uint16_t bytes;uint32_t lifetime,version;uint16_t offset,binding,bindings;uint8_t binding_count;} CompilerFragmentObject;
 typedef struct {uint16_t identity,fragment;} CompilerFragmentRoot;
 typedef struct {
     uint8_t pages[2],workspace,valid;
@@ -48,6 +48,8 @@ typedef struct {
     uint16_t identities[CC_FRAGMENT_OBJECTS],bases[CC_FRAGMENT_OBJECTS+1];
 } CompilerFragmentLayout;
 uint8_t cc_fragment_validate(const CompilerFragmentObject *objects,uint8_t count) CC_FRAGMENT_CALL;
+/* Envelope/site checks before an external identity namespace is available. */
+uint8_t cc_fragment_validate_source(const CompilerFragmentObject *object) CC_FRAGMENT_CALL;
 void cc_fragment_layout_init(CompilerFragmentLayout *layout) CC_FRAGMENT_CALL;
 uint8_t cc_fragment_layout_close(CompilerFragmentLayout *layout) CC_FRAGMENT_CALL;
 uint8_t cc_fragment_layout_get(const CompilerFragmentLayout *layout,uint16_t identity,

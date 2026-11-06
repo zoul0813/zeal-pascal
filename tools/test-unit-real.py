@@ -4,7 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import re
-EXPECTED_ASSERTIONS=905
+EXPECTED_ASSERTIONS=1200
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py')
 n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
@@ -37,15 +37,15 @@ def main():
     commands=['run 100000000']+n.program_launch(target)+[f"bp 0x{symbols['_test_stop']:x}",'run 20000000000','s','regs','rb 0x4000 32']
     for name in ('_test_done','_test_passed','_test_failed','_test_index','_test_stage'):
         commands += [f'rb 0x{symbols[name]:x} 2']
-    commands += [f"rb 0x{symbols['_test_failures']:x} 128",'quit']
+    commands += [f"rb 0x{symbols['_test_failures']:x} 128",f"rb 0x{symbols['_test_diagnostics']:x} 256",'quit']
     raw=n.execute('unit-real',commands,fixtures,timeout=600)
     frame=re.split(r'\[DBG\] PC=',raw)[-1];state=n.memory(frame)
     word=lambda name:state.get(symbols[name],0)|(state.get(symbols[name]+1,0)<<8)
     checks={'authenticated completion':frame.startswith('fc01 ')and state.get(symbols['_test_done'])==255 and bytes(state.get(0x4000+i,0)for i in range(32))==fixtures[target+'.bin'][:32],
-            'all native assertions pass':word('_test_passed')==word('_test_index')==EXPECTED_ASSERTIONS and word('_test_failed')==0,
+            'all native assertions pass':word('_test_passed')==word('_test_index') and word('_test_passed')==EXPECTED_ASSERTIONS and word('_test_failed')==0,
             'library deletion stage completed':word('_test_stage')==3}
     folder=n.RUN/'unit-real/hostfs';output=(folder/'UNITREAL.TXT').read_bytes()if(folder/'UNITREAL.TXT').exists()else b''
-    for name,count in [('INTEGER',2),('COPY',2),('SCALE',3),('TRANSITIVE',3),('UNUSED',2)]:
+    for name,count in [('INTEGER',2),('COPY',2),('SCALE',3),('TRANSITIVE',3),('UNUSED',2),('DEPS',3)]:
         checks[name+' execution markers']=output.count(('UNIT-'+name+'-OK\r\n').encode())==count
     core=(ROOT/'build/integer_runtime.zpl').read_bytes();full=(ROOT/'build/pascal_runtime.zpl').read_bytes()
     for name,real in [('PLAIN',False),('COPY',False),('SCALE',True),('TRANSIT',True),('UNUSED',False),('FAULTRUN',True)]:
@@ -54,6 +54,7 @@ def main():
     checks['unit source and library deleted']=not(folder/'MIXED.PAS').exists()and not(folder/'MIXED.ZPU').exists()
     report={'passed':all(checks.values()),'checks':checks,'assertions':word('_test_passed'),'expected_assertions':EXPECTED_ASSERTIONS,'failed':word('_test_failed'),
             'failure_indices':[state.get(symbols['_test_failures']+2*i,0)|(state.get(symbols['_test_failures']+2*i+1,0)<<8)for i in range(min(word('_test_failed'),64))],
+            'diagnostics':[state.get(symbols['_test_diagnostics']+2*i,0)|(state.get(symbols['_test_diagnostics']+2*i+1,0)<<8)for i in range(min(2*word('_test_failed'),128))],
             'capture_directory':str(n.RUN.relative_to(ROOT))}
     (n.RUN/'unit-real-report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2));return 0 if report['passed']else 1
 if __name__=='__main__':raise SystemExit(main())
