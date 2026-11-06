@@ -128,30 +128,35 @@ uint8_t cc_units_write(void) ROUTINES {
     if(!code_phase_unit_io()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
     ok=cc_units_write_object();return io_finish(ok);
 }
-/* Artifact I/O has finished before source validation acquires its buffer.
- * Keeping the transient code page during this step costs the second import
- * the physical page it needs on a fully warmed nonoptional compiler. */
+/* The artifact owns code, signatures and optional source identity. Register
+ * each unit separately so identical authoring paths cannot merge source maps. */
 static uint16_t bind_source(uint16_t module) {
-    Source loaded;Diagnostic diagnostic;char path[128];
-    uint16_t n,at,i,source_id;uint32_t checksum,expected;
-    n=cc_unit_module_byte(module,19);at=ZPU_HEADER_BYTES+cc_unit_module_byte(module,18);
-    for(i=0;i<n;++i)loaded.path[i]=(char)cc_unit_module_byte(module,at+i);loaded.path[n]=0;
-    if(!sources_canonical(loaded.path,path)||strcmp(loaded.path,path)){cc_fail(UNIT_FORMAT);return 0;}
-    if(sources_find(&cc.image->sources,path)>=0){cc_fail(UNIT_FORMAT);return 0;}
-    if(!read_block(&loaded,path,&diagnostic)) {
-        sources_release(&cc.image->sources,&loaded);cc_fail(UNIT_STALE);return 0;
+    Source source;
+    char canonical[128];
+    uint16_t length,offset,i;
+    int16_t source_id;
+    uint32_t checksum;
+
+    memset(&source,0,sizeof(source));
+    source.page=255;
+    source.length=cc_unit_module_word(module,16);
+    length=cc_unit_module_byte(module,19);
+    offset=ZPU_HEADER_BYTES+cc_unit_module_byte(module,18);
+    for(i=0;i<length;++i)source.path[i]=(char)cc_unit_module_byte(module,offset+i);
+    source.path[length]=0;
+    if(!sources_canonical(source.path,canonical)||strcmp(source.path,canonical)) {
+        cc_fail(UNIT_FORMAT);
+        return 0;
     }
-    checksum=unit_source_fingerprint(&loaded);
-    expected=cc_unit_module_word(module,12)|((uint32_t)cc_unit_module_word(module,14)<<16);
-    if(loaded.length!=cc_unit_module_word(module,16)||checksum!=expected) {
-        sources_release(&cc.image->sources,&loaded);cc_fail(UNIT_STALE);return 0;
+    checksum=cc_unit_module_word(module,12)|((uint32_t)cc_unit_module_word(module,14)<<16);
+    source_id=sources_unit(&cc.image->sources,&source,checksum);
+    if(source_id<0) {
+        cc_fail(99);
+        return 0;
     }
-    i=sources_release(&cc.image->sources,&loaded);loaded.page=255;
-    source_id=(uint16_t)sources_reference(&cc.image->sources,&loaded);
-    if(!i||source_id>=255||!sources_fingerprint(&cc.image->sources,(uint8_t)source_id,checksum)) {
-        cc_fail(99);return 0;
-    }
-    cc_unit_put(module+6,source_id);cc_unit_put(UH_MODULES,cc_unit_word(UH_MODULES)+1);return module;
+    cc_unit_put(module+6,(uint16_t)source_id);
+    cc_unit_put(UH_MODULES,cc_unit_word(UH_MODULES)+1);
+    return module;
 }
 uint16_t cc_units_load(const char *name,const char *path) ROUTINES {
     uint16_t module;

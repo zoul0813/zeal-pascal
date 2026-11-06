@@ -86,13 +86,15 @@ def main():
     checks['Main automatic save retains original backup']=(directory/'project/main.BAK').read_bytes()==root
     checks['repeated include save replaces backup with prior revision']=(directory/'project/parts/run.BAK').read_bytes()==((raw_statement+'\n').encode() if inline else b'value:=7 div 0;\n')
     # Observe kernel ownership while its video syscall maps the owner table.
-    # Three OS execution pages + sixteen library pages + one Work; no catalog.
+    # Three OS execution pages + ten cold code pages + one Work.
     kernel=n.kernel_symbols();clear=kernel['_video_vram_set'];owners=kernel['_page_owners']
-    commands=['run 100000000']+n.program_launch()+['run 10000000',f"rb 0x{sym['_code_required']:x} 1",f'bp 0x{clear:x}','tap N','run 100000000','regs',
+    count=n.code_banks()
+    commands=['run 100000000']+n.program_launch()+['run 10000000',f"rb 0x{sym['_code_required']:x} 1",f"rb 0x{sym['_code_pages']:x} {count}",f'bp 0x{clear:x}','tap N','run 100000000','regs',
         f'rb 0x{owners:x} 32',f'bc 0x{clear:x}','quit']
     captured=n.execute('ide-startup-pages',commands,timeout=180)
     memory=n.memory(captured);library_count=memory.get(sym['_code_required'],0)
-    checks['startup owns only library banks and one Work beyond OS pages']=library_count==16 and bytes(memory.get(owners+i,255)for i in range(32)).count(2)==library_count+4 and '_buffers' not in sym
+    cold_count=sum(memory.get(sym['_code_pages']+i,255)!=255 for i in range(count))
+    checks['startup owns only cold code banks and one Work beyond OS pages']=library_count==count==17 and cold_count==10 and bytes(memory.get(owners+i,255)for i in range(32)).count(2)==cold_count+4 and '_buffers' not in sym
     # An unavailable include must retain the diagnostic and current Work;
     # its offset must never be applied to unrelated text.
     commands=['run 100000000']+n.program_launch()+['run 10000000']+typed(answer+'wH:/missing.pas\n')
@@ -126,7 +128,7 @@ def main():
     checks['disk-only Main runs in RAM and publishes matching saved output']=len(frames)==3 and frames[0].get(sym['_ram_result']+26)==1 and [f.get(build+4)for f in frames]==[1,0,0] and all(bytes(f.get(work+12+i,0)for i in range(128)).split(b'\0')[0]==b'H:/scratch.inc'for f in frames) and (folder/'main.COM').is_file() and not (folder/'main.ZMP').exists()
     checks['all recorded inputs unchanged']=all(n.sha(Path(p))==h for p,h in hashes.items())
     report={'passed':all(checks.values()),'language_case':'Inline machine code'if inline else'Integer division','messages_enabled':args.messages,
-            'startup_pages':{'library':library_count,'application_total':bytes(memory.get(owners+i,255)for i in range(32)).count(2)},
+            'startup_pages':{'library':library_count,'cold_code':cold_count,'application_total':bytes(memory.get(owners+i,255)for i in range(32)).count(2)},
             'checks':checks,'capture_directory':str(n.RUN.relative_to(ROOT)),
             'input_sha256':hashes,'checkpoints':labels,'scope':__doc__+' Full editor replay, hardware and remaining IDE commands are separate gates.'}
     (n.RUN/'ide-sources-report.json').write_text(json.dumps(report,indent=2)+'\n')

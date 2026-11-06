@@ -159,7 +159,7 @@ static void edit(uint8_t at_error) {
     }
 }
 static void diagnostic(uint8_t kind,uint16_t code,const char *path,
-                       uint16_t position,uint16_t pc,uint8_t canonical) {
+                       uint16_t position,uint16_t pc,uint8_t canonical,uint8_t file,const char *root) {
     uint16_t line,col;
     uint8_t located;
     ide_state=3;
@@ -170,7 +170,13 @@ static void diagnostic(uint8_t kind,uint16_t code,const char *path,
     if(kind!=1) { output(" PC="); output_hex(pc,4); }
     if(kind==3&&ram_io_detail) { output(" (native error "); output_number(ram_io_detail); output(")"); }
     output("\n");output(path);
-    located=select_error_source(path);
+    located=path[0]!=0;
+#ifdef ZP_UNITS_EXPERIMENT
+    if(located&&canonical&&!strcmp(path,work.path))located=sources_matches(&build.sources,file,&work);
+#else
+    (void)file;
+#endif
+    if(located)located=select_error_source(path);
     if(located) {
         if(canonical)position=source_editor_offset(&work,position);
         located=position<=work.length;
@@ -182,7 +188,10 @@ static void diagnostic(uint8_t kind,uint16_t code,const char *path,
     if(messages&&kind==2&&code==2) output(" Division by zero");
     output(located?"\nPress Escape to return to source":"\nSource lookup failed; Work retained. Press Escape");
     while(key_read()!=27) {}
-    if(located) { work.cursor=position;edit(1); }
+    if(located) {
+        if(file&&!main_file[0])strcpy(main_file,root);
+        work.cursor=position;edit(1);
+    }
 }
 static uint8_t save_work_as(const char *name,uint8_t automatic) {
     uint8_t ok;Source candidate;
@@ -387,7 +396,7 @@ static uint8_t compile_work(uint8_t running) {
 #ifdef ZP_UNITS_EXPERIMENT
     if(saved_mode==COMPILER_UNIT_MODE) {
         if(running){screen_clear();search_ack("Compile units with C; run a program that uses the unit");return 0;}
-        /* Imports bind matching source for the existing error-location contract. */
+        /* Keep saved unit text aligned with optional imported error locations. */
         if(work.dirty&&!save_work_auto())return 0;
         if(!strcmp(path,work.path)) {
             uint16_t cursor=work.cursor;
@@ -430,7 +439,7 @@ static uint8_t compile_work(uint8_t running) {
             search_ack(failure.interrupted==2?"Compile interrupted: typeahead full":"*** COMPILE INTERRUPTED");return 0;
         }
         if(strcmp(failure.path,root.path)&&!main_file[0])strcpy(main_file,root.path);
-        diagnostic(1,d.code,failure.path,d.start,0,0);return 0;
+        diagnostic(1,d.code,failure.path,d.start,0,0,0,root.path);return 0;
     }
 #ifdef ZP_UNITS_EXPERIMENT
     if(saved_mode==COMPILER_UNIT_MODE) {
@@ -515,7 +524,7 @@ static void option_address(uint8_t start) {
 static uint8_t find_saved(void) {
     char text[128],root[128],found_path[128];uint16_t found_position=0;
     Source source,located;Diagnostic error;
-    uint16_t pc,line,column;uint8_t field,file,loaded=0,ok,interrupted,native_error;
+    uint16_t pc,line,column;uint8_t field,file=0,loaded=0,ok,interrupted,native_error;
     strcpy(root,main_file[0]?main_file:work.path);
     for(;;) {
         screen_clear();output("Find run-time error\nEnter PC: ");
@@ -543,6 +552,9 @@ static uint8_t find_saved(void) {
     interrupted=error.code==COMPILE_INTERRUPTED?compile_interrupt_reason():0;
     if(ok)ok=build_location(&source,&build,pc,&file,&found_position)&&
         sources_get(&build.sources,file,&located);
+#ifdef ZP_UNITS_EXPERIMENT
+    if(ok&&!strcmp(located.path,work.path))ok=sources_matches(&build.sources,file,&work);
+#endif
     if(ok)strcpy(found_path,located.path);
     build_close(&build);
     if(loaded)source_discard(&work,&source);
@@ -801,10 +813,9 @@ int app_main(void) {
                     pc=ram_result[30]|((uint16_t)ram_result[31]<<8);
                     if(build_location(&root,&build,pc,&file,&position)&&
                        sources_get(&build.sources,file,&failed)) {
-                        if(file&&!main_file[0])strcpy(main_file,root.path);
-                        diagnostic(ram_result[26]==5?0:ram_result[27],ram_result[28],failed.path,position,pc,1);
+                        diagnostic(ram_result[26]==5?0:ram_result[27],ram_result[28],failed.path,position,pc,1,file,root.path);
                     }
-                    else { output("Source lookup failed. Press Escape"); while(key_read()!=27) {} }
+                    else diagnostic(ram_result[26]==5?0:ram_result[27],ram_result[28],"",0,pc,1,255,root.path);
                 } else { output("\nProgram returned.\n"); }
             }
         } else if(c=='q'&&quit_work())break;

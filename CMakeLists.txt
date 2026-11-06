@@ -1009,3 +1009,7 @@ set_property(SOURCE src/unit_output.c src/compiler_units.c src/compiler_units_ob
     ${CMAKE_SOURCE_DIR}/src/compiler_disk.h ${CMAKE_SOURCE_DIR}/src/path.h
     ${CMAKE_SOURCE_DIR}/src/output_transport.h ${CMAKE_SOURCE_DIR}/src/real.h
     ${CMAKE_SOURCE_DIR}/src/chain_abi.h)
+
+# Native unit observers call source identity APIs through their banked ABI.
+set_property(SOURCE tests/native/units-main.c tests/native/unit-real-main.c
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources.h)

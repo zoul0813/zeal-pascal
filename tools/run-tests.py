@@ -112,11 +112,14 @@ def native_targets(plan):
     # Build once under the checkout lock, before freezing artifacts or starting
     # parallel readers. Individual unit drivers never mutate the build tree.
     targets = {
+        'tools/test-error-location.py': ('zmaptest_bin',),
+        'tools/test-params.py': ('zparamtest_bin',),
         'tools/test-units.py': ('zunittest_bin',),
         'tools/test-unit-real.py': ('zunitrealtest_bin',),
         'tools/test-optional-corpus.py': ('zoptionalcorpus_bin',),
         'tools/test-ide-units.py': ('zpascal_bin', 'zexparent_bin'),
         'tools/test-ide-unit-failures.py': ('zpascal_bin',),
+        'tools/test-unit-navigation.py': ('zpascal_bin',),
         'tools/test-optional-real.py': ('zpascal_bin', 'zlegacypascal_bin'),
         'tools/test-optional-chain.py': ('zpascal_bin', 'zlegacypascal_bin', 'zexparent_bin'),
     }

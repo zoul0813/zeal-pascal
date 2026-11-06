@@ -137,7 +137,11 @@ void cc_source_include(uint8_t comment) ROUTINES {
     while(base&&directory[base-1]!='/')--base;
     directory[base]=0;
     if(!sources_path(name,directory,path)){cc_fail(90);return;}
+#ifdef ZP_UNITS_EXPERIMENT
+    id=sources_find_input(&cc.image->sources,path);
+#else
     id=sources_find(&cc.image->sources,path);
+#endif
     if(id==0){cc_fail(93);return;}
 #ifdef ZP_UNITS_EXPERIMENT
     if(id>0&&(!sources_get(&cc.image->sources,(uint8_t)id,&loaded)||loaded.page==255)){cc_fail(93);return;}

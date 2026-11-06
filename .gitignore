@@ -184,3 +184,8 @@
 !/reviews/ide-units-v1.md
 !/tools/test-ide-units.py
 !/tools/test-ide-unit-failures.py
+
+# Optional-source unit qualification.
+!/tools/test-unit-navigation.py
+!/reviews/sourcefree-units-v1.md
+!/docs/sourcefree-units-evidence.json

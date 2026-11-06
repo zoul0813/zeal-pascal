@@ -50,7 +50,9 @@ def native():
         commands+=screen('diagnostic',['tap ESC'])+state('source',[])
         commands+=control('Y')+typed('begin end.')+control('K')+typed('d')
         commands+=state('repaired',['tap C'])
-        commands+=screen('summary',['tap SPACE'])+['run 100000000']+typed('qn')+['quit']
+        # Returning from Options repaints the menu. Capture its completed
+        # summary at the next Options clear, before VRAM is overwritten.
+        commands+=typed('oq')+screen('summary',['tap O'])+['run 100000000']+typed('qqn')+['quit']
         name='ide-messages-'+('text'if enabled else'numeric')+'-'+str(code)
         raw=n.execute(name,commands,{'msg.pas':source},timeout=600)
         frames=re.split(r'\[DBG\] PC=',raw)[1:]
@@ -76,12 +78,12 @@ def native():
     print(json.dumps(report,indent=2));assert report['passed']
 
 def publication_error():
-    """Fail build validation, then ROM-drive cleanup; keep the distinct first error."""
+    """Fail validation and disk-scratch cleanup, then verify retry and first error."""
     spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py')
     n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
     sym=n.symbols('zpascal');key=sym['_key_read'];save=sym['_save_build'];remove=sym['_rm']
     video=n.kernel_symbols()['_video_vram_set'];build=sym['_build'];work=sym['_work']
-    source=b'begin end.';injected=[]
+    source=b'begin end.';injected=[];observed={}
     paths=[Path(__file__).resolve(),ROOT/'tools/test-native.py',n.EMULATOR,n.ROM]
     paths+=list((ROOT/'src').glob('*'))+[ROOT/f'build/zpascal.{ext}'for ext in ('bin','zpl','map','banks.json')]
     hashes={str(p):n.sha(p)for p in paths if p.is_file()}
@@ -91,20 +93,32 @@ def publication_error():
             super().__init__(*args,**kwargs);active['console']=self
     n.DebugConsole=Console
     def fault(command,response,directory):
-        if command!='regs' or f'PC={remove:04x} 'not in response or injected:return
+        if command!='regs':return
+        if injected and f'PC={key:04x} 'in response and 'retained'not in observed:
+            path=directory/'hostfs'/injected[0][3:]
+            observed['retained']=path.is_file()and path.read_bytes()==observed['scratch']
+        if f'PC={remove:04x} 'not in response or injected:return
         console=active['console'];at=int(re.search(r'HL=([0-9a-f]+)',response)[1],16)
         data=n.memory(console.command(f'rb 0x{at:x} 128'))
         path=bytes(data.get(at+i,0)for i in range(128)).split(b'\0')[0].decode()
-        assert re.fullmatch(r'H:/project/ZP[0-9A-Fa-f]{4}',path),path
+        assert path=='H:/project/main.$$$',path
         error=n.memory(console.command(f"rb 0x{sym['_platform_error']:x} 1"))
-        assert error.get(sym['_platform_error'])==1,error
-        folder=directory/'hostfs'/path[3:];assert folder.is_dir()and not any(folder.iterdir())
-        (folder/'KEEP').write_bytes(b'foreign recovery member');injected.append(path)
-        # HostFS reports generic error1 for a nonempty directory too. Route
-        # only this syscall's copied path to read-only A: so the cleanup error
-        # differs from the primary validation error1. Transaction identity
-        # stays H:, and its foreign member must remain untouched.
+        # The IDE has already printed the saved validation error by value.
+        # Console output clears the live I/O status before build cleanup.
+        assert error.get(sym['_platform_error'])==0,error
+        observed['scratch']=(directory/'hostfs'/path[3:]).read_bytes()
+        injected.append(path)
+        # Authenticate the SDK rm veneer and stop at its return after the OS
+        # restores IDE mappings. Only this syscall sees the read-only drive.
+        # Restore the owner's pathname before cleanup and retry can inspect it.
+        image=(directory/'hostfs/zpascal.bin').read_bytes()
+        assert image[remove-0x4000:remove-0x4000+5]==bytes.fromhex('eb 2e 0d cf c9')
         console.command(f'wb 0x{at:x} 0x41')
+        console.command('s')
+        console.image_stop(n.ImageStop(remove+4,'zpascal.bin'),capture=False)
+        returned=console.command('regs')
+        observed['cleanup_error']=int(re.search(r'AF=([0-9a-f]{2})',returned)[1],16)
+        console.command(f'wb 0x{at:x} 0x48')
     typed=lambda text:n.type_text(text,ticks=100000000)
     checkpoint=lambda trigger:[f'bp 0x{key:x}',*trigger,'run 10000000000','regs',
         f'rb 0x{build:x} {n.BUILD_BYTES}',f'rb 0x{work:x} 140',f'bc 0x{key:x}']
@@ -112,9 +126,9 @@ def publication_error():
     commands += [f'bp 0x{save:x}','tap C','run 10000000000','regs',f'bc 0x{save:x}',
         f'wb 0x{build+4:x} 0x00',f'bp 0x{remove:x}','s','run 10000000000','regs',f'bc 0x{remove:x}']
     commands += checkpoint(['s'])
-    commands += [f'bp 0x{video:x}','tap ESC','run 100000000','regs','mmu',
-        *[f'rb 0x{0x4000+i:x} 128'for i in range(0,640,128)],f'bc 0x{video:x}','run 100000000']
-    commands += checkpoint(['tap C'])+['tap ESC','run 100000000']+typed('q')+['quit']
+    commands += ['tap ESC','run 100000000',f'bp 0x{video:x}','tap O','run 100000000','regs','mmu',
+        *[f'rb 0x{0x4000+i:x} 128'for i in range(0,640,128)],f'bc 0x{video:x}','run 100000000']+typed('q')
+    commands += checkpoint(['tap C'])+typed('q')+['quit']
     raw=n.execute('ide-publication-error',commands,{'project/main.pas':source},timeout=600,after_command=fault)
     frames=re.split(r'\[DBG\] PC=',raw)[1:];readers=[n.memory(f)for f in frames if f.startswith(f'{key:04x} ')]
     screens=[n.memory(f)for f in frames if f.startswith(f'{video:04x} ')]
@@ -122,15 +136,15 @@ def publication_error():
     disk=n.RUN/'ide-publication-error/hostfs'
     checks={
         'fault reached the real saved-build entry':any(f.startswith(f'{save:04x} ')for f in frames),
-        'failed validation and distinct ROM-drive cleanup both exercised':len(injected)==1,
+        'failed validation and distinct ROM-drive cleanup both exercised':len(injected)==1 and observed.get('cleanup_error')not in (None,0,1),
         'primary publication error survives cleanup failure':b'Output failed, native error 1.'in text,
-        'failed cleanup reports recovery path':bool(injected)and injected[0].encode()in text,
-        'subsequent compile publishes a standalone executable':len(readers)==2 and readers[-1].get(build+4)==1 and (disk/'project/main.COM').is_file()and not(disk/'project/main.ZMP').exists(),
-        'source and foreign recovery member remain exact':bool(injected)and(disk/'project/main.pas').read_bytes()==source and(disk/injected[0][3:]/'KEEP').read_bytes()==b'foreign recovery member',
+        'failed cleanup retains exact owned scratch for retry':observed.get('retained')is True,
+        'subsequent compile publishes a standalone executable':len(readers)==2 and readers[-1].get(build+4)==0 and (disk/'project/main.COM').is_file()and not(disk/'project/main.ZMP').exists(),
+        'source remains exact and retry removes owned scratch':bool(injected)and(disk/'project/main.pas').read_bytes()==source and not(disk/injected[0][3:]).exists(),
         'all qualification inputs unchanged':all(n.sha(Path(p))==h for p,h in hashes.items()),
     }
     report={'passed':all(checks.values()),'checks':checks,'capture_directory':str(n.RUN.relative_to(ROOT)),
-        'injected':injected,'input_sha256':hashes}
+        'injected':injected,'cleanup_error':observed.get('cleanup_error'),'input_sha256':hashes}
     (n.RUN/'publication-error-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2));assert report['passed']
 

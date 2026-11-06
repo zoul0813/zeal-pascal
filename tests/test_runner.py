@@ -54,8 +54,8 @@ class Selection(unittest.TestCase):
         definition = json.loads(runner.PLAN.read_text())
         expanded = runner.expand_commands(definition)
         original = runner.expand_commands(definition, monolithic=True)
-        self.assertEqual(len(original), 74)
-        self.assertEqual(len(expanded), 148)
+        self.assertEqual(len(original), 75)
+        self.assertEqual(len(expanded), 149)
         expected = [command + shlex.split(suffix) for command in original
                     for suffix in definition.get('chunks', {}).get(' '.join(command), [''])]
         self.assertEqual(expanded, expected)
@@ -219,7 +219,8 @@ class RunnerDependencies(unittest.TestCase):
             for name in ('CMakeLists.txt','tests/test_runner.py','tests/test_native_chunks.py'):(root/name).write_text('')
             shutil.copy(runner.ROOT/'tools/run-tests.py',root/'tools/run-tests.py')
             (root/'tools/test-native-host.py').write_text('')
-            names={'test-units.py':'zunittest_bin','test-unit-real.py':'zunitrealtest_bin','test-optional-corpus.py':'zoptionalcorpus_bin'}
+            names={'test-units.py':'zunittest_bin','test-unit-real.py':'zunitrealtest_bin','test-optional-corpus.py':'zoptionalcorpus_bin',
+                   'test-error-location.py':'zmaptest_bin','test-params.py':'zparamtest_bin'}
             for name,target in names.items():
                 (root/'tools'/name).write_text(f'from pathlib import Path\nassert Path("build/{target}.bin").read_bytes()==b"built"\n')
             (root/'tools/test-plan.json').write_text(json.dumps({'full':['tools/test-native-host.py',*('tools/'+name for name in names)],'redundant':[]}))
@@ -227,7 +228,7 @@ class RunnerDependencies(unittest.TestCase):
             fake.write_text(f'#!{sys.executable}\nimport sys\nfrom pathlib import Path\nargs=sys.argv\nfor target in args[args.index("--target")+1:args.index("--parallel")]:Path("build/"+target+".bin").write_bytes(b"built")\nwith Path("build-calls.txt").open("a")as out:out.write("build\\n")\n')
             fake.chmod(0o755)
             env={**os.environ,'PATH':str(fake.parent)+os.pathsep+os.environ.get('PATH','')}
-            result=subprocess.run([sys.executable,'tools/run-tests.py','--only','units','--only','unit-real','--only','optional-corpus'],cwd=root,env=env,capture_output=True,text=True)
+            result=subprocess.run([sys.executable,'tools/run-tests.py','--only','units','--only','unit-real','--only','optional-corpus','--only','error-location','--only','params'],cwd=root,env=env,capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stdout+result.stderr)
             self.assertEqual((root/'build-calls.txt').read_text(),'build\n')
             report=json.loads(next((root/'analysis/test-runs').glob('*/suite.json')).read_text())
@@ -267,8 +268,13 @@ class RunnerDependencies(unittest.TestCase):
                     'tools/modes.py independent', 'tools/test-params.py',
                     'tools/layout.py @params']
             (root / 'tools/test-plan.json').write_text(json.dumps({'full': plan, 'redundant': []}))
+            (root / 'fakebin').mkdir()
+            fake = root / 'fakebin/zde'
+            fake.write_text(f'#!{sys.executable}\nraise SystemExit(0)\n')
+            fake.chmod(0o755)
+            env = {**os.environ, 'PATH': str(fake.parent)+os.pathsep+os.environ.get('PATH', '')}
             result = subprocess.run([sys.executable, 'tools/run-tests.py', '--keep-going',
-                                     '--jobs', '4', *extra], cwd=root, capture_output=True, text=True)
+                                     '--jobs', '4', *extra], cwd=root, env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
             report = json.loads(next((root / 'analysis/test-runs').glob('*/suite.json')).read_text())
             self.assertEqual(report['status'], 'failed' if expected else 'passed-focused' if extra else 'passed')

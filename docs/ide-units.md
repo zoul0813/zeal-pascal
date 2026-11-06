@@ -29,9 +29,15 @@ uses Calc;
 begin WriteLn(Twice(21)) end.
 ```
 
-A client imports the unit with `uses Calc;`. The current implementation requires
-the matching unit source at compilation time for source identity and error
-locations. Only reachable routine fragments enter the program. Saved `.COM`
+A client imports the unit with `uses Calc;`. Compiled code and signatures come from the `.ZPU` artifact. Clients can compile,
+run and save programs after the unit source is removed. Editing a unit source
+requires explicitly rebuilding its `.ZPU` to update client code.
+
+Unit source paths, lengths and fingerprints remain optional debug metadata.
+Runtime errors retain their code and PC when source is unavailable. Navigation
+requires matching source text, including when an open editor buffer shares its
+path. Missing or changed text leaves Work intact. Separate units may record the
+same authoring path, and parser includes have their own source identities. Only reachable routine fragments enter the program. Saved `.COM`
 programs contain their selected code and runtime and run after compiler files,
 unit artifacts, and source files have been deleted.
 
@@ -41,16 +47,16 @@ unit artifacts, and source files have been deleted.
 Pascal unit artifact. Neither is required by a saved executable.
 
 The IDE still loads **10 code pages at startup**, compared with the earlier
-13-page baseline (48 KiB saved). Its warm compiler cache uses15 pages, one more
-than the preceding optional-Real IDE. Logical bank16 contains unit parsing and
-linking; logical bank17 handles unit artifact I/O and publication transiently.
+13-page baseline (48 KiB saved). Its warm compiler cache uses 15 pages, one more
+than the preceding optional-Real IDE. Logical bank 16 contains unit parsing and
+linking; logical bank 17 handles unit artifact I/O and publication transiently.
 The optional Real page and unit I/O page are released after their phases.
 Startup and generated-program execution do not keep these pages resident.
 
-The combined IDE bank container grows to238798 bytes on disk; this integration
-does not claim a smaller `.ZPL`. Generated programs retain the existing fixed
-16 KiB runtime prefix. Omitting the Real engine changes included bytes, but does
-not yet reduce generated-program execution-page allocation.
+The source-independent import build uses 238600 bytes in its bank container,
+198 bytes below the preceding IDE checkpoint. Generated programs retain the
+existing fixed 16 KiB runtime prefix. Omitting the Real engine changes included
+bytes. Generated-program execution-page allocation remains fixed.
 
 New artifacts use ABI2 under the `ZPU1` magic. A validated requirement byte for
 each fragment records Real-engine demand. Raw Real storage/copy alone does not
@@ -76,9 +82,10 @@ when removal fails. Publication uses the existing checked sequential-copy policy
 for executable output. A failure during replacement can leave a partial target;
 publication is not an atomic filesystem transaction.
 
-Qualification and independent review are recorded in `ide-units-evidence.json`
-and `../reviews/ide-units-v1.md`. Emulator evidence is not physical hardware
-qualification.
+Source-independent import qualification is recorded in
+`sourcefree-units-evidence.json` and `../reviews/sourcefree-units-v1.md`.
+The preceding IDE milestone is recorded in `ide-units-evidence.json` and
+`../reviews/ide-units-v1.md`. Qualification uses the native emulator.
 
 Run the registered checks through `tools/run-tests.py`; it builds selected native
 prerequisites with ZDE before freezing artifacts and starting parallel readers.

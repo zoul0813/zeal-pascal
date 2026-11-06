@@ -53,19 +53,42 @@ static const char fault_source[]="unit Faults;interface function Fault(X:Integer
 static void fault_location(void) {
     uint16_t pc,position;uint8_t file,status;Source view;
     author("H:/FAULTS.PAS","H:/FAULTS.ZPU",fault_source,0);
+    check(rm("H:/FAULTS.PAS")==0);
     check(load("uses Faults;var N:Integer;begin N:=Fault(0)end."));check(compile(&s,&b,&d));
     if(b.valid) {
         check(save_build(&s,&b,0));check(run_build(&s,&b)&&ram_result[26]==3&&ram_result[28]==2);
         pc=ram_result[30]|((uint16_t)ram_result[31]<<8);
+        check(!build_location(&s,&b,pc,&file,&position)&&build_ready(&s,&b));
+        check(seed_unit("H:/FAULTS.PAS",fault_source));
         check(build_location(&s,&b,pc,&file,&position)&&file==1);
         check(sources_get(&b.sources,file,&view)&&!strcmp(view.path,"H:/FAULTS.PAS"));
         check(position==(uint16_t)(strstr(fault_source,"Fault:=")-fault_source));
+        check(seed_unit("H:/FAULTS.PAS","changed source"));
+        check(!build_location(&s,&b,pc,&file,&position)&&build_ready(&s,&b));
         status=255;check(run_saved(&s,&b,&status)&&status==2);
     }
     build_close(&b);check(pages_used()==cached_code_pages()+1);
 }
 uint8_t unit_bad_author(const char *text) {
     return author("H:/BADUNIT.PAS","H:/BADUNIT.ZPU",text,UNIT_UNSUPPORTED);
+}
+static void shared_authoring_path(void) {
+    const char *client="uses Alpha,Beta;begin if Alpha.Value<>2 then halt;if Beta.Value<>3 then halt;writeln('UNIT-PATHS-OK')end.";
+    Source first,second;
+    author("H:/SLICE.PAS","H:/ALPHA.ZPU",
+        "unit Alpha;interface function Value:Integer;implementation function Value:Integer;begin Value:=2 end;end.",0);
+    author("H:/SLICE.PAS","H:/BETA.ZPU",
+        "unit Beta;interface function Value:Integer;implementation function Value:Integer;begin Value:=3 end;end.",0);
+    check(rm("H:/SLICE.PAS")==0);
+    check(load(client));check(compile(&s,&b,&d));
+    if(b.valid) {
+        check(b.sources.count==3);
+        check(sources_get(&b.sources,1,&first)&&sources_get(&b.sources,2,&second));
+        check(!strcmp(first.path,s.path)&&!strcmp(second.path,s.path)&&first.length!=second.length);
+        check(!sources_matches(&b.sources,1,&s)&&!sources_matches(&b.sources,2,&s));
+    }
+    build_close(&b);
+    execution(client,1,0);
 }
 int app_main(void) {
     uint8_t ok,status;int8_t capture=-1;char expanded[1024];uint8_t i;
@@ -109,18 +132,21 @@ int app_main(void) {
     author("H:/TILEMATH.PAS","H:/TILEMATH.ZPU",expanded,0);
     execution(client,1,0);check(copy_named("H:/SLICE.COM","H:/LARGE.COM"));
     check(copy_named("H:/TILEMATH.ZPU","H:/LARGE.ZPU"));
+    check(rm("H:/TILEMATH.PAS")==0);check(rm("H:/OFFSETS.PAS")==0);
+    execution(client,1,0);
     /* Direct SDK execution has no compiler source/readiness checks. */
     check(rm("H:/TILEMATH.ZPU")==0);check(rm("H:/OFFSETS.ZPU")==0);
-    check(rm("H:/TILEMATH.PAS")==0);check(rm("H:/OFFSETS.PAS")==0);
     status=255;check(exec(EXEC_PRESERVE_PROGRAM,"H:/SLICE.COM",0,&status)==0&&status==0);
     check(pages_used()==cached_code_pages()+1);
     author("H:/VARS.PAS","H:/VARS.ZPU",
         "unit Vars;interface procedure Bump(var X:Integer);implementation procedure Bump(var X:Integer);begin X:=X+1 end;end.",0);
     execution("uses Vars;var N:Integer;begin N:=41;Bump(N);if N<>42 then halt;writeln('UNIT-VAR-OK')end.",1,0);
     reject("uses Vars;begin Vars.Missing end.",UNIT_INTERFACE);
-    reject("uses Vars;\n{$I VARS.PAS}\nbegin end.",93);
+    check(seed_unit("H:/VARS.PAS","const Answer=42;"));
+    execution("uses Vars;\n{$I VARS.PAS}\nvar N:Integer;begin N:=41;Bump(N);if N<>Answer then halt;writeln('UNIT-INCLUDE-OK')end.",1,0);
     reject("uses Missing;begin end.",UNIT_MISSING);
-    check(seed_unit("H:/VARS.PAS","changed"));reject("uses Vars;begin end.",UNIT_STALE);
+    check(seed_unit("H:/VARS.PAS","changed"));
+    execution("uses Vars;var N:Integer;begin N:=41;Bump(N);if N<>42 then halt;writeln('UNIT-DETACHED-OK')end.",1,0);
     check(seed_unit("H:/VARS.ZPU","bad"));reject("uses Vars;begin end.",UNIT_FORMAT);
     author("H:/LEFT.PAS","H:/LEFT.ZPU",
         "unit Left;interface function Clash:Integer;implementation function Clash:Integer;begin Clash:=1 end;end.",0);
@@ -160,7 +186,7 @@ int app_main(void) {
         "if EchoByte(255)<>255 then halt;if EchoChar('Z')<>'Z' then halt;\n"
         "Untyped(N);if N<>17 then halt;writeln('UNIT-PRIVATE-OK')end.",1,0);
     check(copy_named("H:/SLICE.COM","H:/PRIVATE.COM"));
-    fault_location();
+    fault_location();shared_authoring_path();
     unit_diagnostic=d.code;
 done:
     if(capture>=0){check(swap(capture,DEV_STDOUT)==0);check(close(capture)==0);}

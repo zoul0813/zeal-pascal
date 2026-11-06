@@ -45,6 +45,15 @@ static uint8_t author(const char *path,const char *artifact,const char *text) {
     ok=compile_unit(&s,&b,&d,fd,0);check(ok&&!d.code&&!b.valid);
     check(!close(fd));closed();source_close(&s);return ok;
 }
+static uint8_t source_file(const char *path,const char *text) {
+    int8_t fd;
+    uint16_t bytes=(uint16_t)strlen(text);
+    uint8_t ok;
+    rm(path);fd=open(path,O_WRONLY|O_CREAT|O_TRUNC);
+    if(fd<0)return 0;
+    ok=!write(fd,text,&bytes)&&bytes==strlen(text);
+    return !close(fd)&&ok;
+}
 static void client(const char *path,const char *text) {
     uint8_t status=255;
     check(source_new(&s,path));check(load(text));check(compile(&s,&b,&d));
@@ -61,9 +70,15 @@ static void fault_location(void) {
     if(b.valid) {
         check(save_build(&s,&b,0));check(run_build(&s,&b)&&ram_result[26]==3&&ram_result[28]==2);
         pc=ram_result[30]|((uint16_t)ram_result[31]<<8);
+        check(!build_location(&s,&b,pc,&file,&position)&&build_ready(&s,&b));
+        check(source_file("H:/MIXED.PAS",mixed));
         check(build_location(&s,&b,pc,&file,&position)&&file==1);
         check(sources_get(&b.sources,file,&view)&&!strcmp(view.path,"H:/MIXED.PAS"));
         check(position==(uint16_t)(strstr(mixed,"Fault:=")-mixed));
+        check(source_file("H:/MIXED.PAS","changed source"));
+        check(!build_location(&s,&b,pc,&file,&position)&&build_ready(&s,&b));
+        check(source_file("H:/MIXED.PAS",mixed));
+        check(build_location(&s,&b,pc,&file,&position)&&file==1);
         check(run_saved(&s,&b,&status)&&status==2);
     }
     closed();source_close(&s);
@@ -94,7 +109,7 @@ static void write_artifact(const char *path,uint8_t page,uint16_t bytes) {
     check(!rm(owned_path));check(output_store_range(pages,0,bytes,owned_path));
 }
 static void artifact_negatives(void) {
-    uint8_t page=page_new(PAGE_COMPILER),saved;uint16_t bytes,blob,fragments;
+    uint8_t page=page_new(PAGE_COMPILER),saved;uint16_t bytes,blob,fragments,source_length;
     check(page!=255);if(page==255)return;
     bytes=read_artifact("H:/MIXED.ZPU",page);blob=page_word(page,26);fragments=page_word(page,blob+6);
     saved=far_get(page,blob-fragments);far_set(page,blob-fragments,2);checksum(page,bytes);
@@ -102,7 +117,21 @@ static void artifact_negatives(void) {
     check(source_new(&s,"H:/BADFLAGS.PAS"));check(load("uses Mixed;begin end."));
     check(!compile(&s,&b,&d)&&d.code==UNIT_FORMAT&&!b.valid);
     build_close(&b);source_close(&s);check(pages_used()==16);
-    far_set(page,blob-fragments,saved);checksum(page,bytes);write_artifact("H:/MIXED.ZPU",page,bytes);
+    far_set(page,blob-fragments,saved);source_length=page_word(page,16);
+    page_word_set(page,16,65535u);checksum(page,bytes);write_artifact("H:/MIXED.ZPU",page,bytes);
+    check(source_new(&s,"H:/BADLENGTH.PAS"));check(load("uses Mixed;begin end."));
+    check(!compile(&s,&b,&d)&&d.code==UNIT_FORMAT&&!b.valid);
+    build_close(&b);source_close(&s);check(pages_used()==16);
+    page_word_set(page,16,1);checksum(page,bytes);write_artifact("H:/MIXED.ZPU",page,bytes);
+    check(source_new(&s,"H:/BADMAP.PAS"));check(load("uses Mixed;begin end."));
+    check(!compile(&s,&b,&d)&&d.code==UNIT_FORMAT&&!b.valid);
+    build_close(&b);source_close(&s);check(pages_used()==16);
+    page_word_set(page,16,source_length);saved=far_get(page,8);far_set(page,8,saved^1);
+    checksum(page,bytes);write_artifact("H:/MIXED.ZPU",page,bytes);
+    check(source_new(&s,"H:/BADPROFILE.PAS"));check(load("uses Mixed;begin end."));
+    check(!compile(&s,&b,&d)&&d.code==UNIT_STALE&&!b.valid);
+    build_close(&b);source_close(&s);check(pages_used()==16);
+    far_set(page,8,saved);checksum(page,bytes);write_artifact("H:/MIXED.ZPU",page,bytes);
     check(page_drop(page));check(pages_used()==15);
 }
 static void legacy_artifact(void) {
@@ -143,6 +172,7 @@ int app_main(void) {
         "function Convert(X:Integer):Integer;var R:Real;\n"
         "begin R:=X*2.0;Convert:=Trunc(R)end;end."))goto done;
     legacy_artifact();
+    check(!rm("H:/MIXED.PAS"));check(!rm("H:/LEGACY.PAS"));
     capture=open("H:/UNITREAL.TXT",O_WRONLY|O_CREAT|O_TRUNC);check(capture>=0);
     if(capture>=0)check(!swap(capture,DEV_STDOUT));
     test_stage=2;
@@ -157,7 +187,7 @@ int app_main(void) {
     client("H:/UNUSED.PAS","uses Mixed;begin writeln('UNIT-UNUSED-OK')end.");
     client("H:/OLDCLIENT.PAS","uses Legacy;begin if Convert(3)<>6 then halt;writeln('UNIT-LEGACY-OK')end.");
     fault_location();
-    test_stage=3;check(!rm("H:/LEGACY.ZPU"));check(!rm("H:/LEGACY.PAS"));check(!rm("H:/MIXED.ZPU"));check(!rm("H:/MIXED.PAS"));
+    test_stage=3;check(!rm("H:/LEGACY.ZPU"));check(!rm("H:/MIXED.ZPU"));check(!rm("H:/MIXED.PAS"));
     status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/SCALE.COM",0,&status)&&status==0);
     status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/TRANSIT.COM",0,&status)&&status==0);
     status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/OLDCLIENT.COM",0,&status)&&status==0);

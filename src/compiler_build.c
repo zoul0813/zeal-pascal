@@ -169,6 +169,24 @@ uint8_t build_locate(const Source *s,const Build *b,uint16_t pc,uint16_t *positi
     if(!build_location(s,b,pc,&file,&canonical)||file)return 0;
     *position=source_editor_offset(s,canonical);return 1;
 }
+#ifdef ZP_UNITS_EXPERIMENT
+/* Resolve optional unit text only for navigation. A normal captured input
+ * already matches, while unit metadata has no text page of its own. */
+static uint8_t map_source_ready(const Sources *sources,uint8_t file,const Source *expected) {
+    Source loaded;
+    Diagnostic diagnostic;
+    uint8_t matches;
+
+    if(sources_matches(sources,file,expected))return 1;
+    if(!read_block(&loaded,expected->path,&diagnostic)) {
+        sources_release(sources,&loaded);
+        return 0;
+    }
+    matches=sources_matches(sources,file,&loaded);
+    if(!sources_release(sources,&loaded))return 0;
+    return matches;
+}
+#endif
 uint8_t build_location(const Source *s,const Build *b,uint16_t pc,uint8_t *file,uint16_t *position) {
     uint16_t i, start, end, n;
     Source source;
@@ -180,6 +198,9 @@ uint8_t build_location(const Source *s,const Build *b,uint16_t pc,uint8_t *file,
             n=read16(b->map_page,i+4);
             if(n>=b->sources.count||!sources_get(&b->sources,(uint8_t)n,&source)||
                start>source.length)return 0;
+#ifdef ZP_UNITS_EXPERIMENT
+            if(!map_source_ready(&b->sources,(uint8_t)n,&source))return 0;
+#endif
             *file=(uint8_t)n;*position=start;return 1;
         }
     }

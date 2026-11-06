@@ -203,6 +203,7 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
     abi=(uint8_t)cc_unit_module_word(module,4);
     if((cc_unit_module_word(module,4)!=ZPU_ABI&&cc_unit_module_word(module,4)!=ZPU_LEGACY_ABI)||
        cc_unit_module_word(module,6)!=end)return 0;
+    if(!cc_unit_module_word(module,16)||cc_unit_module_word(module,16)>SOURCE_LIMIT)return 0;
     for(i=0;i<4;++i)if(cc_unit_module_byte(module,8+i)!=cc_runtime_profile_get(i)){cc_fail(UNIT_STALE);return 0;}
     expected=module_long(module,28);actual=object_hash((uint8_t)cc_unit_word(module+2),end);
     if(expected!=actual)return 0;

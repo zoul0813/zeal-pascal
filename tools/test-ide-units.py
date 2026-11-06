@@ -12,10 +12,12 @@ UNIT=b"""unit Calc;
 interface
 function Plain(X:Integer):Integer;
 function Twice(X:Real):Real;
+function Crash(X:Integer):Integer;
 implementation
 function Helper(X:Real):Real;begin Helper:=X*2 end;
 function Plain(X:Integer):Integer;begin Plain:=X+1 end;
 function Twice(X:Real):Real;begin Twice:=Helper(X)end;
+function Crash(X:Integer):Integer;begin Crash:=1 div X end;
 end."""
 CLIENTS={
  'INTCLIENT':b"uses Calc;begin if Plain(41)<>42 then halt;writeln('IDE-UNIT-INTEGER-OK')end.",
@@ -46,7 +48,7 @@ def media_checks():
     return checks
 def main():
     target='zpascal';sym=n.symbols(target);labels=['ready'];count=n.code_banks(target)
-    fixtures={'MATHSRC.PAS':UNIT,**{name+'.PAS':source for name,source in CLIENTS.items()}}
+    fixtures={'FAULT.PAS':b'uses Calc;var N:Integer;begin N:=Crash(0)end.','MATHSRC.PAS':UNIT,**{name+'.PAS':source for name,source in CLIENTS.items()}}
     typed=lambda text:n.type_text(text,ticks=100000000)
     def probe(label,address=None):
         labels.append(label)
@@ -61,11 +63,25 @@ def main():
     for name in CLIENTS:
         commands+=typed('wH:/'+name+'.PAS\n')+typed('omq')+['tap R']+probe(name+'-enter',sym['_ram_enter'])+probe(name+'-run')
         commands+=['tap ESC','run 100000000']+typed('ocq')+['tap C']+probe(name+'-saved')
-    commands+=['quit']
+    commands+=typed('wH:/FAULT.PAS\n')+typed('omq')+['tap R']+probe('fault-source-missing')
+    commands+=['tap ESC','run 100000000',f"bp 0x{sym['_key_read']:x}",'tap R']+probe('fault-source-changed')
+    kernel=n.kernel_symbols();clear=kernel['_video_vram_set'];labels.append('fault-screen')
+    commands+=[f'bp 0x{clear:x}','tap ESC','run 100000000','tap O','run 1000000000','regs','mmu']
+    for offset in range(0,640,256):commands += [f'rb 0x{0x4000+offset:x} {min(256,640-offset)}']
+    commands += [f'bc 0x{clear:x}','quit']
     observed={'frame':0}
     def checkpoint(command,response,directory):
         if command==f"rb 0x{sym['_code_phase_pending']:x} {count}":
             label=labels[observed['frame']];observed['frame']+=1
+            if label=='unit-run-blocked':
+                source=directory/'hostfs/MATHSRC.PAS'
+                observed['saved_unit_source']=source.read_bytes()
+                source.unlink()
+                observed['source_removed_before_clients']=True
+            if label.endswith(('-enter','-run','-saved')) or label=='fault-source-missing':
+                assert not(directory/'hostfs/MATHSRC.PAS').exists()
+            if label=='fault-source-missing':
+                (directory/'hostfs/MATHSRC.PAS').write_bytes(b'changed unit source')
             if label in ('unit-created','unit-updated'):
                 path=directory/'hostfs/CALC.ZPU'
                 assert path.is_file(),'IDE did not publish CALC.ZPU; see native capture'
@@ -77,12 +93,19 @@ def main():
         live=lambda label:sum(states[label].get(sym['_code_pages']+i,255)!=255 for i in range(count))
         checks['ten startup code pages']=count==17 and live('ready')==10
         for label in labels:
+            if label=='fault-screen':continue
             checks[label+' no pending code allocations']=all(states[label].get(sym['_code_phase_pending']+i)==255 for i in range(count))
             if label!='ready':
                 checks[label+' expected code cache']=live(label)==(10 if label.endswith('-enter')else 15)
                 checks[label+' unit I/O stays on disk']=states[label].get(sym['_code_pages']+16)==255
         checks['unit creation leaves no executable build']=all(states[label].get(sym['_build']+4)==0 for label in ('unit-created','unit-updated','unit-run-blocked'))
         checks['unit compilation clears dirty source flag']=states['unit-updated'].get(sym['_work']+1)==0
+        for label in ('fault-source-missing','fault-source-changed'):
+            state=states[label]
+            path=bytes(state.get(sym['_work']+12+i,0)for i in range(128)).split(b'\0')[0]
+            checks[label+' runtime fault retains client Work']=path==b'H:/FAULT.PAS'and state.get(sym['_ram_result']+26)==3 and state.get(sym['_ram_result']+28)==2
+        screen=bytes(states['fault-screen'].get(0x4000+i,0)for i in range(640)).replace(b'\0',b' ')
+        checks['source-free runtime fault displays code PC and retained-source message']=b'Runtime error 02 PC='in screen and b'Source lookup failed; Work retained'in screen and '4000 -> 100000'in frames[-1]
         for name in CLIENTS:
             checks[name+' RAM run succeeds']=states[name+'-run'].get(sym['_ram_result']+26)==1
             checks[name+' saved compile releases image']=states[name+'-saved'].get(sym['_build']+4)==0
@@ -93,7 +116,8 @@ def main():
         if path.is_file():
             images[name]=path.read_bytes();checks[name+' selects used runtime']=images[name][3466:14285]==(full if name=='REALCLIENT'else core)[3466:14285]
     archive=folder/'CALC.ZPU';checks['unit name selects output filename']=archive.is_file()and not(folder/'MATHSRC.ZPU').exists()
-    checks['dirty unit source saved before compile']=(folder/'MATHSRC.PAS').read_bytes()==b'{edited}\n'+UNIT
+    checks['dirty unit source saved before compile']=observed.get('saved_unit_source')==b'{edited}\n'+UNIT
+    checks['unit source deleted before compiling clients']=observed.get('source_removed_before_clients')is True
     checks['unit source backup preserves previous version']=(folder/'MATHSRC.BAK').is_file()and(folder/'MATHSRC.BAK').read_bytes()==UNIT
     checks['no unit scratch files']=not any(path.name.endswith('.$PU')for path in folder.iterdir())
     if checks.get('all IDE checkpoints')and len(images)==2:

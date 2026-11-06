@@ -38,17 +38,33 @@ uint8_t sources_get(const Sources *s,uint8_t id,Source *out) SOURCE_BLOCK_CALL {
     return 0;
 }
 uint16_t sources_offset(const Sources *s,uint8_t id) SOURCE_BLOCK_CALL {return word(s,record(s,id)+3);}
-int16_t sources_find(const Sources *s,const char *path) SOURCE_BLOCK_CALL {
+static int16_t find_source(const Sources *s,const char *path,uint8_t text_only) {
     uint8_t id,i,c;uint16_t at;
     if(!sources_valid(s))return -1;
-    for(id=0;id<s->count;++id){at=record(s,id)+RECORD_PATH;
+#ifndef ZP_UNITS_EXPERIMENT
+    (void)text_only;
+#endif
+    for(id=0;id<s->count;++id){
+        at=record(s,id);
+#ifdef ZP_UNITS_EXPERIMENT
+        if(text_only&&buffer_get(s->page,at+9))continue;
+#endif
+        at+=RECORD_PATH;
         for(i=0;i<128;++i){c=buffer_get(s->page,at+i);if(c!=(uint8_t)path[i])break;if(!c)return id;}}
     return -1;
 }
-static int16_t descriptor(Sources *s,const Source *source,uint16_t base) {
+int16_t sources_find(const Sources *s,const char *path) SOURCE_BLOCK_CALL {
+    return find_source(s,path,0);
+}
+#ifdef ZP_UNITS_EXPERIMENT
+int16_t sources_find_input(const Sources *s,const char *path) SOURCE_BLOCK_CALL {
+    return find_source(s,path,1);
+}
+#endif
+static int16_t descriptor(Sources *s,const Source *source,uint16_t base,uint8_t append) {
     int16_t id;uint16_t at,n;uint8_t i;
     if(!sources_valid(s)||strlen(source->path)>127)return -1;
-    id=sources_find(s,source->path);
+    id=append?-1:find_source(s,source->path,1);
     if(id<0){
         if(s->count==255)return -1;
         n=RECORD_PATH+(uint16_t)strlen(source->path)+1;
@@ -63,8 +79,8 @@ static int16_t descriptor(Sources *s,const Source *source,uint16_t base) {
     for(i=0;i<4;++i)buffer_set(s->page,at+5+i,(uint8_t)(source->revision>>(i*8)));
     return id;
 }
-int16_t sources_borrow(Sources *s,const Source *source) SOURCE_BLOCK_CALL {return descriptor(s,source,0);}
-int16_t sources_reference(Sources *s,const Source *source) SOURCE_BLOCK_CALL {return descriptor(s,source,0);}
+int16_t sources_borrow(Sources *s,const Source *source) SOURCE_BLOCK_CALL {return descriptor(s,source,0,0);}
+int16_t sources_reference(Sources *s,const Source *source) SOURCE_BLOCK_CALL {return descriptor(s,source,0,0);}
 int16_t sources_include(Sources *s,const Source *source,uint8_t interruptible) SOURCE_BLOCK_CALL {
     Source view;uint16_t i,base;
     view=*source;
@@ -78,12 +94,13 @@ int16_t sources_include(Sources *s,const Source *source,uint8_t interruptible) S
         if(s->text_used==PAGE_SIZE){uint8_t next=buffer_append(s->text_tail);if(next==255)return -1;s->text_tail=next;s->text_used=0;}
         far_set(s->text_tail,s->text_used++,buffer_get(source->page,i));
     }
-    return descriptor(s,&view,base);
+    return descriptor(s,&view,base,0);
 }
 uint8_t sources_finish(Sources *s) SOURCE_BLOCK_CALL {
-    uint8_t i;Source source;
+    uint8_t i;
     if(!buffer_drop(s->pending))return 0;s->pending=255;
-    for(i=1;i<s->count;++i){if(!sources_get(s,i,&source))return 0;source.page=255;if(sources_reference(s,&source)!=i)return 0;}
+    if(!sources_valid(s))return 0;
+    for(i=1;i<s->count;++i)buffer_set(s->page,record(s,i),255);
     if(!buffer_drop(s->text_page))return 0;s->text_page=s->text_tail=255;s->text_used=0;return 1;
 }
 uint8_t sources_close(Sources *s) SOURCE_BLOCK_CALL {
@@ -111,32 +128,35 @@ uint8_t sources_release(const Sources *s,Source *loaded) SOURCE_BLOCK_CALL {
      * including when an OS free fails. The const descriptor itself is intact. */
     buffer_retire(s->page,loaded->page,s->used);loaded->page=255;return 0;
 }
-uint8_t sources_fingerprint(Sources *s,uint8_t id,uint32_t checksum) SOURCE_BLOCK_CALL {
+int16_t sources_unit(Sources *s,const Source *source,uint32_t checksum) SOURCE_BLOCK_CALL {
+    int16_t id=descriptor(s,source,0,1);
     uint16_t at;uint8_t i;
-    if(!sources_valid(s)||id>=s->count)return 0;
+    if(id<0)return -1;
     at=record(s,id);buffer_set(s->page,at+9,1);
     for(i=0;i<4;++i)buffer_set(s->page,at+10+i,(uint8_t)(checksum>>(8*i)));
-    return 1;
+    return id;
 }
 #endif
+/* Build readiness depends on captured metadata. Unit source text is optional. */
 uint8_t sources_ready(const Sources *s,uint8_t id) SOURCE_BLOCK_CALL {
     if(!sources_valid(s)||id>=s->count)return 0;
 #ifdef ZP_UNITS_EXPERIMENT
-    {uint16_t at=record(s,id);Source snapshot,loaded;Diagnostic diagnostic;
-    uint32_t expected=0,actual;uint8_t i;
-    if(!buffer_get(s->page,at+9))return 1;
-    if(buffer_get(s->page,at+9)!=1||!sources_get(s,id,&snapshot))return 0;
-    for(i=0;i<4;++i)expected|=(uint32_t)buffer_get(s->page,at+10+i)<<(8*i);
-    if(!read_block(&loaded,snapshot.path,&diagnostic)){sources_release(s,&loaded);return 0;}
-    actual=unit_source_fingerprint(&loaded);
-    i=loaded.length==snapshot.length&&actual==expected;
-    if(!sources_release(s,&loaded))return 0;
-    return i;
-    }
+    return buffer_get(s->page,record(s,id)+9)<=1;
 #else
     return 1;
 #endif
 }
+#ifdef ZP_UNITS_EXPERIMENT
+uint8_t sources_matches(const Sources *s,uint8_t id,const Source *source) SOURCE_BLOCK_CALL {
+    uint16_t at;uint32_t expected=0;uint8_t i;
+    if(!sources_ready(s,id))return 0;
+    at=record(s,id);
+    if(!buffer_get(s->page,at+9))return 1;
+    if(source->page==255||source->length!=word(s,at+1))return 0;
+    for(i=0;i<4;++i)expected|=(uint32_t)buffer_get(s->page,at+10+i)<<(8*i);
+    return unit_source_fingerprint(source)==expected;
+}
+#endif
 uint8_t sources_byte(const Sources *s,uint8_t id,uint16_t offset) SOURCE_BLOCK_CALL {
     Source source;if(!sources_get(s,id,&source)||offset>=source.length)return 0;
     return buffer_view_get(source.page,sources_offset(s,id),offset);

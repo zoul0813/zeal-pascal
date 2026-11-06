@@ -15,7 +15,11 @@ uint8_t sources_finish(Sources *set) SOURCE_BLOCK_CALL;
 uint8_t sources_close(Sources *set) SOURCE_BLOCK_CALL;
 #ifdef ZP_UNITS_EXPERIMENT
 uint8_t sources_release(const Sources *set,Source *loaded) SOURCE_BLOCK_CALL;
-uint8_t sources_fingerprint(Sources *set,uint8_t id,uint32_t checksum) SOURCE_BLOCK_CALL;
+/* Parser lookup ignores optional unit debug records. */
+int16_t sources_find_input(const Sources *set,const char *path) SOURCE_BLOCK_CALL;
+/* Unit debug records append independently, even when authoring paths repeat. */
+int16_t sources_unit(Sources *set,const Source *source,uint32_t checksum) SOURCE_BLOCK_CALL;
+uint8_t sources_matches(const Sources *set,uint8_t id,const Source *source) SOURCE_BLOCK_CALL;
 uint32_t unit_source_fingerprint(const Source *source) SOURCE_BLOCK_CALL;
 #endif
 uint8_t sources_ready(const Sources *set,uint8_t id) SOURCE_BLOCK_CALL;
