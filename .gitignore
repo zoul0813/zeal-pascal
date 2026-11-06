@@ -198,3 +198,8 @@
 
 !/docs/program-pages-evidence.json
 !/reviews/program-pages-v1.md
+
+# Caller argument allocation checkpoint.
+!/docs/allocation-arguments.md
+!/docs/allocation-arguments-evidence.json
+!/reviews/allocation-arguments-v1.md

@@ -112,9 +112,9 @@ void cc_patch_chain(uint16_t head,uint16_t value) FRONTEND {
     }
 }
 void cc_reserve(uint16_t bytes) FRONTEND {
-    /* Bound both sides of a leaf-unit call below the 2 KiB startup reserve.
-     * Larger temporaries retain the original independent stack/heap page. */
-    if((uint32_t)bytes+cc.temporaries>512u)cc_require_full_memory();
+    /* Include arguments already pushed while evaluating subsequent/nested
+     * arguments. Larger caller frames retain independent memory windows. */
+    if((uint32_t)bytes+cc.temporaries+cc.arguments>512u)cc_require_full_memory();
     uint16_t pc=cc.emitted-CC_CODE_BASE;
     /* Runtime consumes inline size/PC words and preserves both register sets. */
     cc_op16(0xcd,RT_GUARD);

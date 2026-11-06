@@ -288,7 +288,7 @@ SourcePosition cc_block(void) ROUTINES {
     else start=cc_statement();
     cc_labels_finish();
     cc.with_bound=saved_bound;
-    if(!cc.error->code&&cc.temporaries) cc_fail(99); /* no temporary escapes a statement/block */
+    if(!cc.error->code&&(cc.temporaries||cc.arguments)) cc_fail(99); /* no temporary escapes a statement/block */
     if(scope) {
         code=cc.emitted-CC_CODE_BASE;
         epilogue(); cc_mapping(code,cc.emitted-CC_CODE_BASE,start,start);
@@ -309,6 +309,7 @@ void cc_exit(void) ROUTINES {
     }
 }
 TypeId cc_invoke(uint16_t id) ROUTINES {
+    uint32_t arguments=cc.arguments;
     uint16_t scope=CCS(id,role)==S_RESULT?CCS(id,owner):CCS(id,initial_type);
     uint16_t i,param,before,first=cc_rget(scope,R_PARAMETERS),count=cc_rget(scope,R_COUNT);
     uint16_t routine_id=cc_rget(scope,R_SYMBOL);
@@ -316,7 +317,7 @@ TypeId cc_invoke(uint16_t id) ROUTINES {
     cc_next();
     if(role==S_FUNCTION&&cc_family(CCS(routine_id,type))==K_STRING)
         cc_temporary(CCT(CCS(routine_id,type),width));
-    if(cc_rget(scope,R_PARENT)) { cc_frame(cc_rget(scope,R_PARENT)); cc_guard(); cc_emit(0xe5); }
+    if(cc_rget(scope,R_PARENT)) { cc_frame(cc_rget(scope,R_PARENT)); cc_guard(); cc_emit(0xe5);cc.arguments+=2; }
     if(count||cc.token=='(') {
         cc_expect('(',4);
         for(i=0;i<count&&!cc.error->code;++i) {
@@ -326,16 +327,18 @@ TypeId cc_invoke(uint16_t id) ROUTINES {
                 kind=cc_reference(44);
                 if(type!=TYPE_NONE&&type!=kind&&!((cc_family(type)==K_POINTER||cc_family(type)==K_FILE)&&cc_compatible(type,kind))&&!(cc_family(type)==K_STRING&&cc_family(kind)==K_STRING&&
                    (!cc.var_strict||CCT(type,capacity)==CCT(kind,capacity)))) { cc_fail(44); break; }
-                cc_guard(); cc_emit(0xe5);
+                cc_guard(); cc_emit(0xe5);cc.arguments+=2;
             } else {
                 before=cc.temporaries;
                 kind=cc_aggregate(type)?cc_aggregate_actual(type):cc_expression(); cc_convert(type,kind);
                 if(cc_family(type)==K_REAL) {
                     if(cc.temporaries-before!=6) cc_fail(99);
                     cc.temporaries=before; /* six bytes in public native storage order */
+                    cc.arguments+=6;
                 } else if(cc_family(type)==K_SET) {
                     if(cc.temporaries-before!=32) cc_fail(99);
                     cc.temporaries=before; /* callee owns the full 32-byte value slot */
+                    cc.arguments+=32;
                 } else if(cc_family(type)==K_STRING) {
                     if(cc_family(kind)==K_CHAR) { cc_guard(); cc_emit(0x65); cc_emit(0x2e); cc_emit(1); cc_emit(0xe5); }
                     else if(cc.temporaries!=before) {
@@ -343,16 +346,20 @@ TypeId cc_invoke(uint16_t id) ROUTINES {
                         cc.temporaries=before;
                     }
                     else cc_call(RT_PUSHSTRING);
+                    /* Dynamic strings use at most 256 bytes. Imported units
+                     * currently expose primitive parameters only. */
+                    cc.arguments+=cc_family(kind)==K_CHAR?2:256;
                 } else {
                     cc_release(before);
                     if(CCT(type,width)==1&&!cc_aggregate(type)) { cc_emit(0x26); cc_emit(0); }
-                    cc_guard(); cc_emit(0xe5);
+                    cc_guard(); cc_emit(0xe5);cc.arguments+=2;
                 }
             }
         }
         cc_expect(')',5);
     }
     cc_guard(); cc_entry_reference(0xcd,scope);
+    cc.arguments=arguments; /* Callee cleanup retires this call's arguments. */
     if(role==S_FUNCTION&&cc_family(CCS(routine_id,type))==K_STRING) {
         cc_op16(0x21,0); cc_emit(0x39); /* ABI result slot, independent of callee HL */
     } else if(role==S_FUNCTION&&cc_family(CCS(routine_id,type))==K_REAL) {

@@ -85,6 +85,7 @@ typedef struct {
     uint16_t emitted,entries,relocations;
     uint8_t stage_page;uint8_t primary_stage;uint8_t placing;uint16_t scope;uint8_t absolute_mode;uint8_t var_strict;uint16_t nesting;uint8_t suppress;uint8_t index_speed;
     uint16_t routine_count,temporaries;
+    uint32_t arguments; /* Live caller-owned argument bytes, including outer calls. */
     uint8_t with_depth;uint8_t with_limit;uint8_t with_bound;TypeId with_types[9];uint8_t for_depth;uint8_t input_fresh;uint8_t io_check;uint8_t user_interrupt;uint8_t console_control;
     uint16_t field_offset;
     uint16_t random_entry,random_state;

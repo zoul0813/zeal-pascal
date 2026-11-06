@@ -59,8 +59,8 @@ Heap operations and capacity queries, raw/native address access, unbounded local
 routine call depth, recursion workspaces and larger temporaries retain three
 independent pages. File, console, transfer, keyboard, CRT, interrupt polling, Random and numeric
 text formatting/input dependencies also keep the larger layout. Their helper
-stack demand is outside this first bounded arithmetic contract. Known leaf-unit calls can use the smaller layout. Per-side
-reservations above 512 bytes conservatively request the larger model, leaving
+stack demand is outside this first bounded arithmetic contract. Known leaf-unit calls can use the smaller layout. Live caller-owned arguments (including earlier arguments during nested calls)
+and generated temporaries above 512 bytes request the larger model, leaving
 headroom within the 2048-byte shared-page startup reserve.
 
 The unreleased ZPU format uses ABI1 under the `ZPU1` magic. Its per-fragment
@@ -143,3 +143,10 @@ This is a conservative allocation contract, not exact whole-program stack-depth
 analysis. It preserves the existing 2048-byte minimum reserve and bounds both
 sides of supported leaf-unit calls. Broader helper eligibility can be added only
 with corresponding stack-demand evidence.
+
+The caller accounting includes two-byte scalar/VAR slots, six-byte Real slots,
+32-byte sets, bounded string slots and lexical links. Each completed call restores
+the outer live count; suppressed selectors do not change image eligibility. The
+512-byte threshold covers these arguments and generated temporaries, rather than
+being an exact measurement of every saved operand or statement frame. Runtime
+stack guards continue to check the actual SP and report overflow before writes.

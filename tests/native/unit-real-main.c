@@ -259,6 +259,32 @@ static void execute_shared(void) {
     }
     closed();source_close(&s);
 }
+/* Formal VAR arguments occupy two bytes, Real values six. The final case
+ * also proves that the live count is restored after nested and completed calls. */
+static void argument_calls(void) {
+    static const char *const paths[]={"H:/ARG512.PAS","H:/ARG516.PAS","H:/ARGPEAK.PAS","H:/ARGSMALL.PAS"};
+    uint8_t i,shared,status,header[160];int8_t fd;NativeImage id;
+    check(read_block(&s,"H:/WIDE.PAS",&d));
+    fd=open("H:/WIDE.ZPU",O_WRONLY|O_CREAT|O_TRUNC);check(fd>=0);
+    if(fd>=0) {
+        check(compile_unit(&s,&b,&d,fd,0)&&!d.code);check(!close(fd));
+    }
+    closed();source_close(&s);
+    for(i=0;i<4;++i) {
+        shared=i==0||i==3;
+        check(read_block(&s,paths[i],&d));check(compile(&s,&b,&d));
+        if(b.valid) {
+            check(!!(far_get(b.pages[0],18)&NATIVE_SHARED_STACK)==shared);
+            check(far_read(b.pages[0],0,header,sizeof(header))&&!native_header(header,0,&id));
+            check(run_build(&s,&b)&&ram_result[26]==1);
+            check((ram_pages[1]==ram_pages[2])==shared);
+            check(save_build(&s,&b,0));status=255;
+            check(run_saved(&s,&b,&status)&&status==0);
+        }
+        closed();source_close(&s);
+    }
+    check(!rm("H:/WIDE.ZPU"));check(!rm("H:/WIDE.PAS"));
+}
 int app_main(void) {
     uint8_t status;int8_t capture;
     if(!console_open())return 1;
@@ -282,7 +308,7 @@ int app_main(void) {
     fault_location();page_pressure(1);page_pressure(0);
     layout_helpers();layout_limits();
     client("H:/SHARED.PAS","var N:Integer;begin N:=21*2;if N<>42 then halt end.");
-    execute_shared();
+    execute_shared();argument_calls();
     test_stage=3;check(!rm("H:/MIXED.ZPU"));check(!rm("H:/MIXED.PAS"));
     status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/SHARED.COM",0,&status)&&status==0);
     status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/SHARED.COM",0,&status)&&status==0);
