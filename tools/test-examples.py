@@ -108,6 +108,7 @@ def main():
     inputs += [ROOT / f'build/{target}.{ext}' for ext in ('bin', 'zpl', 'map')]
     hashes = {str(p): n.sha(p) for p in inputs}
     fixtures = {str(p.relative_to(ROOT / 'examples')): p.read_bytes() for p in examples}
+    fixtures['lighthouse/lighthouse.pas']=fixtures['lighthouse/lighthouse.pas'].replace(b'uses Screen;',b'{uses Screen;}')
     fixtures.update({f'{target}.{ext}': (ROOT / f'build/{target}.{ext}').read_bytes()
                      for ext in ('bin', 'zpl')})
     commands = ['run 100000000'] + n.program_launch(target)

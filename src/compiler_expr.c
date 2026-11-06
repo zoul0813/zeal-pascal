@@ -146,7 +146,11 @@ enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_S
 static void integer_value(void) { if(cc_family(expression())!=K_INTEGER) cc_fail(23); }
 static void push_value(void) { cc_guard(); cc_emit(0xe5); }
 static int16_t predefined_function(void) {
-    static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length","copy","pos","concat","ptr","memavail","maxavail","stackptr","trunc","round","int","frac","sqrt","ln","exp","sin","cos","arctan","random","ioresult","paramcount","paramstr","wherex","wherey"};
+    static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length","copy","pos","concat","ptr","memavail","maxavail","stackptr","trunc","round","int","frac","sqrt","ln","exp","sin","cos","arctan","random","ioresult","paramcount","paramstr"
+#ifndef ZP_UNITS_EXPERIMENT
+        ,"wherex","wherey"
+#endif
+    };
     uint8_t i;
     for(i=0;i<sizeof(functions)/sizeof(functions[0]);++i) if(cc_is(functions[i])) return i;
     return -1;
@@ -159,7 +163,9 @@ static TypeId intrinsic(uint8_t op) {
     int16_t id;
     if(op==F_PTR||op==F_ADDR||op==F_STACKPTR)cc_require_full_memory();
     cc_next();
+#ifndef ZP_UNITS_EXPERIMENT
     if(op==F_WHEREX||op==F_WHEREY) { cc_crt_query(op==F_WHEREY); return K_BYTE; }
+#endif
     if(op==F_IORESULT) { cc_call(RT_IORESULT); return K_INTEGER; }
     if(op==F_PARAMCOUNT) { cc_params(0); return K_INTEGER; }
     if(op==F_RANDOM&&cc.token!='(') { cc_random(0); return K_REAL; }

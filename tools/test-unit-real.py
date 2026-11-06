@@ -33,6 +33,7 @@ def main():
     target='zunitrealtest';symbols=n.symbols(target)
     fixtures={target+'.'+ext:(ROOT/f'build/{target}.{ext}').read_bytes()for ext in ('bin','zpl')}
     fixtures.update(argument_fixtures())
+    fixtures['SCREEN.ZPU']=(ROOT/'build/SCREEN.ZPU').read_bytes()
     commands=['run 100000000']+n.program_launch(target)+[f"bp 0x{symbols['_test_stop']:x}",'run 20000000000','s','regs','rb 0x4000 32']
     for name in ('_test_done','_test_passed','_test_failed','_test_index','_test_stage'):
         commands += [f'rb 0x{symbols[name]:x} 2']

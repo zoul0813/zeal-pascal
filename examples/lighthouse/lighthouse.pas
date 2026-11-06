@@ -7,6 +7,7 @@
 }
 
 program Lighthouse;
+uses Screen;
 
 {$R+}
 

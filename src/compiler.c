@@ -291,7 +291,9 @@ static SourcePosition statement(void) {
     } else if(cc_is("randomize")&&cc_lookup()<0) {
         cc_next(); cc_randomize();
     } else if(cc_file_statement()) {
+#ifndef ZP_UNITS_EXPERIMENT
     } else if(cc_crt_statement()) {
+#endif
     } else if(cc_runtime_statement()) {
     } else if((cc_is("halt")||cc_is("exit"))&&cc_lookup()<0) {
         newline=cc_is("halt"); cc_next();

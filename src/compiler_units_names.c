@@ -17,7 +17,7 @@ static uint16_t find_module(const char *name) {
 }
 void cc_units_imports(void) ROUTINES {
     char name[128],filename[16],directory[128],path[128];uint16_t i,n;
-    if(cc.sources->unit_mode||(cc.sources->options&&cc.sources->options->kind==COMPILE_CHAIN)) {
+    if(cc.sources->unit_mode) {
         cc_fail(UNIT_UNSUPPORTED);return;
     }
     if(!cc_units_begin())return;
@@ -101,6 +101,10 @@ void cc_units_call(uint8_t opcode,uint16_t scope) ROUTINES {
     uint16_t at,end=cc_unit_word(UH_USED),site;
     if(cc.suppress||cc.error->code)return;
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_IMPORT&&cc_unit_word(at+2)==scope) {
+        if(cc_unit_module_byte(cc_unit_word(at+4),cc_unit_word(at+6)+3)&ZPU_CALLER_IO) {
+            if(opcode!=0xcd){cc_fail(UNIT_UNSUPPORTED);return;}
+            cc_emit(0x3e);cc_emit(cc.io_check);
+        }
         site=cc_link(opcode,cc_unit_word(at+8));cc_unit_put(at+8,site);return;
     }
     cc_fail(UNIT_INTERFACE);
@@ -159,9 +163,14 @@ static uint16_t bind_source(uint16_t module) {
     return module;
 }
 uint16_t cc_units_load(const char *name,const char *path) ROUTINES {
-    uint16_t module;
+    uint16_t module,i,n=(uint16_t)strlen(name);char fallback[128],filename[16];
+    for(i=0;i<n;++i)filename[i]=name[i]>='a'&&name[i]<='z'?name[i]-32:name[i];
+    strcpy(filename+n,".ZPU");fallback[0]=0;
+    if(code_library_directory[0]&&!sources_path(filename,code_library_directory,fallback)) {
+        fallback[0]=0; /* A valid local unit must not depend on fallback length. */
+    }
     if(!code_phase_unit_io()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
-    module=cc_units_load_object(name,path);
+    module=cc_units_load_object(name,path,fallback[0]?fallback:0);
     if(!io_finish(module!=0))return 0;
     return bind_source(module);
 }

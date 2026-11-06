@@ -11,7 +11,7 @@ spec = importlib.util.spec_from_file_location('native', ROOT/'tools/test-native.
 n = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(n)
 
-names = ['build/zpascal.bin', 'build/zpascal.zpl', 'build/zpascal.map', 'build/zpascal.banks.json']
+names = ['build/zpascal.bin', 'build/zpascal.zpl', 'build/zpascal.map', 'build/zpascal.banks.json', 'build/SCREEN.ZPU', 'build/SCREEN.PAS']
 snapshots = {name: (ROOT/name).read_bytes() for name in names}
 hashes = {name: hashlib.sha256(data).hexdigest() for name, data in snapshots.items()}
 sym = n.symbols('zpascal')
@@ -29,7 +29,9 @@ image = ROOT/'build/tf.img'
 previous = image.read_bytes() if image.exists() else None
 base = previous if previous is not None else gzip.decompress(n.TF_TEMPLATE.read_bytes())
 existing = n.zealfs_files(base)
-install = {'/bin/zpascal.bin': resident, '/lib/zpascal.zpl': library}
+install = {'/bin/zpascal.bin': resident, '/lib/zpascal.zpl': library,
+           '/lib/SCREEN.ZPU': snapshots['build/SCREEN.ZPU'],
+           '/lib/SCREEN.PAS': snapshots['build/SCREEN.PAS']}
 commands = ['run 100000000']
 operations = []
 for directory in ('/lib/', '/bin/'):
@@ -50,7 +52,7 @@ for command in operations:
     commands += n.type_text(command+'\n', ticks=2000000)+['run 2000000000']
 commands += ['quit']
 fixtures = {name: (n.COREUTILS/name).read_bytes() for name in ('mkdir', 'rm', 'cp')}
-fixtures.update({Path(name).name: data for name, data in snapshots.items() if name.endswith(('.bin', '.zpl'))})
+fixtures.update({Path(name).name: data for name, data in snapshots.items() if name.endswith(('.bin', '.zpl', '.ZPU', '.PAS'))})
 n.execute('project-tf-install', commands, fixtures, tf_image=base, timeout=150)
 installed = (n.RUN/'project-tf-install/tf.img').read_bytes()
 files = n.zealfs_files(installed)

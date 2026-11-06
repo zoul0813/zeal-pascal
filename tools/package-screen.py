@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+"""Author the shipped native Screen unit using the normal ZPU1 container."""
+from pathlib import Path
+import hashlib
+import json
+import re
+import struct
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+NAMES = ('clrscr','clreol','gotoxy','insline','delline','crtinit','crtexit',
+         'lowvideo','normvideo','highvideo','delay','textcolor','textbackground','wherex','wherey')
+
+
+def build(directory):
+    directory = directory.resolve()
+    text = (ROOT/'src/zp.h').read_text()
+    constants = {name: int(re.search(r'#define '+name+r'\s+(0x[0-9a-fA-F]+)', text)[1],16)
+                 for name in ('RT_IOSTATUS','RT_IOFAIL','RT_PC','RT_IOCALL','RT_RANGE','RT_GUARD')}
+    private = (directory/'pascal_runtime.private').read_bytes()
+    private_names = re.findall(r'RP_[A-Z_]+', (ROOT/'src/compiler.h').read_text().split('enum { RP_INPUT_READY',1)[1].split('RP_COUNT }',1)[0])
+    private_names.insert(0,'RP_INPUT_READY')
+    constants['SCREEN_ACTIVE'] = struct.unpack_from('<H',private,2*private_names.index('RP_CRT_ACTIVE'))[0]
+    header = ''.join(f'#define {name} {value}u\n' for name,value in constants.items())
+    (directory/'screen-runtime.h').write_text(header)
+    subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-I',str(directory),
+                    str(ROOT/'tools/screen-library.c'),'-o',str(directory/'screen-library')],check=True)
+    raw = subprocess.check_output([str(directory/'screen-library')])
+    length, count = struct.unpack_from('<HH',raw)
+    at = 4
+    fragments, entries = [], []
+    for i in range(16):
+        start,end = struct.unpack_from('<HH',raw,at);at += 4
+        fragments.append((start,end))
+        if i < 15:
+            entries.append(struct.unpack_from('<H',raw,at)[0]);at += 2
+    relocations = struct.unpack_from('<'+'H'*count,raw,at);at += 2*count
+    payload = raw[at:]
+    assert len(payload) == length
+    # Include the sentinel at zero in the shared fragment; layout is contiguous.
+    fragments = [(0,fragments[15][1])] + fragments[:15]
+    assert all(end == fragments[i+1][0] for i,(_,end) in enumerate(fragments[:-1]))
+    def locate(address):
+        for i,(start,end) in enumerate(fragments):
+            if start <= address < end:return i,address-start
+        raise ValueError(f'relocation target outside Screen: {address}')
+    refs, records = [], bytearray()
+    for start,end in fragments:
+        first = len(refs)
+        for site in sorted(relocations):
+            if start <= site < end:
+                assert site+2 <= end
+                target,offset = locate(struct.unpack_from('<H',payload,site)[0])
+                refs.append((site-start,1,target,offset))
+        records += struct.pack('<4H',start,end-start,first,len(refs)-first)
+    source = 'unit Screen;interface\n'
+    exports = bytearray()
+    for op,name in enumerate(NAMES):
+        query = op >= 13
+        params = 2 if op == 2 else 1 if op in (10,11,12) else 0
+        source += ('function ' if query else 'procedure ')+name
+        if params:source += '('+';'.join(f'P{i}:Integer' for i in range(params))+')'
+        source += ':Byte;\n' if query else ';\n'
+        fragment,offset = locate(entries[op])
+        # Export bit0 requests the caller's {$I} flag in A. The rest of the
+        # callee-cleanup primitive ABI is unchanged, including scalar results.
+        exports += struct.pack('<4B3H',len(name),query,1 if query else 255,1,params,fragment,offset)
+        exports += name.encode()+b'\0\0'*params
+    source += 'implementation\n{ Native Zeal 80x40 console routines. }\nend.\n'
+    source_bytes = source.encode()
+    source_path = b'T:/lib/SCREEN.PAS'
+    def fnv(data):
+        h = 2166136261
+        for b in data:h = ((h ^ b)*16777619)&0xffffffff
+        return h
+    blob = b'ZPF1'+struct.pack('<6H',1,len(fragments),len(refs),len(payload),0,0)
+    blob += records+b''.join(struct.pack('<4H',*r) for r in refs)+payload
+    metadata = b'screen'+source_path+exports+bytes([2]*len(fragments))
+    header = bytearray(36)
+    header[:4] = b'ZPU1'
+    struct.pack_into('<HH',header,4,1,36+len(metadata)+len(blob))
+    header[8:12] = (directory/'pascal_runtime.profile').read_bytes()[:4]
+    struct.pack_into('<IHBB3H',header,12,fnv(source_bytes),len(source_bytes),6,len(source_path),len(NAMES),0,0)
+    struct.pack_into('<H',header,26,36+len(metadata))
+    struct.pack_into('<HH',header,32,len(payload),0)
+    artifact = header+metadata+blob
+    assert len(artifact) <= 16384
+    struct.pack_into('<I',artifact,28,fnv(artifact[:28]+artifact[32:]))
+    (directory/'SCREEN.ZPU').write_bytes(artifact)
+    (directory/'SCREEN.PAS').write_bytes(source_bytes)
+    report = {'bytes':len(artifact),'code_bytes':len(payload),'exports':list(NAMES),
+              'fragments':len(fragments),'relocations':len(refs),
+              'sha256':hashlib.sha256(artifact).hexdigest()}
+    (directory/'screen-library.json').write_text(json.dumps(report,indent=2)+'\n')
+    print(json.dumps(report))
+
+
+if __name__ == '__main__':build(Path(sys.argv[1]))

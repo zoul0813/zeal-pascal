@@ -164,7 +164,9 @@ int app_main(void) {
     unsupported("","if KeyPressed then begin end");
     unsupported("var F:Text;","assign(F,'H:/X')");
     unsupported("var N:Integer;","N:=random(3)");
-    unsupported("","inline($00)");unsupported("","randomize");unsupported("","clrscr");
+    unsupported("","inline($00)");unsupported("","randomize");
+    author("H:/BADUNIT.PAS","H:/BADUNIT.ZPU",
+        "unit BadUnit;interface procedure P;implementation procedure P;begin clrscr end;end.",41);
     unsupported("procedure Hidden;external $4000;","Hidden");
     unsupported("var A:Integer absolute $100;","A:=1");
     unsupported("","ConOutPtr:=0");unsupported("","CBreak:=true");

@@ -18,6 +18,7 @@ uint8_t code_phase_real_release(void) SOURCE_BLOCK_CALL;
 uint8_t code_phase_unit_io(void) SOURCE_BLOCK_CALL;
 uint8_t code_phase_unit_io_release(void) SOURCE_BLOCK_CALL;
 #endif
+extern char code_library_directory[128];
 #define DEFAULT_LIBRARY "T:/lib/zpascal.zpl"
 extern uint8_t code_pages[CODE_BANK_LIMIT],code_owned,boot_error;
 extern uint16_t code_sizes[CODE_BANK_LIMIT];

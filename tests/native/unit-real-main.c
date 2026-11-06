@@ -201,7 +201,7 @@ static void layout_helpers(void) {
         "var N,C:Integer;begin Val('42',N,C)end.",
         "var S:String[10];begin Str(42,S)end.",
         "var N:Integer;begin N:=Random(7)end.",
-        "var B:Boolean;begin B:=KeyPressed end.","begin ClrScr end.",
+        "var B:Boolean;begin B:=KeyPressed end.","uses Screen;begin ClrScr end.",
         "{$U+}begin end.","begin Inline($00)end."
     };
     uint8_t i,header[160];NativeImage id;

@@ -247,6 +247,7 @@ set_source_files_properties(src/platform.c PROPERTIES COMPILE_OPTIONS "--opt-cod
 set_source_files_properties(src/compiler_chain.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK2;--constseg;BANK2")
 set_source_files_properties(src/compiler_interrupt.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK6;--constseg;BANK6")
 # CRT generation shares existing bank11 headroom; no new runtime/code bank.
+set_property(SOURCE src/compiler_crt.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/libraries/screen-engine.inc)
 set_source_files_properties(src/compiler_crt.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK11;--constseg;BANK11")
 set_source_files_properties(src/compiler_predicates.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK11;--constseg;BANK11")
 set_source_files_properties(src/compiler_module.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK11;--constseg;BANK11")
@@ -1013,3 +1014,40 @@ set_property(SOURCE src/unit_output.c src/compiler_units.c src/compiler_units_ob
 # Native unit observers call source identity APIs through their banked ABI.
 set_property(SOURCE tests/native/units-main.c tests/native/unit-real-main.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources.h)
+
+# Shipped units are disk artifacts, never compiler-bank assets.
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/SCREEN.ZPU ${CMAKE_BINARY_DIR}/SCREEN.PAS
+    ${CMAKE_BINARY_DIR}/screen-library.json
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-screen.py ${CMAKE_BINARY_DIR}
+    DEPENDS runtime_profile ${CMAKE_BINARY_DIR}/pascal_runtime.private
+        ${CMAKE_BINARY_DIR}/pascal_runtime.profile ${CMAKE_SOURCE_DIR}/src/zp.h
+        ${CMAKE_SOURCE_DIR}/src/compiler.h
+        ${CMAKE_SOURCE_DIR}/tools/package-screen.py ${CMAKE_SOURCE_DIR}/tools/screen-library.c
+        ${CMAKE_SOURCE_DIR}/libraries/screen-engine.inc VERBATIM)
+add_custom_target(screen_library ALL DEPENDS ${CMAKE_BINARY_DIR}/SCREEN.ZPU ${CMAKE_BINARY_DIR}/SCREEN.PAS)
+add_executable(zscreentest src/startup.asm src/banks.c tests/native/screen-main.c
+    tests/native/harness.c tests/native/machine.asm
+    $<TARGET_OBJECTS:unit_runtime_core> $<TARGET_OBJECTS:unit_fragment_core>
+    $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
+    $<TARGET_OBJECTS:optional_test_execution> $<TARGET_OBJECTS:test_evidence>
+    ${CMAKE_BINARY_DIR}/transfer_test_asset.asm)
+target_compile_definitions(zscreentest PRIVATE ZP_OPTIONAL_REAL ZP_UNITS_EXPERIMENT ZP_TEST_COMPILER ZP_SCREEN_LIBRARY)
+target_include_directories(zscreentest PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_options(zscreentest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+set_source_files_properties(tests/native/screen-main.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
+set_property(SOURCE tests/native/screen-main.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h
+    ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
+add_dependencies(zscreentest transfer_assets screen_library zexparent_bin)
+target_link_options(zscreentest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
+foreach(bank RANGE 1 17)
+    math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
+    target_link_options(zscreentest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
+endforeach()
+add_custom_target(zscreentest_bin ALL
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zscreentest>
+    DEPENDS zscreentest ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+
+add_dependencies(zpascal screen_library)
+add_dependencies(zunitrealtest screen_library)

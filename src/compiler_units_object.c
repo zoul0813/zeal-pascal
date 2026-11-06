@@ -39,10 +39,9 @@ static uint8_t supported(void) {
     uint8_t i;
     if(cc.sources->file||cc.image->sources.count!=1||cc.console_dynamic||cc.console_used||cc.standard_table_operand||cc.file_stream_operand||
        cc.keyboard_poll||cc.keyboard_status||cc.keyboard_state||cc.keyboard_probe||cc.keyboard_enqueue||
-       cc.keyboard_console_probe||cc.crt_state||cc.crt_row||cc.random_state||cc.hook_character||cc.hook_echo||cc.hook_open||cc.random_entry||cc.parameter_entry||
+       cc.keyboard_console_probe||cc.random_state||cc.hook_character||cc.hook_echo||cc.hook_open||cc.random_entry||cc.parameter_entry||
        cc.file_entry||cc.keyboard_entry||cc.interrupt_entry||cc.hook_output_calls||cc.hook_mask_call||
        cc.error_entry||cc.transfer_entry||cc.unpack_entry||cc.console_control!=1)goto bad;
-    for(i=0;i<15;++i)if(cc.crt_entries[i])goto bad;
     for(i=0;i<HOOK_COUNT;++i)if(cc.hook_variables[i])goto bad;
     return 1;
 bad:
@@ -238,7 +237,7 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
         n=cc_unit_module_byte(module,at);c=cc_unit_module_byte(module,at+1);type=cc_unit_module_byte(module,at+2);
         params=cc_unit_module_word(module,at+4);fragment=cc_unit_module_word(module,at+6);offset=cc_unit_module_word(module,at+8);
         wide=(uint32_t)at+10+n+2UL*params;
-        if(wide>blob||!identifier(module,at+10,n)||c>1||cc_unit_module_byte(module,at+3)||
+        if(wide>blob||!identifier(module,at+10,n)||c>1||(cc_unit_module_byte(module,at+3)&~ZPU_CALLER_IO)||
            (c?type>4:type!=255)||fragment>=count)return 0;
         size=cc_unit_module_word(module,blob+16+fragment*8+2);if(offset>=size||cc_unit_module_word(module,blob+16+fragment*8)>=code_bytes)return 0;
         old=cc_unit_word(module+10);
@@ -281,10 +280,13 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
     }
     return !cc.error->code;
 }
-uint16_t cc_units_load_object(const char *name,const char *path) ROUTINES {
+uint16_t cc_units_load_object(const char *name,const char *path,const char *fallback) ROUTINES {
     uint16_t module=0,at=0,n,i,seal;uint8_t buffer[64],page,ok=1;
     int8_t fd;uint32_t version;
-    fd=output_open_path(path,O_RDONLY);if(fd<0){cc_fail(UNIT_MISSING);return 0;}
+    fd=output_open_path(path,O_RDONLY);
+    if(fd<0&&platform_error==ERR_NO_SUCH_ENTRY&&fallback&&strcmp(path,fallback))
+        fd=output_open_path(fallback,O_RDONLY);
+    if(fd<0){cc_fail(UNIT_MISSING);return 0;}
     module=cc_unit_owned_page();if(!module){output_finish(fd,0);return 0;}page=(uint8_t)cc_unit_word(module+2);
     for(;;) {
         if(!cc_poll()){ok=0;break;}n=sizeof(buffer);platform_error=read(fd,buffer,&n);

@@ -3,6 +3,7 @@
 #include <zos_vfs.h>
 
 extern uint8_t console_scratch[256];
+char code_library_directory[128];
 static uint16_t word(uint8_t at) {
     return console_scratch[at]|((uint16_t)console_scratch[at+1]<<8);
 }
@@ -73,6 +74,20 @@ uint8_t code_load(const char *path) {
         } else deferred=1;
         total+=code_sizes[bank];
     }
+    if(strlen(path)>1&&path[1]==':')strcpy(code_library_directory,path);
+    else {
+        boot_error=curdir((char*)console_scratch);if(boot_error)goto close_file;
+        if(path[0]=='/')console_scratch[2]=0;
+        else {
+            i=(uint8_t)strlen((char*)console_scratch);
+            if(i&&console_scratch[i-1]!='/') {console_scratch[i++]='/';console_scratch[i]=0;}
+        }
+        if(strlen((char*)console_scratch)+strlen(path)>127) {boot_error=ERR_PATH_TOO_LONG;goto close_file;}
+        strcpy(code_library_directory,(char*)console_scratch);strcat(code_library_directory,path);
+    }
+    i=(uint8_t)strlen(code_library_directory);
+    while(i&&code_library_directory[i-1]!='/')--i;
+    code_library_directory[i]=0;
     if(deferred) {code_phase_bind(fd);return 1;}
     ok=1; goto close_file;
 corrupt:

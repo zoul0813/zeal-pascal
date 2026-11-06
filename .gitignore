@@ -203,3 +203,14 @@
 !/docs/allocation-arguments.md
 !/docs/allocation-arguments-evidence.json
 !/reviews/allocation-arguments-v1.md
+
+# Shipped native Screen unit.
+!/libraries/
+/libraries/*
+!/libraries/screen-engine.inc
+!/tools/screen-library.c
+!/tools/package-screen.py
+!/tools/test-screen.py
+!/docs/screen-library.md
+!/docs/screen-library-evidence.json
+!/reviews/screen-library-v1.md
