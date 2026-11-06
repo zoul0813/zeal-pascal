@@ -8,6 +8,9 @@ static const char *const reserved[] = {
     "absolute","and","array","begin","case","const","div","do","downto","else","end",
     "external","file","for","forward","function","goto","if","in","inline","label","mod",
     "nil","not","of","or","overlay","packed","procedure","program","record","repeat","set",
+#ifdef ZP_UNITS_EXPERIMENT
+    "unit","interface","implementation","uses",
+#endif
     "shl","shr","string","then","to","type","until","var","while","with","xor"};
 static const struct {const char *name;uint16_t address;TypeId type;} system_variables[]={
     {"heapptr",RT_HEAPPTR,K_INTEGER},{"recurptr",RT_RECURPTR,K_INTEGER},
@@ -618,6 +621,14 @@ TypeId cc_text_value(TypeId type) FRONTEND {
  * scratch memory. Re-decode only that literal while preserving parser state. */
 void cc_constant_literal(uint16_t at) FRONTEND {
     SourceCursor cursor;
+#ifdef ZP_UNITS_EXPERIMENT
+    SourcePosition position=cc_reference_position(at);uint16_t i;
+    if(position&0x80000000UL) {
+        cc.literal_length=cc_source_byte(position++);
+        for(i=0;i<cc.literal_length;++i)cc.literal[i]=cc_source_byte(position+i);
+        return;
+    }
+#endif
     cc_source_save(&cursor);cc_source_seek(cc_reference_position(at));
     cc_next();if(cc.token=='^')cc_control_literal();
     /* Preserve the decoded literal result; re-lexing the caller would replace

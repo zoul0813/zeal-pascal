@@ -371,10 +371,19 @@ TypeId cc_invoke(uint16_t id) ROUTINES {
 
 #ifdef ZP_UNITS_EXPERIMENT
 void cc_units_interface(void) ROUTINES {
+    uint16_t first,i;
     if(cc_is("uses"))cc_units_imports();
-    while(!cc.error->code&&(cc_is("procedure")||cc_is("function")))routine(1);
+    while(!cc.error->code) {
+        if(cc_is("procedure")||cc_is("function"))routine(1);
+        else if(cc_is("const")) {
+            first=cc.symbol_count;cc_declarations();
+            for(i=first;i<cc.symbol_count&&!cc.error->code;++i)if(CCS(i,owner)==0&&CCS(i,name_length)) {
+                if(CCS(i,role)!=S_CONSTANT)cc_fail(UNIT_UNSUPPORTED);
+                else cc_unit_record(UR_EXPORT,i,0,0,0,0);
+            }
+        } else break;
+    }
     if(!cc_is("implementation")){cc_fail(UNIT_UNSUPPORTED);return;}
-    cc_next();
-    if(cc_is("uses"))cc_units_imports();
+    cc_next();if(cc_is("uses"))cc_units_imports();
 }
 #endif

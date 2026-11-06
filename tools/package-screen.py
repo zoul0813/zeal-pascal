@@ -65,8 +65,8 @@ def build(directory):
         fragment,offset = locate(entries[op])
         # Export bit0 requests the caller's {$I} flag in A. The rest of the
         # callee-cleanup primitive ABI is unchanged, including scalar results.
-        exports += struct.pack('<4B3H',len(name),query,1 if query else 255,1,params,fragment,offset)
-        exports += name.encode()+b'\0\0'*params
+        exports += struct.pack('<4B5H',len(name),query,1,0,4 if query else 65535,params,fragment,offset,0)
+        exports += name.encode()+b'\0\0\0\0'*params
     source += 'implementation\n{ Native Zeal 80x40 console routines. }\nend.\n'
     source_bytes = source.encode()
     source_path = b'T:/lib/CRT.PAS'

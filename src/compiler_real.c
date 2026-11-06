@@ -35,6 +35,12 @@ void cc_real_literal(uint16_t reference) FRONTEND {
     if(id==REAL_PI) { zr_error=0; for(i=0;i<6;++i) zr_result[i]=pi[i]; }
     else {
         at=cc_reference_position(id);
+#ifdef ZP_UNITS_EXPERIMENT
+        if(at&0x80000000UL) {
+            zr_error=0;for(i=0;i<6;++i)zr_result[i]=source_byte(at+i);
+            goto decoded;
+        }
+#endif
         while(digit(source_byte(at))&&n<127) text[n++]=source_byte(at++);
         if(source_byte(at)=='.'&&source_byte(at+1)!='.') {
             if(n<127) text[n++]=source_byte(at++);
@@ -49,6 +55,9 @@ void cc_real_literal(uint16_t reference) FRONTEND {
         zr_op=ZR_DECIMAL; zr_text=text; zr_length=n; zr_eval();
         if(zr_error) cc_fail(57);
     }
+#ifdef ZP_UNITS_EXPERIMENT
+ decoded:
+#endif
     if((reference&0x8000u)&&zr_result[0]) zr_result[5]^=128;
 }
 void cc_real_constant(TypeId type,uint16_t value) FRONTEND {

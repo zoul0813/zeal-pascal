@@ -226,3 +226,7 @@
 !/docs/unit-dependencies.md
 !/docs/unit-dependencies-evidence.json
 !/reviews/unit-dependencies-v1.md
+
+!/src/compiler_units_metadata.c
+!/docs/unit-exports.md
+!/docs/unit-exports-evidence.json

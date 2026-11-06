@@ -1,0 +1,46 @@
+{
+  "checkpoint": "exported constants",
+  "native": {
+    "passed": true,
+    "checks": {
+      "authenticated completion": true,
+      "all native assertions pass": true,
+      "library deletion stage completed": true,
+      "INTEGER execution markers": true,
+      "COPY execution markers": true,
+      "SCALE execution markers": true,
+      "TRANSITIVE execution markers": true,
+      "UNUSED execution markers": true,
+      "DEPS execution markers": true,
+      "CONSTANTS execution markers": true,
+      "CONSTCOPY execution markers": true,
+      "PLAIN selects correct Real engine": true,
+      "COPY selects correct Real engine": true,
+      "SCALE selects correct Real engine": true,
+      "TRANSIT selects correct Real engine": true,
+      "UNUSED selects correct Real engine": true,
+      "FAULTRUN selects correct Real engine": true,
+      "unit source and library deleted": true
+    },
+    "assertions": 1337,
+    "expected_assertions": 1200,
+    "failed": 0,
+    "failure_indices": [],
+    "diagnostics": [],
+    "capture_directory": "analysis/native-slice/20261106T214025.563380Z-81183"
+  },
+  "exact_native_assertions": 1337,
+  "review": "pending: Claude account usage limit",
+  "input_sha256": {
+    "src/compiler_units_metadata.c": "f3acea1d5e783447290c0392ac25c1aa754664d43435b3da86e9e4a7981d1e93",
+    "src/compiler_units_names.c": "b18870f8605f6e4d6db45bd2da74d2ac6bbd7a9b160c9558177948a03fe43955",
+    "src/compiler_units_object.c": "95e6de2f05314ee35cf986026c2271428856dbe2202f3cdea4c798e743a18a3d",
+    "src/compiler_front.c": "28aa08c07ad96df4d1e250192659013b9d42345e9afc81c2e67a514e1f4a8398",
+    "src/compiler_real.c": "691ab0a0d1d5ea2d31128729b45e71128aeddbb28ddcddf5b4cf6bc48025cf6a",
+    "src/compiler_sources.c": "c5eedce24b8257c88777be3b763b5ca77eaaadc6f610612779fa0d86013a6965",
+    "src/compiler_routines.c": "ad21da1cc51aa91aed407b1e39614fac7083b3c3181a659271a380826102a9a6",
+    "tests/native/unit-real-main.c": "28dc114d571884c5fada023ce69972b850b42a49257a1f11ca62d534a98da056",
+    "tools/package-screen.py": "e8d94319478b46b8bd14758ca90d1ce233decfee52171543157f4662b6a395a9",
+    "tools/test-unit-real.py": "12575d02f7644c57ed3b0605caccc11d10a0ab5ae419666c6bad873bfab0d71a"
+  }
+}

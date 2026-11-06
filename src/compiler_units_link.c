@@ -13,7 +13,7 @@ static uint8_t location(const CompilerFragmentLayout *layout,uint16_t module,uin
 }
 static uint16_t module_exports_end(uint16_t module) {
     uint16_t at=cc_unit_word(module+10),i,n=cc_unit_module_word(module,20);
-    for(i=0;i<n;++i)at+=10+cc_unit_module_byte(module,at)+2*cc_unit_module_word(module,at+4);
+    for(i=0;i<n;++i)at+=14+cc_unit_module_byte(module,at)+4*cc_unit_module_word(module,at+6)+cc_unit_module_word(module,at+12);
     return at;
 }
 static uint8_t append_metadata(uint16_t module,const CompilerFragmentLayout *layout) {
@@ -74,7 +74,7 @@ uint8_t cc_units_link_object(void) ROUTINES {
         if(root_count==UNIT_LINK_ROOTS){cc_fail(99);return 0;}
         module=cc_unit_word(at+4);export=cc_unit_word(at+6);
         roots[root_count].identity=cc_unit_word(module+8);
-        roots[root_count].fragment=cc_unit_module_word(module,export+6);++root_count;
+        roots[root_count].fragment=cc_unit_module_word(module,export+8);++root_count;
     }
     if(cc.error->code)return 0;
     if(!root_count)return 1;
@@ -101,7 +101,7 @@ uint8_t cc_units_link_object(void) ROUTINES {
     }
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_IMPORT&&cc_unit_word(at+8)) {
         module=cc_unit_word(at+4);export=cc_unit_word(at+6);
-        fragment=cc_unit_module_word(module,export+6);offset=cc_unit_module_word(module,export+8);
+        fragment=cc_unit_module_word(module,export+8);offset=cc_unit_module_word(module,export+10);
         if(!location(&layout,module,fragment,&address)){cc_fail(UNIT_FORMAT);goto done;}
         cc_patch_chain(cc_unit_word(at+8),address+offset);cc_rput(cc_unit_word(at+2),R_ENTRY,address+offset);
     }

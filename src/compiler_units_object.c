@@ -7,7 +7,6 @@
 /* Container integers are explicit little-endian fields. The version binds
  * the primitive signature/call ABI and exact runtime profile. A checksum
  * detects accidental corruption; compiled native code is not sandboxed. */
-static uint8_t lower(uint8_t c) {return c>='A'&&c<='Z'?c+32:c;}
 static uint32_t object_hash(uint8_t page,uint16_t length) {
     uint32_t h=2166136261UL;uint16_t i;
     for(i=0;i<length;++i) {
@@ -16,9 +15,6 @@ static uint32_t object_hash(uint8_t page,uint16_t length) {
         h=(h^far_get(page,i))*16777619UL;
     }
     return h;
-}
-static uint8_t tag(TypeId type) {
-    return type==K_INTEGER?0:type==K_BYTE?1:type==K_CHAR?2:type==K_BOOLEAN?3:type==K_REAL?4:255;
 }
 static uint16_t code_word(uint16_t at) {
     uint16_t v=cc_code_get(at);return v|((uint16_t)cc_code_get(at+1)<<8);
@@ -64,12 +60,8 @@ static void at_word(uint8_t page,uint16_t at,uint16_t value) {
 static void at_long(uint8_t page,uint16_t at,uint32_t value) {
     uint8_t i;for(i=0;i<4;++i)out_byte(page,&at,(uint8_t)(value>>(8*i)));
 }
-static void symbol_name(uint8_t page,uint16_t *at,uint16_t symbol) {
-    uint8_t i,n=CCS(symbol,name_length);SourcePosition start=cc_reference_position(CCS(symbol,name_start));
-    for(i=0;i<n;++i)out_byte(page,at,lower(cc_source_byte(start+i)));
-}
 uint8_t cc_units_write_object(void) ROUTINES {
-    uint16_t at,end,fragments=0,exports=0,pcs=0,owner_id,off,target,delta,r,i,j,first,count;
+    uint16_t at,end,fragments=0,exports=0,pcs=0,owner_id,off,target,delta,r,i,j,count;
     uint16_t artifact,page_position,blob,reference,begin,finish,site,all_refs,dependencies=0,dependency_bytes=0,head,next,module,export;
     uint8_t page,kind,buffer[64];uint32_t total,export_bytes=0,hash,source_hash;
     if(!supported())return 0;
@@ -80,11 +72,9 @@ uint8_t cc_units_write_object(void) ROUTINES {
         kind=(uint8_t)cc_unit_word(at);
         if(kind==UR_FRAGMENT)++fragments;
         if(kind==UR_PC)++pcs;
-        if(kind==UR_EXPORT) {
-            ++exports;i=cc_unit_word(at+2);j=cc_unit_word(at+4);
-            export_bytes+=10UL+CCS(i,name_length)+2UL*cc_rget(j,R_COUNT);
-        }
+        if(kind==UR_EXPORT)++exports;
     }
+    export_bytes=cc_unit_exports_bytes();
     /* Imported call chains become symbolic external fragment references.
      * Their native operands remain placeholders until the final program link. */
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES) {
@@ -96,8 +86,8 @@ uint8_t cc_units_write_object(void) ROUTINES {
         while(head&&!cc.error->code) {
             next=code_word(head);reference=add_reference(head,0,0);if(!reference)return 0;
             cc_unit_put(reference,UR_EXTERNAL);cc_unit_put(reference+4,module);
-            cc_unit_put(reference+8,cc_unit_module_word(module,export+6));
-            cc_unit_put(reference+10,cc_unit_module_word(module,export+8));head=next;
+            cc_unit_put(reference+8,cc_unit_module_word(module,export+8));
+            cc_unit_put(reference+10,cc_unit_module_word(module,export+10));head=next;
         }
     }
     if(dependencies>=CC_FRAGMENT_OBJECTS){cc_fail(99);return 0;}
@@ -144,18 +134,7 @@ uint8_t cc_units_write_object(void) ROUTINES {
         for(j=0;j<4;++j)out_byte(page,&page_position,cc_unit_module_byte(at,28+j));
         for(j=0;j<i;++j)out_byte(page,&page_position,cc_unit_module_byte(at,ZPU_HEADER_BYTES+j));
     }
-    for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_EXPORT) {
-        i=cc_unit_word(at+2);j=cc_unit_word(at+4);first=cc_rget(j,R_PARAMETERS);r=cc_rget(j,R_COUNT);
-        if(!cc_unit_fragment(cc_rget(j,R_ENTRY),&owner_id,&off))return 0;
-        out_byte(page,&page_position,CCS(i,name_length));out_byte(page,&page_position,CCS(i,role)==S_FUNCTION?1:0);
-        out_byte(page,&page_position,CCS(i,role)==S_FUNCTION?tag(CCS(i,type)):255);out_byte(page,&page_position,0);
-        out_word(page,&page_position,r);out_word(page,&page_position,owner_id);out_word(page,&page_position,off);
-        symbol_name(page,&page_position,i);
-        for(i=0;i<r;++i) {
-            out_byte(page,&page_position,CCS(first+i,role)==S_REFERENCE?1:0);
-            out_byte(page,&page_position,tag(CCS(first+i,type)));
-        }
-    }
+    cc_unit_exports_write(page,&page_position);
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_PC) {
         if(!cc_unit_fragment(cc_unit_word(at+2),&owner_id,&off)||
            !cc_unit_fragment(cc_unit_word(at+4),&target,&delta)||target!=owner_id){cc_fail(UNIT_FORMAT);return 0;}
@@ -232,7 +211,7 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
     uint16_t n,path,at,end,blob,exports,pcs,maps,i,j,k,p,params,fragment,offset,size,old,next;
     uint16_t last_fragment=0,last_site=0,refbase,first,count,site,code_bytes;
     uint32_t expected,actual,wide;
-    uint8_t c,mode,type;CompilerFragmentObject object;
+    uint8_t c,mode;CompilerFragmentObject object;
     end=cc_unit_word(module+4);
     if(end<ZPU_HEADER_BYTES)return 0;
     for(i=0;i<4;++i)if(cc_unit_module_byte(module,i)!=(uint8_t)"ZPU1"[i])return 0;
@@ -286,25 +265,35 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
     cc_unit_put(module+10,at);exports=cc_unit_module_word(module,20);
     for(i=0;i<exports;++i) {
         if(!cc_poll())return 0;
-        if((uint32_t)at+10>blob)return 0;
-        n=cc_unit_module_byte(module,at);c=cc_unit_module_byte(module,at+1);type=cc_unit_module_byte(module,at+2);
-        params=cc_unit_module_word(module,at+4);fragment=cc_unit_module_word(module,at+6);offset=cc_unit_module_word(module,at+8);
-        wide=(uint32_t)at+10+n+2UL*params;
-        if(wide>blob||!identifier(module,at+10,n)||c>1||(cc_unit_module_byte(module,at+3)&~ZPU_CALLER_IO)||
-           (c?type>4:type!=255)||fragment>=count)return 0;
-        size=cc_unit_module_word(module,blob+16+fragment*8+2);if(offset>=size||cc_unit_module_word(module,blob+16+fragment*8)>=code_bytes)return 0;
+        if((uint32_t)at+14>blob)return 0;
+        n=cc_unit_module_byte(module,at);c=cc_unit_module_byte(module,at+1);k=cc_unit_module_word(module,at+4);
+        params=cc_unit_module_word(module,at+6);fragment=cc_unit_module_word(module,at+8);offset=cc_unit_module_word(module,at+10);
+        size=cc_unit_module_word(module,at+12);wide=(uint32_t)at+14+n+4UL*params+size;
+        if(wide>blob||!identifier(module,at+14,n)||c>2||cc_unit_module_byte(module,at+3)||
+           (cc_unit_module_byte(module,at+2)&~ZPU_CALLER_IO))return 0;
+        if(c==2) {
+            if(params||fragment||cc_unit_module_byte(module,at+2)||k>5)return 0;
+            p=at+14+n;
+            if(k==K_STRING) {if(!size||size>256||size!=1+cc_unit_module_byte(module,p)||offset)return 0;}
+            else if(k==K_REAL) {if(size!=6||offset)return 0;}
+            else if(size||(k==K_BOOLEAN?offset>1:(k==K_CHAR||k==K_BYTE)?offset>255:0))return 0;
+        } else {
+            if((c?(k>5||k==K_STRING):k!=TYPE_NONE)||fragment>=count||size)return 0;
+            p=cc_unit_module_word(module,blob+16+fragment*8+2);
+            if(offset>=p||cc_unit_module_word(module,blob+16+fragment*8)>=code_bytes)return 0;
+        }
         old=cc_unit_word(module+10);
         for(j=0;j<i;++j) {
-            next=old+10+cc_unit_module_byte(module,old)+2*cc_unit_module_word(module,old+4);
+            next=old+14+cc_unit_module_byte(module,old)+4*cc_unit_module_word(module,old+6)+cc_unit_module_word(module,old+12);
             if(cc_unit_module_byte(module,old)==n) {
-                for(k=0;k<n;++k)if(cc_unit_module_byte(module,old+10+k)!=cc_unit_module_byte(module,at+10+k))break;
+                for(k=0;k<n;++k)if(cc_unit_module_byte(module,old+14+k)!=cc_unit_module_byte(module,at+14+k))break;
                 if(k==n)return 0;
             }
             old=next;
         }
         for(j=0;j<params;++j) {
-            mode=cc_unit_module_byte(module,at+10+n+2*j);type=cc_unit_module_byte(module,at+11+n+2*j);
-            if(mode>1||(type>4&&!(mode&&type==255)))return 0;
+            p=at+14+n+4*j;mode=cc_unit_module_byte(module,p);k=cc_unit_module_word(module,p+2);
+            if(mode>1||cc_unit_module_byte(module,p+1)||(k>5&&!(mode&&k==TYPE_NONE))||k==K_STRING)return 0;
         }
         at=(uint16_t)wide;
     }

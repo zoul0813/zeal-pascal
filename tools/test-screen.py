@@ -57,7 +57,7 @@ def main():
     # Invalid export flags with a valid checksum exercise structural validation.
     import struct
     bad=bytearray(fixtures['CRT.ZPU']);export=48+bad[18]+bad[19]
-    bad[export+3]=2
+    bad[export+2]=2
     h=2166136261
     for value in bad[:28]+bad[32:]:h=((h^value)*16777619)&0xffffffff
     struct.pack_into('<I',bad,28,h)

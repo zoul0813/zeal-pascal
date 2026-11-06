@@ -29,41 +29,23 @@ void cc_units_imports(void) ROUTINES {
     cc_expect(';',1);
 }
 static uint16_t next_export(uint16_t module,uint16_t at) {
-    return at+10+cc_unit_module_byte(module,at)+2*cc_unit_module_word(module,at+4);
+    return at+14+cc_unit_module_byte(module,at)+4*cc_unit_module_word(module,at+6)+cc_unit_module_word(module,at+12);
 }
 static uint16_t find_export(uint16_t module,const char *name) {
     uint16_t at=cc_unit_word(module+10),count=cc_unit_module_word(module,20),i,j,n;
     for(i=0;i<count;++i,at=next_export(module,at)) {
         n=cc_unit_module_byte(module,at);if(strlen(name)!=n)continue;
-        for(j=0;j<n;++j)if(cc_unit_module_byte(module,at+10+j)!=(uint8_t)name[j])break;
+        for(j=0;j<n;++j)if(cc_unit_module_byte(module,at+14+j)!=(uint8_t)name[j])break;
         if(j==n)return at;
     }
     return 0;
 }
-static TypeId primitive_type(uint8_t tag) {
-    return tag==0?K_INTEGER:tag==1?K_BYTE:tag==2?K_CHAR:tag==3?K_BOOLEAN:tag==4?K_REAL:TYPE_NONE;
-}
 static int16_t materialize(uint16_t module,uint16_t export) {
-    uint16_t at,end=cc_unit_word(UH_USED),scope,symbol,count,i,id,parameters;
-    for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)
-        if(cc_unit_word(at)==UR_IMPORT&&cc_unit_word(at+4)==module&&cc_unit_word(at+6)==export)
-            return (int16_t)cc_unit_word(at+10);
-    count=cc_unit_module_word(module,export+4);
-    if(cc.routine_count==65535u||(uint32_t)cc.symbol_count+1+count>SYMBOL_LIMIT){cc_fail(99);return -1;}
-    scope=++cc.routine_count;cc_routine_clear(scope);symbol=cc.symbol_count++;cc_symbol_clear(symbol);
-    CCS_SET(symbol,role,cc_unit_module_byte(module,export+1)?S_FUNCTION:S_PROCEDURE);
-    CCS_SET(symbol,type,primitive_type(cc_unit_module_byte(module,export+2)));
-    CCS_SET(symbol,initial_type,scope);CCS_SET(symbol,owner,0);
-    cc_rput(scope,R_SYMBOL,symbol);cc_rput(scope,R_FLAGS,RF_DEFINED|RF_UNIT_IMPORT);
-    cc_rput(scope,R_PARAMETERS,cc.symbol_count);cc_rput(scope,R_COUNT,count);
-    parameters=export+10+cc_unit_module_byte(module,export);
-    for(i=0;i<count;++i) {
-        id=cc.symbol_count++;cc_symbol_clear(id);CCS_SET(id,owner,scope);
-        CCS_SET(id,role,cc_unit_module_byte(module,parameters+2*i)?S_REFERENCE:S_VALUE);
-        CCS_SET(id,type,primitive_type(cc_unit_module_byte(module,parameters+2*i+1)));
-    }
-    if(!cc_unit_record(UR_IMPORT,scope,module,export,0,symbol))return -1;
-    return (int16_t)symbol;
+    int16_t symbol;uint8_t primary;
+    if(!code_phase_unit_meta()){cc_fail(COMPILE_PLATFORM_FAILURE);return -1;}
+    symbol=cc_unit_import_symbol(module,export);primary=platform_error;
+    if(!code_phase_unit_meta_release()){cc_fail(COMPILE_PLATFORM_FAILURE);return -1;}
+    if(symbol<0)platform_error=primary;return symbol;
 }
 int16_t cc_units_lookup(void) ROUTINES {
     uint16_t module=0,export=0,at,end,match=0,candidate=0;SourceCursor cursor;
@@ -94,7 +76,7 @@ void cc_units_call(uint8_t opcode,uint16_t scope) ROUTINES {
     /* Only known leaf-unit calls qualify for the shared-page stack model. */
     if(cc.sources->unit_mode)cc_require_full_memory();
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_IMPORT&&cc_unit_word(at+2)==scope) {
-        if(cc_unit_module_byte(cc_unit_word(at+4),cc_unit_word(at+6)+3)&ZPU_CALLER_IO) {
+        if(cc_unit_module_byte(cc_unit_word(at+4),cc_unit_word(at+6)+2)&ZPU_CALLER_IO) {
             if(opcode!=0xcd){cc_fail(UNIT_UNSUPPORTED);return;}
             cc_emit(0x3e);cc_emit(cc.io_check);
         }
@@ -123,9 +105,21 @@ static uint8_t io_finish(uint8_t ok) {
     return ok;
 }
 uint8_t cc_units_write(void) ROUTINES {
-    uint8_t ok;
-    if(!code_phase_unit_io()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
-    ok=cc_units_write_object();return io_finish(ok);
+    uint8_t ok=0,primary;
+    if(!code_phase_unit_link_begin()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    if(!code_phase_unit_io())cc_fail(COMPILE_PLATFORM_FAILURE);
+    else {
+        if(!code_phase_unit_meta())cc_fail(COMPILE_PLATFORM_FAILURE);
+        else {
+            ok=cc_units_write_object();primary=platform_error;
+            if(!code_phase_unit_meta_release()){cc_fail(COMPILE_PLATFORM_FAILURE);ok=0;}
+            else if(!ok)platform_error=primary;
+        }
+        ok=io_finish(ok);
+    }
+    primary=platform_error;
+    if(!code_phase_unit_link_end()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    if(!ok)platform_error=primary;return ok;
 }
 /* The artifact owns code, signatures and optional source identity. Register
  * each unit separately so identical authoring paths cannot merge source maps. */

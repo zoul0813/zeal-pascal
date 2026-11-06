@@ -324,6 +324,28 @@ static void dependency_units(void) {
     check(!rm("H:/SHARED.ZPU"));check(!rm("H:/LEFTDEP.ZPU"));check(!rm("H:/RIGHTDEP.ZPU"));
     {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/DIAMOND.COM",0,&status)&&status==0);}
 }
+static void metadata_constants(void) {
+    check(author("H:/LITERALS.PAS","H:/LITERALS.ZPU",
+        "unit Literals;interface const Answer=42;Debt=-123;Mark='Q';Yes=true;\n"
+        "Words='Hello ''units''';Rate=-1.25;implementation const Hidden=9;end."));
+    check(!rm("H:/LITERALS.PAS"));
+    check(author("H:/CONSTCOPY.PAS","H:/CONSTCOPY.ZPU",
+        "unit ConstCopy;interface uses Literals;const Plus=Answer;\n"
+        "Words=Literals.Words;Rate=-Literals.Rate;implementation end."));
+    check(!rm("H:/CONSTCOPY.PAS"));
+    client("H:/LITRUN.PAS","uses Literals;var N:Integer;begin N:=0;\n"
+        "if(Answer<>42)or(Debt<>-123)or(Mark<>'Q')or not Yes then N:=1 div N;\n"
+        "if(Words<>'Hello ''units''')or(Rate<>-1.25)then N:=1 div N;\n"
+        "writeln('UNIT-CONSTANTS-OK')end.");
+    client("H:/COPYCONST.PAS","uses ConstCopy;var N:Integer;begin N:=0;\n"
+        "if(Plus<>42)or(Words<>'Hello ''units''')or(Rate<>1.25)then N:=1 div N;\n"
+        "writeln('UNIT-CONSTCOPY-OK')end.");
+    check(source_new(&s,"H:/LITHIDE.PAS"));check(load("uses Literals;begin writeln(Hidden)end."));
+    check(!compile(&s,&b,&d)&&d.code==41);closed();source_close(&s);
+    check(!rm("H:/LITERALS.ZPU"));check(!rm("H:/CONSTCOPY.ZPU"));
+    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/LITRUN.COM",0,&status)&&status==0);}
+    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/COPYCONST.COM",0,&status)&&status==0);}
+}
 int app_main(void) {
     uint8_t status;int8_t capture;
     if(!console_open())return 1;
@@ -347,7 +369,7 @@ int app_main(void) {
     fault_location();page_pressure(1);page_pressure(0);
     layout_helpers();layout_limits();
     client("H:/SHARED.PAS","var N:Integer;begin N:=21*2;if N<>42 then halt end.");
-    execute_shared();argument_calls();dependency_units();
+    execute_shared();argument_calls();dependency_units();metadata_constants();
     test_stage=3;check(!rm("H:/MIXED.ZPU"));check(!rm("H:/MIXED.PAS"));
     status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/SHARED.COM",0,&status)&&status==0);
     status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/SHARED.COM",0,&status)&&status==0);

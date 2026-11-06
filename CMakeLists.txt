@@ -785,7 +785,7 @@ target_include_directories(unit_fragment_core PRIVATE src)
 target_compile_options(unit_fragment_core PRIVATE --std-c99 --opt-code-size
     "SHELL:--codeseg BANK16" "SHELL:--constseg BANK16")
 add_library(unit_core OBJECT ${PASCAL_CORE} src/compiler_units.c
-    src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/unit_output.c)
+    src/compiler_units_metadata.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/unit_output.c)
 target_compile_definitions(unit_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT)
 target_include_directories(unit_core PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(unit_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
@@ -804,7 +804,7 @@ foreach(source IN LISTS PASCAL_CORE)
         set_property(SOURCE ${source} APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_units.h)
     endif()
 endforeach()
-set_property(SOURCE src/compiler_units.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/compiler_fragments.c
+set_property(SOURCE src/compiler_units.c src/compiler_units_metadata.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/compiler_fragments.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_units.h
     ${CMAKE_SOURCE_DIR}/src/compiler_fragments.h ${CMAKE_SOURCE_DIR}/src/compiler.h)
 add_library(unit_test_execution OBJECT tests/native/harness-execute.c)
@@ -964,7 +964,7 @@ add_custom_target(zoptionalcorpus_bin
 # Combine native units with the existing optional Real engine. Both compile
 # switches belong to every compiler translation unit sharing CompilerSources.
 add_library(unit_runtime_core OBJECT ${OPTIONAL_CORE} src/compiler_runtime.c
-    src/compiler_units.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c
+    src/compiler_units.c src/compiler_units_metadata.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c
     src/compiler_units_link.c src/unit_output.c ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm)
 target_compile_definitions(unit_runtime_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL ZP_PROGRAM_PAGES)
 target_include_directories(unit_runtime_core PRIVATE src ${CMAKE_BINARY_DIR})
@@ -1052,7 +1052,7 @@ add_custom_target(zscreentest_bin ALL
 add_dependencies(zpascal screen_library)
 add_dependencies(zunitrealtest screen_library)
 
-set_source_files_properties(src/compiler_units_link.c PROPERTIES
+set_source_files_properties(src/compiler_units_link.c src/compiler_units_metadata.c PROPERTIES
     COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK18;--constseg;BANK18")
 set_property(SOURCE src/compiler_units_graph.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/compiler_units.h

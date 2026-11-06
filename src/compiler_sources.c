@@ -1,5 +1,8 @@
 #include "compiler.h"
 #include "compiler_disk.h"
+#ifdef ZP_UNITS_EXPERIMENT
+#include "compiler_units.h"
+#endif
 
 static uint8_t flags(void) {
     return cc.absolute_mode|(cc.var_strict<<1)|(cc.range_check<<2)|
@@ -20,6 +23,9 @@ SourcePosition cc_source_position(void) ROUTINES {
     return ((SourcePosition)cc.sources->file<<16)|cc.scan;
 }
 uint8_t cc_source_byte(SourcePosition position) ROUTINES {
+#ifdef ZP_UNITS_EXPERIMENT
+    if(position&0x80000000UL)return cc_unit_module_byte((uint16_t)(position>>16)&0x7fffu,(uint16_t)position);
+#endif
     return sources_byte(&cc.image->sources,(uint8_t)(position>>16),(uint16_t)position);
 }
 SourcePosition cc_reference_position(uint16_t reference) ROUTINES {
