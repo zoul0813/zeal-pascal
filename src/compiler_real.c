@@ -1,4 +1,15 @@
 #include "compiler.h"
+#ifdef ZP_UNITS_EXPERIMENT
+#include "compiler_units.h"
+#endif
+
+void cc_require_full_memory(void) FRONTEND {
+    if(cc.suppress||cc.error->code)return;
+    cc.full_memory=1;
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc.sources->unit_mode)cc.sources->unit_real|=ZPU_FULL_MEMORY;
+#endif
+}
 
 #if defined(ZP_OPTIONAL_REAL) || defined(ZP_UNITS_EXPERIMENT)
 void cc_require_real(void) FRONTEND {
@@ -7,7 +18,7 @@ void cc_require_real(void) FRONTEND {
     cc.real_needed=1;
 #endif
 #ifdef ZP_UNITS_EXPERIMENT
-    if(cc.sources->unit_mode)cc.sources->unit_real=1;
+    if(cc.sources->unit_mode)cc.sources->unit_real|=ZPU_REAL;
 #endif
 }
 #endif

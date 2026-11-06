@@ -133,6 +133,14 @@ uint8_t cc_place_code(void) FRONTEND {
         cc_word(cc_runtime_private(RP_INPUT_KEY)-0x4000u+1,cc.keyboard_entry+delta);
     for(i=0;i<HOOK_COUNT;++i) if(cc.hook_variables[i])
         cc_word(cc.hook_variables[i]-0x4000u,cc.hook_defaults[i]+delta);
+#ifdef ZP_PROGRAM_PAGES
+    if(cc.shared_stack) {
+        /* Redirect the existing runtime dispatch, preserving all program data
+         * and explicit native addresses in the emitted code. */
+        at=cc_runtime_private(RP_PROGRAM_ENTER)-0x4000u;
+        cc_put(at,0x21);cc_word(at+1,cc.page_entry+delta);
+    }
+#endif
     cc_hooks_place(delta);
     if(cc.error->code) return 0;
     cc.image->code_origin=origin; cc.image->code_bytes=count;

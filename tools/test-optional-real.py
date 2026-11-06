@@ -116,8 +116,8 @@ def main():
     if not result['passed']:print(json.dumps(report,indent=2));return 1
     control,normal=session('zlegacypascal',cases,False);report['control']=control
     report['checks']={'legacy control passes':control['passed'],
-        'Real and opaque native output byte identity':all(outputs[name]==normal[name]for name in cases if CASES[name][0]),
-        'integer outputs differ from full runtime':all(outputs[name]!=normal[name]for name in cases if not CASES[name][0]),
+        'Real executable byte identity with full-runtime control':all(outputs[name]==normal[name]for name in cases if CASES[name][0]),
+        'integer outputs omit the full Real engine':all(outputs[name][3466:14285]!=normal[name][3466:14285]for name in cases if not CASES[name][0]),
         'inputs stable':all(sha(Path(p))==h for p,h in hashes.items())}
     report['passed']=result['passed']and all(report['checks'].values());save();print(json.dumps(report,indent=2));return 0 if report['passed']else 1
 if __name__=='__main__':raise SystemExit(main())

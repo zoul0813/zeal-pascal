@@ -196,12 +196,11 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
     uint16_t n,path,at,end,blob,exports,pcs,maps,i,j,k,p,params,fragment,offset,size,old,next;
     uint16_t last_fragment=0,last_site=0,refbase,first,count,site,code_bytes;
     uint32_t expected,actual,wide;
-    uint8_t c,mode,type,abi;CompilerFragmentObject object;
+    uint8_t c,mode,type;CompilerFragmentObject object;
     end=cc_unit_word(module+4);
     if(end<ZPU_HEADER_BYTES)return 0;
     for(i=0;i<4;++i)if(cc_unit_module_byte(module,i)!=(uint8_t)"ZPU1"[i])return 0;
-    abi=(uint8_t)cc_unit_module_word(module,4);
-    if((cc_unit_module_word(module,4)!=ZPU_ABI&&cc_unit_module_word(module,4)!=ZPU_LEGACY_ABI)||
+    if(cc_unit_module_word(module,4)!=ZPU_ABI||
        cc_unit_module_word(module,6)!=end)return 0;
     if(!cc_unit_module_word(module,16)||cc_unit_module_word(module,16)>SOURCE_LIMIT)return 0;
     for(i=0;i<4;++i)if(cc_unit_module_byte(module,8+i)!=cc_runtime_profile_get(i)){cc_fail(UNIT_STALE);return 0;}
@@ -240,7 +239,7 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
         params=cc_unit_module_word(module,at+4);fragment=cc_unit_module_word(module,at+6);offset=cc_unit_module_word(module,at+8);
         wide=(uint32_t)at+10+n+2UL*params;
         if(wide>blob||!identifier(module,at+10,n)||c>1||cc_unit_module_byte(module,at+3)||
-           (c?type>(abi==ZPU_LEGACY_ABI?3:4):type!=255)||fragment>=count)return 0;
+           (c?type>4:type!=255)||fragment>=count)return 0;
         size=cc_unit_module_word(module,blob+16+fragment*8+2);if(offset>=size||cc_unit_module_word(module,blob+16+fragment*8)>=code_bytes)return 0;
         old=cc_unit_word(module+10);
         for(j=0;j<i;++j) {
@@ -253,12 +252,12 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
         }
         for(j=0;j<params;++j) {
             mode=cc_unit_module_byte(module,at+10+n+2*j);type=cc_unit_module_byte(module,at+11+n+2*j);
-            if(mode>1||(type>(abi==ZPU_LEGACY_ABI?3:4)&&!(mode&&type==255)))return 0;
+            if(mode>1||(type>4&&!(mode&&type==255)))return 0;
         }
         at=(uint16_t)wide;
     }
     pcs=cc_unit_module_word(module,22);maps=cc_unit_module_word(module,24);
-    wide=at;wide+=6UL*pcs;wide+=8UL*maps;if(abi==ZPU_ABI)wide+=count;if(wide!=blob)return 0;
+    wide=at;wide+=6UL*pcs;wide+=8UL*maps;wide+=count;if(wide!=blob)return 0;
     for(i=0;i<pcs;++i,at+=6) {
         if(!cc_poll())return 0;
         fragment=cc_unit_module_word(module,at);site=cc_unit_module_word(module,at+2);offset=cc_unit_module_word(module,at+4);
@@ -276,9 +275,9 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
         if(first>=n||n>code_bytes||cc_unit_module_word(module,at+4)||
            cc_unit_module_word(module,at+6)>cc_unit_module_word(module,16))return 0;
     }
-    if(abi==ZPU_ABI)for(i=0;i<count;++i) {
+    for(i=0;i<count;++i) {
         c=cc_unit_module_byte(module,at+i);
-        if(c>ZPU_REAL||(i+1==count&&cc_unit_module_word(module,34)&&c))return 0;
+        if(c>(ZPU_REAL|ZPU_FULL_MEMORY)||(i+1==count&&cc_unit_module_word(module,34)&&c))return 0;
     }
     return !cc.error->code;
 }

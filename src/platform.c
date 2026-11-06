@@ -3,6 +3,7 @@
 #include "worker.h"
 #include "library.h"
 #include "compiler_job.h"
+#include "native_image.h"
 #include <zos_sys.h>
 #include <zos_vfs.h>
 #include <zos_video.h>
@@ -176,15 +177,24 @@ uint8_t key_interrupt(void) {
 uint8_t run_build(const Source *s,Build *b) {
     uint8_t child[3]={255,255,255},i,ok=0,entered=0,failure;
     uint8_t old;
+#ifdef ZP_PROGRAM_PAGES
+    uint8_t shared;
+#endif
     uint8_t *control=(uint8_t*)(0x8000u+WORKER_CONTROL-0xc000u);
     ram_io_detail=0; ram_cleanup_detail=0;
     if(!build_ready(s,b)) return 0;
     if(build_is_chain(b)) { platform_error=ERR_NOT_SUPPORTED;return 0; }
+#ifdef ZP_PROGRAM_PAGES
+    shared=(far_get(b->pages[0],18)&NATIVE_SHARED_STACK)&&b->pages[2]==255;
+#endif
     if(!code_phase_park()) {code_phase_return();return 0;}
     if(!worker_control(WORKER_START)) {code_phase_return();return 0;}
     /* Memory Run owns one persistent program image, as TP3 does. Only absent
      * address windows need backing; typed constants/code survive later Runs. */
     for(i=0;i<3;++i) {
+#ifdef ZP_PROGRAM_PAGES
+        if(i==2&&shared) {child[i]=child[1];continue;}
+#endif
         if(b->pages[i]==255) {
             b->pages[i]=page_new(PAGE_IMAGE);
             if(b->pages[i]==255)goto cleanup;

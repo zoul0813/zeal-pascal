@@ -13,5 +13,10 @@ def validate_image(image,chain=False):
         assert word(image,8)==160 and len(image)==word(image,10)
         assert image[36:132]==bytes(96)
         origin,size=word(image,20),word(image,22)
+        flags=word(image,18)
+        assert not flags & ~3
+        if flags & 2:
+            assert word(image,30)==0xfbff and word(image,28)==0x4000+len(image)
+            assert ((word(image,28)+1)&~1)+0x4000+word(image,32)<=word(image,30)+1
     assert size and 0x8000<=origin<origin+size<=0xf400
     return {'origin':origin,'code_bytes':size,'file_bytes':len(image)}

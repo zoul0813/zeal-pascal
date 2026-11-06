@@ -26,7 +26,7 @@ uint8_t native_decode(const uint8_t *h,uint8_t chain,NativeImage *id) {
            id->length<16384u||id->length>48128u||word(h+1)!=word(h+12)||
            word(h+12)<0x40a0u||word(h+12)>=(uint32_t)0x4000u+id->length||
            word(h+14)<0x40a0u||word(h+14)>=(uint32_t)0x4000u+id->length||
-           word(h+16)!=1||(word(h+18)&~1u)||word(h+24)!=0x8000u||
+           word(h+16)!=1||(word(h+18)&~3u)||word(h+24)!=0x8000u||
            (uint32_t)0x4000u+id->length!=heap||!zeros(h+34,2)||
            word(h+132)!=16384u||!zeros(h+140,20))return ERR_ENTRY_CORRUPTED;
         if(!zeros(h+36,96))return ERR_ENTRY_CORRUPTED;
@@ -36,6 +36,11 @@ uint8_t native_decode(const uint8_t *h,uint8_t chain,NativeImage *id) {
        (uint32_t)id->origin+id->bytes>heap||heap>0xf400UL||
        end<0xcfffu||end>0xfbffu||stack<2048||
        ((heap+1)&~1UL)+stack>(uint32_t)end+1)return ERR_ENTRY_CORRUPTED;
+#ifndef ZP_CHAIN_ONLY
+    if(!chain&&(word(h+18)&NATIVE_SHARED_STACK)&&
+       (end!=0xfbffu||heap+0x4000UL>0xf400UL||((heap+1)&~1UL)+0x4000UL+stack>(uint32_t)end+1))
+        return ERR_ENTRY_CORRUPTED;
+#endif
     /* Overlay selection and directory validation remain a separate owner.
      * Never guess the location of a PC in an unsupported overlay artifact. */
     if(chain?!zeros(h+84,8):!zeros(h+134,6))return ERR_NOT_SUPPORTED;

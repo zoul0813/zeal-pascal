@@ -19,7 +19,7 @@ def sha(path):
 def unit_payload(path):
     data = path.read_bytes()
     word = lambda at: struct.unpack_from('<H', data, at)[0]
-    assert data[:4] == b'ZPU1' and word(4) in (1,2) and word(6) == len(data)
+    assert data[:4] == b'ZPU1' and word(4) == 1 and word(6) == len(data)
     value = 2166136261
     for at, byte in enumerate(data):
         if not 28 <= at < 32:

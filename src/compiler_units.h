@@ -21,9 +21,10 @@ enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CO
 #define UH_REFERENCE_COUNT 12u
 #define UH_NAME 32u
 #define ZPU_HEADER_BYTES 36u
-#define ZPU_ABI 2u
-#define ZPU_LEGACY_ABI 1u
+/* Unreleased format: evolve this contract directly until the ABI1 release. */
+#define ZPU_ABI 1u
 #define ZPU_REAL 1u
+#define ZPU_FULL_MEMORY 2u
 int8_t cc_units_output(void) ROUTINES;
 uint32_t unit_source_fingerprint(const Source *source) SOURCE_BLOCK_CALL;
 uint8_t cc_units_hold(uint8_t page,uint32_t lifetime,uint8_t role) ROUTINES;

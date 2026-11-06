@@ -59,6 +59,7 @@ TypeId cc_index(TypeId type) BACKEND {
     int16_t field;
     while(!cc.error->code) {
         if(cc_family(type)==K_POINTER&&cc.token=='^') {
+            cc_require_full_memory();
             cc_load_indirect(type); type=CCT(type,element); cc_next(); continue;
         }
         if(cc_family(type)==K_RECORD&&cc.token=='.') {
@@ -156,6 +157,7 @@ static TypeId intrinsic(uint8_t op) {
     uint16_t before=cc.temporaries;
     uint8_t saved;
     int16_t id;
+    if(op==F_PTR||op==F_ADDR||op==F_STACKPTR)cc_require_full_memory();
     cc_next();
     if(op==F_WHEREX||op==F_WHEREY) { cc_crt_query(op==F_WHEREY); return K_BYTE; }
     if(op==F_IORESULT) { cc_call(RT_IORESULT); return K_INTEGER; }

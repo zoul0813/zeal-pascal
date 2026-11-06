@@ -1,6 +1,7 @@
 #include "compiler.h"
 #include "compiler_disk.h"
 #include "transfer_asset.h"
+#include "native_image.h"
 
 const char *compile_error_path(void) SOURCE_BLOCK_CALL { return cc.name; }
 static void map8(uint16_t p,uint8_t v) { buffer_set(cc.image->map_page,p,v); }
@@ -46,6 +47,9 @@ uint8_t cc_seal(const Source *s,const CompileOptions *options) FRONTEND {
     cc_word(10,b->length);cc_word(20,b->code_origin);cc_word(22,b->code_bytes);
     cc_word(24,GLOBAL_BASE);cc_word(26,b->globals_bytes);cc_word(28,0x4000u+b->length);
     cc_word(30,options?options->end:0xfbffu);
+#ifdef ZP_PROGRAM_PAGES
+    cc_word(18,cc.shared_stack?NATIVE_SHARED_STACK:0);
+#endif
     if(options&&options->kind==COMPILE_CHAIN)chain_image();
     else {
         at=0x4000u+b->length-EXECUTE_ENTRY_BYTES;

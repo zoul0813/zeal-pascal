@@ -98,6 +98,7 @@ void cc_str(void) FRONTEND {
 void cc_val(void) FRONTEND {
     uint16_t before=cc.temporaries,argument_before;
     TypeId type;TypeId code_type;
+    cc_require_full_memory(); /* Parsing helpers have a separate stack contract. */
     cc_next();cc_expect('(',4);cc_string_value();push_word();cc_expect(',',3);
     argument_before=cc.temporaries;type=cc_reference(41);
     if(cc_family(type)!=K_REAL&&

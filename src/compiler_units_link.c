@@ -89,10 +89,10 @@ uint8_t cc_units_link(void) ROUTINES {
         uint16_t payload=blob+16+8*fragments+8*cc_unit_module_word(modules[i],blob+8),f,j,n,start;
         for(f=0;f<fragments;++f)if(location(&layout,modules[i],f,&address)) {
             if(address!=cc.emitted){cc_fail(UNIT_FORMAT);goto done;}
-            /* ABI1 did not describe private Real use. Retained legacy code
-             * conservatively requires the full engine; ABI2 is per fragment. */
-            if(cc_unit_module_word(modules[i],4)==ZPU_LEGACY_ABI||
-               cc_unit_module_byte(modules[i],blob-fragments+f)&ZPU_REAL)cc_require_real();
+            /* Only retained fragments contribute runtime requirements. */
+            if(cc_unit_module_byte(modules[i],blob-fragments+f)&ZPU_REAL)cc_require_real();
+            if(cc_unit_module_byte(modules[i],blob-fragments+f)&ZPU_FULL_MEMORY)
+                cc_require_full_memory();
             start=cc_unit_module_word(modules[i],blob+16+8*f);
             n=cc_unit_module_word(modules[i],blob+18+8*f);
             for(j=0;j<n;++j){cc_emit(cc_unit_module_byte(modules[i],payload+start+j));if(cc.error->code)goto done;}

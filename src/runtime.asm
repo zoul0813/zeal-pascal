@@ -9,7 +9,7 @@
 .globl input_state_begin,input_reset_count,echo_fd
 .globl _key_reset
 .globl normal_error,error_code,error_namespace
-.globl runtime_prefix_end,crt_active
+.globl runtime_prefix_end,crt_active,program_enter
 .globl character,neg_hl,false_text,true_text
 .globl io_call,io_result,io_check,io_fail,io_status
 .globl tail_length,tail
@@ -202,6 +202,7 @@ heap_aligned:
     ld hl,#-1024                 ; documented initial1 KiB CPU/recursion split
     add hl,sp
     ld (recursion_limit),hl
+program_enter:
     ld hl,(0x4014)
     jp (hl)
 done:

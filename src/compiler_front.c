@@ -112,6 +112,9 @@ void cc_patch_chain(uint16_t head,uint16_t value) FRONTEND {
     }
 }
 void cc_reserve(uint16_t bytes) FRONTEND {
+    /* Bound both sides of a leaf-unit call below the 2 KiB startup reserve.
+     * Larger temporaries retain the original independent stack/heap page. */
+    if((uint32_t)bytes+cc.temporaries>512u)cc_require_full_memory();
     uint16_t pc=cc.emitted-CC_CODE_BASE;
     /* Runtime consumes inline size/PC words and preserves both register sets. */
     cc_op16(0xcd,RT_GUARD);
@@ -199,7 +202,11 @@ void cc_store_indirect(TypeId type) FRONTEND {
     cc_emit(0x7d); cc_emit(0x12);
     if(CCT(type,width)==2) { cc_emit(0x13); cc_emit(0x7c); cc_emit(0x12); }
 }
-void cc_call(uint16_t address) FRONTEND { cc_guard(); cc_op16(0xcd,address); }
+void cc_call(uint16_t address) FRONTEND {
+    if((address>=RT_ALLOC&&address<=RT_STACKSET)||
+       (address>=RT_FORMAT&&address<=RT_INPUT_END))cc_require_full_memory();
+    cc_guard(); cc_op16(0xcd,address);
+}
 static void literal(void) {
     uint8_t c,base,value;
     uint16_t n;
@@ -416,6 +423,8 @@ int16_t cc_lookup(void) FRONTEND {
      * Only expression/statement lookup commits runtime dependencies. */
     if(id>=0&&!cc.suppress) {
         uint8_t role=CCS(id,role);
+        if(role==S_SYSTEM&&
+           (CCS(id,address)==RT_HEAPPTR||CCS(id,address)==RT_RECURPTR))cc_require_full_memory();
         if(role==S_HOOK||role==S_ADDRESS||
            (role==S_SYSTEM&&(cc.sources->unit_mode||CCS(id,address)==RT_CBREAK)))
             cc.console_dynamic=1;

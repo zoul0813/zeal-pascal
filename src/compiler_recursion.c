@@ -39,6 +39,7 @@ static void copy(uint8_t restoring) {
 void cc_recursion_save(void) ROUTINES {
     uint16_t bytes=workspace(),active;
     if(!bytes||cc.error->code)return;
+    cc_require_full_memory();
     cc_op16(0x2a,RT_RECURSION_CEILING);cc_emit(0x7c);cc_emit(0xb5);
     active=cc_forward(0xc2);
     cc_op16(0x2a,RT_RECURPTR);cc_op16(0x22,RT_RECURSION_CEILING);

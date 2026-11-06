@@ -101,6 +101,9 @@ typedef struct {
     uint16_t hook_character,hook_echo,hook_open;
     uint16_t error_entry;
     uint16_t transfer_entry; /* call fixup head until transfer finish, then entry */
+    uint8_t full_memory; /* Raw/heap capability requires independent windows. */
+    uint16_t page_entry; /* Optional shared-page startup address. */
+    uint8_t shared_stack;
     uint16_t unpack_entry; /* shared module decoder fixup head, then entry */
 #ifdef ZP_OPTIONAL_REAL
     uint8_t real_needed;
@@ -144,6 +147,7 @@ uint8_t cc_poll(void);
 void cc_activation_begin(void) FRONTEND;
 void cc_activation_place(void) FRONTEND;
 void cc_startup_finish(void) FRONTEND;
+void cc_require_full_memory(void) FRONTEND;
 uint8_t cc_seal(const Source *root,const CompileOptions *options) FRONTEND;
 void build_discard_image(Build *build) SOURCE_BLOCK_CALL;
 
@@ -216,7 +220,7 @@ enum { RP_INPUT_READY,RP_INPUT_ADVANCE,RP_LINE_NEXT,RP_LINE_REMAINING,RP_LINE_EO
        RP_INPUT_KEY,RP_INPUT_RAW_KEY,RP_INPUT_MODE,RP_INPUT_CLEANUP,RP_INPUT_FAIL,RP_IO_ERROR,RP_ECHO_FD,
        RP_INPUT_SOURCE,RP_INPUT_OPEN,RP_INPUT_ECHO,RP_INPUT_CLOSE,RP_USER_BREAK,
        RP_INPUT_MODE_VALUE,RP_INPUT_BREAK,RP_INPUT_CONSOLE_AREA,
-       RP_NORMAL_ERROR,RP_ERROR_CODE,RP_ERROR_NAMESPACE,RP_CRT_ACTIVE,RP_COUNT };
+       RP_NORMAL_ERROR,RP_ERROR_CODE,RP_ERROR_NAMESPACE,RP_CRT_ACTIVE,RP_PROGRAM_ENTER,RP_COUNT };
 uint16_t cc_runtime_private(uint8_t entry);
 /* Profile follows the private table in the same immutable BANK8 asset. */
 #define cc_runtime_profile_get(offset) cc_runtime_get(cc_runtime_size()+2u*RP_COUNT+(offset))

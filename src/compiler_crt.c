@@ -68,6 +68,7 @@ static void crt_blank(void) {
 static uint16_t crt_engine(uint8_t op) {
     uint16_t skip,entry,row=0,loop,done,again,ready,state,invalid_row=0;
     uint8_t i,vram=op==CRT_CLEAR||op==CRT_EOL||op==CRT_INSERT||op==CRT_DELETE;
+    cc_require_full_memory(); /* Every CRT helper has its own stack contract. */
     if(cc.crt_entries[op])return cc.crt_entries[op];
     skip=cc_forward(0xc3);
     if(op==CRT_INIT||op==CRT_EXIT) {

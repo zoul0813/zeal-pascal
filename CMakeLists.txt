@@ -160,7 +160,7 @@ set_property(SOURCE src/compiler_members.c src/compiler_groups.c src/compiler_la
     ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h
     ${CMAKE_SOURCE_DIR}/src/chain_abi.h ${CMAKE_SOURCE_DIR}/src/real.h ${CMAKE_SOURCE_DIR}/src/compiler_late.h)
 set_property(SOURCE src/image.c src/compiler_image.c src/compiler_build.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/image.h)
-set_property(SOURCE src/image.c src/compiler_image.c src/native_image.c tests/native/chain-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/native_image.h)
+set_property(SOURCE src/image.c src/compiler_image.c src/native_image.c src/platform.c src/compiler_artifact.c tests/native/unit-real-main.c tests/native/harness-execute.c tests/native/chain-main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/native_image.h)
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/sdk_glue.asm CONTENT
     ".globl _fflush_stdout\n.include \"$ENV{ZOS_PATH}/sdk/sdcc/src/zeal8bitos.asm\"\n")
 list(APPEND PASCAL_CORE ${CMAKE_BINARY_DIR}/sdk_glue.asm)
@@ -965,7 +965,7 @@ add_custom_target(zoptionalcorpus_bin
 add_library(unit_runtime_core OBJECT ${OPTIONAL_CORE} src/compiler_runtime.c
     src/compiler_units.c src/compiler_units_object.c src/compiler_units_names.c
     src/compiler_units_link.c src/unit_output.c ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm)
-target_compile_definitions(unit_runtime_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL)
+target_compile_definitions(unit_runtime_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL ZP_PROGRAM_PAGES)
 target_include_directories(unit_runtime_core PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(unit_runtime_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
 add_dependencies(unit_runtime_core optional_runtime_assets ram_trampoline_bin transfer_assets
@@ -982,7 +982,7 @@ set_source_files_properties(tests/native/unit-real-main.c PROPERTIES
     COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
 set_property(SOURCE tests/native/unit-real-main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/compiler_units.h
-    ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
+    ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 add_dependencies(zunitrealtest transfer_assets)
 target_link_options(zunitrealtest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 foreach(bank RANGE 1 17)

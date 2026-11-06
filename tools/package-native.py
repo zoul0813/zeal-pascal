@@ -289,13 +289,16 @@ def validate_runtime(path, compact=False):
                                  ('normal_error',3,0x4169,0x4bd6),
                                  ('error_code',1,0x4169,0x4bd6),
                                  ('error_namespace',1,0x4169,0x4bd6),
-                                 ('crt_active',1,0x4169,0x4bd6)):
+                                 ('crt_active',1,0x4169,0x4bd6),
+                                 ('program_enter',4,0x4169,0x4bd6)):
         address=symbols[name]
         if not first<=address<=last-width:
             raise ValueError('private runtime input address out of bounds: '+name)
         private.append(address)
     if bytes(memory.get(symbols['input_key']+i,0)for i in range(3))!=b'\xc3'+struct.pack('<H',symbols['input_raw_key']):
         raise ValueError('private keyboard dispatch does not start at its raw owner')
+    if bytes(memory.get(symbols['program_enter']+i,0)for i in range(4))!=b'\x2a\x14\x40\xe9':
+        raise ValueError('private program dispatch is misplaced')
     private_payload=struct.pack('<'+str(len(private))+'H',*private)
     path.with_suffix('.private').write_bytes(private_payload)
     report={'passed':True,'runtime_bytes':len(payload),'real_code_bytes':symbols['l__REAL'],
@@ -452,7 +455,7 @@ def package(path, runtime_name="pascal_runtime", file_name="file_runtime", optio
     profile=runtime_profile(path.parent,runtime_name,file_name)
     if (metadata['sha256']!=hashlib.sha256(template).hexdigest() or
             metadata['private_sha256']!=hashlib.sha256(private).hexdigest() or
-            private!=struct.pack('<25H',*metadata['private_input_addresses']) or
+            private!=struct.pack('<26H',*metadata['private_input_addresses']) or
             runtime.with_suffix('.profile').read_bytes()!=profile):
         raise ValueError('embedded runtime/private metadata or Chain profile is stale or mismatched')
     if optional_real:
