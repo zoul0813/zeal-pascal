@@ -54,9 +54,9 @@ compiler/unit files. The 905-assertion unit/Real regression, focused Screen/MATH
 IDE comparisons, host sanitizers and actual TF installation/default launch pass.
 Reports and hashes are in `screen-library-evidence.json`.
 
-The initial Opus review was reconciled. Its required follow-up failed with API
-429 (`usage_limit_reached`); this checkpoint is functionally verified but its
-review is incomplete. See `../reviews/screen-library-v1.md`.
+The initial Opus review was reconciled. An attempted follow-up failed with API
+429 (`usage_limit_reached`). Current review status and decisions are recorded
+in `../reviews/screen-library-v1.md`.
 
 The unit was renamed from Screen to Crt to follow Turbo Pascal 4–7 naming.
 Programs now declare `uses Crt;`, with qualified calls such as `Crt.ClrEol`.

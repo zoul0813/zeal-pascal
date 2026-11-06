@@ -128,3 +128,130 @@ host sanitizers pass. Evidence: docs/screen-library-evidence.json. The build gra
 includes zscreentest_bin in ALL and its standalone supervisor dependency.
 Only the follow-up review remains blocked; this is a tested checkpoint, not an
 attestation of completed review. No raw Claude account/session output is tracked.
+
+## Opus turn 20261106T185117-ee8f73ce
+
+Mode: code; read-only
+
+# Final review: `screen-library-v1`
+
+## Verdicts
+
+| Checkpoint | Verdict |
+|---|---|
+| **Allocation** (`f7d96b8`) | **APPROVE WITH NONBLOCKING NOTES** |
+| **Crt extraction and rename** (`f11eb41`, `f2092d8`, docs clarification) | **APPROVE WITH NONBLOCKING NOTES** |
+
+**The evidence establishes no blockers, and no extra code review round is needed.** This is a static review: I ran nothing and relied on the supplied reports for test results. Questions 1 and 2 should still be closed before calling examples or legacy-style programs release-ready, because the supplied evidence doesn't cover them.
+
+## Prior findings
+
+### Allocation
+| Finding | Status |
+|---|---|
+| `ARGSMALL` could not compile | Resolved. The 905 assertions passed with no failures. |
+| Wrong results could pass | Resolved for fixture design. The deliberate mutation control remains deferred (allocation note below). |
+| Uncounted operands and frames | Accepted as a documented limitation. |
+| Missing or stale documentation | Resolved by the labelling and limits in `docs/allocation-arguments.md`. I did not see the current `docs/program-pages.md`. |
+| Wider regression evidence | Resolved by the reported sanitizer, 13-case and 17-case runs. |
+
+I re-read the final `cc_invoke`, `cc_reserve` and `cc_block` changes and found no new defect:
+- Arguments are counted and restored on every path, including suppressed calls.
+- The 512/514/516 boundaries match the fixtures.
+- The eligibility change only moves programs toward three pages.
+
+**Allocation note:** the mutation control for Integer `div` failure remains deferred, and the line-length assertion in `argument_fixtures()` still runs before the substitutions. Neither blocks approval. Fix both the next time those fixtures change.
+
+### Crt extraction
+| Finding | Status |
+|---|---|
+| TF tuple crash | Resolved. The current code indexes correctly and the TF report passes. |
+| Chain import rejection | Resolved. The rejection is gone, and the 502-assertion oracle plus the standalone run pass. |
+| Fallback failure hiding a local unit | Resolved. See finding 2 for the reverse case. |
+| `ALL` target and stale binaries | Resolved. |
+| Unhashed inputs | Resolved. |
+| Missing edge tests | Partly resolved. The remaining gaps are the accepted stale-profile, permissions and path-override limits. |
+
+I traced these paths and found no defect:
+- Wrapper ABI, guard handling and source PC
+- `{$I-}` unwind and query result storage
+- ZPU header, export and fragment layout, plus checksum
+- Relocation targets, the Addr rejection and export flag validation
+- Macro-conditional `Compiler` layout across linked objects
+- Reported size arithmetic (240094 − 236209 = 3885)
+
+The artifact hashes in `reviews/final-library-verification.json` match `build/tf.json`.
+
+## Established findings (nonblocking)
+
+**1. Medium: the final TF report does not show that a user file was preserved**
+- **Location:** `build/tf.json`, `tools/package-tf.py`.
+- **Trigger and impact:** the base card held no preservable file content, so the preservation check passed without comparing any file. "Preservation" therefore means the check ran, not that a user file was shown to survive. `retired` paths are also deleted regardless of content, so a user's own `T:/lib/SCREEN.ZPU` would be removed.
+- **Evidence:** the report has `preserved_existing_files: 0`. Both retired files were present in that run.
+- **Mitigation:** a recovery image is written whenever a previous card exists, and only such a card can contain those files.
+- **Fix:** run once with a seeded user file such as `T:/lib/USER.TXT`, and require the count to be at least 1.
+
+**2. Low: a long source directory blocks the installed library fallback**
+- **Location:** `src/compiler_units_names.c`, `cc_units_imports`.
+- **Trigger and impact:** `sources_path(filename,directory,path)` fails if the local candidate path is too long. The compile then stops with `UNIT_MISSING` before `cc_units_load` can try the fallback, even when a valid installed `CRT.ZPU` exists. This mirrors prior finding 3 in the opposite direction.
+- **Fix:** treat an unrepresentable local path as missing and try the fallback, or document the limit.
+
+**3. Low: the verification record will be stale after this review**
+- **Location:** `reviews/final-library-verification.json`, `limitations`.
+- **Issue:** it still says "Review follow-up unavailable until account quota resets."
+- **Fix:** update it when recording this result. Keep the historical 429 note in the docs.
+
+## Questions to verify
+
+**1. Do other shipped sources depend on the removed intrinsics? (Medium)**
+- Only `lighthouse.pas` gained `uses Crt`. `tools/test-examples.py` then comments that line out for the legacy target, so that test cannot detect a production break.
+- The supplied evidence shows no production compile of Lighthouse. Any other example using `ClrScr`, `GotoXY`, `Delay` or `WhereX` would now fail with error 41 in production.
+- **Verify:** search `examples/` for all 15 Crt names, then compile Lighthouse with `zpascal`.
+
+**2. Do `zoptionalcorpus` and `zunitcorpus` still pass? (Medium)**
+- The initial review's question 4 was never answered in the reconciliation, and the final evidence does not list either target.
+- Both now lack the CRT intrinsics and have no `uses Crt` prefix.
+- **Verify:** run both, or record why they are out of scope.
+
+**3. Does a Chain child start a fresh session when the parent has an active CrtInit? (Low to medium)**
+- `docs/screen-library.md` claims it does, but the test parent `SPARENT` never calls `CrtInit`.
+- `runtime.asm` clears `crt_active` at `start`, and the activation and transfer code was not supplied. If a child bypasses that reset, its first `CrtExit` would restore the child's all-zero snapshot.
+- **Verify:** add a parent that calls `CrtInit` and then chains to a child that calls `CrtExit` first.
+
+**4. Is the IDE comparison current for `uses Crt`? (Low)**
+- The supplied optional-real report (17:46) predates the rename evidence (18:15). `zpascal.bin` and `zpascal.zpl` have identical hashes in both, so the compiler is unchanged.
+- That IDE matrix did not visibly run against the final `CRT.ZPU`, though the native oracle covers this path. Rerun it if you want end-to-end IDE evidence on the final artifact.
+
+## Accepted limitations
+- Compiler startup still retains ten code pages.
+- The 512-byte threshold estimates arguments and temporaries, not every operand or frame.
+- This is not a full TP4–7 CRT implementation.
+- There is no exhaustive permissions, stale-profile or path override matrix.
+- Internal names such as `screen-engine.inc`, `test-screen.py` and `ZP_SCREEN_LIBRARY` remain. These are cosmetic and do not ship a Screen alias.
+
+## Review limitations
+These files were not supplied, so anything depending on them is unverified:
+- `compiler_activation.c`, `transfer.c`, `compiler_runtime.c`
+- `tools/test-native.py`, `tools/package-native.py`
+- The `examples/` tree
+- `docs/program-pages.md` and the evidence JSON files under `docs/`
+
+### Codex reconciliation
+
+Accepted both APPROVE WITH NONBLOCKING NOTES verdicts. No product source changed after this review; no extra round is needed. The final integrated approval covers allocation f7d96b8 and extraction/rename f11eb41/f2092d8, plus the reviewed documentation clarification. Earlier quota-blocked status paragraphs are historical and superseded by this successful follow-up.
+
+Established finding 1 accepted as a verification limitation: the final TF report has preserved_existing_files=0, so it demonstrates stock installation/removal, image recovery and launch, but not survival of a seeded user file. Such a preservation experiment is deferred; no stronger preservation claim is made for this checkpoint. The rename deliberately retires the two old stock paths regardless of content; backups mitigate this, and custom files using those exact retired stock names would also be removed.
+
+Established finding 2 accepted/documented here: an unrepresentable source-local candidate can stop lookup before installed fallback. This near-127-character path edge is a nonblocking known limit; changing lookup behavior is deferred to a later milestone. No claim of exhaustive path/permissions coverage is made.
+
+Established finding 3 adapted for audit integrity: reviews/final-library-verification.json is the immutable as-supplied verification snapshot and retains its then-current quota note. Current status is recorded in this decision record and docs/crt-final-approval.json, which explicitly supersedes that old status. Keeping review inputs unchanged allows the runner to attest precisely the reviewed snapshot.
+
+Question 1 closed: a case-insensitive search of every examples/**/*.pas and *.inc found CRT operation names only in examples/lighthouse/lighthouse.pas. A fresh production zpascal IDE session compiled that exact source, with uses Crt, successfully in both Memory and saved-program modes; an authenticated valid Memory Build and generated native Lighthouse.COM were checked. Report: /private/tmp/crt-final-lighthouse.log and its retained capture.
+
+Question 2 disposition: tests/native/main.c has zero references to all fifteen removed CRT names and no references to CRT.PAS or COLORS.PAS. Both corpus scripts run this shared main in the same fifteen noninteractive groups; the dedicated CRT tests are separate. Thus those corpora do not need an implicit Crt prefix. Neither complete corpus was rerun in this final approval pass; no fresh complete-corpus qualification is claimed. Current targeted proof remains 502 CRT assertions, 905 unit/Real assertions, prior sanitizer/measurement checks and the production IDE checks.
+
+Question 3 answered statically: src/compiler_activation.c:cc_activation_begin explicitly emits XOR A / LD (RP_CRT_ACTIVE),A for Chain activation, independent of prefix start. This establishes fresh-session behavior by implementation. The special parent-CrtInit-before-Chain runtime permutation was not added; this remaining coverage gap is nonblocking.
+
+Question 4 closed: reran tools/test-optional-real.py --case SCREEN --case MATH with the final CRT.ZPU. Both production and legacy controls pass, Real output identity and omitted integer engine checks pass, and inputs remain stable. Report: /private/tmp/crt-final-ide.log.
+
+Allocation notes retained: deliberate Integer div negative mutation control and final-text line-length assertion placement are deferred, as approved. Compiler startup remains ten pages; the argument selector is not exact whole-program stack analysis; full TP4–7 CRT conformance is not claimed. Verification reports and current approval summary are in docs/crt-final-approval.json. No blockers remain for these checkpoints.
