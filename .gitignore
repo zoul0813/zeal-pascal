@@ -189,3 +189,9 @@
 !/tools/test-unit-navigation.py
 !/reviews/sourcefree-units-v1.md
 !/docs/sourcefree-units-evidence.json
+
+!/tools/test-program-pages.py
+
+!/docs/program-pages.md
+
+!/docs/program-pages-baseline.json
