@@ -1016,7 +1016,7 @@ set_property(SOURCE tests/native/units-main.c tests/native/unit-real-main.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources.h)
 
 # Shipped units are disk artifacts, never compiler-bank assets.
-add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/SCREEN.ZPU ${CMAKE_BINARY_DIR}/SCREEN.PAS
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/CRT.ZPU ${CMAKE_BINARY_DIR}/CRT.PAS
     ${CMAKE_BINARY_DIR}/screen-library.json
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-screen.py ${CMAKE_BINARY_DIR}
     DEPENDS runtime_profile ${CMAKE_BINARY_DIR}/pascal_runtime.private
@@ -1024,7 +1024,7 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/SCREEN.ZPU ${CMAKE_BINARY_DIR}/SCR
         ${CMAKE_SOURCE_DIR}/src/compiler.h
         ${CMAKE_SOURCE_DIR}/tools/package-screen.py ${CMAKE_SOURCE_DIR}/tools/screen-library.c
         ${CMAKE_SOURCE_DIR}/libraries/screen-engine.inc VERBATIM)
-add_custom_target(screen_library ALL DEPENDS ${CMAKE_BINARY_DIR}/SCREEN.ZPU ${CMAKE_BINARY_DIR}/SCREEN.PAS)
+add_custom_target(screen_library ALL DEPENDS ${CMAKE_BINARY_DIR}/CRT.ZPU ${CMAKE_BINARY_DIR}/CRT.PAS)
 add_executable(zscreentest src/startup.asm src/banks.c tests/native/screen-main.c
     tests/native/harness.c tests/native/machine.asm
     $<TARGET_OBJECTS:unit_runtime_core> $<TARGET_OBJECTS:unit_fragment_core>

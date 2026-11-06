@@ -16,7 +16,7 @@ def main():
     sym = n.symbols(target)
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(), ROOT/'tools/test-native.py',
               ROOT/'tools/package-native.py', n.EMULATOR, n.ROM]
-    inputs += [ROOT/'build/SCREEN.ZPU',ROOT/'build/SCREEN.PAS',
+    inputs += [ROOT/'build/CRT.ZPU',ROOT/'build/CRT.PAS',
                ROOT/'libraries/screen-engine.inc',ROOT/'tools/screen-library.c',ROOT/'tools/package-screen.py']
     inputs += sorted((ROOT/'src').glob('*')) + sorted((ROOT/'tests/native').glob('*'))
     inputs += [ROOT/f'build/{target}.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
@@ -52,17 +52,17 @@ def main():
     commands += [f"rb 0x{sym['_test_failures']:x} 128", 'quit']
     fixtures = {f'{target}.{ext}': (ROOT/f'build/{target}.{ext}').read_bytes()
                 for ext in ('bin', 'zpl')}
-    fixtures['src/CRT.PAS'] = b'uses Screen;\n'+(ROOT/'tests/native/crt.pas').read_bytes()
-    fixtures['SCREEN.ZPU'] = (ROOT/'build/SCREEN.ZPU').read_bytes()
+    fixtures['src/CRT.PAS'] = b'uses Crt;\n'+(ROOT/'tests/native/crt.pas').read_bytes()
+    fixtures['CRT.ZPU'] = (ROOT/'build/CRT.ZPU').read_bytes()
     # Invalid export flags with a valid checksum exercise structural validation.
     import struct
-    bad=bytearray(fixtures['SCREEN.ZPU']);export=36+bad[18]+bad[19]
+    bad=bytearray(fixtures['CRT.ZPU']);export=36+bad[18]+bad[19]
     bad[export+3]=2
     h=2166136261
     for value in bad[:28]+bad[32:]:h=((h^value)*16777619)&0xffffffff
     struct.pack_into('<I',bad,28,h)
-    fixtures['src/SCREEN.ZPU']=bytes(bad)
-    fixtures['src/COLORS.PAS'] = b'uses Screen;\n'+(ROOT/'tests/native/colors.pas').read_bytes()
+    fixtures['src/CRT.ZPU']=bytes(bad)
+    fixtures['src/COLORS.PAS'] = b'uses Crt;\n'+(ROOT/'tests/native/colors.pas').read_bytes()
     raw = n.execute('screen-library', commands, fixtures, timeout=1200,console_class=CRTConsole)
     memory = n.memory(raw)
     word = lambda name: memory.get(sym[name], 0) | memory.get(sym[name]+1, 0) << 8
@@ -76,7 +76,7 @@ def main():
             word('_test_failed') == 0 and word('_test_passed') == 502,
         'exact program results after whole-screen character/attribute comparisons':
             output.is_file() and output.read_bytes() == b'SCREEN-QUERY-OK\r\nSCREEN-QUERY-OK\r\nCRT-OK:-7885\r\nCRT-OK:-7885\r\nCOLOR-POS:  7:  9\r\nCOLOR-OK:1815\r\nCOLOR-POS:  7:  9\r\nCOLOR-OK:1815\r\nCRT-IO-OK\r\nCRT-IO-OK\r\nCRT-RESTART-OK\r\nSCREEN-CHAIN-OK\r\n',
-        'saved program runs after library removal': not (n.RUN/'screen-library/hostfs/SCREEN.ZPU').exists(),
+        'saved program runs after library removal': not (n.RUN/'screen-library/hostfs/CRT.ZPU').exists(),
         'implementation and artifacts unchanged during validation':
             all(n.sha(Path(p)) == digest for p, digest in hashes.items()),
     }

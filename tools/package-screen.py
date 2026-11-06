@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Author the shipped native Screen unit using the normal ZPU1 container."""
+"""Author the shipped native Crt unit using the normal ZPU1 container."""
 from pathlib import Path
 import hashlib
 import json
@@ -44,7 +44,7 @@ def build(directory):
     def locate(address):
         for i,(start,end) in enumerate(fragments):
             if start <= address < end:return i,address-start
-        raise ValueError(f'relocation target outside Screen: {address}')
+        raise ValueError(f'relocation target outside Crt: {address}')
     refs, records = [], bytearray()
     for start,end in fragments:
         first = len(refs)
@@ -54,7 +54,7 @@ def build(directory):
                 target,offset = locate(struct.unpack_from('<H',payload,site)[0])
                 refs.append((site-start,1,target,offset))
         records += struct.pack('<4H',start,end-start,first,len(refs)-first)
-    source = 'unit Screen;interface\n'
+    source = 'unit Crt;interface\n'
     exports = bytearray()
     for op,name in enumerate(NAMES):
         query = op >= 13
@@ -69,26 +69,29 @@ def build(directory):
         exports += name.encode()+b'\0\0'*params
     source += 'implementation\n{ Native Zeal 80x40 console routines. }\nend.\n'
     source_bytes = source.encode()
-    source_path = b'T:/lib/SCREEN.PAS'
+    source_path = b'T:/lib/CRT.PAS'
     def fnv(data):
         h = 2166136261
         for b in data:h = ((h ^ b)*16777619)&0xffffffff
         return h
     blob = b'ZPF1'+struct.pack('<6H',1,len(fragments),len(refs),len(payload),0,0)
     blob += records+b''.join(struct.pack('<4H',*r) for r in refs)+payload
-    metadata = b'screen'+source_path+exports+bytes([2]*len(fragments))
+    unit_name = b'crt'
+    metadata = unit_name+source_path+exports+bytes([2]*len(fragments))
     header = bytearray(36)
     header[:4] = b'ZPU1'
     struct.pack_into('<HH',header,4,1,36+len(metadata)+len(blob))
     header[8:12] = (directory/'pascal_runtime.profile').read_bytes()[:4]
-    struct.pack_into('<IHBB3H',header,12,fnv(source_bytes),len(source_bytes),6,len(source_path),len(NAMES),0,0)
+    struct.pack_into('<IHBB3H',header,12,fnv(source_bytes),len(source_bytes),len(unit_name),len(source_path),len(NAMES),0,0)
     struct.pack_into('<H',header,26,36+len(metadata))
     struct.pack_into('<HH',header,32,len(payload),0)
     artifact = header+metadata+blob
     assert len(artifact) <= 16384
     struct.pack_into('<I',artifact,28,fnv(artifact[:28]+artifact[32:]))
-    (directory/'SCREEN.ZPU').write_bytes(artifact)
-    (directory/'SCREEN.PAS').write_bytes(source_bytes)
+    (directory/'CRT.ZPU').write_bytes(artifact)
+    (directory/'CRT.PAS').write_bytes(source_bytes)
+    for obsolete in ('SCREEN.ZPU','SCREEN.PAS'):
+        (directory/obsolete).unlink(missing_ok=True)
     report = {'bytes':len(artifact),'code_bytes':len(payload),'exports':list(NAMES),
               'fragments':len(fragments),'relocations':len(refs),
               'sha256':hashlib.sha256(artifact).hexdigest()}

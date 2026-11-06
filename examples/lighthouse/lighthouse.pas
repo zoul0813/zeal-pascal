@@ -7,7 +7,7 @@
 }
 
 program Lighthouse;
-uses Screen;
+uses Crt;
 
 {$R+}
 

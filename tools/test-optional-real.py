@@ -39,8 +39,8 @@ def session(target,cases,optional):
     sym=n.symbols(target);count=n.code_banks(target);unit_core='_cc_units_write_object'in sym;kernel=n.kernel_symbols();key=sym['_key_read'];work=sym['_work'];build=sym['_build']
     labels=[];typed=lambda s:n.type_text(s,ticks=100000000)
     fixtures={f'{target}.{ext}':(ROOT/f'build/{target}.{ext}').read_bytes()for ext in ('bin','zpl')}
-    fixtures.update({name+'.PAS':(b'uses Screen;\n' if unit_core and name=='SCREEN' else b'')+CASES[name][1]for name in cases})
-    if unit_core:fixtures['SCREEN.ZPU']=(ROOT/'build/SCREEN.ZPU').read_bytes()
+    fixtures.update({name+'.PAS':(b'uses Crt;\n' if unit_core and name=='SCREEN' else b'')+CASES[name][1]for name in cases})
+    if unit_core:fixtures['CRT.ZPU']=(ROOT/'build/CRT.ZPU').read_bytes()
     fixtures.update({'INTDATA.TXT':b'42\r\n','REALDATA.TXT':b'1.5\r\n'})
     def probe(label,address=key):
         labels.append((label,address))

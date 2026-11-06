@@ -11,7 +11,7 @@ spec = importlib.util.spec_from_file_location('native', ROOT/'tools/test-native.
 n = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(n)
 
-names = ['build/zpascal.bin', 'build/zpascal.zpl', 'build/zpascal.map', 'build/zpascal.banks.json', 'build/SCREEN.ZPU', 'build/SCREEN.PAS']
+names = ['build/zpascal.bin', 'build/zpascal.zpl', 'build/zpascal.map', 'build/zpascal.banks.json', 'build/CRT.ZPU', 'build/CRT.PAS']
 snapshots = {name: (ROOT/name).read_bytes() for name in names}
 hashes = {name: hashlib.sha256(data).hexdigest() for name, data in snapshots.items()}
 sym = n.symbols('zpascal')
@@ -30,10 +30,14 @@ previous = image.read_bytes() if image.exists() else None
 base = previous if previous is not None else gzip.decompress(n.TF_TEMPLATE.read_bytes())
 existing = n.zealfs_files(base)
 install = {'/bin/zpascal.bin': resident, '/lib/zpascal.zpl': library,
-           '/lib/SCREEN.ZPU': snapshots['build/SCREEN.ZPU'],
-           '/lib/SCREEN.PAS': snapshots['build/SCREEN.PAS']}
+           '/lib/CRT.ZPU': snapshots['build/CRT.ZPU'],
+           '/lib/CRT.PAS': snapshots['build/CRT.PAS']}
 commands = ['run 100000000']
+retired = ('/lib/SCREEN.ZPU', '/lib/SCREEN.PAS')
 operations = []
+for path in retired:
+    if path in existing:
+        operations.append('H:/rm T:'+path)
 for directory in ('/lib/', '/bin/'):
     if directory[:-1] in existing:
         raise RuntimeError(f'T:{directory[:-1]} is a file; the project card is unchanged.')
@@ -53,14 +57,17 @@ for command in operations:
 commands += ['quit']
 fixtures = {name: (n.COREUTILS/name).read_bytes() for name in ('mkdir', 'rm', 'cp')}
 fixtures.update({Path(name).name: data for name, data in snapshots.items() if name.endswith(('.bin', '.zpl', '.ZPU', '.PAS'))})
-n.execute('project-tf-install', commands, fixtures, tf_image=base, timeout=150)
+n.execute('project-tf-install', commands, fixtures, tf_image=base, timeout=240)
 installed = (n.RUN/'project-tf-install/tf.img').read_bytes()
 files = n.zealfs_files(installed)
+for path in retired:
+    if path in files:
+        raise RuntimeError(f'Obsolete stock unit remains at T:{path}; project card unchanged.')
 for path, expected in install.items():
     if files.get(path) != expected:
         raise RuntimeError(f'Copy verification failed for T:{path}. The project card is unchanged. '
                            f'Capture: {n.RUN / "project-tf-install"}')
-preserved = {path: data for path, data in existing.items() if path not in install}
+preserved = {path: data for path, data in existing.items() if path not in install and path not in retired}
 if not all(path in files and files[path] == data for path, data in preserved.items()):
     raise RuntimeError('Existing card contents did not survive the temporary install; project card unchanged.')
 if not all(n.sha(ROOT/name) == digest for name, digest in hashes.items()):
@@ -107,6 +114,7 @@ report = {'passed': True, 'image': 'build/tf.img', 'image_sha256': n.sha(image),
           'preserved_existing_files': sum(data is not None for data in preserved.values()),
           'input_sha256': hashes, 'base_template_sha256': n.sha(n.TF_TEMPLATE),
           'installed_files': ['T:'+path for path in install],
+          'retired_stock_files': ['T:'+path for path in retired if path in existing],
           'installation_operations': operations,
           'launch_command': 'T:/bin/zpascal.bin',
           'default_library_load_and_ide_menu': True, 'startup_leaves_image_unchanged': True,

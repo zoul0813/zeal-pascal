@@ -33,7 +33,7 @@ int app_main(void) {
     check(!compile(&s,&b,&d)&&d.code==41);build_close(&b);
     /* A corrupt local unit must not be bypassed by the installed copy. */
     check(load("begin ClrScr end."));check(!compile(&s,&b,&d)&&d.code==248);build_close(&b);
-    check(!rm("H:/src/SCREEN.ZPU"));
+    check(!rm("H:/src/CRT.ZPU"));
     /* Unused imports add no executable bytes or execution requirement. */
     {
         uint16_t plain=0,one=0;
@@ -41,7 +41,7 @@ int app_main(void) {
         if(b.valid)plain=b.length;build_close(&b);
         check(load("begin end."));check(compile(&s,&b,&d));
         if(b.valid)check(b.length==plain&&(far_get(b.pages[0],18)&2));build_close(&b);
-        check(load("begin Screen.ClrEol end."));check(compile(&s,&b,&d));
+        check(load("begin Crt.ClrEol end."));check(compile(&s,&b,&d));
         if(b.valid) {one=b.length;check(!(far_get(b.pages[0],18)&2));}build_close(&b);
         check(load("begin ClrEol;ClrScr;CrtInit;CrtExit end."));check(compile(&s,&b,&d));
         if(b.valid)check(b.length>one);build_close(&b);
@@ -157,7 +157,7 @@ int app_main(void) {
     check(compile(&s,&b,&d));
     if(b.valid) {
         uint8_t status=255;
-        check(save_build(&s,&b,0));check(!rm("H:/SCREEN.ZPU"));
+        check(save_build(&s,&b,0));check(!rm("H:/CRT.ZPU"));
         check(run_saved(&s,&b,&status)&&status==0);
         build_close(&b);
     }

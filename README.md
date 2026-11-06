@@ -1021,15 +1021,15 @@ The legacy Lst binding can still be redirected through its Pascal output hook;
 its default adapter reports unavailable. CP/M service names currently receive
 the ordinary unknown-identifier diagnostic.
 
-Production CRT programs declare `uses Screen;`. The build ships `SCREEN.ZPU`
-(and `SCREEN.PAS` as an interface reference) beside the compiler library; TF
+Production CRT programs declare `uses Crt;`. The build ships `CRT.ZPU`
+(and `CRT.PAS` as an interface reference) beside the compiler library; TF
 packaging installs them in `T:/lib`. Unit lookup tries the source directory,
 then the loaded compiler library's directory. Saved programs contain their
-selected Screen routines and run after the library is removed.
+selected Crt routines and run after the library is removed.
 
 Focused library validation: `python3 tools/test-screen.py` after `zde cmake`.
 The independent legacy control remains `python3 tools/test-crt.py`.
-See [Screen library](docs/screen-library.md) for the native contract.
+See [Crt library](docs/screen-library.md) for the native contract.
 Physical display/timing qualification remains separate from emulator acceptance.
 
 Overlay declarations in Memory mode now report compiler error77 at the
