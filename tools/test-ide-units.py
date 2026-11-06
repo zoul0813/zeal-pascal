@@ -10,17 +10,19 @@ spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py'
 n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
 UNIT=b"""unit Calc;
 interface
-function Plain(X:Integer):Integer;
+const Adjust=1;
+type TSmall=1..32767;
+function Plain(X:TSmall):TSmall;
 function Twice(X:Real):Real;
 function Crash(X:Integer):Integer;
 implementation
 function Helper(X:Real):Real;begin Helper:=X*2 end;
-function Plain(X:Integer):Integer;begin Plain:=X+1 end;
+function Plain(X:TSmall):TSmall;begin Plain:=X+Adjust end;
 function Twice(X:Real):Real;begin Twice:=Helper(X)end;
 function Crash(X:Integer):Integer;begin Crash:=1 div X end;
 end."""
 CLIENTS={
- 'INTCLIENT':b"uses Calc;begin if Plain(41)<>42 then halt;writeln('IDE-UNIT-INTEGER-OK')end.",
+ 'INTCLIENT':b"uses Calc;var N:TSmall;begin N:=Plain(41);if N<>41+Adjust then halt;writeln('IDE-UNIT-INTEGER-OK')end.",
  'REALCLIENT':b"uses Calc;var A,R:Real;P,Q,I:Integer;begin A:=3.0;R:=Twice(1.5);P:=Addr(A);Q:=Addr(R);for I:=0 to 5 do if Mem[P+I]<>Mem[Q+I]then halt;writeln('IDE-UNIT-REAL-OK')end."}
 CLIENTS={name:source.replace(b';',b';\n')for name,source in CLIENTS.items()}
 assert all(max(map(len,source.splitlines()))<=127 for source in [UNIT,*CLIENTS.values()])
@@ -44,7 +46,7 @@ def media_checks():
         if '/REALCLIENT.COM'in files:
             checks[drive+' includes required Real engine']=files['/REALCLIENT.COM'][3466:14285]==(ROOT/'build/pascal_runtime.zpl').read_bytes()[3466:14285]
         checks[drive+' releases transient I/O and pending allocations']=len(frames)==2 and all(
-            n.memory(frame).get(sym['_code_pages']+16)==255 and all(n.memory(frame).get(sym['_code_phase_pending']+i)==255 for i in range(count))for frame in frames)
+            all(n.memory(frame).get(sym['_code_pages']+i)==255 for i in (16,17)) and all(n.memory(frame).get(sym['_code_phase_pending']+i)==255 for i in range(count))for frame in frames)
     return checks
 def main():
     target='zpascal';sym=n.symbols(target);labels=['ready'];count=n.code_banks(target)
@@ -91,13 +93,13 @@ def main():
     if len(frames)==len(labels):
         states={name:n.memory(frame)for name,frame in zip(labels,frames)}
         live=lambda label:sum(states[label].get(sym['_code_pages']+i,255)!=255 for i in range(count))
-        checks['ten startup code pages']=count==17 and live('ready')==10
+        checks['ten startup code pages']=count==18 and live('ready')==10
         for label in labels:
             if label=='fault-screen':continue
             checks[label+' no pending code allocations']=all(states[label].get(sym['_code_phase_pending']+i)==255 for i in range(count))
             if label!='ready':
                 checks[label+' expected code cache']=live(label)==(10 if label.endswith('-enter')else 15)
-                checks[label+' unit I/O stays on disk']=states[label].get(sym['_code_pages']+16)==255
+                checks[label+' unit metadata and I/O stay on disk']=all(states[label].get(sym['_code_pages']+i)==255 for i in (16,17))
         checks['unit creation leaves no executable build']=all(states[label].get(sym['_build']+4)==0 for label in ('unit-created','unit-updated','unit-run-blocked'))
         checks['unit compilation clears dirty source flag']=states['unit-updated'].get(sym['_work']+1)==0
         for label in ('fault-source-missing','fault-source-changed'):

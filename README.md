@@ -1021,6 +1021,12 @@ The legacy Lst binding can still be redirected through its Pascal output hook;
 its default adapter reports unavailable. CP/M service names currently receive
 the ordinary unknown-identifier diagnostic.
 
+Pascal-authored units support interface/implementation `uses`, exported ordinary
+constants, custom types and routines. Imported aliases preserve type identity
+across dependencies; saved programs contain their needed code/data and do not
+need ZPU files at runtime. See [creating units](docs/unit-types.md) for an example,
+supported type forms and current authoring limits.
+
 Production CRT programs declare `uses Crt;`. The build ships `CRT.ZPU`
 (and `CRT.PAS` as an interface reference) beside the compiler library; TF
 packaging installs them in `T:/lib`. Unit lookup tries the source directory,

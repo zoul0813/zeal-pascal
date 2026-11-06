@@ -230,3 +230,11 @@
 !/src/compiler_units_metadata.c
 !/docs/unit-exports.md
 !/docs/unit-exports-evidence.json
+
+!/docs/unit-types.md
+!/docs/unit-types-evidence.json
+!/tests/host/
+/tests/host/*
+!/tests/host/unit-types.c
+
+!/tools/test-unit-types-host.py

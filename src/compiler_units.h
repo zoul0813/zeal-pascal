@@ -5,7 +5,7 @@
 
 /* Experimental first end-to-end unit path. Nothing here is linked by the
  * legacy/compact targets. Artifacts bind the exact normal runtime profile;
- * public signatures initially contain primitive scalar routines only.
+ * public interfaces carry routines, constants and canonical type metadata.
  * A caller owns the fresh output descriptor, including close/publication. */
 enum { UNIT_FORMAT=248,UNIT_UNSUPPORTED,UNIT_MISSING,UNIT_STALE,UNIT_AMBIGUOUS,UNIT_INTERFACE };
 enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CODE,UR_STATE,UR_EXTERNAL,UR_TYPE };
@@ -26,6 +26,7 @@ enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CO
 #define UM_VISIBLE 1u
 #define UM_LOADING 2u
 #define UM_READY 4u
+#define UM_TYPES 8u
 /* Unreleased format: evolve this contract directly until the ABI1 release. */
 #define ZPU_ABI 1u
 #define ZPU_REAL 1u
@@ -66,6 +67,10 @@ uint8_t cc_units_write_object(void) ROUTINES;
 uint16_t cc_units_load_object(const char *name,const char *path,const char *fallback) ROUTINES;
 uint8_t cc_units_link(void) ROUTINES;
 uint8_t cc_units_link_object(void) ROUTINES;
+uint32_t cc_unit_types_bytes(void) ROUTINES;
+void cc_unit_types_write(uint8_t page,uint16_t *at) ROUTINES;
+uint8_t cc_unit_types_ready(uint16_t module) ROUTINES;
+uint8_t cc_units_types_ready(uint16_t module) ROUTINES;
 uint32_t cc_unit_exports_bytes(void) ROUTINES;
 void cc_unit_exports_write(uint8_t page,uint16_t *at) ROUTINES;
 int16_t cc_unit_import_symbol(uint16_t module,uint16_t export) ROUTINES;

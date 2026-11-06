@@ -4,7 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import re
-EXPECTED_ASSERTIONS=1337
+EXPECTED_ASSERTIONS=1595
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py')
 n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
@@ -45,10 +45,10 @@ def main():
             'all native assertions pass':word('_test_passed')==word('_test_index') and word('_test_passed')==EXPECTED_ASSERTIONS and word('_test_failed')==0,
             'library deletion stage completed':word('_test_stage')==3}
     folder=n.RUN/'unit-real/hostfs';output=(folder/'UNITREAL.TXT').read_bytes()if(folder/'UNITREAL.TXT').exists()else b''
-    for name,count in [('INTEGER',2),('COPY',2),('SCALE',3),('TRANSITIVE',3),('UNUSED',2),('DEPS',3),('CONSTANTS',3),('CONSTCOPY',3)]:
+    for name,count in [('INTEGER',2),('COPY',2),('SCALE',3),('TRANSITIVE',3),('UNUSED',2),('DEPS',3),('CONSTANTS',3),('CONSTCOPY',3),('TYPES',3)]:
         checks[name+' execution markers']=output.count(('UNIT-'+name+'-OK\r\n').encode())==count
     core=(ROOT/'build/integer_runtime.zpl').read_bytes();full=(ROOT/'build/pascal_runtime.zpl').read_bytes()
-    for name,real in [('PLAIN',False),('COPY',False),('SCALE',True),('TRANSIT',True),('UNUSED',False),('FAULTRUN',True)]:
+    for name,real in [('PLAIN',False),('COPY',False),('SCALE',True),('TRANSIT',True),('UNUSED',False),('FAULTRUN',True),('TYPELEAF',False)]:
         path=folder/(name+'.COM')
         checks[name+' selects correct Real engine']=path.is_file()and path.read_bytes()[3466:14285]==(full if real else core)[3466:14285]
     checks['unit source and library deleted']=not(folder/'MIXED.PAS').exists()and not(folder/'MIXED.ZPU').exists()

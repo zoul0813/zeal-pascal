@@ -39,7 +39,7 @@ retain the shared-page allocation eligibility.
 The target dependency/Real suite passes 1,200 assertions, including source-free
 three-module diamond execution, one shared private counter, namespace visibility,
 missing/stale/cyclic dependencies, and saved execution after library deletion.
-The host fragment suite passes 876 assertions under ASAN and UBSAN. Public
-constants and custom type metadata are the next checkpoint and are not
-implemented by this dependency-only stage. Independent Opus review was attempted
-but the account usage limit prevented it; review remains pending.
+The host fragment suite passes 876 assertions under ASAN and UBSAN. This
+dependency-only checkpoint preceded [exported constants](unit-exports.md) and
+[custom types](unit-types.md), now implemented in subsequent stages. Independent
+Opus review was attempted but the account usage limit prevented it; review remains pending.

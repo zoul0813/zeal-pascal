@@ -17,6 +17,62 @@ static void put_name(uint8_t page,uint16_t *at,uint16_t symbol) {
         c=cc_source_byte(start+i);put_byte(page,at,c>='A'&&c<='Z'?c+32:c);
     }
 }
+static SourcePosition position(uint16_t module,uint16_t at) {
+    return ((SourcePosition)(0x8000u|module)<<16)|at;
+}
+static uint16_t origin(TypeId type) {
+    uint16_t at,end=cc_unit_word(UH_USED);
+    for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES) {
+        if(!(at&127u)&&!cc_poll())return 0;
+        if(cc_unit_word(at)==UR_TYPE&&cc_unit_word(at+6)==type)return at;
+    }
+    return 0;
+}
+static uint8_t member(uint16_t symbol,TypeId owner) {
+    if(!(symbol&63u)&&!cc_poll())return 0;
+    return CCS(symbol,owner)==owner&&CCS(symbol,role)>=S_FIELD&&CCS(symbol,role)<=S_VLABEL;
+}
+uint32_t cc_unit_types_bytes(void) ROUTINES {
+    uint32_t bytes=0;TypeId type;uint16_t i;
+    for(type=6;type<cc.type_count;++type) {
+        if(!cc_poll())return 0;
+        bytes+=TYPE_HEADER;if(origin(type))continue;
+        if(cc.error->code)return 0;
+        if(CCT(type,family)==K_RECORD)for(i=0;i<cc.symbol_count&&!cc.error->code;++i)
+            if(member(i,type))bytes+=MEMBER_HEADER+(CCS(i,role)==S_FIELD?CCS(i,name_length):0);
+    }
+    return bytes;
+}
+void cc_unit_types_write(uint8_t page,uint16_t *at) ROUTINES {
+    TypeId type,family;uint16_t i,j,n,base,ref,tag;
+    for(type=6;type<cc.type_count&&!cc.error->code;++type) {
+        if(!cc_poll())return;
+        ref=origin(type);if(cc.error->code)return;
+        if(ref) {
+            for(i=0;i<6;++i)put_word(page,at,0);
+            put_word(page,at,cc_unit_word(cc_unit_word(ref+2)+8)+1);
+            put_word(page,at,cc_unit_word(ref+4));put_word(page,at,0);continue;
+        }
+        family=CCT(type,family);n=0;base=0xffffu;
+        if(family==K_RECORD)for(i=0;i<cc.symbol_count&&!cc.error->code;++i)if(member(i,type)) {
+            if(CCS(i,role)==S_VARIANT)base=n;++n;
+        }
+        put_word(page,at,family);put_word(page,at,CCT(type,width));
+        put_word(page,at,family==K_RECORD?base:family==K_POINTER?0:(uint16_t)CCT(type,low));
+        put_word(page,at,family==K_POINTER?0:(uint16_t)CCT(type,high));
+        put_word(page,at,family==K_POINTER?0:CCT(type,capacity));
+        put_word(page,at,CCT(type,element));put_word(page,at,0);put_word(page,at,0);put_word(page,at,n);
+        if(family==K_RECORD)for(i=0;i<cc.symbol_count&&!cc.error->code;++i)if(member(i,type)) {
+            put_byte(page,at,CCS(i,role));put_byte(page,at,CCS(i,role)==S_FIELD?CCS(i,name_length):0);
+            put_word(page,at,CCS(i,type));put_word(page,at,CCS(i,address));tag=0xffffu;
+            if(CCS(i,role)==S_VARIANT&&CCS(i,name_start)!=0xffffu) {
+                tag=0;for(j=0;j<CCS(i,name_start)&&!cc.error->code;++j)if(member(j,type))++tag;
+            }
+            put_word(page,at,tag);put_word(page,at,0);
+            if(CCS(i,role)==S_FIELD)put_name(page,at,i);
+        }
+    }
+}
 static uint16_t literal_bytes(uint16_t symbol) {
     if(CCS(symbol,role)!=S_CONSTANT)return 0;
     if(cc_family(CCS(symbol,type))==K_REAL)return 6;
@@ -55,30 +111,160 @@ void cc_unit_exports_write(uint8_t page,uint16_t *at) ROUTINES {
         }
     }
 }
-int16_t cc_unit_import_symbol(uint16_t module,uint16_t export) ROUTINES {
-    uint16_t at,end=cc_unit_word(UH_USED),scope=0,symbol,count,i,id,parameters,data;uint8_t role;
+static uint16_t type_at(uint16_t module,TypeId type) {
+    uint16_t at=cc_unit_module_word(module,42),i,n;
+    for(i=6;i<type;++i) {
+        if(!(i&31u)&&!cc_poll())return 0;
+        n=cc_unit_module_word(module,at+16);at+=TYPE_HEADER;
+        while(n--){at+=MEMBER_HEADER+cc_unit_module_byte(module,at+1);}
+    }
+    return at;
+}
+static uint16_t cached(uint16_t module,TypeId wire) {
+    uint16_t at,end=cc_unit_word(UH_USED);
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)
-        if(cc_unit_word(at)==UR_IMPORT&&cc_unit_word(at+4)==module&&cc_unit_word(at+6)==export)
-            return (int16_t)cc_unit_word(at+10);
-    count=cc_unit_module_word(module,export+6);role=cc_unit_module_byte(module,export+1);
+        if(cc_unit_word(at)==UR_TYPE&&cc_unit_word(at+2)==module&&cc_unit_word(at+4)==wire)return at;
+    return 0;
+}
+static TypeId import_type(uint16_t module,TypeId wire,uint8_t indirect) {
+    uint16_t at,ref,n,i,id,first,tag,marker,largest=0,value;uint32_t prefix=0;
+    TypeId type,family,element,capacity,actual;int16_t low,high;uint16_t width;uint8_t role,name,variant=0;
+    if(cc.error->code)return TYPE_NONE;
+    if(wire<6)return wire;
+    if(wire-6>=cc_unit_module_word(module,38)||!cc_stack_check()){cc_fail(UNIT_FORMAT);return TYPE_NONE;}
+    ref=cached(module,wire);
+    if(ref) {
+        type=cc_unit_word(ref+6);
+        if(cc_unit_word(ref+8)==1&&!indirect&&CCT(type,family)!=K_POINTER)cc_fail(UNIT_FORMAT);
+        return type;
+    }
+    at=type_at(module,wire);if(cc.error->code)return TYPE_NONE;
+    if(cc_unit_module_word(module,at+12)) {
+        actual=import_type(cc_unit_target(module,cc_unit_module_word(module,at+12)),cc_unit_module_word(module,at+14),indirect);
+        cc_unit_record(UR_TYPE,module,wire,actual,2,0);return actual;
+    }
+    family=cc_unit_module_word(module,at);width=cc_unit_module_word(module,at+2);
+    low=(int16_t)cc_unit_module_word(module,at+4);high=(int16_t)cc_unit_module_word(module,at+6);
+    capacity=cc_unit_module_word(module,at+8);element=cc_unit_module_word(module,at+10);n=cc_unit_module_word(module,at+16);
+    type=cc_new_type(family,width,low,high,capacity);ref=cc_unit_record(UR_TYPE,module,wire,type,1,0);
+    if(cc.error->code)return TYPE_NONE;
+    if(family==K_ARRAY) {
+        capacity=import_type(module,capacity,0);element=import_type(module,element,0);
+        if(cc.error->code)return TYPE_NONE;
+        if(!cc_ordinal(capacity)||
+           ((uint32_t)((int32_t)CCT(capacity,high)-CCT(capacity,low))+1)*CCT(element,width)!=width)cc_fail(UNIT_FORMAT);
+        CCT_SET(type,capacity,capacity);CCT_SET(type,element,element);
+    } else if(family==K_SET||family==K_POINTER) {
+        element=import_type(module,element,family==K_POINTER);if(cc.error->code)return TYPE_NONE;CCT_SET(type,element,element);
+        if(!cc.error->code&&(family==K_POINTER?width!=2:
+           !cc_ordinal(element)||CCT(element,low)<0||CCT(element,high)>255||
+           width!=(CCT(element,high)>>3)-(CCT(element,low)>>3)+1))cc_fail(UNIT_FORMAT);
+    } else if(family==K_FILE) {
+        if(capacity==FILE_TYPED) {
+            element=import_type(module,element,0);if(cc.error->code)return TYPE_NONE;
+            if(cc_family(element)==K_FILE)cc_fail(UNIT_FORMAT);
+        }
+        CCT_SET(type,element,element);
+    } else if(family==K_RECORD) {
+        first=cc.symbol_count;marker=0xffffu;
+        if((uint32_t)first+n>SYMBOL_LIMIT){cc_fail(99);return TYPE_NONE;}
+        for(i=0;i<n;++i){id=cc.symbol_count++;cc_symbol_clear(id);CCS_SET(id,owner,type);}
+        at+=TYPE_HEADER;
+        for(i=0;i<n&&!cc.error->code;++i) {
+            if(!(i&31u)&&!cc_poll())return TYPE_NONE;
+            id=first+i;role=cc_unit_module_byte(module,at);name=cc_unit_module_byte(module,at+1);
+            actual=import_type(module,cc_unit_module_word(module,at+2),0);value=cc_unit_module_word(module,at+4);tag=cc_unit_module_word(module,at+6);
+            if(cc.error->code)return TYPE_NONE;
+            CCS_SET(id,role,role);CCS_SET(id,type,actual);CCS_SET(id,address,value);
+            if(role==S_FIELD) {
+                if(variant||value!=prefix||prefix+CCT(actual,width)>width){cc_fail(UNIT_FORMAT);break;}
+                prefix+=CCT(actual,width);CCS_SET(id,name_length,name);
+                CCS_SET(id,name_start,cc_source_reference(position(module,at+MEMBER_HEADER)));
+            } else if(role==S_VARIANT) {
+                if(variant||!cc_ordinal(actual)||value!=prefix||
+                   (tag!=0xffffu&&(tag>=i||CCS(first+tag,role)!=S_FIELD||CCS(first+tag,type)!=actual))){cc_fail(UNIT_FORMAT);break;}
+                variant=1;marker=i;CCS_SET(id,name_start,tag==0xffffu?tag:first+tag);
+            } else if(role==S_VLABEL) {
+                if(!variant||cc_family(actual)!=K_RECORD||(int16_t)value<CCT(CCS(first+marker,type),low)||
+                   (int16_t)value>CCT(CCS(first+marker,type),high)){cc_fail(UNIT_FORMAT);break;}
+                if(CCT(actual,width)>largest)largest=CCT(actual,width);
+            } else cc_fail(UNIT_FORMAT);
+            at+=MEMBER_HEADER+name;
+        }
+        if((uint32_t)prefix+largest!=width||(uint16_t)low!=marker)cc_fail(UNIT_FORMAT);
+        CCT_SET(type,low,marker==0xffffu?-1:(int16_t)(first+marker));
+    } else if(family==K_STRING) {
+        if(!capacity||capacity>255||width!=capacity+1)cc_fail(UNIT_FORMAT);
+    } else if(family<K_ARRAY) {
+        if(family>=6) {
+            actual=family==wire?type:import_type(module,family,0);if(cc.error->code)return TYPE_NONE;CCT_SET(type,family,actual);
+            if(family!=wire&&(CCT(actual,family)!=actual||low<CCT(actual,low)||high>CCT(actual,high)||width!=CCT(actual,width)))cc_fail(UNIT_FORMAT);
+        }
+        if(low>high||(width!=1&&width!=2)||
+           (family==K_BOOLEAN&&(low<0||high>1||width!=1))||
+           (family==K_CHAR&&(low<0||high>255||width!=1))||
+           (family==K_INTEGER&&width==1&&(low<0||high>255))||family==K_REAL||family==K_BYTE)cc_fail(UNIT_FORMAT);
+    } else cc_fail(UNIT_FORMAT);
+    if(n&&family!=K_RECORD)cc_fail(UNIT_FORMAT);
+    cc_unit_put(ref+8,2);return type;
+}
+/* Validate the complete type graph and all signatures, including unused
+ * exports. Only explicitly named exports acquire lexical symbols. */
+uint8_t cc_unit_types_ready(uint16_t module) ROUTINES {
+    uint16_t i,at=cc_unit_word(module+10),count=cc_unit_module_word(module,20),n,p,value,data;
+    uint8_t role,mode;TypeId type;
+    for(i=6;i<6+cc_unit_module_word(module,38)&&!cc.error->code;++i)import_type(module,i,0);
+    for(i=0;i<count&&!cc.error->code;++i) {
+        if(!cc_poll())return 0;
+        role=cc_unit_module_byte(module,at+1);type=cc_unit_module_word(module,at+4);
+        if(type!=TYPE_NONE)type=import_type(module,type,0);
+        if(cc.error->code)return 0;
+        n=cc_unit_module_word(module,at+6);p=at+EXPORT_HEADER+cc_unit_module_byte(module,at);
+        value=cc_unit_module_word(module,at+10);data=cc_unit_module_word(module,at+12);
+        if(role==2) {
+            if(type==K_STRING) {if(!data)cc_fail(UNIT_FORMAT);}
+            else if(type==K_REAL) {if(data!=6)cc_fail(UNIT_FORMAT);}
+            else if(!cc_ordinal(type)||data||(int16_t)value<CCT(type,low)||(int16_t)value>CCT(type,high))cc_fail(UNIT_FORMAT);
+        } else if(role==3) {
+            if(type==K_STRING)cc_fail(UNIT_FORMAT);
+        } else if(role==1&&(type==K_STRING||cc_aggregate(type)||cc_family(type)==K_SET||cc_family(type)==K_FILE))cc_fail(UNIT_FORMAT);
+        for(value=0;value<n&&!cc.error->code;++value) {
+            if(!(value&31u)&&!cc_poll())return 0;
+            mode=cc_unit_module_byte(module,p+4*value);type=cc_unit_module_word(module,p+4*value+2);
+            if(type!=TYPE_NONE)type=import_type(module,type,0);
+            if(type==K_STRING||(!mode&&type==TYPE_NONE)||(!mode&&cc_family(type)==K_FILE))cc_fail(UNIT_FORMAT);
+        }
+        at=p+4*n+data;
+    }
+    return !cc.error->code;
+}
+int16_t cc_unit_import_symbol(uint16_t module,uint16_t export) ROUTINES {
+    uint16_t scope=0,symbol,count,i,id,parameters,data;uint8_t role;
+    TypeId type;
+    /* The retained namespace calls this decoder only on a symbol-cache miss. */
+    role=cc_unit_module_byte(module,export+1);count=cc_unit_module_word(module,export+6);
+    type=cc_unit_module_word(module,export+4);if(type!=TYPE_NONE)type=import_type(module,type,0);
+    if(cc.error->code)return -1;
     if((uint32_t)cc.symbol_count+1+count>SYMBOL_LIMIT){cc_fail(99);return -1;}
-    symbol=cc.symbol_count++;cc_symbol_clear(symbol);CCS_SET(symbol,owner,0);
-    CCS_SET(symbol,type,cc_unit_module_word(module,export+4));
+    symbol=cc.symbol_count++;cc_symbol_clear(symbol);CCS_SET(symbol,type,type);CCS_SET(symbol,owner,0);
     parameters=export+EXPORT_HEADER+cc_unit_module_byte(module,export);data=parameters+4*count;
-    if(role==2) {
-        CCS_SET(symbol,role,S_CONSTANT);CCS_SET(symbol,address,cc_unit_module_word(module,export+10));
-        if(cc_unit_module_word(module,export+12))CCS_SET(symbol,address,
-            cc_source_reference(((SourcePosition)(0x8000u|module)<<16)|data));
+    if(role>=2) {
+        CCS_SET(symbol,role,role==2?S_CONSTANT:S_TYPE);CCS_SET(symbol,address,cc_unit_module_word(module,export+10));
+        if(role==2&&cc_unit_module_word(module,export+12))CCS_SET(symbol,address,cc_source_reference(position(module,data)));
     } else {
         if(cc.routine_count==65535u){cc_fail(99);return -1;}
-        scope=++cc.routine_count;cc_routine_clear(scope);
-        CCS_SET(symbol,role,role?S_FUNCTION:S_PROCEDURE);CCS_SET(symbol,initial_type,scope);
+        scope=++cc.routine_count;cc_routine_clear(scope);CCS_SET(symbol,role,role?S_FUNCTION:S_PROCEDURE);CCS_SET(symbol,initial_type,scope);
         cc_rput(scope,R_SYMBOL,symbol);cc_rput(scope,R_FLAGS,RF_DEFINED|RF_UNIT_IMPORT);
+        /* Import nested types before allocating the contiguous parameter block. */
+        for(i=0;i<count&&!cc.error->code;++i) {
+            type=cc_unit_module_word(module,parameters+4*i+2);if(type!=TYPE_NONE)import_type(module,type,0);
+        }
+        if((uint32_t)cc.symbol_count+count>SYMBOL_LIMIT){cc_fail(99);return -1;}
         cc_rput(scope,R_PARAMETERS,cc.symbol_count);cc_rput(scope,R_COUNT,count);
-        for(i=0;i<count;++i) {
+        for(i=0;i<count&&!cc.error->code;++i) {
             id=cc.symbol_count++;cc_symbol_clear(id);CCS_SET(id,owner,scope);
             CCS_SET(id,role,cc_unit_module_byte(module,parameters+4*i)?S_REFERENCE:S_VALUE);
-            CCS_SET(id,type,cc_unit_module_word(module,parameters+4*i+2));
+            type=cc_unit_module_word(module,parameters+4*i+2);CCS_SET(id,type,type==TYPE_NONE?type:import_type(module,type,0));
         }
     }
     if(!cc_unit_record(UR_IMPORT,scope,module,export,0,symbol))return -1;

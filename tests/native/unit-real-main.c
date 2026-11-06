@@ -19,12 +19,13 @@ static void check(uint8_t ok) {
 static uint8_t load(const char *text) {
     return source_import(&s,(const uint8_t*)text,(uint16_t)strlen(text),&d);
 }
-static void closed(void) {
+static void closed_extra(uint8_t extra) {
     uint8_t i,count=0;build_close(&b);
     for(i=0;i<code_required;++i)if(code_pages[i]!=255)++count;
-    check(count==15&&code_pages[CODE_RUNTIME]==255&&pages_used()==16);
+    check(count==15&&code_pages[CODE_RUNTIME]==255&&pages_used()==16+extra);
     for(i=0;i<CODE_BANK_LIMIT;++i)check(code_phase_pending[i]==255);
 }
+static void closed(void){closed_extra(0);}
 static const char mixed[]=
     "unit Mixed;interface\n"
     "function Plain(X:Integer):Integer;\nfunction Scale(X:Real):Real;\n"
@@ -346,6 +347,83 @@ static void metadata_constants(void) {
     {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/LITRUN.COM",0,&status)&&status==0);}
     {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/COPYCONST.COM",0,&status)&&status==0);}
 }
+/* Corrupt unused metadata with a correct artifact checksum: structural and
+ * semantic rejection must both reclaim pages and restore the warm code set. */
+static void malformed_types(void) {
+    uint8_t page=page_new(PAGE_COMPILER);uint16_t bytes,at,n,i,j,m,first_record=0,array=0,old;
+    check(page!=255);if(page==255)return;
+    bytes=read_artifact("H:/KINDS.ZPU",page);at=page_word(page,42);n=page_word(page,38);
+    for(i=0;i<n;++i) {
+        if(page_word(page,at)==K_RECORD&&!first_record)first_record=at;
+        if(page_word(page,at)==K_ARRAY)array=at;
+        m=page_word(page,at+16);at+=18;
+        for(j=0;j<m;++j)at+=10+far_get(page,at+1);
+    }
+    check(first_record&&array);
+    if(first_record&&array) {
+        at=first_record+20;old=page_word(page,at);page_word_set(page,at,TYPE_NONE);
+        checksum(page,bytes);write_artifact("H:/KINDS.ZPU",page,bytes);
+        check(source_new(&s,"H:/TYPEFORMAT.PAS"));check(load("uses Kinds;begin end."));
+        check(!compile(&s,&b,&d)&&d.code==UNIT_FORMAT);closed_extra(1);source_close(&s);
+        page_word_set(page,at,old);old=page_word(page,array+2);page_word_set(page,array+2,1);
+        checksum(page,bytes);write_artifact("H:/KINDS.ZPU",page,bytes);
+        check(source_new(&s,"H:/TYPEWIDTH.PAS"));check(load("uses Kinds;begin end."));
+        check(!compile(&s,&b,&d)&&d.code==UNIT_FORMAT);closed_extra(1);source_close(&s);
+        page_word_set(page,array+2,old);checksum(page,bytes);write_artifact("H:/KINDS.ZPU",page,bytes);
+    }
+    check(page_drop(page));
+}
+static const char typed_unit[]=
+    "unit Kinds;interface const Limit=3;type TShade=(ShadeLow,ShadeHigh);\n"
+    "TIndex=1..Limit;TPoint=record X,Y:Integer end;\n"
+    "TPoints=array[TIndex]of TPoint;TShades=set of TShade;TText=string[12];\n"
+    "PNode=^TNode;TNode=record Next:PNode;Kind:TShade end;\n"
+    "TChoice=record case Tag:Boolean of false:(I:Integer);true:(R:Real)end;\n"
+    "TBin=file of TPoint;function Pick(S:TShade):TShade;\n"
+    "procedure Bump(var P:TPoint);procedure Fill(var A:TPoints);\n"
+    "procedure Echo(V:TText;var R:TText);implementation\n"
+    "function Pick(S:TShade):TShade;begin if S=ShadeLow then Pick:=ShadeHigh else Pick:=ShadeLow end;\n"
+    "procedure Bump(var P:TPoint);begin P.X:=P.X+1;P.Y:=P.Y+2 end;\n"
+    "procedure Fill(var A:TPoints);begin A[1].X:=10;A[3].Y:=30 end;\n"
+    "procedure Echo(V:TText;var R:TText);begin R:=V end;end.";
+static void metadata_types(void) {
+    check(author("H:/KINDS.PAS","H:/KINDS.ZPU",typed_unit));
+    check(!rm("H:/KINDS.PAS"));malformed_types();
+    check(source_new(&s,"H:/TYPELEAF.PAS"));
+    check(load("uses Kinds;var P:TPoint;begin P.X:=Limit end."));check(compile(&s,&b,&d));
+    if(b.valid) {
+        check((far_get(b.pages[0],18)&NATIVE_SHARED_STACK)&&b.pages[2]==255&&b.globals_bytes==4);
+        check(save_build(&s,&b,0));check(run_build(&s,&b)&&ram_result[26]==1);
+    }
+    closed();source_close(&s);
+    check(author("H:/TYPECOPY.PAS","H:/TYPECOPY.ZPU",
+        "unit TypeCopy;interface uses Kinds;type TAlias=TPoint;TShadeAlias=TShade;\n"
+        "const Chosen=ShadeHigh;procedure Shift(var P:TAlias);\n"
+        "function Flip(V:TShadeAlias):TShadeAlias;implementation\n"
+        "procedure Shift(var P:TAlias);begin Kinds.Bump(P)end;\n"
+        "function Flip(V:TShadeAlias):TShadeAlias;begin Flip:=Kinds.Pick(V)end;end."));
+    check(!rm("H:/TYPECOPY.PAS"));
+    client("H:/TYPERUN.PAS","uses TypeCopy,Kinds;var P:Kinds.TPoint;A:TPoints;S:TShades;T,U:TText;\n"
+        "N:TNode;V:TChoice;F:TBin;C:TypeCopy.TShadeAlias;Z:Integer;begin Z:=0;\n"
+        "P.X:=40;P.Y:=1;Shift(P);if(P.X<>41)or(P.Y<>3)then Z:=1 div Z;\n"
+        "Fill(A);if(A[1].X<>10)or(A[3].Y<>30)then Z:=1 div Z;\n"
+        "T:='hello';Echo(T,U);if U<>'hello'then Z:=1 div Z;\n"
+        "S:=[ShadeLow];S:=S+[ShadeHigh];if not(Chosen in S)then Z:=1 div Z;\n"
+        "C:=Flip(ShadeLow);if C<>ShadeHigh then Z:=1 div Z;\n"
+        "N.Next:=ptr(addr(N));N.Kind:=C;if N.Next^.Kind<>ShadeHigh then Z:=1 div Z;\n"
+        "V.Tag:=false;V.I:=123;if(V.I<>123)or(SizeOf(V)<>7)then Z:=1 div Z;\n"
+        "V.Tag:=true;V.R:=1.5;if V.R<>1.5 then Z:=1 div Z;\n"
+        "if(SizeOf(F)<>176)or(SizeOf(TPoint)<>4)then Z:=1 div Z;\n"
+        "writeln('UNIT-TYPES-OK')end.");
+    check(author("H:/OTHERKINDS.PAS","H:/OTHERKINDS.ZPU",
+        "unit OtherKinds;interface type TShade2=(OtherLow,OtherHigh);implementation end."));
+    check(source_new(&s,"H:/TYPEBAD.PAS"));
+    check(load("uses Kinds,OtherKinds;var A:Kinds.TShade;B:OtherKinds.TShade2;begin A:=B end."));
+    check(!compile(&s,&b,&d)&&d.code==44);closed();source_close(&s);
+    check(!rm("H:/KINDS.ZPU"));check(!rm("H:/TYPECOPY.ZPU"));check(!rm("H:/OTHERKINDS.ZPU"));
+    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/TYPERUN.COM",0,&status)&&status==0);}
+    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/TYPELEAF.COM",0,&status)&&status==0);}
+}
 int app_main(void) {
     uint8_t status;int8_t capture;
     if(!console_open())return 1;
@@ -369,7 +447,7 @@ int app_main(void) {
     fault_location();page_pressure(1);page_pressure(0);
     layout_helpers();layout_limits();
     client("H:/SHARED.PAS","var N:Integer;begin N:=21*2;if N<>42 then halt end.");
-    execute_shared();argument_calls();dependency_units();metadata_constants();
+    execute_shared();argument_calls();dependency_units();metadata_constants();metadata_types();
     test_stage=3;check(!rm("H:/MIXED.ZPU"));check(!rm("H:/MIXED.PAS"));
     status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/SHARED.COM",0,&status)&&status==0);
     status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/SHARED.COM",0,&status)&&status==0);

@@ -1,8 +1,8 @@
 #include "compiler_units.h"
 #include "library.h"
 
-/* Unit namespace and primitive signature materialization share the compiler
- * metadata bank. Cached object bytes and state stay in owned far pages. */
+/* The retained namespace owns visibility and cached symbol IDs. A transient
+ * metadata decoder handles cache misses; artifacts/state own far pages. */
 static uint8_t module_name(uint16_t module,const char *name) {
     uint8_t i,n=cc_unit_module_byte(module,18);
     if(strlen(name)!=n)return 0;
@@ -41,7 +41,12 @@ static uint16_t find_export(uint16_t module,const char *name) {
     return 0;
 }
 static int16_t materialize(uint16_t module,uint16_t export) {
-    int16_t symbol;uint8_t primary;
+    int16_t symbol;uint8_t primary;uint16_t at,end=cc_unit_word(UH_USED);
+    for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES) {
+        if(!(at&127u)&&!cc_poll())return -1;
+        if(cc_unit_word(at)==UR_IMPORT&&cc_unit_word(at+4)==module&&cc_unit_word(at+6)==export)
+            return (int16_t)cc_unit_word(at+10);
+    }
     if(!code_phase_unit_meta()){cc_fail(COMPILE_PLATFORM_FAILURE);return -1;}
     symbol=cc_unit_import_symbol(module,export);primary=platform_error;
     if(!code_phase_unit_meta_release()){cc_fail(COMPILE_PLATFORM_FAILURE);return -1;}
@@ -188,4 +193,22 @@ uint8_t cc_units_link(void) ROUTINES {
     primary=platform_error;
     if(!code_phase_unit_link_end()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
     if(!ok)platform_error=primary;return ok;
+}
+
+/* Uses clauses run outside the file generator. Lend its idle slot while the
+ * metadata bank validates/materializes type graphs, then restore its code. */
+uint8_t cc_units_types_ready(uint16_t module) ROUTINES {
+    uint16_t state=cc_units_state(module);uint8_t ok=0,primary;
+    if(cc_unit_word(state+4)&UM_TYPES)return 1;
+    if(!code_phase_unit_link_begin()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    if(!code_phase_unit_meta())cc_fail(COMPILE_PLATFORM_FAILURE);
+    else {
+        ok=cc_unit_types_ready(module);primary=platform_error;
+        if(!code_phase_unit_meta_release()){cc_fail(COMPILE_PLATFORM_FAILURE);ok=0;}
+        else if(!ok)platform_error=primary;
+    }
+    primary=platform_error;
+    if(!code_phase_unit_link_end()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    if(!ok)platform_error=primary;
+    if(ok)cc_unit_put(state+4,cc_unit_word(state+4)|UM_TYPES);return ok;
 }

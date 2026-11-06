@@ -104,16 +104,10 @@ void cc_units_owner(uint16_t scope) ROUTINES {
         cc_unit_record(UR_FRAGMENT,cc.sources->unit_start,cc.emitted,cc.sources->unit_owner,cc.sources->unit_real,0);
     cc.sources->unit_start=cc.emitted;cc.sources->unit_owner=scope;cc.sources->unit_real=0;
 }
-static uint8_t primitive(TypeId type) {
-    return type==K_INTEGER||type==K_BOOLEAN||type==K_CHAR||type==K_BYTE||type==K_REAL;
-}
 void cc_units_export(uint16_t symbol,uint16_t scope) ROUTINES {
-    uint16_t first=cc_rget(scope,R_PARAMETERS),count=cc_rget(scope,R_COUNT),i,end=cc_unit_word(UH_USED);
+    uint16_t i,end=cc_unit_word(UH_USED);
     for(i=UNIT_RECORD_BASE;i<end;i+=UNIT_RECORD_BYTES)
         if(cc_unit_word(i)==UR_EXPORT&&cc_unit_word(i+2)==symbol){cc_fail(UNIT_INTERFACE);return;}
-    if(CCS(symbol,role)==S_FUNCTION&&!primitive(CCS(symbol,type))){cc_fail(UNIT_UNSUPPORTED);return;}
-    for(i=0;i<count;++i)if(!primitive(CCS(first+i,type))&&
-        !(CCS(first+i,role)==S_REFERENCE&&CCS(first+i,type)==TYPE_NONE)){cc_fail(UNIT_UNSUPPORTED);return;}
     cc_unit_record(UR_EXPORT,symbol,scope,0,0,0);
 }
 void cc_units_header(void) ROUTINES {

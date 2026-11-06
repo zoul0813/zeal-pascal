@@ -94,7 +94,7 @@ def main():
     captured=n.execute('ide-startup-pages',commands,timeout=180)
     memory=n.memory(captured);library_count=memory.get(sym['_code_required'],0)
     cold_count=sum(memory.get(sym['_code_pages']+i,255)!=255 for i in range(count))
-    checks['startup owns only cold code banks and one Work beyond OS pages']=library_count==count==17 and cold_count==10 and bytes(memory.get(owners+i,255)for i in range(32)).count(2)==cold_count+4 and '_buffers' not in sym
+    checks['startup owns only cold code banks and one Work beyond OS pages']=library_count==count==18 and cold_count==10 and bytes(memory.get(owners+i,255)for i in range(32)).count(2)==cold_count+4 and '_buffers' not in sym
     # An unavailable include must retain the diagnostic and current Work;
     # its offset must never be applied to unrelated text.
     commands=['run 100000000']+n.program_launch()+['run 10000000']+typed(answer+'wH:/missing.pas\n')

@@ -3,7 +3,8 @@
 
 /* This is an experimental resource limit, not an artifact-field limit. The
  * near arrays live only during final linking on the compiler's retained C
- * stack. Signatures are materialized lazily, so unused exports use no slots. */
+ * stack. Exported names acquire lexical symbols lazily; checked type graphs
+ * can own additional compile-time metadata. */
 #define UNIT_LINK_ROOTS 128u
 static uint8_t location(const CompilerFragmentLayout *layout,uint16_t module,uint16_t fragment,uint16_t *address) {
     uint8_t status=cc_fragment_layout_get(layout,cc_unit_word(module+8),fragment,address);

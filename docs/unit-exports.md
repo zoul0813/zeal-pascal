@@ -16,7 +16,7 @@ including unused constants. This unreleased container continues to use ABI1.
 The unit keywords `unit`, `interface`, `implementation` and `uses` are reserved
 in the unit-enabled compiler. Typed constants remain unsupported in interfaces;
 they represent mutable storage, rather than these compile-time values. Public
-custom type metadata is the next checkpoint. Unit initialization remains out
+custom type support is described in [unit-types.md](unit-types.md). Unit initialization remains out
 of scope. The native suite passes 1,337 assertions, including source-free String and Real
 re-export and saved execution after deleting both unit artifacts. Independent
 Opus review remains pending because the account usage limit prevented review.

@@ -70,7 +70,10 @@ uint8_t cc_units_graph_validate(void) ROUTINES {
         }
     if(!count)return 1;
     status=cc_fragment_validate(objects,count);
-    if(status!=CF_OK){cc_fail(UNIT_FORMAT);return 0;}return 1;
+    if(status!=CF_OK){cc_fail(UNIT_FORMAT);return 0;}
+    for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)
+        if(cc_unit_word(at)==UR_MODULE&&cc_unit_word(at+8)&&!cc_units_types_ready(at))return 0;
+    return 1;
 }
 
 uint16_t cc_unit_target(uint16_t module,uint16_t identity) ROUTINES {
