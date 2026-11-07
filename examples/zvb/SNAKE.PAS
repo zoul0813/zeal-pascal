@@ -70,6 +70,27 @@ const Numbers: array[0..793] of Byte = (
   200,243
 );
 { END GENERATED INCLUDE: NUMBERS.INC }
+{ BEGIN GENERATED INCLUDE: SCORE.INC }
+{ Original SDK SCORE glyphs, LZ encoded. See CREDITS.md and assets.json. }
+const ScoreLetters: array[0..381] of Byte = (
+  0,128,1,198,0,174,3,4,195,0,3,2,1,157,5,5,197,16,1,158,196,30,195,15,
+  199,0,2,196,15,3,196,79,202,31,192,63,199,48,3,3,1,1,2,195,0,3,160,143,
+  184,195,5,192,47,198,16,194,127,197,13,4,2,2,192,63,197,124,142,0,0,197,80,192,
+  28,202,221,192,235,204,3,0,1,201,0,0,1,2,3,4,197,0,3,2,1,1,142,5,
+  5,197,16,159,197,13,195,15,192,47,2,195,0,196,15,198,85,195,15,0,195,0,1,3,
+  193,95,200,15,145,204,15,195,5,192,127,201,16,192,143,198,33,192,143,2,2,198,175,2,
+  2,192,192,199,0,192,118,201,222,205,0,0,1,201,0,0,1,2,3,4,197,0,3,2,
+  1,1,142,5,5,197,16,159,157,2,2,198,15,192,47,1,1,229,15,193,95,194,47,3,
+  175,145,220,7,2,2,197,39,4,194,49,192,55,192,143,195,137,193,180,2,2,192,192,199,
+  0,1,0,0,201,224,142,203,2,0,1,201,0,0,1,2,3,4,197,0,3,2,1,1,
+  142,5,5,197,16,159,157,2,2,198,15,192,47,1,1,209,15,194,63,198,79,1,0,1,
+  3,198,95,3,192,111,3,200,0,197,15,2,2,195,16,195,31,199,7,4,3,130,198,7,
+  192,137,2,2,197,7,0,1,2,128,1,0,197,7,193,224,134,197,7,202,3,0,1,201,
+  0,0,1,2,3,4,197,0,3,2,1,1,142,5,5,197,16,159,197,13,195,15,199,0,
+  194,47,194,40,195,88,201,31,192,63,200,95,175,145,2,195,0,196,15,195,5,204,15,193,
+  127,198,33,192,143,2,2,199,126,2,192,192,199,0,1,0,0,201,224,142,203,2
+);
+{ END GENERATED INCLUDE: SCORE.INC }
 { BEGIN GENERATED INCLUDE: PALETTES.INC }
 const SnakePalette: array[0..37] of Byte = (
   31,220,0,0,192,8,161,138,98,83,64,218,155,75,223,91,255,91,195,5,
@@ -82,17 +103,22 @@ const FontPalette: array[0..11] of Byte = (
 const BoardWidth = 20; BoardHeight = 14; MaxLength = 256;
   BodyTile: array[0..15] of Byte =
     (12,12,12,5,12,13,8,12,12,4,12,12,10,12,12,12);
-type TPoint = record X, Y: Byte end;
+  Checker: array[0..20] of Byte =
+    (32,33,32,33,32,33,32,33,32,33,32,33,32,33,32,33,32,33,32,33,32);
+  ScoreLabel: array[0..5] of Byte = (65,66,67,68,69,58);
+  TailTile: array[0..3] of Byte = (14,11,6,9);
 var Context: TGfxContext;
-  Body: array[0..255] of TPoint;
-  Occupied: array[0..279] of Boolean;
-  Tail, Head, SnakeLength, Score: Integer;
+  { Zero is empty;1..4 links an occupied cell toward the head. }
+  Board: array[0..279] of Byte;
+  TailX, TailY, HeadX, HeadY: Byte;
+  SnakeLength, Score: Integer;
   Frames: Word;
   Direction, NextDirection, AppleX, AppleY, Tick, SoundFrames: Byte;
   Error, OldDirection: Byte;
   GameOver, Quit, Demo, SoundUsed: Boolean;
   Key: Char;
   Waiting: Boolean;
+  Speed: Byte;
 
 { BEGIN GENERATED INCLUDE: VIDEO.INC }
 { Shared demo cleanup. Save palette and video controls before changing them.
@@ -134,14 +160,15 @@ end;
 
 procedure Place(Tile, X, Y: Byte);
 begin
-  Error := GfxTilemapPlace(Context, Tile, 1, X, Y)
+  Error := GfxTilemapLoad(Context, Tile, 1, 1, X, Y)
 end;
 
 procedure ShowScore;
 var Value: Integer; I: Integer;
 begin
+  Error := GfxTilemapLoad(Context, ScoreLabel, 6, 1, 10, 14);
   Value := Score;
-  for I := 9 downto 6 do begin
+  for I := 18 downto 16 do begin
     Place(48 + Value mod 10, I, 14);
     Value := Value div 10
   end
@@ -159,7 +186,7 @@ var Cell: Integer;
 begin
   { Start randomly, then scan every cell so a nearly full board terminates. }
   Cell := Random(280);
-  while Occupied[Cell] do begin
+  while Board[Cell] <> 0 do begin
     Cell := Cell + 1;
     if Cell = 280 then Cell := 0
   end;
@@ -172,16 +199,18 @@ procedure ResetGame;
 var Y: Byte; I: Word; Row: array[0..19] of Byte;
 begin
   GfxEnableScreen(False);
-  for I := 0 to 279 do Occupied[I] := False;
+  for I := 0 to 279 do Board[I] := 0;
   FillChar(Row, SizeOf(Row), 15);
-  for Y := 0 to 14 do begin
-    Error := GfxTilemapLoad(Context, Row, 20, 0, 0, Y);
+  for Y := 0 to 13 do begin
+    Error := GfxTilemapLoad(Context, Checker[Y and 1], 20, 0, 0, Y);
     Error := GfxTilemapLoad(Context, Row, 20, 1, 0, Y)
   end;
-  Tail := 0; Head := 1; SnakeLength := 2; Score := 0;
-  Body[0].X := 9; Body[0].Y := 7;
-  Body[1].X := 10; Body[1].Y := 7;
-  Occupied[149] := True; Occupied[150] := True;
+  Error := GfxTilemapLoad(Context, Row, 20, 1, 0, 14);
+  FillChar(Row, SizeOf(Row), 34);
+  Error := GfxTilemapLoad(Context, Row, 20, 0, 0, 14);
+  TailX := 9; TailY := 7; HeadX := 10; HeadY := 7;
+  SnakeLength := 2; Score := 0; Speed := 0;
+  Board[149] := 2; Board[150] := 2;
   Direction := 1; NextDirection := 1; Tick := 0;
   GameOver := False; Waiting := not Demo;
   Place(11, 9, 7); Place(1, 10, 7);
@@ -198,15 +227,15 @@ end;
 procedure Lose;
 begin
   GameOver := True;
-  Place(14, 11, 14); { Tail icon marks game over. }
+  Place(14, 8, 14); { Tail icon marks game over. }
   Beep(163, 20, SoundNoise)
 end;
 
 procedure MoveSnake;
-var X, Y: Integer; Cell, OldHead, NextTail: Integer;
-  Growing: Boolean; Mask, Tile: Byte;
+var X, Y, Cell, TailCell: Integer;
+  Growing: Boolean; Mask, Tile, TailDirection: Byte;
 begin
-  X := Body[Head].X; Y := Body[Head].Y;
+  X := HeadX; Y := HeadY;
   OldDirection := Direction; Direction := NextDirection;
   if Direction = 0 then Y := Y - 1
   else if Direction = 1 then X := X + 1
@@ -215,36 +244,37 @@ begin
   if (X < 0) or (X >= BoardWidth) or (Y < 0) or (Y >= BoardHeight)
     then begin Lose; Exit end;
   Cell := Y * BoardWidth + X;
+  TailCell := TailY * BoardWidth + TailX;
   Growing := (X = AppleX) and (Y = AppleY);
-  if Occupied[Cell] and (Growing or (X <> Body[Tail].X) or
-    (Y <> Body[Tail].Y)) then begin Lose; Exit end;
-  OldHead := Head;
+  if (Board[Cell] <> 0) and (Growing or (Cell <> TailCell))
+    then begin Lose; Exit end;
+  Board[HeadY * BoardWidth + HeadX] := Direction + 1;
   if not Growing then begin
-    Place(15, Body[Tail].X, Body[Tail].Y);
-    Occupied[Body[Tail].Y * BoardWidth + Body[Tail].X] := False;
-    Tail := (Tail + 1) and 255
+    Place(15, TailX, TailY);
+    TailDirection := Board[TailCell] - 1;
+    Board[TailCell] := 0;
+    if TailDirection = 0 then TailY := TailY - 1
+    else if TailDirection = 1 then TailX := TailX + 1
+    else if TailDirection = 2 then TailY := TailY + 1
+    else TailX := TailX - 1
   end else begin
     SnakeLength := SnakeLength + 1; Score := Score + 1;
+    if (Score mod 8 = 0) and (Speed < 10) then Speed := Speed + 1;
     ShowScore;
     Beep(1308, 6, SoundSquare or SoundDuty50)
   end;
-  Head := (Head + 1) and 255;
-  Body[Head].X := X; Body[Head].Y := Y;
-  Occupied[Cell] := True;
   Mask := (1 shl ((OldDirection + 2) and 3)) or (1 shl Direction);
   Tile := BodyTile[Mask];
-  Place(Tile, Body[OldHead].X, Body[OldHead].Y);
-  Place(Direction, X, Y);
-  NextTail := (Tail + 1) and 255;
-  if Body[NextTail].X > Body[Tail].X then Tile := 11
-  else if Body[NextTail].X < Body[Tail].X then Tile := 9
-  else if Body[NextTail].Y > Body[Tail].Y then Tile := 6
-  else Tile := 14;
-  Place(Tile, Body[Tail].X, Body[Tail].Y);
+  Place(Tile, HeadX, HeadY);
+  HeadX := X; HeadY := Y;
+  Board[Cell] := Direction + 1;
+  Place(Direction, HeadX, HeadY);
+  TailDirection := Board[TailY * BoardWidth + TailX] - 1;
+  Place(TailTile[TailDirection], TailX, TailY);
   if Growing then begin
     if SnakeLength = MaxLength then begin
       GameOver := True;
-      Place(7, 11, 14) { Apple icon marks maximum length. }
+      Place(7, 8, 14) { Apple icon marks maximum length. }
     end else NewApple
   end
 end;
@@ -284,9 +314,13 @@ begin
   if Error <> GfxSuccess then Exit;
   Error := GfxTilesetLoadLZ(Context, Numbers, SizeOf(Numbers), $3000, 32, True);
   if Error <> GfxSuccess then Exit;
-  { Palette zero is transparent on layer1, and the field color on layer0. }
-  Error := GfxPaletteLoad(Context, SnakePalette[32], 2, 0);
+  Error := GfxTilesetLoadLZ(Context, ScoreLetters, SizeOf(ScoreLetters), $4100, 32, True);
   if Error <> GfxSuccess then Exit;
+  { Background tiles are generated, exactly as in the C game. }
+  for I := 0 to 2 do begin
+    Error := GfxTilesetAddColorTile(Context, 32 + I, 16 + I);
+    if Error <> GfxSuccess then Exit
+  end;
   { Y480 is below the 240-line field even for a pre-existing 32px sprite. }
   for I := 0 to 127 do Error := GfxSpriteSetY(Context, I, 480);
   { Neutral scrolling, explicitly owned by this demo. }
@@ -317,7 +351,7 @@ begin
       end;
       if not GameOver and not Waiting then begin
         Tick := Tick + 1;
-        if Tick = 6 then begin Tick := 0; MoveSnake end
+        if Tick = 20 - Speed then begin Tick := 0; MoveSnake end
       end;
       Frames := Frames + 1;
       if Demo then begin

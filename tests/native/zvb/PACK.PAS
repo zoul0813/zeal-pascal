@@ -1,6 +1,6 @@
 program ZVBPackedTiles;
 uses ZVB;
-var Context: TGfxContext; Data: array[0..299] of Byte;
+var Context: TGfxContext; Data: array[0..1025] of Byte;
   Result: array[0..63] of Byte;
   Descriptor: TDMADescriptor; Config: TDMADescriptorConfig;
   Z, I, J: Integer; Mode: Byte;
@@ -73,6 +73,16 @@ begin
   Require(GfxTilesetLoadRLE(Context, Data, 2, 0, 0, False) = GfxInvalidArg);
   Data[0] := $81; Data[1] := 7;
   Require(GfxTilesetLoadRLE(Context, Data, 2, 65535, 0, False) = GfxInvalidArg);
+  { Exact64KB output is representable even though a Word length is not. }
+  for I := 0 to 511 do begin Data[I * 2] := $FF; Data[I * 2 + 1] := 42 end;
+  Require(GfxTilesetLoadRLE(Context, Data, 1024, 0, 0, False) = 0);
+  ReadVRAM(65535, 1); Require(Result[0] = 42);
+  Data[1024] := 0; Data[1025] := 99;
+  Require(GfxTilesetLoadRLE(Context, Data, 1026, 0, 0, False) = GfxInvalidArg);
+  ReadVRAM(0, 1); Require(Result[0] = 42);
+  Data[0] := 0; Data[1] := 7;
+  Require(GfxTilesetLoadRLE(Context, Data, 2, 65535, 0, False) = 0);
+  ReadVRAM(65535, 1); Require(Result[0] = 7);
   Require(GfxInitialize(GfxMode3204Bit, Context) = 0);
   Require(GfxTilesetLoad4Bit(Context, Data, 2, 0, 0, False) = GfxInvalidArg);
   Data[0] := $A5;

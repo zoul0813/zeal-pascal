@@ -50,5 +50,15 @@
   },
   "generator": "python3 tools/generate-zvb-assets.py --sdk <Zeal-VideoBoard-SDK>",
   "encoder_sha256": "b4ceb44e0563d52863d2e3667eb6ec5c81a290865f1a56d1a98438d3878147ad",
-  "decoder_sha256": "cee3266ec41dc6bb2120efb650594bddaab317b0eed63e12c9925d48a6b8b84b"
+  "decoder_sha256": "cee3266ec41dc6bb2120efb650594bddaab317b0eed63e12c9925d48a6b8b84b",
+  "score_letters": {
+    "source": "letters.zts",
+    "glyphs": "SCORE",
+    "include": "SCORE.INC",
+    "encoding": "lz-8bpp",
+    "stored_bytes": 382,
+    "decoded_bytes": 1280,
+    "stored_sha256": "04bd06d0a81085455dedc298165daa02c5dc37801283e4e27337ef3382697077",
+    "decoded_sha256": "e180c0381092692e948f2df7dba29a5dc06bcca1c28b65352809303d7952cd4e"
+  }
 }

@@ -71,36 +71,7 @@ function LoadEncoded(var Context: TGfxContext; var Tileset;
 var Pixels: array[0..255] of Byte;
   Address, I, Position, Known, Remaining, Destination, Count, Offset: Word;
   Full: Boolean;
-  Command, Value, Error: Byte;
-
-procedure EmitPixel(Pixel: Byte);
-begin
-  if Error <> 0 then Exit;
-  if Remaining = 0 then begin
-    if not Full then begin Error := GfxInvalidArg; Exit end;
-    Full := False;
-    Remaining := 65535
-  end else Remaining := Remaining - 1;
-  Pixels[Position] := Pixel;
-  Position := Position + 1;
-  if Known < 256 then Known := Known + 1;
-  if Position = 256 then begin
-    Error := GfxTilesetLoadNone(Context, Pixels, 256, Destination,
-      PaletteOffset, Opacity);
-    Destination := Destination + 256;
-    Position := 0
-  end
-end;
-
-procedure Literals;
-begin
-  if Count > Size - I then begin Error := GfxInvalidArg; Exit end;
-  while (Count <> 0) and (Error = 0) do begin
-    EmitPixel(Mem[Address + I]);
-    I := I + 1; Count := Count - 1
-  end
-end;
-
+  Command, Value, Error, RunKind: Byte;
 begin
   LoadEncoded := GfxInvalidArg;
   if not GfxContextValid(Context) or (Context.BitsPerPixel <> 8) or
@@ -113,24 +84,23 @@ begin
   Remaining := Word(0 - FromByte);
   while (I < Size) and (Error = 0) do begin
     Command := Mem[Address + I]; I := I + 1;
+    { Decode a complete token before emitting. RunKind0 repeats Value,
+      1 copies source literals, 2 copies overlapping circular history. }
+    RunKind := 0;
     if Kind = TilesetCompRLE then begin
       if Command < $80 then begin
-        Count := Command + 1; Literals
+        Count := Command + 1; RunKind := 1
       end else begin
         Count := Command - $80 + 1;
         if I = Size then Error := GfxInvalidArg
-        else begin
-          Value := Mem[Address + I]; I := I + 1;
-          while (Count <> 0) and (Error = 0) do begin
-            EmitPixel(Value); Count := Count - 1
-          end
-        end
+        else begin Value := Mem[Address + I]; I := I + 1 end
       end
     end else begin
-      if Command < $40 then EmitPixel(Command)
+      if Command < $40 then begin Count := 1; Value := Command end
       else if Command < $80 then begin
-        Count := (Command and $3F) + 1; Literals
+        Count := (Command and $3F) + 1; RunKind := 1
       end else begin
+        RunKind := 2;
         if Command < $C0 then begin
           Count := ((Command shr 4) and 3) + 3;
           Offset := (Command and 15) + 1
@@ -139,10 +109,25 @@ begin
           if I = Size then begin Error := GfxInvalidArg; Offset := 0 end
           else begin Offset := Mem[Address + I] + 1; I := I + 1 end
         end;
-        if Offset > Known then Error := GfxInvalidArg;
-        while (Count <> 0) and (Error = 0) do begin
-          EmitPixel(Pixels[(Position + 256 - Offset) and 255]);
-          Count := Count - 1
+        if Offset > Known then Error := GfxInvalidArg
+      end
+    end;
+    if (RunKind = 1) and (Count > Size - I) then Error := GfxInvalidArg;
+    { Full represents exactly65536 bytes, which a Word cannot hold.
+      Token counts are1..128, so the subtraction cannot wrap a live range. }
+    if (not Full) and (Count > Remaining) then Error := GfxInvalidArg;
+    if Error = 0 then begin
+      Remaining := Remaining - Count; Full := False;
+      Known := Known + Count; if Known > 256 then Known := 256;
+      while (Count <> 0) and (Error = 0) do begin
+        if RunKind = 1 then begin Value := Mem[Address + I]; I := I + 1 end
+        else if RunKind = 2 then Value := Pixels[(Position + 256 - Offset) and 255];
+        Pixels[Position] := Value;
+        Position := Position + 1; Count := Count - 1;
+        if Position = 256 then begin
+          Error := GfxTilesetLoadNone(Context, Pixels, 256, Destination,
+            PaletteOffset, Opacity);
+          Destination := Destination + 256; Position := 0
         end
       end
     end

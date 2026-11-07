@@ -1,7 +1,8 @@
 # ZVB demos
 
-**Development build: native emulator tests pass for the unit and demos.
-Physical display and audio verification remains outstanding.**
+**Development checkpoint: unit authoring, focused graphics/decoder tests and
+Snake's saved demo pass. Final interactive layout validation and Opus review
+of the latest changes remain pending. Physical hardware is unqualified.**
 
 Four small programs for the Pascal ZVB unit. They need a Zeal Video Board; the
 graphics demos also need its display clock running, because their vblank waits
@@ -23,7 +24,8 @@ the source. Run it from ZShell, or press **R** in Com-file mode to compile and r
 
 Memory mode (**O → M → Q**) compiles and runs from RAM without a disk workspace.
 To publish a COM after Memory testing, select Com-file and compile again. The
-qualification harness confirms identical COM bytes from both compiler paths.
+earlier qualification baseline confirms identical COM bytes from both paths;
+the latest layout checkpoint has only been repeated in Com-file mode.
 
 The public demo sources are standalone: generated include sections already
 contain the helpers and assets. Saved executables embed their selected library
@@ -62,9 +64,12 @@ Edit the authoritative INC files rather than generated include sections.
 
 Eat apples; avoid the walls and your own body. Each apple grows the snake and adds
 a point. Reversing straight into your next segment is ignored. Fill the snake to
-256 segments and you win. R starts a new game at any time. A tail icon beside
-the four-digit score marks game over; an apple icon marks a win. Movement stops
-in either state. The field uses a uniform green from the original palette.
+256 segments and you win. Normal play waits for a direction before moving;
+R resets into that waiting state. A tail icon beside the `SCORE:000` display
+marks game over; an apple icon marks a win. The field alternates generated
+background tiles32/33, using original palette colours16/17, above a darker
+score strip. Movement starts at20 frames per step, speeding up every8 apples
+to a minimum10 frames, matching the C game's pace.
 
 A short tone marks each new game, a higher square-wave tone each apple, and a low
 noise burst a collision. Each effect is released and held again by frame count,
@@ -73,9 +78,10 @@ so sound never blocks movement.
 The snake tiles, numbers and palette data come from the C SDK's Snake demo. The
 gameplay is written in Pascal, with added sound, restart and normal exit.
 The SDK LZ codec compresses each tile independently. The game embeds only the
-snake tiles and numeric font, totaling 1,404 compressed bytes; decoding reproduces their
-original pixels exactly. The alphabet include remains available for other demos,
-but Snake uses icons and a numeric score to fit its executable address space.
+snake tiles, numeric font and five selected SCORE glyphs, totaling1,786
+compressed bytes. The generator checks decoded pixels against the originals.
+The complete alphabet remains available for other demos; the C title animation
+is omitted from this selected-asset version.
 Tone dividers for its three fixed effects are precomputed. No asset file is opened while playing.
 See [CREDITS.md](CREDITS.md) for the Clear_code and JROB774 asset credits and
 licenses. **Redistributing the game, including a saved executable, requires the
@@ -126,3 +132,23 @@ actual waveform takes an audio output device.
 See [the ZVB reference](../../docs/zvb-library.md) for units, ranges and buffer
 requirements, and for the distinctions between byte lengths, tile coordinates,
 pixel coordinates and physical addresses.
+
+## Preserved layout/library checkpoint
+
+The latest captured Snake Com-file build is46,041 bytes (28,764 code and893
+program globals), leaving only39 bytes before the static limit. It compiles and
+completes its180-frame saved demo without PAS/INC/ZPU files. Unit authoring27
+and focused graphics/packed-decoder/options86 harness assertions pass. These
+are bounded results, not final interactive acceptance or complete regression.
+See [checkpoint evidence](../../docs/zvb-interactive-evidence.json).
+
+Shared decoder changes consolidate token output while preserving bounds and
+malformed-input rejection; tests include overlapping history, exact64KB output
+and overflow rejection. The colour-tile helper shares page/offset arithmetic.
+Snake uses board-cell direction links rather than duplicate body/occupancy
+arrays. The extended interactive observer is preserved but not yet qualified
+on this final candidate. Loading-speed improvement is not established.
+
+This work is preserved before compact-runtime integration. Stop further asset
+or game packing and reclaim the omitted Real address-space hole next. Existing
+precompiled bundles and TF packaging have not been refreshed for this checkpoint.

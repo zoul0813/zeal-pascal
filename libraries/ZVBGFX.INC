@@ -116,16 +116,14 @@ begin
   if not GfxContextValid(Context) then Exit;
   if Context.BitsPerPixel = 8 then begin
     if Index > 255 then Exit;
-    Page := 68 + Byte(Index shr 6);
-    Offset := (Index and 63) shl 8;
     Size := 256
   end else begin
     if Index > 511 then Exit;
-    Page := 68 + Byte(Index shr 7);
-    Offset := (Index and 127) shl 7;
     Size := 128
   end;
-  VRAMTransfer(Page, Offset, Context, Size, Color, 2);
+  Offset := Index * Size;
+  Page := 68 + Byte(Offset shr 14);
+  VRAMTransfer(Page, Offset and $3FFF, Context, Size, Color, 2);
   GfxTilesetAddColorTile := GfxSuccess
 end;
 

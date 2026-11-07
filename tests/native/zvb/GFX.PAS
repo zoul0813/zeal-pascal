@@ -21,6 +21,10 @@ begin
   GfxEnableScreen(False);
   Require(GfxInitialize(GfxMode3208Bit, Context) = 0);
   Require((Context.BitsPerPixel = 8) and (Context.BackupPage = Mapping));
+  Require(GfxTilesetAddColorTile(Context, 255, 42) = 0);
+  ReadVRAM($11FF00, 64);
+  for I := 0 to 63 do Require(Result[I] = 42);
+  Require(GfxTilesetAddColorTile(Context, 256, 0) = GfxInvalidArg);
   Palette[0] := RGB888ToRGB565(255, 255, 255);
   Palette[1] := RGB888ToRGB565(255, 0, 0);
   Palette[2] := RGB888ToRGB565(0, 255, 0);
