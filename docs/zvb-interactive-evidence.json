@@ -1,0 +1,245 @@
+{
+  "scope": "Initial waiting-state correction; layout restoration is subsequent work. Headless real key events, not GUI observation.",
+  "before": {
+    "passed": false,
+    "checks": {
+      "normal mode waits at start": false,
+      "arrow starts and steers": true,
+      "R resets and waits": false,
+      "WASD starts and steers": true,
+      "wall collision reached": true,
+      "R works after game over": false,
+      "Escape returns to shell": false
+    },
+    "observations": {
+      "ready": {
+        "tail": 3,
+        "head": 4,
+        "length": 2,
+        "score": 0,
+        "frames": 21,
+        "direction": 1,
+        "next_direction": 1,
+        "game_over": 0,
+        "quit": 0,
+        "demo": 0,
+        "key": 0,
+        "waiting": 0
+      },
+      "up": {
+        "tail": 4,
+        "head": 5,
+        "length": 2,
+        "score": 0,
+        "frames": 29,
+        "direction": 0,
+        "next_direction": 0,
+        "game_over": 0,
+        "quit": 0,
+        "demo": 0,
+        "key": 160,
+        "waiting": 0
+      },
+      "restart": {
+        "tail": 0,
+        "head": 1,
+        "length": 2,
+        "score": 0,
+        "frames": 30,
+        "direction": 1,
+        "next_direction": 1,
+        "game_over": 0,
+        "quit": 0,
+        "demo": 0,
+        "key": 82,
+        "waiting": 0
+      },
+      "right": {
+        "tail": 1,
+        "head": 2,
+        "length": 2,
+        "score": 0,
+        "frames": 36,
+        "direction": 1,
+        "next_direction": 1,
+        "game_over": 0,
+        "quit": 0,
+        "demo": 0,
+        "key": 68,
+        "waiting": 0
+      },
+      "wall": {
+        "tail": 9,
+        "head": 10,
+        "length": 2,
+        "score": 0,
+        "frames": 99,
+        "direction": 1,
+        "next_direction": 1,
+        "game_over": 1,
+        "quit": 0,
+        "demo": 0,
+        "key": 68,
+        "waiting": 0
+      },
+      "restart-after-wall": {
+        "tail": 0,
+        "head": 1,
+        "length": 2,
+        "score": 0,
+        "frames": 99,
+        "direction": 1,
+        "next_direction": 1,
+        "game_over": 0,
+        "quit": 0,
+        "demo": 0,
+        "key": 82,
+        "waiting": 0
+      }
+    },
+    "emulator": "/opt/homebrew/bin/zeal-native",
+    "saved_bytes": 45909,
+    "saved_sha256": "03fb5b33332a5ec1774dd2f6461f47d8d42a1171d2409f74f5d44f7f2303169c",
+    "capture_directory": "analysis/native-slice/20261107T140049.835482Z-29713"
+  },
+  "waiting_fix": {
+    "passed": true,
+    "checks": {
+      "normal mode waits at start": true,
+      "arrow starts and steers": true,
+      "R resets and waits": true,
+      "WASD starts and steers": true,
+      "wall collision reached": true,
+      "R works after game over": true,
+      "Escape returns to shell": true
+    },
+    "observations": {
+      "ready": {
+        "tail": 0,
+        "head": 1,
+        "length": 2,
+        "score": 0,
+        "frames": 30,
+        "direction": 1,
+        "next_direction": 1,
+        "game_over": 0,
+        "quit": 0,
+        "demo": 0,
+        "key": 0,
+        "waiting": 1
+      },
+      "up": {
+        "tail": 1,
+        "head": 2,
+        "length": 2,
+        "score": 0,
+        "frames": 39,
+        "direction": 0,
+        "next_direction": 0,
+        "game_over": 0,
+        "quit": 0,
+        "demo": 0,
+        "key": 160,
+        "waiting": 0
+      },
+      "restart": {
+        "tail": 0,
+        "head": 1,
+        "length": 2,
+        "score": 0,
+        "frames": 39,
+        "direction": 1,
+        "next_direction": 1,
+        "game_over": 0,
+        "quit": 0,
+        "demo": 0,
+        "key": 82,
+        "waiting": 1
+      },
+      "right": {
+        "tail": 1,
+        "head": 2,
+        "length": 2,
+        "score": 0,
+        "frames": 48,
+        "direction": 1,
+        "next_direction": 1,
+        "game_over": 0,
+        "quit": 0,
+        "demo": 0,
+        "key": 68,
+        "waiting": 0
+      },
+      "wall": {
+        "tail": 9,
+        "head": 10,
+        "length": 2,
+        "score": 0,
+        "frames": 111,
+        "direction": 1,
+        "next_direction": 1,
+        "game_over": 1,
+        "quit": 0,
+        "demo": 0,
+        "key": 68,
+        "waiting": 0
+      },
+      "restart-after-wall": {
+        "tail": 0,
+        "head": 1,
+        "length": 2,
+        "score": 0,
+        "frames": 111,
+        "direction": 1,
+        "next_direction": 1,
+        "game_over": 0,
+        "quit": 0,
+        "demo": 0,
+        "key": 82,
+        "waiting": 1
+      }
+    },
+    "emulator": "/opt/homebrew/bin/zeal-native",
+    "saved_bytes": 45956,
+    "saved_sha256": "a3169f4d89880b1325068195389b62523bba77541395d22891cf613764fd80f3",
+    "capture_directory": "analysis/native-slice/20261107T140318.935947Z-32661"
+  },
+  "saved_demo": {
+    "native_stack_margin": 8453,
+    "clients": [
+      {
+        "flags": 0,
+        "code_bytes": 28167,
+        "globals_bytes": 1405,
+        "file_bytes": 45956,
+        "compile_error": 0,
+        "position": 0,
+        "name": "SNAKE"
+      }
+    ],
+    "scope": "Native hardware unit qualification and Pascal ZVB authoring probe.",
+    "passed": true,
+    "checks": {
+      "authenticated completion": true,
+      "native assertions pass": true,
+      "prebuilt library used": true,
+      "requested clients compiled and executed": true,
+      "saved clients run without ZPU PAS or INC files": true,
+      "Snake completes 180 demo frames": true
+    },
+    "assertions": 37,
+    "failed": 0,
+    "failure_indices": [],
+    "diagnostics": [],
+    "zvb": {
+      "compiled": 0,
+      "error": 0,
+      "position": 0,
+      "code_bytes": 0,
+      "types": 0,
+      "maps": 0,
+      "code_relocations": 0
+    },
+    "capture_directory": "analysis/native-slice/20261107T135745.667538Z-26131"
+  }
+}

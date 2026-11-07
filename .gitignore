@@ -313,3 +313,7 @@
 
 # Current consolidated unit contract.
 !/docs/units.md
+
+# Interactive saved-Snake input acceptance.
+!/tools/test-zvb-interactive.py
+!/docs/zvb-interactive-evidence.json

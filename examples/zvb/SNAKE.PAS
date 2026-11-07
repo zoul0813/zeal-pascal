@@ -92,6 +92,7 @@ var Context: TGfxContext;
   Error, OldDirection: Byte;
   GameOver, Quit, Demo, SoundUsed: Boolean;
   Key: Char;
+  Waiting: Boolean;
 
 { BEGIN GENERATED INCLUDE: VIDEO.INC }
 { Shared demo cleanup. Save palette and video controls before changing them.
@@ -182,7 +183,7 @@ begin
   Body[1].X := 10; Body[1].Y := 7;
   Occupied[149] := True; Occupied[150] := True;
   Direction := 1; NextDirection := 1; Tick := 0;
-  GameOver := False;
+  GameOver := False; Waiting := not Demo;
   Place(11, 9, 7); Place(1, 10, 7);
   NewApple;
   if Demo then begin
@@ -263,7 +264,7 @@ begin
       'A', #162: NewDirection := 3
     end;
     if (NewDirection <= 3) and (NewDirection <> ((Direction + 2) and 3)) then
-      NextDirection := NewDirection
+      begin NextDirection := NewDirection; Waiting := False end
   end
 end;
 
@@ -314,7 +315,7 @@ begin
         SoundFrames := SoundFrames - 1;
         if SoundFrames = 0 then SoundSetHold(SoundVoice0, True)
       end;
-      if not GameOver then begin
+      if not GameOver and not Waiting then begin
         Tick := Tick + 1;
         if Tick = 6 then begin Tick := 0; MoveSnake end
       end;
