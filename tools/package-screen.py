@@ -10,7 +10,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 NAMES = ('clrscr','clreol','gotoxy','insline','delline','crtinit','crtexit',
-         'lowvideo','normvideo','highvideo','delay','textcolor','textbackground','wherex','wherey')
+         'lowvideo','normvideo','highvideo','delay','textcolor','textbackground','wherex','wherey','readkey')
 
 
 def build(directory):
@@ -22,6 +22,8 @@ def build(directory):
     private_names = re.findall(r'RP_[A-Z_]+', (ROOT/'src/compiler.h').read_text().split('enum { RP_INPUT_READY',1)[1].split('RP_COUNT }',1)[0])
     private_names.insert(0,'RP_INPUT_READY')
     constants['SCREEN_ACTIVE'] = struct.unpack_from('<H',private,2*private_names.index('RP_CRT_ACTIVE'))[0]
+    for name in ('RP_INPUT_KEY','RP_INPUT_MODE','RP_INPUT_CLEANUP','RP_INPUT_FAIL','RP_IO_ERROR','RP_INPUT_MODE_VALUE','RP_ECHO_FD'):
+        constants[name] = struct.unpack_from('<H',private,2*private_names.index(name))[0]
     header = ''.join(f'#define {name} {value}u\n' for name,value in constants.items())
     (directory/'screen-runtime.h').write_text(header)
     subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-I',str(directory),
@@ -30,16 +32,16 @@ def build(directory):
     length, count = struct.unpack_from('<HH',raw)
     at = 4
     fragments, entries = [], []
-    for i in range(16):
+    for i in range(len(NAMES)+1):
         start,end = struct.unpack_from('<HH',raw,at);at += 4
         fragments.append((start,end))
-        if i < 15:
+        if i < len(NAMES):
             entries.append(struct.unpack_from('<H',raw,at)[0]);at += 2
     relocations = struct.unpack_from('<'+'H'*count,raw,at);at += 2*count
     payload = raw[at:]
     assert len(payload) == length
     # Include the sentinel at zero in the shared fragment; layout is contiguous.
-    fragments = [(0,fragments[15][1])] + fragments[:15]
+    fragments = [(0,fragments[len(NAMES)][1])] + fragments[:len(NAMES)]
     assert all(end == fragments[i+1][0] for i,(_,end) in enumerate(fragments[:-1]))
     def locate(address):
         for i,(start,end) in enumerate(fragments):
@@ -61,11 +63,11 @@ def build(directory):
         params = 2 if op == 2 else 1 if op in (10,11,12) else 0
         source += ('function ' if query else 'procedure ')+name
         if params:source += '('+';'.join(f'P{i}:Integer' for i in range(params))+')'
-        source += ':Byte;\n' if query else ';\n'
+        source += (':Char;\n' if name=='readkey' else ':Byte;\n') if query else ';\n'
         fragment,offset = locate(entries[op])
         # Export bit0 requests the caller's {$I} flag in A. The rest of the
         # callee-cleanup primitive ABI is unchanged, including scalar results.
-        exports += struct.pack('<4B5H',len(name),query,1,0,4 if query else 65535,params,fragment,offset,0)
+        exports += struct.pack('<4B5H',len(name),query,1,0,3 if name=="readkey" else 4 if query else 65535,params,fragment,offset,0)
         exports += name.encode()+b'\0\0\0\0'*params
     source += 'implementation\n{ Native Zeal 80x40 console routines. }\nend.\n'
     source_bytes = source.encode()

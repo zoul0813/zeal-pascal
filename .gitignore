@@ -271,3 +271,35 @@
 
 !/docs/unit-hardware.md
 !/docs/unit-hardware-evidence.json
+
+# Multi-page Pascal units and resource-boundary qualification.
+!/tests/host/unit-references.c
+!/tests/host/word-counts.c
+!/tools/test-unit-references-host.py
+!/tools/test-unit-storage.py
+!/tools/test-word-counts.py
+!/reviews/hardware-units-v1.md
+
+!/tests/host/unit-reader.c
+!/tools/test-unit-reader-host.py
+
+!/tests/host/unit-loader.c
+
+!/docs/unit-storage-evidence.json
+
+# Shipped Pascal ZVB unit, reproducible assets, demos and qualification.
+!/libraries/ZVB.PAS
+!/libraries/ZVBIO.INC
+!/libraries/ZVBGFX.INC
+!/libraries/ZVBPACK.INC
+!/libraries/ZVB-LICENSE.txt
+!/libraries/ZVB-NOTICE.txt
+!/docs/zvb-library.md
+!/tools/generate-zvb-assets.py
+!/tools/test-zvb-leaves.py
+!/tools/test-crt-readkey.py
+!/tests/host/zvb-leaves.c
+!/reviews/zvb-pascal-v1.md
+!/reviews/zvb-docs-v1.md
+
+!/reviews/zeal-vfs-close-reference.txt

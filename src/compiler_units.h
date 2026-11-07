@@ -8,7 +8,19 @@
  * public interfaces carry routines, constants and canonical type metadata.
  * A caller owns the fresh output descriptor, including close/publication. */
 enum { UNIT_FORMAT=248,UNIT_UNSUPPORTED,UNIT_MISSING,UNIT_STALE,UNIT_AMBIGUOUS,UNIT_INTERFACE };
-enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CODE,UR_STATE,UR_EXTERNAL,UR_TYPE,UR_INITIALIZER,UR_INIT_CALL };
+enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CODE,UR_STATE,UR_EXTERNAL,UR_TYPE,UR_INITIALIZER,UR_INIT_CALL,UR_ARTIFACT,UR_FILE,UR_HASH,UR_PATH };
+/* Every imported module has a stream record and eight hash words after its
+ * seal. Three hash words fit in UR_FILE; five follow the UR_HASH tag. */
+#define UNIT_FILE_AT(module) ((module)+2u*UNIT_RECORD_BYTES)
+#define UNIT_HASH_AT(module,word) (UNIT_FILE_AT(module)+6u+2u*(word)+((word)>=3u?2u:0u))
+#define cc_unit_prefix(module) cc_unit_word(UNIT_FILE_AT(module)+4u)
+uint16_t cc_unit_path_store(const char *path) SOURCE_BLOCK_CALL;
+int8_t cc_unit_path_open(uint16_t module) SOURCE_BLOCK_CALL;
+uint8_t cc_unit_file_bind(int8_t fd) SOURCE_BLOCK_CALL;
+int8_t cc_unit_file(uint8_t slot) SOURCE_BLOCK_CALL;
+uint8_t cc_unit_files_close(void) SOURCE_BLOCK_CALL;
+uint8_t cc_unit_validate_object(uint16_t module,const char *name,uint32_t stream_hash) ROUTINES;
+uint8_t cc_unit_emit_page(uint16_t module,uint8_t index,const CompilerFragmentLayout *layout) ROUTINES;
 #define RF_UNIT_IMPORT 16u
 #define UNIT_RECORD_BYTES 12u
 #define UNIT_RECORD_BASE 256u
@@ -19,9 +31,11 @@ enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CO
 #define UH_REFERENCES 8u
 #define UH_REFERENCE_TAIL 10u
 #define UH_REFERENCE_COUNT 12u
+#define UH_FRAGMENTS 14u
+#define UH_FRAGMENT_TAIL 16u
 #define UH_NAME 32u
 #define ZPU_HEADER_BYTES 48u
-#define ZPU_ARTIFACT_LIMIT (PAGE_SIZE-2u*CC_FRAGMENT_OBJECTS)
+#define ZPU_ARTIFACT_LIMIT (SOURCE_LIMIT-2u*CC_FRAGMENT_OBJECTS)
 #define UNIT_CYCLE 247u
 #define UM_VISIBLE 1u
 #define UM_LOADING 2u
@@ -38,6 +52,7 @@ int8_t cc_units_output(void) ROUTINES;
 uint32_t unit_source_fingerprint(const Source *source) SOURCE_BLOCK_CALL;
 uint8_t cc_units_hold(uint8_t page,uint32_t lifetime,uint8_t role) ROUTINES;
 uint16_t cc_unit_owned_page(void) ROUTINES;
+uint16_t cc_unit_artifact_page(void) ROUTINES;
 uint8_t cc_unit_module_ready(uint16_t module) ROUTINES;
 uint8_t cc_unit_module_byte(uint16_t module,uint16_t at) ROUTINES;
 uint16_t cc_unit_module_word(uint16_t module,uint16_t at) ROUTINES;
@@ -66,6 +81,10 @@ void cc_units_owner(uint16_t owner) ROUTINES;
 void cc_units_export(uint16_t symbol,uint16_t scope) ROUTINES;
 void cc_units_global(uint8_t opcode,uint16_t address) ROUTINES;
 uint8_t cc_units_write(void) ROUTINES;
+typedef struct {uint16_t next,relocation,record,site,value;uint8_t kind;} UnitReference;
+uint8_t cc_unit_relocations_prepare(void) ROUTINES;
+void cc_unit_reference_begin(UnitReference *cursor) ROUTINES;
+void cc_unit_reference_next(UnitReference *cursor) ROUTINES;
 uint8_t cc_units_write_object(void) ROUTINES;
 uint16_t cc_units_load_object(const char *name,const char *path,const char *fallback) ROUTINES;
 uint8_t cc_units_link(void) ROUTINES;

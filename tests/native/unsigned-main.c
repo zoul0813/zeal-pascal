@@ -100,6 +100,7 @@ int app_main(void) {
     client("H:/UWORD.PAS","var W:Word;I,Z:Integer;C:Char;begin Z:=0;I:=-1;W:=5;\n"
         "if(W>=I)or(W>-1)or(-10 div W<>13105)then Z:=1 div Z;\n"
         "W:=65535;if(W shr 1<>32767)or(W shr 16<>0)or(W shl 16<>0)or(W*W<>1)then Z:=1 div Z;\n"
+        "if(W shr 256<>0)or(W shl 256<>0)or(W shr 65535<>0)or(W shl 65535<>0)then Z:=1 div Z;\n"
         "W:=65;C:=Chr(W);if(C<>'A')or(Char(W)<>'A')or(Word('A')<>65)then Z:=1 div Z;\n"
         "writeln('UNSIGNED-WORD-OK')end.",1);
     client("H:/URETURN.PAS","uses WideMath;var L:LongWord;Z:Integer;\n"
@@ -108,6 +109,22 @@ int app_main(void) {
         "procedure Never;begin FillChar(X,$8000,0);Move(X,X,$8000);GetMem(P,$8000);StackPtr:=$F000;Port[1]:=$8000 end;\n"
         "begin Z:=0;I:=$FFFF;P:=Ptr($C000);if(I<>-1)or(Minus<>-1)or($FFFF div 2<>0)or($FFFF shr 1<>32767)then Z:=1 div Z;\n"
         "writeln('UNSIGNED-HEX-OK')end.",1);
+    client("H:/USHADOW.PAS","const Y=1;var Z:Integer;procedure P;const X:Integer=Y;Y=2;W:Word=65535;\n"
+        "begin if(X<>1)or(W<>65535)then Z:=1 div Z end;begin Z:=0;P end.",1);
+    client("H:/UTFILES.PAS","var F:file of Word;G:file of LongWord;W:Word;L:LongWord;Z:Integer;\n"
+        "begin Z:=0;W:=65535;Assign(F,'H:/WORDS.DAT');Rewrite(F);Write(F,W);Close(F);\n"
+        "W:=0;Reset(F);Read(F,W);Close(F);if W<>65535 then Z:=1 div Z;\n"
+        "L:=$FEDCBA98;Assign(G,'H:/LONGS.DAT');Rewrite(G);Write(G,L);Close(G);\n"
+        "L:=0;Reset(G);Read(G,L);Close(G);if L<>$FEDCBA98 then Z:=1 div Z end.",1);
+    reject("var C:Char;W:Word;begin C:=W end.",44);
+    reject("var C:Char;L:LongWord;begin C:=L end.",44);
+    reject("var C:Char;begin C:=40000 end.",44);
+    reject("var W:Word;procedure P(C:Char);begin end;begin P(W)end.",44);
+    reject("var C:Char;W:Word;begin for C:='A'to W do halt end.",44);
+    reject("var F:Text;W:Word;begin Read(F,W)end.",66);
+    reject("var F:Text;L:LongWord;begin Read(F,L)end.",66);
+    failure("{$R+}var W:Word;C:Char;begin W:=256;C:=Chr(W)end.",0x91);
+    failure("{$R+}var L:LongWord;C:Char;begin L:=65536;C:=Chr(L)end.",0x91);
     reject("begin Inline($12345678)end.",56);
     reject("var L:LongWord;B:Byte;begin B:=Mem[L]end.",23);
     reject("var L:LongWord;begin Mem[L]:=1 end.",23);

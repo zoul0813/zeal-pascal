@@ -764,13 +764,13 @@ endforeach()
 
 # Isolated symbolic fragment-link proof; no production compiler/parser wiring.
 add_executable(zfragmenttest tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
-    src/compiler_fragments.c src/native.asm tests/native/fragments.c
+    src/compiler_fragments.c src/compiler_fragment_access.c src/compiler_fragment_source.c src/native.asm tests/native/fragments.c
     tests/native/fragments.asm tests/native/machine.asm)
 target_include_directories(zfragmenttest PRIVATE src)
 target_compile_options(zfragmenttest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
 set_source_files_properties(tests/native/fragments.c PROPERTIES
     COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;TEST;--constseg;TEST;--dataseg;TEST_DATA")
-set_property(SOURCE src/compiler_fragments.c tests/native/fragments.c APPEND PROPERTY OBJECT_DEPENDS
+set_property(SOURCE src/compiler_fragments.c src/compiler_fragment_access.c src/compiler_fragment_source.c tests/native/fragments.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/compiler_fragments.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 target_link_options(zfragmenttest PRIVATE "SHELL:-b _HOME=0x7000" "SHELL:-b _TEST=0x8000" "SHELL:-b _TEST_DATA=0xc000")
 zos_add_outputs(zfragmenttest)
@@ -779,13 +779,13 @@ add_custom_target(fragment_toolchain
 
 # End-to-end unit compiler experiment: all compiler TUs share the conditional
 # source/cursor ABI. Legacy and compact targets retain their macro-off core.
-add_library(unit_fragment_core OBJECT src/compiler_fragments.c)
+add_library(unit_fragment_core OBJECT src/compiler_fragments.c src/compiler_fragment_access.c src/compiler_fragment_source.c)
 target_compile_definitions(unit_fragment_core PRIVATE ZP_UNITS_EXPERIMENT)
 target_include_directories(unit_fragment_core PRIVATE src)
 target_compile_options(unit_fragment_core PRIVATE --std-c99 --opt-code-size
     "SHELL:--codeseg BANK16" "SHELL:--constseg BANK16")
 add_library(unit_core OBJECT src/compiler_unsigned.c src/compiler_unsigned_asset.c src/compiler_unsigned_intrinsics.c src/compiler_unsigned_ops.c ${PASCAL_CORE} src/compiler_units.c
-    src/compiler_units_metadata.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/unit_output.c)
+    src/compiler_unit_references.c src/compiler_unit_files.c src/compiler_unit_paths.c src/compiler_unit_header.c src/compiler_unit_fragments.c src/compiler_unit_loader.c src/compiler_unit_reader.c src/compiler_unit_ranges.c src/compiler_units_symbols.c src/compiler_units_metadata.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/unit_output.c)
 target_compile_definitions(unit_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT)
 target_include_directories(unit_core PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(unit_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
@@ -804,7 +804,7 @@ foreach(source IN LISTS PASCAL_CORE)
         set_property(SOURCE ${source} APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_units.h)
     endif()
 endforeach()
-set_property(SOURCE src/compiler_units.c src/compiler_units_metadata.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/compiler_fragments.c
+set_property(SOURCE src/compiler_units.c src/compiler_unit_references.c src/compiler_unit_files.c src/compiler_unit_paths.c src/compiler_unit_header.c src/compiler_unit_fragments.c src/compiler_unit_loader.c src/compiler_unit_reader.c src/compiler_unit_ranges.c src/compiler_units_symbols.c src/compiler_units_metadata.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/compiler_fragments.c src/compiler_fragment_access.c src/compiler_fragment_source.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_units.h
     ${CMAKE_SOURCE_DIR}/src/compiler_fragments.h ${CMAKE_SOURCE_DIR}/src/compiler.h)
 add_library(unit_test_execution OBJECT tests/native/harness-execute.c)
@@ -966,9 +966,15 @@ add_custom_target(zoptionalcorpus_bin
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/unsigned-engine.h
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/generate-wide.py ${CMAKE_BINARY_DIR}/unsigned-engine.h
     DEPENDS tools/generate-wide.py src/zp.h VERBATIM)
-set_source_files_properties(src/compiler_unsigned.c PROPERTIES
-    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK6;--constseg;BANK6"
+set_source_files_properties(src/compiler_unsigned.c src/compiler_unit_references.c src/compiler_units_symbols.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK11;--constseg;BANK11"
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/unsigned-engine.h;${CMAKE_SOURCE_DIR}/src/compiler.h;${CMAKE_SOURCE_DIR}/src/compiler_units.h")
+set_source_files_properties(src/compiler_unit_files.c src/compiler_unit_paths.c src/compiler_unit_header.c src/compiler_unit_fragments.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK3;--constseg;BANK3")
+set_source_files_properties(src/compiler_unit_loader.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK6;--constseg;BANK6")
+set_source_files_properties(src/compiler_unit_reader.c src/compiler_unit_ranges.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK18;--constseg;BANK18")
 set_source_files_properties(src/compiler_unsigned_asset.c PROPERTIES
     COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK13;--constseg;BANK13"
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/unsigned-engine.h;${CMAKE_SOURCE_DIR}/src/compiler.h;${CMAKE_SOURCE_DIR}/src/compiler_units.h")
@@ -980,7 +986,7 @@ set_source_files_properties(src/compiler_unsigned_ops.c PROPERTIES
     OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/src/compiler.h;${CMAKE_SOURCE_DIR}/src/compiler_unsigned_internal.h")
 set_property(SOURCE src/compiler_unsigned.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_unsigned_internal.h)
 add_library(unit_runtime_core OBJECT ${OPTIONAL_CORE} src/compiler_unsigned.c src/compiler_unsigned_asset.c src/compiler_unsigned_intrinsics.c src/compiler_unsigned_ops.c src/compiler_runtime.c
-    src/compiler_units.c src/compiler_units_metadata.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c
+    src/compiler_units.c src/compiler_unit_references.c src/compiler_unit_files.c src/compiler_unit_paths.c src/compiler_unit_header.c src/compiler_unit_fragments.c src/compiler_unit_loader.c src/compiler_unit_reader.c src/compiler_unit_ranges.c src/compiler_units_symbols.c src/compiler_units_metadata.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c
     src/compiler_units_link.c src/unit_output.c ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm)
 target_compile_definitions(unit_runtime_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL ZP_PROGRAM_PAGES)
 target_include_directories(unit_runtime_core PRIVATE src ${CMAKE_BINARY_DIR})
@@ -1058,7 +1064,7 @@ add_custom_target(zunsignedtest_bin
     DEPENDS zunsignedtest ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 
 # Native Pascal hardware-unit and shipped ZVB acceptance.
-add_executable(zzvbtest src/startup.asm src/banks.c tests/native/zvb-main.c
+add_executable(zzvbtest src/startup.asm src/banks.c tests/native/zvb-main.c tests/native/zvb-checkpoint.asm
     tests/native/machine.asm $<TARGET_OBJECTS:unit_runtime_core>
     $<TARGET_OBJECTS:unit_fragment_core> $<TARGET_OBJECTS:real_compiler>
     $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
@@ -1145,3 +1151,24 @@ set_source_files_properties(src/compiler_units_link.c src/compiler_units_metadat
 set_property(SOURCE src/compiler_units_graph.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/compiler_units.h
     ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
+
+# SDCC emits no dependency files. Append after all source-specific properties.
+set_property(SOURCE src/compiler_unit_loader.c src/compiler_unit_reader.c src/compiler_unit_ranges.c
+    src/compiler_unit_files.c src/compiler_unit_paths.c src/compiler_unit_header.c src/compiler_unit_fragments.c
+    src/compiler_fragment_access.c src/compiler_fragment_source.c
+    src/compiler_unit_references.c src/compiler_units_symbols.c
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/zp.h
+    ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/compiler_units.h
+    ${CMAKE_SOURCE_DIR}/src/compiler_fragments.h ${CMAKE_SOURCE_DIR}/src/output_transport.h)
+set_source_files_properties(src/compiler_unit_paths.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK13;--constseg;BANK13")
+
+set_source_files_properties(src/compiler_unit_header.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK12;--constseg;BANK12")
+set_property(SOURCE src/compiler_unit_loader.c src/compiler_unit_header.c APPEND PROPERTY
+    OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_unit_stream.h)
+
+set_source_files_properties(src/compiler_unit_ranges.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK1;--constseg;BANK1")
+set_property(SOURCE src/compiler_unit_reader.c src/compiler_unit_ranges.c APPEND PROPERTY
+    OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_unit_stream.h)

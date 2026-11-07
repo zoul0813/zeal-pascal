@@ -13,7 +13,11 @@ local artifact is an error. This lookup applies to user-authored units too.
 
 Crt exports ClrScr, ClrEol, GotoXY, InsLine, DelLine, CrtInit, CrtExit,
 LowVideo, NormVideo, HighVideo, Delay, TextColor, TextBackground, WhereX and
-WhereY. The color constants remain ordinary core predefined constants.
+WhereY. Crt also exports `ReadKey: Char`, which reads one decoded keyboard
+press through the runtime typeahead dispatch without linking the disk-file
+engine. It uses the runtime raw-input mode and restores the compiler/runtime
+input mode afterward. Pair it with `KeyPressed` for nonblocking controls.
+The color constants remain ordinary core predefined constants.
 
 The instruction emitter is a build tool shared with the legacy regression
 control. Production contains no CRT instruction generator. The host author
@@ -43,7 +47,8 @@ chain replaces the parent. The native qualification includes a saved parent
 and a child that imports Crt and restores its cursor snapshot.
 
 The extraction reduces the production bank container from 240094 to 236209
-bytes (3885 bytes). CRT.ZPU is 3566 bytes. Compiler startup still retains ten
+bytes (3885 bytes). At that checkpoint CRT.ZPU was 3566 bytes; adding
+ReadKey brings it to 3835 bytes. Compiler startup still retains ten
 code pages: the bank that previously held CRT emission also owns other code.
 This stage removes generator bytes; it does not free another whole startup page.
 

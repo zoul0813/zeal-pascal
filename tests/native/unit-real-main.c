@@ -121,7 +121,7 @@ static void artifact_negatives(void) {
     check(!compile(&s,&b,&d)&&d.code==UNIT_FORMAT&&!b.valid);
     build_close(&b);source_close(&s);check(pages_used()==16);
     page_word_set(page,4,ZPU_ABI);
-    saved=far_get(page,blob-fragments);far_set(page,blob-fragments,4);checksum(page,bytes);
+    saved=far_get(page,blob-fragments);far_set(page,blob-fragments,8);checksum(page,bytes);
     write_artifact("H:/MIXED.ZPU",page,bytes);
     check(source_new(&s,"H:/BADFLAGS.PAS"));check(load("uses Mixed;begin end."));
     check(!compile(&s,&b,&d)&&d.code==UNIT_FORMAT&&!b.valid);

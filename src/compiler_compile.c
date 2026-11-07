@@ -5,6 +5,7 @@
 #include "compiler_disk.h"
 #ifdef ZP_UNITS_EXPERIMENT
 #include "compiler_units.h"
+#include "library.h"
 #endif
 #if defined(__SDCC) || defined(ZP_COMPILER_JOBS)
 #include "compiler_job.h"
@@ -180,11 +181,24 @@ failed:
     /* Error replies still need source identities, but not the abandoned
      * executable. Reclaim emission storage before exporting a bounded table. */
     build_discard_image(b);
+#ifdef ZP_UNITS_EXPERIMENT
+    if(sources.unit_mode) {
+        /* A late write failure can consume both lent slots. Retry only after
+         * every abandoned output/table page has had its release attempt. */
+        cc_tables_end();code_phase_unit_finish_end();platform_error=native_error;
+    }
+#endif
     if(d->code!=COMPILE_INTERRUPTED) {
 #if defined(__SDCC) || defined(ZP_COMPILER_JOBS)
         if(compiler_invocation)compiler_capture_failure();else
 #endif
         cc_sources_error();
     }
-    build_close(b);if(native_error)platform_error=native_error;return 0;
+    build_close(b);
+#ifdef ZP_UNITS_EXPERIMENT
+    /* Final linking also lends both generator slots. Retry their restoration
+     * after terminal cleanup, when abandoned tables and images are gone. */
+    code_phase_unit_finish_end();
+#endif
+    if(native_error)platform_error=native_error;return 0;
 }

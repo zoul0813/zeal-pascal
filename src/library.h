@@ -16,6 +16,8 @@ uint8_t code_phase_real_release(void) SOURCE_BLOCK_CALL;
 #endif
 #ifdef ZP_UNITS_EXPERIMENT
 uint8_t code_phase_unit_link_begin(void) SOURCE_BLOCK_CALL;
+uint8_t code_phase_unit_finish_begin(void) SOURCE_BLOCK_CALL;
+uint8_t code_phase_unit_finish_end(void) SOURCE_BLOCK_CALL;
 uint8_t code_phase_unit_link_end(void) SOURCE_BLOCK_CALL;
 uint8_t code_phase_unit_io(void) SOURCE_BLOCK_CALL;
 uint8_t code_phase_unit_meta(void) SOURCE_BLOCK_CALL;

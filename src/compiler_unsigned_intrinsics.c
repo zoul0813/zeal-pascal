@@ -13,7 +13,7 @@ TypeId cc_unsigned_intrinsic(uint8_t op,TypeId type,uint16_t before) BACKEND {
         if(wide)cc_emit(0x7e);else cc_emit(0x7d);
         cc_emit(0xe6);cc_emit(1);cc_emit(0x6f);cc_emit(0x26);cc_emit(0);cc_release(before);return K_BOOLEAN;
     }
-    if(op==F_CHR) {cc_unsigned_convert(K_CHAR,type,0);cc_emit(0x26);cc_emit(0);cc_release(before);return K_CHAR;}
+    if(op==F_CHR) {cc_unsigned_convert(K_CHAR,type,2);cc_emit(0x26);cc_emit(0);cc_release(before);return K_CHAR;}
     if(op==F_HI||op==F_LO) {
         if(wide){if(op==F_HI){cc_emit(0x23);cc_emit(0x23);}cc_load_indirect(cc_unsigned_type(0));}
         else {if(op==F_HI)cc_emit(0x6c);cc_emit(0x26);cc_emit(0);}

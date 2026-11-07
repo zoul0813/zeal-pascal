@@ -88,9 +88,14 @@ void cc_relocate(uint16_t operand) FRONTEND {
 void cc_relocate_value(uint16_t operand,uint16_t coefficient,uint8_t byte) FRONTEND {
     uint16_t p=cc.relocations*RELOCATION_BYTES,encoded;
     if(cc.error->code||cc.suppress||!coefficient)return;
-    if(operand<CC_CODE_BASE||operand>=CC_STATIC_LIMIT||
+    if(operand<CC_CODE_BASE||operand>=
+#ifdef ZP_UNITS_EXPERIMENT
+       (cc.sources->unit_mode?SOURCE_LIMIT:CC_STATIC_LIMIT)||
+#else
+       CC_STATIC_LIMIT||
+#endif
        (uint32_t)p+RELOCATION_BYTES>SOURCE_LIMIT) { cc_fail(99);return; }
-    /* Staged offsets are below7400. Bit15 denotes one-byte relocation;
+    /* Staged offsets are below8000. Bit15 denotes one-byte relocation;
      * the other word is the net code-base coefficient, modulo65536. */
     encoded=(operand-CC_CODE_BASE)|(byte?0x8000u:0);
     cc_reloc_put(p,(uint8_t)encoded);cc_reloc_put(p+1,(uint8_t)(encoded>>8));

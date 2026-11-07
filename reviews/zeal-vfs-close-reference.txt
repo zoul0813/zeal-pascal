@@ -1,0 +1,53 @@
+Read-only Zeal OS reference: /Users/higginsd/Projects/zeal/Zeal-8-bit-OS/kernel/vfs.asm
+SHA256 3be3158090a3110ad89c87dd04aad635266fafe67c2a2b8fc77f5ea1b5acc58c
+
+379:         jp (hl)
+380:
+381:         ; Close the given dev number
+382:         ; This should be done as soon as a dev is not required anymore, else, this could
+383:         ; prevent any other `open` to succeed.
+384:         ; Note: when a program terminates, all its opened devs are closed and STDIN/STDOUT
+385:         ; are reset.
+386:         ; Parameters:
+387:         ;       H - Number of the dev to close
+388:         ; Returns:
+389:         ;       A - ERR_SUCCESS on success, error code else
+390:         ; Alters:
+391:         ;       A, HL
+392:         PUBLIC zos_vfs_close
+393: zos_vfs_close:
+394:         ; Save the dev number, we will pass it to the close function
+395:         ; in case it is a driver
+396:         ld a, h
+397:         ld (_dev_table_empty_entry), a
+398:         push de
+399:         ; Flags set by zos_vfs_get_entry_addr, no need for 'or a'
+400:         call zos_vfs_get_entry_addr
+401:         jp nz, _zos_vfs_popde_ret
+402:         ; Check if the opened dev is a file/dir or a driver
+403:         call zos_disk_is_opn_filedir
+404:         push de
+405:         push bc
+406:         jr z, _zos_vfs_close_isfile
+407:         ; Retrieve driver (HL) close function address, in HL.
+408:         GET_DRIVER_CLOSE()
+409:         ; HL now contains the address of driver's close function. Call it
+410:         ; with the dev number as a parameter
+411:         ld a, (_dev_table_empty_entry)
+412:         CALL_HL()
+413: _zos_vfs_close_clean_entry:
+414:         pop bc
+415:         ; Clean the entry in _dev_table to 0, the top of the stack contains
+416:         ; the address + 1.
+417:         pop hl
+418:         ld (hl), 0
+419:         dec hl
+420:         ld (hl), 0
+421:         ; Restore DE before returning
+422: _zos_vfs_popde_ret:
+423:         pop de
+424:         ret
+425: _zos_vfs_close_isfile:
+426:         call zos_disk_close
+427:         jp _zos_vfs_close_clean_entry
+428:

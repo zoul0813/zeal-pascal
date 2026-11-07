@@ -64,7 +64,7 @@ uint8_t cc_units_link_object(void) ROUTINES {
     CompilerFragmentObject objects[CC_FRAGMENT_OBJECTS];CompilerFragmentRoot roots[UNIT_LINK_ROOTS];
     CompilerFragmentLayout layout;CompilerFragmentImage linked;
     uint16_t modules[CC_FRAGMENT_OBJECTS],at,end,count=0,root_count=0,module,export,fragment,offset,address,i,origin;
-    uint8_t status,ok=0,clean=1;
+    uint8_t status,ok=0,clean=1,primary,cleanup_error=0;
     if(cc.sources->unit_page==255)return 1;
     end=cc_unit_word(UH_USED);
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_MODULE&&cc_unit_word(at+8)) {
@@ -93,20 +93,23 @@ uint8_t cc_units_link_object(void) ROUTINES {
     /* The placement catalog is enough: append into existing compiler staging
      * rather than allocating a duplicate output image in scarce target RAM. */
     for(i=0;i<count;++i) {
-        uint16_t blob=objects[i].offset,fragments=cc_unit_module_word(modules[i],blob+6);
-        uint16_t payload=blob+16+8*fragments+8*cc_unit_module_word(modules[i],blob+8),f,j,n,start;
+        uint16_t blob=objects[i].offset,fragments=cc_unit_module_word(modules[i],blob+6),f,n,start,next=cc.emitted;
+        uint8_t mask=0,index,last;
         for(f=0;f<fragments;++f)if(location(&layout,modules[i],f,&address)) {
-            if(address!=cc.emitted){cc_fail(UNIT_FORMAT);goto done;}
-            /* Only retained fragments contribute runtime requirements. */
+            if(address!=next){cc_fail(UNIT_FORMAT);goto done;}
             if(cc_unit_module_byte(modules[i],blob-fragments+f)&ZPU_REAL)cc_require_real();
-            if(cc_unit_module_byte(modules[i],blob-fragments+f)&ZPU_FULL_MEMORY)
-                cc_require_full_memory();
-            if(cc_unit_module_byte(modules[i],blob-fragments+f)&ZPU_HARDWARE)
-                cc_require_hardware();
-            start=cc_unit_module_word(modules[i],blob+16+8*f);
-            n=cc_unit_module_word(modules[i],blob+18+8*f);
-            for(j=0;j<n;++j){cc_emit(cc_unit_module_byte(modules[i],payload+start+j));if(cc.error->code)goto done;}
+            if(cc_unit_module_byte(modules[i],blob-fragments+f)&ZPU_FULL_MEMORY)cc_require_full_memory();
+            if(cc_unit_module_byte(modules[i],blob-fragments+f)&ZPU_HARDWARE)cc_require_hardware();
+            start=cc_unit_prefix(modules[i])+cc_unit_module_word(modules[i],blob+16+8*f);
+            n=cc_unit_module_word(modules[i],blob+18+8*f);next+=n;
+            if(n) {
+                last=(uint8_t)((start+n-1)/PAGE_SIZE);
+                for(index=(uint8_t)(start/PAGE_SIZE);index<=last;++index)mask|=1u<<index;
+            }
         }
+        for(index=0;index<4;++index)if(mask&(1u<<index))
+            if(!cc_unit_emit_page(modules[i],index,&layout))goto done;
+        cc.emitted=next;
     }
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_IMPORT&&cc_unit_word(at+8)) {
         module=cc_unit_word(at+4);export=cc_unit_word(at+6);
@@ -122,14 +125,15 @@ uint8_t cc_units_link_object(void) ROUTINES {
     for(i=0;i<count;++i)if(!append_metadata(modules[i],&layout))goto done;
     ok=!cc.error->code;
 done:
+    primary=platform_error;
     if(!cc_fragment_layout_close(&layout)) {
-        clean=0;if(layout.page!=255)cc_units_hold(layout.page,layout.lifetime,PAGE_COMPILER);
+        clean=0;if(!cleanup_error)cleanup_error=platform_error;if(layout.page!=255)cc_units_hold(layout.page,layout.lifetime,PAGE_COMPILER);
     }
     if(!cc_fragment_image_close(&linked)) {
-        clean=0;
+        clean=0;if(!cleanup_error)cleanup_error=platform_error;
         for(i=0;i<2;++i)if(linked.pages[i]!=255)cc_units_hold(linked.pages[i],linked.lifetimes[i],PAGE_IMAGE);
         if(linked.workspace!=255)cc_units_hold(linked.workspace,linked.workspace_lifetime,PAGE_COMPILER);
     }
-    if(!clean){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
-    return ok;
+    if(!clean){cc_fail(COMPILE_PLATFORM_FAILURE);platform_error=!ok&&primary?primary:cleanup_error;return 0;}
+    if(!ok)platform_error=primary;return ok;
 }

@@ -15,7 +15,7 @@ static uint8_t arena[PAGE_SIZE],objects[2][PAGE_SIZE];
 static uint16_t cursors[2];
 static CompilerSources source_state;
 static uint8_t reference_data[1024][10];
-static unsigned reference_reads;
+static unsigned reference_reads,module_reads;
 static uint8_t stack_ok;
 static unsigned checks;static int cancel_after;
 #define A 256u
@@ -27,7 +27,7 @@ static uint8_t *object(uint16_t module){assert(module==A||module==B);return obje
 uint16_t cc_unit_word(uint16_t at){assert(at+1<PAGE_SIZE);return get(arena,at);}
 void cc_unit_put(uint16_t at,uint16_t v){assert(at+1<PAGE_SIZE);put(arena,at,v);}
 uint8_t cc_unit_module_byte(uint16_t module,uint16_t at){assert(at<PAGE_SIZE);return object(module)[at];}
-uint16_t cc_unit_module_word(uint16_t module,uint16_t at){assert(at+1<PAGE_SIZE);return get(object(module),at);}
+uint16_t cc_unit_module_word(uint16_t module,uint16_t at){++module_reads;assert(at+1<PAGE_SIZE);return get(object(module),at);}
 uint16_t cc_unit_record(uint16_t kind,uint16_t a,uint16_t b,uint16_t c,uint16_t d,uint16_t e){
     uint16_t at=cc_unit_word(UH_USED),words[]={kind,a,b,c,d,e};uint8_t i;
     if(diagnostic.code)return 0;assert(at+12<=PAGE_SIZE);
@@ -226,4 +226,43 @@ static void unsigned_set_bounds(void){
     reset();type(A,K_WORD,2,0,-1,0,0,0,0,0);type(A,K_SET,0,0,0,0,6,0,0,0);
     check(!cc_unit_types_ready(A)&&diagnostic.code==UNIT_FORMAT);
 }
-int main(void){unsigned_set_bounds();pointers();variants();descriptive_variant_labels();identities();bounds();envelopes();cancellations();deferred_pointer_paths();source_reference_order();unsigned_types();printf("%u unit type assertions passed\n",checks);return 0;}
+static void symbol_type_cache(void){
+    uint16_t at,record;
+    reset();type(A,K_WORD,2,0,-1,0,0,0,0,0);at=export(A,3,6,0,0);
+    check(cc_unit_import_symbol(A,at)<0&&diagnostic.code==UNIT_FORMAT&&cc.symbol_count==0);
+    reset();type(A,K_WORD,2,0,-1,0,0,0,0,0);at=export(A,3,6,0,0);
+    record=cc_unit_record(UR_TYPE,A,6,K_BYTE,1,0);
+    check(cc_unit_import_symbol(A,at)<0&&diagnostic.code==UNIT_FORMAT&&cc.symbol_count==0);
+    reset();type(A,K_WORD,2,0,-1,0,0,0,0,0);at=export(A,3,6,0,0);
+    check(cc_unit_types_ready(A));
+    for(record=UNIT_RECORD_BASE;record<cc_unit_word(UH_USED);record+=UNIT_RECORD_BYTES)
+        if(cc_unit_word(record)==UR_TYPE)cc_unit_put(record+8,3);
+    check(cc_unit_import_symbol(A,at)<0&&diagnostic.code==UNIT_FORMAT&&cc.symbol_count==0);
+}
+static void pc_sites_fixture(void){
+    uint16_t i;
+    reset();module_reads=0;
+    put(object(A),5016,0);put(object(A),5018,5600);put(object(A),5020,0);put(object(A),5022,1400);
+    for(i=0;i<1400;++i)put(object(A),5024+8*i,4*i+2);
+    for(i=0;i<700;++i){put(object(A),48+6*i,0);put(object(A),50+6*i,8*i);put(object(A),52+6*i,8*i+1);}
+}
+static void pc_sites(void){
+    pc_sites_fixture();check(pc_sites_valid(A,48,700,5000,5600,1,5024)&&module_reads<20000);
+    pc_sites_fixture();put(object(A),50,2);check(!pc_sites_valid(A,48,700,5000,5600,1,5024));
+    pc_sites_fixture();put(object(A),50,1);check(!pc_sites_valid(A,48,700,5000,5600,1,5024));
+    pc_sites_fixture();put(object(A),50,4);check(pc_sites_valid(A,48,700,5000,5600,1,5024));
+    pc_sites_fixture();put(object(A),56,0);check(!pc_sites_valid(A,48,700,5000,5600,1,5024));
+    pc_sites_fixture();put(object(A),50,5599);check(!pc_sites_valid(A,48,700,5000,5600,1,5024));
+    pc_sites_fixture();put(object(A),52,5600);check(!pc_sites_valid(A,48,700,5000,5600,1,5024));
+    pc_sites_fixture();put(object(A),48,1);check(!pc_sites_valid(A,48,700,5000,5600,1,5024));
+    pc_sites_fixture();put(object(A),5016,5600);check(!pc_sites_valid(A,48,700,5000,5600,1,5024));
+    pc_sites_fixture();cancel_after=2;check(!pc_sites_valid(A,48,700,5000,5600,1,5024)&&diagnostic.code==COMPILE_INTERRUPTED);
+    reset();put(object(A),5016,0);put(object(A),5018,20);put(object(A),5020,0);put(object(A),5022,1);
+    put(object(A),5024,20);put(object(A),5026,20);put(object(A),5028,1);put(object(A),5030,1);
+    put(object(A),5032,4);put(object(A),5040,4);
+    put(object(A),48,0);put(object(A),50,6);put(object(A),52,6);
+    put(object(A),54,1);put(object(A),56,6);put(object(A),58,6);
+    check(pc_sites_valid(A,48,2,5000,40,2,5032));
+    put(object(A),56,3);check(!pc_sites_valid(A,48,2,5000,40,2,5032));
+}
+int main(void){pc_sites();symbol_type_cache();unsigned_set_bounds();pointers();variants();descriptive_variant_labels();identities();bounds();envelopes();cancellations();deferred_pointer_paths();source_reference_order();unsigned_types();printf("%u unit type assertions passed\n",checks);return 0;}

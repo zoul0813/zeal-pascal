@@ -21,10 +21,10 @@ static uint8_t ready(void) {
     return 1;
 }
 uint8_t cc_unit_byte(uint16_t at) ROUTINES {
-    if(at>=PAGE_SIZE||!ready()){cc_fail(99);return 0;}return far_get(owner.page,at);
+    if(at>=SOURCE_LIMIT||!ready()){cc_fail(99);return 0;}return buffer_get(owner.page,at);
 }
 void cc_unit_set(uint16_t at,uint8_t value) ROUTINES {
-    if(at>=PAGE_SIZE||!ready()){cc_fail(99);return;}far_set(owner.page,at,value);
+    if(at>=SOURCE_LIMIT||!ready()){cc_fail(99);return;}buffer_set(owner.page,at,value);
 }
 uint16_t cc_unit_word(uint16_t at) ROUTINES {
     uint16_t value=cc_unit_byte(at);return value|((uint16_t)cc_unit_byte(at+1)<<8);
@@ -33,34 +33,38 @@ void cc_unit_put(uint16_t at,uint16_t value) ROUTINES {
     cc_unit_set(at,(uint8_t)value);cc_unit_set(at+1,(uint8_t)(value>>8));
 }
 uint16_t cc_unit_record(uint16_t kind,uint16_t a,uint16_t b,uint16_t c,uint16_t d,uint16_t e) ROUTINES {
-    uint16_t at=cc_unit_word(UH_USED);
+    uint16_t at=cc_unit_word(UH_USED),tail;
     if(cc.error->code)return 0;
-    if(at<UNIT_RECORD_BASE||(uint32_t)at+UNIT_RECORD_BYTES>PAGE_SIZE){cc_fail(99);return 0;}
+    if(at<UNIT_RECORD_BASE||(uint32_t)at+UNIT_RECORD_BYTES>SOURCE_LIMIT){cc_fail(99);return 0;}
+    if(!buffer_reserve(owner.page,at+UNIT_RECORD_BYTES)){cc_fail(99);return 0;}
     cc_unit_put(at,kind);cc_unit_put(at+2,a);cc_unit_put(at+4,b);
     cc_unit_put(at+6,c);cc_unit_put(at+8,d);cc_unit_put(at+10,e);
+    if(kind==UR_FRAGMENT) {
+        tail=cc_unit_word(UH_FRAGMENT_TAIL);
+        if(tail)cc_unit_put(tail+10,at);else cc_unit_put(UH_FRAGMENTS,at);
+        cc_unit_put(UH_FRAGMENT_TAIL,at);
+    }
     cc_unit_put(UH_RECORDS,cc_unit_word(UH_RECORDS)+1);cc_unit_put(UH_USED,at+UNIT_RECORD_BYTES);
     return at;
 }
 uint8_t cc_units_requested(void) ROUTINES {return requested;}
 int8_t cc_units_output(void) ROUTINES {return output_descriptor;}
 uint8_t cc_units_begin(void) ROUTINES {
-    uint16_t at;
     if(cc.sources->unit_page!=255)return ready();
     if(owner.lifetime&&!cc_units_close())return 0;
     owner.page=page_new(PAGE_COMPILER);if(owner.page==255){cc_fail(99);return 0;}
-    owner.lifetime=page_lifetime(owner.page);owner.initialized=0;
+    owner.lifetime=page_lifetime(owner.page);owner.initialized=0;buffer_init(owner.page);
     if(!far_fill(owner.page,0,0,256)){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
     owner.initialized=1;cc_unit_put(UH_USED,UNIT_RECORD_BASE);
-    for(at=256;at<PAGE_SIZE;at+=256) {
-        if(!cc_poll()||!far_fill(owner.page,at,0,256)){if(!cc.error->code)cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
-    }
-    page_initialized(owner.page,PAGE_SIZE);cc.sources->unit_page=owner.page;
+    page_initialized(owner.page,256);cc.sources->unit_page=owner.page;
     cc.sources->unit_start=cc.emitted;cc.sources->unit_owner=0;cc.sources->unit_real=0;return 1;
 }
 uint8_t cc_units_close(void) ROUTINES {
-    uint16_t at,end;uint8_t p,ok=1,i;uint32_t life;
-    if(!owner.lifetime)return 1;
-    if(!ready())return 0;
+    uint16_t at,end;uint8_t p,ok=1,i,files,primary;uint32_t life;
+    files=cc_unit_files_close();primary=platform_error;
+    if(!files)cc_fail(COMPILE_PLATFORM_FAILURE);
+    if(!owner.lifetime)return files;
+    if(!ready()){if(!files)platform_error=primary;return 0;}
     for(i=0;i<3;++i)if(owner.pending[i].lifetime) {
         p=owner.pending[i].page;
         if(page_role(p)!=owner.pending[i].role||page_lifetime(p)!=owner.pending[i].lifetime||!page_drop(p))ok=0;
@@ -68,17 +72,18 @@ uint8_t cc_units_close(void) ROUTINES {
     }
     if(owner.initialized) {
         end=cc_unit_word(UH_USED);
-        if(end<UNIT_RECORD_BASE||end>PAGE_SIZE||(end-UNIT_RECORD_BASE)%UNIT_RECORD_BYTES){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
-        for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_MODULE) {
+        if(end<UNIT_RECORD_BASE||end>SOURCE_LIMIT||(end-UNIT_RECORD_BASE)%UNIT_RECORD_BYTES){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+        for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_MODULE||cc_unit_word(at)==UR_ARTIFACT) {
             p=(uint8_t)cc_unit_word(at+2);if(p==255)continue;
             if(at+2u*UNIT_RECORD_BYTES>end||cc_unit_word(at+UNIT_RECORD_BYTES)!=UR_SEAL){ok=0;continue;}
             life=cc_unit_word(at+UNIT_RECORD_BYTES+2)|((uint32_t)cc_unit_word(at+UNIT_RECORD_BYTES+4)<<16);
-            if(page_role(p)!=PAGE_COMPILER||page_lifetime(p)!=life||!page_drop(p))ok=0;
+            if(page_role(p)!=PAGE_COMPILER||page_lifetime(p)!=life||!buffer_drop(p))ok=0;
             else cc_unit_put(at+2,255);
         }
     }
-    if(!ok||!page_drop(owner.page)){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
-    memset(&owner,0,sizeof(owner));cc.sources->unit_page=255;return 1;
+    if(!ok||!buffer_drop(owner.page)){cc_fail(COMPILE_PLATFORM_FAILURE);if(!files)platform_error=primary;return 0;}
+    memset(&owner,0,sizeof(owner));cc.sources->unit_page=255;
+    if(!files)platform_error=primary;return files;
 }
 /* A synchronous job's bitmap is the cleanup authority after the parser
  * returns. Drop private aliases before that owner reclaims its scratch pages. */
@@ -131,14 +136,17 @@ uint8_t compiler_compile_unit(const Source *source,Build *scratch,Diagnostic *di
     requested=0;output_descriptor=-1;return ok;
 }
 
-uint16_t cc_unit_owned_page(void) ROUTINES {
+static uint16_t owned_page(uint8_t kind) {
     uint16_t module,seal;uint8_t p;uint32_t life;
-    module=cc_unit_record(UR_MODULE,255,0,0,0,0);if(!module)return 0;
+    if(kind==UR_MODULE&&cc_unit_word(UH_USED)>=0x8000u){cc_fail(99);return 0;}
+    module=cc_unit_record(kind,255,0,0,0,0);if(!module)return 0;
     seal=cc_unit_record(UR_SEAL,0,0,0,0,0);if(!seal)return 0;
     p=page_new(PAGE_COMPILER);if(p==255){cc_fail(99);return 0;}
-    life=page_lifetime(p);cc_unit_put(seal+2,(uint16_t)life);cc_unit_put(seal+4,(uint16_t)(life>>16));
+    buffer_init(p);life=page_lifetime(p);cc_unit_put(seal+2,(uint16_t)life);cc_unit_put(seal+4,(uint16_t)(life>>16));
     cc_unit_put(module+2,p);return module;
 }
+uint16_t cc_unit_owned_page(void) ROUTINES {return owned_page(UR_MODULE);}
+uint16_t cc_unit_artifact_page(void) ROUTINES {return owned_page(UR_ARTIFACT);}
 uint8_t cc_unit_module_ready(uint16_t module) ROUTINES {
     uint8_t p=(uint8_t)cc_unit_word(module+2);uint16_t seal=module+UNIT_RECORD_BYTES;
     uint32_t life=cc_unit_word(seal+2)|((uint32_t)cc_unit_word(seal+4)<<16);
@@ -149,19 +157,11 @@ uint8_t cc_unit_module_ready(uint16_t module) ROUTINES {
     return 1;
 }
 uint8_t cc_unit_module_byte(uint16_t module,uint16_t at) ROUTINES {
-    if(at>=cc_unit_word(module+4)||!cc_unit_module_ready(module)){cc_fail(UNIT_FORMAT);return 0;}
-    return far_get((uint8_t)cc_unit_word(module+2),at);
+    if(at>=cc_unit_word(module+4)||(cc_unit_prefix(module)&&at>=cc_unit_prefix(module))||!cc_unit_module_ready(module)){cc_fail(UNIT_FORMAT);return 0;}
+    return buffer_get((uint8_t)cc_unit_word(module+2),at);
 }
 uint16_t cc_unit_module_word(uint16_t module,uint16_t at) ROUTINES {
     uint16_t v=cc_unit_module_byte(module,at);return v|((uint16_t)cc_unit_module_byte(module,at+1)<<8);
-}
-uint8_t cc_unit_fragment(uint16_t preferred,uint16_t *fragment,uint16_t *offset) ROUTINES {
-    uint16_t at,end=cc_unit_word(UH_USED),id=0,first,last;
-    for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_FRAGMENT) {
-        first=cc_unit_word(at+2);last=cc_unit_word(at+4);
-        if(preferred>=first&&preferred<last){*fragment=id;*offset=preferred-first;return 1;}++id;
-    }
-    cc_fail(UNIT_FORMAT);return 0;
 }
 
 uint8_t cc_units_hold(uint8_t page,uint32_t lifetime,uint8_t role) ROUTINES {

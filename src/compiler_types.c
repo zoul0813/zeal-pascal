@@ -333,17 +333,16 @@ void cc_declarations(void) FRONTEND {
                     cc_next(); type=parse_type(0);
                     if(cc_family(type)==K_POINTER||cc_family(type)==K_FILE) cc_fail(61);
                     cc_expect('=',6);
-                    if(cc_aggregate(type)||cc_family(type)==K_SET||cc_family(type)==K_WORD||cc_family(type)==K_LONGWORD
-#ifdef ZP_UNITS_EXPERIMENT
-                       ||cc_family(type)==K_INTEGER
-#endif
+                    if(cc_aggregate(type)||cc_family(type)==K_SET||cc_family(type)==K_LONGWORD
                     ) {
                         value=cc_source_reference(cc.token_start);initializer(type,0); initial=255;
-                    } else cc_constant(&initial,&value);
-                    if(cc_aggregate(type)||cc_family(type)==K_SET||cc_family(type)==K_WORD||cc_family(type)==K_LONGWORD
+                    } else {
+                        cc_constant(&initial,&value);
 #ifdef ZP_UNITS_EXPERIMENT
-                       ||cc_family(type)==K_INTEGER
+                        cc_unsigned_initializer(type,&initial,&value,0);
 #endif
+                    }
+                    if(cc_aggregate(type)||cc_family(type)==K_SET||cc_family(type)==K_LONGWORD
                     ) {
                         CCS_SET(id,type,type); CCS_SET(id,role,S_TYPED);
                         CCS_SET(id,address,value); cc_expect(';',1); continue;
@@ -354,7 +353,15 @@ void cc_declarations(void) FRONTEND {
                         if(cc.literal_length!=1) cc_fail(50);
                         value=cc.literal[0]; initial=K_CHAR;
                     }
-                    if(cc_ordinal(type)&&((int16_t)value<CCT(type,low)||(int16_t)value>CCT(type,high))) cc_fail(44);
+                    if(cc_ordinal(type)&&
+#ifdef ZP_UNITS_EXPERIMENT
+                       (cc_family(type)==K_WORD?value<(uint16_t)CCT(type,low)||value>(uint16_t)CCT(type,high):
+#endif
+                       ((int16_t)value<CCT(type,low)||(int16_t)value>CCT(type,high))
+#ifdef ZP_UNITS_EXPERIMENT
+                       )
+#endif
+                    ) cc_fail(44);
                     CCS_SET(id,type,type); CCS_SET(id,initial_type,initial); CCS_SET(id,role,S_TYPED);
                 } else {
                     cc_expect('=',6);
@@ -375,10 +382,7 @@ void cc_typed_storage(uint16_t first) FRONTEND {
     for(i=first;i<cc.symbol_count&&!cc.error->code;++i) if(CCS(i,role)==S_TYPED) {
         if(!jump) jump=cc_forward(0xc3);
         value=CCS(i,address); CCS_SET(i,address,cc.emitted);
-        if(cc_aggregate(CCS(i,type))||cc_family(CCS(i,type))==K_SET||cc_family(CCS(i,type))==K_WORD||cc_family(CCS(i,type))==K_LONGWORD
-#ifdef ZP_UNITS_EXPERIMENT
-           ||cc_family(CCS(i,type))==K_INTEGER
-#endif
+        if(cc_aggregate(CCS(i,type))||cc_family(CCS(i,type))==K_SET||cc_family(CCS(i,type))==K_LONGWORD
         ) {
             cc_source_save(&cursor);
             cc_reference_seek(value);cc_next();initializer(CCS(i,type),1);

@@ -7,7 +7,7 @@ extern uint8_t buffer_following[64];
 void buffer_init(uint8_t page) SOURCE_BLOCK_CALL {following[page]=255;}
 uint8_t buffer_reserve(uint8_t page,uint16_t length) SOURCE_BLOCK_CALL {
     uint8_t next,role=page_role(page);
-    if(role!=PAGE_SOURCE&&role!=PAGE_SNAPSHOT&&role!=PAGE_MAP&&role!=PAGE_SOURCES)return 0;
+    if(role!=PAGE_SOURCE&&role!=PAGE_SNAPSHOT&&role!=PAGE_MAP&&role!=PAGE_SOURCES&&role!=PAGE_COMPILER)return 0;
     while(length>PAGE_SIZE) {
         next=buffer_next(page);
         if(next==255) {

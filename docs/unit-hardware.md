@@ -76,14 +76,41 @@ addresses, Word pointer round trips, byte memory access, I/O and Word-sized
 copies. It also checks source-free saved execution, Real omission, selective
 hardware requirements and continued rejection of unrepresented services.
 
-The full Pascal ZVB authoring probe is a separate mode. Its initial run reached
-the existing single-page catalog limit; larger-unit storage is the next stage.
-The hardware checkpoint's required Opus review remains pending the CLI usage
-limit. This document does not claim the full ZVB library is ready.
+The larger-unit path uses compiler-owned chained buffers for catalogs and
+metadata. ZPU files may contain up to 65,470 bytes, including code and initial
+globals. Unit code may end at address 65,534 while being authored; executable
+placement retains its existing `$F400` limit.
 
-Checkpoint verification:159 native hardware assertions,105 native Inline
-assertions,932 unsigned assertions,64 sanitized decoder assertions,24 runner
-tests and the host regression pass. The Inline fixture had stale expectations
-from before the deliberate lazy file-block initialization and source-map removal;
-it now checks zero initial storage and standalone image bounds. Native assertions
-still verify live included-source identity. See unit-hardware-evidence.json.
+Import scans and validates the complete file but retains only metadata in RAM.
+The code stays on disk. Imports close the file after validation. Linking reopens
+it for each
+needed file page, streams bounded selected ranges into the unpublished staging
+image and checks the complete page hash before relocations can use that data.
+A failed check rejects and discards the build. No separate file-window page is
+allocated. Re-reading a changed or truncated file fails
+compilation. A saved executable has no dependency on that handle or file.
+For the current 60,430-byte ZVB unit, the resident metadata prefix is 28,846
+bytes: two pages instead of four for the complete file, with no extra file-window
+page. These are compilation allocations, separate from program RAM.
+The compiler startup policy remains 10 cold / 15 warm pages and 18 logical banks.
+
+`tools/test-unit-storage.py` independently generates page-crossing units,
+exports string/Real/LongWord constants, exercises relocated code above `$F400`,
+checks exact limits, deletes libraries before saved execution and injects
+allocation failure and cancellation. Both failure cases require a clean cache
+and a successful fresh compilation. Host reader tests exercise file mutation,
+truncation, partial reads, seek/read errors, cancellation and close failures.
+Zeal VFS removes a descriptor even when close reports an error; the owner
+reports that error and clears the handle, allowing a fresh compilation.
+
+Current verification: 336 focused native hardware checks; 286 native storage
+boundary checks; 57 allocation-failure and 54 cancellation checks; 1,188 unsigned,
+1,703 unit/Real and 623 initialization checks. Sanitized host checks include
+80 metadata-decoder, 1,824 reference-merge, 65,980 reader and 45 loader checks.
+The loader host suite isolates transport/allocation; semantic validation is
+covered separately. Runtime Move/FillChar passes 229,402 Word-count checks.
+Observed native stack watermark margins are at least 8,453 bytes for these
+storage and ZVB clients; this is a lower-bound observation, not a proof for all
+possible programs. Both Opus turns have completed. Later fixes pass local checks but require an
+additional requested review before approval; full ZVB demo and physical-board
+qualification are separate milestones. See [storage evidence](unit-storage-evidence.json).

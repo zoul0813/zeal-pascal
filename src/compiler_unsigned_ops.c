@@ -54,3 +54,14 @@ uint8_t cc_unsigned_initializer(TypeId type,TypeId *actual,uint16_t *value,uint8
     if(emit)for(i=0;i<4;++i)cc_emit((uint8_t)(number>>(8*i)));
     return 1;
 }
+
+void cc_unsigned_range(TypeId type) BACKEND {
+    cc_unsigned_bounds((uint16_t)CCT(type,low),(uint16_t)CCT(type,high),0x91);
+}
+void cc_unsigned_bounds(uint16_t low,uint16_t high,uint8_t error) BACKEND {
+    uint16_t bad,done;
+    if(!cc.range_check||(!low&&high==65535u))return;
+    cc_guard();cc_emit(0xe5);cc_op16(0x11,low);cc_emit(0xb7);cc_emit(0xed);cc_emit(0x52);cc_emit(0xe1);bad=cc_forward(0xda);
+    cc_emit(0xe5);cc_op16(0x11,high);cc_emit(0xeb);cc_emit(0xb7);cc_emit(0xed);cc_emit(0x52);cc_emit(0xe1);
+    done=cc_forward(0xd2);cc_patch(bad);cc_emit(0x3e);cc_emit(error);cc_emit(0x06);cc_emit(2);cc_op16(0xc3,RT_ERROR);cc_patch(done);
+}

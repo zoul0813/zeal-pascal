@@ -41,16 +41,13 @@ static uint16_t find_export(uint16_t module,const char *name) {
     return 0;
 }
 static int16_t materialize(uint16_t module,uint16_t export) {
-    int16_t symbol;uint8_t primary;uint16_t at,end=cc_unit_word(UH_USED);
+    uint16_t at,end=cc_unit_word(UH_USED);
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES) {
         if(!(at&127u)&&!cc_poll())return -1;
         if(cc_unit_word(at)==UR_IMPORT&&cc_unit_word(at+4)==module&&cc_unit_word(at+6)==export)
             return (int16_t)cc_unit_word(at+10);
     }
-    if(!code_phase_unit_meta()){cc_fail(COMPILE_PLATFORM_FAILURE);return -1;}
-    symbol=cc_unit_import_symbol(module,export);primary=platform_error;
-    if(!code_phase_unit_meta_release()){cc_fail(COMPILE_PLATFORM_FAILURE);return -1;}
-    if(symbol<0)platform_error=primary;return symbol;
+    return cc_unit_import_symbol(module,export);
 }
 int16_t cc_units_lookup(void) ROUTINES {
     uint16_t module=0,export=0,at,end,match=0,candidate=0;SourceCursor cursor;
@@ -93,37 +90,53 @@ void cc_units_call(uint8_t opcode,uint16_t scope) ROUTINES {
 
 void cc_unit_descriptor(uint16_t module,CompilerFragmentObject *object) ROUTINES {
     uint16_t seal=module+UNIT_RECORD_BYTES;
+    memset(object,0,sizeof(*object));
     object->page=(uint8_t)cc_unit_word(module+2);object->offset=cc_unit_word(seal+10);
     object->bytes=cc_unit_word(module+4)-object->offset;
     object->lifetime=cc_unit_word(seal+2)|((uint32_t)cc_unit_word(seal+4)<<16);
     object->version=cc_unit_word(seal+6)|((uint32_t)cc_unit_word(seal+8)<<16);
     object->binding=cc_unit_word(module+8);
-    object->bindings=cc_unit_word(module+4);
+    object->bindings=cc_unit_prefix(module)?cc_unit_prefix(module):cc_unit_word(module+4);
+    object->stored_bytes=cc_unit_prefix(module)?cc_unit_prefix(module)-object->offset:0;
     object->binding_count=(uint8_t)(cc_unit_module_word(module,36)+1);
+    if(!cc_fragment_source_capture(object))cc_fail(UNIT_FORMAT);
 }
 /* Release the I/O code page only after returning to the retained unit bank.
  * Failed release keeps its owned handle for the normal phase/terminal retry. */
 static uint8_t io_finish(uint8_t ok) {
     uint8_t primary=platform_error;
-    if(!code_phase_unit_io_release()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    if(!code_phase_unit_io_release()){
+        cc_fail(COMPILE_PLATFORM_FAILURE);if(!ok)platform_error=primary;return 0;
+    }
     if(!ok)platform_error=primary;
     return ok;
 }
 uint8_t cc_units_write(void) ROUTINES {
-    uint8_t ok=0,primary;
-    if(!code_phase_unit_link_begin()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    uint8_t ok=0,primary,clean;
+    if(!code_phase_unit_finish_begin()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
     if(!code_phase_unit_io())cc_fail(COMPILE_PLATFORM_FAILURE);
     else {
         if(!code_phase_unit_meta())cc_fail(COMPILE_PLATFORM_FAILURE);
         else {
             ok=cc_units_write_object();primary=platform_error;
-            if(!code_phase_unit_meta_release()){cc_fail(COMPILE_PLATFORM_FAILURE);ok=0;}
-            else if(!ok)platform_error=primary;
+            if(!code_phase_unit_meta_release()){
+                cc_fail(COMPILE_PLATFORM_FAILURE);if(ok)primary=platform_error;ok=0;
+            }
+            platform_error=primary;
         }
         ok=io_finish(ok);
     }
     primary=platform_error;
-    if(!code_phase_unit_link_end()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    if(!ok) {
+        /* Do not compete with abandoned tables/artifacts while restoring the
+         * parser. Each owner retains failed releases for the outer retry. */
+        clean=cc_tables_end();if(!cc_units_close())clean=0;
+        if(!clean)cc_fail(COMPILE_PLATFORM_FAILURE);
+        platform_error=primary;
+    }
+    if(!code_phase_unit_finish_end()){
+        cc_fail(COMPILE_PLATFORM_FAILURE);if(!ok)platform_error=primary;return 0;
+    }
     if(!ok)platform_error=primary;return ok;
 }
 /* The artifact owns code, signatures and optional source identity. Register
@@ -157,15 +170,25 @@ static uint16_t bind_source(uint16_t module) {
     return module;
 }
 uint16_t cc_units_load(const char *name,const char *path) ROUTINES {
-    uint16_t module,i,n=(uint16_t)strlen(name);char fallback[128],filename[16];
+    uint16_t module=0,i,n=(uint16_t)strlen(name);uint8_t primary;
+    char fallback[128],filename[16];
     for(i=0;i<n;++i)filename[i]=name[i]>='a'&&name[i]<='z'?name[i]-32:name[i];
     strcpy(filename+n,".ZPU");fallback[0]=0;
     if(code_library_directory[0]&&!sources_path(filename,code_library_directory,fallback)) {
         fallback[0]=0; /* A valid local unit must not depend on fallback length. */
     }
-    if(!code_phase_unit_io()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
-    module=cc_units_load_object(name,path,fallback[0]?fallback:0);
-    if(!io_finish(module!=0))return 0;
+    /* Uses clauses run outside the file generator. Its idle slot lets a
+     * multi-page artifact coexist with the transient loader. Release the
+     * loader before restoring that slot, including on a failed import. */
+    if(!code_phase_unit_link_begin()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    if(!code_phase_unit_io())cc_fail(COMPILE_PLATFORM_FAILURE);
+    else {
+        module=cc_units_load_object(name,path,fallback[0]?fallback:0);
+        if(!io_finish(module!=0))module=0;
+    }
+    primary=platform_error;
+    if(!code_phase_unit_link_end()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    if(!module){platform_error=primary;return 0;}
     return bind_source(module);
 }
 
@@ -183,7 +206,7 @@ uint16_t cc_units_graph(const char *name,uint8_t visible) ROUTINES {
 uint8_t cc_units_link(void) ROUTINES {
     uint8_t ok=0,primary;
     if(cc.sources->unit_page==255)return 1;
-    if(!code_phase_unit_link_begin()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    if(!code_phase_unit_finish_begin()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
     if(!code_phase_unit_meta())cc_fail(COMPILE_PLATFORM_FAILURE);
     else {
         ok=cc_units_link_object();primary=platform_error;
@@ -191,7 +214,7 @@ uint8_t cc_units_link(void) ROUTINES {
         else if(!ok)platform_error=primary;
     }
     primary=platform_error;
-    if(!code_phase_unit_link_end()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    if(!code_phase_unit_finish_end()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
     if(!ok)platform_error=primary;return ok;
 }
 

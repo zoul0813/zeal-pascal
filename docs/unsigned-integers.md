@@ -34,8 +34,15 @@ casts truncate even under `{$R+}`. Implicit narrowing checks the destination
 range under `{$R+}` and reports runtime error $91; under `{$R-}` it truncates.
 Negative Integer assignments to unsigned destinations also fail under `{$R+}`.
 Typed constant initializers must fit their destination and cannot implicitly
-convert negative signed constants to unsigned values. `Chr`, ordinal casts,
-`Hi`, `Lo`, `Swap`, `Odd`, `Succ`, `Pred`, `Abs` and `Sqr` accept unsigned
+convert negative signed Integer constants to unsigned values. Negating an
+already unsigned constant follows modular unsigned arithmetic: with
+`const Big=40000`, `-Big` is Word 25536. This differs from the out-of-range
+signed literal `-40000`.
+
+Explicit casts between Integer, Byte, Word, LongWord and Char accept unsigned
+values; Boolean and enum casts remain unsupported. Implicit unsigned-to-Char
+assignments and arguments are rejected. `Chr` checks its 0..255 result under
+`{$R+}`. `Hi`, `Lo`, `Swap`, `Odd`, `Succ`, `Pred`, `Abs` and `Sqr` accept unsigned
 values. Word subrange `Succ` and `Pred` retain range checking.
 
 For Word, `Hi` and `Lo` select bytes and `Swap` exchanges bytes. For LongWord,
@@ -64,15 +71,15 @@ time. Compiler code still occupies 18 logical banks, allocated as 10 cold and
 
 ## Checkpoint verification
 
-[Evidence](unsigned-integers-evidence.json) records932 native unsigned checks,
-26,004 generated Z80 arithmetic checks,64 sanitized unit decoder checks,1703
+[Evidence](unsigned-integers-evidence.json) records1,188 native unsigned checks,
+26,004 generated Z80 arithmetic checks,80 sanitized unit decoder checks,1703
 unit/Real checks,623 initialization checks,404 general unit checks, CRT and
 host regressions. The simple Word fixture retains two execution pages. A
 source-free imported constant-return function and Swap also run with the shared
 stack; ordinary local routine calls still conservatively require full-memory
-mode. The production launcher is15,668 bytes and its ZPL267,550 bytes, in the
+mode. The integrated production launcher is16,031 bytes and its ZPL277,338 bytes, in the
 existing18 logical banks.
 
-Initial Opus findings were resolved and checked locally. The required follow-up
-is pending the Claude usage-limit reset; this checkpoint is tested but not
-review-approved. ZVB's library, documentation and demos are a separate milestone.
+Opus completed its follow-up and found additional conversion and scalar
+initializer issues. The fixes and expanded native checks pass; the current integration remains
+unapproved after changes made following the last review turn. ZVB's library, documentation and demos are a separate milestone.

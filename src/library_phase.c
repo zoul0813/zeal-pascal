@@ -100,6 +100,18 @@ uint8_t code_phase_real_release(void) SOURCE_BLOCK_CALL {
 /* Unit graph checks, serialization and final placement run outside the file
  * generator. Lend its idle physical slot, then restore before parsing/helpers. */
 uint8_t code_phase_unit_link_begin(void) SOURCE_BLOCK_CALL {return drop_bank(CODE_FILE_COMPILER);}
+/* Final linking and serialization run after every parser frame has returned. Unsigned value
+ * decoding lives in the retained support bank, so the expression generator
+ * can lend its slot as well as the file generator until output is sealed. */
+uint8_t code_phase_unit_finish_begin(void) SOURCE_BLOCK_CALL {
+    uint8_t primary;
+    if(!drop_bank(CODE_FILE_COMPILER))return 0;
+    if(drop_bank(CODE_EXPRESSIONS))return 1;
+    primary=platform_error;restore(1UL<<CODE_FILE_COMPILER);platform_error=primary;return 0;
+}
+uint8_t code_phase_unit_finish_end(void) SOURCE_BLOCK_CALL {
+    return restore((1UL<<CODE_FILE_COMPILER)|(1UL<<CODE_EXPRESSIONS));
+}
 uint8_t code_phase_unit_link_end(void) SOURCE_BLOCK_CALL {return restore(1UL<<CODE_FILE_COMPILER);}
 uint8_t code_phase_unit_meta(void) SOURCE_BLOCK_CALL {return restore(1UL<<CODE_UNIT_META);}
 uint8_t code_phase_unit_meta_release(void) SOURCE_BLOCK_CALL {

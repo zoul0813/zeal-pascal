@@ -35,7 +35,13 @@ void cc_emit(uint8_t v) {
     if(!(cc.emitted&255)&&!cc_poll())return;
     /* The first staging page reuses image page2. A second owned compiler page
      * is acquired only if necessary, then released after checked placement. */
-    if(cc.emitted>=CC_STATIC_LIMIT) { cc_fail(99); return; }
+    if(cc.emitted>=
+#ifdef ZP_UNITS_EXPERIMENT
+       (cc.sources->unit_mode?SOURCE_LIMIT:CC_STATIC_LIMIT)
+#else
+       CC_STATIC_LIMIT
+#endif
+    ) { cc_fail(99); return; }
     cc_put(cc.emitted++,v);
 }
 static void emit16(uint16_t v) { cc_emit((uint8_t)v); cc_emit((uint8_t)(v>>8)); }

@@ -10,6 +10,8 @@
 
 volatile uint16_t test_passed,test_failed,test_index,test_failures[64];
 volatile uint8_t test_done,fragment_status;
+static uint8_t following[64];
+uint8_t buffer_next(uint8_t p) {return p<64&&following[p]>=32&&following[p]<64?following[p]:255;}
 static uint8_t roles[64],used,peak_used,fail_alloc,alloc_calls,fail_free,free_page,poison_alloc_at;
 static uint32_t lives[64],next_life;
 static uint16_t polls,cancel_at,mutate_at;
@@ -50,7 +52,7 @@ uint8_t page_new(uint8_t role) {
     if(p==64)return 255;
 #endif
     if(p<32||p>=64||roles[p])return 255;
-    roles[p]=role;lives[p]=++next_life;++used;if(used>peak_used)peak_used=used;
+    following[p]=255;roles[p]=role;lives[p]=++next_life;++used;if(used>peak_used)peak_used=used;
     if(alloc_calls==poison_alloc_at)free_page=p;
     return p;
 }
@@ -76,7 +78,7 @@ static void seal(CompilerFragmentObject *o) {o->lifetime=page_lifetime(o->page);
 static void object(CompilerFragmentObject *o,uint16_t id,uint8_t count,const uint16_t *sizes,
                    uint8_t relocations,const uint16_t *refs,const uint16_t *owners) {
     uint16_t i,j,offset=0,r=0,start=16u+8u*count+8u*relocations;
-    o->bindings=0;o->binding_count=0;o->offset=0;o->binding=0;o->page=page_new(PAGE_COMPILER);check(o->page!=255);if(o->page==255)return;
+    memset(o,0,sizeof(*o));o->bindings=0;o->binding_count=0;o->offset=0;o->binding=0;o->page=page_new(PAGE_COMPILER);check(o->page!=255);if(o->page==255)return;
     o->bytes=start;for(i=0;i<count;++i)o->bytes+=sizes[i];
     for(i=0;i<o->bytes;++i)far_set(o->page,i,0);
     far_set(o->page,0,'Z');far_set(o->page,1,'P');far_set(o->page,2,'F');far_set(o->page,3,'1');
@@ -293,7 +295,7 @@ static void patches_and_cycles(void) {
 }
 static void dense(CompilerFragmentObject *o,uint16_t identity,uint16_t count) {
     uint16_t i,start=16+8*count;
-    o->bindings=0;o->binding_count=0;o->offset=0;o->binding=0;o->page=page_new(PAGE_COMPILER);check(o->page!=255);if(o->page==255)return;
+    memset(o,0,sizeof(*o));o->bindings=0;o->binding_count=0;o->offset=0;o->binding=0;o->page=page_new(PAGE_COMPILER);check(o->page!=255);if(o->page==255)return;
     o->bytes=start+count;
     for(i=0;i<o->bytes;++i)far_set(o->page,i,0);
     far_set(o->page,0,'Z');far_set(o->page,1,'P');far_set(o->page,2,'F');far_set(o->page,3,'1');
@@ -312,7 +314,7 @@ static void capacity(void) {
     check(page_drop(dense_objects[2].page));dense(dense_objects+2,12,461);alloc_calls=0;
     check(cc_fragment_link(dense_objects,3,&root,1,0x8000,0xf400,&image)==CF_CAPACITY&&alloc_calls==0&&used==5);
     for(j=0;j<3;++j)check(page_drop(dense_objects[j].page));check(used==2);
-    full.bindings=0;full.binding_count=0;full.offset=0;full.binding=0;full.page=page_new(PAGE_COMPILER);check(full.page!=255);full.bytes=PAGE_SIZE;
+    memset(&full,0,sizeof(full));full.bindings=0;full.binding_count=0;full.offset=0;full.binding=0;full.page=page_new(PAGE_COMPILER);check(full.page!=255);full.bytes=PAGE_SIZE;
     for(i=0;i<PAGE_SIZE;++i)far_set(full.page,i,0);
     far_set(full.page,0,'Z');far_set(full.page,1,'P');far_set(full.page,2,'F');far_set(full.page,3,'1');
     poke(&full,4,13);poke(&full,6,1);poke(&full,10,PAGE_SIZE-24);poke(&full,18,PAGE_SIZE-24);
@@ -412,6 +414,92 @@ static void dependency_bindings(void) {
     check(page_drop(inputs[0].page));check(page_drop(inputs[1].page));check(!used);
 }
 
+/* Exercise a source header and payload straddling physical bank boundaries,
+ * including direct child mutation/free/reuse with an unchanged head version. */
+static void logical_set(const CompilerFragmentObject *o,uint16_t at,uint8_t v) {
+    uint8_t p=at<PAGE_SIZE?o->page:o->following[at/PAGE_SIZE-1];
+    far_set(p,at%PAGE_SIZE,v);
+}
+static void logical_word(const CompilerFragmentObject *o,uint16_t at,uint16_t v) {
+    logical_set(o,at,(uint8_t)v);logical_set(o,at+1,(uint8_t)(v>>8));
+}
+static void paged_sources(void) {
+    CompilerFragmentObject source,overlap[2];
+    CompilerFragmentRoot root;
+    uint16_t i;uint8_t j,p,old_role;uint32_t head_version,life;
+    memset(&source,0,sizeof(source));source.page=page_new(PAGE_COMPILER);
+    check(source.page!=255);p=source.page;
+    for(j=0;j<3;++j) {
+        source.following[j]=page_new(PAGE_COMPILER);check(source.following[j]!=255);
+        following[p]=source.following[j];p=source.following[j];
+    }
+    source.continuations=3;source.offset=16370;source.bytes=20024;
+    for(i=0;i<source.bytes;++i)logical_set(&source,source.offset+i,0);
+    for(j=0;j<4;++j)logical_set(&source,source.offset+j,(uint8_t)"ZPF1"[j]);
+    logical_word(&source,source.offset+4,7);logical_word(&source,source.offset+6,1);
+    logical_word(&source,source.offset+10,20000);logical_word(&source,source.offset+18,20000);
+    for(i=0;i<20000;++i)logical_set(&source,source.offset+24+i,(uint8_t)(i^0xa7));
+    seal(&source);check(cc_fragment_source_capture(&source));
+    root.identity=7;root.fragment=0;
+    check(cc_fragment_validate_source(&source)==CF_OK);
+    check(cc_fragment_link(&source,1,&root,1,0x8000,0xf400,&image)==CF_OK);
+    check(image.bytes==20000&&image.pages[0]!=255&&image.pages[1]!=255);
+    for(i=0;i<20000;i+=257)check(get(0x8000+i)==(uint8_t)(i^0xa7));
+    check(get(0x8000+19999)==(uint8_t)(19999^0xa7));check(cc_fragment_image_close(&image));
+    head_version=page_versions[source.page];
+    far_set(source.following[1],0,far_get(source.following[1],0));
+    check(page_versions[source.page]==head_version);
+    check(cc_fragment_validate_source(&source)==CF_OWNERSHIP);
+    check(cc_fragment_source_capture(&source));
+    old_role=roles[source.following[0]];roles[source.following[0]]=PAGE_IMAGE;
+    check(cc_fragment_validate_source(&source)==CF_OWNERSHIP);roles[source.following[0]]=old_role;
+    life=lives[source.following[0]];++lives[source.following[0]];
+    check(cc_fragment_validate_source(&source)==CF_OWNERSHIP);lives[source.following[0]]=life;
+    overlap[0]=source;overlap[1]=source;overlap[1].page=source.following[0];
+    overlap[1].continuations=0;overlap[1].offset=0;overlap[1].bytes=24;
+    overlap[1].lifetime=page_lifetime(overlap[1].page);overlap[1].version=page_versions[overlap[1].page];
+    check(cc_fragment_validate(overlap,2)==CF_OBJECT);
+    source.continuations=4;check(!cc_fragment_source_live(&source));source=overlap[0];
+    following[source.following[2]]=source.page;check(!cc_fragment_source_capture(&source));
+    following[source.following[2]]=255;source=overlap[0];
+    following[source.following[0]]=source.page;
+    check(!cc_fragment_source_capture(&source));
+    following[source.following[0]]=source.following[1];source=overlap[0];
+    /* Maximum logical end, and a one-byte overrun, without uint16 wrapping. */
+    source.offset=65500;source.bytes=34;
+    for(i=0;i<34;++i)logical_set(&source,source.offset+i,0);
+    for(j=0;j<4;++j)logical_set(&source,source.offset+j,(uint8_t)"ZPF1"[j]);
+    logical_word(&source,source.offset+4,7);logical_word(&source,source.offset+6,1);
+    logical_word(&source,source.offset+10,10);logical_word(&source,source.offset+18,10);
+    seal(&source);check(cc_fragment_source_capture(&source));
+    check(cc_fragment_validate_source(&source)==CF_OK);
+    ++source.bytes;check(cc_fragment_validate_source(&source)==CF_OBJECT);--source.bytes;
+    /* A dropped/reused continuation must not be accepted even if bytes match. */
+    p=source.following[2];check(page_drop(p));p=page_new(PAGE_COMPILER);check(p!=255);
+    check(!cc_fragment_source_live(&source));check(page_drop(p));
+    for(j=0;j<2;++j)check(page_drop(source.following[j]));
+    check(page_drop(source.page)&&!used);
+}
+
+static void metadata_only(void) {
+    CompilerFragmentObject source;CompilerFragmentImage planned;CompilerFragmentLayout layout;
+    CompilerFragmentRoot root;uint16_t size=9;uint8_t bytes[24];
+    object(&source,1,1,&size,0,0,0);root.identity=1;root.fragment=0;
+    poke(&source,10,20000);poke(&source,18,20000);source.bytes=20024;
+    source.stored_bytes=24;seal(&source);
+    check(cc_fragment_validate_source(&source)==CF_OK);
+    check(cc_fragment_source_read(&source,0,bytes,24));
+    check(!cc_fragment_source_read(&source,24,bytes,1));
+    cc_fragment_image_init(&planned);cc_fragment_layout_init(&layout);
+    check(cc_fragment_plan(&source,1,&root,1,0x8000,0xf400,&planned,&layout)==CF_OK);
+    check(planned.bytes==20000&&layout.page!=255&&planned.pages[0]==255&&planned.pages[1]==255);
+    check(cc_fragment_layout_close(&layout)&&cc_fragment_image_close(&planned));
+    check(cc_fragment_link(&source,1,&root,1,0x8000,0xf400,&planned)==CF_OBJECT&&!planned.valid);
+    source.stored_bytes=23;check(cc_fragment_validate_source(&source)==CF_OBJECT);
+    source.stored_bytes=25;check(cc_fragment_validate_source(&source)==CF_OBJECT);
+    source.stored_bytes=0;check(cc_fragment_validate_source(&source)==CF_OBJECT);
+    check(page_drop(source.page)&&!used);
+}
 int main(void) {
     free_page=255;mutate_page=255;cc_fragment_image_init(&image);build_objects();
 #ifdef __SDCC
@@ -425,7 +513,7 @@ int main(void) {
     }
     negative();faults();ownership_and_edges();patches_and_cycles();capacity();independent();
     check(cc_fragment_image_close(&image));check(!used);
-    embedded_layout();dependency_bindings();
+    embedded_layout();dependency_bindings();paged_sources();metadata_only();
 #ifndef __SDCC
     maximum_objects();
 #endif

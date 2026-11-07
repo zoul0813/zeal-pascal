@@ -172,3 +172,145 @@ attempted separate creative ZVB documentation review failed before inference
 with that limit (zero tokens, no edits). No approval or finalization is claimed.
 A local tested checkpoint commit is authorized by the user's staged-commit
 request; this record explicitly retains the outstanding review requirement.
+
+## Opus turn 20261107T083821-90a41f01
+
+Mode: code; read-only
+
+# Follow-up review: unsigned-scalars-v1
+
+**Verdict: I found no established blocker, but this isn't ready to approve.** Finding 1 should be fixed first, and question 1 must be answered because it covers a required safe rejection. I reviewed the supplied sources by reading them and ran nothing. Test results below are as reported.
+
+## Prior findings
+
+| # | Status | Confirmation |
+|---|---|---|
+| 1 | Fixed | `raw_index` accepts only Integer and Word, with `Mem` and `Port` rejection tests. |
+| 2 | Fixed | Both literal paths keep `$8000..$FFFF` as Integer, and the `UHEX` fixture covers the regression forms. |
+| 3 | Fixed | `cc_unsigned_case_label` checks both range bounds. |
+| 4 | Fixed | Integral typed constants now use `initializer`. This fix introduced finding 3 below. |
+| 5 | Fixed | `set_constructor` rejects Word, so the `K_REAL` wrap is gone. |
+| 6 | Adapted, accepted | Modular promotion is consistent across the Word and LongWord paths, documented, and tested. |
+| 7 | Mostly fixed | The listed cases now reject. Finding 2 below covers a remaining route through negated constants. |
+| 8 | Fixed, with a regression | `Chr` and the Char casts work, but the change causes finding 1 below. |
+| 9 | Fixed | `import_type` checks Word set bounds as unsigned. |
+| 10 | Fixed | The 22 rejection cases and requested runtime boundary tests are present. Question 1 remains a gap. |
+
+The answers to the earlier review questions are consistent with the supplied code, except that the runtime source for the shift claim wasn't supplied (question 3). The shared-stack return path doesn't call the wide engine, and `Succ` and `Pred` retain subrange checks.
+
+## Established defects
+
+### 1. Medium: Word and LongWord implicitly convert to Char
+- **Location:** `src/compiler_unsigned.c`, `cc_unsigned_convert`; `src/compiler_unsigned_intrinsics.c`, `F_CHR`
+- **Trigger:** `C:=W`, `C:=L`, `C:=40000`, a Word argument to a Char parameter, or `for C:='A' to W`.
+- **Impact:** These invalid assignments now compile. Under `{$R-}`, the value silently truncates to one byte. The equivalent `C:=I` still fails with error 44.
+- **Evidence:** The `tf!=K_CHAR` exemption applies even when `cast` is 0, and `cc_convert` calls this function with `cast=0`. `F_CHR` relies on that path to get checked narrowing.
+- **Fix:** Allow Char targets only for explicit conversions. Give `Chr` a separate checked mode, such as `cast==2`, and replace the `!cast` checks with a `checked` flag.
+- **Verification:** Add rejections for `C:=W`, `C:=L`, and `C:=40000`. Add runtime tests that `Chr(W)` and `Chr(L)` raise 0x91 for out-of-range values under `{$R+}`.
+
+### 2. Low: Negated unsigned constants bypass the initializer rule
+- **Location:** `src/compiler_front.c`, `cc_constant`; `docs/unsigned-integers.md`
+- **Trigger:** `const Big=40000;W:Word=-Big;` or `const L:LongWord=-$10000;`.
+- **Impact:** These store 25536 and `$FFFF0000`, although the docs say typed initializers can't implicitly convert negative constants. They also create an inconsistency, since the literal `-40000` is rejected but `-Big` is accepted.
+- **Evidence:** The result stays Word or LongWord after negation, so the negative Integer check in `cc_unsigned_initializer` never applies.
+- **Fix:** Reject unary minus on unsigned constants in `cc_constant`, or explicitly document modular constant negation.
+
+### 3. Low: Scalar typed constants can replay a shadowing constant
+- **Location:** `src/compiler_types.c`, `cc_declarations` and `cc_typed_storage`
+- **Trigger:**
+
+  ```pascal
+  const Y=1;
+  procedure P;
+  const X:Integer=Y; Y=2;
+  ```
+
+- **Impact:** The declaration validates `X` against the outer `Y=1`, but replay finds the inner `Y=2` and stores 2. The legacy path kept the value 1, so this is a silent production-dialect regression.
+- **Evidence:** `X` now stores a source reference instead of its value. `cc_typed_storage` performs the lookup again after the inner `Y` exists. Aggregates already behaved this way, but Integer scalars didn't.
+- **Fix:** Store the validated scalar value at declaration and emit it directly, as the existing fallback branch can. LongWord can retain its constant reference.
+
+### 4. Low: Documented ordinal casts reject Boolean and enum types
+- **Location:** `src/compiler_unsigned.c`, `cc_unsigned_convert`; `docs/unsigned-integers.md`
+- **Trigger:** `Word(True)`, `Word(Red)`, `Color(W)`, or `Boolean(W)`.
+- **Impact:** These safely fail with error 44, but the docs say ordinal casts accept unsigned values.
+- **Fix:** Support these casts or narrow the documented claim.
+
+### 5. Low: The evidence record and docs are stale
+- **Location:** `docs/unsigned-integers-evidence.json`, `docs/unsigned-integers.md`
+- **Impact:** Both record 64 decoder checks while the assignment reports 80. Both also say the follow-up is pending.
+- **Fix:** After the final rebuild, regenerate the evidence and hashes from the final tree. Don't reuse results from an earlier tree without confirming the input hashes still match.
+
+## Questions to resolve
+
+1. **Do file transfers reject unsigned values safely?** This is the required check before approval. `cc_read` and `cc_val` reject correctly, but `Read(F,W)` goes through `cc_file_transfer` in `compiler_files.c`, which wasn't supplied. The tests cover only console `Read`. Please confirm `Read(F,W)` and `Read(F,L)` on Text files reject, and test or reject `file of Word` and `file of LongWord` transfers. If any path accepts these with 16-bit handling, treat it as high severity.
+2. **Can overlays reach the wide engine?** `engine()` emits the helper inline at first use and caches `cc.unsigned_entry`. If that first use is in an overlay, another group could call an address that isn't mapped. The supplied `cc_block` doesn't appear to parse `overlay`, but `compiler_bridges.c` was changed. Please confirm overlays can't reach this path in this build, or place the engine in resident code.
+3. **Do large Word shift counts return zero?** The docs promise this, but tests stop at 16, and the `RT_SHL` and `RT_SHR` source wasn't supplied. Please test counts of 256 and 65535 to confirm the high byte of the count is honored.
+
+## Review limitations
+
+- **Missing files:** I didn't have the current `compiler_unsigned_internal.h`, `compiler_files.c`, `compiler_strings.c`, `compiler_groups.c`, `compiler_units.c`, the link code, or the runtime source.
+- **Stale diff:** The attached diff predates the follow-up fixes, and its version of the internal header lacks functions the current code calls. I treated `current_files` as authoritative.
+- **Multi-unit coverage:** The native tests use one authored unit. Canonical Word re-export through a second unit, and linking two units that each carry an engine, weren't tested end to end. I found no defect in the supplied code, but those paths depend on unsupplied link and dependency code.
+
+### Codex reconciliation
+
+Accepted finding 1: implicit unsigned-to-Char conversions now reject. Chr uses
+an explicit checked conversion mode; native rejection and range-error tests have
+been added. Accepted finding 3: Integer and Word scalar typed constants freeze
+the validated value at declaration, preserving lexical binding. The existing
+replay path remains for aggregates and LongWord source references. A nested
+shadowing fixture now checks Integer and upper-half Word storage.
+
+For finding 2, documented the deliberate modular negation of already unsigned
+constants, rather than changing unsigned expression semantics. A negative signed
+Integer initializer still rejects; -Big where Big is Word is modular Word
+arithmetic. For finding 4, narrowed the cast claim to Integer/Byte/Word/LongWord/
+Char; Boolean and enum casts remain unsupported. Finding 5 awaits the completed
+native rebuild and refreshed hashes; no stale evidence is promoted.
+
+Text Read(F,Word/LongWord) follows the existing Text-kind guard in
+compiler_files.c and rejects with 66. Added both rejection cases, plus native
+file-of-Word and file-of-LongWord write/read round trips. Typed file components
+carry their byte width and are copied as records, without a 16-bit numeric
+conversion. Memory overlays reject at compiler_routines.c:232; the native unit
+build does not support disk overlay execution. RT_SHL/RT_SHR check H before L,
+so counts >=256 return zero. Native Word tests now include 256 and 65535.
+
+Host decoder checks pass after the conversion changes; expanded native tests
+are rebuilding. Sources changed after this final Opus turn, so this is not a
+review approval or finalized milestone. Further review requires the user's
+request under the project skill's turn budget.
+
+Checkpoint verification after fixes: production and all regression drivers fit
+18 banks. Native unsigned1188, unit/Real1703, initialization623, hardware336 and
+fragment934 pass; combined storage286 + allocation57 + cancellation54 pass on
+one final harness run. Host reader65980 + loader45, decoder80, references1824,
+Word-count229402, generated engine26004 and full sanitized host regression pass.
+
+The Zeal VFS source audit supersedes the earlier retained-close assumption:
+zos_vfs_close clears the descriptor entry after every filesystem close attempt.
+The unit owner now clears its single active handle while preserving close errors.
+This avoids retrying a stale descriptor or blocking later compiles. The exact
+read-only kernel excerpt/hash is in reviews/zeal-vfs-close-reference.txt.
+
+The SDK exec argv-array correction affects only test-demo arguments; the final
+combined storage run uses the updated driver. Full proof and current hashes are
+in docs/unit-storage-evidence.json. This is a tested local checkpoint, not an
+Opus-finalized milestone.
+
+Checkpoint verification after fixes: production and all regression drivers fit
+18 banks. Native unsigned1188, unit/Real1703, initialization623, hardware336 and
+fragment934 pass; combined storage286 + allocation57 + cancellation54 pass on
+one final harness run. Host reader65980 + loader45, decoder80, references1824,
+Word-count229402, generated engine26004 and full sanitized host regression pass.
+
+The Zeal VFS source audit supersedes the earlier retained-close assumption:
+zos_vfs_close clears the descriptor entry after every filesystem close attempt.
+The unit owner now clears its single active handle while preserving close errors.
+This avoids retrying a stale descriptor or blocking later compiles. The exact
+read-only kernel excerpt/hash is in reviews/zeal-vfs-close-reference.txt.
+
+The SDK exec argv-array correction affects only test-demo arguments; the final
+combined storage run uses the updated driver. Full proof and current hashes are
+in docs/unit-storage-evidence.json. This is a tested local checkpoint, not an
+Opus-finalized milestone.

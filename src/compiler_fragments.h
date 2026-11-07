@@ -8,8 +8,8 @@
 #endif
 
 /* Private native linker proof, not the Pascal .ZPU interface/ABI format.
- * Each immutable source is a bounded slice of one caller-owned PAGE_COMPILER
- * page; offset permits a compiled-unit container to precede its fragment data.
+ * Each immutable source is a bounded slice of caller-owned PAGE_COMPILER
+ * pages; offset permits a compiled-unit container to precede its fragment data.
  * Optional binding gives an invocation identity. References to that object's
  * stored identity are local and follow its binding; other IDs stay explicit. The
  * caller retains descriptors/roots in near RAM until this synchronous call
@@ -30,7 +30,20 @@
 #define CC_FRAGMENT_OBJECTS 32u
 #define CC_FRAGMENT_LIMIT (PAGE_SIZE/4u)
 enum { CF_OK,CF_ARGUMENT,CF_OBJECT,CF_TARGET,CF_CAPACITY,CF_MEMORY,CF_CANCELLED,CF_OWNERSHIP };
-typedef struct {uint8_t page;uint16_t bytes;uint32_t lifetime,version;uint16_t offset,binding,bindings;uint8_t binding_count;} CompilerFragmentObject;
+typedef struct {uint8_t page;uint16_t bytes;uint32_t lifetime,version;uint16_t offset,binding,bindings;uint8_t binding_count;
+    uint16_t stored_bytes; /* Zero: full source; otherwise metadata-only bytes. */
+    uint8_t continuations,following[3];
+    uint32_t following_lifetimes[3],following_versions[3];
+} CompilerFragmentObject;
+/* Zero continuations preserves a raw one-page source. Paged sources capture
+ * their complete buffer chain before publication. Absolute reads require a
+ * validated extent; source_read checks its bounded span and ownership. */
+uint8_t cc_fragment_source_capture(CompilerFragmentObject *object) CC_FRAGMENT_CALL;
+uint8_t cc_fragment_source_live(const CompilerFragmentObject *object) NATIVE;
+uint8_t cc_fragment_source_children_live(const CompilerFragmentObject *object) CC_FRAGMENT_CALL;
+uint8_t cc_fragment_source_overlap(const CompilerFragmentObject *a,const CompilerFragmentObject *b) CC_FRAGMENT_CALL;
+uint8_t cc_fragment_source_byte(const CompilerFragmentObject *object,uint16_t at) NATIVE;
+uint8_t cc_fragment_source_read(const CompilerFragmentObject *object,uint16_t at,uint8_t *out,uint16_t count) CC_FRAGMENT_CALL;
 typedef struct {uint16_t identity,fragment;} CompilerFragmentRoot;
 typedef struct {
     uint8_t pages[2],workspace,valid;

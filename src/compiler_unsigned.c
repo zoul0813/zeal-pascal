@@ -53,34 +53,24 @@ static void narrow(uint8_t checked) {
     else {cc_emit(0x5e);cc_emit(0x23);cc_emit(0x56);cc_emit(0xeb);}
 }
 uint8_t cc_unsigned_convert(TypeId target,TypeId source,uint8_t cast) BACKEND {
-    TypeId tf=cc_family(target),sf=cc_family(source);
+    TypeId tf=cc_family(target),sf=cc_family(source);uint8_t checked=cast!=1;
     if(cast&&tf==K_WORD&&sf==K_POINTER)return 1;
     if(!cc_unsigned(target)&&!cc_unsigned(source))return 0;
-    if((!cc_integral(target)&&tf!=K_CHAR)||(!cc_integral(source)&&!(cast&&sf==K_CHAR))){cc_fail(44);return 1;}
+    if((!cc_integral(target)&&!(cast&&tf==K_CHAR))||(!cc_integral(source)&&!(cast&&sf==K_CHAR))){cc_fail(44);return 1;}
     if(tf==K_LONGWORD&&sf!=K_LONGWORD) {
-        if(!cast&&cc.range_check&&sf==K_INTEGER&&CCT(source,width)==2) {
+        if(checked&&cc.range_check&&sf==K_INTEGER&&CCT(source,width)==2) {
             cc_op16(0x11,0);cc_op16(0x01,32767);cc_call(RT_RANGE);
         }
         cc_unsigned_call(12|0x40|cc_unsigned_operand(source,1,1));cc_unsigned_hold();
-    } else if(tf!=K_LONGWORD&&sf==K_LONGWORD)narrow(!cast&&cc.range_check);
-    else if(!cast&&cc.range_check&&tf==K_WORD&&sf==K_INTEGER&&CCT(source,width)==2) {
+    } else if(tf!=K_LONGWORD&&sf==K_LONGWORD)narrow(checked&&cc.range_check);
+    else if(checked&&cc.range_check&&tf==K_WORD&&sf==K_INTEGER&&CCT(source,width)==2) {
         cc_op16(0x11,0);cc_op16(0x01,32767);cc_call(RT_RANGE);
     }
-    if(!cast&&cc.range_check&&tf==K_INTEGER&&CCT(target,width)==2&&(sf==K_WORD||sf==K_LONGWORD)) {
+    if(checked&&cc.range_check&&tf==K_INTEGER&&CCT(target,width)==2&&(sf==K_WORD||sf==K_LONGWORD)) {
         cc_op16(0x11,0);cc_op16(0x01,32767);cc_call(RT_RANGE);
     }
-    if(!cast)cc_check_range(target);
+    if(checked)cc_check_range(target);
     return 1;
-}
-void cc_unsigned_range(TypeId type) BACKEND {
-    cc_unsigned_bounds((uint16_t)CCT(type,low),(uint16_t)CCT(type,high),0x91);
-}
-void cc_unsigned_bounds(uint16_t low,uint16_t high,uint8_t error) BACKEND {
-    uint16_t bad,done;
-    if(!cc.range_check||(!low&&high==65535u))return;
-    cc_guard();cc_emit(0xe5);cc_op16(0x11,low);cc_emit(0xb7);cc_emit(0xed);cc_emit(0x52);cc_emit(0xe1);bad=cc_forward(0xda);
-    cc_emit(0xe5);cc_op16(0x11,high);cc_emit(0xeb);cc_emit(0xb7);cc_emit(0xed);cc_emit(0x52);cc_emit(0xe1);
-    done=cc_forward(0xd2);cc_patch(bad);cc_emit(0x3e);cc_emit(error);cc_emit(0x06);cc_emit(2);cc_op16(0xc3,RT_ERROR);cc_patch(done);
 }
 void cc_unsigned_format(TypeId type) BACKEND {
     cc_temporary(12);cc_emit(0xd5); /* value HL survives reservation; DE is output */

@@ -6,7 +6,7 @@
 #include <assert.h>
 #include <string.h>
 #include "screen-runtime.h"
-static struct {uint16_t emitted,crt_row,crt_state,crt_entries[15];} cc;
+static struct {uint16_t emitted,crt_row,crt_state,crt_entries[16];} cc;
 static uint8_t code[16384];
 static uint16_t relocs[4096],reloc_count;
 static void cc_emit(uint8_t b) {assert(cc.emitted<sizeof(code));code[cc.emitted++]=b;}
@@ -27,12 +27,13 @@ static void cc_require_full_memory(void) {}
  * IX and invocation-local query storage survive failure unwinding under I-. */
 static uint16_t wrapper(uint8_t op,uint8_t params,uint16_t helper) {
     uint16_t entry=cc.emitted,flag_site,patch_site,guard_site;
-    uint8_t query=op==CRT_WHERE_X||op==CRT_WHERE_Y,i;
+    uint8_t query=op==CRT_WHERE_X||op==CRT_WHERE_Y||op==15,i;
     /* Guard this native wrapper's complete scratch demand while retaining
      * the Pascal caller's source PC. Inline PC is consumed before any helper
      * can yield or invoke an I/O callback. No push precedes the guard. */
     cc_op16(0x2a,RT_PC);guard_site=cc.emitted+1;cc_address(0x22,0);
-    cc_op16(0xcd,RT_GUARD);cc_emit(96);cc_emit(0);
+    /* ReadKey uses the same decoder budget as compiler-generated KeyPressed. */
+    cc_op16(0xcd,RT_GUARD);cc_emit(op==15?0:96);cc_emit(op==15?2:0);
     word(guard_site,cc.emitted);cc_emit(0);cc_emit(0);
     cc_emit(0xdd);cc_emit(0xe5); /* PUSH IX */
     cc_emit(0xdd);cc_op16(0x21,0);cc_emit(0xdd);cc_emit(0x39);
@@ -62,23 +63,47 @@ static uint16_t wrapper(uint8_t op,uint8_t params,uint16_t helper) {
     cc_emit(0xc1);for(i=0;i<params;++i)cc_emit(0xd1);cc_emit(0xc5);cc_emit(0xc9);
     return entry;
 }
+/* Borrow raw mode without taking an outer console callback's echo handle.
+ * The inner unchecked IOCALL catches input errors so both owners are restored
+ * before the outer wrapper applies its caller's I/O checking policy. */
+static uint16_t read_key(void) {
+    uint16_t entry=cc.emitted,body,loop;
+    cc_op16(0x3a,RP_ECHO_FD);cc_emit(0xf5);
+    cc_op16(0x3a,RP_INPUT_MODE_VALUE);cc_emit(0xf5);
+    cc_emit(0x3e);cc_emit(255);cc_op16(0x32,RP_ECHO_FD);
+    cc_op16(0xcd,RT_IOCALL);body=cc.emitted;cc_relocate(body);
+    cc_emit(0);cc_emit(0);cc_emit(0);
+    cc_op16(0x21,1);cc_emit(0x39);cc_emit(0x5e);cc_emit(0x16);cc_emit(0);
+    cc_op16(0xcd,RP_INPUT_MODE);cc_emit(0x47);
+    cc_emit(0xd1);cc_emit(0xd1);cc_emit(0x7a);cc_op16(0x32,RP_ECHO_FD);
+    cc_op16(0x3a,RT_IOSTATUS);cc_emit(0xb7);cc_op16(0xc2,RT_IOFAIL);
+    cc_emit(0x78);cc_emit(0xb7);cc_op16(0xc2,RP_IO_ERROR);cc_emit(0xc9);
+    word(body,cc.emitted);
+    cc_op16(0x11,0);cc_op16(0xcd,RP_INPUT_MODE);
+    cc_emit(0xb7);cc_op16(0xc2,RP_INPUT_FAIL);
+    loop=cc.emitted;cc_op16(0xcd,RP_INPUT_KEY);
+    cc_emit(0xb7);cc_address(0xca,loop);
+    /* The query wrapper owns its zeroed result at IX-2. */
+    cc_emit(0xdd);cc_emit(0x77);cc_emit(0xfe);cc_emit(0xc9);
+    return entry;
+}
 static void out_word(uint16_t v) {putchar(v&255);putchar(v>>8);}
 int main(void) {
-    uint16_t starts[16],entries[15],ends[16],helper;
+    uint16_t starts[17],entries[16],ends[17],helper;
     uint8_t op,params;
     /* Shared row helper and snapshot have their own retained fragment. Both
      * CrtInit and CrtExit reference this exact state, regardless of use order. */
-    cc.emitted=1;starts[15]=cc.emitted;cc.crt_state=cc.emitted;
+    cc.emitted=1;starts[16]=cc.emitted;cc.crt_state=cc.emitted;
     for(op=0;op<9;++op)cc_emit(0);
-    crt_row();ends[15]=cc.emitted;
-    for(op=0;op<15;++op) {
+    crt_row();ends[16]=cc.emitted;
+    for(op=0;op<16;++op) {
         starts[op]=cc.emitted;
-        helper=crt_engine(op==CRT_HIGH?CRT_NORMAL:op);
+        helper=op==15?read_key():crt_engine(op==CRT_HIGH?CRT_NORMAL:op);
         params=op==CRT_XY?2:op==CRT_DELAY||op==CRT_FOREGROUND||op==CRT_BACKGROUND?1:0;
         entries[op]=wrapper(op,params,helper);ends[op]=cc.emitted;
     }
     out_word(cc.emitted);out_word(reloc_count);
-    for(op=0;op<16;++op) {out_word(starts[op]);out_word(ends[op]);if(op<15)out_word(entries[op]);}
+    for(op=0;op<17;++op) {out_word(starts[op]);out_word(ends[op]);if(op<16)out_word(entries[op]);}
     for(helper=0;helper<reloc_count;++helper)out_word(relocs[helper]);
     assert(fwrite(code,1,cc.emitted,stdout)==cc.emitted);
     return ferror(stdout)?1:0;

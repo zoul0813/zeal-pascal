@@ -34,8 +34,8 @@ uint16_t cc_units_graph_load(const char *name,uint8_t visible) ROUTINES {
     module=cc_units_load(name,path);if(!module)return 0;
     state=cc_units_state(module);cc_unit_put(state+4,UM_LOADING|(visible?UM_VISIBLE:0));
     count=cc_unit_module_word(module,36);at=cc_unit_module_word(module,40);
-    page=(uint8_t)cc_unit_word(module+2);n=cc_unit_word(module+4);
-    far_set(page,n,(uint8_t)cc_unit_word(module+8));far_set(page,n+1,0);
+    page=(uint8_t)cc_unit_word(module+2);n=cc_unit_prefix(module);
+    buffer_set(page,n,(uint8_t)cc_unit_word(module+8));buffer_set(page,n+1,0);
     seal=module+UNIT_RECORD_BYTES;version=page_versions[page];
     cc_unit_put(seal+6,(uint16_t)version);cc_unit_put(seal+8,(uint16_t)(version>>16));
     for(i=0;i<count&&!cc.error->code;++i) {
@@ -50,8 +50,8 @@ uint16_t cc_units_graph_load(const char *name,uint8_t visible) ROUTINES {
         dependency=cc_units_graph_load(child,0);if(!dependency)return 0;
         actual=cc_unit_module_word(dependency,28)|((uint32_t)cc_unit_module_word(dependency,30)<<16);
         if(actual!=expected){cc_fail(UNIT_STALE);return 0;}
-        far_set(page,n+2u*(wire-1u),(uint8_t)cc_unit_word(dependency+8));
-        far_set(page,n+2u*(wire-1u)+1,0);
+        buffer_set(page,n+2u*(wire-1u),(uint8_t)cc_unit_word(dependency+8));
+        buffer_set(page,n+2u*(wire-1u)+1,0);
         version=page_versions[page];cc_unit_put(seal+6,(uint16_t)version);cc_unit_put(seal+8,(uint16_t)(version>>16));
         at+=8+cc_unit_module_byte(module,at);
     }
@@ -77,10 +77,10 @@ uint8_t cc_units_graph_validate(void) ROUTINES {
 }
 
 uint16_t cc_unit_target(uint16_t module,uint16_t identity) ROUTINES {
-    uint16_t at,end=cc_unit_word(UH_USED),n=cc_unit_word(module+4),binding;
+    uint16_t at,end=cc_unit_word(UH_USED),n=cc_unit_prefix(module),binding;
     if(!identity||identity>cc_unit_module_word(module,36)+1){cc_fail(UNIT_FORMAT);return 0;}
     if(!cc_unit_module_ready(module))return 0;
-    binding=far_get((uint8_t)cc_unit_word(module+2),n+2u*(identity-1u));
+    binding=buffer_get((uint8_t)cc_unit_word(module+2),n+2u*(identity-1u));
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)
         if(cc_unit_word(at)==UR_MODULE&&cc_unit_word(at+8)==binding)return at;
     cc_fail(UNIT_FORMAT);return 0;

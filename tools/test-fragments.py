@@ -35,7 +35,7 @@ def main():
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
     out = ROOT/'analysis/fragments'/f'{stamp}-{os.getpid()}'
     out.mkdir(parents=True)
-    paths = [ROOT/name for name in ('CMakeLists.txt', 'src/compiler_fragments.c', 'src/compiler_fragments.h',
+    paths = [ROOT/name for name in ('CMakeLists.txt', 'src/compiler_fragments.c', 'src/compiler_fragment_access.c', 'src/compiler_fragment_source.c', 'src/compiler_fragments.h',
         'src/native.asm', 'src/zp.h', 'tests/native/fragments.c', 'tests/native/fragments.asm',
         'tests/native/file-start.asm', 'tests/native/machine.asm', 'tools/test-fragments.py', 'tools/test-native.py')]
     hashes = {str(p.relative_to(ROOT)): sha(p) for p in paths}
@@ -66,11 +66,11 @@ def main():
     report['build_output_sha256'] = artifact_hashes
     binary = out/'host-fragments'
     run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined',
-         '-fno-sanitize-recover=all', '-g', '-Isrc', 'src/compiler_fragments.c',
+         '-fno-sanitize-recover=all', '-g', '-Isrc', 'src/compiler_fragments.c', 'src/compiler_fragment_access.c', 'src/compiler_fragment_source.c',
          'tests/native/fragments.c', '-o', str(binary)], 'host-build')
     host = run([str(binary)], 'host', out)
-    assert host == '876 fragment assertions passed, 0 failed\n', host
-    report['host'] = {'passed': True, 'assertions': 876, 'binary_sha256': sha(binary)}
+    assert host == '995 fragment assertions passed, 0 failed\n', host
+    report['host'] = {'passed': True, 'assertions': 995, 'binary_sha256': sha(binary)}
     goldens = expected_objects()
     assert all((out/name).read_bytes() == data for name, data in goldens.items())
     spec = importlib.util.spec_from_file_location('native', ROOT/'tools/test-native.py')
@@ -107,8 +107,8 @@ def main():
     checks = {
         'authenticated native completion': frame.startswith('fc01 ') and memory.get(sym['_test_done']) == 255
             and bytes(memory.get(0x4000+i,0) for i in range(32)) == expected_binary[:32],
-        'exact native assertion count and zero failures': word('_test_passed') == 815
-            and word('_test_failed') == 0 and word('_test_index') == 815,
+        'exact native assertion count and zero failures': word('_test_passed') == 934
+            and word('_test_failed') == 0 and word('_test_index') == 934,
         'independent exact native disk object bytes': all((directory/name).read_bytes() == data for name,data in goldens.items()),
         'source and rebuilt artifact stability': all(sha(ROOT/p) == h for p,h in {**hashes,**artifact_hashes}.items()),
         'pinned emulator and ROM stability': all(sha(Path(p)) == h for p,h in external.items())}
