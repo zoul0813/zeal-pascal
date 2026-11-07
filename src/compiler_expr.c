@@ -123,7 +123,11 @@ static TypeId raw_kind(void) {
 static void raw_index(void) {
     uint16_t before=cc.temporaries;
     TypeId kind;
+#ifdef ZP_UNITS_EXPERIMENT
+    cc_require_hardware();
+#else
     if(!cc.suppress)cc.console_dynamic=1;
+#endif
     cc_next(); cc_expect('[',8);
     kind=expression();
     if(cc_family(kind)!=K_INTEGER
@@ -162,7 +166,14 @@ TypeId cc_aggregate_actual(TypeId type) BACKEND {
     } else cc_fail(41);
     return type;
 }
-static void integer_value(void) { if(cc_family(expression())!=K_INTEGER) cc_fail(23); }
+static void integer_value(void) {
+    TypeId kind=expression();
+    if(cc_family(kind)!=K_INTEGER
+#ifdef ZP_UNITS_EXPERIMENT
+       &&cc_family(kind)!=K_WORD
+#endif
+    )cc_fail(23);
+}
 static void push_value(void) { cc_guard(); cc_emit(0xe5); }
 static int16_t predefined_function(void) {
     static const char *const functions[]={"ord","chr","succ","pred","abs","sqr","odd","hi","lo","swap","upcase","sizeof","addr","length","copy","pos","concat","ptr","memavail","maxavail","stackptr","trunc","round","int","frac","sqrt","ln","exp","sin","cos","arctan","random","ioresult","paramcount","paramstr"
@@ -235,7 +246,16 @@ static TypeId intrinsic(uint8_t op) {
         else cc_fail(cc_aggregate(kind)?62:44);
         cc_release(before); return K_INTEGER;
     }
-    if(op==F_PTR) { if(!cc.suppress)cc.console_dynamic=1; if(cc_family(kind)!=K_INTEGER) cc_fail(23); return K_ANY_POINTER; }
+    if(op==F_PTR) {
+#ifdef ZP_UNITS_EXPERIMENT
+        cc_require_hardware();
+        if(!cc_integral(kind)||cc_family(kind)==K_LONGWORD)cc_fail(23);
+#else
+        if(!cc.suppress)cc.console_dynamic=1;
+        if(cc_family(kind)!=K_INTEGER)cc_fail(23);
+#endif
+        return K_ANY_POINTER;
+    }
     if(op==F_ORD||op==F_SUCC||op==F_PRED) {
         if(cc_family(kind)==K_STRING) { cc_call(RT_STRINGCHAR); cc_release(before); kind=K_CHAR; }
         if(!cc_ordinal(kind)&&!(op==F_ORD&&cc_family(kind)==K_POINTER)) {
@@ -533,7 +553,11 @@ static void raw_store(uint8_t port) {
     TypeId kind;
     raw_index(); push_value(); cc_expect(T_ASSIGN,7);
     kind=expression();
-    if(port) { if(cc_family(kind)!=K_INTEGER) cc_fail(23); }
+    if(port) { if(cc_family(kind)!=K_INTEGER
+#ifdef ZP_UNITS_EXPERIMENT
+        &&cc_family(kind)!=K_WORD
+#endif
+    )cc_fail(23); }
     else cc_convert(K_BYTE,kind);
     cc_release(before); cc_emit(0xd1);
     if(port) { cc_emit(0x4b); cc_emit(0x42); cc_emit(0x7d); cc_emit(0xed); cc_emit(0x79); }

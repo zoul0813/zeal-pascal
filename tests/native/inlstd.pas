@@ -14,6 +14,7 @@ begin
  if(wordAt(4)<>Addr(HeapPtr))or(wordAt(6)<>Addr(RecurPtr))then halt;
  if(wordAt(8)<>Addr(BufLen))or(wordAt(10)<>Addr(CBreak))then halt;
  if wordAt(12)<>Addr(ConOutPtr)then halt;
- if(Mem[wordAt(0)]<>$5A)or(Mem[wordAt(0)+1]<>$46)then halt;
+ { Standard file blocks stay zero until the first file operation. }
+ if(Mem[wordAt(0)]<>0)or(Mem[wordAt(0)+1]<>0)then halt;
  writeln('INLINE-STANDARD-OK')
 end.

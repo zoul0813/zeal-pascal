@@ -11,6 +11,16 @@ void cc_require_full_memory(void) FRONTEND {
 #endif
 }
 
+#ifdef ZP_UNITS_EXPERIMENT
+/* Hardware access has a represented fragment requirement. It does not grant
+ * access to unrepresented console, file, heap or callback runtime state. */
+void cc_require_hardware(void) FRONTEND {
+    if(cc.suppress||cc.error->code)return;
+    if(cc.sources->unit_mode)cc.sources->unit_real|=ZPU_HARDWARE;
+    else cc.console_dynamic=1;
+}
+#endif
+
 #if defined(ZP_OPTIONAL_REAL) || defined(ZP_UNITS_EXPERIMENT)
 void cc_require_real(void) FRONTEND {
     if(cc.suppress||cc.error->code)return;

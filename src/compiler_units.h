@@ -32,6 +32,7 @@ enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CO
 #define ZPU_ABI 1u
 #define ZPU_REAL 1u
 #define ZPU_FULL_MEMORY 2u
+#define ZPU_HARDWARE 4u /* Raw memory/I/O: retain conservative console binding. */
 #define ZPU_CALLER_IO 1u /* Export flag: pass caller {$I} in A. */
 int8_t cc_units_output(void) ROUTINES;
 uint32_t unit_source_fingerprint(const Source *source) SOURCE_BLOCK_CALL;

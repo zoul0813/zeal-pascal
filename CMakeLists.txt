@@ -1057,6 +1057,30 @@ add_custom_target(zunsignedtest_bin
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zunsignedtest>
     DEPENDS zunsignedtest ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 
+# Native Pascal hardware-unit and shipped ZVB acceptance.
+add_executable(zzvbtest src/startup.asm src/banks.c tests/native/zvb-main.c
+    tests/native/machine.asm $<TARGET_OBJECTS:unit_runtime_core>
+    $<TARGET_OBJECTS:unit_fragment_core> $<TARGET_OBJECTS:real_compiler>
+    $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
+    ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm)
+target_compile_definitions(zzvbtest PRIVATE ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL ZP_TEST_COMPILER)
+target_include_directories(zzvbtest PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_options(zzvbtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+set_source_files_properties(tests/native/zvb-main.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
+set_property(SOURCE tests/native/zvb-main.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/compiler_units.h
+    ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
+add_dependencies(zzvbtest transfer_assets)
+target_link_options(zzvbtest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
+foreach(bank RANGE 1 18)
+    math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
+    target_link_options(zzvbtest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
+endforeach()
+add_custom_target(zzvbtest_bin
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zzvbtest>
+    DEPENDS zzvbtest ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+
 set_source_files_properties(src/unit_output.c PROPERTIES
     COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK17;--constseg;BANK17")
 set_property(SOURCE src/unit_output.c src/compiler_job.c APPEND PROPERTY OBJECT_DEPENDS

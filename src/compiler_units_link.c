@@ -101,6 +101,8 @@ uint8_t cc_units_link_object(void) ROUTINES {
             if(cc_unit_module_byte(modules[i],blob-fragments+f)&ZPU_REAL)cc_require_real();
             if(cc_unit_module_byte(modules[i],blob-fragments+f)&ZPU_FULL_MEMORY)
                 cc_require_full_memory();
+            if(cc_unit_module_byte(modules[i],blob-fragments+f)&ZPU_HARDWARE)
+                cc_require_hardware();
             start=cc_unit_module_word(modules[i],blob+16+8*f);
             n=cc_unit_module_word(modules[i],blob+18+8*f);
             for(j=0;j<n;++j){cc_emit(cc_unit_module_byte(modules[i],payload+start+j));if(cc.error->code)goto done;}

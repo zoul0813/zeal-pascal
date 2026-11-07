@@ -388,7 +388,7 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
     }
     for(i=0;i<count;++i) {
         c=cc_unit_module_byte(module,at+i);
-        if(c>(ZPU_REAL|ZPU_FULL_MEMORY)||(i+1==count&&cc_unit_module_word(module,34)&&c))return 0;
+        if(c>(ZPU_REAL|ZPU_FULL_MEMORY|ZPU_HARDWARE)||(i+1==count&&cc_unit_module_word(module,34)&&c))return 0;
     }
     return !cc.error->code;
 }

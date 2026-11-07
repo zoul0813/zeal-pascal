@@ -1,0 +1,47 @@
+{
+  "scope": "Pascal hardware unit foundation; full ZVB still in progress",
+  "hardware": {
+    "scope": "hardware unit foundation",
+    "passed": true,
+    "checks": {
+      "authenticated completion": true,
+      "hardware unit assertions pass": true,
+      "exact focused assertion count": true,
+      "library probe skipped": true
+    },
+    "assertions": 159,
+    "failed": 0,
+    "failure_indices": [],
+    "diagnostics": [],
+    "zvb": {
+      "compiled": 0,
+      "error": 0,
+      "position": 0,
+      "code_bytes": 0,
+      "types": 0
+    },
+    "capture_directory": "analysis/native-slice/20261107T041536.183240Z-54230"
+  },
+  "inline": {
+    "passed": true,
+    "native_assertions_passed": 105,
+    "native_assertions_failed": 0,
+    "capture_directory": "analysis/native-slice/20261107T043224.051808Z-71946",
+    "checks": {
+      "native completion": true,
+      "RAM/saved execution, compiler/caller SP/MMU/IFF, page ownership and source recovery": true,
+      "raw byte/word goldens, forward calls, frame slots, aliases, lexical links and page crossing execute successfully": true,
+      "all recorded source/build/platform inputs unchanged": true,
+      "standalone image bounds and absence of map sidecars": true,
+      "exact published constant-byte stream includes the approved signed-minimum correction": true,
+      "published address expressions independently preserve fixed globals/externals, code/data relocation, cancellation, coefficients and forced low bytes": true,
+      "published lazy standard storage, native runtime-variable addresses and lazy hook storage are bound correctly": true,
+      "late byte/word fixups survive both staging and final-image page boundaries": true
+    }
+  },
+  "unsigned_assertions": 932,
+  "decoder_sanitizer_assertions": 64,
+  "host_regression": "passed",
+  "runner_tests": 24,
+  "review": "pending Claude usage limit; no approval claimed"
+}

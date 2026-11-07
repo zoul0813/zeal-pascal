@@ -264,3 +264,10 @@
 !/docs/unsigned-integers.md
 !/docs/unsigned-integers-evidence.json
 !/reviews/unsigned-scalars-v1.md
+
+!/tests/native/zvb-main.c
+!/tools/test-zvb.py
+!/tools/zvb-source.py
+
+!/docs/unit-hardware.md
+!/docs/unit-hardware-evidence.json

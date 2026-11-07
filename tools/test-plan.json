@@ -73,6 +73,7 @@
     "tools/test-unit-types-host.py",
     "tools/test-unsigned-engine.py",
     "tools/test-unsigned.py",
+    "tools/test-zvb.py --hardware-only",
     "tools/test-ide-units.py",
     "tools/test-ide-unit-failures.py",
     "tools/test-optional-corpus.py",

@@ -442,7 +442,8 @@ int16_t cc_lookup(void) FRONTEND {
         uint8_t role=CCS(id,role);
         if(role==S_SYSTEM&&
            (CCS(id,address)==RT_HEAPPTR||CCS(id,address)==RT_RECURPTR))cc_require_full_memory();
-        if(role==S_HOOK||role==S_ADDRESS||
+        if(role==S_ADDRESS)cc_require_hardware();
+        if(role==S_HOOK||
            (role==S_SYSTEM&&(cc.sources->unit_mode||CCS(id,address)==RT_CBREAK)))
             cc.console_dynamic=1;
     }

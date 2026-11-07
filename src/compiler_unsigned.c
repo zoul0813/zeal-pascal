@@ -54,6 +54,7 @@ static void narrow(uint8_t checked) {
 }
 uint8_t cc_unsigned_convert(TypeId target,TypeId source,uint8_t cast) BACKEND {
     TypeId tf=cc_family(target),sf=cc_family(source);
+    if(cast&&tf==K_WORD&&sf==K_POINTER)return 1;
     if(!cc_unsigned(target)&&!cc_unsigned(source))return 0;
     if((!cc_integral(target)&&tf!=K_CHAR)||(!cc_integral(source)&&!(cast&&sf==K_CHAR))){cc_fail(44);return 1;}
     if(tf==K_LONGWORD&&sf!=K_LONGWORD) {

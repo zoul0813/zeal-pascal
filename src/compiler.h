@@ -154,6 +154,9 @@ void cc_activation_begin(void) FRONTEND;
 void cc_activation_place(void) FRONTEND;
 void cc_startup_finish(void) FRONTEND;
 void cc_require_full_memory(void) FRONTEND;
+#ifdef ZP_UNITS_EXPERIMENT
+void cc_require_hardware(void) FRONTEND;
+#endif
 uint8_t cc_seal(const Source *root,const CompileOptions *options) FRONTEND;
 void build_discard_image(Build *build) SOURCE_BLOCK_CALL;
 
