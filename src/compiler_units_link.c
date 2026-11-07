@@ -77,6 +77,12 @@ uint8_t cc_units_link_object(void) ROUTINES {
         roots[root_count].identity=cc_unit_word(module+8);
         roots[root_count].fragment=cc_unit_module_word(module,export+8);++root_count;
     }
+    for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_INIT_CALL) {
+        if(root_count==UNIT_LINK_ROOTS){cc_fail(99);return 0;}
+        module=cc_unit_word(at+2);
+        roots[root_count].identity=cc_unit_word(module+8);
+        roots[root_count].fragment=cc_unit_module_word(module,46)-1;++root_count;
+    }
     if(cc.error->code)return 0;
     if(!root_count)return 1;
     origin=cc.emitted;cc_fragment_image_init(&linked);cc_fragment_layout_init(&layout);
@@ -105,6 +111,11 @@ uint8_t cc_units_link_object(void) ROUTINES {
         fragment=cc_unit_module_word(module,export+8);offset=cc_unit_module_word(module,export+10);
         if(!location(&layout,module,fragment,&address)){cc_fail(UNIT_FORMAT);goto done;}
         cc_patch_chain(cc_unit_word(at+8),address+offset);cc_rput(cc_unit_word(at+2),R_ENTRY,address+offset);
+    }
+    for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_INIT_CALL) {
+        module=cc_unit_word(at+2);fragment=cc_unit_module_word(module,46)-1;
+        if(!location(&layout,module,fragment,&address)){cc_fail(UNIT_FORMAT);goto done;}
+        cc_word(cc_unit_word(at+4),address);
     }
     for(i=0;i<count;++i)if(!append_metadata(modules[i],&layout))goto done;
     ok=!cc.error->code;

@@ -8,8 +8,9 @@ unreleased ABI1 container; they do not read Turbo Pascal TPU files.
 Supported exported type metadata covers aliases, enumerations, ordinal
 subranges, fixed strings, arrays, records (including variants), sets, pointers
 and file types. The normal Pascal rules still govern routine results and value
-or Var parameters. Public mutable variables, typed constants and initialization
-sections remain unsupported. Implementation helpers that require unrepresented
+or Var parameters. Public mutable variables and typed interface constants
+remain unsupported. Optional executable initialization is described in
+[unit-initialization.md](unit-initialization.md). Implementation helpers that require unrepresented
 runtime services are still subject to the existing unit-authoring limits.
 
 For example:

@@ -3,7 +3,8 @@
 A unit can declare `uses` after `interface` and after `implementation`. The
 same compiled-unit loader is used by programs and unit authoring. Dependencies
 are resolved beside the compilation root, then beside the loaded compiler bank
-container. Source text remains optional. Unsupported initialization is unchanged.
+container. Source text remains optional. Dependency-first executable startup is
+now described in [unit-initialization.md](unit-initialization.md).
 
 Each invocation loads one canonical artifact per case-insensitive unit name.
 Dependency manifests bind the exact compiled artifacts used to build the unit.

@@ -69,6 +69,7 @@
     "tools/test-review-ui.py",
     "tools/test-units.py",
     "tools/test-unit-real.py",
+    "tools/test-unit-init.py",
     "tools/test-unit-types-host.py",
     "tools/test-ide-units.py",
     "tools/test-ide-unit-failures.py",

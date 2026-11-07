@@ -246,6 +246,9 @@ SourcePosition cc_block(void) ROUTINES {
     uint16_t first,jump=0,i,entry,code;
     SourcePosition start;
     uint16_t scope=cc.scope;uint8_t saved_bound=cc.with_bound;
+#ifdef ZP_UNITS_EXPERIMENT
+    uint8_t initializer=0;
+#endif
     if(++cc.nesting==0||!cc_stack_check()) { cc_fail(99); --cc.nesting; return cc.token_start; }
     /* C selects CBreak's initial value at the program block's start. Later
      * source switches do not become assignments to this runtime variable. */
@@ -270,6 +273,31 @@ SourcePosition cc_block(void) ROUTINES {
     for(i=1;i<=cc.routine_count&&!cc.error->code;++i)
         if(cc_rget(i,R_PARENT)==scope&&!(cc_rget(i,R_FLAGS)&RF_DEFINED)) cc_fail(73);
     if(jump) cc_patch(jump);
+#ifdef ZP_UNITS_EXPERIMENT
+    /* A syntactically empty body has no runtime root or frame. */
+    if(cc.sources->unit_mode&&!scope&&cc_is("begin")) {
+        SourceCursor cursor;cc_source_save(&cursor);cc_next();
+        while(cc.token==';')cc_next();
+        if(cc_is("end")){cc_next();initializer=2;}
+        else cc_source_restore(&cursor);
+    }
+    /* An initializer is an anonymous ordinary procedure. Global declarations
+     * retain scope0; only labels belong to this executable activation. */
+    if(cc.sources->unit_mode&&!scope&&cc_is("begin")&&!cc.error->code) {
+        if(cc.symbol_count==SYMBOL_LIMIT){cc_fail(99);}
+        else {
+            i=cc.symbol_count++;cc_symbol_clear(i);CCS_SET(i,role,S_PROCEDURE);
+            CCS_SET(i,name_start,cc_source_reference(cc.token_start));
+            scope=new_scope(i);CCS_SET(i,initial_type,scope);
+            cc_rput(scope,R_FLAGS,cc_rget(scope,R_FLAGS)|RF_DEFINED);
+            cc.scope=scope;initializer=1;
+            for(i=0;i<cc.symbol_count;++i)
+                if(CCS(i,role)==S_LABEL&&!CCS(i,owner))CCS_SET(i,owner,scope);
+            cc_units_owner(scope);cc_rput(scope,R_ENTRY,cc.emitted);
+            cc_unit_record(UR_INITIALIZER,cc.emitted,0,0,0,0);
+        }
+    }
+#endif
     if(scope) {
         entry=cc.emitted;
         cc_patch_chain(cc_rget(scope,R_CALLS),entry); cc_rput(scope,R_CALLS,0);
@@ -280,7 +308,8 @@ SourcePosition cc_block(void) ROUTINES {
     start=cc.token_start;
     /* Direct Memory has no output owner for overlay group files. */
 #ifdef ZP_UNITS_EXPERIMENT
-    if(cc.sources->unit_mode&&!scope) {
+    if(initializer==2) { /* Empty body consumed above. */ }
+    else if(cc.sources->unit_mode&&!scope) {
         if(!cc_is("end"))cc_fail(UNIT_UNSUPPORTED);else cc_next();
     } else
 #endif
@@ -297,6 +326,9 @@ SourcePosition cc_block(void) ROUTINES {
         cc_word(cc_rget(scope,R_LOCAL_GUARD),cc_rget(scope,R_LOCALS)+FRAME_PRIVATE_BYTES+2);
         cc_word(cc_rget(scope,R_LOCAL_ALLOC),(uint16_t)(0u-FRAME_PRIVATE_BYTES-cc_rget(scope,R_LOCALS)));
     }
+#ifdef ZP_UNITS_EXPERIMENT
+    if(initializer==1){cc.scope=0;cc_units_owner(0);}
+#endif
     --cc.nesting;
     return start;
 }

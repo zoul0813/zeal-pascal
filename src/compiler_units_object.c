@@ -124,6 +124,12 @@ uint8_t cc_units_write_object(void) ROUTINES {
     at_word(page,40,ZPU_HEADER_BYTES+cc_unit_word(UH_NAME_LENGTH)+(uint16_t)strlen(cc.sources->root->path));
     at_word(page,42,ZPU_HEADER_BYTES+cc_unit_word(UH_NAME_LENGTH)+(uint16_t)strlen(cc.sources->root->path)+dependency_bytes);
     at_word(page,44,ZPU_HEADER_BYTES+cc_unit_word(UH_NAME_LENGTH)+(uint16_t)strlen(cc.sources->root->path)+dependency_bytes+(uint16_t)type_bytes);
+    /* Word46 is zero or a code-fragment index+1. Initializers begin at
+     * fragment offset0 and are roots independently of exported routines. */
+    for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_INITIALIZER) {
+        if(far_get(page,46)||far_get(page,47)||!cc_unit_fragment(cc_unit_word(at+2),&owner_id,&off)||off){cc_fail(UNIT_FORMAT);return 0;}
+        at_word(page,46,owner_id+1);
+    }
     page_position=ZPU_HEADER_BYTES;
     for(i=0;i<cc_unit_word(UH_NAME_LENGTH);++i)out_byte(page,&page_position,cc_unit_byte(UH_NAME+i));
     for(i=0;cc.sources->root->path[i];++i)out_byte(page,&page_position,(uint8_t)cc.sources->root->path[i]);
@@ -303,9 +309,10 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
         at=blob+16+i*8;wide=(uint32_t)cc_unit_module_word(module,at)+cc_unit_module_word(module,at+2);
         if(wide>code_bytes)return 0;
     }
+    if(cc_unit_module_word(module,46)>k)return 0; /* Never the globals fragment. */
     at=ZPU_HEADER_BYTES+n+path;
     if(cc_unit_module_word(module,36)>=CC_FRAGMENT_OBJECTS||
-       cc_unit_module_word(module,46)||cc_unit_module_word(module,40)!=at)return 0;
+       cc_unit_module_word(module,40)!=at)return 0;
     for(i=0;i<cc_unit_module_word(module,36);++i) {
         if((uint32_t)at+8>blob)return 0;
         k=cc_unit_module_byte(module,at);

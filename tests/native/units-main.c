@@ -117,7 +117,7 @@ int app_main(void) {
     author("H:/BADUNIT.PAS","H:/BADUNIT.ZPU",
         "unit BadUnit;interface procedure P;implementation end.",73);
     author("H:/BADUNIT.PAS","H:/BADUNIT.ZPU",
-        "unit BadUnit;interface implementation begin end.",UNIT_UNSUPPORTED);
+        "unit BadUnit;interface implementation begin end.",0);
     capture=open("H:/UNITS.TXT",O_WRONLY|O_CREAT|O_TRUNC);check(capture>=0);
     if(capture>=0)check(swap(capture,DEV_STDOUT)==0);
     test_stage=53;

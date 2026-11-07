@@ -85,3 +85,27 @@ uint16_t cc_unit_target(uint16_t module,uint16_t identity) ROUTINES {
         if(cc_unit_word(at)==UR_MODULE&&cc_unit_word(at+8)==binding)return at;
     cc_fail(UNIT_FORMAT);return 0;
 }
+
+/* Canonical graph nodes are visited once in manifest order, preserving uses
+ * order while placing every dependency before its user. This runs only for a
+ * program: authoring a unit records dependencies without executing them. */
+static void initializer_visit(uint16_t module) {
+    uint16_t state=cc_units_state(module),flags=cc_unit_word(state+4),i,start;
+    if(cc.error->code||(flags&UM_INITIALIZED))return;
+    if(!cc_stack_check())return;
+    cc_unit_put(state+4,flags|UM_INITIALIZED);
+    for(i=2;i<=cc_unit_module_word(module,36)+1&&!cc.error->code;++i)
+        initializer_visit(cc_unit_target(module,i));
+    if(!cc.error->code&&cc_unit_module_word(module,46)) {
+        start=cc.emitted-CC_CODE_BASE;cc_require_full_memory();cc_guard();
+        cc_unit_record(UR_INIT_CALL,module,cc_link(0xcd,0),0,0,0);
+        cc_mapping(start,cc.emitted-CC_CODE_BASE,cc.token_start,cc.token_start);
+    }
+}
+void cc_units_initializers(void) ROUTINES {
+    uint16_t at,end;
+    if(cc.sources->unit_page==255)return;
+    end=cc_unit_word(UH_USED);
+    for(at=UNIT_RECORD_BASE;at<end&&!cc.error->code;at+=UNIT_RECORD_BYTES)
+        if(cc_unit_word(at)==UR_MODULE&&cc_unit_word(at+8))initializer_visit(at);
+}

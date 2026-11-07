@@ -8,7 +8,7 @@
  * public interfaces carry routines, constants and canonical type metadata.
  * A caller owns the fresh output descriptor, including close/publication. */
 enum { UNIT_FORMAT=248,UNIT_UNSUPPORTED,UNIT_MISSING,UNIT_STALE,UNIT_AMBIGUOUS,UNIT_INTERFACE };
-enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CODE,UR_STATE,UR_EXTERNAL,UR_TYPE };
+enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CODE,UR_STATE,UR_EXTERNAL,UR_TYPE,UR_INITIALIZER,UR_INIT_CALL };
 #define RF_UNIT_IMPORT 16u
 #define UNIT_RECORD_BYTES 12u
 #define UNIT_RECORD_BASE 256u
@@ -27,6 +27,7 @@ enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CO
 #define UM_LOADING 2u
 #define UM_READY 4u
 #define UM_TYPES 8u
+#define UM_INITIALIZED 16u
 /* Unreleased format: evolve this contract directly until the ABI1 release. */
 #define ZPU_ABI 1u
 #define ZPU_REAL 1u
@@ -56,6 +57,7 @@ void cc_units_handoff_cleanup(void) ROUTINES;
 void cc_units_header(void) ROUTINES;
 void cc_units_interface(void) ROUTINES;
 void cc_units_imports(void) ROUTINES;
+void cc_units_initializers(void) ROUTINES;
 int16_t cc_units_lookup(void) ROUTINES;
 void cc_units_call(uint8_t opcode,uint16_t scope) ROUTINES;
 void cc_units_note(uint16_t kind,uint16_t site,uint16_t value) ROUTINES;

@@ -994,6 +994,30 @@ add_custom_target(zunitrealtest_bin
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zunitrealtest>
     DEPENDS zunitrealtest ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 
+# Unit activation/order acceptance, isolated from the full Real fixture bank.
+add_executable(zunitinittest src/startup.asm src/banks.c tests/native/unit-init-main.c
+    tests/native/machine.asm $<TARGET_OBJECTS:unit_runtime_core>
+    $<TARGET_OBJECTS:unit_fragment_core> $<TARGET_OBJECTS:real_compiler>
+    $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
+    ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm)
+target_compile_definitions(zunitinittest PRIVATE ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL ZP_TEST_COMPILER)
+target_include_directories(zunitinittest PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_options(zunitinittest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+set_source_files_properties(tests/native/unit-init-main.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
+set_property(SOURCE tests/native/unit-init-main.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/compiler_units.h
+    ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
+add_dependencies(zunitinittest transfer_assets)
+target_link_options(zunitinittest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
+foreach(bank RANGE 1 18)
+    math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
+    target_link_options(zunitinittest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
+endforeach()
+add_custom_target(zunitinittest_bin
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zunitinittest>
+    DEPENDS zunitinittest ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+
 set_source_files_properties(src/unit_output.c PROPERTIES
     COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK17;--constseg;BANK17")
 set_property(SOURCE src/unit_output.c src/compiler_job.c APPEND PROPERTY OBJECT_DEPENDS
@@ -1051,6 +1075,7 @@ add_custom_target(zscreentest_bin ALL
 
 add_dependencies(zpascal screen_library)
 add_dependencies(zunitrealtest screen_library)
+add_dependencies(zunitinittest screen_library zexparent_bin)
 
 set_source_files_properties(src/compiler_units_link.c src/compiler_units_metadata.c PROPERTIES
     COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK18;--constseg;BANK18")

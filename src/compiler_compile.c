@@ -134,6 +134,9 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     if(!sources.unit_mode&&cc_is("uses"))cc_units_imports();
 #endif
     if(options&&options->kind==COMPILE_CHAIN)cc_activation_begin();
+#ifdef ZP_UNITS_EXPERIMENT
+    if(!sources.unit_mode)cc_units_initializers();
+#endif
     begin=cc_block();j=pc();cc_expect('.',10);
     if(cc.token!=T_EOF)cc_fail(58);
     cc_finish(RT_DONE);cc_mapping(j,pc(),begin,begin);

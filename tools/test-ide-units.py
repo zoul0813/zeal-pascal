@@ -16,11 +16,12 @@ function Plain(X:TSmall):TSmall;
 function Twice(X:Real):Real;
 function Crash(X:Integer):Integer;
 implementation
+var Bias:Integer;
 function Helper(X:Real):Real;begin Helper:=X*2 end;
-function Plain(X:TSmall):TSmall;begin Plain:=X+Adjust end;
+function Plain(X:TSmall):TSmall;begin Plain:=X+Bias end;
 function Twice(X:Real):Real;begin Twice:=Helper(X)end;
 function Crash(X:Integer):Integer;begin Crash:=1 div X end;
-end."""
+begin Bias:=Adjust end."""
 CLIENTS={
  'INTCLIENT':b"uses Calc;var N:TSmall;begin N:=Plain(41);if N<>41+Adjust then halt;writeln('IDE-UNIT-INTEGER-OK')end.",
  'REALCLIENT':b"uses Calc;var A,R:Real;P,Q,I:Integer;begin A:=3.0;R:=Twice(1.5);P:=Addr(A);Q:=Addr(R);for I:=0 to 5 do if Mem[P+I]<>Mem[Q+I]then halt;writeln('IDE-UNIT-REAL-OK')end."}
