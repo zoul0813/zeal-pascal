@@ -1172,3 +1172,21 @@ set_source_files_properties(src/compiler_unit_ranges.c PROPERTIES
     COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK1;--constseg;BANK1")
 set_property(SOURCE src/compiler_unit_reader.c src/compiler_unit_ranges.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_unit_stream.h)
+
+# Build-time relocation oracle. These are not production runtime variants.
+add_library(runtime_object_probe OBJECT tests/native/runtime-objects.c)
+target_compile_options(runtime_object_probe PRIVATE --std-c99 --opt-code-size
+    "SHELL:--codeseg RUNTIME_PROBE" "SHELL:--constseg RUNTIME_PROBE")
+foreach(variant IN ITEMS a b)
+    add_executable(runtime_object_${variant} tests/native/runtime-object-entry.asm
+        $<TARGET_OBJECTS:runtime_object_probe>)
+    set_target_properties(runtime_object_${variant} PROPERTIES LINKER_LANGUAGE ASM)
+    if(variant STREQUAL "a")
+        target_link_options(runtime_object_${variant} PRIVATE
+            "SHELL:-b _RUNTIME_PROBE=0x52f1" "SHELL:-b _DATA=0x70fd")
+    else()
+        target_link_options(runtime_object_${variant} PRIVATE
+            "SHELL:-b _RUNTIME_PROBE=0x9237" "SHELL:-b _DATA=0xb0ff")
+    endif()
+    zos_add_outputs(runtime_object_${variant} WITH_EXTENSION zpl)
+endforeach()

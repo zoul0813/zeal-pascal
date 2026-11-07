@@ -317,3 +317,13 @@
 # Interactive saved-Snake input acceptance.
 !/tools/test-zvb-interactive.py
 !/docs/zvb-interactive-evidence.json
+
+# Compact-runtime implementation and reproducible measurements.
+!/docs/runtime-compaction.md
+!/docs/runtime-baseline-evidence.json
+!/tools/runtime-baseline.py
+!/tools/runtime_objects.py
+!/tools/test-runtime-objects.py
+
+!/reviews/runtime-foundation-v1.md
+!/reviews/runtime-object-verification.json

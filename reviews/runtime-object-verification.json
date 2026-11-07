@@ -1,0 +1,224 @@
+{
+  "passed": true,
+  "unit_tests": 11,
+  "linked_oracles": [
+    {
+      "target": "pascal_runtime",
+      "objects": 12,
+      "library_members": [
+        "divunsigned.rel",
+        "mul.rel",
+        "crtenter.rel",
+        "modsigned.rel",
+        "divsigned.rel"
+      ],
+      "expected_initialized_bytes": 15899,
+      "initialized_bytes_checked": 15899,
+      "defined_symbols_checked": 102,
+      "relocation_kinds": {
+        "word16": 1179,
+        "low8": 17,
+        "high8": 17
+      },
+      "relocation_modes": {
+        "word16_area": 1049,
+        "word16_symbol": 130,
+        "low8_area": 17,
+        "low8_symbol": 0,
+        "high8_area": 17,
+        "high8_symbol": 0
+      },
+      "relocations_checked": 1213,
+      "input_sha256": {
+        "build/CMakeFiles/pascal_runtime.dir/src/runtime.asm.rel": "56094bce703fa65774a3f07b6d299020e2306df53a1bd747418587806ab93975",
+        "build/CMakeFiles/pascal_runtime.dir/src/real_adapter.asm.rel": "0301be746b8a0f768459d729ce936da22b80dc048b2bae1f8c5592a8ae03e737",
+        "build/CMakeFiles/pascal_runtime.dir/src/format.asm.rel": "e026bec16748c820dce55e33a57d6e89e64f9c02f8ea38ff2ea7145f7a0fe611",
+        "build/CMakeFiles/pascal_runtime.dir/src/input.asm.rel": "174c32a3d67e2c77319c2f4d853acff58e023396d4662e147fd33273ac22f9f5",
+        "build/CMakeFiles/real_runtime.dir/src/real.c.rel": "47bb9d922ef767f80fd61176845a129fdb3cd2a31e537b1a91ef2adc126dabd7",
+        "build/CMakeFiles/real_runtime.dir/src/transcendental.c.rel": "598d4add806d7d6a8dd683a42a32a2a6f85b7917e1c24ad6adea4a5ee5a77576",
+        "build/CMakeFiles/key_runtime.dir/src/keys.c.rel": "a090b0bbc8b4eea6ff6f7162a8b213660e4a5bb301ff2be911d05e864ea0eb87",
+        "build/pascal_runtime.ihx": "7aa2a5be80ecf5b9ad3950fe479971a91cda809bece64961db7f8f45578986c3",
+        "build/pascal_runtime.map": "dd976f490506ddefcbf9e23166b3d336ad3aec4c7f2aaa0b93244f25893a6cf7"
+      },
+      "sdk_library_sha256": "9576137373c88fad7354ea167f44ff42ce2c7b8bf7329476487a6127640f1e1b"
+    },
+    {
+      "target": "integer_runtime",
+      "objects": 8,
+      "library_members": [
+        "mul.rel",
+        "crtenter.rel"
+      ],
+      "expected_initialized_bytes": 5488,
+      "initialized_bytes_checked": 5488,
+      "defined_symbols_checked": 89,
+      "relocation_kinds": {
+        "word16": 482,
+        "low8": 1,
+        "high8": 1
+      },
+      "relocation_modes": {
+        "word16_area": 413,
+        "word16_symbol": 69,
+        "low8_area": 1,
+        "low8_symbol": 0,
+        "high8_area": 1,
+        "high8_symbol": 0
+      },
+      "relocations_checked": 484,
+      "input_sha256": {
+        "build/CMakeFiles/integer_runtime.dir/src/runtime.asm.rel": "56094bce703fa65774a3f07b6d299020e2306df53a1bd747418587806ab93975",
+        "build/CMakeFiles/integer_runtime.dir/src/real_adapter.asm.rel": "0301be746b8a0f768459d729ce936da22b80dc048b2bae1f8c5592a8ae03e737",
+        "build/CMakeFiles/integer_runtime.dir/src/format.asm.rel": "e026bec16748c820dce55e33a57d6e89e64f9c02f8ea38ff2ea7145f7a0fe611",
+        "build/CMakeFiles/integer_runtime.dir/src/input.asm.rel": "174c32a3d67e2c77319c2f4d853acff58e023396d4662e147fd33273ac22f9f5",
+        "build/CMakeFiles/compact_integer.dir/src/real.c.rel": "6a78c88e50daff472d64d726241be1798e35e9f52cb7c1c14e67fd36dcbe8d5e",
+        "build/CMakeFiles/key_runtime.dir/src/keys.c.rel": "a090b0bbc8b4eea6ff6f7162a8b213660e4a5bb301ff2be911d05e864ea0eb87",
+        "build/integer_runtime.ihx": "12b653cf0944851dc8fde810a87a262a40ac0c29ed26580bafd244c4a31daf3e",
+        "build/integer_runtime.map": "0376e60c0745e0bc85d5a787fc95226865ef3a5282aec4fb9dc8708043c0b0ed"
+      },
+      "sdk_library_sha256": "9576137373c88fad7354ea167f44ff42ce2c7b8bf7329476487a6127640f1e1b"
+    },
+    {
+      "target": "compact_runtime",
+      "objects": 8,
+      "library_members": [
+        "mul.rel",
+        "crtenter.rel"
+      ],
+      "expected_initialized_bytes": 5488,
+      "initialized_bytes_checked": 5488,
+      "defined_symbols_checked": 89,
+      "relocation_kinds": {
+        "word16": 482,
+        "low8": 1,
+        "high8": 1
+      },
+      "relocation_modes": {
+        "word16_area": 413,
+        "word16_symbol": 69,
+        "low8_area": 1,
+        "low8_symbol": 0,
+        "high8_area": 1,
+        "high8_symbol": 0
+      },
+      "relocations_checked": 484,
+      "input_sha256": {
+        "build/CMakeFiles/compact_runtime.dir/src/runtime.asm.rel": "56094bce703fa65774a3f07b6d299020e2306df53a1bd747418587806ab93975",
+        "build/CMakeFiles/compact_runtime.dir/src/real_adapter.asm.rel": "0301be746b8a0f768459d729ce936da22b80dc048b2bae1f8c5592a8ae03e737",
+        "build/CMakeFiles/compact_runtime.dir/src/format.asm.rel": "e026bec16748c820dce55e33a57d6e89e64f9c02f8ea38ff2ea7145f7a0fe611",
+        "build/CMakeFiles/compact_runtime.dir/src/input.asm.rel": "174c32a3d67e2c77319c2f4d853acff58e023396d4662e147fd33273ac22f9f5",
+        "build/CMakeFiles/compact_integer.dir/src/real.c.rel": "6a78c88e50daff472d64d726241be1798e35e9f52cb7c1c14e67fd36dcbe8d5e",
+        "build/CMakeFiles/key_runtime.dir/src/keys.c.rel": "a090b0bbc8b4eea6ff6f7162a8b213660e4a5bb301ff2be911d05e864ea0eb87",
+        "build/compact_runtime.ihx": "3ff29caae067f0cab550d50e41fae071d389f56f7a71a9468c94587169c73fb8",
+        "build/compact_runtime.map": "dac79ffc61d6133239514f7c454b5f395951bc89891034628b8da051b2eda32a"
+      },
+      "sdk_library_sha256": "9576137373c88fad7354ea167f44ff42ce2c7b8bf7329476487a6127640f1e1b"
+    },
+    {
+      "target": "file_runtime",
+      "objects": 12,
+      "library_members": [
+        "__mulsint2slong.rel",
+        "_memchr.rel",
+        "_memcmp.rel",
+        "_strcat.rel",
+        "crtenter.rel",
+        "strlen.rel",
+        "_strcmp.rel"
+      ],
+      "expected_initialized_bytes": 13671,
+      "initialized_bytes_checked": 13671,
+      "defined_symbols_checked": 47,
+      "relocation_kinds": {
+        "word16": 888,
+        "low8": 2,
+        "high8": 2
+      },
+      "relocation_modes": {
+        "word16_area": 829,
+        "word16_symbol": 59,
+        "low8_area": 2,
+        "low8_symbol": 0,
+        "high8_area": 2,
+        "high8_symbol": 0
+      },
+      "relocations_checked": 892,
+      "input_sha256": {
+        "build/CMakeFiles/file_runtime.dir/src/file_module.asm.rel": "c8a201cb467da7cb9cb7c23b15a36338e4b5dbd00a2b1c59dd02203b163e951a",
+        "build/CMakeFiles/file_runtime.dir/sdk_glue.asm.rel": "66b6ac4ea6a323a15baa87832cd8b82a203b89177c0f2596b1fa493ae8c87fd8",
+        "build/CMakeFiles/file_runtime_core.dir/src/path.c.rel": "7c733aadfc332cf06805b06fb958258964fc941ab5aff676d1d6d2796983feea",
+        "build/CMakeFiles/file_runtime_core.dir/src/file_runtime.c.rel": "d440c15a4773c36ce575965c016956dfd5840552c369ea3cda8d2dd2eb055b02",
+        "build/CMakeFiles/file_runtime_core.dir/src/file_native.asm.rel": "57392f9a9ad1cf8837fa878a366ea708d839aa9ca3874b2f5a7b92b9bc829cfa",
+        "build/file_runtime.ihx": "f58fac7ddc22423d92c59a90ab7edbc4bfe2be58f77039432f6feed03b65b083",
+        "build/file_runtime.map": "5151be14d9dab2869441fcf9b80251a3c67f7ee06761b06404095f0b877a937d"
+      },
+      "sdk_library_sha256": "9576137373c88fad7354ea167f44ff42ce2c7b8bf7329476487a6127640f1e1b"
+    },
+    {
+      "target": "runtime_object_a",
+      "objects": 2,
+      "library_members": [],
+      "expected_initialized_bytes": 91,
+      "initialized_bytes_checked": 91,
+      "defined_symbols_checked": 5,
+      "relocation_kinds": {
+        "word16": 7,
+        "low8": 4,
+        "high8": 4
+      },
+      "relocation_modes": {
+        "word16_area": 3,
+        "word16_symbol": 4,
+        "low8_area": 3,
+        "low8_symbol": 1,
+        "high8_area": 3,
+        "high8_symbol": 1
+      },
+      "relocations_checked": 15,
+      "input_sha256": {
+        "build/CMakeFiles/runtime_object_a.dir/tests/native/runtime-object-entry.asm.rel": "5b6f99a951693a4fe7ef89585a2430ecd9c0b724e7f252f7e8421cd46fc51417",
+        "build/CMakeFiles/runtime_object_probe.dir/tests/native/runtime-objects.c.rel": "24e2b834e7091b7a086b495fd83217c1563d306b920ed4693ac8a31f8097c885",
+        "build/runtime_object_a.ihx": "077810b36d9d34a669c129d860873eac0a9be8367c00a08a7f8764317baddddf",
+        "build/runtime_object_a.map": "6496fcd058226344b9359f37a5a1be01415a9edbc3dc3e37aaaf56464530f412"
+      },
+      "sdk_library_sha256": "9576137373c88fad7354ea167f44ff42ce2c7b8bf7329476487a6127640f1e1b"
+    },
+    {
+      "target": "runtime_object_b",
+      "objects": 2,
+      "library_members": [],
+      "expected_initialized_bytes": 91,
+      "initialized_bytes_checked": 91,
+      "defined_symbols_checked": 5,
+      "relocation_kinds": {
+        "word16": 7,
+        "low8": 4,
+        "high8": 4
+      },
+      "relocation_modes": {
+        "word16_area": 3,
+        "word16_symbol": 4,
+        "low8_area": 3,
+        "low8_symbol": 1,
+        "high8_area": 3,
+        "high8_symbol": 1
+      },
+      "relocations_checked": 15,
+      "input_sha256": {
+        "build/CMakeFiles/runtime_object_b.dir/tests/native/runtime-object-entry.asm.rel": "5b6f99a951693a4fe7ef89585a2430ecd9c0b724e7f252f7e8421cd46fc51417",
+        "build/CMakeFiles/runtime_object_probe.dir/tests/native/runtime-objects.c.rel": "24e2b834e7091b7a086b495fd83217c1563d306b920ed4693ac8a31f8097c885",
+        "build/runtime_object_b.ihx": "6e43f617f603f8be4269d6f8f82a3e6532a03e59662e044e17ae96cfd3e37851",
+        "build/runtime_object_b.map": "7aaedf65c3bb868a20218fb0c0271059ab118fd011a87bf4a62c5f3384a10c4b"
+      },
+      "sdk_library_sha256": "9576137373c88fad7354ea167f44ff42ce2c7b8bf7329476487a6127640f1e1b"
+    }
+  ],
+  "source_sha256": {
+    "tools/runtime_objects.py": "1a95318293f386bfab4e8d2a88d4325e838b246e8111108e997202f05b689cf1",
+    "tools/test-runtime-objects.py": "11751c1c3a7e83de8f3fc4d5da29c10d9138c0ab8530d687f8190b99e690f241",
+    "tools/package-native.py": "37a1890868c47f58d8a57018c178e097248185fd9df39e2bceebc27752f1e2e9",
+    "CMakeLists.txt": "60f9821c50e250dd6812e12421d00635cfebd22960ae7584feac3c350c39262e",
+    "tests/native/runtime-objects.c": "56a3c7ff6c0e3a6127b2230e916eb6955dd46a557363aaf6f16cc09898f2ee9c",
+    "tests/native/runtime-object-entry.asm": "b9fe74decc536f87b37d69637c2b32ad2de4aa66ad170b69c2a45c15f21a21a9"
+  }
+}
