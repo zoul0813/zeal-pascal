@@ -4,7 +4,8 @@ import importlib.util
 import json
 from pathlib import Path
 import re
-EXPECTED_ASSERTIONS=1703
+# The nineteenth bank adds one pending-owner assertion at each of 58 cleanup checkpoints.
+EXPECTED_ASSERTIONS=1761
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py')
 n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)

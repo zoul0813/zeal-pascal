@@ -47,7 +47,7 @@ def media_checks():
         if '/REALCLIENT.COM'in files:
             checks[drive+' includes required Real engine']=files['/REALCLIENT.COM'][3466:14285]==(ROOT/'build/pascal_runtime.zpl').read_bytes()[3466:14285]
         checks[drive+' releases transient I/O and pending allocations']=len(frames)==2 and all(
-            all(n.memory(frame).get(sym['_code_pages']+i)==255 for i in (16,17)) and all(n.memory(frame).get(sym['_code_phase_pending']+i)==255 for i in range(count))for frame in frames)
+            all(n.memory(frame).get(sym['_code_pages']+i)==255 for i in (16,17,18)) and all(n.memory(frame).get(sym['_code_phase_pending']+i)==255 for i in range(count))for frame in frames)
     return checks
 def main():
     target='zpascal';sym=n.symbols(target);labels=['ready'];count=n.code_banks(target)
@@ -94,13 +94,13 @@ def main():
     if len(frames)==len(labels):
         states={name:n.memory(frame)for name,frame in zip(labels,frames)}
         live=lambda label:sum(states[label].get(sym['_code_pages']+i,255)!=255 for i in range(count))
-        checks['ten startup code pages']=count==18 and live('ready')==10
+        checks['ten startup code pages']=count==19 and live('ready')==10
         for label in labels:
             if label=='fault-screen':continue
             checks[label+' no pending code allocations']=all(states[label].get(sym['_code_phase_pending']+i)==255 for i in range(count))
             if label!='ready':
                 checks[label+' expected code cache']=live(label)==(10 if label.endswith('-enter')else 15)
-                checks[label+' unit metadata and I/O stay on disk']=all(states[label].get(sym['_code_pages']+i)==255 for i in (16,17))
+                checks[label+' unit metadata and I/O stay on disk']=all(states[label].get(sym['_code_pages']+i)==255 for i in (16,17,18))
         checks['unit creation leaves no executable build']=all(states[label].get(sym['_build']+4)==0 for label in ('unit-created','unit-updated','unit-run-blocked'))
         checks['unit compilation clears dirty source flag']=states['unit-updated'].get(sym['_work']+1)==0
         for label in ('fault-source-missing','fault-source-changed'):

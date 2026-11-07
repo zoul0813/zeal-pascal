@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep typed fragment references out of Pascal's word-only placement ledger."""
+"""Reject malformed typed fragment references before final placement."""
 import argparse
 import hashlib
 import importlib.util
@@ -40,7 +40,7 @@ def main():
               ROOT/'build/zpascal.bin', ROOT/'build/zpascal.zpl', ROOT/'build/zpascal.map', args.unit]
     hashes = {str(path.resolve()): n.sha(path) for path in inputs}
     checks = {}
-    for kind, flag in (('word', 0), ('low8', 0x4000), ('high8', 0x8000)):
+    for kind, flag in (('word', 0), ('reserved12', 0x1000), ('reserved13', 0x2000), ('invalid_kind', 0xc000)):
         unit = bytearray(original)
         struct.pack_into('<H', unit, reference+4, target | flag)
         struct.pack_into('<I', unit, 28, fnv(unit[:28]+unit[32:]))
@@ -59,7 +59,7 @@ def main():
         checks[kind+' clears pending allocations'] = all(
             state.get(sym['_code_phase_pending']+i) == 255 for i in range(n.code_banks()))
         checks[kind+' releases transient unit banks'] = all(
-            state.get(sym['_code_pages']+i) == 255 for i in (16, 17))
+            state.get(sym['_code_pages']+i) == 255 for i in (16, 17, 18))
         checks[kind+' preserves source artifact'] = (folder/'CALC.ZPU').read_bytes() == unit
     checks['stable inputs'] = all(n.sha(Path(path)) == value for path, value in hashes.items())
     report = {'passed': all(checks.values()), 'checks': checks, 'input_sha256': hashes,

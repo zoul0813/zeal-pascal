@@ -291,7 +291,7 @@ static uint8_t type_records(uint16_t module,uint16_t *cursor,uint16_t blob) {
 static uint8_t pc_sites_valid(uint16_t module,uint16_t at,uint16_t pcs,uint16_t blob,
                              uint16_t code_bytes,uint16_t count,uint16_t refbase) {
     uint16_t i,fragment,site,offset,size,last_fragment=0,last_site=0;
-    uint16_t cursor=0,limit=0,p=0;
+    uint16_t cursor=0,limit=0,p=0,width;
     for(i=0;i<pcs;++i,at+=6) {
         if(!cc_poll())return 0;
         fragment=cc_unit_module_word(module,at);site=cc_unit_module_word(module,at+2);offset=cc_unit_module_word(module,at+4);
@@ -305,7 +305,8 @@ static uint8_t pc_sites_valid(uint16_t module,uint16_t at,uint16_t pcs,uint16_t 
         }
         while(cursor<limit) {
             p=cc_unit_module_word(module,refbase+8*cursor);
-            if(p+2>site)break;
+            width=(cc_unit_module_word(module,refbase+8*cursor+4)>>CF_REFERENCE_SHIFT)==CF_WORD16?2:1;
+            if(p+width>site)break;
             ++cursor;
         }
         if(cursor<limit&&p<site+2)return 0;
@@ -341,9 +342,6 @@ uint8_t cc_unit_validate_object(uint16_t module,const char *name,uint32_t stream
     if(cc_unit_module_word(module,blob+4)!=1)return 0;
     for(i=0;i<cc_unit_module_word(module,blob+8);++i) {
         if(!cc_unit_module_word(module,refbase+i*8+2)||cc_unit_module_word(module,refbase+i*8+2)>cc_unit_module_word(module,36)+1)return 0;
-        /* Byte references are accepted by the fragment linker, but Pascal's
-         * current final-placement ledger can rebase only word references. */
-        if(cc_unit_module_word(module,refbase+i*8+4)&~CF_FRAGMENT_MASK)return 0;
     }
     if(!code_bytes||cc_unit_module_word(module,blob+10)!=(uint32_t)code_bytes+cc_unit_module_word(module,34))return 0;
     k=count;

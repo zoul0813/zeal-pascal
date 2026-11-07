@@ -1,4 +1,5 @@
 #include "compiler_units.h"
+#include "library.h"
 
 /* One invocation owns one canonical module per Pascal name. Dependency IDs
  * belong to each file; a sealed table after its immutable bytes binds those
@@ -62,15 +63,17 @@ uint16_t cc_units_graph_load(const char *name,uint8_t visible) ROUTINES {
 }
 
 uint8_t cc_units_graph_validate(void) ROUTINES {
-    CompilerFragmentObject objects[CC_FRAGMENT_OBJECTS];uint16_t at,end=cc_unit_word(UH_USED);uint8_t count=0,status;
+    CompilerFragmentObject objects[CC_FRAGMENT_OBJECTS];uint16_t at,end=cc_unit_word(UH_USED);uint8_t count=0,status,primary;
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)
         if(cc_unit_word(at)==UR_MODULE&&cc_unit_word(at+8)) {
             if(count==CC_FRAGMENT_OBJECTS){cc_fail(99);return 0;}
             cc_unit_descriptor(at,objects+count++);
         }
     if(!count)return 1;
-    status=cc_fragment_validate(objects,count);
-    if(status!=CF_OK){cc_fail(UNIT_FORMAT);return 0;}
+    if(!code_phase_unit_link_begin()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    status=cc_fragment_validate(objects,count);primary=platform_error;
+    if(!code_phase_unit_link_end()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+    if(status!=CF_OK){platform_error=primary;cc_fail(UNIT_FORMAT);return 0;}
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)
         if(cc_unit_word(at)==UR_MODULE&&cc_unit_word(at+8)&&!cc_units_types_ready(at))return 0;
     return 1;

@@ -97,7 +97,7 @@ set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES
 set(PASCAL_CORE src/compiler_frames.c src/source.c src/sources.c src/compiler_sources.c src/compiler.c src/compiler_emit.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/compiler_expr.c src/compiler_strings.c src/compiler_recursion.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_crt.c src/compiler_state.c src/compiler_predicates.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/native.asm
     ${CMAKE_BINARY_DIR}/runtime_asset.asm ${CMAKE_BINARY_DIR}/file_asset.asm)
 list(APPEND PASCAL_CORE src/compiler_chain.c src/compiler_transfer_asset.c src/compiler_module.c src/compiler_bridges.c src/library_phase.c src/compiler_members.c src/compiler_groups.c src/compiler_late.c src/compiler_keyboard_engine.c src/compiler_compile.c src/compiler_job.c src/compiler_job_result.c src/compiler_job_pages.c)
-list(APPEND PASCAL_CORE src/compiler_tables.c src/compiler_disk.c src/compiler_messages.c src/source_move.c src/source_validation.c src/source_location.c src/buffer_access.c src/buffer_memory.c)
+list(APPEND PASCAL_CORE src/compiler_link.c src/compiler_table_arena.c src/compiler_tables.c src/compiler_disk.c src/compiler_messages.c src/source_move.c src/source_validation.c src/source_location.c src/buffer_access.c src/buffer_memory.c)
 set_property(SOURCE src/main.c src/compiler_messages.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/compiler_messages.h)
 set_source_files_properties(${CMAKE_BINARY_DIR}/transfer_ide_asset.asm ${CMAKE_BINARY_DIR}/transfer_test_asset.asm PROPERTIES GENERATED TRUE)
@@ -452,7 +452,7 @@ foreach(target zcompacttest zcorpus zjobtest zmemberstest zexecutecalltest zpasc
     if(target STREQUAL "zcompacttest")
         set(package_mode --compact-experiment)
     elseif(target STREQUAL "zpascal")
-        target_link_options(${target} PRIVATE "SHELL:-b _BANK16=0x108000" "SHELL:-b _BANK17=0x118000" "SHELL:-b _BANK18=0x128000")
+        target_link_options(${target} PRIVATE "SHELL:-b _BANK16=0x108000" "SHELL:-b _BANK17=0x118000" "SHELL:-b _BANK18=0x128000" "SHELL:-b _BANK19=0x138000")
         set(package_mode --optional-real)
     endif()
     add_custom_target(${target}_bin ALL
@@ -783,7 +783,7 @@ add_library(unit_fragment_core OBJECT src/compiler_fragments.c src/compiler_frag
 target_compile_definitions(unit_fragment_core PRIVATE ZP_UNITS_EXPERIMENT)
 target_include_directories(unit_fragment_core PRIVATE src)
 target_compile_options(unit_fragment_core PRIVATE --std-c99 --opt-code-size
-    "SHELL:--codeseg BANK16" "SHELL:--constseg BANK16")
+    "SHELL:--codeseg BANK19" "SHELL:--constseg BANK19")
 add_library(unit_core OBJECT src/compiler_unsigned.c src/compiler_unsigned_asset.c src/compiler_unsigned_intrinsics.c src/compiler_unsigned_ops.c ${PASCAL_CORE} src/compiler_units.c
     src/compiler_unit_references.c src/compiler_unit_files.c src/compiler_unit_paths.c src/compiler_unit_header.c src/compiler_unit_fragments.c src/compiler_unit_loader.c src/compiler_unit_reader.c src/compiler_unit_ranges.c src/compiler_units_symbols.c src/compiler_units_metadata.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/unit_output.c)
 target_compile_definitions(unit_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT)
@@ -825,7 +825,7 @@ set_property(SOURCE tests/native/units-main.c src/banks.c APPEND PROPERTY OBJECT
     ${CMAKE_SOURCE_DIR}/src/compiler_units.h ${CMAKE_SOURCE_DIR}/src/compiler.h)
 add_dependencies(zunittest transfer_assets)
 target_link_options(zunittest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 18)
+foreach(bank RANGE 1 19)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunittest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -844,7 +844,7 @@ target_include_directories(zunitcorpus PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(zunitcorpus PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_dependencies(zunitcorpus transfer_assets)
 target_link_options(zunitcorpus PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 18)
+foreach(bank RANGE 1 19)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunitcorpus PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -938,8 +938,10 @@ set_property(SOURCE src/compiler_runtime.c tests/native/optional-real-main.c
 add_library(optional_test_execution OBJECT tests/native/harness-execute.c)
 target_compile_definitions(optional_test_execution PRIVATE ZP_OPTIONAL_REAL ZP_UNITS_EXPERIMENT)
 target_include_directories(optional_test_execution PRIVATE src)
+# Execution supervision survives compiler parking; use spare permanent-bank
+# capacity rather than overflowing the shared source/publication bank.
 target_compile_options(optional_test_execution PRIVATE --std-c99 --opt-code-size
-    "SHELL:--codeseg BANK3" "SHELL:--constseg BANK3")
+    "SHELL:--codeseg BANK9" "SHELL:--constseg BANK9")
 
 # Reuse the existing language/Real/format corpus with production selection on.
 add_executable(zoptionalcorpus src/startup.asm src/banks.c tests/native/main.c
@@ -953,7 +955,7 @@ target_include_directories(zoptionalcorpus PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(zoptionalcorpus PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 add_dependencies(zoptionalcorpus transfer_assets)
 target_link_options(zoptionalcorpus PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 18)
+foreach(bank RANGE 1 19)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zoptionalcorpus PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1008,7 +1010,7 @@ set_property(SOURCE tests/native/unit-real-main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 add_dependencies(zunitrealtest transfer_assets)
 target_link_options(zunitrealtest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 18)
+foreach(bank RANGE 1 19)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunitrealtest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1032,7 +1034,7 @@ set_property(SOURCE tests/native/unit-init-main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 add_dependencies(zunitinittest transfer_assets)
 target_link_options(zunitinittest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 18)
+foreach(bank RANGE 1 19)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunitinittest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1055,7 +1057,7 @@ set_property(SOURCE tests/native/unsigned-main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 add_dependencies(zunsignedtest transfer_assets)
 target_link_options(zunsignedtest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 18)
+foreach(bank RANGE 1 19)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunsignedtest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1079,7 +1081,7 @@ set_property(SOURCE tests/native/zvb-main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 add_dependencies(zzvbtest transfer_assets)
 target_link_options(zzvbtest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 18)
+foreach(bank RANGE 1 19)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zzvbtest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1134,7 +1136,7 @@ set_property(SOURCE tests/native/screen-main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 add_dependencies(zscreentest transfer_assets screen_library zexparent_bin)
 target_link_options(zscreentest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 18)
+foreach(bank RANGE 1 19)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zscreentest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1190,3 +1192,14 @@ foreach(variant IN ITEMS a b)
     endif()
     zos_add_outputs(runtime_object_${variant} WITH_EXTENSION zpl)
 endforeach()
+
+# Final symbolic linking has a transient bank; parsing and IDE startup do not
+# allocate it. The existing coefficient stream remains unchanged.
+set_source_files_properties(src/compiler_link.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK19;--constseg;BANK19")
+set_property(SOURCE src/compiler_link.c src/compiler_tables.c src/compiler_build.c
+    src/compiler_units_link.c
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_link.h)
+
+set_property(SOURCE src/compiler_tables.c src/compiler_table_arena.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/compiler_table_arena.h)

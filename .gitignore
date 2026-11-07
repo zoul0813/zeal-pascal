@@ -331,3 +331,12 @@
 !/reviews/runtime-typed-links-v1.md
 !/docs/runtime-typed-links-evidence.json
 !/tools/test-typed-unit-rejection.py
+
+!/src/compiler_link.c
+!/src/compiler_link.h
+!/tests/host/link-placement.c
+!/tools/test-linked-addresses.py
+!/reviews/runtime-placement-v1.md
+!/docs/runtime-placement-evidence.json
+!/src/compiler_table_arena.c
+!/src/compiler_table_arena.h

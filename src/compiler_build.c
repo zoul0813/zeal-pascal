@@ -7,6 +7,10 @@
 #define image_get compiler_image_get
 #endif
 #include "compiler.h"
+#include "compiler_link.h"
+#ifdef ZP_UNITS_EXPERIMENT
+#include "library.h"
+#endif
 #include "compiler_disk.h"
 #include "image.h"
 
@@ -107,6 +111,15 @@ uint8_t cc_place_code(void) FRONTEND {
         value+=(uint16_t)((uint32_t)coefficient*delta);
         if(byte)cc_put(at,(uint8_t)value);else cc_word(at,value);
     }
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc.links) {
+        uint8_t ok,primary;
+        if(!code_phase_unit_finish_begin()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+        ok=cc_link_apply(origin,GLOBAL_BASE);primary=platform_error;
+        if(!code_phase_unit_finish_end()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
+        if(!ok){platform_error=primary;return 0;}
+    }
+#endif
     if(!cc_disk_active(cc.image)) {
     if(cc.image->globals_bytes>PAGE_SIZE&&!separate_globals())return 0;
     if(!cc_image_page(1))return 0;

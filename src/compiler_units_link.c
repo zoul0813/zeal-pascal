@@ -1,4 +1,5 @@
 #include "compiler_units.h"
+#include "compiler_link.h"
 #include "library.h"
 
 /* This is an experimental resource limit, not an artifact-field limit. The
@@ -20,18 +21,21 @@ static uint16_t module_exports_end(uint16_t module) {
 static uint8_t append_metadata(uint16_t module,const CompilerFragmentLayout *layout) {
     uint16_t blob=cc_unit_word(module+UNIT_RECORD_BYTES+10),fragments=cc_unit_module_word(module,blob+6);
     uint16_t refbase=blob+16+fragments*8,at,i,j,fragment,address,site,first,count,pcs,maps,map_start;
-    uint16_t data_start,size,low,high,a,z,source,target;
+    uint16_t data_start,size,low,high,a,z,source,target,encoded,value;uint8_t kind;
     uint8_t file=(uint8_t)cc_unit_word(module+6);
     for(fragment=0;fragment<fragments;++fragment)if(location(layout,module,fragment,&address)) {
         first=cc_unit_module_word(module,blob+16+fragment*8+4);
         count=cc_unit_module_word(module,blob+16+fragment*8+6);
         for(i=0;i<count;++i) {
             if(!cc_poll())return 0;site=cc_unit_module_word(module,refbase+8*(first+i));
-            if(!location(layout,cc_unit_target(module,cc_unit_module_word(module,refbase+8*(first+i)+2)),cc_unit_module_word(module,refbase+8*(first+i)+4),&target)) {
+            encoded=cc_unit_module_word(module,refbase+8*(first+i)+4);
+            kind=(uint8_t)(encoded>>CF_REFERENCE_SHIFT);
+            if(!location(layout,cc_unit_target(module,cc_unit_module_word(module,refbase+8*(first+i)+2)),encoded&CF_FRAGMENT_MASK,&target)) {
                 cc_fail(UNIT_FORMAT);return 0;
             }
-            cc_word(address+site,target+cc_unit_module_word(module,refbase+8*(first+i)+6));
-            cc_relocate(address+site);
+            value=target+cc_unit_module_word(module,refbase+8*(first+i)+6);
+            if(kind==CF_WORD16) {cc_word(address+site,value);cc_relocate(address+site);}
+            else cc_link_reference(address+site,CL_CODE,0,value-CC_CODE_BASE,kind);
         }
     }
     at=module_exports_end(module);pcs=cc_unit_module_word(module,22);maps=cc_unit_module_word(module,24);

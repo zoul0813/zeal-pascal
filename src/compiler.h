@@ -83,7 +83,7 @@ typedef struct {
     SourcePosition token_start,token_end;
     uint8_t literal[256];uint8_t hexadecimal;uint8_t number_overflow;
     char name[128];
-    uint16_t emitted,entries,relocations;
+    uint16_t emitted,entries,relocations,links;
     uint8_t stage_page;uint8_t primary_stage;uint8_t placing;uint16_t scope;uint8_t absolute_mode;uint8_t var_strict;uint16_t nesting;uint8_t suppress;uint8_t index_speed;
     uint16_t routine_count,temporaries;
     uint32_t arguments; /* Live caller-owned argument bytes, including outer calls. */

@@ -26,7 +26,7 @@ def main():
     live=[p for p in pages if p!=255]
     checks={
         'authenticated IDE startup':frame.startswith(f"{sym['_code_ready']:04x} ") and bytes(mem.get(0x4000+i,0)for i in range(32))==(ROOT/'build/zpascal.bin').read_bytes()[:32],
-        'logical bank directory retained':mem.get(sym['_code_owned'])==count==18,
+        'logical bank directory retained':mem.get(sym['_code_owned'])==count==19,
         'exactly ten allocated distinct startup code pages':len(live)==len(set(live))==10 and all(32<=p<64 for p in live),
         'expression Real file and lifecycle pages stay unallocated':all((p==255 if i in {5,7,9}or i>=13 else 32<=p<64)for i,p in enumerate(pages)),
         'no unready allocations hidden in pending owners':pending==[255]*count}

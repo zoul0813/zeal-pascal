@@ -62,7 +62,7 @@ needs a typed reference model before runtime integration can use it.
 No byte reference is coerced into a word patch.
 
 
-Stage 2 in progress: ZPF1 fragment records retain their eight-byte size, using
+Stage 2 at checkpoint c2af3c6: ZPF1 fragment records retain their eight-byte size, using
 the bounded fragment-index word's upper bits for word16/low8/high8 kinds. The
 standalone fragment linker resolves the full target before extracting bytes.
 The Pascal unit importer still accepts only word references, explicitly rejecting
@@ -85,3 +85,49 @@ The original bank placement is preserved. Compiler bank16 occupies16,382 of
 16,031 bytes; zpascal.zpl is277,582 bytes (244 more than the baseline). This
 checkpoint has not removed the Real hole, file overlay or runtime page padding.
 See runtime-typed-links-evidence.json for exact inputs and observations.
+
+## Production final-placement integration
+
+The next checkpoint accepts word/low/high native unit references. A sparse
+eight-byte symbolic stream complements the existing four-byte coefficient
+ledger, so byte extraction happens after final placement and carries correctly.
+Only retained unit byte references currently create these records; ordinary
+global accesses and Inline operands retain their existing representation until
+compact data placement is implemented. DATA and coefficient-adjustment records
+are exercised on the host, but have no production emitter yet. This avoids
+adding no-op metadata and linker bank reads to every ordinary compilation.
+
+Generic linking occupies transient BANK19; compiler tables share deferred
+BANK16, with arena disposal in its own permanent BANK9 source file so closing a build
+never needs a successful deferred-bank restore. Fragment source capture remains
+in BANK11, and hot source access remains resident. The overlay journal is
+unchanged: symbolic records are created only during final unit linking, after
+parser groups close. Any future emitter active during parsing must first
+define rewind/journal handling for those records.
+
+This is still stage 2. It does not reclaim the Real hole, move globals below
+$8000, remove file overlays, or enable one-page execution. Those remain stages
+3–5; existing runtime bytes continue to be the behavior oracle.
+
+The [integration evidence](runtime-placement-evidence.json) records 16 native
+byte-placement checks, 80 sanitized placement/arena checks, 1,824 original
+ledger checks, 1,761 native Real/dependency assertions, 642 initialization/Chain
+assertions, 66 final positive IDE checks, 51 cancellation/retry checks and 17
+malformed-unit checks. All selected checks pass. Independently executed saved
+CRC, DMA, Graphics and Sound clients pass without compiler/source/unit files;
+the larger ZVB observer hit its fixed breakpoint-loop bound and is recorded as
+inconclusive rather than a successful framework run.
+
+Cold startup still uses ten compiler code pages. The launcher is 16,035 bytes;
+the compiler library is 278,802 bytes. Program runtime/RAM savings remain zero
+at this checkpoint. Six map checks confirm actual permanent/transient symbol
+placement, including cleanup's bank tag and actual address.
+
+The standalone CRT fixture remains outside its resident page: an isolated ZDE
+rebuild of c2af3c6 proves a pre-existing 307-byte overflow (plus BANK3/BANK12
+overflows). This stage resolves the two code-bank overflows, while the resident
+overflow is 311 bytes. The default ALL build was already failing at the prior
+checkpoint; this is not a qualified full-suite build. Full macro-on language
+corpora, peak compiler RAM and BANK19-specific free-failure injection remain
+qualification work. Two Opus turns found no remaining code defect; final IDE
+and baseline evidence resolves the follow-up's pre-commit requirements.

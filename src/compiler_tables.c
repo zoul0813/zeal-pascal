@@ -1,33 +1,39 @@
 #include "compiler.h"
+#include "compiler_link.h"
+#include "compiler_table_arena.h"
+#if defined(__SDCC) && defined(ZP_UNITS_EXPERIMENT)
+/* Compiler metadata shares the deferred catalog bank, leaving the retained
+ * literal-conversion bank independent of growing link records. */
+#pragma codeseg BANK16
+#pragma constseg BANK16
+#endif
 
 /* Compiler records share one native page arena. Each stream's128-byte first
  * segment doubles to8192, then grows by16KiB segments. Logical offsets select
  * their segment directly; this directory holds addresses, never record data.
- * Five seven-segment prefixes plus32full-page segments bound every layout. */
-#define SEGMENT_LIMIT 67u
+ * Six seven-segment prefixes plus32full-page segments bound every layout. */
+#define SEGMENT_LIMIT 74u
 #define TABLE_SEGMENTS 39u
 #define PREFIX_LENGTH 16256u
-enum { TABLE_SYMBOL,TABLE_TYPE,TABLE_ROUTINE,TABLE_RELOCATION,TABLE_REFERENCE,TABLE_COUNT };
+enum { TABLE_SYMBOL,TABLE_TYPE,TABLE_ROUTINE,TABLE_RELOCATION,TABLE_REFERENCE,TABLE_LINK,TABLE_COUNT };
 typedef struct {uint32_t length;uint8_t count,ids[TABLE_SEGMENTS];} Table;
 static uint32_t segments[SEGMENT_LIMIT];
 static Table tables[TABLE_COUNT];
-static uint8_t pages[32],page_count,segment_count,started;
-static uint32_t lives[32],arena_length;
 #ifndef __SDCC
 static uintptr_t stack_top;
 #endif
 static void initialize(void) {
     uint8_t i;
-    if(started)return;
+    if(cc_table_arena.started)return;
     for(i=0;i<TABLE_COUNT;++i){tables[i].length=0;tables[i].count=0;}
-    started=1;
+    cc_table_arena.started=1;
 }
 static uint8_t reserve(uint32_t end) {
     uint8_t p;
     if(end>32UL*PAGE_SIZE){cc_fail(99);return 0;}
-    while((uint32_t)page_count*PAGE_SIZE<end) {
+    while((uint32_t)cc_table_arena.page_count*PAGE_SIZE<end) {
         p=page_new(PAGE_COMPILER);if(p==255){cc_fail(99);return 0;}
-        pages[page_count]=p;lives[page_count]=page_lifetime(p);++page_count;
+        cc_table_arena.pages[cc_table_arena.page_count]=p;cc_table_arena.lives[cc_table_arena.page_count]=page_lifetime(p);++cc_table_arena.page_count;
     }
     return 1;
 }
@@ -49,11 +55,11 @@ static uint32_t locate(uint8_t table,uint32_t at,uint8_t writing,uint16_t *span)
     }
     while(t->count<=bucket) {
         if(!writing)return 0xffffffffUL;
-        if(segment_count==SEGMENT_LIMIT){cc_fail(99);return 0xffffffffUL;}
+        if(cc_table_arena.segment_count==SEGMENT_LIMIT){cc_fail(99);return 0xffffffffUL;}
         word=t->count<7u?128u<<t->count:PAGE_SIZE;
-        if(!reserve(arena_length+word))return 0xffffffffUL;
-        id=segment_count++;segments[id]=arena_length;t->ids[t->count++]=id;
-        t->length+=word;arena_length+=word;
+        if(!reserve(cc_table_arena.arena_length+word))return 0xffffffffUL;
+        id=cc_table_arena.segment_count++;segments[id]=cc_table_arena.arena_length;t->ids[t->count++]=id;
+        t->length+=word;cc_table_arena.arena_length+=word;
     }
     if(span)*span=length-relative;
     return segments[t->ids[bucket]]+relative;
@@ -62,18 +68,18 @@ static uint8_t byte_get(uint8_t table,uint32_t at) {
     uint32_t offset=locate(table,at,0,0);uint8_t index,p;
     if(offset==0xffffffffUL)return 0;
     index=(uint8_t)(offset/PAGE_SIZE);
-    if(index>=page_count){cc_fail(99);return 0;}
-    p=pages[index];
-    if(page_role(p)!=PAGE_COMPILER||page_lifetime(p)!=lives[index]){cc_fail(99);return 0;}
+    if(index>=cc_table_arena.page_count){cc_fail(99);return 0;}
+    p=cc_table_arena.pages[index];
+    if(page_role(p)!=PAGE_COMPILER||page_lifetime(p)!=cc_table_arena.lives[index]){cc_fail(99);return 0;}
     return far_get(p,(uint16_t)(offset%PAGE_SIZE));
 }
 static void byte_put(uint8_t table,uint32_t at,uint8_t value) {
     uint32_t offset=locate(table,at,1,0);uint8_t index,p;
     if(offset==0xffffffffUL)return;
     index=(uint8_t)(offset/PAGE_SIZE);
-    if(index>=page_count){cc_fail(99);return;}
-    p=pages[index];
-    if(page_role(p)!=PAGE_COMPILER||page_lifetime(p)!=lives[index]){cc_fail(99);return;}
+    if(index>=cc_table_arena.page_count){cc_fail(99);return;}
+    p=cc_table_arena.pages[index];
+    if(page_role(p)!=PAGE_COMPILER||page_lifetime(p)!=cc_table_arena.lives[index]){cc_fail(99);return;}
     far_set(p,(uint16_t)(offset%PAGE_SIZE),value);
 }
 /* Resolve/authenticate one contiguous span rather than repeating the arena
@@ -85,9 +91,9 @@ static uint8_t read(uint8_t table,uint32_t at,uint8_t *out,uint16_t count) {
         offset=locate(table,at,0,&span);
         if(offset==0xffffffffUL){memset(out,0,count);return !cc.error->code;}
         index=(uint8_t)(offset/PAGE_SIZE);within=(uint16_t)(offset%PAGE_SIZE);
-        if(index>=page_count){cc_fail(99);return 0;}
-        p=pages[index];
-        if(page_role(p)!=PAGE_COMPILER||page_lifetime(p)!=lives[index]){cc_fail(99);return 0;}
+        if(index>=cc_table_arena.page_count){cc_fail(99);return 0;}
+        p=cc_table_arena.pages[index];
+        if(page_role(p)!=PAGE_COMPILER||page_lifetime(p)!=cc_table_arena.lives[index]){cc_fail(99);return 0;}
         n=count;if(n>span)n=span;if(n>PAGE_SIZE-within)n=PAGE_SIZE-within;
         if(n>FAR_READ_LIMIT)n=FAR_READ_LIMIT;
         if(!far_read(p,within,out,n)){cc_fail(99);return 0;}
@@ -122,6 +128,24 @@ void cc_routine_set(uint16_t id,uint8_t field,uint16_t value) FRONTEND {put(TABL
 void cc_routine_clear(uint16_t id) FRONTEND {uint8_t i;for(i=0;i<ROUTINE_BYTES;++i)byte_put(TABLE_ROUTINE,(uint32_t)(id-1u)*ROUTINE_BYTES+i,0);}
 uint8_t cc_reloc_get(uint16_t offset) FRONTEND {return byte_get(TABLE_RELOCATION,offset);}
 void cc_reloc_put(uint16_t offset,uint8_t value) FRONTEND {byte_put(TABLE_RELOCATION,offset,value);}
+#ifdef ZP_UNITS_EXPERIMENT
+void cc_link_reference(uint16_t site,uint8_t space,uint16_t symbol,uint16_t addend,uint8_t kind) FRONTEND {
+    uint8_t i;uint16_t words[3];uint32_t at=(uint32_t)cc.links*CC_LINK_BYTES;
+    if(cc.error->code||cc.suppress)return;
+    if(kind>CF_HIGH8||space>CL_DATA_ADJUST||
+       (space!=CL_DATA_ADJUST&&symbol)||
+       (space==CL_DATA_ADJUST&&(!symbol||addend||kind==CF_HIGH8))||site<CC_CODE_BASE||
+       site>=CC_STATIC_LIMIT||cc.links==65535u){cc_fail(99);return;}
+    words[0]=site;words[1]=symbol;words[2]=addend;
+    for(i=0;i<3;++i)put(TABLE_LINK,at+2u*i,1,words[i]);
+    byte_put(TABLE_LINK,at+6,space);byte_put(TABLE_LINK,at+7,kind);
+    if(!cc.error->code)++cc.links;
+}
+uint8_t cc_link_read(uint16_t index,uint8_t *record) FRONTEND {
+    if(index>=cc.links){cc_fail(99);return 0;}
+    return read(TABLE_LINK,(uint32_t)index*CC_LINK_BYTES,record,CC_LINK_BYTES);
+}
+#endif
 uint8_t cc_reference_get(uint16_t id,uint8_t field) FRONTEND {return byte_get(TABLE_REFERENCE,(uint32_t)id*10u+field);}
 void cc_reference_put(uint16_t id,uint8_t field,uint8_t value) FRONTEND {byte_put(TABLE_REFERENCE,(uint32_t)id*10u+field,value);}
 uint8_t cc_references_end(void) FRONTEND {
@@ -129,11 +153,6 @@ uint8_t cc_references_end(void) FRONTEND {
      * the compiler releases all metadata. No other stream can alias them. */
     initialize();tables[TABLE_REFERENCE].length=0;
     tables[TABLE_REFERENCE].count=0;return 1;
-}
-uint8_t cc_tables_end(void) FRONTEND {
-    uint8_t p;
-    while(page_count){p=pages[page_count-1];if(page_lifetime(p)==lives[page_count-1]&&!page_drop(p))return 0;--page_count;}
-    segment_count=0;arena_length=0;started=0;return 1;
 }
 uint8_t cc_tables_begin(void) FRONTEND {
 #ifndef __SDCC
