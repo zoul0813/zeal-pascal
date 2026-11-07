@@ -110,7 +110,7 @@
     "failures": [],
     "diagnostics": [],
     "stack_margin": 8453,
-    "capture_directory": "analysis/native-slice/20261107T095008.242889Z-14610",
+    "capture_directory": "analysis/native-slice/20261107T101154.174427Z-30860",
     "boundaries_passed": true,
     "phase": "complete",
     "faults": {
@@ -130,7 +130,7 @@
         },
         "assertions": 57,
         "failure_indices": [],
-        "capture_directory": "analysis/native-slice/20261107T095008.242889Z-14610"
+        "capture_directory": "analysis/native-slice/20261107T101154.174427Z-30860"
       },
       "cancellation": {
         "passed": true,
@@ -144,7 +144,7 @@
         },
         "assertions": 54,
         "failure_indices": [],
-        "capture_directory": "analysis/native-slice/20261107T095008.242889Z-14610"
+        "capture_directory": "analysis/native-slice/20261107T101154.174427Z-30860"
       }
     }
   },
@@ -277,10 +277,10 @@
   },
   "native_fragment_checks": 934,
   "storage_capture_artifact_sha256": {
-    "zzvbtest.bin": "e4753733f208b45444b8f52b6541ba449a5bc52ce7a86c7b9cdcabd4ac700137",
-    "zzvbtest.zpl": "6b5926322abdcb4268a745a808e59b5f04bd801056896696be871eaa2ca51b11"
+    "zzvbtest.bin": "067107e8efd5001d66fe0404f60fe6fc9836273af0e7df70779efbb1fb0322bb",
+    "zzvbtest.zpl": "2bf4b2c10a0c46cb8fe156a0e1e9b135b0b8768401811a36f655e0ca1f46a0d4"
   },
-  "verification_note": "Production compiler sources and binaries are final. The storage capture predates only the optional demo argument-buffer correction in its test driver; a repeat with that final driver is in progress.",
+  "verification_note": "Combined boundary, allocation-failure and cancellation repeat passes with owned demo arguments. Captured artifact hashes identify the tested driver; subsequent demo-launch harness changes are separate.",
   "sha256": {
     "CMakeLists.txt": "3166eaf48df5e0033ba32420d41477dbb6cd8f69eef530c1ab85ba6c34914845",
     "build/CRT.PAS": "ae366d407b4c0efb32b421f2b0be28d3ad82ff78f12f7300edb792310207d5a0",

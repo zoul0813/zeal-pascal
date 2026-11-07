@@ -1,0 +1,47 @@
+program ZVBSound;
+uses ZVB;
+var Data: array[0..299] of Byte;
+  Config: TSoundSamplesConfig;
+  Z, I: Integer; Saved: Byte;
+function ReadRegister(Register: Byte): Byte;
+begin Port[$8E] := 3; ReadRegister := Port[Word(Register)] end;
+procedure Require(OK: Boolean);
+begin if not OK then Z := 1 div Z end;
+begin
+  Z := 0; Saved := Port[$8E];
+  SoundInitialize(True);
+  Require((ReadRegister($AD) and $8F) = $8F);
+  SoundSetChannels(SoundVoice0 or SoundSampleTable, SoundVoice1);
+  Require(ReadRegister($AB) = (SoundVoice0 or SoundSampleTable));
+  Require(ReadRegister($AC) = SoundVoice1);
+  SoundSetVolumes(SoundVol50, SoundVol0);
+  Require(ReadRegister($AE) = $81);
+  SoundSetVolume(SoundVol0);
+  SoundSetHold(SoundVoice0, False);
+  Require((ReadRegister($AD) and 1) = 0);
+  SoundSetVoices(SoundVoice0, 654, SoundTriangle);
+  Require((ReadRegister($AD) and 1) = 0);
+  SoundSetVoicesVol(SoundVoice0, SoundVol75);
+  Require(SoundFrequencyToDivider(440) = 654);
+  Require(SoundFrequencyToDivider(32768) = 48705);
+  SoundSetHold(SoundVoice0, True);
+  for I := 0 to 299 do Data[I] := I mod 256;
+  SoundSetChannels(SoundSampleTable, SoundSampleTable);
+  Config.Mode := SoundSampleUInt8; Config.Divider := 7;
+  SoundPlaySamples(Config, Data, SizeOf(Data));
+  Require((ReadRegister($A2) and $80) <> 0);
+  Require((ReadRegister($AD) and $80) <> 0);
+  Config.Mode := SoundSampleUInt16;
+  SoundPlaySamples(Config, Data, 1);
+  Require((ReadRegister($AD) and $80) <> 0);
+  Require((ReadRegister($A2) and $80) <> 0);
+  SoundPlaySamples(Config, Data, 2);
+  Config.Mode := SoundSampleSInt16;
+  SoundPlaySamples(Config, Data, 1);
+  Require((ReadRegister($AD) and $80) <> 0);
+  SoundPlaySamples(Config, Data, 2);
+  Config.Mode := 255;
+  SoundPlaySamples(Config, Data, 1);
+  SoundReset; SoundSetVolume(SoundVol0);
+  Port[$8E] := Saved
+end.

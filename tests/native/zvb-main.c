@@ -1,4 +1,5 @@
 #include "compiler_units.h"
+#include "compiler_disk.h"
 #include "library.h"
 #include "image.h"
 #include <zos_errors.h>
@@ -52,10 +53,14 @@ static void file_client(const char *path,uint8_t demo,uint8_t real) {
     fd=open(path,O_RDONLY);if(fd<0)return;check(!close(fd));index=test_client_count++;
     test_stage=10+index;
     check(source_new(&s,path));check(load_source(&s,path,&d));
-    ok=compile(&s,&b,&d);check(ok&&b.valid);
+    /* Snake exercises the existing disk-backed Program compilation path. */
+    compiler_disk_requested=demo==3;
+    ok=compile(&s,&b,&d);compiler_disk_requested=0;check(ok&&b.valid);
     test_clients[index][4]=d.code;test_clients[index][5]=d.start;
+    if(!ok){test_clients[index][1]=cc.emitted>=CC_CODE_BASE?cc.emitted-CC_CODE_BASE:0;test_clients[index][2]=b.globals_bytes;}
     if(b.valid) {
-        test_clients[index][0]=far_get(b.pages[0],18);
+        if(demo>=3)check(b.valid==(demo==3?2:1));
+        test_clients[index][0]=image_get(&b,18);
         test_clients[index][1]=b.code_bytes;test_clients[index][2]=b.globals_bytes;
         test_clients[index][3]=b.length;
         check(!!cc.real_needed==real);check(save_build(&s,&b,0));
@@ -65,14 +70,16 @@ static void file_client(const char *path,uint8_t demo,uint8_t real) {
             if(ram_result[26]!=1){d.code=ram_result[28];d.start=ram_result[30]|((uint16_t)ram_result[31]<<8);}
             check(ok&&ram_result[26]==1);
         }
-        if(demo==2) {
-            fd=open("H:/CRCOUT.TXT",O_WRONLY|O_CREAT|O_TRUNC);check(fd>=0);
+        build_close(&b);source_close(&s);
+        if(demo==2||demo>=3) {
+            fd=open(demo==2?"H:/CRCOUT.TXT":"H:/SNAKEOUT.TXT",O_WRONLY|O_CREAT|O_TRUNC);check(fd>=0);
             if(fd>=0) {
                 ok=!swap(fd,DEV_STDOUT);check(ok);
                 if(ok) {
-                    strcpy(owned_tail,"H:/EMPTY.DAT H:/DIGITS.DAT H:/LARGE.DAT");
+                    strcpy(owned_tail,demo==2?"H:/EMPTY.DAT H:/DIGITS.DAT H:/LARGE.DAT":"--demo");
                     arguments[0]=owned_tail;
-                    ok=!exec(EXEC_PRESERVE_PROGRAM,executable,arguments,&status);
+                    ok=exec(EXEC_PRESERVE_PROGRAM,executable,arguments,&status);
+                    d.start=ok;ok=!ok;
                     check(!swap(fd,DEV_STDOUT));
                     d.code=status;check(ok&&status==0);
                 }
@@ -229,8 +236,8 @@ unit_probe:
                 file_client("H:/PACK.PAS",0,0);file_client("H:/OPTIONS.PAS",0,0);
                 file_client("H:/PAGE.PAS",0,0);file_client("H:/SOUND.PAS",0,0);
                 file_client("H:/ZVBCHECK.PAS",0,0);
-                file_client("H:/SPRITES.PAS",1,0);file_client("H:/SNAKE.PAS",1,0);
-                file_client("H:/FIRSTBAR.PAS",1,0);file_client("H:/CRC32.PAS",2,0);
+                file_client("H:/SPRITES.PAS",1,0);file_client("H:/SNAKE.PAS",present("H:/DISKSNAKE.RUN")?3:4,0);
+                file_client("H:/FIRSTBAR.PAS",1,0);file_client("H:/CRC32.PAS",2,1);
             }
         }
 done:

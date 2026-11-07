@@ -1,0 +1,486 @@
+{
+  "passed": true,
+  "scope": "Software/emulator qualification; physical video/audio output is unqualified. Both budgeted ZVB reviews completed; subsequent low-priority fixes are tested but not review-approved. Core review limitation is recorded in unit-storage-evidence.json.",
+  "stock_unit": {
+    "file": "build/ZVB.ZPU",
+    "abi": 1,
+    "bytes": 61539,
+    "code_bytes": 31293,
+    "globals_bytes": 908,
+    "metadata_bytes": 29338,
+    "metadata_pages": 2,
+    "private_file_window_pages": 0,
+    "stream_buffer_bytes": 64,
+    "fragments": 115,
+    "references": 1244,
+    "sha256": "47f3b42b64b1fcf9f01f6847f878fec9cd0b20419a6f50e362e973e29c3fc9d2"
+  },
+  "compiler": {
+    "resident_bytes": 16031,
+    "bank_bytes": [
+      15753,
+      16068,
+      15503,
+      15794,
+      15338,
+      16201,
+      16024,
+      7935,
+      16355,
+      14977,
+      16137,
+      16182,
+      16255,
+      15663,
+      15746,
+      16184,
+      15443,
+      15728
+    ],
+    "executable_bytes": 16031,
+    "library_bytes": 277338,
+    "library_sha256": "679e3bdbdafcb904628e391e1f4e591b67b7697b07d62109a643c4a969e226c3",
+    "static_end": 52641,
+    "c_stack_reserve": 12895
+  },
+  "startup_pages": {
+    "cold": 10,
+    "warm": 15
+  },
+  "reports": {
+    "author": {
+      "native_stack_margin": 8453,
+      "clients": [],
+      "scope": "Native hardware unit qualification and Pascal ZVB authoring probe.",
+      "passed": true,
+      "checks": {
+        "authenticated completion": true,
+        "native assertions pass": true,
+        "Pascal ZVB compiled": true
+      },
+      "assertions": 27,
+      "failed": 0,
+      "failure_indices": [],
+      "diagnostics": [],
+      "zvb": {
+        "compiled": 1,
+        "error": 0,
+        "position": 0,
+        "code_bytes": 31293,
+        "types": 26,
+        "maps": 573,
+        "code_relocations": 420
+      },
+      "capture_directory": "analysis/native-slice/20261107T102944.867384Z-54004",
+      "installed_library": "/private/tmp/zeal-pascal-units/build/ZVB.ZPU"
+    },
+    "graphics": {
+      "native_stack_margin": 8453,
+      "clients": [
+        {
+          "flags": 0,
+          "code_bytes": 24693,
+          "globals_bytes": 194,
+          "file_bytes": 41271,
+          "compile_error": 0,
+          "position": 0,
+          "name": "GFX"
+        },
+        {
+          "flags": 0,
+          "code_bytes": 25802,
+          "globals_bytes": 404,
+          "file_bytes": 42590,
+          "compile_error": 0,
+          "position": 0,
+          "name": "PACK"
+        },
+        {
+          "flags": 0,
+          "code_bytes": 14911,
+          "globals_bytes": 16,
+          "file_bytes": 31311,
+          "compile_error": 0,
+          "position": 0,
+          "name": "OPTIONS"
+        },
+        {
+          "flags": 0,
+          "code_bytes": 10158,
+          "globals_bytes": 16420,
+          "file_bytes": 42962,
+          "compile_error": 0,
+          "position": 0,
+          "name": "PAGE"
+        },
+        {
+          "flags": 0,
+          "code_bytes": 10536,
+          "globals_bytes": 310,
+          "file_bytes": 27230,
+          "compile_error": 0,
+          "position": 0,
+          "name": "SOUND"
+        }
+      ],
+      "scope": "Native hardware unit qualification and Pascal ZVB authoring probe.",
+      "passed": true,
+      "checks": {
+        "authenticated completion": true,
+        "native assertions pass": true,
+        "prebuilt library used": true,
+        "requested clients compiled and executed": true,
+        "saved clients run without ZPU PAS or INC files": true
+      },
+      "assertions": 140,
+      "failed": 0,
+      "failure_indices": [],
+      "diagnostics": [],
+      "zvb": {
+        "compiled": 0,
+        "error": 0,
+        "position": 0,
+        "code_bytes": 0,
+        "types": 0,
+        "maps": 0,
+        "code_relocations": 0
+      },
+      "capture_directory": "analysis/native-slice/20261107T103331.779244Z-58960"
+    },
+    "utility": {
+      "native_stack_margin": 8453,
+      "clients": [
+        {
+          "flags": 0,
+          "code_bytes": 17571,
+          "globals_bytes": 240,
+          "file_bytes": 34195,
+          "compile_error": 0,
+          "position": 0,
+          "name": "ZVBCHECK"
+        },
+        {
+          "flags": 0,
+          "code_bytes": 11131,
+          "globals_bytes": 567,
+          "file_bytes": 28082,
+          "compile_error": 0,
+          "position": 0,
+          "name": "FIRSTBAR"
+        },
+        {
+          "flags": 0,
+          "code_bytes": 9312,
+          "globals_bytes": 1378,
+          "file_bytes": 27074,
+          "compile_error": 0,
+          "position": 0,
+          "name": "CRC32"
+        }
+      ],
+      "scope": "Native hardware unit qualification and Pascal ZVB authoring probe.",
+      "passed": true,
+      "checks": {
+        "authenticated completion": true,
+        "native assertions pass": true,
+        "prebuilt library used": true,
+        "requested clients compiled and executed": true,
+        "saved clients run without ZPU PAS or INC files": true,
+        "file utility CRC32 golden output": true
+      },
+      "assertions": 88,
+      "failed": 0,
+      "failure_indices": [],
+      "diagnostics": [],
+      "zvb": {
+        "compiled": 0,
+        "error": 0,
+        "position": 0,
+        "code_bytes": 0,
+        "types": 0,
+        "maps": 0,
+        "code_relocations": 0
+      },
+      "capture_directory": "analysis/native-slice/20261107T103331.718172Z-58931"
+    },
+    "snake_disk": {
+      "native_stack_margin": 8453,
+      "clients": [
+        {
+          "flags": 0,
+          "code_bytes": 28121,
+          "globals_bytes": 1404,
+          "file_bytes": 45909,
+          "compile_error": 0,
+          "position": 0,
+          "name": "SNAKE"
+        }
+      ],
+      "scope": "Native hardware unit qualification and Pascal ZVB authoring probe.",
+      "passed": true,
+      "checks": {
+        "authenticated completion": true,
+        "native assertions pass": true,
+        "prebuilt library used": true,
+        "requested clients compiled and executed": true,
+        "saved clients run without ZPU PAS or INC files": true,
+        "Snake completes 180 demo frames": true
+      },
+      "assertions": 37,
+      "failed": 0,
+      "failure_indices": [],
+      "diagnostics": [],
+      "zvb": {
+        "compiled": 0,
+        "error": 0,
+        "position": 0,
+        "code_bytes": 0,
+        "types": 0,
+        "maps": 0,
+        "code_relocations": 0
+      },
+      "capture_directory": "analysis/native-slice/20261107T115344.398561Z-31992"
+    },
+    "snake_memory": {
+      "native_stack_margin": 8453,
+      "clients": [
+        {
+          "flags": 0,
+          "code_bytes": 28121,
+          "globals_bytes": 1404,
+          "file_bytes": 45909,
+          "compile_error": 0,
+          "position": 0,
+          "name": "SNAKE"
+        }
+      ],
+      "scope": "Native hardware unit qualification and Pascal ZVB authoring probe.",
+      "passed": true,
+      "checks": {
+        "authenticated completion": true,
+        "native assertions pass": true,
+        "prebuilt library used": true,
+        "requested clients compiled and executed": true,
+        "saved clients run without ZPU PAS or INC files": true,
+        "Snake completes 180 demo frames": true
+      },
+      "assertions": 36,
+      "failed": 0,
+      "failure_indices": [],
+      "diagnostics": [],
+      "zvb": {
+        "compiled": 0,
+        "error": 0,
+        "position": 0,
+        "code_bytes": 0,
+        "types": 0,
+        "maps": 0,
+        "code_relocations": 0
+      },
+      "capture_directory": "analysis/native-slice/20261107T115344.457274Z-32002"
+    },
+    "packaging": {
+      "passed": true,
+      "image": "build/tf.img",
+      "image_sha256": "de1e3f5e72d8d905a76c738b867c40fcfc6a9ef2d4da9e56d497d061bbe926ae",
+      "previous_image_recovery": "build/recovery/tf-6e6a1c2602b9649b318b913742a9399ddc19d0858d2e1ff80b286005feb71fd2.img",
+      "base_image_sha256": "6e6a1c2602b9649b318b913742a9399ddc19d0858d2e1ff80b286005feb71fd2",
+      "preserved_existing_files": 0,
+      "input_sha256": {
+        "build/zpascal.bin": "1710a7b9415af91387356206d0df03bf87a6621235a6097e4b66b41a77a08cb4",
+        "build/zpascal.zpl": "679e3bdbdafcb904628e391e1f4e591b67b7697b07d62109a643c4a969e226c3",
+        "build/zpascal.map": "8219c08b00b953f8e78b9b2efc6f62a4a45672bc5031679e7d011bf087ac73b7",
+        "build/zpascal.banks.json": "4aee3a1a331ad763a8a1931d8ddd7ec19b72cd6cfc425fa10327ed23b5138a0d",
+        "build/CRT.ZPU": "84d2acd17a30687124cff470726082684f931218dca0a774888107a3cb8e92e7",
+        "build/CRT.PAS": "ae366d407b4c0efb32b421f2b0be28d3ad82ff78f12f7300edb792310207d5a0",
+        "build/ZVB.ZPU": "47f3b42b64b1fcf9f01f6847f878fec9cd0b20419a6f50e362e973e29c3fc9d2",
+        "libraries/ZVB-LICENSE.txt": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "libraries/ZVB-NOTICE.txt": "f16004a810ed0dcb84ce5d0f4b76b0432a7fefb452d1645ec9a6124dd3bfd4b7"
+      },
+      "base_template_sha256": "e04ac327b0766c53d8a6c771a434aa91915e3eb14126880db066c0d7402def90",
+      "installed_files": [
+        "T:/bin/zpascal.bin",
+        "T:/lib/zpascal.zpl",
+        "T:/lib/CRT.ZPU",
+        "T:/lib/CRT.PAS",
+        "T:/lib/ZVB.ZPU",
+        "T:/lib/ZVB.LIC",
+        "T:/lib/ZVB.NTC"
+      ],
+      "retired_stock_files": [],
+      "installation_operations": [
+        "H:/rm T:/lib/ZVB.ZPU",
+        "H:/cp H:/ZVB.ZPU T:/lib/ZVB.ZPU"
+      ],
+      "launch_command": "T:/bin/zpascal.bin",
+      "default_library_load_and_ide_menu": true,
+      "startup_leaves_image_unchanged": true,
+      "capture_directory": "analysis/native-slice/20261107T104831.771226Z-76306"
+    },
+    "sprites": {
+      "native_stack_margin": 8453,
+      "clients": [
+        {
+          "flags": 0,
+          "code_bytes": 20294,
+          "globals_bytes": 672,
+          "file_bytes": 37350,
+          "compile_error": 0,
+          "position": 0,
+          "name": "SPRITES"
+        }
+      ],
+      "scope": "Native hardware unit qualification and Pascal ZVB authoring probe.",
+      "passed": true,
+      "checks": {
+        "authenticated completion": true,
+        "native assertions pass": true,
+        "prebuilt library used": true,
+        "requested clients compiled and executed": true,
+        "saved clients run without ZPU PAS or INC files": true
+      },
+      "assertions": 31,
+      "failed": 0,
+      "failure_indices": [],
+      "diagnostics": [],
+      "zvb": {
+        "compiled": 0,
+        "error": 0,
+        "position": 0,
+        "code_bytes": 0,
+        "types": 0,
+        "maps": 0,
+        "code_relocations": 0
+      },
+      "capture_directory": "analysis/native-slice/20261107T112032.001131Z-5314"
+    },
+    "dma": {
+      "native_stack_margin": 8453,
+      "clients": [
+        {
+          "flags": 0,
+          "code_bytes": 11345,
+          "globals_bytes": 128,
+          "file_bytes": 27857,
+          "compile_error": 0,
+          "position": 0,
+          "name": "DMA"
+        }
+      ],
+      "scope": "Native hardware unit qualification and Pascal ZVB authoring probe.",
+      "passed": true,
+      "checks": {
+        "authenticated completion": true,
+        "native assertions pass": true,
+        "prebuilt library used": true,
+        "requested clients compiled and executed": true,
+        "saved clients run without ZPU PAS or INC files": true
+      },
+      "assertions": 32,
+      "failed": 0,
+      "failure_indices": [],
+      "diagnostics": [],
+      "zvb": {
+        "compiled": 0,
+        "error": 0,
+        "position": 0,
+        "code_bytes": 0,
+        "types": 0,
+        "maps": 0,
+        "code_relocations": 0
+      },
+      "capture_directory": "analysis/native-slice/20261107T112841.377522Z-12722"
+    }
+  },
+  "host_leaves": {
+    "assertions": 950050,
+    "sanitizers": [
+      "address",
+      "undefined"
+    ],
+    "instruction_bytes": {
+      "transfer": 119,
+      "write": 25,
+      "read": 29,
+      "crc": 59
+    },
+    "log_sha256": "f55d0126da19d811f6daae81899a1771d8b9525bdcd89899df3f717debdf7366",
+    "cpu_sha256": "bb83710679b98294b96737cd43b2723124e50960db03721308bddcdd814ff3c8"
+  },
+  "snake": {
+    "memory_and_com_file_identical": true,
+    "saved_sha256": "03fb5b33332a5ec1774dd2f6461f47d8d42a1171d2409f74f5d44f7f2303169c",
+    "source_sha256": "b9c988578b8e935e28c819c25ed4a9edeb770cd0b66b8aeda6963d870834d746",
+    "saved_bytes": 45909,
+    "code_bytes": 28121,
+    "globals_bytes": 1404,
+    "static_address_margin_bytes": 171,
+    "compressed_asset_bytes": 1404,
+    "demo_frames": 180,
+    "stdout": "SNAKE-DEMO-OK\nSnake finished. Score: 1\nSnake: Clear_code CC0; JROB774 Pixel Block Font, adapted for Zeal, https://creativecommons.org/licenses/by/3.0/\nhttps://opengameart.org/content/pixel-block-font\n"
+  },
+  "sprites": {
+    "metrics": {
+      "flags": 0,
+      "code_bytes": 20294,
+      "globals_bytes": 672,
+      "file_bytes": 37350,
+      "compile_error": 0,
+      "position": 0,
+      "name": "SPRITES"
+    },
+    "capture_directory": "analysis/native-slice/20261107T112032.001131Z-5314",
+    "qualification": "Clean standalone run passes all31 assertions and saved execution without libraries or sources."
+  },
+  "source_sha256": {
+    "examples/zvb/CRC32.PAS": "afacdae7a06c6dd5c97e7dc97fcd9d55c2ea357ab678c58e46d659a8ed18ae1e",
+    "examples/zvb/LETTERS.INC": "9b73c49afaf5065a827f9d8ac9101f7ce2f26326987843a932e9c70af7541f60",
+    "examples/zvb/NUMBERS.INC": "18a96b4bae54d843f14e8eac46f441efdf45046884626f2da70ca6963051a759",
+    "examples/zvb/PALETTES.INC": "d35231d1adb0d81238d1e6403f8235cdf9f25489115b969da82720bccc4d3906",
+    "examples/zvb/SNAKE.PAS": "b9c988578b8e935e28c819c25ed4a9edeb770cd0b66b8aeda6963d870834d746",
+    "examples/zvb/SNAKETIL.INC": "c59e4b6b6c8d0db1f71f2e6aa5d95bdf88ce2ad475c2e43487f213a43c691566",
+    "examples/zvb/SPRITES.PAS": "40c85389dfd0200d010c52b12ab1efbbcca4c20403e313e19992f3717d473a0d",
+    "examples/zvb/VIDEO.INC": "498c3976d56570f5e4e928c3322475e2cc6cccfeea9d066223c11be72352c6f9",
+    "examples/zvb/ZVBCHECK.PAS": "44da1834806d7d104c16e31b3dcbb689094ea3224a1c6c7fdc11623c49658470",
+    "examples/zvb/assets.json": "a8d3cb04436070a3d8a0c02cb5398836283466a40b9b55c3bfaa6bd1086ec77c",
+    "libraries/ZVB-LICENSE.txt": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "libraries/ZVB-NOTICE.txt": "f16004a810ed0dcb84ce5d0f4b76b0432a7fefb452d1645ec9a6124dd3bfd4b7",
+    "libraries/ZVB.PAS": "0e52c6fbd354be44b2c3eda8618bbcf120351d7ffbe8b3b2e7b5f30f9397048b",
+    "libraries/ZVBGFX.INC": "209d2213bf894f10ca9695140b8691e2cc5d09f2ff5d9469f4ad3b7f71c9ac8f",
+    "libraries/ZVBIO.INC": "d05b63177ebbe55fe53041262de8797db3d52e7486591013694fcc3bc7b53857",
+    "libraries/ZVBPACK.INC": "ddb24e0b8832062efa45b50f20796870d10a95e0435b1de4619ef9620665ba8d",
+    "tests/host/zvb-leaves.c": "0a0da33eadc0528169aaf2ee7f0b0a000b9f4986270409badeb7658604b15ada",
+    "tests/native/zvb/CRC.PAS": "a157854d1189b6650d3dbb2be8936fd3bd8ad01229f2bbfb62c85eb2401a839b",
+    "tests/native/zvb/DMA.PAS": "0b905c5eb0b66bb28a2fb7c7b3d235c39cc41d4493e225d6ba4c0cd870a4473c",
+    "tests/native/zvb/FIRSTBAR.PAS": "9a255720f728db85b56c0f572753f0d3b14abb93b449e4ca8ad9c6e02ac8678e",
+    "tests/native/zvb/GFX.PAS": "6993940d110adb6108182a793b5f538f2c69426207ee2141a3177a14368c1b55",
+    "tests/native/zvb/OPTIONS.PAS": "94abf0f536b8b32e4a10be0657909ee0a710c339efa61144f4400ac5b57b06b6",
+    "tests/native/zvb/ORDER.PAS": "98c84e27902c493a2fd5859ac96c0d99edf7b78a3297df02373af081d3f0e2d9",
+    "tests/native/zvb/PACK.PAS": "a9931ef798ebd6bb6b422087c00a4f856ffad45ffd9e867b532282377532dd78",
+    "tests/native/zvb/PAGE.PAS": "3566d2f31dd4417b910e85cec3a5b7ff954fa5f30a4afb187897ee2d656222d7",
+    "tests/native/zvb/SMOKE.PAS": "6f7d34a63f7b7ed162248f26ac43316eb38e474886a79bf9df2eb444025b3df6",
+    "tests/native/zvb/SOUND.PAS": "5141db0b4677fa2bc34ce6636d3cff1daf722b9c1b5ad8395f9635003e7fc698",
+    "tests/native/zvb/USES.PAS": "05f56b503a0a0ee818f7dc74c9fdd828fc462b5648d4ee0a75b4d1fb5edbc699",
+    "tests/native/zvb-main.c": "2dd65b3e96431f00dd2923a6e3e61f2644aaafbdc3071b54815f035e54809081",
+    "tools/generate-zvb-assets.py": "2e55210a390f5a44d49d2407056888ed5469e16564d66eea09216fc9474d3b54",
+    "tools/package-tf.py": "dd4ab9b2e3455cc9bbf8327b46cff8b65ffbd9a66fc5b3cd0f72d150d7d22f77",
+    "tools/test-zvb-leaves.py": "9093570103acb712e2e22234785eface2335600888a6bbeede60c0b3e669213e",
+    "tools/test-zvb.py": "78f10d36dcfb1b100c86dc1a20741a57ae6f21064112b233cb4b695e7004338c",
+    "tools/zvb-source.py": "375d02d97209de1e912987cb3d0276a553c5564dd1f08aca1d655e817a0a38c8"
+  },
+  "log_sha256": {
+    "author": "e4ed7a96a4008a9c8bd2b4681c01380fb2da83a54c919bc6d3c0a8ae5002ea82",
+    "graphics": "effbc53abd48632feae117d48b60e555e522641854e3bb57900cd0d7289962c1",
+    "utility": "c79daa474a98f1f9b5a67df2b93990f42ccdc65e962ffca2fbe4a5d657c68434",
+    "snake_disk": "03eb0f92e01ff0e9a35af9739baa475b89cfca27f4f278dd79a34f8c2ba4bf1e",
+    "snake_memory": "5f5eb6ea1cd01c4c6a595f3d8d244a5c82f4ca30362eee4ed5b7d034daac8b0d",
+    "packaging": "2cd208d715815ce5f9b9dd7c04e7f950624abb6d2ca19837010b20b57cf6f985",
+    "sprites": "81a645ba2b9e5d538637181312590afd9b2974f771c5732fa26daac1be2e2094",
+    "dma": "6cf5ecbb425c3ef44e4bef719df46984516e7c29bebe2b1c4749f25cb18a9093"
+  },
+  "asset_regeneration": {
+    "passed": true,
+    "all_generated_bytes_unchanged": true,
+    "original_pixels_preserved": true
+  }
+}

@@ -11,7 +11,8 @@ spec = importlib.util.spec_from_file_location('native', ROOT/'tools/test-native.
 n = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(n)
 
-names = ['build/zpascal.bin', 'build/zpascal.zpl', 'build/zpascal.map', 'build/zpascal.banks.json', 'build/CRT.ZPU', 'build/CRT.PAS']
+names = ['build/zpascal.bin', 'build/zpascal.zpl', 'build/zpascal.map', 'build/zpascal.banks.json', 'build/CRT.ZPU', 'build/CRT.PAS', 'build/ZVB.ZPU',
+         'libraries/ZVB-LICENSE.txt', 'libraries/ZVB-NOTICE.txt']
 snapshots = {name: (ROOT/name).read_bytes() for name in names}
 hashes = {name: hashlib.sha256(data).hexdigest() for name, data in snapshots.items()}
 sym = n.symbols('zpascal')
@@ -31,7 +32,10 @@ base = previous if previous is not None else gzip.decompress(n.TF_TEMPLATE.read_
 existing = n.zealfs_files(base)
 install = {'/bin/zpascal.bin': resident, '/lib/zpascal.zpl': library,
            '/lib/CRT.ZPU': snapshots['build/CRT.ZPU'],
-           '/lib/CRT.PAS': snapshots['build/CRT.PAS']}
+           '/lib/CRT.PAS': snapshots['build/CRT.PAS'],
+           '/lib/ZVB.ZPU': snapshots['build/ZVB.ZPU'],
+           '/lib/ZVB.LIC': snapshots['libraries/ZVB-LICENSE.txt'],
+           '/lib/ZVB.NTC': snapshots['libraries/ZVB-NOTICE.txt']}
 commands = ['run 100000000']
 retired = ('/lib/SCREEN.ZPU', '/lib/SCREEN.PAS')
 operations = []
@@ -43,20 +47,21 @@ for directory in ('/lib/', '/bin/'):
         raise RuntimeError(f'T:{directory[:-1]} is a file; the project card is unchanged.')
     if directory not in existing:
         operations.append('H:/mkdir T:'+directory[:-1])
+changed = {path: data for path, data in install.items() if existing.get(path) != data}
 for path in install:
     if path+'/' in existing:
         raise RuntimeError(f'T:{path} is a directory; the project card is unchanged.')
     # Stock cp writes in place. On the pinned OS that can return a file-size
     # byte as an error after the first chunk. Only this disposable copy changes.
-    if path in existing:
+    if path in changed and path in existing:
         operations.append('H:/rm T:'+path)
-for path in install:
+for path in changed:
     operations.append('H:/cp H:/'+path.rsplit('/', 1)[1]+' T:'+path)
 for command in operations:
     commands += n.type_text(command+'\n', ticks=2000000)+['run 2000000000']
 commands += ['quit']
 fixtures = {name: (n.COREUTILS/name).read_bytes() for name in ('mkdir', 'rm', 'cp')}
-fixtures.update({Path(name).name: data for name, data in snapshots.items() if name.endswith(('.bin', '.zpl', '.ZPU', '.PAS'))})
+fixtures.update({Path(path).name: data for path, data in install.items()})
 n.execute('project-tf-install', commands, fixtures, tf_image=base, timeout=240)
 installed = (n.RUN/'project-tf-install/tf.img').read_bytes()
 files = n.zealfs_files(installed)

@@ -1,0 +1,54 @@
+{
+  "sdk_commit": "467e224aeaa40d0f45b61e495a5416b18c066ea7",
+  "assets": {
+    "snake_tileset.zts": {
+      "bytes": 4096,
+      "sha256": "82082eeeb4f1a70a8b9e6b67a517a1cf99ff3e31dd1b8ba8e09eed8a38f77acc",
+      "include": "SNAKETIL.INC",
+      "encoding": "lz-8bpp",
+      "stored_bytes": 610,
+      "decoded_bytes": 4096,
+      "stored_sha256": "b7d01e5a6beefad1f3c3c518fe0245389030bfe3e62997c453c33f89818e9049",
+      "decoded_sha256": "82082eeeb4f1a70a8b9e6b67a517a1cf99ff3e31dd1b8ba8e09eed8a38f77acc",
+      "source_format": "8bpp"
+    },
+    "letters.zts": {
+      "bytes": 3328,
+      "sha256": "8274f51f294073db7f2ee70ad5c47a2052f27d946948feaee0f88d036fb6b0eb",
+      "include": "LETTERS.INC",
+      "encoding": "lz-8bpp",
+      "stored_bytes": 2071,
+      "decoded_bytes": 6656,
+      "stored_sha256": "fce7cdd53e248df25f211375a8488ff4b59600525ed84156d728f5345d4df9fe",
+      "decoded_sha256": "19a58651449e0f6723c5b7b1ab6fbbf7926ee6f584c9a136cdafbffa7e01a2cb",
+      "source_format": "4bpp, expanded before compression"
+    },
+    "numbers.zts": {
+      "bytes": 1408,
+      "sha256": "6d8737bfcdeff6f0fb99cc2f67fc06ac2f92bf329b0a5048c92dc0a7af4537b5",
+      "include": "NUMBERS.INC",
+      "encoding": "lz-8bpp",
+      "stored_bytes": 794,
+      "decoded_bytes": 2816,
+      "stored_sha256": "63d1298752a1f5e5c48355995b002712af8aa51fe033a3be38a017e1f6789ed3",
+      "decoded_sha256": "ba8631a857e548fb12814242651e14af56e0ac5d64d99998af4b0ae456d11202",
+      "source_format": "4bpp, expanded before compression"
+    }
+  },
+  "palette_source_sha256": "2bbe90ce8ac8be15df3da7b9983572b469235b878d23da6d2ccd1530505abddd",
+  "palettes": {
+    "SnakePalette": {
+      "bytes": 38,
+      "sha256": "a823fdb957f0f16f703cdd0ff72a3eed9821e1a6f7e22020c23ac6f2ddafb9c9",
+      "include": "PALETTES.INC"
+    },
+    "FontPalette": {
+      "bytes": 12,
+      "sha256": "e214ba7380b991b70073ed20165ac0656e2dcbdddce0d5bf43dc7fb3e04939fa",
+      "include": "PALETTES.INC"
+    }
+  },
+  "generator": "python3 tools/generate-zvb-assets.py --sdk <Zeal-VideoBoard-SDK>",
+  "encoder_sha256": "b4ceb44e0563d52863d2e3667eb6ec5c81a290865f1a56d1a98438d3878147ad",
+  "decoder_sha256": "cee3266ec41dc6bb2120efb650594bddaab317b0eed63e12c9925d48a6b8b84b"
+}

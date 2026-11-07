@@ -1,0 +1,18 @@
+Zeal OS documented register ownership
+Source: docs/details/kernel.md
+SHA256 e0b6296058afbc18df02e6d20c42daaa045008e488fc226d63f3fc626e5b775d
+
+1: ## Used registers
+2:
+3: Z80 presents multiple general-purpose registers, not all of them are used in the kernel, here is the scope of each of them:
+4:
+5: | Register           | Scope                          |
+6: | ------------------ | ------------------------------ |
+7: | AF, BC, DE, HL     | System & application           |
+8: | AF', BC', DE', HL' | Interrupt handlers             |
+9: | IX, IY             | Application (unused in the OS) |
+10:
+11: This means that the OS won't alter IX and IY registers, so they can be used freely in the application.
+12:
+13: The alternate registers (names followed by `'`) may only be used in the interrupt handlers[^1]. An application should not use these registers. If for some reason, you still have to use them, please consider disabling the interrupts during the time they are used:
+14:

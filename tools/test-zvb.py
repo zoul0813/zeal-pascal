@@ -16,6 +16,7 @@ z=module('zvb_source',ROOT/'tools/zvb-source.py')
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument("--hardware-only",action="store_true")
     parser.add_argument("--clients",action="store_true")
+    parser.add_argument("--disk-snake",action="store_true",help="Compile Snake through the saved-program disk workspace")
     parser.add_argument("--skip-hardware",action="store_true")
     parser.add_argument("--prebuilt",type=Path,help="Test clients against an already authored ZVB.ZPU")
     parser.add_argument("--case",action="append",choices=['USES','ORDER','SMOKE','CRC','DMA','GFX','PACK','OPTIONS','PAGE','SOUND','ZVBCHECK','SPRITES','SNAKE','FIRSTBAR','CRC32'])
@@ -31,12 +32,17 @@ def main():
     elif not args.hardware_only:fixtures['ZVB.PAS']=z.source().encode()
     if args.skip_hardware:fixtures['SKIPHW.RUN']=b'1'
     cases=args.case or (['USES','ORDER','SMOKE','CRC','DMA','GFX','PACK','OPTIONS','PAGE','SOUND','ZVBCHECK','SPRITES','SNAKE','FIRSTBAR','CRC32']if args.clients else [])
+    if args.disk_snake:
+        if 'SNAKE' not in cases:parser.error("disk-snake requires the Snake client")
+        fixtures['DISKSNAKE.RUN']=b'1'
     if cases:
         fixtures['CLIENTS.RUN']=b'1'
         fixtures['CRT.ZPU']=(ROOT/'build/CRT.ZPU').read_bytes()
         for name in cases:
             path=ROOT/('tests/native/zvb'if name not in ('ZVBCHECK','SPRITES','SNAKE','CRC32')else 'examples/zvb')/(name+'.PAS')
             fixtures[name+'.PAS']=path.read_bytes()
+            if name=='FIRSTBAR' and fixtures[name+'.PAS']!=z.first_bar_source().encode():
+                parser.error('FirstBar fixture is stale; run tools/zvb-source.py --demos')
         fixtures.update({p.name:p.read_bytes()for p in(ROOT/'examples/zvb').glob('*.INC')})
         if 'CRC32' in cases:
             fixtures.update({'EMPTY.DAT':b'', 'DIGITS.DAT':b'123456789',
@@ -103,6 +109,9 @@ def main():
         expected=''.join(f'{zlib.crc32(fixtures[name]):08X}    H:/{name}\n'
                          for name in ('EMPTY.DAT','DIGITS.DAT','LARGE.DAT'))
         checks['file utility CRC32 golden output']=output.exists() and output.read_text()==expected
+    if 'SNAKE' in cases:
+        output=n.RUN/'zvb/hostfs/SNAKEOUT.TXT'
+        checks['Snake completes 180 demo frames']=output.exists() and 'SNAKE-DEMO-OK' in output.read_text()
     metrics=[]
     names=['USES','ORDER','SMOKE','CRC','DMA','GFX','PACK','OPTIONS','PAGE','SOUND','ZVBCHECK','SPRITES','SNAKE','FIRSTBAR','CRC32']
     for index,name in enumerate(name for name in names if name in cases):

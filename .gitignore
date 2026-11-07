@@ -303,3 +303,10 @@
 !/reviews/zvb-docs-v1.md
 
 !/reviews/zeal-vfs-close-reference.txt
+
+# ZVB qualification reports and hash-bound public reference excerpts.
+!/docs/zvb-library-evidence.json
+!/reviews/zvb-rtl-reference.md
+!/reviews/zvb-snake-reference.txt
+!/reviews/zvb-rle-reference.txt
+!/reviews/zvb-kernel-reference.txt
