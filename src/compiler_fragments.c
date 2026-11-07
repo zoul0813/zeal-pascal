@@ -53,12 +53,12 @@ static uint8_t target(Link *l,uint8_t object,uint16_t relocation,uint16_t *id,ui
         identity=cc_fragment_source_byte(o,at)|((uint16_t)cc_fragment_source_byte(o,at+1)<<8);
     } else if(l->objects[object].binding&&identity==word(l,object,4))identity=l->objects[object].binding;
     if(!object_id(l,identity,&to))return 0;
-    fragment=ref(l,object,relocation,4);*addend=ref(l,object,relocation,6);
+    fragment=ref(l,object,relocation,4)&CF_FRAGMENT_MASK;*addend=ref(l,object,relocation,6);
     if(fragment>=l->counts[to]||*addend>=field(l,to,fragment,2))return fail(l,CF_TARGET);
     *id=l->bases[to]+fragment;return !l->error;
 }
 static uint8_t validate(Link *l,uint8_t resolve) {
-    uint8_t i,j;uint16_t n,r,p,f,first,count,size,at,previous,id,addend;
+    uint8_t i,j;uint16_t n,r,p,f,first,count,size,at,previous,id,addend,encoded;
     uint32_t end;
     l->bases[0]=0;
     for(i=0;i<l->count;++i) {
@@ -94,8 +94,14 @@ static uint8_t validate(Link *l,uint8_t resolve) {
             for(at=0;at<count;++at) {
                 if(!poll(l))return 0;
                 p=ref(l,i,r+at,0);
-                if((uint32_t)p+2>size||(at&&p<previous))return fail(l,CF_OBJECT);
-                previous=p+2;
+                encoded=ref(l,i,r+at,4);
+                if((encoded&CF_REFERENCE_RESERVED)||(encoded&0xc000u)==0xc000u)return fail(l,CF_OBJECT);
+                if(p>=size||(at&&p<previous))return fail(l,CF_OBJECT);
+                previous=p+1;
+                if(!(encoded&0xc000u)) {
+                    if(previous==size)return fail(l,CF_OBJECT);
+                    ++previous;
+                }
                 if(!ref(l,i,r+at,2))return fail(l,CF_TARGET);
                 if(resolve&&!target(l,i,r+at,&id,&addend))return 0;
             }
@@ -131,7 +137,7 @@ static void emit_byte(Link *l,uint16_t address,uint8_t value) {
     far_set(l->image->pages[(address-0x8000u)/PAGE_SIZE],address%PAGE_SIZE,value);
 }
 static uint8_t emit(Link *l) {
-    uint8_t i,buffer[64];uint16_t f,at,size,n,j,start,source,r,count,to,addend,value,patch;
+    uint8_t i,kind,buffer[64];uint16_t f,at,size,n,j,start,source,r,count,to,addend,value,patch;
     for(i=0;i<l->count;++i)for(f=0;f<l->counts[i];++f) {
         if(!poll(l))return 0;
         if(!catalog(l,l->bases[i]+f,0))continue;
@@ -147,7 +153,9 @@ static uint8_t emit(Link *l) {
         for(j=0;j<count;++j) {
             if(!poll(l)||!target(l,i,r+j,&to,&addend))return 0;
             patch=ref(l,i,r+j,0);value=catalog(l,to,2)+addend;
-            emit_byte(l,start+patch,(uint8_t)value);emit_byte(l,start+patch+1,(uint8_t)(value>>8));
+            kind=(uint8_t)(ref(l,i,r+j,4)>>CF_REFERENCE_SHIFT);
+            emit_byte(l,start+patch,(uint8_t)(kind==CF_HIGH8?value>>8:value));
+            if(kind==CF_WORD16)emit_byte(l,start+patch+1,(uint8_t)(value>>8));
         }
     }
     return !l->error;

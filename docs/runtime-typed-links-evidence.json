@@ -1,0 +1,299 @@
+{
+  "passed": true,
+  "scope": "Typed generic fragment linking only; Pascal final placement stays word-only; runtime compaction remains pending.",
+  "baseline_commit": "ed379d1",
+  "reports": {
+    "fragments": {
+      "scope": "Rebuild and verify the private native symbolic-fragment linker proof.",
+      "passed": true,
+      "input_sha256": {
+        "CMakeLists.txt": "60f9821c50e250dd6812e12421d00635cfebd22960ae7584feac3c350c39262e",
+        "src/compiler_fragments.c": "699124c5fabbeb0d8a488b8bf9bb92908911c87496ce69d086463ce942a65ad4",
+        "src/compiler_fragment_access.c": "a37638308fb6cfd56a44e7bf5af40f8f83c816f2ea2c68c7747a38e91e0a9324",
+        "src/compiler_fragment_source.c": "c27d46137efca9b09a41bbbf27f8dd8a367d313b87f6372222b2f3876bd8329f",
+        "src/compiler_fragments.h": "97d9f173783b27781c53744224c86b2e2d78abffff4ad70405081e3f36062c2b",
+        "src/native.asm": "1d24a36f15a310e8213aff332d218bd377251e835165bcc2a4f7b5cbc2147e7f",
+        "src/zp.h": "0b57955883fa9e4611e041cb0ae68151c49f2710592485b5ee292c062fc0e323",
+        "tests/native/fragments.c": "dc7ba1e98911ab1ec7809dcf5acc093a00ea48632553b29be68b4df0e9dd86a4",
+        "tests/native/fragments.asm": "beb2341d303f5a9995556475bd1377cf81f5a022cbc71f8a1153695963552a8f",
+        "tests/native/file-start.asm": "132dd5a5c3f1c0e86660d1abc315208d1f1344bf630093143331f8257bbd72c4",
+        "tests/native/machine.asm": "f13198de268139731697bcf9571589cb983331e3502f8585cc461b027d07f906",
+        "tools/test-fragments.py": "cf8f20bd552c765c07d3242bf194452ac9f8ed41b2f4af4bb00187aabd75acb9",
+        "tools/test-native.py": "59396970ac08a94b7cef0f61aef38f62867205c1f3fc45a5b176b8db716f0ee6"
+      },
+      "commands": [
+        {
+          "command": [
+            "zde",
+            "--no-tty",
+            "cmake",
+            "--target",
+            "rebuild_cache"
+          ],
+          "returncode": 0,
+          "log": "analysis/fragments/20261107T172733.149384Z-23197/configure.log",
+          "sha256": "6df1620a31d4ffdc2773913c7887f2c4cca0d76b0abbd2ebea773d2ba0c0d834"
+        },
+        {
+          "command": [
+            "zde",
+            "--no-tty",
+            "cmake",
+            "--target",
+            "zfragmenttest_bin",
+            "fragment_toolchain",
+            "--parallel",
+            "6"
+          ],
+          "returncode": 0,
+          "log": "analysis/fragments/20261107T172733.149384Z-23197/build.log",
+          "sha256": "dec67447939fd1eb3fee48d57a10be392e77b89d79f9a35f722a394d86c02ec7"
+        },
+        {
+          "command": [
+            "cc",
+            "-std=c99",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fsanitize=address,undefined",
+            "-fno-sanitize-recover=all",
+            "-g",
+            "-Isrc",
+            "src/compiler_fragments.c",
+            "src/compiler_fragment_access.c",
+            "src/compiler_fragment_source.c",
+            "tests/native/fragments.c",
+            "-o",
+            "/private/tmp/zeal-pascal-units/analysis/fragments/20261107T172733.149384Z-23197/host-fragments"
+          ],
+          "returncode": 0,
+          "log": "analysis/fragments/20261107T172733.149384Z-23197/host-build.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "/private/tmp/zeal-pascal-units/analysis/fragments/20261107T172733.149384Z-23197/host-fragments"
+          ],
+          "returncode": 0,
+          "log": "analysis/fragments/20261107T172733.149384Z-23197/host.log",
+          "sha256": "06ee74e6a944a0f346ada4be2d20b0fba9dac22aafcb570410954c1ba34a74cc"
+        }
+      ],
+      "sdcc_version": "SDCC : z80/z180/r2ka/r3ka/sm83/ez80_z80/z80n/r800 TD- 4.4.0 #14620 (Linux)",
+      "build_output_sha256": {
+        "build/zfragmenttest.bin": "7430ff7e99fa2c9786335a1a10b9bd4f9bfc2bd05545d5f28b1513ee1d9df585",
+        "build/zfragmenttest.map": "45fb88eed2ee53616d140af275b54f7c73b7eb02db0a8c9a418230d733c10b08",
+        "build/zfragmenttest.ihx": "52a65a17c34edc361bdd25c7adcfae394c4f9568cc10e6f6639d69ff542aea29",
+        "build/sdk_glue.asm": "2978c60a5aae786e87349acb0ecb373416611b08061e0b83325482aba7b8aace"
+      },
+      "host": {
+        "passed": true,
+        "assertions": 1013,
+        "binary_sha256": "4b5b56222deab19ef656fc72d94f04e4e736628f9d21e0663fb583677471bd7e"
+      },
+      "checks": {
+        "authenticated native completion": true,
+        "exact native assertion count and zero failures": true,
+        "independent exact native disk object bytes": true,
+        "source and rebuilt artifact stability": true,
+        "pinned emulator and ROM stability": true
+      },
+      "native_assertions_passed": 952,
+      "native_assertions_failed": 0,
+      "last_link_status": 0,
+      "native_capture": "analysis/native-slice/20261107T172915.861472Z-23197",
+      "failure_indices": [],
+      "external_sha256": {
+        "/Users/higginsd/Projects/zeal/Zeal-NativeEmulator/build/zeal-native": "98a17242c9c239fc70f663721367786699af5597dab6148a32192acf79bdd075",
+        "/Users/higginsd/Projects/zeal/zeal-dev-environment/home/Zeal-8-bit-OS/build/os_with_romdisk.img": "f34d453a1feb17d34c582f64139c5e8a42ac3e0f6642874b1d588695b4036b4a"
+      },
+      "asserted_fixture": {
+        "available_payload_bytes": 18014,
+        "selected_payload_bytes": 11,
+        "selected_fragments": 3,
+        "all_fragments": 6,
+        "all_output_pages": 2,
+        "selected_output_pages": 1,
+        "output_origin": 32768,
+        "generated_function_result": 42,
+        "compiler_peak_pages_all": 5,
+        "compiler_peak_pages_selected": 4,
+        "scope": "Only private fragment payload/output pages. Production layout, prefix and allocator unchanged."
+      }
+    },
+    "ide_units": {
+      "passed": true,
+      "checks": {
+        "all IDE checkpoints": true,
+        "ten startup code pages": true,
+        "ready no pending code allocations": true,
+        "unit-created no pending code allocations": true,
+        "unit-created expected code cache": true,
+        "unit-created unit metadata and I/O stay on disk": true,
+        "unit-updated no pending code allocations": true,
+        "unit-updated expected code cache": true,
+        "unit-updated unit metadata and I/O stay on disk": true,
+        "unit-run-blocked no pending code allocations": true,
+        "unit-run-blocked expected code cache": true,
+        "unit-run-blocked unit metadata and I/O stay on disk": true,
+        "INTCLIENT-enter no pending code allocations": true,
+        "INTCLIENT-enter expected code cache": true,
+        "INTCLIENT-enter unit metadata and I/O stay on disk": true,
+        "INTCLIENT-run no pending code allocations": true,
+        "INTCLIENT-run expected code cache": true,
+        "INTCLIENT-run unit metadata and I/O stay on disk": true,
+        "INTCLIENT-saved no pending code allocations": true,
+        "INTCLIENT-saved expected code cache": true,
+        "INTCLIENT-saved unit metadata and I/O stay on disk": true,
+        "REALCLIENT-enter no pending code allocations": true,
+        "REALCLIENT-enter expected code cache": true,
+        "REALCLIENT-enter unit metadata and I/O stay on disk": true,
+        "REALCLIENT-run no pending code allocations": true,
+        "REALCLIENT-run expected code cache": true,
+        "REALCLIENT-run unit metadata and I/O stay on disk": true,
+        "REALCLIENT-saved no pending code allocations": true,
+        "REALCLIENT-saved expected code cache": true,
+        "REALCLIENT-saved unit metadata and I/O stay on disk": true,
+        "fault-source-missing no pending code allocations": true,
+        "fault-source-missing expected code cache": true,
+        "fault-source-missing unit metadata and I/O stay on disk": true,
+        "fault-source-changed no pending code allocations": true,
+        "fault-source-changed expected code cache": true,
+        "fault-source-changed unit metadata and I/O stay on disk": true,
+        "unit creation leaves no executable build": true,
+        "unit compilation clears dirty source flag": true,
+        "fault-source-missing runtime fault retains client Work": true,
+        "fault-source-changed runtime fault retains client Work": true,
+        "source-free runtime fault displays code PC and retained-source message": true,
+        "INTCLIENT RAM run succeeds": true,
+        "INTCLIENT saved compile releases image": true,
+        "REALCLIENT RAM run succeeds": true,
+        "REALCLIENT saved compile releases image": true,
+        "INTCLIENT saved executable exists": true,
+        "INTCLIENT selects used runtime": true,
+        "REALCLIENT saved executable exists": true,
+        "REALCLIENT selects used runtime": true,
+        "unit name selects output filename": true,
+        "dirty unit source saved before compile": true,
+        "unit source deleted before compiling clients": true,
+        "unit source backup preserves previous version": true,
+        "no unit scratch files": true,
+        "INTCLIENT standalone status output and page recovery": true,
+        "INTCLIENT standalone without compiler or libraries": true,
+        "REALCLIENT standalone status output and page recovery": true,
+        "REALCLIENT standalone without compiler or libraries": true,
+        "T publishes declared unit and imports it into COM": true,
+        "T removes owned unit scratch": true,
+        "T includes required Real engine": true,
+        "T releases transient I/O and pending allocations": true,
+        "B publishes declared unit and imports it into COM": true,
+        "B removes owned unit scratch": true,
+        "B includes required Real engine": true,
+        "B releases transient I/O and pending allocations": true
+      },
+      "capture_directory": "analysis/native-slice/20261107T172929.205132Z-25271",
+      "unit_sha256": "7727d0b4bb09f2424e84b25dfda9bf7ebf7d5d6093b434727b827e63f2dc57c5"
+    },
+    "typed_unit_rejection": {
+      "passed": true,
+      "checks": {
+        "word compile result": true,
+        "word clears pending allocations": true,
+        "word releases transient unit banks": true,
+        "word preserves source artifact": true,
+        "low8 compile result": true,
+        "low8 clears pending allocations": true,
+        "low8 releases transient unit banks": true,
+        "low8 preserves source artifact": true,
+        "high8 compile result": true,
+        "high8 clears pending allocations": true,
+        "high8 releases transient unit banks": true,
+        "high8 preserves source artifact": true,
+        "stable inputs": true
+      },
+      "input_sha256": {
+        "/private/tmp/zeal-pascal-units/tools/test-typed-unit-rejection.py": "0ae4b6e52e7c84ab10558301330ade49a7519a82b0a12cfe74f1c9bae6c3ddfa",
+        "/private/tmp/zeal-pascal-units/src/compiler_units_object.c": "dd5264f0acc32b6d29cdd52e02b55594747ac090bb03d74b0f00ea5677c95686",
+        "/private/tmp/zeal-pascal-units/src/compiler_fragments.c": "699124c5fabbeb0d8a488b8bf9bb92908911c87496ce69d086463ce942a65ad4",
+        "/private/tmp/zeal-pascal-units/src/compiler_fragments.h": "97d9f173783b27781c53744224c86b2e2d78abffff4ad70405081e3f36062c2b",
+        "/private/tmp/zeal-pascal-units/tools/test-native.py": "59396970ac08a94b7cef0f61aef38f62867205c1f3fc45a5b176b8db716f0ee6",
+        "/private/tmp/zeal-pascal-units/build/zpascal.bin": "3b366197debacce460d8a9b849c229bfe040d5fb916cc9d948d2abcad5099814",
+        "/private/tmp/zeal-pascal-units/build/zpascal.zpl": "5813061417c88dc329417eb18fa4802225b20b9b825e94a9e5df17d493d37c8c",
+        "/private/tmp/zeal-pascal-units/build/zpascal.map": "d7ff2b940b7f9b2548fdcfb272618095d5660faa2c78acc059ba9440988b0448",
+        "/private/tmp/zeal-pascal-units/analysis/native-slice/20261107T172929.205132Z-25271/ide-units/hostfs/CALC.ZPU": "7727d0b4bb09f2424e84b25dfda9bf7ebf7d5d6093b434727b827e63f2dc57c5"
+      },
+      "capture_directory": "analysis/native-slice/20261107T173315.895057Z-28678",
+      "scope": "Keep typed fragment references out of Pascal's word-only placement ledger.",
+      "reference_offset": 741,
+      "original_unit_sha256": "7727d0b4bb09f2424e84b25dfda9bf7ebf7d5d6093b434727b827e63f2dc57c5"
+    },
+    "original_ledger": {
+      "passed": true,
+      "assertions": 1824,
+      "sanitizers": [
+        "address",
+        "undefined"
+      ],
+      "input_sha256": {
+        "src/compiler_unit_references.c": "75c1982f164f0e080e2d4546e44548dde71c989e77a0f6ac6f0b5f43643d2c26",
+        "src/compiler_units.h": "9243ae2d7a799e5595b7dea95b7eeab7ae9c203ddfde52317f4055d424ff35b3",
+        "src/compiler.h": "91872804d325ada6ed8739201283134f76ee4b1442d5b99c2fdde20e9178d84d",
+        "src/zp.h": "0b57955883fa9e4611e041cb0ae68151c49f2710592485b5ee292c062fc0e323",
+        "tests/host/unit-references.c": "1c35303c5f55553e20040dc37799e602273c5173e93978d62da59c3aeae57e45",
+        "tools/test-unit-references-host.py": "569079b9be5d912cac835590a14a0bd19d65402a197876edd935e0f39582e3f4"
+      }
+    }
+  },
+  "compiler_layout": {
+    "resident_bytes": 16031,
+    "bank_bytes": [
+      15753,
+      16068,
+      15503,
+      15794,
+      15338,
+      16201,
+      16024,
+      7935,
+      16355,
+      14977,
+      16137,
+      16182,
+      16255,
+      15663,
+      15746,
+      16382,
+      15489,
+      15728
+    ],
+    "executable_bytes": 16031,
+    "library_bytes": 277582,
+    "library_sha256": "5813061417c88dc329417eb18fa4802225b20b9b825e94a9e5df17d493d37c8c",
+    "static_end": 52641,
+    "c_stack_reserve": 12895
+  },
+  "observed_cold_code_pages": 10,
+  "observed_warm_code_pages": 15,
+  "dynamic_peak_measured": false,
+  "input_sha256": {
+    ".gitignore": "b6e00ca26885a987b6bb563842cd80435f1f221b7ab59bc2e4ae3c215fc7ce7e",
+    "CMakeLists.txt": "60f9821c50e250dd6812e12421d00635cfebd22960ae7584feac3c350c39262e",
+    "docs/runtime-compaction.md": "bbad3f205235a5150081c0c81275c3be7944796b2fbaa783416bd9f37218ae1f",
+    "src/compiler_fragments.c": "699124c5fabbeb0d8a488b8bf9bb92908911c87496ce69d086463ce942a65ad4",
+    "src/compiler_fragments.h": "97d9f173783b27781c53744224c86b2e2d78abffff4ad70405081e3f36062c2b",
+    "src/compiler_units_object.c": "dd5264f0acc32b6d29cdd52e02b55594747ac090bb03d74b0f00ea5677c95686",
+    "src/compiler.h": "91872804d325ada6ed8739201283134f76ee4b1442d5b99c2fdde20e9178d84d",
+    "src/compiler_front.c": "4be5e680ed2459b88ad4a8f8099c6da82b8160eeacc9d6740b7562669d0fe0e3",
+    "src/compiler_build.c": "56d3dc6e15f72ab9e1a079c7f14659fb347dfc6198873e3184582865c5086e61",
+    "src/compiler_unit_references.c": "75c1982f164f0e080e2d4546e44548dde71c989e77a0f6ac6f0b5f43643d2c26",
+    "src/compiler_members.c": "6d04a558c0f83cca439b1bcfefdce776334c56ccad31ae984ce0690c14c7207a",
+    "tests/native/fragments.c": "dc7ba1e98911ab1ec7809dcf5acc093a00ea48632553b29be68b4df0e9dd86a4",
+    "tools/test-fragments.py": "cf8f20bd552c765c07d3242bf194452ac9f8ed41b2f4af4bb00187aabd75acb9",
+    "tools/test-typed-unit-rejection.py": "0ae4b6e52e7c84ab10558301330ade49a7519a82b0a12cfe74f1c9bae6c3ddfa",
+    "build/zpascal.bin": "3b366197debacce460d8a9b849c229bfe040d5fb916cc9d948d2abcad5099814",
+    "build/zpascal.zpl": "5813061417c88dc329417eb18fa4802225b20b9b825e94a9e5df17d493d37c8c",
+    "build/zpascal.map": "d7ff2b940b7f9b2548fdcfb272618095d5660faa2c78acc059ba9440988b0448",
+    "build/zpascal.banks.json": "15bb2848784c7481c1c7dda405674f245545be6ce233bd35caec63b0e0ecb382"
+  }
+}

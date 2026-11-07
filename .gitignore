@@ -327,3 +327,7 @@
 
 !/reviews/runtime-foundation-v1.md
 !/reviews/runtime-object-verification.json
+
+!/reviews/runtime-typed-links-v1.md
+!/docs/runtime-typed-links-evidence.json
+!/tools/test-typed-unit-rejection.py

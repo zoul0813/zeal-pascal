@@ -500,6 +500,39 @@ static void metadata_only(void) {
     source.stored_bytes=0;check(cc_fragment_validate_source(&source)==CF_OBJECT);
     check(page_drop(source.page)&&!used);
 }
+static void byte_references(void) {
+    static const uint16_t sizes[]={5,257};
+    static const uint16_t refs[]={0,1,CF_LOW8<<CF_REFERENCE_SHIFT|1,255,
+        1,1,CF_HIGH8<<CF_REFERENCE_SHIFT|1,255,2,1,1,255,
+        4,1,CF_LOW8<<CF_REFERENCE_SHIFT|1,255};
+    static const uint16_t owners[]={0,0,0,0};
+    CompilerFragmentObject source;CompilerFragmentRoot root;
+    uint16_t origin,value,reference=16+2*8;
+    object(&source,1,2,sizes,4,refs,owners);root.identity=1;root.fragment=0;
+    for(origin=0x80fa;origin<=0x80fc;origin+=2) {
+        value=origin+5+255;
+        check(cc_fragment_link(&source,1,&root,1,origin,0xf400,&image)==CF_OK);
+        check(image.fragments==2&&image.bytes==262);
+        check(get(origin)==(uint8_t)value&&get(origin+1)==(uint8_t)(value>>8));
+        check(getword(origin+2)==value&&get(origin+4)==(uint8_t)value);
+        check(cc_fragment_image_close(&image)&&used==1);
+    }
+    /* Reject bad encodings even when only envelope validation is requested. */
+    poke(&source,reference+4,0xc001);seal(&source);
+    check(cc_fragment_validate_source(&source)==CF_OBJECT);
+    poke(&source,reference+4,0x5001);seal(&source);
+    check(cc_fragment_validate_source(&source)==CF_OBJECT);
+    poke(&source,reference+4,1);seal(&source); /* word at0 overlaps byte at1 */
+    check(cc_fragment_validate_source(&source)==CF_OBJECT);
+    poke(&source,reference+4,0x4001);poke(&source,reference+3*8,5);seal(&source);
+    check(cc_fragment_validate_source(&source)==CF_OBJECT); /* one-past site */
+    poke(&source,reference+3*8,4);poke(&source,reference+3*8+4,0x8002);seal(&source);
+    check(cc_fragment_link(&source,1,&root,1,0x8000,0xf400,&image)==CF_TARGET);
+    poke(&source,reference+3*8+4,0x8001);seal(&source);
+    root.fragment=0x4000; /* Source is valid: this must reject the root itself. */
+    check(cc_fragment_link(&source,1,&root,1,0x8000,0xf400,&image)==CF_TARGET);
+    check(page_drop(source.page)&&!used);
+}
 int main(void) {
     free_page=255;mutate_page=255;cc_fragment_image_init(&image);build_objects();
 #ifdef __SDCC
@@ -513,7 +546,7 @@ int main(void) {
     }
     negative();faults();ownership_and_edges();patches_and_cycles();capacity();independent();
     check(cc_fragment_image_close(&image));check(!used);
-    embedded_layout();dependency_bindings();paged_sources();metadata_only();
+    embedded_layout();dependency_bindings();paged_sources();metadata_only();byte_references();
 #ifndef __SDCC
     maximum_objects();
 #endif

@@ -339,8 +339,12 @@ uint8_t cc_unit_validate_object(uint16_t module,const char *name,uint32_t stream
     /* Local identities are rebound by the caller, never by mutating the
      * checksum-bound artifact bytes. Dependency IDs are resolved after loading. */
     if(cc_unit_module_word(module,blob+4)!=1)return 0;
-    for(i=0;i<cc_unit_module_word(module,blob+8);++i)
+    for(i=0;i<cc_unit_module_word(module,blob+8);++i) {
         if(!cc_unit_module_word(module,refbase+i*8+2)||cc_unit_module_word(module,refbase+i*8+2)>cc_unit_module_word(module,36)+1)return 0;
+        /* Byte references are accepted by the fragment linker, but Pascal's
+         * current final-placement ledger can rebase only word references. */
+        if(cc_unit_module_word(module,refbase+i*8+4)&~CF_FRAGMENT_MASK)return 0;
+    }
     if(!code_bytes||cc_unit_module_word(module,blob+10)!=(uint32_t)code_bytes+cc_unit_module_word(module,34))return 0;
     k=count;
     if(cc_unit_module_word(module,34)) {

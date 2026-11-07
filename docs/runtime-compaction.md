@@ -38,7 +38,7 @@ RAM savings solely from compressed files or counting zero bytes.
 ## Current work
 
 Baseline capture and build-time object-reader verification pass.
-Production layout and generated programs are unchanged. Runtime objects reuse
+Production layout and generated programs are unchanged. Runtime objects will extend
 the unit linker's dependency/relocation model; the build-time converter, not
 the native Pascal parser, reads SDCC-specific records. Word and low/high-byte
 address relocations must match independently linked toolchain output.
@@ -56,7 +56,32 @@ See runtime-baseline-evidence.json for hashed inputs and physical observations.
 
 The converter passes 11 unit tests and six exact linked-image comparisons,
 including independently selected SDK dependencies and all initialized bytes.
-Signed/wrapping addends are deliberately rejected until qualified. The native
-fragment format still accepts only word references: typed byte references must
-be implemented and validated before runtime objects can use that format.
-No byte reference is emitted or coerced into a word patch by this checkpoint.
+Signed/wrapping addends are deliberately rejected until qualified. At the foundation checkpoint the native fragment format accepted only word
+references. Stage 2 extends that format, while Pascal final placement still
+needs a typed reference model before runtime integration can use it.
+No byte reference is coerced into a word patch.
+
+
+Stage 2 in progress: ZPF1 fragment records retain their eight-byte size, using
+the bounded fragment-index word's upper bits for word16/low8/high8 kinds. The
+standalone fragment linker resolves the full target before extracting bytes.
+The Pascal unit importer still accepts only word references, explicitly rejecting
+byte kinds until its final-placement ledger is updated. The production compiler
+ledger stays four bytes; a blanket eight-byte expansion was rejected because
+it increases workspace and exceeds two compiler code-bank limits. Its redesign
+belongs with integrated runtime placement and capacity qualification.
+
+
+Typed fragment qualification passes 1,013 host assertions, 952 native assertions,
+66 IDE unit checks and 13 native importer rejection checks. The importer checks
+use the same valid Calc unit as a control and alter only one reference kind
+with a recomputed artifact checksum; low/high variants fail without publication
+or retained transient banks. The original ledger still passes 1,824 host checks.
+Cold startup remains10 code pages; observed warm IDE checkpoints remain15.
+Dynamic compiler peaks are not measured by this checkpoint.
+
+The original bank placement is preserved. Compiler bank16 occupies16,382 of
+16,384 bytes, so further code growth requires layout work. The resident remains
+16,031 bytes; zpascal.zpl is277,582 bytes (244 more than the baseline). This
+checkpoint has not removed the Real hole, file overlay or runtime page padding.
+See runtime-typed-links-evidence.json for exact inputs and observations.

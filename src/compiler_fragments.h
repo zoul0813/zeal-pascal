@@ -19,14 +19,19 @@
  * relocations:u16, payload_bytes:u16, reserved:u32=0. Then fragment records8:
  * payload_offset, bytes, first_relocation, relocation_count (all u16).
  * Then relocation records8: patch_offset, target_identity, target_fragment,
- * target_offset (all u16). Then concatenated fragment bytes. Fragment and
- * relocation extents must partition their respective streams exactly. Word
- * patches are ascending and disjoint within each fragment. Target offsets
+ * target_offset (all u16). Bits14..15 of target_fragment encode word16=0,
+ * low8=1, high8=2; bits12..13 are reserved and must be zero. The low12 bits
+ * select the fragment. Address arithmetic precedes byte extraction. Then concatenated fragment bytes. Fragment and
+ * relocation extents must partition their respective streams exactly. Patches are ascending and disjoint within each fragment. Target offsets
  * identify actual bytes, never one-past-end. IDs are private catalog identities,
  * not Pascal names or exported type identities. No C structs are serialized. */
 #define CC_FRAGMENT_HEADER 16u
 #define CC_FRAGMENT_RECORD 8u
 #define CC_FRAGMENT_RELOCATION 8u
+#define CF_FRAGMENT_MASK 0x0fffu
+#define CF_REFERENCE_RESERVED 0x3000u
+#define CF_REFERENCE_SHIFT 14u
+enum { CF_WORD16,CF_LOW8,CF_HIGH8 };
 #define CC_FRAGMENT_OBJECTS 32u
 #define CC_FRAGMENT_LIMIT (PAGE_SIZE/4u)
 enum { CF_OK,CF_ARGUMENT,CF_OBJECT,CF_TARGET,CF_CAPACITY,CF_MEMORY,CF_CANCELLED,CF_OWNERSHIP };
