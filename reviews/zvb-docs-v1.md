@@ -265,3 +265,108 @@ static bytes remaining. All generated asset bytes and decoded original pixels
 were reverified. Earlier395/196-byte figures above are chronological; current
 docs and the evidence JSON use171. These changes are tested but not subject to
 an extra creative/code review; the completed turns are not fresh approval.
+
+## Opus turn 20261107T131922-0c581db1
+
+Mode: creative; scoped editing
+
+I rewrote `docs/units.md` and edited nothing else. Every claim in it comes from the supplied docs and evidence; I compiled none of the new examples. The guide is ready for programmers to use. Technically it covers emulator results only: physical-board display, audio and DMA timing remain unqualified, and the guide says so.
+
+## What changed in `docs/units.md`
+
+1. **Opening.** It now states that this page is current and that pages marked *Historical* record their own stage. The worktree name is gone, since programmers don't need it to tell old limits from current ones.
+2. **New "Files at a glance" table.** It covers `zpascal.bin`, `.ZPL`, `.ZPU`, the unit's `.PAS` and the saved `.COM`, saying what each is and when it's needed. This settles ZPL versus ZPU in one place, and states static linking up front.
+3. **Real.** No `uses Real` and no `REAL.ZPU`. The compiler loads its Real component only while compiling code that needs it, and a program links the Real runtime only when its reachable code uses Real. It also gives the one exception: `Inline` in a program includes the Real runtime, while `Inline` in a unit does not.
+4. **Creating and using a unit.** I added the small Calc example and a client program, including a qualified call. The steps now cover:
+   - **O → U → Q**, and that **R** on a unit only explains that a program must use it;
+   - lookup order and fallback only for a *missing* file;
+   - rebuilding in dependency order;
+   - how to rebuild a unit after error navigation leaves Main pointing at the client.
+5. **One source file per unit.** This is now stated as a rule rather than a table cell, with the reason ZVB looks like an exception: its build flattens the include files first.
+6. **Supported features as an interface/implementation table.** It sits above bullets for constants, types, routines and hardware. A short **public storage** note explains why `var` and typed constants can't be exported, and gives the ordinary workaround of private variables with accessor routines. This adds no feature.
+7. **"What a unit body cannot do yet."** The vague row about generated runtime services became a concrete list: console/Text I/O, file operations, heap/stack manipulation and callback hooks. It says what still works (`IOResult`, `Move`, `FillChar`) and what to do instead, and notes that Crt is built by a host tool and isn't a model for Pascal-authored units.
+8. **Dependencies and initialization.** Short bullets cover no re-export, shared state, order and re-running, that initializers are always linked, and that each CHN has its own copy of unit state.
+9. **Memory.** Compile-time RAM (cached code pages, unit metadata, tables) is now separate from program RAM (the 16 KB prefix, `$F400`, 2 or 3 execution pages). I separated the hard limits from the current measurements. I dropped the "reserving 64 bytes" note on the 65,470-byte limit, because 65,536 − 64 doesn't give 65,470 and the arithmetic would confuse readers.
+10. **Stock files and redistribution.** All five `T:/lib` files are in a table. The ZVB.LIC/NTC requirement and the Snake font credit each have their own paragraph.
+11. **Errors without source, verification status and a "not yet supported" list.** These close the guide. The list is framed as open questions with no approval wording.
+
+## Inconsistencies elsewhere (narrowest fixes)
+
+1. **`README.md` describes a different compiler layout.** It says "The library uses fifteen code banks. Startup retains thirteen…". This worktree's evidence says 18 logical banks, with 10 pages at cold start and 15 after compiling. Either replace that paragraph with a pointer to `units.md` and the evidence, or mark it as describing the main-line build.
+2. **README's language-support paragraph omits Word and LongWord.** Add them, or link `unsigned-integers.md`.
+3. **Error 98 versus 99.** README says insufficient variable storage reports error 98. `zvb-library.md` and `units.md` say exceeding `$F400` reports 99. Please confirm whether oversized globals report 98 and oversized code reports 99. I documented 99 only, for code/static overflow and workspace exhaustion, which the current docs back. If 98 is reachable, add one line to `units.md`.
+4. **Please confirm these claims, which I now state as current rules:**
+   - `{$I}` inside a unit source is *rejected* (I wrote "do not split a unit"). If it is silently mis-mapped instead, the wording should be stronger.
+   - The four forbidden categories are diagnosed when the unit is compiled. `unit-hardware.md` says unsupported services "fail compilation", but please check that each category is covered.
+   - `ide-units.md` (historical) says "Opaque External declarations are rejected in units". If that still holds, add it to the list of things a unit body can't do yet. I left it out because I couldn't confirm it.
+5. **`unit-hardware.md` has no Historical banner but lists dated counts.** Its "Current verification" counts (for example 336 hardware checks) differ from the specification's 159. It is linked as current detail, so either refresh its numbers or label them with a date.
+
+None of this changes requirements, features, evidence numbers or decision records.
+
+### Codex reconciliation
+
+Accepted the guide rewrite and its file table, examples, workflow, limitations,
+and separation of compiler/program RAM. Confirmed the actual saved diff touched
+only docs/units.md. Corrected README to18 logical/10 cold/15 warm pages and added
+Word/LongWord. Confirmed declaration/storage error98 in compiler_build.c and
+compiler_types.c versus code/table error99; guide distinguishes both. Confirmed
+include/source rejection and helper flags in compiler_units_object.c, heap/stack
+flags in compiler_expr.c, and External rejection in compiler_routines.c. Added
+External and corrected conservative Real-runtime selection. PAS source is for
+rebuilding/navigation, not import. Hardware evidence counts are now explicitly
+dated. Added a current specification checkpoint without changing recovered
+requirements. No production source changed; captured test results remain valid.
+The new Calc example is syntax-checked against existing native unit fixtures,
+not claimed independently executed. Physical-board qualification stays open.
+User-authorized final read-only consultation follows these corrections.
+
+## Opus turn 20261107T132814-845b8cb4
+
+Mode: creative; read-only
+
+The cleaned guide is accurate and ready for programmers, apart from one stale line in `zvb-library.md` and two in `README.md`. This consultation was read-only, so I made no edits. My checks are against the supplied documents and Codex's stated source confirmations only; I compiled and ran nothing. Hardware qualification remains open.
+
+## Confirmed
+
+- **Error 98 versus 99.** `units.md` keeps them apart correctly: 98 for declaration and variable-storage limits, 99 for code and table capacity. Both the compile-time and run-time sections agree, and so does the README.
+- **External rejection.** It is listed among the things a unit body cannot do yet.
+- **Real selection.** The guide states the conservative rule correctly. Real arithmetic and formatting need the component; raw storage and copies do not. Opaque operations, program transfers and program `Inline` include it, and unit `Inline` does not. This matches `zvb-library.md` and the specification.
+- **Specification checkpoint.** The new entry links `units.md` without changing any recovered requirement. Its figures (10 cold / 15 warm pages, 18 banks, 277,338, 61,539, 45,909, 171) match the evidence.
+- **README memory figures.** It now gives 18 logical banks with 10/15 pages and lists Word and LongWord. The 29,696-byte capacity matches the `$F400` boundary.
+
+## Material issues (narrowest fixes)
+
+1. **`docs/zvb-library.md`, last section.** It still says that exceeding the `$F400` boundary "reports compiler error 99, `Compiler overflow`." Change it to "error 98 for variable storage or error 99 for code capacity", matching `units.md`. This is the same 98/99 distinction you just corrected; leaving it here recreates the contradiction.
+
+2. **`README.md`, CRT colour paragraph.** It shows a colour example "(no uses clause is required)" that calls `TextBackground`, `TextColor`, `ClrScr`, `GotoXY` and `WhereX`. These are now `Crt` exports, and the same README later says production CRT programs declare `uses Crt;`. Add `uses Crt;` to the example and remove the parenthetical.
+
+3. **`README.md`, same paragraph.** "TextAttr, Window and ReadKey are separate work" is out of date: `Crt` now exports `ReadKey`. Drop `ReadKey` from that list.
+
+Issues 2 and 3 are the kind of old-checkpoint statement the user wants removed. A reader following that example would hit a compile error with the current compiler.
+
+Nothing else is material. The guide meets the assignment's criteria, and the Calc listing uses the same syntax as the earlier IDE unit example, though it has not been executed.
+
+### Codex reconciliation
+
+Accepted all three narrow corrections: ZVB capacity distinguishes98/99; README
+colour example declares uses Crt; ReadKey is removed from unfinished features.
+Verified current CRT exports and declaration paths. Guide links, evidence JSON
+parsing and FirstBar fixture equality pass, as does git diff --check. No code
+changed. Physical-board qualification remains open.
+
+## Opus turn 20261107T132923-28a8b36a
+
+Mode: creative; read-only
+
+All three corrections are closed, and I found no remaining blocker. This was read-only and I made no edits. I checked the supplied text only; nothing was compiled or run, and physical-board qualification remains open.
+
+1. **`docs/zvb-library.md`, last section:** it now reads "error 98 for variable storage or error 99 for code capacity." That matches `units.md` and `README.md`.
+2. **`README.md`, colour example:** the listing now begins with `uses Crt;`, and the "(no uses clause is required)" note is gone. This agrees with the later README paragraph saying production CRT programs declare `uses Crt;`.
+3. **`README.md`, unfinished CRT work:** the line now reads "TextAttr and Window are separate work." `ReadKey` was removed, which agrees with `screen-library.md` and the `CRT.ZPU` row in `units.md`.
+
+### Codex reconciliation
+
+Accepted closure of all three documentation corrections. Read-only response;
+no actual edits to reconcile. Existing fixture/link/JSON checks and diff check
+pass; no production source changed. No remaining documentation blocker.
+Physical-board qualification remains explicitly open.

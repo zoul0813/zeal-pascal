@@ -298,19 +298,19 @@ combined storage run uses the updated driver. Full proof and current hashes are
 in docs/unit-storage-evidence.json. This is a tested local checkpoint, not an
 Opus-finalized milestone.
 
-Checkpoint verification after fixes: production and all regression drivers fit
-18 banks. Native unsigned1188, unit/Real1703, initialization623, hardware336 and
-fragment934 pass; combined storage286 + allocation57 + cancellation54 pass on
-one final harness run. Host reader65980 + loader45, decoder80, references1824,
-Word-count229402, generated engine26004 and full sanitized host regression pass.
+### Final audit attempt (2026-11-07)
 
-The Zeal VFS source audit supersedes the earlier retained-close assumption:
-zos_vfs_close clears the descriptor entry after every filesystem close attempt.
-The unit owner now clears its single active handle while preserving close errors.
-This avoids retrying a stale descriptor or blocking later compiles. The exact
-read-only kernel excerpt/hash is in reviews/zeal-vfs-close-reference.txt.
+The user-authorized extra final round failed before returning review findings:
+Claude reported usage_limit_reached, resetting09:40 America/New_York. Inspected
+stdout.json and stderr.log; no review response or edits were produced. The
+existing two successful turns remain historical; current final approval is not
+claimed. Recovery must explicitly use --new-session and retain prior decisions.
+The hardware final audit separately identifies an open unsigned OBJECT_DEPENDS
+gap.
 
-The SDK exec argv-array correction affects only test-demo arguments; the final
-combined storage run uses the updated driver. Full proof and current hashes are
-in docs/unit-storage-evidence.json. This is a tested local checkpoint, not an
-Opus-finalized milestone.
+The explicit recovery20261107T134030-bbcbc2a1 also returned HTTP429
+usage_limit_reached without findings or edits. The CLI reset09:40 New York
+is14:40 UTC on this date; Codex initially converted it incorrectly and retried
+early. Final unsigned audit remains blocked by provider availability. No final
+approval or successful extra turn is claimed. A future recovery must inspect
+these saved logs and use --new-session in this same review ID.

@@ -297,3 +297,23 @@ No formal finalization or fresh approval is claimed; an extra turn needs the
 user's explicit request. Physical-board video/audio, sample-rate and DMA timing
 remain unqualified. Earlier numeric measurements above are chronological; this
 paragraph and the current evidence give the final artifact sizes.
+
+### Requested final audit status (2026-11-07)
+
+User explicitly requested an extra final review and documentation cleanup.
+Documentation review completed after its corrections; current guide is
+docs/units.md. Hardware/storage final audit completed and reports open
+performance, diagnostic, incremental-build dependency and evidence gaps in
+hardware-units-v1.md. No implementation changed during this cleanup.
+
+The subsequent unsigned audit failed twice with provider usage_limit_reached
+(HTTP429), resetting09:40 America/New_York (14:40 UTC). Final ZVB/ReadKey
+assignment and refreshed diff are prepared, but this extra ZVB turn was not
+launched against the same unavailable provider. Previous findings and captured
+tests remain recorded above; fresh final approval is not claimed. Resume this
+same ID with --extra-turn after availability returns. The planned explicit
+ReadKey audit must not be inferred from the older Crt review.
+
+Physical-board display/audio/DMA qualification, tight compiler bank headroom
+and Snake's171-byte static margin remain open. Existing36/37 Snake results
+and identical45909-byte outputs are captured evidence, not reruns this turn.

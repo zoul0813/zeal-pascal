@@ -317,19 +317,126 @@ combined storage run uses the updated driver. Full proof and current hashes are
 in docs/unit-storage-evidence.json. This is a tested local checkpoint, not an
 Opus-finalized milestone.
 
-Checkpoint verification after fixes: production and all regression drivers fit
-18 banks. Native unsigned1188, unit/Real1703, initialization623, hardware336 and
-fragment934 pass; combined storage286 + allocation57 + cancellation54 pass on
-one final harness run. Host reader65980 + loader45, decoder80, references1824,
-Word-count229402, generated engine26004 and full sanitized host regression pass.
+## Opus turn 20261107T133021-ca4d32ff
 
-The Zeal VFS source audit supersedes the earlier retained-close assumption:
-zos_vfs_close clears the descriptor entry after every filesystem close attempt.
-The unit owner now clears its single active handle while preserving close errors.
-This avoids retrying a stale descriptor or blocking later compiles. The exact
-read-only kernel excerpt/hash is in reviews/zeal-vfs-close-reference.txt.
+Mode: code; read-only
 
-The SDK exec argv-array correction affects only test-demo arguments; the final
-combined storage run uses the updated driver. Full proof and current hashes are
-in docs/unit-storage-evidence.json. This is a tested local checkpoint, not an
-Opus-finalized milestone.
+# Review: hardware-units-v1 (extra final audit)
+
+**Verdict:** I found no blockers in the hardware or storage milestone. The disk-backed import and link design is sound, and the descriptor ownership now matches the supplied VFS source. One medium item remains: link-time cost could be large for big units, and I can't size it without a timing measurement. The other three items are low. I ran no tests; every count below is the one you reported.
+
+## Dispositions of the last round
+
+| Prior item | Status | Basis |
+|---|---|---|
+| F1: one descriptor held per module | **Closed** | `cc_unit_files_close` clears its single active owner before calling `close`. `zos_vfs_close` clears the table entry after the driver or disk close, so not retrying is correct. The loader closes its descriptor before validation. `cc_unit_emit_page` closes at `done:` on every path. Non-missing open errors report as platform failures in both the loader and `cc_unit_path_open`. The host test covers 32 open/close cycles and close failures. |
+| F2: rebuild dependencies for unit sources | **Closed** for the unit sources | The final append in `CMakeLists.txt` covers them, and the later `set_source_files_properties` calls set only `COMPILE_OPTIONS`. The unsigned sources are not covered; see finding 4. |
+| F3: separate acceptance runs | **Mostly closed** | Boundary, allocation and cancellation now ran in one capture with the failure-path and harness hashes. What remains is in finding 3. |
+| Q1: short reads | **Closed** | The reader keeps reading until it has the full page. It reports `UNIT_STALE` only for `n==0` or `n>want`. |
+| Q2: persistent close failure | **Closed** | The kernel always frees the entry, so a failed close can't block later compiles. |
+| Q3: Word-count build input | **Closed** | The tool generates its header from `build/integer_runtime.zpl`. |
+
+## Established findings
+
+### 1. Medium: Linking costs one full fragment scan per 64-byte chunk
+**Location:** `src/compiler_unit_ranges.c` `cc_unit_copy_ranges`, called from `cc_unit_emit_page`.
+
+**Trigger:** A client imports a large unit with many fragments, such as ZVB.
+
+**Impact:** Linking pays `256 chunks per page × fragment count` iterations per selected file page.
+- Every iteration makes a banked `cc_fragment_layout_get` call, which scans identities.
+- Each retained fragment then makes about six `cc_unit_module_word` reads. Each read is two banked byte reads, each checking role, lifetime and version.
+- Two code pages with a few hundred fragments plausibly add tens of seconds to every client compile at Z80 speed.
+- Copying is correct. The cost is time on every compile that uses the unit.
+
+**Evidence:** I can't size this from the supplied material. No per-client compile timing was supplied, and the 3600 s emulator timeouts would hide a regression.
+
+**Fix:** Fragments are already validated in ascending payload order. Keep a per-page cursor that starts at the first fragment ending after `position`, and stop once `source >= end`. You could also precompute each page's retained ranges and addresses once in `cc_units_link_object`.
+
+**Verification:** Record native compile cycles for one ZVB client before and after the change.
+
+### 2. Low: Loader read errors are reported as format errors
+**Location:** `src/compiler_unit_loader.c`.
+
+**Trigger:** `read()` returns an error while the loader scans the file.
+
+**Impact:**
+- The loader sets `ok=0`. After a successful close it reports `UNIT_FORMAT`, and `platform_error` keeps the read error.
+- `cc_unit_emit_page` reports the same condition as `COMPILE_PLATFORM_FAILURE`, so the two paths disagree.
+- A media error at import looks like a corrupt unit.
+
+**Fix:** Keep a separate flag for read failures. Call `cc_fail(COMPILE_PLATFORM_FAILURE)` for them before the generic `UNIT_FORMAT`.
+
+### 3. Low: Evidence and documentation are inconsistent
+**Locations:** `docs/unit-hardware.md` and `docs/unit-storage-evidence.json`.
+
+- **ZVB sizes disagree.** The document gives 61,539 file bytes and a 29,338-byte metadata prefix. The evidence file gives `file_bytes` 60430 and `metadata_bytes` 28846.
+- **Earlier captures aren't bound to artifacts.** The unsigned, unit/Real, initialization and hardware captures ran at 09:17–09:50, before the 10:11 storage capture. Only the storage capture records artifact hashes. The claim "No implementation changed since these runs" therefore can't be checked for the earlier captures.
+- **Some milestone sources are unhashed.** The source hash list omits `compiler_inline.c` (Inline relocation), `compiler_expr.c` (Mem/Port), `compiler_real.c` (`cc_require_hardware`), `compiler_routines.c` (External rejection), `compiler_build.c`, `compiler_sources.c` and `buffer_access.c`. The `zpascal.zpl` and `zzvbtest` hashes bind the binaries, but not the source-to-evidence link for these files.
+
+**Fix:**
+- Regenerate the ZVB size figures from one capture.
+- Record artifact hashes for each capture, or rerun the four earlier suites on the hashed artifacts.
+- Extend the source hash list to cover these files.
+
+### 4. Low: Unsigned sources still have incomplete rebuild dependencies
+**Location:** `CMakeLists.txt`, the `set_source_files_properties` calls for `compiler_unsigned.c`, `_asset.c`, `_intrinsics.c` and `_ops.c`.
+
+**Problem:** These calls set `OBJECT_DEPENDS` to `compiler.h`, `compiler_units.h`, `unsigned-engine.h` and `compiler_unsigned_internal.h` only. None lists `zp.h`, `real.h`, `sources.h`, `chain_abi.h` or `compiler_fragments.h`.
+
+**Impact:** These files emit `RT_RANGE`, `RT_MOVE`, `RT_ERROR`, `RT_SHL` and `RT_SHR`, all defined in `zp.h`. A change to a runtime address would leave stale objects in incremental ZDE builds. This item properly belongs to the unsigned review, but the build change is in this diff.
+
+**Fix:** Add these four sources to the final dependency append.
+
+## Checked with no defect found
+
+- **Loader framing and hashes:**
+  - The `keep` sequence (48, then `blob+16`, then `prefix`) is correct.
+  - Overrun rejection and the per-page hashes are correct, and the stream hash excludes bytes 28..31.
+  - The 64-byte binding reserve is in place.
+  - The `UR_FILE`/`UR_HASH`/`UR_PATH` layout is correct, and the path records are contiguous because nothing else allocates records in between.
+- **Reader:**
+  - Seek position is verified, and short reads are accumulated.
+  - The hash is computed over the full page length.
+  - A mismatch fails the build before `append_metadata` applies relocations. Bytes already written to staging are discarded by `failed:`.
+  - Pages are selected only when they contain retained bytes. Ranges spanning two pages are split correctly.
+  - Writes run in ascending address order, which also suits disk-backed compiles.
+- **Bounds:** `copy_ranges` checks both `source+size` against the module length and `address+size` against F400. The `next` and `mask` arithmetic can't wrap uint16.
+- **Bank placement (map):**
+  - `cc_unit_copy_ranges` is in BANK1 and the path functions in BANK13; both are non-deferred banks.
+  - The emit path calls nothing in BANK6 or BANK10 while finish lends them.
+  - The loader lives in BANK6, which is resident during `uses`.
+- **Hardware rules:**
+  - Unit Inline, Mem/Port, `absolute` and `Ptr` record `ZPU_HARDWARE` per fragment and don't imply Real. Program Inline still requires Real.
+  - Global-relative Inline accepts only one positive word reference with no code term. The `LOWDATA`, `ENDDATA` and `LASTDATA` cases match the writer's `delta < globals_bytes` check.
+  - System, standard and hook storage in unit Inline is rejected, and so is External.
+  - Retained fragments map back to `console_dynamic`, which the `HWPLAIN`/`HWUSE` shared-stack checks cover.
+- **Typed scalar constants in the unsigned path:** Capturing a constant's value at its declaration point is correct. `cc_unsigned_initializer` rejects the cases in `unsigned-main.c` with error 44, and casts with `cast==2` give checked conversion to Char.
+
+## Review limitations
+
+- **Not supplied:** the runtime shift and memory helpers, `platform.c`, and per-client compile timing.
+- **Unsigned scope:** I did not re-audit the unsigned guard, shift and call ABI here. They are for `unsigned-scalars-v1`.
+- **Bank headroom:** BANK9 has 29 bytes free, BANK13 129, BANK16 200, BANK12 202 and BANK11 247. This is a known risk, not a defect.
+- **Hardware qualification:** Physical-board qualification remains outstanding.
+- **Budget:** This was an extra round you authorised. No further Opus turns are budgeted.
+
+### Codex reconciliation
+
+Accepted finding1 as a performance investigation: the repeated fragment scan
+exists, but no measured compile-time regression is established. Deferred cursor
+optimization and before/after native cycle measurement to a separate milestone;
+no correctness failure was found. Accepted finding2, loader read-error diagnostic
+inconsistency, as an open low-severity fix; no source changed in this docs/audit
+task. Accepted finding4, missing unsigned rebuild dependencies, and explicitly
+forwarded it to the unsigned review. It remains open rather than implying clean
+incremental rebuild coverage.
+
+Accepted finding3: storage evidence records the earlier60430-byte ZVB capture;
+the final ZVB evidence binds the61539-byte artifact. Preserve captured values
+and label the distinction. Earlier suites remain reported captures, not
+independently artifact-bound reruns. Missing source hashes are an evidence gap,
+not retroactively supplied proof. No full rebuild/test rerun is claimed.
+These open items prevent claiming an unconditional final approval. The final
+audit completed; further implementation is for the remaining-work discussion.
+Physical board qualification and tight bank headroom remain open.
