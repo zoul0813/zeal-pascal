@@ -36,8 +36,11 @@ SourcePosition cc_reference_position(uint16_t reference) ROUTINES {
     return value;
 }
 uint16_t cc_source_reference(SourcePosition position) ROUTINES {
-    uint16_t id;uint8_t i;uint8_t context[6],bytes[10];
+    uint16_t id;uint8_t i,raw=0;uint8_t context[6],bytes[10];
     if(cc.error->code)return 0;
+#ifdef ZP_UNITS_EXPERIMENT
+    raw=(position&0x80000000UL)!=0;
+#endif
     context[0]=(uint8_t)cc.sources->parent_scan;context[1]=(uint8_t)(cc.sources->parent_scan>>8);
     context[2]=cc.sources->parent_flags;context[3]=cc.sources->parent_limit;
     context[4]=flags();context[5]=cc.with_limit;
@@ -45,7 +48,7 @@ uint16_t cc_source_reference(SourcePosition position) ROUTINES {
      * positions still search the complete insertion contexts below. */
     id=cc.sources->refs;
     if(!id)cc.sources->highest_reference=0;
-    if(id&&position<=cc.sources->highest_reference)for(id=0;id<cc.sources->refs;++id) {
+    if(id&&!raw&&position<=cc.sources->highest_reference)for(id=0;id<cc.sources->refs;++id) {
         if(!(id&63u)&&!cc_poll())return 0;
         if(!cc_reference_read(id,bytes,10))return 0;
         for(i=0;i<4;++i)
@@ -59,7 +62,9 @@ uint16_t cc_source_reference(SourcePosition position) ROUTINES {
     for(i=0;i<4;++i)cc_reference_put(id,i,(uint8_t)(position>>(i*8)));
     for(i=0;i<6;++i)cc_reference_put(id,4+i,context[i]);
     if(cc.error->code)return 0;
-    if(!id||position>cc.sources->highest_reference)cc.sources->highest_reference=position;
+    /* Raw names/literals are already cached by unit materialization. They
+     * must not raise the ordinary source high-water mark or force scans. */
+    if(!raw&&(!id||position>cc.sources->highest_reference))cc.sources->highest_reference=position;
     ++cc.sources->refs;return id;
 }
 void cc_reference_seek(uint16_t reference) ROUTINES {

@@ -59,14 +59,14 @@ ZPU artifact limit and physical compiler-memory limits still apply.
 Type processing uses the existing transient metadata bank. It adds no startup
 or warm-cache code page: those budgets remain ten and fifteen respectively.
 The file compiler lends its idle page during graph checks, serialization and
-final linking. The integrated suite passes 1,595 target assertions; Crt passes
+final linking. The integrated suite passes 1,703 target assertions; Crt passes
 502. The IDE suite passes 66 checks, including typed unit creation/import on HostFS, TF and
 EEPROM, and the failure/cancellation/retry suite passes 51 checks. Independent
-type-envelope/graph fixtures pass 39 assertions under ASAN and UBSAN. The
+type-envelope/graph fixtures pass 52 assertions under ASAN and UBSAN. The
 metadata-only record/Integer client retains two execution pages and omits the
 Real engine despite the unit declaring a Real-containing variant record.
 
-Evidence is in [unit-types-evidence.json](unit-types-evidence.json). Independent
-Opus review remains pending because the account usage limit prevented review.
-The first attempt returned API429 without an actual review. This qualification
-does not claim a complete recovered TP4–TP7 specification.
+Evidence is in [unit-types-evidence.json](unit-types-evidence.json). The integrated review and its dispositions are tracked in
+[unit-dependencies-v1](../reviews/unit-dependencies-v1.md); updated verification is
+in [unit-review-evidence.json](unit-review-evidence.json). This does not claim a
+complete recovered TP4–TP7 specification.

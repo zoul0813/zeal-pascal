@@ -11,8 +11,11 @@ Compiler cc;
 static Diagnostic diagnostic;
 static Type types[256];static Symbol symbols[1024];
 static uint8_t arena[PAGE_SIZE],objects[2][PAGE_SIZE];
-static uint16_t cursors[2],reference_count;
-static SourcePosition references[1024];
+static uint16_t cursors[2];
+static CompilerSources source_state;
+static uint8_t reference_data[1024][10];
+static unsigned reference_reads;
+static uint8_t stack_ok;
 static unsigned checks;static int cancel_after;
 #define A 256u
 #define B 280u
@@ -30,7 +33,7 @@ uint16_t cc_unit_record(uint16_t kind,uint16_t a,uint16_t b,uint16_t c,uint16_t 
     for(i=0;i<6;++i)cc_unit_put(at+2*i,words[i]);cc_unit_put(UH_USED,at+12);return at;
 }
 uint16_t cc_unit_target(uint16_t module,uint16_t wire){assert(module==A&&wire==2);return B;}
-uint8_t cc_stack_check(void){return 1;}
+uint8_t cc_stack_check(void){if(!stack_ok)cc_fail(99);return stack_ok;}
 uint8_t cc_poll(void){if(cancel_after==0){cc_fail(COMPILE_INTERRUPTED);return 0;}if(cancel_after>0)--cancel_after;return 1;}
 void cc_fail(uint8_t code){if(!diagnostic.code)diagnostic.code=code;}
 static uint16_t field_get(const uint8_t *p,uint8_t field){uint8_t at=field>>1;return field&1?get(p,at):p[at];}
@@ -47,14 +50,15 @@ TypeId cc_new_type(TypeId family,uint16_t width,int16_t low,int16_t high,TypeId 
 TypeId cc_family(TypeId type){return type<cc.type_count?types[type].family:TYPE_NONE;}
 uint8_t cc_ordinal(TypeId type){return type<cc.type_count&&cc_family(type)<K_ARRAY&&cc_family(type)!=K_STRING&&cc_family(type)!=K_REAL;}
 uint8_t cc_aggregate(TypeId type){return cc_family(type)==K_ARRAY||cc_family(type)==K_RECORD;}
-uint16_t cc_source_reference(SourcePosition position){assert(reference_count<1024);references[reference_count]=position;return reference_count++;}
+uint8_t cc_reference_read(uint16_t id,uint8_t *out,uint8_t count){assert(id<1024&&count<=10);++reference_reads;memcpy(out,reference_data[id],count);return 1;}
+void cc_reference_put(uint16_t id,uint8_t field,uint8_t value){assert(id<1024&&field<10);reference_data[id][field]=value;}
 /* Routine paths are not used by these type-only fixtures. */
 void cc_routine_clear(uint16_t id){(void)id;}
 void cc_rput(uint16_t scope,uint8_t field,uint16_t value){(void)scope;(void)field;(void)value;}
 static void reset(void){
     memset(&cc,0,sizeof(cc));memset(&diagnostic,0,sizeof(diagnostic));memset(types,0,sizeof(types));
-    memset(symbols,0,sizeof(symbols));memset(arena,0,sizeof(arena));memset(objects,0,sizeof(objects));reference_count=0;cancel_after=-1;
-    cc.error=&diagnostic;cc.type_count=6;cc_unit_put(UH_USED,304);cursors[0]=cursors[1]=48;
+    memset(symbols,0,sizeof(symbols));memset(arena,0,sizeof(arena));memset(objects,0,sizeof(objects));memset(&source_state,0,sizeof(source_state));memset(reference_data,0,sizeof(reference_data));reference_reads=0;stack_ok=1;cancel_after=-1;
+    cc.error=&diagnostic;cc.sources=&source_state;cc.type_count=6;cc_unit_put(UH_USED,304);cursors[0]=cursors[1]=48;
     types[0]=(Type){2,-32768,32767,K_INTEGER,0,0};types[1]=(Type){0,0,0,K_STRING,0,0};
     types[2]=(Type){1,0,1,K_BOOLEAN,0,0};types[3]=(Type){1,0,255,K_CHAR,0,0};
     types[4]=(Type){1,0,255,K_INTEGER,0,0};types[5]=(Type){6,0,0,K_REAL,0,0};
@@ -85,7 +89,7 @@ static void pointers(void){
     check(cc_unit_types_ready(A));p=actual(A,6);r=actual(A,7);
     check(types[p].element==r&&symbols[0].type==p&&types[r].width==2);
     n=cc.type_count;check(cc_unit_types_ready(A)&&cc.type_count==n&&cc.symbol_count==1);
-    check((references[symbols[0].name_start]>>16)==(0x8000u|A));
+    check((cc_reference_position(symbols[0].name_start)>>16)==(0x8000u|A));
     reset();type(A,K_RECORD,2,-1,0,0,0,0,0,1);member(A,S_FIELD,7,0,65535,"next");type(A,K_POINTER,2,0,0,0,6,0,0,0);
     check(cc_unit_types_ready(A)&&types[actual(A,7)].element==actual(A,6));
     reset();type(A,K_RECORD,2,-1,0,0,0,0,0,1);member(A,S_FIELD,6,0,65535,"bad");
@@ -105,6 +109,13 @@ static void variants(void){
     check(types[symbols[15].type].width==2&&types[symbols[16].type].width==6);
     reset();type(A,K_RECORD,1,-1,0,0,0,0,0,2);member(A,S_FIELD,K_BYTE,0,65535,"x");member(A,S_FIELD,K_BYTE,1,65535,"y");
     check(!cc_unit_types_ready(A)&&diagnostic.code==UNIT_FORMAT);
+}
+static void descriptive_variant_labels(void){
+    reset();type(A,K_RECORD,2,0,0,0,0,0,0,2);member(A,S_VARIANT,K_BYTE,0,65535,"");member(A,S_VLABEL,7,300,65535,"");
+    type(A,K_RECORD,2,-1,0,0,0,0,0,1);member(A,S_FIELD,K_INTEGER,0,65535,"a");check(cc_unit_types_ready(A));
+    reset();type(A,K_INTEGER,1,1,3,0,0,0,0,0);
+    type(A,K_RECORD,2,0,0,0,0,0,0,2);member(A,S_VARIANT,6,0,65535,"");member(A,S_VLABEL,8,5,65535,"");
+    type(A,K_RECORD,2,-1,0,0,0,0,0,1);member(A,S_FIELD,K_INTEGER,0,65535,"b");check(cc_unit_types_ready(A));
 }
 static void identities(void){
     uint16_t at,id;
@@ -160,4 +171,32 @@ static void cancellations(void){
     reset();cc_new_type(6,1,0,1,0);cancel_after=0;
     check(cc_unit_types_bytes()==0&&diagnostic.code==COMPILE_INTERRUPTED);
 }
-int main(void){pointers();variants();identities();bounds();envelopes();cancellations();printf("%u unit type assertions passed\n",checks);return 0;}
+static void deferred_pointer_paths(void){
+    reset();
+    type(A,K_POINTER,2,0,0,0,8,0,0,0);type(A,K_POINTER,2,0,0,0,9,0,0,0);
+    type(A,K_RECORD,2,-1,0,0,0,0,0,1);member(A,S_FIELD,7,0,65535,"owner");
+    type(A,K_RECORD,2,-1,0,0,0,0,0,1);member(A,S_FIELD,8,0,65535,"hdr");
+    check(cc_unit_types_ready(A));
+    check(types[actual(A,6)].element==actual(A,8)&&types[actual(A,7)].element==actual(A,9));
+    reset();
+    type(A,K_POINTER,2,0,0,0,7,0,0,0);
+    type(A,K_RECORD,2,-1,0,0,0,0,0,1);member(A,S_FIELD,8,0,65535,"a");
+    type(A,K_RECORD,2,-1,0,0,0,0,0,1);member(A,S_FIELD,7,0,65535,"b");
+    check(!cc_unit_types_ready(A)&&diagnostic.code==UNIT_FORMAT);
+    reset();type(B,K_POINTER,2,0,0,0,7,0,0,0);type(B,K_RECORD,2,-1,0,0,0,0,0,1);member(B,S_FIELD,6,0,65535,"next");
+    type(A,0,0,0,0,0,0,2,6,0);type(A,0,0,0,0,0,0,2,7,0);
+    check(cc_unit_types_ready(A)&&types[actual(A,6)].element==actual(A,7));
+    check(actual(A,6)==actual(B,6)&&symbols[0].type==actual(B,6));
+    reset();type(A,6,1,0,1,0,0,0,0,0);stack_ok=0;
+    check(!cc_unit_types_ready(A)&&diagnostic.code==99);
+}
+static void source_reference_order(void){
+    uint16_t raw,a,b,c,replay;
+    reset();raw=cc_source_reference(0x81000040UL);check(cc.sources->highest_reference==0);
+    reference_reads=0;a=cc_source_reference(10);b=cc_source_reference(20);c=cc_source_reference(30);
+    check(reference_reads==0&&a!=b&&b!=c&&cc.sources->highest_reference==30);
+    replay=cc_source_reference(20);check(replay==b&&reference_reads>0);
+    cc.range_check=1;check(cc_source_reference(20)!=b);
+    reference_reads=0;check(cc_source_reference(0x81000040UL)!=raw&&reference_reads==0&&cc.sources->highest_reference==30);
+}
+int main(void){pointers();variants();descriptive_variant_labels();identities();bounds();envelopes();cancellations();deferred_pointer_paths();source_reference_order();printf("%u unit type assertions passed\n",checks);return 0;}

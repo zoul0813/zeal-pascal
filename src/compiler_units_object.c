@@ -5,7 +5,7 @@
 #include <zos_errors.h>
 
 /* Container integers are explicit little-endian fields. The version binds
- * the primitive signature/call ABI and exact runtime profile. A checksum
+ * the public metadata/call ABI and exact runtime profile. A checksum
  * detects accidental corruption; compiled native code is not sandboxed. */
 static uint32_t object_hash(uint8_t page,uint16_t length) {
     uint32_t h=2166136261UL;uint16_t i;

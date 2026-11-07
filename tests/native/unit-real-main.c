@@ -334,6 +334,8 @@ static void metadata_constants(void) {
         "unit ConstCopy;interface uses Literals;const Plus=Answer;\n"
         "Words=Literals.Words;Rate=-Literals.Rate;implementation end."));
     check(!rm("H:/CONSTCOPY.PAS"));
+    client("H:/LITFILE.PAS","uses Literals;var F:Text;begin\n"
+        "Assign(F,'H:/RAWCONST.TXT');Rewrite(F);Write(F,Literals.Answer);Close(F)end.");
     client("H:/LITRUN.PAS","uses Literals;var N:Integer;begin N:=0;\n"
         "if(Answer<>42)or(Debt<>-123)or(Mark<>'Q')or not Yes then N:=1 div N;\n"
         "if(Words<>'Hello ''units''')or(Rate<>-1.25)then N:=1 div N;\n"
@@ -379,7 +381,8 @@ static const char typed_unit[]=
     "TPoints=array[TIndex]of TPoint;TShades=set of TShade;TText=string[12];\n"
     "PNode=^TNode;TNode=record Next:PNode;Kind:TShade end;\n"
     "TChoice=record case Tag:Boolean of false:(I:Integer);true:(R:Real)end;\n"
-    "TBin=file of TPoint;function Pick(S:TShade):TShade;\n"
+    "PHeader=^THeader;PLink=^TLink;THeader=record Owner:PLink end;\n"
+    "TLink=record Hdr:THeader end;TBin=file of TPoint;function Pick(S:TShade):TShade;\n"
     "procedure Bump(var P:TPoint);procedure Fill(var A:TPoints);\n"
     "procedure Echo(V:TText;var R:TText);implementation\n"
     "function Pick(S:TShade):TShade;begin if S=ShadeLow then Pick:=ShadeHigh else Pick:=ShadeLow end;\n"
@@ -398,14 +401,19 @@ static void metadata_types(void) {
     closed();source_close(&s);
     check(author("H:/TYPECOPY.PAS","H:/TYPECOPY.ZPU",
         "unit TypeCopy;interface uses Kinds;type TAlias=TPoint;TShadeAlias=TShade;\n"
+        "PQualified=^Kinds.TPoint;TQualified=record Ref:^Kinds.TPoint end;\n"
         "const Chosen=ShadeHigh;procedure Shift(var P:TAlias);\n"
         "function Flip(V:TShadeAlias):TShadeAlias;implementation\n"
         "procedure Shift(var P:TAlias);begin Kinds.Bump(P)end;\n"
         "function Flip(V:TShadeAlias):TShadeAlias;begin Flip:=Kinds.Pick(V)end;end."));
     check(!rm("H:/TYPECOPY.PAS"));
-    client("H:/TYPERUN.PAS","uses TypeCopy,Kinds;var P:Kinds.TPoint;A:TPoints;S:TShades;T,U:TText;\n"
-        "N:TNode;V:TChoice;F:TBin;C:TypeCopy.TShadeAlias;Z:Integer;begin Z:=0;\n"
+    client("H:/TYPERUN.PAS","uses TypeCopy,Kinds;type PLocal=^Kinds.TPoint;\n"
+        "TLocal=record Ref:^Kinds.TPoint end;var P:Kinds.TPoint;A:TPoints;S:TShades;T,U:TText;\n"
+        "N:TNode;V:TChoice;F:TBin;C:TypeCopy.TShadeAlias;Z:Integer;\n"
+        "Q:PLocal;W:TLocal;Q2:PQualified;W2:TQualified;H:THeader;L:TLink;begin Z:=0;\n"
         "P.X:=40;P.Y:=1;Shift(P);if(P.X<>41)or(P.Y<>3)then Z:=1 div Z;\n"
+        "Q:=ptr(addr(P));W.Ref:=Q;Q2:=Q;W2.Ref:=Q2;if(W.Ref^.X<>41)or(W2.Ref^.Y<>3)then Z:=1 div Z;\n"
+        "L.Hdr.Owner:=nil;H.Owner:=ptr(addr(L));if H.Owner^.Hdr.Owner<>nil then Z:=1 div Z;\n"
         "Fill(A);if(A[1].X<>10)or(A[3].Y<>30)then Z:=1 div Z;\n"
         "T:='hello';Echo(T,U);if U<>'hello'then Z:=1 div Z;\n"
         "S:=[ShadeLow];S:=S+[ShadeHigh];if not(Chosen in S)then Z:=1 div Z;\n"
@@ -420,9 +428,22 @@ static void metadata_types(void) {
     check(source_new(&s,"H:/TYPEBAD.PAS"));
     check(load("uses Kinds,OtherKinds;var A:Kinds.TShade;B:OtherKinds.TShade2;begin A:=B end."));
     check(!compile(&s,&b,&d)&&d.code==44);closed();source_close(&s);
+    check(source_new(&s,"H:/BADQUAL.PAS"));
+    check(load("uses Kinds;type R=record X:Integer end;P=^R.NotAType;begin end."));
+    check(!compile(&s,&b,&d)&&d.code==42);closed();source_close(&s);
     check(!rm("H:/KINDS.ZPU"));check(!rm("H:/TYPECOPY.ZPU"));check(!rm("H:/OTHERKINDS.ZPU"));
     {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/TYPERUN.COM",0,&status)&&status==0);}
     {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/TYPELEAF.COM",0,&status)&&status==0);}
+}
+static void variant_roundtrip(void) {
+    check(author("H:/TAGS.PAS","H:/TAGS.ZPU",
+        "unit Tags;interface type Small=1..3;Wide=record case Byte of 300:(A:Integer)end;\n"
+        "Narrow=record case Small of 5:(B:Integer)end;implementation end."));
+    check(!rm("H:/TAGS.PAS"));
+    client("H:/TAGSUSE.PAS","uses Tags;var W:Wide;N:Narrow;Z:Integer;begin Z:=0;\n"
+        "W.A:=7;N.B:=9;if W.A+N.B<>16 then Z:=1 div Z;writeln('UNIT-VARIANTS-OK')end.");
+    check(!rm("H:/TAGS.ZPU"));
+    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/TAGSUSE.COM",0,&status)&&status==0);}
 }
 int app_main(void) {
     uint8_t status;int8_t capture;
@@ -447,7 +468,7 @@ int app_main(void) {
     fault_location();page_pressure(1);page_pressure(0);
     layout_helpers();layout_limits();
     client("H:/SHARED.PAS","var N:Integer;begin N:=21*2;if N<>42 then halt end.");
-    execute_shared();argument_calls();dependency_units();metadata_constants();metadata_types();
+    execute_shared();argument_calls();dependency_units();metadata_constants();metadata_types();variant_roundtrip();
     test_stage=3;check(!rm("H:/MIXED.ZPU"));check(!rm("H:/MIXED.PAS"));
     status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/SHARED.COM",0,&status)&&status==0);
     status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/SHARED.COM",0,&status)&&status==0);

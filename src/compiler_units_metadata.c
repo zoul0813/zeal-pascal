@@ -5,6 +5,7 @@
 #define TYPE_HEADER 18u
 #define MEMBER_HEADER 10u
 #define EXPORT_HEADER 14u
+enum { UT_VISITING=1,UT_READY,UT_POINTER };
 static void put_byte(uint8_t page,uint16_t *at,uint8_t value) {
     if(*at>=ZPU_ARTIFACT_LIMIT){cc_fail(99);return;}far_set(page,(*at)++,value);
 }
@@ -126,42 +127,48 @@ static uint16_t cached(uint16_t module,TypeId wire) {
         if(cc_unit_word(at)==UR_TYPE&&cc_unit_word(at+2)==module&&cc_unit_word(at+4)==wire)return at;
     return 0;
 }
-static TypeId import_type(uint16_t module,TypeId wire,uint8_t indirect) {
+static TypeId import_type(uint16_t module,TypeId wire) {
     uint16_t at,ref,n,i,id,first,tag,marker,largest=0,value;uint32_t prefix=0;
     TypeId type,family,element,capacity,actual;int16_t low,high;uint16_t width;uint8_t role,name,variant=0;
     if(cc.error->code)return TYPE_NONE;
     if(wire<6)return wire;
-    if(wire-6>=cc_unit_module_word(module,38)||!cc_stack_check()){cc_fail(UNIT_FORMAT);return TYPE_NONE;}
+    if(wire-6>=cc_unit_module_word(module,38)){cc_fail(UNIT_FORMAT);return TYPE_NONE;}
+    if(!cc_stack_check())return TYPE_NONE;
     ref=cached(module,wire);
     if(ref) {
         type=cc_unit_word(ref+6);
-        if(cc_unit_word(ref+8)==1&&!indirect&&CCT(type,family)!=K_POINTER)cc_fail(UNIT_FORMAT);
+        if(cc_unit_word(ref+8)==UT_VISITING)cc_fail(UNIT_FORMAT);
         return type;
     }
     at=type_at(module,wire);if(cc.error->code)return TYPE_NONE;
     if(cc_unit_module_word(module,at+12)) {
-        actual=import_type(cc_unit_target(module,cc_unit_module_word(module,at+12)),cc_unit_module_word(module,at+14),indirect);
-        cc_unit_record(UR_TYPE,module,wire,actual,2,0);return actual;
+        actual=import_type(cc_unit_target(module,cc_unit_module_word(module,at+12)),cc_unit_module_word(module,at+14));
+        cc_unit_record(UR_TYPE,module,wire,actual,UT_READY,0);return actual;
     }
     family=cc_unit_module_word(module,at);width=cc_unit_module_word(module,at+2);
     low=(int16_t)cc_unit_module_word(module,at+4);high=(int16_t)cc_unit_module_word(module,at+6);
     capacity=cc_unit_module_word(module,at+8);element=cc_unit_module_word(module,at+10);n=cc_unit_module_word(module,at+16);
-    type=cc_new_type(family,width,low,high,capacity);ref=cc_unit_record(UR_TYPE,module,wire,type,1,0);
+    type=cc_new_type(family,width,low,high,capacity);ref=cc_unit_record(UR_TYPE,module,wire,type,UT_VISITING,0);
     if(cc.error->code)return TYPE_NONE;
     if(family==K_ARRAY) {
-        capacity=import_type(module,capacity,0);element=import_type(module,element,0);
+        capacity=import_type(module,capacity);element=import_type(module,element);
         if(cc.error->code)return TYPE_NONE;
         if(!cc_ordinal(capacity)||
            ((uint32_t)((int32_t)CCT(capacity,high)-CCT(capacity,low))+1)*CCT(element,width)!=width)cc_fail(UNIT_FORMAT);
         CCT_SET(type,capacity,capacity);CCT_SET(type,element,element);
-    } else if(family==K_SET||family==K_POINTER) {
-        element=import_type(module,element,family==K_POINTER);if(cc.error->code)return TYPE_NONE;CCT_SET(type,element,element);
-        if(!cc.error->code&&(family==K_POINTER?width!=2:
-           !cc_ordinal(element)||CCT(element,low)<0||CCT(element,high)>255||
-           width!=(CCT(element,high)>>3)-(CCT(element,low)>>3)+1))cc_fail(UNIT_FORMAT);
+    } else if(family==K_POINTER) {
+        /* A pointer has a fixed layout independent of its target. Resolve
+         * targets after the value graph, so suspended pointer paths cannot
+         * be mistaken for recursive values. State3 owns an unbound wire ID. */
+        if(width!=2){cc_fail(UNIT_FORMAT);return TYPE_NONE;}
+        CCT_SET(type,element,element);cc_unit_put(ref+8,UT_POINTER);return type;
+    } else if(family==K_SET) {
+        element=import_type(module,element);if(cc.error->code)return TYPE_NONE;CCT_SET(type,element,element);
+        if(!cc_ordinal(element)||CCT(element,low)<0||CCT(element,high)>255||
+           width!=(CCT(element,high)>>3)-(CCT(element,low)>>3)+1)cc_fail(UNIT_FORMAT);
     } else if(family==K_FILE) {
         if(capacity==FILE_TYPED) {
-            element=import_type(module,element,0);if(cc.error->code)return TYPE_NONE;
+            element=import_type(module,element);if(cc.error->code)return TYPE_NONE;
             if(cc_family(element)==K_FILE)cc_fail(UNIT_FORMAT);
         }
         CCT_SET(type,element,element);
@@ -173,7 +180,7 @@ static TypeId import_type(uint16_t module,TypeId wire,uint8_t indirect) {
         for(i=0;i<n&&!cc.error->code;++i) {
             if(!(i&31u)&&!cc_poll())return TYPE_NONE;
             id=first+i;role=cc_unit_module_byte(module,at);name=cc_unit_module_byte(module,at+1);
-            actual=import_type(module,cc_unit_module_word(module,at+2),0);value=cc_unit_module_word(module,at+4);tag=cc_unit_module_word(module,at+6);
+            actual=import_type(module,cc_unit_module_word(module,at+2));value=cc_unit_module_word(module,at+4);tag=cc_unit_module_word(module,at+6);
             if(cc.error->code)return TYPE_NONE;
             CCS_SET(id,role,role);CCS_SET(id,type,actual);CCS_SET(id,address,value);
             if(role==S_FIELD) {
@@ -185,8 +192,7 @@ static TypeId import_type(uint16_t module,TypeId wire,uint8_t indirect) {
                    (tag!=0xffffu&&(tag>=i||CCS(first+tag,role)!=S_FIELD||CCS(first+tag,type)!=actual))){cc_fail(UNIT_FORMAT);break;}
                 variant=1;marker=i;CCS_SET(id,name_start,tag==0xffffu?tag:first+tag);
             } else if(role==S_VLABEL) {
-                if(!variant||cc_family(actual)!=K_RECORD||(int16_t)value<CCT(CCS(first+marker,type),low)||
-                   (int16_t)value>CCT(CCS(first+marker,type),high)){cc_fail(UNIT_FORMAT);break;}
+                if(!variant||cc_family(actual)!=K_RECORD){cc_fail(UNIT_FORMAT);break;}
                 if(CCT(actual,width)>largest)largest=CCT(actual,width);
             } else cc_fail(UNIT_FORMAT);
             at+=MEMBER_HEADER+name;
@@ -197,7 +203,7 @@ static TypeId import_type(uint16_t module,TypeId wire,uint8_t indirect) {
         if(!capacity||capacity>255||width!=capacity+1)cc_fail(UNIT_FORMAT);
     } else if(family<K_ARRAY) {
         if(family>=6) {
-            actual=family==wire?type:import_type(module,family,0);if(cc.error->code)return TYPE_NONE;CCT_SET(type,family,actual);
+            actual=family==wire?type:import_type(module,family);if(cc.error->code)return TYPE_NONE;CCT_SET(type,family,actual);
             if(family!=wire&&(CCT(actual,family)!=actual||low<CCT(actual,low)||high>CCT(actual,high)||width!=CCT(actual,width)))cc_fail(UNIT_FORMAT);
         }
         if(low>high||(width!=1&&width!=2)||
@@ -206,18 +212,32 @@ static TypeId import_type(uint16_t module,TypeId wire,uint8_t indirect) {
            (family==K_INTEGER&&width==1&&(low<0||high>255))||family==K_REAL||family==K_BYTE)cc_fail(UNIT_FORMAT);
     } else cc_fail(UNIT_FORMAT);
     if(n&&family!=K_RECORD)cc_fail(UNIT_FORMAT);
-    cc_unit_put(ref+8,2);return type;
+    cc_unit_put(ref+8,UT_READY);return type;
+}
+/* Resolving a target may append more descriptors. The arena itself is the
+ * bounded worklist, including pointers reached through external aliases. */
+static uint8_t bind_pointers(void) {
+    uint16_t at,module;TypeId type,target;
+    for(at=UNIT_RECORD_BASE;at<cc_unit_word(UH_USED)&&!cc.error->code;at+=UNIT_RECORD_BYTES) {
+        if(!(at&127u)&&!cc_poll())return 0;
+        if(cc_unit_word(at)!=UR_TYPE||cc_unit_word(at+8)!=UT_POINTER)continue;
+        module=cc_unit_word(at+2);type=cc_unit_word(at+6);
+        target=import_type(module,CCT(type,element));if(cc.error->code)return 0;
+        CCT_SET(type,element,target);cc_unit_put(at+8,UT_READY);
+    }
+    return !cc.error->code;
 }
 /* Validate the complete type graph and all signatures, including unused
  * exports. Only explicitly named exports acquire lexical symbols. */
 uint8_t cc_unit_types_ready(uint16_t module) ROUTINES {
     uint16_t i,at=cc_unit_word(module+10),count=cc_unit_module_word(module,20),n,p,value,data;
     uint8_t role,mode;TypeId type;
-    for(i=6;i<6+cc_unit_module_word(module,38)&&!cc.error->code;++i)import_type(module,i,0);
+    for(i=6;i<6+cc_unit_module_word(module,38)&&!cc.error->code;++i)import_type(module,i);
+    if(!bind_pointers())return 0;
     for(i=0;i<count&&!cc.error->code;++i) {
         if(!cc_poll())return 0;
         role=cc_unit_module_byte(module,at+1);type=cc_unit_module_word(module,at+4);
-        if(type!=TYPE_NONE)type=import_type(module,type,0);
+        if(type!=TYPE_NONE)type=import_type(module,type);
         if(cc.error->code)return 0;
         n=cc_unit_module_word(module,at+6);p=at+EXPORT_HEADER+cc_unit_module_byte(module,at);
         value=cc_unit_module_word(module,at+10);data=cc_unit_module_word(module,at+12);
@@ -231,7 +251,7 @@ uint8_t cc_unit_types_ready(uint16_t module) ROUTINES {
         for(value=0;value<n&&!cc.error->code;++value) {
             if(!(value&31u)&&!cc_poll())return 0;
             mode=cc_unit_module_byte(module,p+4*value);type=cc_unit_module_word(module,p+4*value+2);
-            if(type!=TYPE_NONE)type=import_type(module,type,0);
+            if(type!=TYPE_NONE)type=import_type(module,type);
             if(type==K_STRING||(!mode&&type==TYPE_NONE)||(!mode&&cc_family(type)==K_FILE))cc_fail(UNIT_FORMAT);
         }
         at=p+4*n+data;
@@ -243,7 +263,7 @@ int16_t cc_unit_import_symbol(uint16_t module,uint16_t export) ROUTINES {
     TypeId type;
     /* The retained namespace calls this decoder only on a symbol-cache miss. */
     role=cc_unit_module_byte(module,export+1);count=cc_unit_module_word(module,export+6);
-    type=cc_unit_module_word(module,export+4);if(type!=TYPE_NONE)type=import_type(module,type,0);
+    type=cc_unit_module_word(module,export+4);if(type!=TYPE_NONE)type=import_type(module,type);
     if(cc.error->code)return -1;
     if((uint32_t)cc.symbol_count+1+count>SYMBOL_LIMIT){cc_fail(99);return -1;}
     symbol=cc.symbol_count++;cc_symbol_clear(symbol);CCS_SET(symbol,type,type);CCS_SET(symbol,owner,0);
@@ -257,14 +277,14 @@ int16_t cc_unit_import_symbol(uint16_t module,uint16_t export) ROUTINES {
         cc_rput(scope,R_SYMBOL,symbol);cc_rput(scope,R_FLAGS,RF_DEFINED|RF_UNIT_IMPORT);
         /* Import nested types before allocating the contiguous parameter block. */
         for(i=0;i<count&&!cc.error->code;++i) {
-            type=cc_unit_module_word(module,parameters+4*i+2);if(type!=TYPE_NONE)import_type(module,type,0);
+            type=cc_unit_module_word(module,parameters+4*i+2);if(type!=TYPE_NONE)import_type(module,type);
         }
         if((uint32_t)cc.symbol_count+count>SYMBOL_LIMIT){cc_fail(99);return -1;}
         cc_rput(scope,R_PARAMETERS,cc.symbol_count);cc_rput(scope,R_COUNT,count);
         for(i=0;i<count&&!cc.error->code;++i) {
             id=cc.symbol_count++;cc_symbol_clear(id);CCS_SET(id,owner,scope);
             CCS_SET(id,role,cc_unit_module_byte(module,parameters+4*i)?S_REFERENCE:S_VALUE);
-            type=cc_unit_module_word(module,parameters+4*i+2);CCS_SET(id,type,type==TYPE_NONE?type:import_type(module,type,0));
+            type=cc_unit_module_word(module,parameters+4*i+2);CCS_SET(id,type,type==TYPE_NONE?type:import_type(module,type));
         }
     }
     if(!cc_unit_record(UR_IMPORT,scope,module,export,0,symbol))return -1;

@@ -18,5 +18,5 @@ in the unit-enabled compiler. Typed constants remain unsupported in interfaces;
 they represent mutable storage, rather than these compile-time values. Public
 custom type support is described in [unit-types.md](unit-types.md). Unit initialization remains out
 of scope. The native suite passes 1,337 assertions, including source-free String and Real
-re-export and saved execution after deleting both unit artifacts. Independent
-Opus review remains pending because the account usage limit prevented review.
+re-export and saved execution after deleting both unit artifacts. The integrated review and its dispositions are recorded in
+[unit-dependencies-v1](../reviews/unit-dependencies-v1.md).

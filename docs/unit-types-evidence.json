@@ -239,11 +239,9 @@
     "scope": "Only source comments and documentation changed after native validation; all six rebuilt BIN/ZPL artifacts match their tested bytes."
   },
   "review": {
-    "status": "pending",
-    "attempt": "unit-dependencies-v1",
-    "result": "API429 usage_limit_reached before any Opus review",
-    "reported_reset": "2026-11-06 18:40 America/New_York",
-    "completion_claim": false
+    "decision_record": "reviews/unit-dependencies-v1.md",
+    "updated_verification": "docs/unit-review-evidence.json",
+    "scope": "Integrated dependencies, constants and types; see live decision record for review disposition."
   },
   "input_sha256": {
     "CMakeLists.txt": "6b259c87287ff3f405d2b9c8211fff524e7337fd7d4519a50b1ab0d418f8f033",

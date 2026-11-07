@@ -346,8 +346,8 @@ TypeId cc_invoke(uint16_t id) ROUTINES {
                         cc.temporaries=before;
                     }
                     else cc_call(RT_PUSHSTRING);
-                    /* Dynamic strings use at most 256 bytes. Imported units
-                     * currently expose primitive parameters only. */
+                    /* Dynamic strings, including imported arguments, use at most
+                     * 256 bytes in the caller-owned value slot. */
                     cc.arguments+=cc_family(kind)==K_CHAR?2:256;
                 } else {
                     cc_release(before);

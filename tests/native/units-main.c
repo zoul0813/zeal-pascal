@@ -111,7 +111,7 @@ int app_main(void) {
     if(!ok)goto done;
     test_stage=3;
     author("H:/BADUNIT.PAS","H:/BADUNIT.ZPU",
-        "unit BadUnit;interface procedure P(var X:Text);implementation procedure P(var X:Text);begin end;end.",UNIT_UNSUPPORTED);
+        "unit BadUnit;interface procedure P(var X:Text);implementation procedure P(var X:Text);begin end;end.",0);
     author("H:/BADUNIT.PAS","H:/BADUNIT.ZPU",
         "unit BadUnit;interface procedure P(X:Integer);implementation procedure P(X:Byte);begin end;end.",UNIT_INTERFACE);
     author("H:/BADUNIT.PAS","H:/BADUNIT.ZPU",

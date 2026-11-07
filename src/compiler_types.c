@@ -96,7 +96,14 @@ static TypeId parse_type_body(uint8_t allow_forward) {
         id=allow_forward?-1:cc_named_type();
         if(!allow_forward&&id<0) { cc_fail(42); return K_INTEGER; }
         result=cc_new_type(K_POINTER,2,(int16_t)cc_source_reference(cc.token_start),allow_forward,cc.scope);
-        CCT_SET(result,element,allow_forward?TYPE_NONE:(TypeId)id); cc_next(); return result;
+        CCT_SET(result,element,allow_forward?TYPE_NONE:(TypeId)id); cc_next();
+#ifdef ZP_UNITS_EXPERIMENT
+        if(allow_forward&&cc.token=='.') {
+            CCT_SET(result,high,2); /* Pending qualified target. */
+            cc_next();if(cc.token!=T_ID){cc_fail(42);return result;}cc_next();
+        }
+#endif
+        return result;
     }
     if(cc_is("packed")) { cc_next(); return parse_type(allow_forward); }
     if(cc_is("set")) {
@@ -256,12 +263,13 @@ static void initializer(TypeId type,uint8_t emit) {
 static void resolve_pointers(void) {
     TypeId i;
     SourceCursor cursor;
-    int16_t target;
+    int16_t target;SourcePosition position;
     cc_source_save(&cursor);
     for(i=5;i<cc.type_count&&!cc.error->code;++i)
         if(CCT(i,family)==K_POINTER&&CCT(i,high)&&CCT(i,capacity)==cc.scope) {
-            cc_source_seek(cc_reference_position((uint16_t)CCT(i,low)));cc_next();target=cc_named_type();
-            if(target<0) { cc_fail(42); return; }
+            position=cc_reference_position((uint16_t)CCT(i,low));
+            cc_source_seek(position);cc_next();target=cc_named_type();
+            if(target<0||(CCT(i,high)==2&&cc.token_start==position)) { cc_fail(42); return; }
             CCT_SET(i,element,(TypeId)target); CCT_SET(i,high,0);
         }
     cc_source_restore(&cursor);

@@ -41,5 +41,5 @@ three-module diamond execution, one shared private counter, namespace visibility
 missing/stale/cyclic dependencies, and saved execution after library deletion.
 The host fragment suite passes 876 assertions under ASAN and UBSAN. This
 dependency-only checkpoint preceded [exported constants](unit-exports.md) and
-[custom types](unit-types.md), now implemented in subsequent stages. Independent
-Opus review was attempted but the account usage limit prevented it; review remains pending.
+[custom types](unit-types.md), now implemented in subsequent stages. The integrated review and its dispositions are tracked in
+[unit-dependencies-v1](../reviews/unit-dependencies-v1.md).

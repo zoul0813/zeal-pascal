@@ -88,7 +88,7 @@ def build(directory):
     start=48+len(unit_name)+len(source_path)
     struct.pack_into('<6H',header,36,0,0,start,start,start,0)
     artifact = header+metadata+blob
-    assert len(artifact) <= 16384
+    assert len(artifact) <= 16320
     struct.pack_into('<I',artifact,28,fnv(artifact[:28]+artifact[32:]))
     (directory/'CRT.ZPU').write_bytes(artifact)
     (directory/'CRT.PAS').write_bytes(source_bytes)
