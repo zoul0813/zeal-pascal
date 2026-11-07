@@ -1,5 +1,5 @@
 {
-  "scope": "Pascal hardware unit foundation; full ZVB still in progress",
+  "scope": "Pascal hardware unit foundation; full ZVB evidence is separate in zvb-library-evidence.json.",
   "hardware": {
     "native_stack_margin": 8453,
     "clients": [],
@@ -47,6 +47,6 @@
   "decoder_sanitizer_assertions": 80,
   "host_regression": "179718 sanitized front-end checks and complete host regression pass",
   "runner_tests": 24,
-  "review": "Both budgeted Opus turns completed. Subsequent fixes are tested but not review-approved; an extra review turn requires the user request specified by the project skill.",
+  "review": "Test evidence only; current review decisions are in reviews/hardware-units-v1.md and reviews/unsigned-scalars-v1.md.",
   "paged_storage": "unit-storage-evidence.json"
 }

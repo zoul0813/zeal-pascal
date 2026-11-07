@@ -1,6 +1,6 @@
 {
   "passed": true,
-  "scope": "Software/emulator qualification; physical video/audio output is unqualified. Both budgeted ZVB reviews completed; subsequent low-priority fixes are tested but not review-approved. Core review limitation is recorded in unit-storage-evidence.json.",
+  "scope": "Software/emulator qualification only; physical video/audio is unqualified. Review decisions are recorded separately in reviews/zvb-pascal-v1.md and reviews/zvb-docs-v1.md.",
   "stock_unit": {
     "file": "build/ZVB.ZPU",
     "abi": 1,

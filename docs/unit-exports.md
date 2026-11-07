@@ -1,5 +1,9 @@
 # Exported compile-time unit metadata
 
+> Historical checkpoint/proposal. Its limits, feature status and measurements
+> describe that stage. Use [Pascal units and ZPU libraries](units.md) for current
+> support, authoring instructions and resource limits.
+
 This checkpoint adds ordinary `const` declarations to the public interface.
 Integer, Boolean, Char, String and Real values are stored in the compiled unit.
 Clients and other units can use them with qualified or unqualified names after

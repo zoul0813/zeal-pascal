@@ -1,5 +1,9 @@
 # Pascal libraries on Zeal: investigation and proposed direction
 
+> Historical checkpoint/proposal. Its limits, feature status and measurements
+> describe that stage. Use [Pascal units and ZPU libraries](units.md) for current
+> support, authoring instructions and resource limits.
+
 Status: exploration, November 4, 2026. Branch `explore/pascal-units`, worktree
 `/private/tmp/zeal-pascal-units`, source baseline
 `4bf9aef63fb88d9c715d52ee6fdf44835e7dce68`. No compiler/runtime source changes,

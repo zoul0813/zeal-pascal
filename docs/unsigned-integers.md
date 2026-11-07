@@ -80,6 +80,7 @@ stack; ordinary local routine calls still conservatively require full-memory
 mode. The integrated production launcher is16,031 bytes and its ZPL277,338 bytes, in the
 existing18 logical banks.
 
-Opus completed its follow-up and found additional conversion and scalar
-initializer issues. The fixes and expanded native checks pass; the current integration remains
-unapproved after changes made following the last review turn. ZVB's library, documentation and demos are a separate milestone.
+Review findings and their dispositions are recorded in
+[the unsigned scalar review](../reviews/unsigned-scalars-v1.md). Captured tests
+and review status are separate. ZVB qualification is recorded independently in
+[its reference](zvb-library.md) and evidence.

@@ -1,5 +1,9 @@
 # Inter-unit dependency checkpoint
 
+> Historical checkpoint/proposal. Its limits, feature status and measurements
+> describe that stage. Use [Pascal units and ZPU libraries](units.md) for current
+> support, authoring instructions and resource limits.
+
 A unit can declare `uses` after `interface` and after `implementation`. The
 same compiled-unit loader is used by programs and unit authoring. Dependencies
 are resolved beside the compilation root, then beside the loaded compiler bank

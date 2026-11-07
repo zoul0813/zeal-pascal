@@ -1,6 +1,6 @@
 {
   "passed": true,
-  "status": "Both budgeted Opus turns completed. Subsequent fixes are tested but not review-approved; an extra review turn requires the user request specified by the project skill.",
+  "status": "Test evidence only; current review decisions are in reviews/hardware-units-v1.md and reviews/unsigned-scalars-v1.md.",
   "compiler_image": {
     "resident_bytes": 16031,
     "bank_bytes": [
@@ -280,7 +280,7 @@
     "zzvbtest.bin": "067107e8efd5001d66fe0404f60fe6fc9836273af0e7df70779efbb1fb0322bb",
     "zzvbtest.zpl": "2bf4b2c10a0c46cb8fe156a0e1e9b135b0b8768401811a36f655e0ca1f46a0d4"
   },
-  "verification_note": "Combined boundary, allocation-failure and cancellation repeat passes with owned demo arguments. Captured artifact hashes identify the tested driver; subsequent demo-launch harness changes are separate.",
+  "verification_note": "Combined boundary, allocation-failure and cancellation repeat passes with owned demo arguments. Captured artifact hashes identify the tested driver; subsequent demo-launch harness changes are separate. ZVB import sizes in this capture are historical (60430 file bytes, 28846 metadata bytes); the final 61539/29338 artifact and its hash are recorded separately in docs/zvb-library-evidence.json. Earlier unsigned/unit/Real/initialization/hardware captures do not each record individual artifact hashes, so source-to-capture identity for those runs is not independently established by this file.",
   "sha256": {
     "CMakeLists.txt": "3166eaf48df5e0033ba32420d41477dbb6cd8f69eef530c1ab85ba6c34914845",
     "build/CRT.PAS": "ae366d407b4c0efb32b421f2b0be28d3ad82ff78f12f7300edb792310207d5a0",

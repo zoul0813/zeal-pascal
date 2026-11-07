@@ -1,5 +1,9 @@
 # Experimental Pascal units
 
+> Historical checkpoint/proposal. Its limits, feature status and measurements
+> describe that stage. Use [Pascal units and ZPU libraries](units.md) for current
+> support, authoring instructions and resource limits.
+
 Worktree: `/private/tmp/zeal-pascal-units`, branch `explore/pascal-units`.
 The isolated native author/import path is implemented. Its observed acceptance
 is recorded below; this is not production IDE readiness. `zunittest` is an

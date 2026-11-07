@@ -1,7 +1,7 @@
 {
   "scope": "Native unsigned scalar prerequisite for Pascal ZVB; this does not qualify the ZVB library or demos.",
   "passed": true,
-  "review_status": "Both budgeted Opus turns completed. Subsequent fixes are tested but not review-approved; an extra review turn requires the user request specified by the project skill.",
+  "review_status": "Test evidence only; current review decisions are in reviews/hardware-units-v1.md and reviews/unsigned-scalars-v1.md.",
   "generated_engine": {
     "passed": true,
     "assertions": 26004,
@@ -184,5 +184,5 @@
     "tools/test-unsigned-engine.py": "eeccddd490d86f9c85bfa35806c06e019303ae0b12ed8a903c938616ea745896",
     "tools/test-unsigned.py": "3790e172876984b80ecf223823d2ff5c072208a34111cfda8ad8095ec5b1e08e"
   },
-  "verification_note": "Current integrated compiler and native drivers pass. Text unsigned reads reject; typed Word/LongWord files round-trip; large shifts and checked Chr cases pass. No Opus approval is claimed after post-follow-up fixes."
+  "verification_note": "Current integrated compiler and native drivers pass. Text unsigned reads reject; typed Word/LongWord files round-trip; large shifts and checked Chr cases pass. Review decisions are recorded separately from these captured checks."
 }

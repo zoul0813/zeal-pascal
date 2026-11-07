@@ -1,5 +1,9 @@
 # Public unit types
 
+> Historical checkpoint/proposal. Its limits, feature status and measurements
+> describe that stage. Use [Pascal units and ZPU libraries](units.md) for current
+> support, authoring instructions and resource limits.
+
 Unit interfaces can export `const` and `type` sections as well as routine
 headings. `uses` is supported at the start of the interface and after
 `implementation`. These are deliberate native Zeal extensions, with an

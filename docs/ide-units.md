@@ -1,5 +1,9 @@
 # IDE compiled units
 
+> Historical checkpoint/proposal. Its limits, feature status and measurements
+> describe that stage. Use [Pascal units and ZPU libraries](units.md) for current
+> support, authoring instructions and resource limits.
+
 The normal Zeal Pascal IDE can create and consume compiled `.ZPU` units.
 Select **Options → U Unit-file**, return to the main menu, and press **C**.
 The declared unit name determines the output: `MATHSRC.PAS` containing

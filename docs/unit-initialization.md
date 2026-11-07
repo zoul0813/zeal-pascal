@@ -1,5 +1,9 @@
 # Unit initialization
 
+> Historical checkpoint/proposal. Its limits, feature status and measurements
+> describe that stage. Use [Pascal units and ZPU libraries](units.md) for current
+> support, authoring instructions and resource limits.
+
 This deliberate Zeal extension follows the dependency-first initialization
 contract recorded in library-exploration.md. A unit may end its implementation
 with `begin ... end.` instead of `end.`. Its declarations stay global; the body

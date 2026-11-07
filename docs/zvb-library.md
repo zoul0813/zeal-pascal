@@ -548,7 +548,7 @@ Its saved run completes all 180 demo frames, including restart and added sound.
 The static address-space margin is 171 bytes; remeasure after changing the game
 or compiler. All globals, selected code and generated helpers must end before
 `$F400`, with at least 2 KB of stack below the default `$FC00` stack top. Exceeding
-this capacity reports compiler error 99, `Compiler overflow`.
+this capacity reports error 98 for variable storage or error 99 for code capacity.
 Emulator results establish software behavior; physical display and audio output
 have not been qualified on a board. This API work does not complete the historical
 Turbo Pascal specification.

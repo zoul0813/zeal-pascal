@@ -1,5 +1,9 @@
 # Native symbolic fragment linking
 
+> Historical checkpoint/proposal. Its limits, feature status and measurements
+> describe that stage. Use [Pascal units and ZPU libraries](units.md) for current
+> support, authoring instructions and resource limits.
+
 This is the next isolated library foundation in `explore/pascal-units`, following
 `library-exploration.md` and the low-file proof. It is deliberate Zeal extension
 work, separate from recovered Turbo Pascal 3 behavior.

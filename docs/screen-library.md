@@ -1,5 +1,7 @@
 # Shipped Crt library
 
+See [the current unit guide](units.md) for shared lookup, format and memory rules.
+
 Production programs use `uses Crt;` before declarations. Crt operations
 are ordinary imported procedures/functions, with qualification and shadowing
 following the normal unit rules. The normal build produces `build/CRT.ZPU`
@@ -46,13 +48,15 @@ profile requirements. Crt activation starts a fresh CRT session when the
 chain replaces the parent. The native qualification includes a saved parent
 and a child that imports Crt and restores its cursor snapshot.
 
-The extraction reduces the production bank container from 240094 to 236209
+## Extraction checkpoint and verification
+
+The original extraction reduced the production bank container from 240094 to 236209
 bytes (3885 bytes). At that checkpoint CRT.ZPU was 3566 bytes; adding
 ReadKey brings it to 3835 bytes. Compiler startup still retains ten
 code pages: the bank that previously held CRT emission also owns other code.
 This stage removes generator bytes; it does not free another whole startup page.
 
-The final oracle passes 502 assertions, including the live banked saved-parent
+That checkpoint's oracle passed 502 assertions, including the live banked saved-parent
 Chain launch, complete framebuffer checks, I/O suppression and source locations.
 A separate standalone observer validates Chain output and page recovery without
 compiler/unit files. The 905-assertion unit/Real regression, focused Screen/MATH
@@ -69,3 +73,7 @@ No stock Screen alias is shipped. Build and TF packaging remove the former
 SCREEN.ZPU/PAS artifacts. The rename passes the 502-assertion CRT suite, the
 905-assertion unit/Real suite, and TF copy/preservation/default-launch checks.
 See `crt-rename-evidence.json` for the new artifact hashes and reports.
+
+Current ZPL size and cache budgets are in [units.md](units.md). ReadKey
+qualification is also recorded in [unit storage evidence](unit-storage-evidence.json);
+the earlier extraction counts above describe their own captured compiler.

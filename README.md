@@ -232,13 +232,15 @@ remains in the launcher. Internal `pascal_runtime.zpl` and `ram_trampoline.zpl`
 build products require no separate deployment. Generated Pascal COM
 programs contain their own runtime and need no IDE library.
 
-The library uses fifteen code banks. Startup retains thirteen; two compiler banks
-load on the first compilation and can be parked during program execution. Startup
-checks the library header, then reads each startup bank directly into its mapped
+The current unit-enabled worktree uses eighteen logical code banks, with ten
+code pages at cold startup and fifteen in the warm compiler cache. See the
+[current unit memory contract](docs/units.md#memory-compile-time-and-run-time).
+Startup checks the library header, then reads each startup bank directly into its mapped
 RAM page. A failed or incomplete bank read reports an error. Deferred banks are
 read and checked when needed; startup does not scan their payloads or require an
-extra read to verify EOF. Informal user timing on physical TF hardware puts startup
-below two seconds, down from roughly 45 seconds before direct bank loading.
+extra read to verify EOF. An earlier informal physical-TF timing of direct bank
+loading was below two seconds, down from roughly 45 seconds; this is not a benchmark of the current
+unit-enabled build.
 
 Banks follow functional ownership: IDE/menu/display in bank 1, editor/block
 operations in bank 13, and shared source/file/transport services in bank 3. Compiler
@@ -445,7 +447,7 @@ timing; both `/opt/homebrew/bin/zeal-native` and the current development build
 now pass the TF write checks, including `T:/untitled.pas`. Historical failure
 captures are preserved. This project has not patched ZOS or the emulator.
 
-Current language support includes Integer, Byte, Char, Boolean, Real and `string[1..255]`,
+Current language support includes Integer, Byte, Word, LongWord, Char, Boolean, Real and `string[1..255]`,
 compound statements, assignments, Integer arithmetic/bitwise/shift expressions,
 eager Boolean logic, ordinal/string comparisons, If/Then/Else, While/Do,
 Repeat/Until, For/To/Downto, Case/Of/Else and same-block Goto labels. Case supports ordinal
@@ -998,15 +1000,16 @@ queries return0 and retain IOResult. GotoXY accepts only1..80, so GotoXY(WhereX,
 cannot restore pending wrap; handle X81 explicitly or use paired CrtInit/CrtExit
 when restoring terminal state. Color arguments outside0..15 raise runtime91
 before any hardware update, even with R-. Existing TP3 intensity routines retain
-the behavior documented above. TextAttr, Window and ReadKey are separate work.
+the behavior documented above. TextAttr and Window are separate work.
 
 Normal exit and Halt from standalone programs retain the selected colors unless
 the program resets them or pairs CrtInit/CrtExit. Fatal saved-program runtime/I/O diagnostics
 select white on black; return to the IDE restores its readable white-on-black pen.
 
-Example native color use (no uses clause is required):
+Example native color use:
 
 ```pascal
+uses Crt;
 begin
   TextBackground(Blue); TextColor(Yellow); ClrScr;
   GotoXY(3,2); WriteLn('Zeal Pascal');
@@ -1024,8 +1027,8 @@ the ordinary unknown-identifier diagnostic.
 Pascal-authored units support interface/implementation `uses`, exported ordinary
 constants, custom types and routines. Imported aliases preserve type identity
 across dependencies; saved programs contain their needed code/data and do not
-need ZPU files at runtime. See [creating units](docs/unit-types.md) for an example,
-supported type forms and current authoring limits.
+need ZPU files at runtime. See [Pascal units and ZPU libraries](docs/units.md) for current support,
+creation/import instructions, memory limits and remaining language restrictions.
 
 Production CRT programs declare `uses Crt;`. The build ships `CRT.ZPU`
 (and `CRT.PAS` as an interface reference) beside the compiler library; TF

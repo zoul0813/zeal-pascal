@@ -310,3 +310,6 @@
 !/reviews/zvb-snake-reference.txt
 !/reviews/zvb-rle-reference.txt
 !/reviews/zvb-kernel-reference.txt
+
+# Current consolidated unit contract.
+!/docs/units.md

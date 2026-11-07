@@ -1,5 +1,7 @@
 # Hardware access in Pascal units
 
+For the current overall contract, see [Pascal units and ZPU libraries](units.md).
+
 Native Pascal units can use `Port`, `Mem`, private absolute variables and
 `Inline` without a C adapter. The compiler records hardware access per code
 fragment. Importing the unit does not initialize hardware, include unused
@@ -89,7 +91,7 @@ image and checks the complete page hash before relocations can use that data.
 A failed check rejects and discards the build. No separate file-window page is
 allocated. Re-reading a changed or truncated file fails
 compilation. A saved executable has no dependency on that handle or file.
-For the current 60,430-byte ZVB unit, the resident metadata prefix is 28,846
+For the current 61,539-byte ZVB unit, the resident metadata prefix is 29,338
 bytes: two pages instead of four for the complete file, with no extra file-window
 page. These are compilation allocations, separate from program RAM.
 The compiler startup policy remains 10 cold / 15 warm pages and 18 logical banks.
@@ -103,7 +105,7 @@ truncation, partial reads, seek/read errors, cancellation and close failures.
 Zeal VFS removes a descriptor even when close reports an error; the owner
 reports that error and clears the handle, allowing a fresh compilation.
 
-Current verification: 336 focused native hardware checks; 286 native storage
+Captured verification (2026-11-07): 336 focused native hardware checks; 286 native storage
 boundary checks; 57 allocation-failure and 54 cancellation checks; 1,188 unsigned,
 1,703 unit/Real and 623 initialization checks. Sanitized host checks include
 80 metadata-decoder, 1,824 reference-merge, 65,980 reader and 45 loader checks.
@@ -111,6 +113,7 @@ The loader host suite isolates transport/allocation; semantic validation is
 covered separately. Runtime Move/FillChar passes 229,402 Word-count checks.
 Observed native stack watermark margins are at least 8,453 bytes for these
 storage and ZVB clients; this is a lower-bound observation, not a proof for all
-possible programs. Both Opus turns have completed. Later fixes pass local checks but require an
-additional requested review before approval; full ZVB demo and physical-board
-qualification are separate milestones. See [storage evidence](unit-storage-evidence.json).
+possible programs. Review decisions are recorded in [the compiler review](../reviews/hardware-units-v1.md).
+See [storage evidence](unit-storage-evidence.json) for captured checks, and
+[ZVB qualification](zvb-library-evidence.json) for the full unit and demos.
+Physical-board qualification remains separate.
