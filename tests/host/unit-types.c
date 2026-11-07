@@ -8,6 +8,7 @@
 #include <stdio.h>
 
 Compiler cc;
+uint8_t sources_byte(const Sources *sources,uint8_t file,uint16_t at){(void)sources;(void)file;(void)at;assert(!"unexpected ordinary source read");return 0;}
 static Diagnostic diagnostic;
 static Type types[256];static Symbol symbols[1024];
 static uint8_t arena[PAGE_SIZE],objects[2][PAGE_SIZE];
@@ -48,7 +49,7 @@ TypeId cc_new_type(TypeId family,uint16_t width,int16_t low,int16_t high,TypeId 
     types[id].low=low;types[id].high=high;types[id].capacity=capacity;return id;
 }
 TypeId cc_family(TypeId type){return type<cc.type_count?types[type].family:TYPE_NONE;}
-uint8_t cc_ordinal(TypeId type){return type<cc.type_count&&cc_family(type)<K_ARRAY&&cc_family(type)!=K_STRING&&cc_family(type)!=K_REAL;}
+uint8_t cc_ordinal(TypeId type){return type<cc.type_count&&((cc_family(type)<K_ARRAY&&cc_family(type)!=K_STRING&&cc_family(type)!=K_REAL)||cc_family(type)==K_WORD);}
 uint8_t cc_aggregate(TypeId type){return cc_family(type)==K_ARRAY||cc_family(type)==K_RECORD;}
 uint8_t cc_reference_read(uint16_t id,uint8_t *out,uint8_t count){assert(id<1024&&count<=10);++reference_reads;memcpy(out,reference_data[id],count);return 1;}
 void cc_reference_put(uint16_t id,uint8_t field,uint8_t value){assert(id<1024&&field<10);reference_data[id][field]=value;}
@@ -199,4 +200,30 @@ static void source_reference_order(void){
     cc.range_check=1;check(cc_source_reference(20)!=b);
     reference_reads=0;check(cc_source_reference(0x81000040UL)!=raw&&reference_reads==0&&cc.sources->highest_reference==30);
 }
-int main(void){pointers();variants();descriptive_variant_labels();identities();bounds();envelopes();cancellations();deferred_pointer_paths();source_reference_order();printf("%u unit type assertions passed\n",checks);return 0;}
+static void unsigned_types(void){
+    uint16_t cursor,at,id;
+    reset();type(A,K_WORD,2,0,-1,0,0,0,0,0);type(B,K_WORD,2,0,-1,0,0,0,0,0);
+    check(cc_unit_types_ready(A)&&cc_unit_types_ready(B)&&actual(A,6)==actual(B,6)&&actual(A,6)==cc.word_type);
+    export(A,2,6,65535,0);check(cc_unit_types_ready(A));
+    reset();type(A,K_LONGWORD,4,0,-1,0,0,0,0,0);type(B,K_LONGWORD,4,0,-1,0,0,0,0,0);
+    check(cc_unit_types_ready(A)&&cc_unit_types_ready(B)&&actual(A,6)==actual(B,6)&&actual(A,6)==cc.longword_type);
+    at=export(A,2,6,0,0);put(object(A),at+12,4);put(object(A),at+14,0x3926);put(object(A),at+16,0xcbf4);
+    check(cc_unit_types_ready(A));id=(uint16_t)cc_unit_import_symbol(A,at);
+    check(symbols[id].role==S_CONSTANT&&cc_unsigned_literal(symbols[id].address)==0xcbf43926UL);
+    reset();type(A,K_WORD,2,32760,-32761,0,0,0,0,0);type(A,K_ARRAY,16,0,0,6,K_BYTE,0,0,0);
+    check(cc_unit_types_ready(A));
+    reset();type(A,K_WORD,2,32760,-32761,0,0,0,0,0);type(A,K_ARRAY,15,0,0,6,K_BYTE,0,0,0);
+    check(!cc_unit_types_ready(A)&&diagnostic.code==UNIT_FORMAT);
+    reset();type(A,K_WORD,4,0,-1,0,0,0,0,0);cursor=48;
+    check(!type_records(A,&cursor,cursors[0])&&!cc_unit_types_ready(A)&&diagnostic.code==UNIT_FORMAT);
+    reset();type(A,K_LONGWORD,2,0,-1,0,0,0,0,0);cursor=48;
+    check(!type_records(A,&cursor,cursors[0])&&!cc_unit_types_ready(A)&&diagnostic.code==UNIT_FORMAT);
+    reset();type(A,K_LONGWORD,4,0,0,0,0,0,0,0);check(!cc_unit_types_ready(A)&&diagnostic.code==UNIT_FORMAT);
+    reset();type(A,K_LONGWORD,4,0,-1,0,0,0,0,0);export(A,2,6,0,0);
+    check(!cc_unit_types_ready(A)&&diagnostic.code==UNIT_FORMAT);
+}
+static void unsigned_set_bounds(void){
+    reset();type(A,K_WORD,2,0,-1,0,0,0,0,0);type(A,K_SET,0,0,0,0,6,0,0,0);
+    check(!cc_unit_types_ready(A)&&diagnostic.code==UNIT_FORMAT);
+}
+int main(void){unsigned_set_bounds();pointers();variants();descriptive_variant_labels();identities();bounds();envelopes();cancellations();deferred_pointer_paths();source_reference_order();unsigned_types();printf("%u unit type assertions passed\n",checks);return 0;}

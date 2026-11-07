@@ -196,7 +196,7 @@ void cc_stack_operand(uint16_t right_bytes) FRONTEND {
 void cc_load_indirect(TypeId type) FRONTEND {
     if(cc_family(type)==K_FILE) { cc_fail(54); return; }
     if(cc_family(type)==K_SET) { cc_set_load(type); return; }
-    if(cc_family(type)==K_STRING||cc_family(type)==K_REAL||cc_aggregate(type)) return;
+    if(cc_family(type)==K_STRING||cc_family(type)==K_REAL||cc_family(type)==K_LONGWORD||cc_aggregate(type)) return;
     if(type==TYPE_NONE) { cc_fail(44); return; }
     if(CCT(type,width)==1) { cc_emit(0x6e); cc_emit(0x26); cc_emit(0); }
     else { cc_emit(0x5e); cc_emit(0x23); cc_emit(0x56); cc_emit(0xeb); }
@@ -320,13 +320,27 @@ void cc_next(void) FRONTEND {
             if(n<127) cc.name[n]=(char)c;
             ++n;
             if(!cc.number_overflow) {
+#ifdef ZP_UNITS_EXPERIMENT
+                if(wide>(0xffffffffUL-value)/base)cc.number_overflow=1;
+                else wide=wide*base+value;
+#else
                 wide=wide*base+value;
                 if(wide>(base==16?65535UL:32768UL)) cc.number_overflow=1;
+#endif
             }
-            if(base==16&&n>4) { cc_fail(56); break; }
+            if(base==16&&n>
+#ifdef ZP_UNITS_EXPERIMENT
+               8
+#else
+               4
+#endif
+            ) { cc_fail(56); break; }
         }
         if(!n) cc_fail(56);
         cc.name[n<127?n:127]=0;
+#ifdef ZP_UNITS_EXPERIMENT
+        cc.unsigned_magnitude=wide;
+#endif
         cc.magnitude=(uint16_t)wide; cc.token=T_NUMBER;
         if(base==10&&((get(cc.scan)=='.'&&get(cc.scan+1)!='.'&&get(cc.scan+1)!=')')||lower(get(cc.scan))=='e')) {
             if(get(cc.scan)=='.') {
@@ -551,7 +565,7 @@ void cc_load_symbol(uint16_t id) FRONTEND {
     if(CCS(id,type)==TYPE_NONE) { cc_fail(44); return; }
     if(cc_family(CCS(id,type))==K_FILE) { cc_fail(54); return; }
     if(cc_family(CCS(id,type))==K_SET) { cc_symbol_address(id); cc_set_load(CCS(id,type)); return; }
-    if(cc_family(CCS(id,type))==K_STRING||cc_family(CCS(id,type))==K_REAL||cc_aggregate(CCS(id,type))) cc_symbol_address(id);
+    if(cc_family(CCS(id,type))==K_STRING||cc_family(CCS(id,type))==K_REAL||cc_family(CCS(id,type))==K_LONGWORD||cc_aggregate(CCS(id,type))) cc_symbol_address(id);
     else if(indirect_symbol(id)) {
         cc_symbol_address(id);
         cc_load_indirect(CCS(id,type));
@@ -576,6 +590,10 @@ void cc_store_symbol(uint16_t id) FRONTEND {
 }
 void cc_check_range(TypeId type) FRONTEND {
     if(type==TYPE_NONE) { cc_fail(44); return; }
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc_family(type)==K_WORD){cc_unsigned_range(type);return;}
+    if(cc_family(type)==K_LONGWORD)return;
+#endif
     if(!cc.range_check||!cc_ordinal(type)) return;
     cc_op16(0x11,(uint16_t)CCT(type,low)); cc_op16(0x01,(uint16_t)CCT(type,high)); cc_call(RT_RANGE);
 }
@@ -596,6 +614,9 @@ void cc_result_symbol(uint16_t routine) FRONTEND {
 }
 void cc_convert(TypeId target,TypeId source) FRONTEND {
     if(cc_aggregate(target)) { if(target!=source) cc_fail(44); return; }
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc_unsigned_convert(target,source,0))return;
+#endif
     if(target==TYPE_NONE||source==TYPE_NONE||!cc_compatible(target,source)) { cc_fail(44); return; }
     source=cc_text_value(source);
     if(cc_family(target)==K_REAL&&cc_family(source)==K_INTEGER) cc_real_unary(ZR_FROM_INT,source,cc.temporaries);
@@ -652,6 +673,10 @@ int16_t cc_predefined_type(void) FRONTEND {
          * and enum identities for programs which do not use Pascal files. */
         return text_file_type();
     }
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc_is("word"))return cc_unsigned_type(0);
+    if(cc_is("longword"))return cc_unsigned_type(1);
+#endif
     return cc_is("integer")?K_INTEGER:cc_is("boolean")?K_BOOLEAN:cc_is("char")?K_CHAR:cc_is("byte")?K_BYTE:cc_is("real")?K_REAL:-1;
 }
 int16_t cc_named_type(void) FRONTEND {
@@ -675,8 +700,16 @@ void cc_constant(TypeId *type,uint16_t *value) FRONTEND {
     if(cc.token=='^') cc_control_literal();
     *type=K_INTEGER; *value=0;
     if(cc.token==T_NUMBER) {
+#ifdef ZP_UNITS_EXPERIMENT
+        if(cc.number_overflow||(sign==2&&!cc.hexadecimal&&cc.unsigned_magnitude>32768UL))cc_fail(56);
+        if(cc.unsigned_magnitude>65535UL) {
+            *type=cc_unsigned_type(1);*value=cc_source_reference(cc.token_start);
+            if(*value&0x8000u)cc_fail(99);
+        } else { *value=cc.magnitude;if(cc.magnitude>32767u&&!cc.hexadecimal&&!(sign==2&&cc.magnitude==32768u))*type=cc_unsigned_type(0); }
+#else
         if(cc.number_overflow||(!cc.hexadecimal&&cc.magnitude>32767u&&sign!=2)) cc_fail(56);
         *value=cc.magnitude;
+#endif
     } else if(cc.token==T_REAL) {
         *type=K_REAL;*value=cc_source_reference(cc.token_start);cc_real_literal(*value);
     } else if(cc.token==T_STRING&&!sign) {
@@ -692,6 +725,6 @@ void cc_constant(TypeId *type,uint16_t *value) FRONTEND {
         else cc_fail(41);
     } else cc_fail(25);
     if(sign&&!cc_numeric(*type)) cc_fail(25);
-    if(sign==2) *value=cc_family(*type)==K_REAL?*value^0x8000u:(uint16_t)(0u-*value);
+    if(sign==2) *value=(cc_family(*type)==K_REAL||cc_family(*type)==K_LONGWORD)?*value^0x8000u:(uint16_t)(0u-*value);
     cc_next();
 }

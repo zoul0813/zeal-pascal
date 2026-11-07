@@ -118,12 +118,26 @@ static uint16_t case_constant(TypeId selector) {
     TypeId type;
     uint16_t value;
     cc_constant(&type,&value);
-    if(cc_family(type)!=cc_family(selector)) cc_fail(46);
+#ifdef ZP_UNITS_EXPERIMENT
+    cc_unsigned_case_label(selector,type,value);
+#endif
+    if(cc_family(type)!=cc_family(selector)
+#ifdef ZP_UNITS_EXPERIMENT
+       &&!(cc_integral(type)&&cc_integral(selector))
+#endif
+    ) cc_fail(46);
     return value;
 }
-static void case_compare(uint16_t value) {
+static void case_compare(uint16_t value,TypeId selector) {
     cc_emit(0xd1); cc_emit(0xd5); /* retain the selector only while dispatching */
-    cc_op16(0x21,value); cc_call(RT_COMPARE);
+    cc_op16(0x21,value);
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc_family(selector)==K_WORD)cc_unsigned_binary(10,selector,selector,cc.temporaries,0);else
+#endif
+    cc_call(RT_COMPARE);
+#ifndef ZP_UNITS_EXPERIMENT
+    (void)selector;
+#endif
 }
 static void case_statement(SourcePosition start,uint16_t code) {
     TypeId selector;
@@ -143,12 +157,12 @@ static void case_statement(SourcePosition start,uint16_t code) {
                 cc_next(); hi=case_constant(selector);
                 /* Two signed comparisons cover the entire ordinal domain
                  * without overflowing a computed high-low range width. */
-                case_compare(lo); cc_emit(0xcb); cc_emit(0x7c);
+                case_compare(lo,selector); cc_emit(0xcb); cc_emit(0x7c);
                 skip=cc_forward(0xc2); /* below low: try the next label */
-                case_compare(hi); cc_emit(0x7d); cc_emit(0xfe); cc_emit(1);
+                case_compare(hi,selector); cc_emit(0x7d); cc_emit(0xfe); cc_emit(1);
                 link_jump(0xc2,&matches); cc_patch(skip);
             } else {
-                case_compare(lo); cc_emit(0x7c); cc_emit(0xb5);
+                case_compare(lo,selector); cc_emit(0x7c); cc_emit(0xb5);
                 link_jump(0xca,&matches);
             }
             if(cc.token!=',') break;
@@ -250,6 +264,9 @@ static SourcePosition statement(void) {
         if(id>=0) cc_convert(CCS(id,type),kind);
         cc_release(before);
         cc_emit(0xd1); cc_guard(); cc_emit(0xe5); /* keep final bound across the body */
+#ifdef ZP_UNITS_EXPERIMENT
+        if(id>=0&&cc_family(CCS(id,type))==K_WORD)cc_unsigned_binary(10,CCS(id,type),CCS(id,type),before,0);else
+#endif
         cc_call(RT_COMPARE); /* DE initial survives; HL -> signed three-way */
         cc_emit(0x7d); cc_emit(0xfe); cc_emit(newline?255:1); branch=cc_forward(0xca);
         cc_emit(0xeb); if(id>=0) cc_store_symbol((uint16_t)id);
@@ -266,7 +283,11 @@ static SourcePosition statement(void) {
         if(id>=0) CCS_SET(id,control,0);
         code=pc();
         if(id>=0) cc_load_symbol((uint16_t)id);
-        cc_emit(0xd1); cc_guard(); cc_emit(0xd5); cc_emit(0xeb); cc_call(RT_COMPARE);
+        cc_emit(0xd1); cc_guard(); cc_emit(0xd5); cc_emit(0xeb);
+#ifdef ZP_UNITS_EXPERIMENT
+        if(id>=0&&cc_family(CCS(id,type))==K_WORD)cc_unsigned_binary(10,CCS(id,type),CCS(id,type),before,0);else
+#endif
+        cc_call(RT_COMPARE);
         cc_emit(0x7c); cc_emit(0xb5); other=cc_forward(0xca);
         if(id>=0) cc_load_symbol((uint16_t)id);
         cc_emit(newline?0x2b:0x23); if(id>=0) cc_store_symbol((uint16_t)id);
@@ -318,11 +339,11 @@ static SourcePosition statement(void) {
             kind=cc_aggregate(target)?cc_aggregate_actual(target):cc_expression();
             cc_convert(target,kind);
             if(indexed) cc_stack_operand(cc.temporaries-before);
-            else if(cc_family(target)==K_STRING||cc_family(target)==K_REAL||cc_aggregate(target)||cc_family(target)==K_SET) cc_destination((uint16_t)id);
+            else if(cc_family(target)==K_STRING||cc_family(target)==K_REAL||cc_family(target)==K_LONGWORD||cc_aggregate(target)||cc_family(target)==K_SET) cc_destination((uint16_t)id);
             if(cc_family(target)==K_STRING) {
                 cc_emit(0x0e); cc_emit(CCT(target,capacity));
                 cc_call(cc_family(kind)==K_CHAR?RT_CHARCOPY:RT_COPY);
-            } else if(cc_aggregate(target)||cc_family(target)==K_REAL) {
+            } else if(cc_aggregate(target)||cc_family(target)==K_REAL||cc_family(target)==K_LONGWORD) {
                 cc_op16(0x01,CCT(target,width)); cc_call(RT_MOVE);
             } else if(cc_family(target)==K_SET) cc_set_store(target);
             else if(indexed) cc_store_indirect(target);

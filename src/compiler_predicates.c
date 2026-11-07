@@ -8,10 +8,10 @@ uint8_t cc_char_array(TypeId type) FRONTEND {
         CCT(CCT(type,capacity),family)==K_INTEGER&&CCT(type,width)<=255;
 }
 uint8_t cc_ordinal(TypeId type) FRONTEND {
-    return type<cc.type_count&&CCT(type,family)<K_ARRAY&&CCT(type,family)!=K_STRING&&CCT(type,family)!=K_REAL;
+    return type<cc.type_count&&((CCT(type,family)<K_ARRAY&&CCT(type,family)!=K_STRING&&CCT(type,family)!=K_REAL)||CCT(type,family)==K_WORD);
 }
 uint8_t cc_numeric(TypeId type) FRONTEND {
-    return type<cc.type_count&&(CCT(type,family)==K_INTEGER||CCT(type,family)==K_REAL);
+    return type<cc.type_count&&(CCT(type,family)==K_INTEGER||CCT(type,family)==K_REAL||CCT(type,family)==K_WORD||CCT(type,family)==K_LONGWORD);
 }
 uint8_t cc_aggregate(TypeId type) FRONTEND {
     return type<cc.type_count&&(CCT(type,family)==K_ARRAY||CCT(type,family)==K_RECORD);

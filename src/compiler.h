@@ -16,10 +16,11 @@
 #endif
 /* One synchronous compiler owns this workspace until it returns. Source
  * names reference its suspended inputs; phase banks share only resident data. */
+enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR,F_LENGTH,F_COPY,F_POS,F_CONCAT,F_PTR,F_MEMAVAIL,F_MAXAVAIL,F_STACKPTR,F_TRUNC,F_ROUND,F_INT,F_FRAC,F_SQRT,F_LN,F_EXP,F_SIN,F_COS,F_ARCTAN,F_RANDOM,F_IORESULT,F_PARAMCOUNT,F_PARAMSTR,F_WHEREX,F_WHEREY };
 enum { T_EOF=256,T_ID,T_NUMBER,T_STRING,T_ASSIGN,T_RESERVED,T_NE,T_LE,T_GE,T_RANGE,T_REAL };
 enum { K_INTEGER,K_STRING,K_BOOLEAN,K_CHAR,K_BYTE,K_REAL };
 /* Aggregate family tags are separate from ordinary ordinal type identities. */
-enum { K_ARRAY=0x8000u,K_RECORD,K_SET,K_POINTER,K_FILE };
+enum { K_ARRAY=0x8000u,K_RECORD,K_SET,K_POINTER,K_FILE,K_WORD,K_LONGWORD };
 enum { FILE_TEXT,FILE_TYPED,FILE_UNTYPED };
 /* Set expression kinds encode the ordinal family without allocating a type
  * descriptor for every constructor. The empty kind has no fixed base family. */
@@ -104,6 +105,8 @@ typedef struct {
     uint16_t hook_character,hook_echo,hook_open;
     uint16_t error_entry;
     uint16_t transfer_entry; /* call fixup head until transfer finish, then entry */
+    TypeId word_type,longword_type;
+    uint32_t unsigned_magnitude;uint16_t unsigned_entry;
     uint8_t full_memory; /* Raw/heap capability requires independent windows. */
     uint16_t page_entry; /* Optional shared-page startup address. */
     uint8_t shared_stack;
@@ -154,6 +157,27 @@ void cc_require_full_memory(void) FRONTEND;
 uint8_t cc_seal(const Source *root,const CompileOptions *options) FRONTEND;
 void build_discard_image(Build *build) SOURCE_BLOCK_CALL;
 
+#ifdef ZP_UNITS_EXPERIMENT
+TypeId cc_unsigned_type(uint8_t wide) BACKEND;
+void cc_unsigned_call(uint8_t op) BACKEND;
+uint8_t cc_unsigned(TypeId type) BACKEND;
+uint8_t cc_integral(TypeId type) BACKEND;
+uint32_t cc_unsigned_literal(uint16_t reference) BACKEND;
+void cc_unsigned_emit(uint32_t value) BACKEND;
+void cc_unsigned_hold(void) BACKEND;
+void cc_unsigned_case_label(TypeId selector,TypeId type,uint16_t value) BACKEND;
+TypeId cc_unsigned_binary(uint8_t op,TypeId left,TypeId right,uint16_t before,uint16_t right_bytes) BACKEND;
+void cc_unsigned_not(TypeId type,uint16_t before) BACKEND;
+uint8_t cc_unsigned_convert(TypeId target,TypeId source,uint8_t cast) BACKEND;
+void cc_unsigned_range(TypeId type) BACKEND;
+void cc_unsigned_bounds(uint16_t low,uint16_t high,uint8_t error) BACKEND;
+void cc_unsigned_index(TypeId index,TypeId actual,uint16_t capacity) BACKEND;
+void cc_unsigned_format(TypeId type) BACKEND;
+TypeId cc_unsigned_intrinsic(uint8_t op,TypeId type,uint16_t before) BACKEND;
+#endif
+void cc_frame_begin(void) ROUTINES;
+void cc_frame_end(void) ROUTINES;
+void cc_frame_unwind(void) ROUTINES;
 void cc_fail(uint8_t code) FRONTEND;
 SourcePosition cc_source_position(void) ROUTINES;
 uint8_t cc_source_byte(SourcePosition position) ROUTINES;

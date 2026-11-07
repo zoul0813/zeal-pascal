@@ -1,4 +1,7 @@
 #include "compiler.h"
+#ifdef ZP_UNITS_EXPERIMENT
+#include "compiler_unsigned_internal.h"
+#endif
 
 static TypeId expression(void);
 static TypeId set_constructor(void) {
@@ -7,7 +10,7 @@ static TypeId set_constructor(void) {
     cc_temporary(32); cc_op16(0x21,0); cc_emit(0x39); cc_call(RT_SETZERO); cc_next();
     while(cc.token!=']'&&!cc.error->code) {
         before=cc.temporaries; kind=expression();
-        if(!cc_ordinal(kind)) cc_fail(44);
+        if(!cc_ordinal(kind)||cc_family(kind)==K_WORD) cc_fail(44);
         if(base==TYPE_NONE) base=cc_family(kind); else if(base!=cc_family(kind)) cc_fail(44);
         cc_release(before); cc_guard(); cc_emit(0xe5);
         if(cc.token==T_RANGE) {
@@ -75,12 +78,23 @@ TypeId cc_index(TypeId type) BACKEND {
             index=array?CCT(type,capacity):K_INTEGER;
             cc_guard(); cc_emit(0xe5); before=cc.temporaries;
             kind=expression();
-            if(cc_family(kind)!=cc_family(index)) cc_fail(array?44:23);
+            if(cc_family(kind)!=cc_family(index)
+#ifdef ZP_UNITS_EXPERIMENT
+                &&!(cc_integral(kind)&&cc_integral(index)&&cc_family(kind)!=K_LONGWORD)
+#endif
+            )cc_fail(array?44:23);
             cc_release(before);
             if(cc.range_check) {
+#ifdef ZP_UNITS_EXPERIMENT
+                if(cc_unsigned(kind)||cc_unsigned(index))cc_unsigned_index(array?index:TYPE_NONE,kind,array?0:CCT(type,capacity));
+                else {
+#endif
                 cc_op16(0x11,array?(uint16_t)CCT(index,low):0);
                 cc_op16(0x01,array?(uint16_t)CCT(index,high):CCT(type,capacity));
                 cc_call(RT_INDEX);
+#ifdef ZP_UNITS_EXPERIMENT
+                }
+#endif
             }
             if(array) {
                 if(CCT(index,low)) {
@@ -108,9 +122,15 @@ static TypeId raw_kind(void) {
 }
 static void raw_index(void) {
     uint16_t before=cc.temporaries;
+    TypeId kind;
     if(!cc.suppress)cc.console_dynamic=1;
     cc_next(); cc_expect('[',8);
-    if(cc_family(expression())!=K_INTEGER) cc_fail(23);
+    kind=expression();
+    if(cc_family(kind)!=K_INTEGER
+#ifdef ZP_UNITS_EXPERIMENT
+       &&cc_family(kind)!=K_WORD
+#endif
+    ) cc_fail(23);
     cc_release(before); cc_expect(']',9);
 }
 TypeId cc_reference(uint8_t code) BACKEND {
@@ -142,7 +162,6 @@ TypeId cc_aggregate_actual(TypeId type) BACKEND {
     } else cc_fail(41);
     return type;
 }
-enum { F_ORD,F_CHR,F_SUCC,F_PRED,F_ABS,F_SQR,F_ODD,F_HI,F_LO,F_SWAP,F_UPCASE,F_SIZEOF,F_ADDR,F_LENGTH,F_COPY,F_POS,F_CONCAT,F_PTR,F_MEMAVAIL,F_MAXAVAIL,F_STACKPTR,F_TRUNC,F_ROUND,F_INT,F_FRAC,F_SQRT,F_LN,F_EXP,F_SIN,F_COS,F_ARCTAN,F_RANDOM,F_IORESULT,F_PARAMCOUNT,F_PARAMSTR,F_WHEREX,F_WHEREY };
 static void integer_value(void) { if(cc_family(expression())!=K_INTEGER) cc_fail(23); }
 static void push_value(void) { cc_guard(); cc_emit(0xe5); }
 static int16_t predefined_function(void) {
@@ -199,6 +218,9 @@ static TypeId intrinsic(uint8_t op) {
     }
     kind=cc_text_value(expression()); cc_expect(')',5);
     if(cc.error->code) return K_INTEGER;
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc_unsigned(kind)&&op<=F_SWAP)return cc_unsigned_intrinsic(op,kind,before);
+#endif
     if(op==F_PARAMSTR) {
         if(cc_family(kind)!=K_INTEGER) cc_fail(23);
         cc_release(before); cc_params(1); return K_STRING;
@@ -254,22 +276,46 @@ static TypeId factor(void) {
     if(cc_is("nil")) { cc_op16(0x21,0); kind=K_NIL; cc_next(); }
     else if(cc.token=='+'||cc.token=='-') {
         negative=cc.token=='-'; cc_next();
-        if(negative&&cc.token==T_NUMBER&&!cc.number_overflow) {
+#ifdef ZP_UNITS_EXPERIMENT
+        cc_unsigned_negative_literal(negative);
+#endif
+        if(negative&&cc.token==T_NUMBER&&!cc.number_overflow
+#ifdef ZP_UNITS_EXPERIMENT
+           &&cc.unsigned_magnitude<=32768UL
+#endif
+        ) {
             cc_op16(0x21,(uint16_t)(0u-cc.magnitude)); cc_next();
         } else {
             kind=factor();
             if(!cc_numeric(kind)) cc_fail(47);
             if(cc_family(kind)==K_REAL) { if(negative) cc_real_unary(ZR_NEGATE,kind,value_before); }
+#ifdef ZP_UNITS_EXPERIMENT
+            else if(cc_unsigned(kind)) {
+                if(negative&&cc_family(kind)==K_LONGWORD) {
+                    cc_op16(0x11,0);kind=cc_unsigned_binary(1,K_INTEGER,kind,value_before,0);
+                } else if(negative)negate();
+            }
+#endif
             else { kind=K_INTEGER; if(negative) negate(); }
         }
     } else if(cc_is("not")) {
         cc_next(); kind=factor();
         if(cc_family(kind)==K_BOOLEAN) { cc_emit(0x7d); cc_emit(0xee); cc_emit(1); cc_emit(0x6f); kind=K_BOOLEAN; }
-        else if(cc_family(kind)==K_INTEGER) { cc_emit(0x7d); cc_emit(0x2f); cc_emit(0x6f); cc_emit(0x7c); cc_emit(0x2f); cc_emit(0x67); kind=K_INTEGER; }
+#ifdef ZP_UNITS_EXPERIMENT
+        else if(cc_family(kind)==K_LONGWORD)cc_unsigned_not(kind,value_before);
+#endif
+        else if(cc_family(kind)==K_INTEGER||cc_family(kind)==K_WORD) { cc_emit(0x7d); cc_emit(0x2f); cc_emit(0x6f); cc_emit(0x7c); cc_emit(0x2f); cc_emit(0x67); if(cc_family(kind)!=K_WORD)kind=K_INTEGER; }
         else cc_fail(47);
     } else if(cc.token==T_NUMBER) {
+#ifdef ZP_UNITS_EXPERIMENT
+        if(cc.number_overflow)cc_fail(56);
+        if(cc.unsigned_magnitude>65535UL){kind=cc_unsigned_type(1);cc_unsigned_emit(cc.unsigned_magnitude);}
+        else {if(cc.magnitude>32767u&&!cc.hexadecimal)kind=cc_unsigned_type(0);cc_op16(0x21,cc.magnitude);}
+#else
         if(cc.number_overflow||(!cc.hexadecimal&&cc.magnitude>32767u)) cc_fail(56);
-        cc_op16(0x21,cc.magnitude); cc_next();
+        cc_op16(0x21,cc.magnitude);
+#endif
+        cc_next();
     } else if(cc.token==T_REAL) {
         cc_real_emit(cc_source_reference(cc.token_start)); kind=K_REAL; cc_next();
     } else if(cc.token==T_STRING) {
@@ -285,13 +331,20 @@ static TypeId factor(void) {
             cc_next(); cc_expect('(',4);
             before=cc.temporaries;
             cast_source=cc_text_value(expression()); cc_expect(')',5);
+#ifdef ZP_UNITS_EXPERIMENT
+            if(cc_unsigned_convert(kind,cast_source,1)) { }
+            else
+#endif
             if(cc_family(kind)==K_POINTER||cc_family(kind)==K_REAL) cc_fail(30);
             else if(!cc_ordinal(kind)) cc_fail(44);
             else if(cc_family(kind)==K_CHAR&&cc_family(cast_source)==K_STRING) cc_call(RT_STRINGCHAR);
             else if(!cc_ordinal(cast_source)) cc_fail(cc_family(cast_source)==K_REAL?31:44);
+#ifdef ZP_UNITS_EXPERIMENT
+            if(!cc_unsigned(kind)&&!cc_unsigned(cast_source))
+#endif
             cc_check_range(kind);
             if(CCT(kind,width)==1) { cc_emit(0x26); cc_emit(0); }
-            cc_release(before);
+            if(cc_family(kind)!=K_LONGWORD)cc_release(before);
         } else if(id<0&&raw_kind()) {
             negative=raw_kind(); raw_index(); kind=K_BYTE;
             if(negative==1) cc_load_indirect(K_BYTE);
@@ -309,6 +362,9 @@ static TypeId factor(void) {
             kind=CCS(id,type);
             if(cc_family(kind)==K_STRING) { cc_constant_literal(CCS(id,address)); cc_emit_literal(); }
             else if(cc_family(kind)==K_REAL) cc_real_emit(CCS(id,address));
+#ifdef ZP_UNITS_EXPERIMENT
+            else if(cc_family(kind)==K_LONGWORD)cc_unsigned_emit(cc_unsigned_literal(CCS(id,address)));
+#endif
             else cc_op16(0x21,CCS(id,address));
             cc_next();
         } else if(CCS(id,role)==S_FUNCTION||CCS(id,role)==S_RESULT) { kind=cc_invoke((uint16_t)id); if(cc.token=='^') cc_fail(66); }
@@ -322,6 +378,9 @@ static TypeId factor(void) {
         } else cc_fail(41);
     } else cc_fail(54);
     if(cc_family(kind)==K_REAL&&cc.temporaries==value_before) cc_real_hold();
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc_family(kind)==K_LONGWORD&&cc.temporaries==value_before)cc_unsigned_hold();
+#endif
     --cc.depth;
     return kind;
 }
@@ -343,9 +402,15 @@ static TypeId term(void) {
             kind=set_binary(kind,right,1,before,right_bytes); continue;
         }
         if(op==0||op==6) { if(!cc_numeric(kind)) cc_fail(47); }
-        else if(base!=K_INTEGER&&(op!=3||base!=K_BOOLEAN)) cc_fail(47);
+        else if(base!=K_INTEGER&&base!=K_WORD&&base!=K_LONGWORD&&(op!=3||base!=K_BOOLEAN)) cc_fail(47);
         cc_next(); cc_guard(); cc_emit(0xe5); right_before=cc.temporaries;
         right=factor(); right_bytes=cc.temporaries-right_before; cc_stack_operand(right_bytes);
+#ifdef ZP_UNITS_EXPERIMENT
+        if(cc_unsigned(kind)||cc_unsigned(right)) {
+            if(op==6){cc_fail(47);break;}
+            kind=cc_unsigned_binary(op==0?2:op==1?3:op==2?4:op==3?5:op==4?8:9,kind,right,before,right_bytes);continue;
+        }
+#endif
         if(op==6||(op==0&&(base==K_REAL||cc_family(right)==K_REAL))) {
             cc_real_binary(op==6?ZR_DIV:ZR_MUL,kind,right,before,right_bytes); kind=K_REAL; continue;
         }
@@ -373,9 +438,14 @@ static TypeId simple_expression(void) {
         base=cc_family(kind);
         if(base==K_SET) { if(op!='+'&&op!='-') cc_fail(47); }
         else if(op=='+'&&text(kind)) hold_left(kind,before);
-        else if((op=='+'||op=='-')?!cc_numeric(kind):(base!=K_INTEGER&&base!=K_BOOLEAN)) cc_fail(47);
+        else if((op=='+'||op=='-')?!cc_numeric(kind):(base!=K_INTEGER&&base!=K_WORD&&base!=K_LONGWORD&&base!=K_BOOLEAN)) cc_fail(47);
         cc_next(); cc_guard(); cc_emit(0xe5); right_before=cc.temporaries;
         right=term(); if(op=='+'&&text(kind)) cc_text_value(right); right_bytes=cc.temporaries-right_before; cc_stack_operand(right_bytes);
+#ifdef ZP_UNITS_EXPERIMENT
+        if(cc_unsigned(kind)||cc_unsigned(right)) {
+            kind=cc_unsigned_binary(op=='+'?0:op=='-'?1:op=='|'?6:7,kind,right,before,right_bytes);continue;
+        }
+#endif
         if(base==K_SET) { kind=set_binary(kind,right,op=='+'?0:2,before,right_bytes); continue; }
         if((op=='+'||op=='-')&&(base==K_REAL||cc_family(right)==K_REAL)) {
             cc_real_binary(op=='+'?ZR_ADD:ZR_SUB,kind,right,before,right_bytes); kind=K_REAL; continue;
@@ -416,6 +486,10 @@ static TypeId expression(void) {
         cc_emit(0x3e); cc_emit(op=='='?0:op==T_NE?1:op==T_LE?2:3); cc_call(RT_SETCMP);
         if(right_bytes) cc_drop_stack(2); cc_release(before); return K_BOOLEAN;
     }
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc_unsigned(kind)||cc_unsigned(right))cc_unsigned_binary(10,kind,right,before,right_bytes);
+    else
+#endif
     if(cc_family(kind)==K_REAL||cc_family(right)==K_REAL) {
         cc_real_binary(ZR_COMPARE,kind,right,before,right_bytes);
     } else {

@@ -94,7 +94,7 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/runtime_asset.asm CONTENT
 ".area _BANK8\n.globl _runtime_start\n.globl _runtime_end\n.globl _trampoline_start\n.globl _trampoline_end\n_runtime_start:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.zpl\"\n_runtime_end:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.private\"\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.profile\"\n.area _RODATA\n_trampoline_start:\n.incbin \"${CMAKE_BINARY_DIR}/ram_trampoline.zpl\"\n_trampoline_end:\n")
 set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES
     OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/pascal_runtime.zpl;${CMAKE_BINARY_DIR}/pascal_runtime.private;${CMAKE_BINARY_DIR}/pascal_runtime.profile;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
-set(PASCAL_CORE src/source.c src/sources.c src/compiler_sources.c src/compiler.c src/compiler_emit.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/compiler_expr.c src/compiler_strings.c src/compiler_recursion.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_crt.c src/compiler_state.c src/compiler_predicates.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/native.asm
+set(PASCAL_CORE src/compiler_frames.c src/source.c src/sources.c src/compiler_sources.c src/compiler.c src/compiler_emit.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/compiler_expr.c src/compiler_strings.c src/compiler_recursion.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_crt.c src/compiler_state.c src/compiler_predicates.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/native.asm
     ${CMAKE_BINARY_DIR}/runtime_asset.asm ${CMAKE_BINARY_DIR}/file_asset.asm)
 list(APPEND PASCAL_CORE src/compiler_chain.c src/compiler_transfer_asset.c src/compiler_module.c src/compiler_bridges.c src/library_phase.c src/compiler_members.c src/compiler_groups.c src/compiler_late.c src/compiler_keyboard_engine.c src/compiler_compile.c src/compiler_job.c src/compiler_job_result.c src/compiler_job_pages.c)
 list(APPEND PASCAL_CORE src/compiler_tables.c src/compiler_disk.c src/compiler_messages.c src/source_move.c src/source_validation.c src/source_location.c src/buffer_access.c src/buffer_memory.c)
@@ -187,7 +187,7 @@ set_property(SOURCE tests/native/conformance-main.c APPEND PROPERTY OBJECT_DEPEN
 # 11 file-runtime template/decoder; 12 compiler hooks/keyboard/console;
 # 13 editor/block operations; 14 compiler lifecycle/deferred overlay support;
 # 15 compiler source replay/inline and contiguous transfer runtime assets.
-set_source_files_properties(src/compiler.c src/compiler_random.c src/compiler_keyboard_engine.c PROPERTIES
+set_source_files_properties(src/compiler_frames.c src/compiler.c src/compiler_random.c src/compiler_keyboard_engine.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK2;--constseg;BANK2")
 set_source_files_properties(src/compiler_expr.c PROPERTIES
     COMPILE_OPTIONS "--codeseg;BANK6;--constseg;BANK6")
@@ -784,7 +784,7 @@ target_compile_definitions(unit_fragment_core PRIVATE ZP_UNITS_EXPERIMENT)
 target_include_directories(unit_fragment_core PRIVATE src)
 target_compile_options(unit_fragment_core PRIVATE --std-c99 --opt-code-size
     "SHELL:--codeseg BANK16" "SHELL:--constseg BANK16")
-add_library(unit_core OBJECT ${PASCAL_CORE} src/compiler_units.c
+add_library(unit_core OBJECT src/compiler_unsigned.c src/compiler_unsigned_asset.c src/compiler_unsigned_intrinsics.c src/compiler_unsigned_ops.c ${PASCAL_CORE} src/compiler_units.c
     src/compiler_units_metadata.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/unit_output.c)
 target_compile_definitions(unit_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT)
 target_include_directories(unit_core PRIVATE src ${CMAKE_BINARY_DIR})
@@ -963,7 +963,23 @@ add_custom_target(zoptionalcorpus_bin
 
 # Combine native units with the existing optional Real engine. Both compile
 # switches belong to every compiler translation unit sharing CompilerSources.
-add_library(unit_runtime_core OBJECT ${OPTIONAL_CORE} src/compiler_runtime.c
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/unsigned-engine.h
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/generate-wide.py ${CMAKE_BINARY_DIR}/unsigned-engine.h
+    DEPENDS tools/generate-wide.py src/zp.h VERBATIM)
+set_source_files_properties(src/compiler_unsigned.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK6;--constseg;BANK6"
+    OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/unsigned-engine.h;${CMAKE_SOURCE_DIR}/src/compiler.h;${CMAKE_SOURCE_DIR}/src/compiler_units.h")
+set_source_files_properties(src/compiler_unsigned_asset.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK13;--constseg;BANK13"
+    OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/unsigned-engine.h;${CMAKE_SOURCE_DIR}/src/compiler.h;${CMAKE_SOURCE_DIR}/src/compiler_units.h")
+set_source_files_properties(src/compiler_unsigned_intrinsics.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK5;--constseg;BANK5"
+    OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/src/compiler.h")
+set_source_files_properties(src/compiler_unsigned_ops.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK12;--constseg;BANK12"
+    OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/src/compiler.h;${CMAKE_SOURCE_DIR}/src/compiler_unsigned_internal.h")
+set_property(SOURCE src/compiler_unsigned.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_unsigned_internal.h)
+add_library(unit_runtime_core OBJECT ${OPTIONAL_CORE} src/compiler_unsigned.c src/compiler_unsigned_asset.c src/compiler_unsigned_intrinsics.c src/compiler_unsigned_ops.c src/compiler_runtime.c
     src/compiler_units.c src/compiler_units_metadata.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c
     src/compiler_units_link.c src/unit_output.c ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm)
 target_compile_definitions(unit_runtime_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL ZP_PROGRAM_PAGES)
@@ -1017,6 +1033,29 @@ endforeach()
 add_custom_target(zunitinittest_bin
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zunitinittest>
     DEPENDS zunitinittest ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+
+add_executable(zunsignedtest src/startup.asm src/banks.c tests/native/unsigned-main.c
+    tests/native/machine.asm $<TARGET_OBJECTS:unit_runtime_core>
+    $<TARGET_OBJECTS:unit_fragment_core> $<TARGET_OBJECTS:real_compiler>
+    $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
+    ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm)
+target_compile_definitions(zunsignedtest PRIVATE ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL ZP_TEST_COMPILER)
+target_include_directories(zunsignedtest PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_options(zunsignedtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+set_source_files_properties(tests/native/unsigned-main.c PROPERTIES
+    COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
+set_property(SOURCE tests/native/unsigned-main.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/compiler_units.h
+    ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
+add_dependencies(zunsignedtest transfer_assets)
+target_link_options(zunsignedtest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
+foreach(bank RANGE 1 18)
+    math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
+    target_link_options(zunsignedtest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
+endforeach()
+add_custom_target(zunsignedtest_bin
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zunsignedtest>
+    DEPENDS zunsignedtest ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 
 set_source_files_properties(src/unit_output.c PROPERTIES
     COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK17;--constseg;BANK17")

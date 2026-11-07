@@ -118,6 +118,7 @@ def native_targets(plan):
         'tools/test-units.py': ('zunittest_bin',),
         'tools/test-unit-real.py': ('zunitrealtest_bin',),
         'tools/test-unit-init.py': ('zunitinittest_bin',),
+        'tools/test-unsigned.py': ('zunsignedtest_bin',),
         'tools/test-optional-corpus.py': ('zoptionalcorpus_bin',),
         'tools/test-ide-units.py': ('zpascal_bin', 'zexparent_bin'),
         'tools/test-ide-unit-failures.py': ('zpascal_bin',),

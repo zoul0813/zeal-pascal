@@ -241,6 +241,9 @@ static uint8_t type_records(uint16_t module,uint16_t *cursor,uint16_t blob) {
                    (capacity==FILE_TYPED?!type_id(module,element):element!=TYPE_NONE))return 0;
             } else if(family==K_RECORD) {
                 if(high||capacity||element||(low!=0xffffu&&low>=n))return 0;
+            } else if(family==K_WORD||family==K_LONGWORD) {
+                if(capacity||element||(family==K_LONGWORD?(width!=4||low||high!=65535u):
+                   ((width!=1&&width!=2)||low>high||(width==1&&high>255))))return 0;
             } else if(family==K_STRING) {
                 if(low||high||element||capacity<1||capacity>255||width!=capacity+1)return 0;
             } else {
@@ -342,7 +345,7 @@ static uint8_t metadata_valid(uint16_t module,const char *name) {
             p=at+14+n;
             if(k==K_STRING) {if(!size||size>256||size!=1+cc_unit_module_byte(module,p)||offset)return 0;}
             else if(k==K_REAL) {if(size!=6||offset)return 0;}
-            else if(size)return 0;
+            else if(size&&(size!=4||k<6))return 0;
             }
         } else {
             if((c?(!type_id(module,k)||k==K_STRING):k!=TYPE_NONE)||fragment>=count||size)return 0;

@@ -1,4 +1,7 @@
 #include "compiler.h"
+#ifdef ZP_UNITS_EXPERIMENT
+#include "compiler_unsigned_internal.h"
+#endif
 
 static TypeId parse_type(uint8_t allow_forward);
 static uint16_t metadata(uint8_t role,TypeId owner) {
@@ -81,7 +84,9 @@ static TypeId array_dimension(void) {
     if(cc.token==',') { cc_next(); element=array_dimension(); }
     else { cc_expect(']',9); cc_keyword("of",15); element=parse_type(0); }
     if(cc.error->code) { --cc.depth; return array; }
-    width=((uint32_t)((int32_t)CCT(index,high)-CCT(index,low))+1u)*CCT(element,width);
+    width=cc_family(index)==K_WORD?
+        ((uint32_t)(uint16_t)CCT(index,high)-(uint16_t)CCT(index,low)+1u)*CCT(element,width):
+        ((uint32_t)((int32_t)CCT(index,high)-CCT(index,low))+1u)*CCT(element,width);
     if(width>32767u) cc_fail(98);
     CCT_SET(array,width,(uint16_t)width); CCT_SET(array,element,element);
     --cc.depth; return array;
@@ -109,7 +114,7 @@ static TypeId parse_type_body(uint8_t allow_forward) {
     if(cc_is("set")) {
         cc_next(); cc_keyword("of",15); base=parse_type(0);
         if(!cc_ordinal(base)) { cc_fail(30); return 0; }
-        if(CCT(base,low)<0||CCT(base,high)>255) { cc_fail(70); return 0; }
+        if(CCT(base,low)<0||CCT(base,high)>255||(cc_family(base)==K_WORD&&(uint16_t)CCT(base,high)>255)) { cc_fail(70); return 0; }
         result=cc_new_type(K_SET,(CCT(base,high)>>3)-(CCT(base,low)>>3)+1,0,0,0);
         CCT_SET(result,element,base); return result;
     }
@@ -152,6 +157,15 @@ static TypeId parse_type_body(uint8_t allow_forward) {
     if(cc_family(base)==K_STRING) cc_fail(51);
     else if(!cc_ordinal(base)) cc_fail(30);
     cc_expect(T_RANGE,41); cc_constant(&other,&hi);
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc_family(base)==K_WORD||cc_family(other)==K_WORD) {
+        if(!cc_integral(base)||!cc_integral(other)||cc_family(base)==K_LONGWORD||cc_family(other)==K_LONGWORD)cc_fail(51);
+        if((cc_family(base)==K_INTEGER&&CCT(base,width)==2&&(int16_t)lo<0)||
+           (cc_family(other)==K_INTEGER&&CCT(other,width)==2&&(int16_t)hi<0))cc_fail(51);
+        if(lo>hi)cc_fail(52);
+        return cc_new_type(K_WORD,hi<=255?1:2,(int16_t)lo,(int16_t)hi,0);
+    }
+#endif
     if(cc_family(base)!=cc_family(other)) cc_fail(51);
     if((int16_t)lo>(int16_t)hi) cc_fail(52);
     return cc_new_type(cc_family(base),cc_family(base)==K_INTEGER?(lo<=255&&hi<=255?1:2):CCT(base,width),
@@ -239,6 +253,9 @@ static void initializer(TypeId type,uint8_t emit) {
     if(cc_family(type)==K_POINTER||cc_family(type)==K_FILE) { cc_fail(61); return; }
     cc_constant(&actual,&value);
     if(!cc_compatible(type,actual)) cc_fail(44);
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc_unsigned_initializer(type,&actual,&value,emit))return;
+#endif
     if(cc_family(type)==K_REAL) {
         cc_real_constant(actual,value);
         if(emit) for(i=0;i<6;++i) cc_emit(zr_result[i]);
@@ -256,7 +273,9 @@ static void initializer(TypeId type,uint8_t emit) {
             if(cc.literal_length!=1) cc_fail(50);
             value=cc.literal[0];
         }
-        if((int16_t)value<CCT(type,low)||(int16_t)value>CCT(type,high)) cc_fail(44);
+        if(cc_family(type)==K_WORD) {
+            if(value<(uint16_t)CCT(type,low)||value>(uint16_t)CCT(type,high))cc_fail(44);
+        } else if((int16_t)value<CCT(type,low)||(int16_t)value>CCT(type,high)) cc_fail(44);
         if(emit) { cc_emit((uint8_t)value); if(CCT(type,width)==2) cc_emit((uint8_t)(value>>8)); }
     }
 }
@@ -314,10 +333,18 @@ void cc_declarations(void) FRONTEND {
                     cc_next(); type=parse_type(0);
                     if(cc_family(type)==K_POINTER||cc_family(type)==K_FILE) cc_fail(61);
                     cc_expect('=',6);
-                    if(cc_aggregate(type)||cc_family(type)==K_SET) {
+                    if(cc_aggregate(type)||cc_family(type)==K_SET||cc_family(type)==K_WORD||cc_family(type)==K_LONGWORD
+#ifdef ZP_UNITS_EXPERIMENT
+                       ||cc_family(type)==K_INTEGER
+#endif
+                    ) {
                         value=cc_source_reference(cc.token_start);initializer(type,0); initial=255;
                     } else cc_constant(&initial,&value);
-                    if(cc_aggregate(type)||cc_family(type)==K_SET) {
+                    if(cc_aggregate(type)||cc_family(type)==K_SET||cc_family(type)==K_WORD||cc_family(type)==K_LONGWORD
+#ifdef ZP_UNITS_EXPERIMENT
+                       ||cc_family(type)==K_INTEGER
+#endif
+                    ) {
                         CCS_SET(id,type,type); CCS_SET(id,role,S_TYPED);
                         CCS_SET(id,address,value); cc_expect(';',1); continue;
                     }
@@ -348,7 +375,11 @@ void cc_typed_storage(uint16_t first) FRONTEND {
     for(i=first;i<cc.symbol_count&&!cc.error->code;++i) if(CCS(i,role)==S_TYPED) {
         if(!jump) jump=cc_forward(0xc3);
         value=CCS(i,address); CCS_SET(i,address,cc.emitted);
-        if(cc_aggregate(CCS(i,type))||cc_family(CCS(i,type))==K_SET) {
+        if(cc_aggregate(CCS(i,type))||cc_family(CCS(i,type))==K_SET||cc_family(CCS(i,type))==K_WORD||cc_family(CCS(i,type))==K_LONGWORD
+#ifdef ZP_UNITS_EXPERIMENT
+           ||cc_family(CCS(i,type))==K_INTEGER
+#endif
+        ) {
             cc_source_save(&cursor);
             cc_reference_seek(value);cc_next();initializer(CCS(i,type),1);
             cc_source_restore(&cursor);
@@ -387,6 +418,9 @@ uint8_t cc_compatible(TypeId left,TypeId right) FRONTEND {
         return cc_family(left)==K_FILE&&cc_family(right)==K_FILE&&
             CCT(left,capacity)==CCT(right,capacity)&&
             (CCT(left,capacity)!=FILE_TYPED||CCT(left,element)==CCT(right,element));
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc_integral(left)&&cc_integral(right))return 1;
+#endif
     if(cc_family(left)==K_REAL&&cc_family(right)==K_INTEGER) return 1;
     if(cc_family(left)==K_POINTER||cc_family(right)==K_POINTER) {
         if(cc_family(left)!=K_POINTER||cc_family(right)!=K_POINTER) return 0;

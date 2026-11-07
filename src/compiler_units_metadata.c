@@ -77,6 +77,7 @@ void cc_unit_types_write(uint8_t page,uint16_t *at) ROUTINES {
 static uint16_t literal_bytes(uint16_t symbol) {
     if(CCS(symbol,role)!=S_CONSTANT)return 0;
     if(cc_family(CCS(symbol,type))==K_REAL)return 6;
+    if(cc_family(CCS(symbol,type))==K_LONGWORD)return 4;
     if(cc_family(CCS(symbol,type))==K_STRING){cc_constant_literal(CCS(symbol,address));return 1+cc.literal_length;}
     return 0;
 }
@@ -107,6 +108,9 @@ void cc_unit_exports_write(uint8_t page,uint16_t *at) ROUTINES {
         }
         if(n&&cc_family(CCS(symbol,type))==K_REAL) {
             cc_real_literal(CCS(symbol,address));for(i=0;i<6;++i)put_byte(page,at,zr_result[i]);
+        } else if(n&&cc_family(CCS(symbol,type))==K_LONGWORD) {
+            uint32_t number=cc_unsigned_literal(CCS(symbol,address));
+            for(i=0;i<4;++i)put_byte(page,at,(uint8_t)(number>>(8*i)));
         } else if(n) {
             put_byte(page,at,(uint8_t)cc.literal_length);for(i=0;i<cc.literal_length;++i)put_byte(page,at,cc.literal[i]);
         }
@@ -148,13 +152,16 @@ static TypeId import_type(uint16_t module,TypeId wire) {
     family=cc_unit_module_word(module,at);width=cc_unit_module_word(module,at+2);
     low=(int16_t)cc_unit_module_word(module,at+4);high=(int16_t)cc_unit_module_word(module,at+6);
     capacity=cc_unit_module_word(module,at+8);element=cc_unit_module_word(module,at+10);n=cc_unit_module_word(module,at+16);
-    type=cc_new_type(family,width,low,high,capacity);ref=cc_unit_record(UR_TYPE,module,wire,type,UT_VISITING,0);
+    type=(family==K_LONGWORD||(family==K_WORD&&width==2&&!low&&(uint16_t)high==65535u))?
+        cc_unsigned_type(family==K_LONGWORD):cc_new_type(family,width,low,high,capacity);ref=cc_unit_record(UR_TYPE,module,wire,type,UT_VISITING,0);
     if(cc.error->code)return TYPE_NONE;
     if(family==K_ARRAY) {
         capacity=import_type(module,capacity);element=import_type(module,element);
         if(cc.error->code)return TYPE_NONE;
         if(!cc_ordinal(capacity)||
-           ((uint32_t)((int32_t)CCT(capacity,high)-CCT(capacity,low))+1)*CCT(element,width)!=width)cc_fail(UNIT_FORMAT);
+           (cc_family(capacity)==K_WORD?
+           ((uint32_t)(uint16_t)CCT(capacity,high)-(uint16_t)CCT(capacity,low)+1)*CCT(element,width):
+           ((uint32_t)((int32_t)CCT(capacity,high)-CCT(capacity,low))+1)*CCT(element,width))!=width)cc_fail(UNIT_FORMAT);
         CCT_SET(type,capacity,capacity);CCT_SET(type,element,element);
     } else if(family==K_POINTER) {
         /* A pointer has a fixed layout independent of its target. Resolve
@@ -165,6 +172,7 @@ static TypeId import_type(uint16_t module,TypeId wire) {
     } else if(family==K_SET) {
         element=import_type(module,element);if(cc.error->code)return TYPE_NONE;CCT_SET(type,element,element);
         if(!cc_ordinal(element)||CCT(element,low)<0||CCT(element,high)>255||
+           (cc_family(element)==K_WORD&&(uint16_t)CCT(element,high)>255)||
            width!=(CCT(element,high)>>3)-(CCT(element,low)>>3)+1)cc_fail(UNIT_FORMAT);
     } else if(family==K_FILE) {
         if(capacity==FILE_TYPED) {
@@ -199,6 +207,9 @@ static TypeId import_type(uint16_t module,TypeId wire) {
         }
         if((uint32_t)prefix+largest!=width||(uint16_t)low!=marker)cc_fail(UNIT_FORMAT);
         CCT_SET(type,low,marker==0xffffu?-1:(int16_t)(first+marker));
+    } else if(family==K_WORD||family==K_LONGWORD) {
+        if(capacity||element||(family==K_LONGWORD?(width!=4||low||(uint16_t)high!=65535u):
+           ((width!=1&&width!=2)||(uint16_t)low>(uint16_t)high||(width==1&&(uint16_t)high>255))))cc_fail(UNIT_FORMAT);
     } else if(family==K_STRING) {
         if(!capacity||capacity>255||width!=capacity+1)cc_fail(UNIT_FORMAT);
     } else if(family<K_ARRAY) {
@@ -244,6 +255,8 @@ uint8_t cc_unit_types_ready(uint16_t module) ROUTINES {
         if(role==2) {
             if(type==K_STRING) {if(!data)cc_fail(UNIT_FORMAT);}
             else if(type==K_REAL) {if(data!=6)cc_fail(UNIT_FORMAT);}
+            else if(cc_family(type)==K_LONGWORD){if(data!=4||value)cc_fail(UNIT_FORMAT);}
+            else if(cc_family(type)==K_WORD){if(data||value<(uint16_t)CCT(type,low)||value>(uint16_t)CCT(type,high))cc_fail(UNIT_FORMAT);}
             else if(!cc_ordinal(type)||data||(int16_t)value<CCT(type,low)||(int16_t)value>CCT(type,high))cc_fail(UNIT_FORMAT);
         } else if(role==3) {
             if(type==K_STRING)cc_fail(UNIT_FORMAT);

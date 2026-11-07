@@ -25,7 +25,11 @@ static void integer_field(void) {
 }
 static uint16_t field(uint8_t numeric) {
     uint16_t before=cc.temporaries,bytes;
+    uint8_t unsigned_field=0;
     TypeId type=cc_text_value(cc_expression());TypeId kind=cc_family(type);
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc_unsigned(type)){cc_unsigned_format(type);type=kind=K_STRING;numeric=0;unsigned_field=1;}
+#endif
     if(numeric) {if(kind!=K_INTEGER&&kind!=K_REAL) cc_fail(26);}
     else if(kind==K_ARRAY||kind==K_RECORD) cc_fail(62);
     else if(kind==K_SET) cc_fail(66);
@@ -42,7 +46,7 @@ static uint16_t field(uint8_t numeric) {
     push_word();
     cc_op16(0x21,0);cc_emit(0x39);cc_emit(0x3e);cc_emit(kind);
     cc_reserve(kind==K_REAL?256:0);cc_op16(0xcd,RT_FORMAT);
-    bytes=kind==K_STRING?0:kind==K_REAL?66:kind==K_BOOLEAN?6:kind==K_CHAR?2:7;
+    bytes=unsigned_field?12:kind==K_STRING?0:kind==K_REAL?66:kind==K_BOOLEAN?6:kind==K_CHAR?2:7;
     if(bytes) cc_string_snapshot(bytes);
     return bytes+2; /* width word relative to the current SP */
 }

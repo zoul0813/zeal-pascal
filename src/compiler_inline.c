@@ -32,7 +32,11 @@ static uint16_t data(uint16_t *coefficient,uint8_t *word) {
     *coefficient=0;
     if(cc.token=='+'||cc.token=='-') {sign=cc.token=='-'?2:1;cc_next();}
     if(cc.token==T_NUMBER) {
-        if(cc.number_overflow||(!cc.hexadecimal&&cc.magnitude>32767u&&
+        if(cc.number_overflow
+#ifdef ZP_UNITS_EXPERIMENT
+           ||cc.unsigned_magnitude>65535UL
+#endif
+           ||(!cc.hexadecimal&&cc.magnitude>32767u&&
            !(sign==2&&cc.magnitude==32768u)))cc_fail(56);
         value=cc.magnitude;
     } else if(cc.token==T_ID) {

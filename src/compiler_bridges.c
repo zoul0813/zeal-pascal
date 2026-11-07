@@ -40,7 +40,7 @@ static void bridge_slot(int16_t offset) {
 static uint16_t argument_bytes(uint16_t id) {
     TypeId type=CCS(id,type);
     if(CCS(id,role)==S_REFERENCE) return 2;
-    if(cc_family(type)==K_REAL) return 6;
+    if(cc_family(type)==K_REAL||cc_family(type)==K_LONGWORD)return CCT(type,width);
     if(cc_family(type)==K_SET) return 32;
     return 2; /* scalars, pointers and aggregate source addresses */
 }

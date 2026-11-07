@@ -82,14 +82,15 @@ static void math_call(uint8_t op) {
     cc_reserve(256); cc_op16(0xcd,RT_REAL);
 }
 void cc_real_unary(uint8_t op,TypeId type,uint16_t before) FRONTEND {
-    if(!cc_numeric(type)) { cc_fail(23); return; }
+    if(!cc_numeric(type)||cc_family(type)==K_WORD||cc_family(type)==K_LONGWORD) { cc_fail(23); return; }
     cc_emit(0x54); cc_emit(0x5d);
     math_call(op|(cc_family(type)==K_INTEGER?0xc0:0));
     cc_release(before);
     if(op!=ZR_TRUNC&&op!=ZR_ROUND) cc_real_hold();
 }
 void cc_real_binary(uint8_t op,TypeId left,TypeId right,uint16_t before,uint16_t right_bytes) FRONTEND {
-    if(!cc_numeric(left)||!cc_numeric(right)) { cc_fail(47); return; }
+    if(!cc_numeric(left)||!cc_numeric(right)||cc_family(left)==K_WORD||cc_family(left)==K_LONGWORD||
+       cc_family(right)==K_WORD||cc_family(right)==K_LONGWORD) { cc_fail(47); return; }
     math_call(op|(cc_family(left)==K_INTEGER?0x40:0)|(cc_family(right)==K_INTEGER?0x80:0));
     if(right_bytes) cc_drop_stack(2);
     cc_release(before);

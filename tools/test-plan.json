@@ -71,6 +71,8 @@
     "tools/test-unit-real.py",
     "tools/test-unit-init.py",
     "tools/test-unit-types-host.py",
+    "tools/test-unsigned-engine.py",
+    "tools/test-unsigned.py",
     "tools/test-ide-units.py",
     "tools/test-ide-unit-failures.py",
     "tools/test-optional-corpus.py",
