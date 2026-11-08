@@ -37,9 +37,9 @@ void cc_emit(uint8_t v) {
      * is acquired only if necessary, then released after checked placement. */
     if(cc.emitted>=
 #ifdef ZP_UNITS_EXPERIMENT
-       (cc.sources->unit_mode?SOURCE_LIMIT:CC_STATIC_LIMIT)
+       (cc.sources->unit_mode?SOURCE_LIMIT:CC_CODE_LIMIT)
 #else
-       CC_STATIC_LIMIT
+       CC_CODE_LIMIT
 #endif
     ) { cc_fail(99); return; }
     cc_put(cc.emitted++,v);

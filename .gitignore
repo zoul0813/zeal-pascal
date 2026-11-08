@@ -359,3 +359,22 @@
 !/tools/test-compact-hooks.py
 !/tests/native/compact-hooks.pas
 !/docs/runtime-compaction-notes.md
+
+# Original C/Pascal Snake parity milestone.
+!/docs/snake-parity.md
+!/docs/snake-c-observation.json
+!/docs/snake-parity-evidence.json
+!/tools/test-snake-parity.py
+!/reviews/snake-parity-creative-v1.md
+!/reviews/snake-parity-code-v1.md
+!/tools/capture-snake-reference.py
+!/tools/capture-snake-pixels.py
+!/docs/snake-reference-pixels.json
+!/tests/host/staging-limits.c
+!/tools/test-staging-limits.py
+!/docs/code-staging.md
+!/docs/code-staging-evidence.json
+!/tests/host/staging-emission.c
+
+!/tests/host/staging-groups.c
+!/docs/zvb-optimized-evidence.json

@@ -88,7 +88,7 @@ uint8_t cc_group_open(CompilerGroups *g,TypeId owner) ROUTINES {
     uint8_t id;uint8_t i;uint16_t at,parent;
     if(!ready(g))return 255;
     if(g->groups==100) {fail(g,ERR_NO_MORE_ENTRIES);return 255;}
-    if(owner>255u||owner>cc.routine_count||cc.emitted<CC_CODE_BASE||cc.emitted>=CC_STATIC_LIMIT) {
+    if(owner>255u||owner>cc.routine_count||cc.emitted<CC_CODE_BASE||cc.emitted>=CC_CODE_LIMIT) {
         fail(g,ERR_INVALID_PARAMETER);return 255;
     }
     for(i=0;i<g->groups;++i) {
@@ -160,6 +160,8 @@ uint8_t cc_group_close(CompilerGroups *g,uint8_t id) ROUTINES {
     at=group_at(id);
     if(get(g,at+G_STATE)!=OPEN||!frozen(g,at)||!word(g,at+G_MEMBERS)||!word(g,at+G_BYTES))
         return fail(g,ERR_INVALID_PARAMETER);
+    if((uint32_t)cc.emitted+word(g,at+G_BYTES)>CC_CODE_LIMIT)
+        return fail(g,ERR_NO_MORE_MEMORY);
     end=cc.emitted+word(g,at+G_BYTES);
     if(!cc.image||page_role(cc.image->pages[2])!=PAGE_IMAGE||
        (end>0xc000u&&(cc.stage_page==g->page||page_role(cc.stage_page)!=PAGE_COMPILER)))

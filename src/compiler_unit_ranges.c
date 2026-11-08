@@ -13,7 +13,7 @@ uint8_t cc_unit_copy_ranges(uint16_t module,const CompilerFragmentLayout *layout
         if(status!=CF_OK){cc_fail(UNIT_FORMAT);return 0;}
         source=(uint32_t)cc_unit_prefix(module)+cc_unit_module_word(module,blob+16+8*f);
         size=cc_unit_module_word(module,blob+18+8*f);
-        if(source+size>cc_unit_word(module+4)||(uint32_t)address+size>CC_STATIC_LIMIT) {
+        if(source+size>cc_unit_word(module+4)||(uint32_t)address+size>CC_CODE_LIMIT) {
             cc_fail(UNIT_FORMAT);return 0;
         }
         first=source>position?source:position;last=source+size;if(last>end)last=end;

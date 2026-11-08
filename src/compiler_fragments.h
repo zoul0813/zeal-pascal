@@ -85,7 +85,7 @@ void cc_fragment_image_init(CompilerFragmentImage *image) CC_FRAGMENT_CALL;
 uint8_t cc_fragment_image_close(CompilerFragmentImage *image) CC_FRAGMENT_CALL;
 /* Validate even unreachable source records before emission. Roots retain
  * transitive references, including recursive cycles. Independently place only
- * selected fragments in catalog/fragment order within8000..limit<=F400.
+ * selected fragments in catalog/fragment order within8000..limit<=FFFF.
  * root0 determines entry. Output pages are allocated only for the retained
  * high-address span; untouched slots stay255 and all unoccupied bytes in
  * allocated pages are cleared. Source ownership and

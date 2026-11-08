@@ -52,7 +52,7 @@ uint8_t cc_members_flush(CompilerMemberStore *store,CompilerMember *member,Compi
      * append unusable. Never retry after a possibly partial disk write. */
     store->failed=1;
     next=*member;
-    if(!cc.image||member->origin<CC_CODE_BASE||member->origin>=cc.emitted||cc.emitted>CC_STATIC_LIMIT||
+    if(!cc.image||member->origin<CC_CODE_BASE||member->origin>=cc.emitted||
        member->entry<member->origin||member->entry>=cc.emitted||
        member->map_first>cc.entries||member->reloc_first>cc.relocations||
        (uint32_t)cc.entries*MAP_RECORD_BYTES>SOURCE_LIMIT||

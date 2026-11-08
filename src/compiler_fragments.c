@@ -172,7 +172,7 @@ static uint8_t link(const CompilerFragmentObject *objects,uint8_t count,
     Link l;uint16_t i,f,r,n,j,to,addend,entry=0,retained=0;uint32_t end=origin;
     uint8_t o,first,last;
     if(!image||!objects||!count||count>CC_FRAGMENT_OBJECTS||!roots||!root_count||
-       root_count>CC_FRAGMENT_LIMIT||origin<0x8000u||limit>0xf400u||origin>=limit)return CF_ARGUMENT;
+       root_count>CC_FRAGMENT_LIMIT||origin<0x8000u||origin>=limit)return CF_ARGUMENT;
     if((layout&&layout->page!=255)||image->valid||image->pages[0]!=255||image->pages[1]!=255||image->workspace!=255)return CF_ARGUMENT;
     memset(&l,0,sizeof(l));l.objects=objects;l.image=image;l.count=count;
     if(!validate(&l,1))return l.error;

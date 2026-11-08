@@ -168,7 +168,13 @@ static void negative(void) {
     roots[0].fragment=4;check(link(1,0x8000,0xf400)==CF_TARGET&&used==2);roots[0].fragment=0;
     check(link(0,0x8000,0xf400)==CF_ARGUMENT&&used==2);
     check(link(1,0x7fff,0xf400)==CF_ARGUMENT&&used==2);
-    check(link(1,0x8000,0xffff)==CF_ARGUMENT&&used==2);
+    /* Temporary addresses may fill the final byte below FFFF without wrapping.
+     * Physical execution/stack placement is checked by the program linker. */
+    check(link(1,0xfff4,0xffff)==CF_OK&&used==3);
+    check(image.bytes==11&&image.pages[0]==255&&image.pages[1]!=255);
+    check(getword(0xfff5)==0xfffb&&getword(0xfffc)==0xfff9&&get(0xfffe)==0xc9);
+    check(cc_fragment_image_close(&image)&&used==2);
+    check(link(1,0xfff5,0xffff)==CF_CAPACITY&&used==2);
     check(link(1,0xf3ff,0xf400)==CF_CAPACITY&&used==2);
     check(cc_fragment_link(objects,33,roots,1,0x8000,0xf400,&image)==CF_ARGUMENT&&used==2);
 }

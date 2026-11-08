@@ -46,10 +46,12 @@ typedef struct { uint16_t width; int16_t low,high; TypeId family;TypeId capacity
 /* Signed symbol lookup reserves -1; high type bits encode expression kinds.
  * Physical metadata allocation normally exhausts well before these encodings. */
 enum { SYMBOL_LIMIT=32767u,TYPE_LIMIT=0x7ffcu };
-/* Preferred code addresses never wrap through zero. The final image reserves
- * the specified2 KiB initial stack below FC00; globals share this static span. */
+/* Temporary code addresses never wrap. Their upper bound is independent of
+ * the final static/stack boundary: compact linking can place this stream below
+ * its temporary8000 origin. Relocation offsets still fit the low15 bits. */
 #define CC_CODE_BASE 0x8000u
 #define CC_ACTIVATION_BYTES CHAIN_ACTIVATION_BYTES
+#define CC_CODE_LIMIT 0xffffu
 #define CC_STATIC_LIMIT 0xf400u
 typedef uint32_t SourcePosition; /* file ID in high word, source offset in low */
 struct CompilerGroups;

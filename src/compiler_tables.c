@@ -135,7 +135,7 @@ void cc_link_reference(uint16_t site,uint8_t space,uint16_t symbol,uint16_t adde
     if(kind>CF_HIGH8||space>CL_RUNTIME||
        (space!=CL_DATA_ADJUST&&symbol)||
        (space==CL_DATA_ADJUST&&(!symbol||addend||kind==CF_HIGH8))||site<CC_CODE_BASE||
-       site>=CC_STATIC_LIMIT||cc.links==65535u){cc_fail(99);return;}
+       site>=CC_CODE_LIMIT||cc.links==65535u){cc_fail(99);return;}
     words[0]=site;words[1]=symbol;words[2]=addend;
     for(i=0;i<3;++i)put(TABLE_LINK,at+2u*i,1,words[i]);
     byte_put(TABLE_LINK,at+6,space);byte_put(TABLE_LINK,at+7,kind);

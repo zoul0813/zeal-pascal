@@ -91,9 +91,9 @@ void cc_relocate_value(uint16_t operand,uint16_t coefficient,uint8_t byte) FRONT
     if(cc.error->code||cc.suppress||!coefficient)return;
     if(operand<CC_CODE_BASE||operand>=
 #ifdef ZP_UNITS_EXPERIMENT
-       (cc.sources->unit_mode?SOURCE_LIMIT:CC_STATIC_LIMIT)||
+       (cc.sources->unit_mode?SOURCE_LIMIT:CC_CODE_LIMIT)||
 #else
-       CC_STATIC_LIMIT||
+       CC_CODE_LIMIT||
 #endif
        (uint32_t)p+RELOCATION_BYTES>SOURCE_LIMIT) { cc_fail(99);return; }
     /* Staged offsets are below8000. Bit15 denotes one-byte relocation;

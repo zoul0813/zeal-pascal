@@ -98,8 +98,9 @@ uint8_t cc_units_link_object(void) ROUTINES {
     }
     if(cc.error->code)return 0;
     if(!root_count)return 1;
+    if(cc.emitted>=CC_CODE_LIMIT){cc_fail(99);return 0;}
     origin=cc.emitted;cc_fragment_image_init(&linked);cc_fragment_layout_init(&layout);
-    status=cc_fragment_plan(objects,(uint8_t)count,roots,root_count,origin,CC_STATIC_LIMIT,&linked,&layout);
+    status=cc_fragment_plan(objects,(uint8_t)count,roots,root_count,origin,CC_CODE_LIMIT,&linked,&layout);
     if(status!=CF_OK) {
         if(!cc.error->code)cc_fail(status==CF_CAPACITY||status==CF_MEMORY?99:UNIT_FORMAT);goto done;
     }
