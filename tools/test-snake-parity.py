@@ -53,7 +53,7 @@ def main():
     # Locate the actual public Inline leaves linked into this executable.
     # A restore tail may occur in many functions; locate it within its body.
     mappings={};restores=set()
-    gfx=(ROOT/'libraries/ZVBGFX.INC').read_text()
+    gfx=(ROOT/'units/zvb/ZVBGFX.INC').read_text()
     for method in ('VRAMTransfer','GfxTilemapPlace','GfxTilemapLoad',
             'GfxPaletteLoad','GfxPaletteRead','GfxSpriteRender','GfxSpriteRenderArray',
             'GfxSpriteSetX','GfxSpriteSetY','GfxSpriteSetXY',
@@ -203,7 +203,7 @@ def main():
                 for letter,expected in pixels['font_sha256'].items())
             checks['native font palette matches C']=list(vram[64][0xe40:0xe4c])==pixels['font_palette']
             # Check every independent sound leaf, not just the generic writer.
-            io=(ROOT/'libraries/ZVBIO.INC').read_text()
+            io=(ROOT/'units/zvb/ZVBIO.INC').read_text()
             sound_leaves=[]
             for method in ('WritePeripheral','SoundSetHold','SoundSetVoices',
                     'SoundSetVoicesVol','SoundSetChannels','SoundPlaySamples'):

@@ -23,6 +23,12 @@ Build using the existing Zeal development environment:
 zde cmake
 ```
 
+With `ZP_BUILD_TESTS=OFF` (the fresh-checkout default), the build produces the compiler, its ZPL and stock Units without native
+test executables or experimental compiler variants. See [building and release
+artifacts](docs/building.md) for shipped files and the explicit
+`-DZP_BUILD_TESTS=ON` development configuration. ZVB sources live in
+[`units/zvb/`](units/zvb/).
+
 Run the complete product validation once, with redundant diagnostic subsets
 excluded:
 
@@ -30,13 +36,13 @@ excluded:
 python3 tools/run-tests.py
 ```
 
-The explicit [test plan](tools/test-plan.json) contains 67 acceptance commands
-covering all 54 product test runners. The default expands language conformance
+The explicit [test plan](tools/test-plan.json) contains 94 acceptance commands
+covering 80 product test runners. The default expands language conformance
 into four disjoint shards, editor acceptance into 16 independent workflows,
 and integrated native acceptance into 26 isolated families/workflows:
-141 scheduled chunks with the same checks, including the math, file, text,
+168 scheduled chunks with the same checks, including the math, file, text,
 compiler-options and publication-interruption partitions. `--monolithic` uses the unchunked
-67-command plan. Native validation still takes substantial time. Four workers
+94-command plan. Native validation still takes substantial time. Four workers
 run independent commands in parallel by default; use
 `--jobs 8` for eight workers on the M1 Pro, `--jobs 6` for six, or
 `--jobs 1` for serial diagnostics. Modes sharing a
@@ -50,8 +56,9 @@ test commands or rebuild that checkout while validation is active.
 The runner stops at the first observed failure and cancels outstanding work,
 retains logs and input hashes under
 `analysis/test-runs/`, prints the active command every minute, and stops owned
-emulator processes on interruption. It does not build, cache passes, or resume
-an old run. Cancellation checkpoints come from the host checks in the same run;
+emulator processes on interruption. Native selections explicitly configure
+`ZP_BUILD_TESTS=ON` and build their prerequisites before freezing inputs. The
+option remains enabled until explicitly reset to `OFF`. The runner does not cache passes or resume an old run. Cancellation checkpoints come from the host checks in the same run;
 runtime-layout checks use the parameter program produced in that run.
 
 Use `--keep-going` only when collecting failure diagnostics: independent checks
@@ -138,7 +145,7 @@ assertion count derived from the original harness. Disk/output oracles follow
 the family that produces them. The maximum-layout test retains its preceding
 layout calculation, and rename-error coverage retains the original destination
 creation. Without `--case`, each driver retains its original all-case path;
-`--monolithic` selects the 67 acceptance commands.
+`--monolithic` selects the 94 acceptance commands.
 
 Disposable disks copy immutable bases, with APFS cloning when available and a
 normal-copy fallback. Ordinary filesystem checks use T:. The existing compressed
@@ -1038,7 +1045,7 @@ packaging installs them in `T:/lib`. Unit lookup tries the source directory,
 then the loaded compiler library's directory. Saved programs contain their
 selected Crt routines and run after the library is removed.
 
-Focused library validation: `python3 tools/test-screen.py` after `zde cmake`.
+Focused library validation: `python3 tools/test-screen.py` after enabling `ZP_BUILD_TESTS` and building `zscreentest_bin`.
 The independent legacy control remains `python3 tools/test-crt.py`.
 See [Crt library](docs/crt-library.md) for the native contract.
 Physical display/timing qualification remains separate from emulator acceptance.
@@ -1047,7 +1054,7 @@ Overlay declarations in Memory mode now report compiler error77 at the
 `overlay` keyword, retaining source and releasing the failed build. Native
 ZOVR group validation and selected-member staging are tested as a
 separate component with `python3 tools/test-overlays.py` and its `--native`
-mode after `zde cmake`. This does not yet enable disk overlay declarations,
+mode after enabling `ZP_BUILD_TESTS` and building `zoverlaytest_bin`. This does not yet enable disk overlay declarations,
 OvrDrive, runtime cache/trampoline handling or overlay source navigation.
 Completed-member compiler spooling is also tested independently: it appends
 only a member's code and map/relocation suffixes, verifies the disk bytes, and

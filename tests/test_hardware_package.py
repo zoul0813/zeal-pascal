@@ -67,7 +67,7 @@ class Package(unittest.TestCase):
             self.put_capture(self.z_capture/(case+'.COM'), (case+' binary').encode())
         self.put('examples/zvb/TILES.INC', b'assets')
         self.zvb['fixture_sha256']['TILES.INC'] = sha(b'assets')
-        for path in ('examples/zvb/CREDITS.md', 'libraries/ZVB-LICENSE.txt', 'libraries/ZVB-NOTICE.txt'):
+        for path in ('examples/zvb/CREDITS.md', 'units/zvb/ZVB-LICENSE.txt', 'units/zvb/ZVB-NOTICE.txt'):
             self.put(path, b'credit')
         self.examples_report = self.root/'examples-report.json'
         self.zvb_report = self.root/'zvb-report.json'

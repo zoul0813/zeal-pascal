@@ -59,7 +59,7 @@ def main():
         if 'SMOKE' in cases:
             fixtures['HWVALUES.INC']=(ROOT/'tests/native/zvb/HWVALUES.INC').read_bytes()
         if 'PACK' in cases:
-            fixtures['ZVBSTATE.INC']=(ROOT/'libraries/ZVBDECODE.INC').read_text().split('procedure DecodeEncoded',1)[0].encode()
+            fixtures['ZVBSTATE.INC']=(ROOT/'units/zvb/ZVBDECODE.INC').read_text().split('procedure DecodeEncoded',1)[0].encode()
         for path in overrides.values():
             fixtures.update({p.name:p.read_bytes()for p in path.parent.glob('*.INC')})
         if 'CRC32' in cases:
@@ -70,12 +70,15 @@ def main():
     commands += [f'rb 0x{symbols[name]:x} 2'for name in fields]
     commands += [f"rb 0x{symbols['_test_clients']:x} 192",f"rb 0x{symbols['_test_failures']:x} 128",f"rb 0x{symbols['_test_diagnostics']:x} 256",'quit']
     fixture_hashes={name:hashlib.sha256(data).hexdigest() for name,data in fixtures.items()}
-    inputs=[ROOT/'CMakeLists.txt']+sorted(p for p in (ROOT/'src').iterdir() if p.is_file())
+    inputs=[ROOT/'CMakeLists.txt',ROOT/'cmake/Tests.cmake']+sorted(p for p in (ROOT/'src').iterdir() if p.is_file())
     inputs += [ROOT/'build'/name for name in ('zpascal.bin','zpascal.zpl','zpascal.map',
                'zpascal.banks.json','pascal_runtime.zpl','pascal_runtime.private',
                'pascal_runtime.profile','runtime-layout.json')]
     inputs += sorted(p for p in (ROOT/'libraries').iterdir() if p.is_file())
+    inputs += sorted(p for p in (ROOT/'units/zvb').iterdir() if p.is_file())
     inputs += [ROOT/'tools/zvb-source.py', ROOT/'tools/test-zvb.py']
+    inputs += [ROOT/f'build/{target}.{ext}' for ext in ('bin','zpl')]
+    if (ROOT/'build/zvb-authoring.json').exists():inputs.append(ROOT/'build/zvb-authoring.json')
     input_hashes={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
     standalone=[]
     class SavedClients(n.DebugConsole):
@@ -179,7 +182,7 @@ def main():
             temporary=Path(stream.name)
             try:
                 stream.write(payload);stream.flush();os.fsync(stream.fileno())
-                stream.close();os.replace(temporary,destination)
+                stream.close();os.chmod(temporary,0o644);os.replace(temporary,destination)
             finally:
                 temporary.unlink(missing_ok=True)
         report['installed_library']=str(destination)

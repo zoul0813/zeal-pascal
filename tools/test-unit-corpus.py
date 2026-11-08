@@ -14,9 +14,12 @@ def main():
     out=ROOT/'analysis/units'/('corpus-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')+f'-{os.getpid()}')
     out.mkdir(parents=True)
     inputs=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),ROOT/'tools/test-native.py']+sorted(p for p in (ROOT/'src').iterdir() if p.is_file())+sorted((ROOT/'tests/native').glob('*.c'))
+    inputs += sorted((ROOT/'cmake').glob('*.cmake'))
     hashes={str(p.relative_to(ROOT)):sha(p) for p in inputs}
     with (out/'build.log').open('w') as log:
-        result=subprocess.run(['zde','--no-tty','cmake','--target','zunitcorpus_bin','--parallel','6'],cwd=ROOT,stdout=log,stderr=subprocess.STDOUT)
+        result=subprocess.run(['zde','--no-tty','exec','cmake','-S','.','-B','build','-DZP_BUILD_TESTS=ON'],cwd=ROOT,stdout=log,stderr=subprocess.STDOUT)
+        if result.returncode==0:
+            result=subprocess.run(['zde','--no-tty','cmake','build','--target','zunitcorpus_bin','--parallel','6'],cwd=ROOT,stdout=log,stderr=subprocess.STDOUT)
     assert result.returncode==0,out/'build.log'
     spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py');n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
     sym=n.symbols('zunitcorpus');artifacts={f'build/zunitcorpus.{ext}':sha(ROOT/f'build/zunitcorpus.{ext}')for ext in ('bin','zpl','map','ihx')}

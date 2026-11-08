@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parents[1]
 def clean(text):
     return re.sub(r'\{.*?\}|\(\*.*?\*\)','',text,flags=re.S)
 def main():
-    interface=(ROOT/'libraries/ZVB.PAS').read_text().split('interface',1)[1].split('implementation',1)[0]
+    interface=(ROOT/'units/zvb/ZVB.PAS').read_text().split('interface',1)[1].split('implementation',1)[0]
     guide=(ROOT/'docs/zvb-library.md').read_text();crt=(ROOT/'docs/crt-library.md').read_text()
     names=re.findall(r'\b(?:function|procedure)\s+(\w+)\b',clean(interface),re.I)
     assert len(names)==45 and len(set(names))==45

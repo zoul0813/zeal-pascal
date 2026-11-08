@@ -75,10 +75,10 @@ begin
     '''+a.result()+''')
 end;
 '''
-path=ROOT/'libraries/ZVBDECODE.INC'
+path=ROOT/'units/zvb/ZVBDECODE.INC'
 if __name__=='__main__':
  if sys.argv[1:]==['--check']:
-  if path.read_text()!=text:raise SystemExit('Regenerate libraries/ZVBDECODE.INC')
+  if path.read_text()!=text:raise SystemExit('Regenerate units/zvb/ZVBDECODE.INC')
  elif not sys.argv[1:]:path.write_text(text)
  else:raise SystemExit('usage: generate-zvb-decoder.py [--check]')
  print('Decoder bytes:',len(a.data),'relocated internal words:',len(a.words))

@@ -24,7 +24,7 @@ for name,procedure in {
 }.items():
     file='ZVBIO.INC' if name in ('write','read','crc','hold','voices','volume','channels','samples','dma') else 'ZVBGFX.INC'
     if name=='decode':file='ZVBDECODE.INC'
-    text=(ROOT/'libraries'/file).read_text()
+    text=(ROOT/'units/zvb'/file).read_text()
     raw=re.search(r'(?:procedure|function)\s+'+procedure+r'\b.*?Inline\((.*?)\)',text,re.S)[1]
     data=bytearray()
     for token in raw.split('/'):

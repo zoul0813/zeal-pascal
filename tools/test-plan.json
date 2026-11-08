@@ -268,5 +268,380 @@
       "output-interrupt",
       "text"
     ]
+  },
+  "build_targets": {
+    "tools/test-bridges.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "realabi_bin",
+      "stringabi_bin",
+      "zbridgetest_bin"
+    ],
+    "tools/test-chain-call.py": [
+      "execute_entry_bin",
+      "module_unpack_bin",
+      "pascal_runtime_bin",
+      "transfer_call_bin",
+      "transfer_gate_bin",
+      "transfer_runtime_bin",
+      "zchaincallparent_bin",
+      "zchaincalltest_bin",
+      "zexecutecalltest_bin",
+      "zexparent_bin",
+      "zpascal_bin"
+    ],
+    "tools/test-chain-files.py": [
+      "file_runtime_bin",
+      "zchainfilestest_bin"
+    ],
+    "tools/test-chain-loader.py": [
+      "execute_entry_bin",
+      "zchainloadtest_bin"
+    ],
+    "tools/test-chain.py": [
+      "execute_entry_bin",
+      "pascal_runtime_bin",
+      "zchainreplay_bin",
+      "zchaintest_bin",
+      "zpascal_bin"
+    ],
+    "tools/test-compact-programs.py": [
+      "pascal_runtime_bin",
+      "zexparent_bin",
+      "zpascal_bin",
+      "zzvbtest_bin"
+    ],
+    "tools/test-compile-interrupt.py": [
+      "zpascal_bin"
+    ],
+    "tools/test-compiled-startup.py": [
+      "execute_entry_bin",
+      "pascal_runtime_bin",
+      "zchaincalltest_bin",
+      "zexecuteprobe_bin",
+      "zexparent_bin"
+    ],
+    "tools/test-compiler-job.py": [
+      "zjobtest_bin"
+    ],
+    "tools/test-compiler-messages.py": [
+      "zpascal_bin"
+    ],
+    "tools/test-console.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "zcontest_bin",
+      "zpascal_bin"
+    ],
+    "tools/test-control.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "ram_trampoline_bin",
+      "zcontroltest_bin"
+    ],
+    "tools/test-crt-readkey.py": [
+      "pascal_runtime_bin",
+      "zzvbtest_bin"
+    ],
+    "tools/test-crt.py": [
+      "zcrttest_bin"
+    ],
+    "tools/test-devices.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "zdevtest_bin"
+    ],
+    "tools/test-editor-native.py": [
+      "zedittest_bin",
+      "zpascal_bin"
+    ],
+    "tools/test-error-location.py": [
+      "pascal_runtime_bin",
+      "zmaptest_bin"
+    ],
+    "tools/test-examples.py": [
+      "pascal_runtime_bin",
+      "zexampletest_bin",
+      "zpascal_bin",
+      "zptest_bin"
+    ],
+    "tools/test-execute-handoff.py": [
+      "execute_entry_bin",
+      "pascal_runtime_bin",
+      "zexecuteprobe_bin",
+      "zexparent_bin"
+    ],
+    "tools/test-execute-override.py": [
+      "zexecuteprobe_bin"
+    ],
+    "tools/test-file-gate.py": [
+      "file_gate_bin",
+      "zfilegatetest_bin"
+    ],
+    "tools/test-file-runtime.py": [
+      "file_runtime_bin",
+      "zfilecoretest_bin"
+    ],
+    "tools/test-files.py": [
+      "diskabi_bin",
+      "file_gate_bin",
+      "file_runtime_bin",
+      "module_unpack_bin",
+      "zfiletest_bin",
+      "zpascal_bin"
+    ],
+    "tools/test-hooks.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "zhooktest_bin"
+    ],
+    "tools/test-ide-directory.py": [
+      "zpascal_bin"
+    ],
+    "tools/test-ide-execute.py": [
+      "zpascal_bin",
+      "zpexecchild_bin"
+    ],
+    "tools/test-ide-interrupt.py": [
+      "pascal_runtime_bin",
+      "zpascal_bin"
+    ],
+    "tools/test-ide-sources.py": [
+      "zpascal_bin"
+    ],
+    "tools/test-ide-unit-failures.py": [
+      "zpascal_bin"
+    ],
+    "tools/test-ide-units.py": [
+      "integer_runtime_bin",
+      "pascal_runtime_bin",
+      "zexparent_bin",
+      "zpascal_bin"
+    ],
+    "tools/test-inline.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "zinlinetest_bin"
+    ],
+    "tools/test-input.py": [
+      "zinputtest_bin",
+      "zpascal_bin",
+      "zptest_bin"
+    ],
+    "tools/test-io.py": [
+      "ziotest_bin",
+      "zpascal_bin"
+    ],
+    "tools/test-keyboard.py": [
+      "pascal_runtime_bin",
+      "zkeytest_bin"
+    ],
+    "tools/test-language-conformance.py": [
+      "zcorpus_bin"
+    ],
+    "tools/test-language.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "zlangtest_bin"
+    ],
+    "tools/test-linked-addresses.py": [
+      "pascal_runtime_bin",
+      "zexparent_bin",
+      "zpascal_bin"
+    ],
+    "tools/test-logical.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "zkbdtest_bin"
+    ],
+    "tools/test-math.py": [
+      "zmathtest_bin",
+      "zpascal_bin"
+    ],
+    "tools/test-members.py": [
+      "zmemberstest_bin"
+    ],
+    "tools/test-module-unpack.py": [
+      "file_runtime_bin",
+      "module_unpack_bin",
+      "transfer_runtime_bin",
+      "zunpacktest_bin"
+    ],
+    "tools/test-native-host.py": [
+      "execute_entry_bin",
+      "file_gate_bin",
+      "file_runtime_bin",
+      "module_unpack_bin",
+      "pascal_runtime_bin",
+      "pointerabi_bin",
+      "realabi_bin",
+      "setabi_bin",
+      "stringabi_bin",
+      "transfer_gate_bin",
+      "transfer_runtime_bin",
+      "zmathtest_bin",
+      "zpascal_bin"
+    ],
+    "tools/test-native.py": [
+      "execute_entry_bin",
+      "pascal_runtime_bin",
+      "pointerabi_bin",
+      "realabi_bin",
+      "setabi_bin",
+      "stringabi_bin",
+      "zpascal_bin",
+      "zpbootfail_bin",
+      "zptest_bin"
+    ],
+    "tools/test-optional-chain.py": [
+      "zexparent_bin",
+      "zlegacypascal_bin",
+      "zpascal_bin"
+    ],
+    "tools/test-optional-corpus.py": [
+      "zoptionalcorpus_bin",
+      "zptest_bin"
+    ],
+    "tools/test-optional-real.py": [
+      "zlegacypascal_bin",
+      "zpascal_bin"
+    ],
+    "tools/test-options.py": [
+      "pascal_runtime_bin",
+      "zoptionstest_bin",
+      "zpascal_bin"
+    ],
+    "tools/test-output-host.py": [],
+    "tools/test-output-interrupt.py": [
+      "zpascal_bin"
+    ],
+    "tools/test-output.py": [
+      "zpascal_bin"
+    ],
+    "tools/test-overlays.py": [
+      "zoverlaytest_bin"
+    ],
+    "tools/test-params.py": [
+      "zparamtest_bin"
+    ],
+    "tools/test-program-pages.py": [
+      "pascal_runtime_bin",
+      "zpascal_bin"
+    ],
+    "tools/test-real.py": [
+      "zrealtest_bin",
+      "ztrigtest_bin"
+    ],
+    "tools/test-review-ui.py": [
+      "zpascal_bin"
+    ],
+    "tools/test-runtime-layout.py": [
+      "pascal_runtime_bin"
+    ],
+    "tools/test-runtime-objects.py": [
+      "compact_runtime_bin",
+      "file_runtime_bin",
+      "integer_runtime_bin",
+      "pascal_runtime_bin",
+      "runtime_object_a_bin",
+      "runtime_object_b_bin"
+    ],
+    "tools/test-runtime-profile.py": [
+      "execute_entry_bin",
+      "file_gate_bin",
+      "file_runtime_bin",
+      "module_unpack_bin",
+      "pascal_runtime_bin",
+      "transfer_call_bin",
+      "transfer_gate_bin",
+      "transfer_runtime_bin",
+      "zpascal_bin"
+    ],
+    "tools/test-screen.py": [
+      "zexparent_bin",
+      "zscreentest_bin"
+    ],
+    "tools/test-sources.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "zsrctest_bin"
+    ],
+    "tools/test-standard.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "zstdtest_bin"
+    ],
+    "tools/test-startup-path.py": [
+      "zpascal_bin"
+    ],
+    "tools/test-text.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "module_unpack_bin",
+      "ztexttest_bin"
+    ],
+    "tools/test-transfer.py": [
+      "pascal_runtime_bin",
+      "transfer_gate_bin",
+      "transfer_runtime_bin",
+      "zchaintest_bin",
+      "ztransferdriver_bin",
+      "ztransferparent_bin"
+    ],
+    "tools/test-unit-docs.py": [],
+    "tools/test-unit-init.py": [
+      "integer_runtime_bin",
+      "pascal_runtime_bin",
+      "zexparent_bin",
+      "zunitinittest_bin"
+    ],
+    "tools/test-unit-navigation.py": [
+      "zpascal_bin"
+    ],
+    "tools/test-unit-phase.py": [],
+    "tools/test-unit-reader-host.py": [],
+    "tools/test-unit-real.py": [
+      "integer_runtime_bin",
+      "pascal_runtime_bin",
+      "zunitrealtest_bin"
+    ],
+    "tools/test-unit-references-host.py": [],
+    "tools/test-unit-storage.py": [
+      "zzvbtest_bin"
+    ],
+    "tools/test-unit-types-host.py": [],
+    "tools/test-units.py": [
+      "pascal_runtime_bin",
+      "zunittest_bin"
+    ],
+    "tools/test-unsigned-engine.py": [],
+    "tools/test-unsigned.py": [
+      "zunsignedtest_bin"
+    ],
+    "tools/test-word-counts.py": [
+      "integer_runtime_bin"
+    ],
+    "tools/test-workers.py": [
+      "ram_trampoline_bin",
+      "workerabi_bin",
+      "zworkertest_bin"
+    ],
+    "tools/test-zvb-leaves.py": [],
+    "tools/test-zvb.py": [
+      "pascal_runtime_bin",
+      "zpascal_bin",
+      "zptest_bin",
+      "zzvbtest_bin"
+    ]
   }
 }

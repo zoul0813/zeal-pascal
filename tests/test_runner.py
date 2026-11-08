@@ -230,30 +230,25 @@ class Selection(unittest.TestCase):
 
 
 class RunnerDependencies(unittest.TestCase):
-    def test_focused_examples_and_units_rebuild_the_product(self):
-        for script, harness in (('tools/test-examples.py', 'zexampletest_bin'),
-                                ('tools/test-zvb.py', 'zzvbtest_bin'),
-                                ('tools/test-input.py', 'zinputtest_bin')):
-            with self.subTest(script=script):
-                self.assertEqual(runner.native_targets([[script]]),
-                                 sorted(('zpascal_bin', 'zptest_bin', harness)))
-
-    def test_legacy_input_regressions_build_their_harnesses(self):
-        self.assertEqual(runner.native_targets([
-            ['tools/test-native.py', '--case', 'basic'],
-            ['tools/test-native.py', '--case', 'read'],
-            ['tools/test-input.py']]),
-            ['pointerabi_bin', 'realabi_bin', 'setabi_bin', 'stringabi_bin',
-             'zinputtest_bin', 'zpascal_bin', 'zpbootfail_bin', 'zptest_bin'])
+    def test_every_driver_declares_its_prerequisites(self):
+        definition=json.loads(runner.PLAN.read_text())
+        commands=runner.expand_commands(definition, include_redundant=True)
+        self.assertEqual({c[0] for c in commands},set(definition['build_targets']))
+        for command in commands:
+            self.assertEqual(runner.native_targets([command]), sorted(definition['build_targets'][command[0]]))
+        del definition['build_targets']['tools/test-math.py']
+        with self.assertRaisesRegex(ValueError, 'Missing build prerequisites'):
+            runner.expand_commands(definition)
+        self.assertEqual(runner.native_targets([]), [])
 
     def test_host_test_sources_are_frozen_but_caches_are_not(self):
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
-            for name in ('tools', 'build', 'tests', 'tests/__pycache__'):
+            for name in ('tools', 'build', 'tests', 'tests/__pycache__', 'cmake', 'units'):
                 (root/name).mkdir(exist_ok=True)
             for name in ('CMakeLists.txt', 'tools/test-plan.json', 'tools/run-tests.py',
-                         'tests/test_hardware_package.py', 'build/CRT.ZPU',
+                         'tests/test_hardware_package.py', 'build/CRT.ZPU', 'cmake/Tests.cmake', 'units/ZVB.PAS',
                          'tests/__pycache__/test_hardware_package.pyc'):
                 (root/name).write_text('test fixture')
             with patch.object(runner, 'ROOT', root), patch.object(runner, 'PLAN', root/'tools/test-plan.json'), \
@@ -261,6 +256,8 @@ class RunnerDependencies(unittest.TestCase):
                 frozen = runner.inputs()
             self.assertIn('tests/test_hardware_package.py', frozen)
             self.assertIn('build/CRT.ZPU', frozen)
+            self.assertIn('cmake/Tests.cmake', frozen)
+            self.assertIn('units/ZVB.PAS', frozen)
             self.assertFalse(any('__pycache__' in name for name in frozen))
 
     def test_native_build_happens_once_before_frozen_inputs(self):
@@ -274,14 +271,14 @@ class RunnerDependencies(unittest.TestCase):
                    'test-error-location.py':'zmaptest_bin','test-params.py':'zparamtest_bin'}
             for name,target in names.items():
                 (root/'tools'/name).write_text(f'from pathlib import Path\nassert Path("build/{target}.bin").read_bytes()==b"built"\n')
-            (root/'tools/test-plan.json').write_text(json.dumps({'full':['tools/test-native-host.py',*('tools/'+name for name in names)],'redundant':[]}))
+            (root/'tools/test-plan.json').write_text(json.dumps({'full':['tools/test-native-host.py',*('tools/'+name for name in names)],'redundant':[],'build_targets':{'tools/test-native-host.py':[],**{'tools/'+name:[target] for name,target in names.items()}}}))
             fake=root/'fakebin/zde'
-            fake.write_text(f'#!{sys.executable}\nimport sys\nfrom pathlib import Path\nargs=sys.argv\nassert args[1:4]==["--no-tty","cmake","build"],args\nfor target in args[args.index("--target")+1:args.index("--parallel")]:Path("build/"+target+".bin").write_bytes(b"built")\nwith Path("build-calls.txt").open("a")as out:out.write("build\\n")\n')
+            fake.write_text(f'#!{sys.executable}\nimport sys\nfrom pathlib import Path\nargs=sys.argv\nif args[1:4]==["--no-tty","exec","cmake"]:\n assert args[4:]==["-S",".","-B","build","-DZP_BUILD_TESTS=ON"],args\n Path("configured.txt").write_text("tests enabled")\n action="configure"\nelse:\n assert args[1:4]==["--no-tty","cmake","build"],args\n assert Path("configured.txt").read_text()=="tests enabled"\n for target in args[args.index("--target")+1:args.index("--parallel")]:Path("build/"+target+".bin").write_bytes(b"built")\n action="build"\nwith Path("build-calls.txt").open("a")as out:out.write(action+"\\n")\n')
             fake.chmod(0o755)
             env={**os.environ,'PATH':str(fake.parent)+os.pathsep+os.environ.get('PATH','')}
             result=subprocess.run([sys.executable,'tools/run-tests.py','--only','units','--only','unit-real','--only','optional-corpus','--only','error-location','--only','params'],cwd=root,env=env,capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stdout+result.stderr)
-            self.assertEqual((root/'build-calls.txt').read_text(),'build\n')
+            self.assertEqual((root/'build-calls.txt').read_text(),'configure\nbuild\n')
             report=json.loads(next((root/'analysis/test-runs').glob('*/suite.json')).read_text())
             self.assertEqual(report['status'],'passed-focused')
             self.assertEqual(report['changed_inputs'],[])
@@ -381,9 +378,13 @@ class RunnerDependencies(unittest.TestCase):
                               'redundant': [], 'chunks': {'tools/test-editor-native.py':
                               ['--case one', '--case two']}}
                 (root/'tools/test-plan.json').write_text(json.dumps(definition))
+                (root/'fakebin').mkdir()
+                fake=root/'fakebin/zde'
+                fake.write_text(f'#!{sys.executable}\nraise SystemExit(0)\n');fake.chmod(0o755)
+                env={**os.environ,'PATH':str(fake.parent)+os.pathsep+os.environ.get('PATH','')}
                 cmd = [sys.executable, 'tools/run-tests.py', '--jobs', '2']
                 result = subprocess.run(cmd+(['--monolithic'] if monolithic else []),
-                                        cwd=root, capture_output=True, text=True, timeout=20)
+                                        cwd=root, env=env, capture_output=True, text=True, timeout=20)
                 self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
                 one = json.loads((root/'one.json').read_text())
                 two = json.loads((root/'two.json').read_text())

@@ -32,11 +32,11 @@ def authoring_source(text):
     return '\n'.join(line.strip()for line in ''.join(result).splitlines()if line.strip())+'\n'
 
 def source():
-    text=(ROOT/'libraries/ZVB.PAS').read_text()
+    text=(ROOT/'units/zvb/ZVB.PAS').read_text()
     for name in ('ZVBHW.INC','ZVBIO.INC','ZVBGFX.INC','ZVBPACK.INC','ZVBDECODE.INC'):
         marker='{$I '+name+'}'
         assert text.count(marker)==1,name
-        text=text.replace(marker,(ROOT/'libraries'/name).read_text())
+        text=text.replace(marker,(ROOT/'units/zvb'/name).read_text())
     assert '{$I ' not in text
     text=authoring_source(text)
     if max(map(len,text.splitlines()))>127:

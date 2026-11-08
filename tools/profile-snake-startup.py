@@ -20,7 +20,7 @@ def main():
   f=n.RUN/name/'input-error.json'
   if f.exists():raise RuntimeError(f.read_text())
  def leaf_entry(method):
-  source=(ROOT/'libraries/ZVBGFX.INC').read_text()
+  source=(ROOT/'units/zvb/ZVBGFX.INC').read_text()
   body=re.search(r'(?:procedure|function)\s+'+method+r'\b.*?Inline\((.*?)\)',source,re.S)[1]
   code=bytes(int(x,16)for x in re.findall(r'\$([0-9A-Fa-f]{2})',body))
   assert image.count(code)==1,method
@@ -60,7 +60,7 @@ def main():
    return json.dumps(found)+'\n'
  execute('snake-startup-discover',image,Discover,'@discover')
  # Inspect actual native relocation of every internal decoder CALL/JP word.
- raw=re.search(r'Inline\((.*?)\)',(ROOT/'libraries/ZVBDECODE.INC').read_text(),re.S)[1]
+ raw=re.search(r'Inline\((.*?)\)',(ROOT/'units/zvb/ZVBDECODE.INC').read_text(),re.S)[1]
  pattern=b'';relocations=[];at=0
  for token in raw.split('/'):
   token=token.strip()

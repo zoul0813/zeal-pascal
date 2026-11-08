@@ -45,8 +45,8 @@ def main():
             assert expected in log.read_text(), (name, expected)
 
     save()
-    run(['zde', '--no-tty', 'cmake', '--target', 'rebuild_cache'], 'configure')
-    run(['zde', '--no-tty', 'cmake', '--target', 'zlowcopytest_bin', 'zcompacttest_bin',
+    run(['zde', '--no-tty', 'exec', 'cmake', '-S', '.', '-B', 'build', '-DZP_BUILD_TESTS=ON'], 'configure')
+    run(['zde', '--no-tty', 'cmake', 'build', '--target', 'zlowcopytest_bin', 'zcompacttest_bin',
          'zfilecoretest_bin', 'zpascal_bin', '--parallel', '6'], 'build')
     artifacts = sorted(p for p in (ROOT/'build').iterdir() if p.is_file() and
                        p.suffix in ('.bin', '.ihx', '.map', '.zpl', '.packed', '.private', '.profile', '.json'))

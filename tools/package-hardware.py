@@ -142,8 +142,8 @@ def main():
         add('zvb/' + name, data, 'CRC32 known input without newline')
     copy(ROOT / 'examples/zvb/CREDITS.md', 'zvb/CREDITS.md', 'asset attribution')
     for target in ('lib', 'zvb'):
-        copy(ROOT / 'libraries/ZVB-LICENSE.txt', target + '/ZVB.LIC', 'ZVB license')
-        copy(ROOT / 'libraries/ZVB-NOTICE.txt', target + '/ZVB.NTC', 'ZVB attribution')
+        copy(ROOT / 'units/zvb/ZVB-LICENSE.txt', target + '/ZVB.LIC', 'ZVB license')
+        copy(ROOT / 'units/zvb/ZVB-NOTICE.txt', target + '/ZVB.NTC', 'ZVB attribution')
     readme = '''Zeal Pascal physical acceptance overlay
 
 Copy this directory's contents onto an existing Zeal OS TF card.

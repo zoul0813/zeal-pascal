@@ -88,10 +88,10 @@ source at run time. When redistributing a program containing ZVB code, include
 license links in its demo credits; the game prints them on exit.
 
 SDK attribution, license and Pascal changes are recorded in
-[libraries/ZVB-NOTICE.txt](../libraries/ZVB-NOTICE.txt). Demo assets have
+[units/zvb/ZVB-NOTICE.txt](../units/zvb/ZVB-NOTICE.txt). Demo assets have
 separate credits in [CREDITS.md](../examples/zvb/CREDITS.md).
 
-The authoritative interface is [ZVB.PAS](../libraries/ZVB.PAS).
+The authoritative interface is [ZVB.PAS](../units/zvb/ZVB.PAS).
 `ZVBHW.INC` supplies public constants; `ZVBIO.INC`, `ZVBGFX.INC`, `ZVBPACK.INC` and
 `ZVBDECODE.INC` beside it are implementation files.
 
@@ -728,7 +728,8 @@ Pascal differences:
 - full unsigned frequency arithmetic;
 - compression decoders that preserve partial final chunks.
 
-The Zeal-native compiler produces `build/ZVB.ZPU`; selected fragments are
+The default build validates and stages the native-authored stock `build/ZVB.ZPU`
+(see [building](building.md) for re-authoring); selected fragments are
 statically linked into the program. ZPU files are needed during compilation,
 not execution. Runtime code, globals and program code receive final compact
 addresses at link time; omitted Real code leaves no reserved hole. See the

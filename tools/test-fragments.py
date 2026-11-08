@@ -38,6 +38,7 @@ def main():
     paths = [ROOT/name for name in ('CMakeLists.txt', 'src/compiler_fragments.c', 'src/compiler_fragment_access.c', 'src/compiler_fragment_source.c', 'src/compiler_fragments.h',
         'src/native.asm', 'src/zp.h', 'tests/native/fragments.c', 'tests/native/fragments.asm',
         'tests/native/file-start.asm', 'tests/native/machine.asm', 'tools/test-fragments.py', 'tools/test-native.py')]
+    paths += sorted((ROOT/'cmake').glob('*.cmake'))
     hashes = {str(p.relative_to(ROOT)): sha(p) for p in paths}
     report = {'scope': __doc__, 'passed': False, 'input_sha256': hashes, 'commands': []}
 
@@ -55,8 +56,8 @@ def main():
         return log.read_text()
 
     save()
-    run(['zde', '--no-tty', 'cmake', '--target', 'rebuild_cache'], 'configure')
-    build_log = run(['zde', '--no-tty', 'cmake', '--target', 'zfragmenttest_bin', 'fragment_toolchain', '--parallel', '6'], 'build')
+    run(['zde', '--no-tty', 'exec', 'cmake', '-S', '.', '-B', 'build', '-DZP_BUILD_TESTS=ON'], 'configure')
+    build_log = run(['zde', '--no-tty', 'cmake', 'build', '--target', 'zfragmenttest_bin', 'fragment_toolchain', '--parallel', '6'], 'build')
     compiler_version = re.search(r'SDCC[^\n]+', build_log)
     assert compiler_version, build_log
     report['sdcc_version'] = compiler_version[0]

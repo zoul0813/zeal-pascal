@@ -39,13 +39,18 @@ font attribution and license links; keep the [asset credits](CREDITS.md).
 From the repository root, use the existing Zeal development environment:
 
 ```sh
-zde --no-tty cmake build --target zpascal_bin zzvbtest_bin -j4
+zde --no-tty exec cmake -S . -B build -DZP_BUILD_TESTS=ON
+zde --no-tty cmake build --target zvb_authoring -j4
 python3 tools/test-zvb.py --skip-hardware --output-library build/ZVB.ZPU
+python3 tools/package-zvb.py build --record-authoring analysis/native-slice/RUN/zvb-report.json
 python3 tools/test-zvb.py --skip-hardware --prebuilt build/ZVB.ZPU --clients
 python3 tools/package-tf.py
 ```
 
-`zzvbtest_bin` is the intentional native test-harness target. The authoring test
+Use the exact report path printed by the authoring test in place of `RUN`.
+The `zvb_authoring` target rebuilds both native compilers and records their
+provenance. See [building](../../docs/building.md) for stock validation and resetting
+`ZP_BUILD_TESTS=OFF` after development. The authoring test
 compiles the current Pascal unit on the emulated Zeal and installs `build/ZVB.ZPU`
 only after its checks pass. The client command compiles and executes all examples.
 `--skip-hardware` skips the separate compiler hardware-access foundation suite;

@@ -163,7 +163,7 @@ python3 tools/generate-zvb-hardware.py --sdk /path/to/Zeal-VideoBoard-SDK
 
 Add `--check` to verify generated files without changing them.
 '''
-    return {'libraries/ZVBHW.INC':pas,'tests/native/zvb/HWVALUES.INC':tests,'docs/zvb-registers.md':guide},entries,hashes
+    return {'units/zvb/ZVBHW.INC':pas,'tests/native/zvb/HWVALUES.INC':tests,'docs/zvb-registers.md':guide},entries,hashes
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--sdk',type=Path,required=True);p.add_argument('--check',action='store_true');a=p.parse_args()

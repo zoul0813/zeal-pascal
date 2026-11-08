@@ -20,7 +20,7 @@ def main():
   d=Path(d);(d/'values.c').write_text(code)
   subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror',str(d/'values.c'),'-o',str(d/'values')],check=True)
   actual=dict((name,int(value))for name,value in(line.split('=')for line in subprocess.check_output([str(d/'values')],text=True).splitlines()))
- pas=(ROOT/'libraries/ZVBHW.INC').read_text();expected={}
+ pas=(ROOT/'units/zvb/ZVBHW.INC').read_text();expected={}
  for name,value in re.findall(r'^\s*(\w+)\s*=\s*(\$[0-9A-F]+|\d+);',pas,re.M):expected[name]=int(value[1:],16)if value.startswith('$')else int(value)
  assert actual==expected,[(k,actual.get(k),expected.get(k))for k in actual.keys()|expected.keys()if actual.get(k)!=expected.get(k)]
  assert len(actual)==133

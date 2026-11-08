@@ -417,3 +417,15 @@
 # Final pre-merge test cleanup and regression evidence.
 !/reviews/premerge-validation-v1.md
 !/docs/premerge-validation-evidence.json
+
+# Product-only CMake build and stock Pascal Units.
+!/cmake/
+!/cmake/*.cmake
+!/units/
+!/units/zvb/
+!/units/zvb/**
+!/tools/package-zvb.py
+!/tests/test_stock_zvb.py
+!/docs/building.md
+!/docs/release-build-evidence.json
+!/reviews/release-build-v1.md

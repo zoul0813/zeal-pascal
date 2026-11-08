@@ -29,6 +29,10 @@ def test_id(command):
 def expand_commands(definition, include_redundant=False, monolithic=False):
     selected = definition['full'] + (definition['redundant'] if include_redundant else [])
     chunks = {} if monolithic else definition.get('chunks', {})
+    if 'build_targets' in definition:
+        missing = {shlex.split(line)[0] for line in selected} - set(definition['build_targets'])
+        if missing:
+            raise ValueError('Missing build prerequisites for: ' + ', '.join(sorted(missing)))
     if not selected or shlex.split(selected[0])[0] != 'tools/test-native-host.py':
         raise ValueError('Test plan must begin with the host prerequisite')
     expanded = []
@@ -97,7 +101,7 @@ def dependencies(plan, index):
 
 def inputs():
     paths = [ROOT / 'CMakeLists.txt', PLAN, Path(__file__).resolve()]
-    for folder in ('src', 'tests', 'tools', 'examples'):
+    for folder in ('src', 'tests', 'tools', 'examples', 'cmake', 'units'):
         paths.extend(p for p in (ROOT / folder).rglob('*')
                      if p.is_file() and '__pycache__' not in p.parts)
     paths.extend(p for p in (ROOT / 'build').iterdir()
@@ -108,36 +112,10 @@ def inputs():
 
 
 def native_targets(plan):
-    # Build once under the checkout lock, before freezing artifacts or starting
-    # parallel readers. Individual unit drivers never mutate the build tree.
-    targets = {
-        'tools/test-native.py': ('zpascal_bin', 'zptest_bin', 'zpbootfail_bin', 'stringabi_bin',
-                                 'setabi_bin', 'pointerabi_bin', 'realabi_bin'),
-        'tools/test-input.py': ('zpascal_bin', 'zptest_bin', 'zinputtest_bin'),
-        'tools/test-runtime-objects.py': ('runtime_object_a_bin', 'runtime_object_b_bin', 'compact_runtime_bin', 'file_runtime_bin', 'integer_runtime_bin', 'pascal_runtime_bin'),
-        'tools/test-screen.py': ('zscreentest_bin',),
-        'tools/test-linked-addresses.py': ('zpascal_bin',),
-        'tools/test-compact-programs.py': ('zpascal_bin', 'zzvbtest_bin'),
-        'tools/test-examples.py': ('zpascal_bin', 'zptest_bin', 'zexampletest_bin'),
-        'tools/test-program-pages.py': ('zpascal_bin',),
-        'tools/test-error-location.py': ('zmaptest_bin',),
-        'tools/test-params.py': ('zparamtest_bin',),
-        'tools/test-units.py': ('zunittest_bin',),
-        'tools/test-unit-real.py': ('zunitrealtest_bin',),
-        'tools/test-unit-init.py': ('zunitinittest_bin',),
-        'tools/test-unsigned.py': ('zunsignedtest_bin',),
-        'tools/test-zvb.py': ('zpascal_bin', 'zptest_bin', 'zzvbtest_bin'),
-        'tools/test-unit-storage.py': ('zzvbtest_bin',),
-        'tools/test-crt-readkey.py': ('zzvbtest_bin',),
-        'tools/test-word-counts.py': ('integer_runtime_bin',),
-        'tools/test-optional-corpus.py': ('zoptionalcorpus_bin',),
-        'tools/test-ide-units.py': ('zpascal_bin', 'zexparent_bin'),
-        'tools/test-ide-unit-failures.py': ('zpascal_bin',),
-        'tools/test-unit-navigation.py': ('zpascal_bin',),
-        'tools/test-optional-real.py': ('zpascal_bin', 'zlegacypascal_bin'),
-        'tools/test-optional-chain.py': ('zpascal_bin', 'zlegacypascal_bin', 'zexparent_bin'),
-    }
-    return sorted({target for command in plan for target in targets.get(command[0], ())})
+    # The plan owns explicit driver prerequisites, including shared host ABI
+    # fixtures. An empty list identifies a host-only driver deliberately.
+    targets = json.loads(PLAN.read_text()).get('build_targets', {})
+    return sorted({target for command in plan for target in targets.get(command[0], [])})
 
 
 def resolve(command, host_log, params_reports):
@@ -264,24 +242,29 @@ def main():
     try:
         targets = native_targets(plan)
         if targets:
+            print('Test configuration persists: use -DZP_BUILD_TESTS=OFF for product-only builds.', flush=True)
             print(f'Building native prerequisites: {", ".join(targets)}', flush=True)
             with (directory / 'native-build.log').open('w') as output:
-                child = subprocess.Popen(['zde', '--no-tty', 'cmake', 'build', '--target', *targets,
-                                          '--parallel', '6'], cwd=ROOT, stdout=output,
-                                         stderr=subprocess.STDOUT, start_new_session=True)
-                active[0] = {'child': child, 'output': output}
-                while child.poll() is None:
+                commands = [
+                    ['zde', '--no-tty', 'exec', 'cmake', '-S', '.', '-B', 'build', '-DZP_BUILD_TESTS=ON'],
+                    ['zde', '--no-tty', 'cmake', 'build', '--target', *targets, '--parallel', '6'],
+                ]
+                for command in commands:
+                    child = subprocess.Popen(command, cwd=ROOT, stdout=output,
+                                             stderr=subprocess.STDOUT, start_new_session=True)
+                    active[0] = {'child': child, 'output': output}
+                    while child.poll() is None:
+                        if cancelled:
+                            raise KeyboardInterrupt
+                        try:
+                            child.wait(timeout=0.1)
+                        except subprocess.TimeoutExpired:
+                            pass
                     if cancelled:
                         raise KeyboardInterrupt
-                    try:
-                        child.wait(timeout=0.1)
-                    except subprocess.TimeoutExpired:
-                        pass
-                if cancelled:
-                    raise KeyboardInterrupt
-                if child.returncode:
-                    raise RuntimeError(f'Native prerequisite build failed; see {directory}/native-build.log')
-                del active[0]
+                    if child.returncode:
+                        raise RuntimeError(f'Native prerequisite build failed; see {directory}/native-build.log')
+                    del active[0]
         frozen = inputs()
         report['input_sha256'] = frozen
         save()

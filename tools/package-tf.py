@@ -12,9 +12,15 @@ n = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(n)
 
 names = ['build/zpascal.bin', 'build/zpascal.zpl', 'build/zpascal.map', 'build/zpascal.banks.json', 'build/SYSFILE.ZPU', 'build/CRT.ZPU', 'build/CRT.PAS', 'build/ZVB.ZPU',
-         'libraries/ZVB-LICENSE.txt', 'libraries/ZVB-NOTICE.txt']
+         'units/zvb/ZVB-LICENSE.txt', 'units/zvb/ZVB-NOTICE.txt']
 snapshots = {name: (ROOT/name).read_bytes() for name in names}
 hashes = {name: hashlib.sha256(data).hexdigest() for name, data in snapshots.items()}
+spec = importlib.util.spec_from_file_location('stock_zvb', ROOT/'tools/package-zvb.py')
+stock = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(stock)
+manifest = stock.validate(ROOT/'build')
+if hashes['build/ZVB.ZPU'] != manifest['unit_sha256']:
+    raise RuntimeError('Build ZVB.ZPU differs from the validated stock Unit; rebuild before packaging.')
 sym = n.symbols('zpascal')
 metadata = json.loads(snapshots['build/zpascal.banks.json'])
 count = len(metadata['bank_bytes'])
@@ -35,8 +41,8 @@ install = {'/bin/zpascal.bin': resident, '/lib/zpascal.zpl': library,
            '/lib/CRT.ZPU': snapshots['build/CRT.ZPU'],
            '/lib/CRT.PAS': snapshots['build/CRT.PAS'],
            '/lib/ZVB.ZPU': snapshots['build/ZVB.ZPU'],
-           '/lib/ZVB.LIC': snapshots['libraries/ZVB-LICENSE.txt'],
-           '/lib/ZVB.NTC': snapshots['libraries/ZVB-NOTICE.txt']}
+           '/lib/ZVB.LIC': snapshots['units/zvb/ZVB-LICENSE.txt'],
+           '/lib/ZVB.NTC': snapshots['units/zvb/ZVB-NOTICE.txt']}
 commands = ['run 100000000']
 retired = ('/lib/SCREEN.ZPU', '/lib/SCREEN.PAS')
 operations = []

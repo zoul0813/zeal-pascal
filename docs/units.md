@@ -80,7 +80,7 @@ end.
    must use it.
 
 Keep each unit in **one source file**. Unit authoring records a single source
-identity, so do not split a unit with `{$I}` includes. `libraries/ZVB.PAS` has
+identity, so do not split a unit with `{$I}` includes. `units/zvb/ZVB.PAS` has
 include files only because the stock ZVB build flattens them into one source
 before compiling.
 
@@ -260,7 +260,7 @@ TF packaging installs these files beside `T:/lib/zpascal.zpl`:
 Font under CC BY 3.0; keep its title, author, adaptation note and license and
 source links from the [asset credits](../examples/zvb/CREDITS.md).
 
-ZVB's source is `libraries/ZVB.PAS` with private include files. Maintainers
+ZVB's source is `units/zvb/ZVB.PAS` with private include files. Maintainers
 rebuild and test it, and package the TF card, using the
 [demo maintenance steps](../examples/zvb/README.md#maintaining-the-stock-unit)
 and the existing ZDE environment.
