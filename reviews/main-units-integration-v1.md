@@ -99,4 +99,84 @@ Questions reconciled:
 - CRTCHECK has executable `Require` checks: failure raises a runtime error. ZVB supervisor checks RAM success and saved execution exit status. It is exercised, rather than only compiled; no exact stdout golden is claimed. Conditional ReadKey is covered separately by CRT acceptance.
 - Package instructions use an explicit executable path after `cd`.
 
-Verification so far: 44 host tests, 5528 sanitized phase assertions, runtime-object oracle and Unit documentation checks pass. General examples compile unchanged through the production Unit compiler objects, and all native output/replay/ownership checks pass. Final ZVB/CRT run results and actual package verification are supplied in the follow-up. Physical acceptance remains unperformed.
+Verification so far: 44 host tests, 5528 sanitized phase assertions, runtime-object oracle and Unit documentation checks pass. General examples compile unchanged through the production Unit compiler objects, and all native output/replay/ownership checks pass. Final runs pass: six ZVB clients, 179 assertions, saved execution with all ZPU/PAS/INC files removed, exact CRC output and 180 Snake demo frames; CRT 502 assertions plus standalone Chain and exact output. The actual packager created `build/tf-acceptance-review` at checkpoint `5d787b6`, with 88 files and all provenance checks passing. `docs/main-integration-evidence.json` records hashes and report paths. Physical acceptance remains unperformed.
+
+## Opus turn 20261108T143342-573a8a39
+
+Mode: code; read-only
+
+# Follow-up review of `main-units-integration-v1`
+
+**I found no remaining blockers or high-severity defects, so the overlay can proceed to physical acceptance.** Three low-severity provenance and verification gaps remain. None requires rebuilding the payload unless the check in finding 1 fails.
+
+I ran nothing. I cross-checked the supplied reports and manifest by reading them:
+- The launcher, bank file, stock Units and six ZVB executable hashes agree across the reports and manifest.
+- The ZVB source hashes agree, including `crt-guide.pas` as `CRTCHECK.PAS`.
+- The manifest lists 87 payload files, plus `MANIFEST.JSON` for 88 in total.
+- All 10 general BIN entries are present.
+
+## Disposition of initial findings
+
+| # | Finding | Status | Basis |
+|---|---|---|---|
+| 1 | Example source path | Resolved | The packager now uses `ROOT/'examples'/entry['source']`, a host test covers it, and a real package was built. |
+| 2 | Expected assertion count | Resolved | The expected count is 185, and the report shows 185 passed and 0 failed. |
+| 3 | Compiler and ZVB provenance | Mostly resolved | Reports now hash `src/` and `zpascal.*`, and the packager compares them with each other and the current build. See findings 1 and 2 for the gaps. |
+| 4 | Partial publication | Resolved | `line_layout` keeps the previous layout until the header extent matches the file length, with a regression test. |
+| 5 | Dirty checkpoint | Resolved | The packager refuses a dirty worktree. |
+| 6 | Packaging documentation | Resolved | The docs give exact authoring, client and packaging commands, and the ZIP wording is gone. |
+| 7 | Self-referencing commit | Resolved | Only `compiler_commit` is excluded from the equality check. |
+
+Prior questions 1 and 3 are closed by the runtime-object target mappings and the absolute executable paths. Question 2 is partly closed; see the first question below.
+
+## Remaining established gaps
+
+**1. Low: `tools/package-hardware.py`, `ZVB.ZPU` authoring provenance**
+- **Trigger and impact:** The final client run uses `--prebuilt`, so its report proves which library was tested, not which compiler authored it. An older `ZVB.ZPU` could pass packaging if it still works with the tested clients.
+- **Evidence:** The packager compares `build/ZVB.ZPU` only with `library_sha256` from the client report. The authoring report is listed in `docs/main-integration-evidence.json`, but the packager does not read it. Its 13:54 timestamp also predates the first review, whose `test-zvb.py` did not record `input_sha256`.
+- **Verification:** Before relying on the overlay, confirm that the authoring report's `library_sha256` is `1174eab6…` and its `zzvbtest.bin` and `zzvbtest.zpl` fixture hashes match the client report. A future packager could take this report as a required input.
+
+**2. Low: `tools/run-tests.py`, `native_targets`, stale `zpascal` risk**
+- **Trigger and impact:** A focused run of `test-examples` or `test-zvb` can hash an old `build/zpascal.*` as tested, because those entries build only `zexampletest_bin` or `zzvbtest_bin`. The packager would then accept that launcher and bank pair.
+- **Evidence:** Report hashes prove `zpascal.*` has not changed since the test, not that it was built from the hashed sources. The documented command avoids this by building all three targets. The current bank sizes are also consistent with shared objects, but that is not proof.
+- **Fix:** Add `zpascal_bin` to both target mappings in a later change.
+
+**3. Low: shared input observer not rerun on legacy suites**
+- **Trigger and impact:** `DebugConsole.physical_line`, `ready`, `observe` and `matches` changed, but the supplied evidence exercises physical input only through the general examples.
+- **Evidence:** Static risk is low because `identity()` already called `input_layout(image)`. The assignment confirms that the full historical suite was not rerun.
+- **Verification:** Run `python3 tools/run-tests.py --only native:basic --only native:read --only input` before merging to main. This need not delay board testing.
+
+## Questions that do not block testing
+
+1. **Does step 5 of `docs/hardware-testing.md` match `CRTCHECK`?** It expects all 16 routines and `CRT-GUIDE-OK`, but no stdout is checked and the reconciliation describes `ReadKey` as conditional. `crt-guide.pas` was not supplied, so I cannot confirm either claim. On the board, record the exit status and actual output, and do not fail the step solely because `ReadKey` was not exercised.
+2. **Does the standard host-test entry point run `tests/test_hardware_package.py`?** `tools/test-native-host.py` was not supplied, and `run-tests.py` does not list that file among its frozen inputs.
+
+## Closing the final package
+
+Regenerating the directory will change `checkpoint`, and therefore the manifest hash recorded in the evidence file. Compare the `files` map from the final manifest with the review manifest, and record the final checkpoint outside the tracked evidence file. Otherwise, recording it would create another commit.
+
+## Physical risks, not implementation blockers
+
+- **Timing:** Snake's collision wipe is known to be slower than C, and timing parity is not established. Graphics waits also depend on a running display clock.
+- **Storage:** The example and ZVB suites ran from HostFS `H:/`. Load time, Unit lookup beside `T:/lib` and compile-and-save on a real card remain untested.
+- **Video:** CRT helpers map VRAM with interrupts disabled, and their real-board timing and input latency are unmeasured.
+- **Input and audio:** Human-speed PS/2 typing, audible ZVB output, CRC and DMA on the real board, and optional SNES input all need physical results.
+
+## Limitations
+
+`crt-guide.pas`, the authoring report, `test-native-host.py` and the review-record file were not supplied. Test results are as reported in the supplied artifacts and assignment. The overlay remains correctly marked `physical_hardware_passed: false`.
+
+### Codex reconciliation
+
+Follow-up accepted: no blocker or high-severity defect remains for the requested physical-test overlay. No source changes were made after the follow-up.
+
+1. Authoring provenance verified directly: the authoring report records ZVB.ZPU SHA256 `1174eab677a92d8bf420f55d383791cefd98d1236f7fada5deb15dbb67a65e23`, identical to the client report and shipped Unit. Its `zzvbtest.bin` SHA256 is `fdd19cb8947cf55ba37427524ad0ecdc86c0cf9005982511babed428cc43a922` and `zzvbtest.zpl` is `2ff84280aeb97b5fa086a1a18c087f928d67554d18306204b59bf951874dcf8c`; both match the client report exactly. Authoring completed with 28 assertions and no failures. Requiring this report in future packager invocations is deferred as an automation improvement; the present payload is independently bound.
+2. Accepted stale-product risk for focused standard-runner selections. This packaging task explicitly built production `zpascal_bin` alongside the Unit harnesses before freezing artifacts, following the documented command. Add `zpascal_bin` to the focused example/ZVB preflight mappings in a subsequent maintenance change. This does not block this verified payload.
+3. Accepted legacy observer regression gap. Before merging Units into main, run `python3 tools/run-tests.py --only native:basic --only native:read --only input`. It is deferred from this hardware-package delivery: current native examples provide 139 physical input lines and the partial-publication host regression passes. No merge to main is claimed or performed.
+
+Questions answered by local inspection:
+
+- `tests/native/crt-guide.pas` ends with `WriteLn('CRT-GUIDE-OK')`; `Require` divides by zero on a failed cursor check. It calls the CRT operations, with ReadKey conditional on KeyPressed. The hardware operator should record the marker and exit status, and exercise ReadKey with the separate interactive BoardCRT fixture. The checklist's wording about all16routines is broader than the unconditional guide path; this is a documentation clarification for the next maintenance pass, not a board-test failure if no key was pending.
+- `tools/test-native-host.py` selects `test_runner.py` and `test_native_chunks.py`, so it does not automatically include `test_hardware_package.py`. All13packager tests were explicitly run and passed in the44host tests reported here. Registration and frozen-input coverage in the standard host entry point remain maintenance work before the main merge.
+
+Verified the real review package independently:87payload hashes match,10generalBINs,6COMdemos,88total files. The final package will be generated from the final clean review-record checkpoint; its `files` map must exactly equal the reviewed manifest. The final manifest records that checkpoint outside this tracked record, avoiding a self-referencing commit. Physical testing, storage/timing, human keyboard and audible output remain pending. The normal two Opus turns are complete; no additional review requested.
