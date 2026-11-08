@@ -1,0 +1,76 @@
+{
+  "baseline_checkpoint": "681d80125446f4e1e7faa51196c30f2c4be52f69",
+  "physical_hardware_passed": false,
+  "graphics": {
+    "observed": "User reports non-deterministic Snake colors/corruption across repeated physical runs on ZVB1.0.0; Lighthouse colors correct.",
+    "established": "Same-bank fills formerly read back device memory through overlappingLDIR. SDK memset_vram writes each byte directly. Final fill follows SDK shape; RAM-to-VRAM copies unchanged.",
+    "causal_status": "Physical root cause remains unconfirmed; board retest required.",
+    "leaf_bytes_before": 188,
+    "leaf_bytes_after": 186,
+    "sanitized_assertions": 1637765,
+    "before_regression_failed": true,
+    "before_log_sha256": "d939a37c02d13faebacaba0811cc0fc962e0840e96ea82c270191dc997e2ead6",
+    "after_log_sha256": "b58224a65172e9a766b92039feac0b52928ec1103a5b69dacac7ef7594482e79",
+    "native_authoring": {
+      "report": "analysis/native-slice/20261108T151000.313745Z-87806/zvb-report.json",
+      "sha256": "73c6093f27c10f21ffb0775bde02217bceab3c3a35d0edb5e24820c049551f97",
+      "assertions": 28,
+      "library_sha256": "a5c11c1bfe8fb0420796d38983fd11e448621f5038b3ccc2fbd0cfc3ac966bc0"
+    },
+    "native_snake": {
+      "report": "analysis/native-slice/20261108T151836.088644Z-2023/zvb-report.json",
+      "sha256": "a12ef6faecbe9463cdccc911edfaaaf850845777a1c317b0c97c4516b3af13aa",
+      "assertions": 38,
+      "failed": 0,
+      "saved_without_sources_or_units": true,
+      "demo_frames": 180,
+      "program_sha256": "86ffd2ffaeecd4738fd0f86dded4029d492368f5009b5f733d7d480fc375af98",
+      "program_bytes": 35842
+    }
+  },
+  "compiler": {
+    "reported_kernel": "5bb34a78bf23a4ff514488ffb0c109b389dce029",
+    "reported_version": "0.6.0-24-g5bb34a7",
+    "reported_native_error": 6,
+    "evidence_class": "Observed user error; documented source-level defect; inferred physical failure path, no physical syscall trace captured.",
+    "source_defect": "pfree clearsA during ownership check, passes0 to MMU_FREE_PAGE, which rejects page0 withERR_INVALID_PARAMETER6; allocation bit remains set after owner cleared.",
+    "source_sha256": {
+      "kernel/loader.asm": "6e7f71a42cb99d08ff3064845bb2a054421a2218534269b221cc00bbaa8f9058",
+      "target/zeal8bit/mmu.asm": "c04050f499ea5af262943b3169fc950043df2f4c4b1d694705b372da4c852933"
+    },
+    "upstream_fixes": [
+      "98ce65dfcda4217bbe21b199aa4e99a7a4ae1d4f",
+      "45e9478fce7a10b0050e57c4c92f09aa820e3bd9"
+    ],
+    "verified_fixed_release": "v0.8.0",
+    "third_party_changes_made": false,
+    "exact_hello_name_ide_compilation": {
+      "hostfs": {
+        "capture": "analysis/native-slice/20261108T145645.780310Z-61448",
+        "platform_error": 0,
+        "build_valid": 1,
+        "program_bytes": 8140
+      },
+      "tf": {
+        "capture": "analysis/native-slice/20261108T150107.941120Z-71464",
+        "platform_error": 0,
+        "build_valid": 1,
+        "program_bytes": 8140
+      }
+    },
+    "physical_retest_after_os_update": false,
+    "tested_rom": {
+      "path": "/Users/higginsd/Projects/zeal/zeal-dev-environment/home/Zeal-8-bit-OS/build/os_with_romdisk.img",
+      "sha256": "f34d453a1feb17d34c582f64139c5e8a42ac3e0f6642874b1d588695b4036b4a",
+      "pfree_offset": 4389,
+      "pfree_bytes": "78fe20380dcd09119620077778cd0626afc93e06c978fe",
+      "verified": "Compiled routine loads A from B before calling mmu_free_page, then returns A=0."
+    }
+  },
+  "source_sha256": {
+    "libraries/ZVBGFX.INC": "ecf99c567b77c0db76fd8f1b52bf680e0eaca9fbafef79f795360ffa7ffc782b",
+    "tests/host/zvb-leaves.c": "57b601f15456cc58f969b0695dbdf04ef98abb3e2bfb4b91830d9a8f12ae89c1",
+    "docs/zvb-library.md": "faa5b2f9141bfddf96e7c80d60e41e6d34acf6248e99171723532dbeab3cde66",
+    "docs/hardware-testing.md": "4c5cfd6a74eadab13dd987413b3f1ade44392035f0654410f857b17400101fa6"
+  }
+}

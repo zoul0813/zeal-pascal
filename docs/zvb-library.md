@@ -202,14 +202,24 @@ behind. See [Graphics cleanup](../examples/zvb/README.md#graphics-cleanup).
 ### SDK implementation paths
 
 The Pascal implementation follows the SDK's hardware processes: tile placement
-maps VRAM and stores one byte; sprite setters write fields directly in the SDK's
-low/high commit order. Palette, tilemap and sprite copies use Z80 LDIR.
-Tileset copies and fills use LDIR within a bank when no pixel transformation is
-needed; transformed and cross-bank streams retain bounded loops. CRC input uses
+maps VRAM and stores one byte; sprite setters preserve the SDK's low/high
+commit order. Tile and flag setters read and rewrite the companion byte, as
+the SDK does. Palette, tilemap and sprite copies use Z80 LDIR.
+Solid fills write each byte directly, matching SDK `memset_vram`; they never
+read VRAM to propagate a fill value. Tileset copies use LDIR within a bank when
+no pixel transformation is needed; transformed and cross-bank streams retain
+bounded loops. CRC input uses
 OTIR chunks. Sound routines select the device once per operation, and sample
 playback configures once, polls the FIFO, streams bytes and drains it. DMA startup
 converts the descriptor address, selects DMA, writes its three address bytes and
 starts the transfer directly.
+
+Device-memory reads remain intentional in `GfxPaletteRead` (the Pascal
+palette-backup extension) and the SDK-style companion-byte preservation in
+`GfxSpriteSetTile` and `GfxSpriteSetFlags`. The internal transfer leaf also
+supports readback and companion preservation flags; current public loaders use
+its copy, transform or fill paths. Packed loaders decode in RAM, then call
+`GfxTilesetLoadNone`; they do not read VRAM for decompression.
 
 These are Pascal ABI instruction leaves, without SDCC or a C runtime. Pascal
 argument validation and function frames still have their own cost. The Unit

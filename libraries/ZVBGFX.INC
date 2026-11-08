@@ -1,7 +1,8 @@
 { SPDX-FileCopyrightText: 2024-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
   SPDX-License-Identifier: Apache-2.0
   Pascal rewrite; see ZVB-NOTICE.txt for source and changes. }
-{ Raw copies and color fills use LDIR within one bank, as SDK memcpy/memset.
+{ Raw RAM-to-VRAM copies use LDIR within one bank. Solid fills write each
+  byte directly, matching SDK memset_vram without reading back device memory.
   Cross-bank and transformed streams retain the bounded byte loop. }
 { VRAM leaves restore page zero and IFF2 without Pascal/OS calls while mapped.
   Flags: 1 transparent zero, 2 fill Add, 4 preserve companion byte selected
@@ -10,18 +11,20 @@ procedure VRAMTransfer(Page: Byte; Offset: Word; var Buffer; Count: Word;
   Add, Flags: Byte);
 begin
   Inline(
-    $DD/$6E/$0A/$DD/$66/$0B/$DD/$5E/$0C/$DD/$56/$0D/$DD/$4E/$08/$DD/
-    $46/$09/$ED/$57/$F5/$F3/$AF/$DB/$F0/$F5/$DD/$7E/$0E/$D3/$F0/$78/
-    $B1/$28/$41/$DD/$7E/$04/$E6/$FE/$28/$06/$FE/$02/$20/$36/$18/$06/
-    $DD/$7E/$06/$B7/$20/$2E/$E5/$60/$69/$19/$38/$27/$7C/$FE/$40/$38/
-    $06/$20/$20/$7D/$B7/$20/$1C/$E1/$DD/$7E/$04/$E6/$02/$20/$04/$ED/
-    $B0/$18/$60/$DD/$7E/$06/$12/$0B/$78/$B1/$28/$57/$62/$6B/$13/$ED/
-    $B0/$18/$50/$E1/$78/$B1/$28/$4B/$DD/$CB/$04/$5E/$28/$04/$1A/$77/
-    $18/$2D/$DD/$CB/$04/$56/$28/$0E/$7B/$E6/$01/$DD/$BE/$06/$28/$03/
-    $1A/$18/$1B/$7E/$18/$18/$DD/$CB/$04/$4E/$20/$0F/$7E/$B7/$20/$06/
-    $DD/$CB/$04/$46/$20/$08/$DD/$86/$06/$18/$03/$DD/$7E/$06/$12/$23/
-    $13/$0B/$7A/$FE/$40/$20/$BD/$16/$00/$DD/$34/$0E/$DD/$7E/$0E/$D3/
-    $F0/$18/$B1/$F1/$D3/$F0/$C1/$CB/$51/$28/$01/$FB)
+    $DD/$6E/$0A/$DD/$66/$0B/$DD/$5E/$0C/$DD/$56/$0D/$DD/$4E/
+    $08/$DD/$46/$09/$ED/$57/$F5/$F3/$AF/$DB/$F0/$F5/$DD/$7E/
+    $0E/$D3/$F0/$78/$B1/$28/$3F/$DD/$7E/$04/$E6/$FE/$28/$06/
+    $FE/$02/$20/$34/$18/$06/$DD/$7E/$06/$B7/$20/$2C/$E5/$60/
+    $69/$19/$38/$25/$7C/$FE/$40/$38/$06/$20/$1E/$7D/$B7/$20/
+    $1A/$E1/$DD/$7E/$04/$E6/$02/$20/$04/$ED/$B0/$18/$5E/$DD/
+    $7E/$06/$EB/$5F/$73/$23/$0B/$78/$B1/$20/$F9/$18/$50/$E1/
+    $78/$B1/$28/$4B/$DD/$CB/$04/$5E/$28/$04/$1A/$77/$18/$2D/
+    $DD/$CB/$04/$56/$28/$0E/$7B/$E6/$01/$DD/$BE/$06/$28/$03/
+    $1A/$18/$1B/$7E/$18/$18/$DD/$CB/$04/$4E/$20/$0F/$7E/$B7/
+    $20/$06/$DD/$CB/$04/$46/$20/$08/$DD/$86/$06/$18/$03/$DD/
+    $7E/$06/$12/$23/$13/$0B/$7A/$FE/$40/$20/$BD/$16/$00/$DD/
+    $34/$0E/$DD/$7E/$0E/$D3/$F0/$18/$B1/$F1/$D3/$F0/$C1/$CB/
+    $51/$28/$01/$FB)
 end;
 
 function GfxContextValid(var Context: TGfxContext): Boolean;

@@ -2,7 +2,13 @@
 
 The native emulator checks are a prerequisite, not a physical-board pass. Record
 board revision, ZVB firmware version, Zeal OS version, storage device and keyboard
-before testing. Use a known working Zeal OS installation and ZShell.
+before testing. Use Zeal OS v0.8.0 or a kernel containing both upstream fixes
+`98ce65d` (pfree return status) and `45e9478` (free the requested page), plus ZShell.
+The physical kernel `0.6.0-24-g5bb34a7` lacks these fixes: its pfree passes zero
+to the MMU free routine, which returns native error 6 and leaves the allocated
+page unavailable. Compilation requires working page allocation and freeing.
+Update through the normal Zeal OS installation process before accepting compiler
+results; do not ignore the failed free or treat this as a Pascal syntax error.
 
 ## Package layout and installation
 

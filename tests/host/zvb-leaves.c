@@ -12,12 +12,13 @@ static unsigned sampling,sample_count,sample_depth,sample_polls,sample_throttles
 static uint32_t crc_value,crc_bytes;static unsigned assertions;
 static z80 cpu;static device_t ram,io;
 static unsigned long leaf_cycles;
+static unsigned watch_vram_reads,vram_reads;
 static uint32_t watched,writes[4];static unsigned watched_size,write_count;
 void vtimer_tick(uint64_t ignored){(void)ignored;}
 uint64_t vtimer_stall_bus(uint64_t ignored,const bool *requested){(void)ignored;(void)requested;return 0;}
 int mmu_init(mmu_t *m){memset(m,0,sizeof(*m));return 0;}
 static void check(int value){++assertions;assert(value);}
-static uint8_t rd(device_t *d,uint32_t at){(void)d;assert(at<sizeof(memory));return memory[at];}
+static uint8_t rd(device_t *d,uint32_t at){(void)d;assert(at<sizeof(memory));if(watch_vram_reads&&at>=64u*16384&&at<72u*16384)++vram_reads;return memory[at];}
 static void wr(device_t *d,uint32_t at,uint8_t value){(void)d;assert(at<sizeof(memory));memory[at]=value;
     if(watched_size&&at>=watched&&at<watched+watched_size){
         if(write_count<4)writes[write_count]=at;++write_count;
@@ -161,6 +162,19 @@ int main(void){
         execute(irq);
         check(memory[target-1]==0x6d&&memory[target+size]==0x6d);
         for(i=0;i<size;++i){uint8_t v=(uint8_t)(i*17),want=(f&2)?adds[a]:((f&1)&&!v)?0:(uint8_t)(v+adds[a]);check(memory[target+i]==want);}
+    }
+    /* SDK memset_vram writes each byte. Filling device memory must never
+     * copy back a previously written byte through a VRAM read. */
+    for(irq=0;irq<2;++irq)for(o=0;o<2;++o)for(n=0;n<5;++n)for(f=2;f<4;++f)for(a=0;a<2;++a){
+        uint16_t size=counts[n],offset=offsets[o];uint32_t target=68u*16384+offset;
+        prepare(transfer_code,sizeof(transfer_code),irq);
+        memset(memory+target-1,0x6d,size+2);
+        put(0xe004,f);put(0xe006,a?0x12:0);put(0xe008,size);put(0xe00a,0x9000);put(0xe00c,offset);put(0xe00e,68);
+        vram_reads=0;watch_vram_reads=1;execute(irq);watch_vram_reads=0;
+        check(vram_reads==0);
+        for(i=0;i<size;++i)check(memory[target+i]==(a?0x12:0));
+        if(size&&(unsigned)offset+size<=16384)check(leaf_cycles<45u*size+1000);
+        check(memory[target-1]==0x6d&&memory[target+size]==0x6d);
     }
     for(irq=0;irq<2;++irq)for(o=0;o<2;++o)for(n=0;n<5;++n){
         uint16_t size=counts[n],offset=offsets[o];uint32_t target=68u*16384+offset;

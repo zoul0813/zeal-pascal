@@ -406,3 +406,7 @@
 !/docs/main-integration-evidence.json
 !/reviews/main-units-integration-v1.md
 !/tests/test_hardware_package.py
+
+# Physical acceptance: write-only device-memory fills.
+!/reviews/zvb-hardware-fill-v1.md
+!/docs/zvb-hardware-fill-evidence.json
