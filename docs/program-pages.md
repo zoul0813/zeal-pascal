@@ -1,3 +1,6 @@
+> Historical measurements before compact runtime placement. The current layout
+> and allocation rules are described in [Pascal units](units.md#program-memory-layout).
+
 # Program execution pages
 
 The native baseline measures four arithmetic programs using the production IDE

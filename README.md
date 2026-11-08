@@ -193,6 +193,8 @@ regression command runs the existing compiler/runtime corpus without repeating
 the separate IDE/platform workflows.
 
 Deploy the matching `build/zpascal.bin` and `build/zpascal.zpl` from one build.
+Keep `SYSFILE.ZPU`, `CRT.ZPU` and `ZVB.ZPU` beside the loaded ZPL for
+compilation. Saved COM programs contain their selected helpers and units.
 Run the BIN from ZShell on the supported video/PS/2 target; its default library
 path is `T:/lib/zpascal.zpl`. Create that installation directory and copy the
 ZPL there with the normal shell utilities. To select another library path:
@@ -1112,3 +1114,6 @@ menu. Errors retain their acknowledgment/source-recovery workflow. Source Save
 replaces the previous BAK with the prior source version without an extra BAK
 permission question. In saved options, blank Start resets AUTO/minimum placement
 and blank End restores the native default FBFF. Ctrl-U cancellation is retained.
+
+The [runtime compaction notes](docs/runtime-compaction-notes.md) explain final
+global placement, measured RAM use, standalone demos and retained limits.

@@ -26,9 +26,38 @@ every ZPU, PAS and compiler file has been removed.
 **Real arithmetic is not a unit.** There is no `uses Real` and no `REAL.ZPU`.
 The compiler selects its internal Real component when retained operations need
 it. Real arithmetic and formatting require it; raw Real storage/copy does not.
-Some opaque native operations and program transfers also conservatively require
-the full runtime. Program `Inline` is one such case; unit `Inline` alone does
-not implicitly request Real.
+`Inline` and `External` do not implicitly request Real. Native code that
+calls internal Real services must request `{$RUNTIME REAL}` explicitly.
+Program transfers still retain the full runtime to preserve the borrowed-runtime
+Chain contract.
+
+## Program memory layout
+
+A COM is a contiguous byte stream: runtime, globals, then selected program and
+unit code. The linker assigns final addresses and rewrites symbolic references.
+Non-Real programs use a 6,042-byte runtime prefix rather than a padded 16 KiB
+prefix, recovering 10,342 bytes. There is no empty Real reservation. Real
+programs include the actual full runtime and its state.
+
+Execution uses one, two or three physical 16 KiB pages according to the image,
+stack and control-space requirements. Small ordinary programs can share one
+physical page across the three CPU windows. Raw memory/I/O, explicit heap
+inspection, interrupt handlers and program transfers retain independent windows.
+RAM Run allocates only the distinct pages it needs. For a cold COM launch,
+Zeal’s loader initially supplies three pages; program startup returns the
+surplus pages before entering Pascal code. These are hardware mappings and do
+not add page padding to saved binaries. The IDE/compiler retain their own
+separate pages while using RAM Run.
+
+File operations link selected helpers from the compiler-private `SYSFILE.ZPU`.
+Those helpers call Zeal's file APIs directly on the normal program stack and
+mapping. They neither unpack a runtime module nor allocate a backing page.
+Keep `SYSFILE.ZPU` beside the loaded `zpascal.zpl` when compiling file programs;
+saved programs need neither file. This unit is an implementation detail, not a
+Pascal `uses` interface. Lookup uses only the loaded compiler library’s directory;
+a project-local file cannot shadow it. A missing file reports error 250 and a
+file with a different stock checksum reports error 251. The name `SysFile` is
+reserved; rebuild and ship it together with the compiler.
 
 ## Creating a unit
 
@@ -158,14 +187,23 @@ I/O operation can retain its platform error.
 
 **In the running program**, only reachable code and data are present:
 
-- Generated programs keep the fixed 16 KB runtime prefix.
+- Non-Real programs use the compact 6,042-byte prefix. Real programs retain
+  the actual 16,383-byte full engine and state; neither layout pads to a page.
 - Code, globals and generated helpers must end at or before `$F400`. That leaves
   at least 2 KB of stack below the default `$FC00` stack top. Exceeding it
   reports error 98 for variable storage or error 99 for code capacity.
-- A small program can run in two 16 KB execution pages. Unit initializers,
-  nested inter-unit calls, retained hardware access or other runtime needs raise
-  that to three. Importing a routine that is never called adds nothing. See
-  [program pages](program-pages.md).
+- Small programs can use one physical page; larger images or recorded stack
+  demand select two or three. Known stack demand is recorded in the program
+  header, with a minimum 2 KB and 512 bytes of helper headroom. Runtime guards
+  stop deeper calls before they reach static storage. Unit initializers, large
+  unit-frame contracts, retained raw hardware/heap access and program transfers
+  retain independent windows. Calls from a Pascal routine and unresolved forward
+  calls also retain independent windows, preserving the existing recursion and
+  nesting capacity. A root call to a defined leaf can use its recorded budget.
+  The existing CPU-stack window remains `$C800`–`$FC00`; recursive depth is
+  bounded by the actual frames and runtime guards. Importing an uncalled routine
+  adds nothing. The
+  [earlier page measurements](program-pages.md) are historical.
 
 ### Limits
 
@@ -181,9 +219,28 @@ I/O operation can retain its platform error.
 
 | Artifact | Size |
 | --- | --- |
-| `zpascal.zpl` | 277,338 bytes; resident launcher 16,031 bytes |
-| `ZVB.ZPU` | 61,539 bytes: 31,293 code, 908 globals, 29,338 retained metadata |
-| Snake demo COM | 45,909 bytes from both Memory and Com-file compilation, with **171 bytes** of static address space left. Recheck it after any change |
+| `zpascal.zpl` | 276,597 bytes; resident launcher 16,115 bytes |
+| `ZVB.ZPU` | 60,330 bytes: 30,578 code, 908 globals, 28,844 retained metadata |
+| Snake demo COM | 35,699 bytes from Com-file compilation, with **10,381 bytes** of static address space free |
+
+The following are distinct **program execution pages**, excluding the IDE and
+compiler. RAM Run and cold standalone execution produced the same counts.
+
+| Program | COM bytes | Pages |
+| --- | ---: | ---: |
+| Minimal | 6,655 | 1 |
+| Integer | 6,762 | 1 |
+| Real | 17,291 | 2 |
+| Integer unit | 7,005 | 1 |
+| CRT | 7,462 | 1 |
+| Block file I/O | 19,787 | 2 |
+| Typed file I/O | 19,428 | 2 |
+| Text file I/O | 21,767 | 2 |
+
+The [hash-bound evidence](runtime-compaction-evidence.json) records the native
+checks, compiler bank sizes and known limits. Raw hardware programs such as
+Snake retain three independent windows; their recovered space is available to
+code and globals rather than left empty in the first page.
 
 ## Stock units and distribution
 
@@ -191,6 +248,7 @@ TF packaging installs these files beside `T:/lib/zpascal.zpl`:
 
 | File | Contents |
 | --- | --- |
+| `SYSFILE.ZPU` | Private statically linked file helpers, used automatically by the compiler |
 | `CRT.ZPU` | Screen, cursor, color, `Delay` and `ReadKey` routines |
 | `CRT.PAS` | Interface reference only, not the implementation source |
 | `ZVB.ZPU` | Zeal Video Board graphics, sprites, CRC32, sound and DMA; see the [ZVB reference](zvb-library.md) |

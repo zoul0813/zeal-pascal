@@ -133,22 +133,24 @@ See [the ZVB reference](../../docs/zvb-library.md) for units, ranges and buffer
 requirements, and for the distinctions between byte lengths, tile coordinates,
 pixel coordinates and physical addresses.
 
-## Preserved layout/library checkpoint
+## Compact runtime checkpoint
 
-The latest captured Snake Com-file build is46,041 bytes (28,764 code and893
-program globals), leaving only39 bytes before the static limit. It compiles and
-completes its180-frame saved demo without PAS/INC/ZPU files. Unit authoring27
-and focused graphics/packed-decoder/options86 harness assertions pass. These
-are bounded results, not final interactive acceptance or complete regression.
-See [checkpoint evidence](../../docs/zvb-interactive-evidence.json).
+The current Snake Memory and Com-file builds are identical at 35,699 bytes: 6,042 runtime, 893 globals
+and 28,764 code. It has 10,381 bytes before the static limit. The same-source
+pre-compaction build was 46,041 bytes with 39 bytes free; removing the Real
+reservation recovered exactly 10,342 bytes without further asset packing.
+Snake remains one self-contained COM and completes its 180-frame saved demo
+without PAS, INC or ZPU files.
 
-Shared decoder changes consolidate token output while preserving bounds and
-malformed-input rejection; tests include overlapping history, exact64KB output
-and overflow rejection. The colour-tile helper shares page/offset arithmetic.
-Snake uses board-cell direction links rather than duplicate body/occupancy
-arrays. The extended interactive observer is preserved but not yet qualified
-on this final candidate. Loading-speed improvement is not established.
+The earlier [interactive evidence](../../docs/zvb-interactive-evidence.json)
+records the waiting-state and layout work before runtime compaction. Current
+qualification is recorded in the [compaction evidence](../../docs/runtime-compaction-evidence.json).
+The precompiled demos are in `build/zvb/`; keep the supplied licenses and asset
+credits when redistributing them. Loading speed and physical hardware remain
+separate acceptance questions.
 
-This work is preserved before compact-runtime integration. Stop further asset
-or game packing and reclaim the omitted Real address-space hole next. Existing
-precompiled bundles and TF packaging have not been refreshed for this checkpoint.
+After rebuilding the compiler, maintainers can check final-link bank residency
+and fault recovery with `python3 tools/check-unit-banks.py` and
+`python3 tools/test-unit-phase.py`. See the
+[runtime compaction notes](../../docs/runtime-compaction-notes.md) for the final
+layout and the distinction between measured addresses and linker contracts.
