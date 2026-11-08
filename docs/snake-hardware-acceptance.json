@@ -4,7 +4,7 @@
   "retest_checkpoint": "b5d0aa0c02ef28ce02c2ca01d4fa995ceb7d1f1e",
   "kernel": "0.8.0",
   "zvb_firmware": "1.0.0 (reported earlier in this hardware session)",
-  "scope": "Snake graphics and repeated-launch consistency, plus the previously confirmed compiler Memory-mode compilation. This does not sign off the complete hardware checklist.",
+  "scope": "Snake graphics and repeated-launch consistency; Minimal and HelloName Memory-mode compilation; Life compilation and execution in Memory mode. This does not sign off the complete hardware checklist.",
   "snake": {
     "graphics_passed": true,
     "repeated_launch_consistency_passed": true,
@@ -28,5 +28,15 @@
     "On-card Unit recompilation and saved-program execution"
   ],
   "historical_evidence": "docs/zvb-hardware-fill-evidence.json records the pre-retest snapshot; its pending physical flags and the package manifest remain unchanged for audit.",
-  "test_checklist": "docs/hardware-testing.md"
+  "test_checklist": "docs/hardware-testing.md",
+  "life": {
+    "memory_compile_passed": true,
+    "memory_run_passed": true,
+    "user_report": "ok - great, it compiled and ran in memory fine - so that is additional hardware acceptance",
+    "shipped_source": "examples/life/life.pas",
+    "shipped_source_sha256": "f64c4ac03419423fed44c870585163506aeb6de0180c7257eb8817d24e1bdaf7",
+    "physical_source_hash_verified": false,
+    "ram_image_captured": false,
+    "compile_time_measured": false
+  }
 }
