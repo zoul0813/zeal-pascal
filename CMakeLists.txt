@@ -119,13 +119,13 @@ set_property(SOURCE src/library.c src/library_phase.c src/platform.c src/banks.c
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/library.h)
 set_property(SOURCE src/banks.c src/main.c tests/native/main.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/zp.h)
-set_property(SOURCE tests/native/harness.c APPEND PROPERTY OBJECT_DEPENDS
+set_property(SOURCE tests/native/harness.c tests/native/harness-cases.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h)
-set_source_files_properties(tests/native/harness.c PROPERTIES COMPILE_OPTIONS "--opt-code-size")
+set_source_files_properties(tests/native/harness.c tests/native/harness-cases.c PROPERTIES COMPILE_OPTIONS "--opt-code-size")
 set_property(SOURCE tests/native/options-main.c tests/native/chain-call-main.c tests/native/chain-main.c
     tests/native/execute-call-main.c tests/native/job-main.c tests/native/members-main.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h)
-set_property(SOURCE tests/native/main.c tests/native/harness.c APPEND PROPERTY
+set_property(SOURCE tests/native/main.c tests/native/harness.c tests/native/harness-cases.c APPEND PROPERTY
     OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 set_property(SOURCE tests/native/main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/tests/native/core-groups.h)
@@ -433,7 +433,7 @@ set_property(SOURCE tests/native/harness-execute.c APPEND PROPERTY OBJECT_DEPEND
 foreach(target zcompacttest zcorpus zjobtest zmemberstest zexecutecalltest zpascal zptest zinputtest zmathtest ziotest zfiletest ztexttest zstdtest zkeytest zkbdtest zcontest zcontroltest zcrttest zmaptest zdevtest zbridgetest zhooktest zlangtest zexampletest zsrctest zinlinetest zparamtest zoptionstest zchaintest zchaincalltest zworkertest zedittest)
     get_target_property(test_sources ${target} SOURCES)
     if("tests/native/harness.c" IN_LIST test_sources)
-        target_sources(${target} PRIVATE $<TARGET_OBJECTS:test_execution>)
+        target_sources(${target} PRIVATE tests/native/harness-cases.c $<TARGET_OBJECTS:test_execution>)
     endif()
     if(target STREQUAL "zpascal" OR target STREQUAL "zedittest")
         target_sources(${target} PRIVATE ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm)
@@ -815,7 +815,7 @@ target_include_directories(unit_test_execution PRIVATE src)
 target_compile_options(unit_test_execution PRIVATE --std-c99 --opt-code-size
     "SHELL:--codeseg BANK3" "SHELL:--constseg BANK3")
 add_executable(zunittest src/startup.asm src/banks.c tests/native/units-main.c
-    tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:unit_core> $<TARGET_OBJECTS:unit_fragment_core>
+    tests/native/harness.c tests/native/harness-cases.c tests/native/machine.asm $<TARGET_OBJECTS:unit_core> $<TARGET_OBJECTS:unit_fragment_core>
     $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
     $<TARGET_OBJECTS:unit_test_execution> $<TARGET_OBJECTS:test_evidence> ${CMAKE_BINARY_DIR}/transfer_test_asset.asm)
 target_compile_definitions(zunittest PRIVATE ZP_UNITS_EXPERIMENT ZP_TEST_COMPILER)
@@ -838,7 +838,7 @@ add_custom_target(zunittest_bin
 # Reuse the existing corpus against the macro-on compiler, including its
 # prefix and ordinary lookup paths. This is separate from production zptest.
 add_executable(zunitcorpus src/startup.asm src/banks.c tests/native/main.c
-    tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:unit_core> $<TARGET_OBJECTS:unit_fragment_core>
+    tests/native/harness.c tests/native/harness-cases.c tests/native/machine.asm $<TARGET_OBJECTS:unit_core> $<TARGET_OBJECTS:unit_fragment_core>
     $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
     $<TARGET_OBJECTS:unit_test_execution> $<TARGET_OBJECTS:test_evidence> ${CMAKE_BINARY_DIR}/transfer_test_asset.asm)
 target_compile_definitions(zunitcorpus PRIVATE ZP_UNITS_EXPERIMENT ZP_TEST_COMPILER)
@@ -947,7 +947,7 @@ target_compile_options(optional_test_execution PRIVATE --std-c99 --opt-code-size
 
 # Reuse the existing language/Real/format corpus with production selection on.
 add_executable(zoptionalcorpus src/startup.asm src/banks.c tests/native/main.c
-    tests/native/harness.c tests/native/machine.asm
+    tests/native/harness.c tests/native/harness-cases.c tests/native/machine.asm
     $<TARGET_OBJECTS:unit_runtime_core> $<TARGET_OBJECTS:unit_fragment_core> $<TARGET_OBJECTS:real_compiler>
     $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
     $<TARGET_OBJECTS:optional_test_execution> $<TARGET_OBJECTS:test_evidence>
@@ -1128,7 +1128,7 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/CRT.ZPU ${CMAKE_BINARY_DIR}/CRT.PA
         ${CMAKE_SOURCE_DIR}/libraries/screen-engine.inc VERBATIM)
 add_custom_target(screen_library ALL DEPENDS ${CMAKE_BINARY_DIR}/CRT.ZPU ${CMAKE_BINARY_DIR}/CRT.PAS)
 add_executable(zscreentest src/startup.asm src/banks.c tests/native/screen-main.c
-    tests/native/harness.c tests/native/machine.asm
+    tests/native/harness.c tests/native/harness-cases.c tests/native/machine.asm
     $<TARGET_OBJECTS:unit_runtime_core> $<TARGET_OBJECTS:unit_fragment_core>
     $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
     $<TARGET_OBJECTS:optional_test_execution> $<TARGET_OBJECTS:test_evidence>
@@ -1139,7 +1139,7 @@ target_compile_options(zscreentest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 set_source_files_properties(tests/native/screen-main.c PROPERTIES
     COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
 set_property(SOURCE tests/native/screen-main.c APPEND PROPERTY OBJECT_DEPENDS
-    ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h
+    ${CMAKE_SOURCE_DIR}/src/native_image.h ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h
     ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 add_dependencies(zscreentest transfer_assets screen_library zexparent_bin)
 target_link_options(zscreentest PRIVATE "SHELL:-b _INITIALIZED=0xc000")

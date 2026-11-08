@@ -8,20 +8,22 @@ procedure check(b:boolean);
 begin if not b then begin failures:=failures+1;writeln('FAIL:',n)end;n:=n+1 end;
 function arg(wanted:integer):integer;
 begin evals:=evals+1;check(evals=wanted);arg:=wanted end;
+{ Page 0 is borrowed only inside bounded Inline copies, with IFF preserved.
+  Program code and dynamically placed globals remain mapped above $4000. }
 procedure paint;
 begin
  for i:=0 to 3199 do begin chars[i]:=33+(i div 80)mod 90;colors[i]:=(i div 80)mod 16 end;
- inline($3E/$40/$DB/$F1/$F5/$3E/$40/$D3/$F1/
-        $21/chars/$11/$4000/$01/3200/$ED/$B0/
-        $21/colors/$11/$5000/$01/3200/$ED/$B0/
-        $F1/$D3/$F1)
+ inline($ED/$57/$F5/$F3/$AF/$DB/$F0/$F5/$3E/$40/$D3/$F0/
+        $21/chars/$11/>$0000/$01/3200/$ED/$B0/
+        $21/colors/$11/$1000/$01/3200/$ED/$B0/
+        $F1/$D3/$F0/$D1/$CB/$53/$28/$01/$FB)
 end;
 procedure sample;
 begin
- inline($3E/$40/$DB/$F1/$F5/$3E/$40/$D3/$F1/
-        $21/$4000/$11/actual/$01/3200/$ED/$B0/
-        $21/$5000/$11/colors/$01/3200/$ED/$B0/
-        $F1/$D3/$F1)
+ inline($ED/$57/$F5/$F3/$AF/$DB/$F0/$F5/$3E/$40/$D3/$F0/
+        $21/>$0000/$11/actual/$01/3200/$ED/$B0/
+        $21/$1000/$11/colors/$01/3200/$ED/$B0/
+        $F1/$D3/$F0/$D1/$CB/$53/$28/$01/$FB)
 end;
 function at(col,row:integer):integer;
 begin at:=((row+sy)mod 40)*80+(col+sx)mod 80 end;

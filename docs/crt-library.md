@@ -207,7 +207,8 @@ The native implementation is covered by historical framebuffer, cursor/color,
 RAM/saved-program, lifecycle, I/O-failure and key-input checks documented in
 [the implementation notes](screen-library.md). A current native fixture exercises all 16 documented routines; ReadKey is tested with
 physical emulator key injection. Saved test programs run independently of source
-and Unit files. See [the current reference evidence](unit-reference-evidence.json) for checks and
-the existing full-framebuffer test harness packaging limitation. Physical
+and Unit files. See [the current reference evidence](unit-reference-evidence.json) for the Unit
+checkpoint and [CRT harness evidence](crt-harness-evidence.json) for full
+framebuffer verification after the test-harness repair. Physical
 hardware/display/audio timing and full historical Turbo Pascal equivalence
 remain separate qualification objectives.

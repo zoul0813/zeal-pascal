@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Pascal CRT screen, lifecycle and timing through RAM and saved native programs."""
+import argparse
 import importlib.util
 import json
 import re
@@ -12,6 +13,11 @@ spec.loader.exec_module(n)
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--emulator', type=Path, help='Use an installed native emulator')
+    args = parser.parse_args()
+    if args.emulator is not None:
+        n.EMULATOR = args.emulator
     target = 'zscreentest'
     sym = n.symbols(target)
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(), ROOT/'tools/test-native.py',
@@ -24,6 +30,14 @@ def main():
     linked=ROOT/f'build/{target}.ihx'
     if any((ROOT/f'build/{target}.{ext}').stat().st_mtime_ns<linked.stat().st_mtime_ns for ext in ('bin','zpl')):
         raise RuntimeError('Stale Screen test artifacts: run zde cmake --target zscreentest_bin')
+    # These near calls require one shared bank; cross-bank evidence needs
+    # resident check/seed. Keep this active under Python optimization too.
+    placement_ok = (sym['_app_main'] >> 16 == 1
+                    and all(sym['_'+name] >> 16 == 1 for name in
+                            ('load', 'execution', 'execution_file', 'checked_error'))
+                    and sym['_check'] >> 16 == sym['_seed'] >> 16 == 0)
+    if not placement_ok:
+        raise RuntimeError('CRT harness helpers have incompatible bank placement')
     assert sym['_test_stop'] == 0xfc00
     commands = ['run 100000000'] + n.program_launch(target)
     sleeper = n.kernel_symbols()['zos_time_msleep']
@@ -69,6 +83,7 @@ def main():
     output = n.RUN/'screen-library/hostfs/CRT.TXT'
     sleeps = re.findall(r'\[DBG\] PC='+f'{sleeper:04x}'+r' .*?DE=([0-9a-fA-F]{4})', raw, re.S)
     checks = {
+        'case helpers share BANK1; cross-bank check and seed resident': placement_ok,
         'native millisecond sleep arguments, zero and25 in RAM andCOM; pending I/O suppresses sleep':
             sleeps == ['0000', '0019', '0000', '0019'] + ['0019']*13,
         'native completion': memory.get(sym['_test_done']) == 255 and word('_test_stage') == 6,
@@ -112,6 +127,8 @@ def main():
     checks['standalone Screen Chain without compiler or unit libraries']=chain_ok
     report = {'scope': 'Shipped Screen ZPU using production compiler; RAM/COM, lifecycle, I/O checking, ranges, source locations and library deletion',
               'passed': all(checks.values()), 'capture_directory': str(n.RUN.relative_to(ROOT)),
+              'emulator': str(n.EMULATOR),
+              'harness_layout': json.loads((ROOT/f'build/{target}.banks.json').read_text()),
               'native_assertions_passed': word('_test_passed'),
               'native_assertions_failed': word('_test_failed'),
               'final_pages':word('_screen_final_pages')&255,'final_cached':word('_screen_final_cached')&255,

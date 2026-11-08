@@ -17,18 +17,20 @@ begin
  if not ok then begin failures:=failures+1;writeln('COLOR-FAIL:',n)end;
  n:=n+1
 end;
+{ Page 0 is borrowed only inside bounded Inline copies, with IFF preserved.
+  Program code and dynamically placed globals remain mapped above $4000. }
 procedure sample;
 begin
- inline($3E/$40/$DB/$F1/$F5/$3E/$40/$D3/$F1/
-  $21/$4000/$11/chars/$01/320/$ED/$B0/
-  $21/$5000/$11/attrs/$01/320/$ED/$B0/$F1/$D3/$F1)
+ inline($ED/$57/$F5/$F3/$AF/$DB/$F0/$F5/$3E/$40/$D3/$F0/
+  $21/>$0000/$11/chars/$01/320/$ED/$B0/
+  $21/$1000/$11/attrs/$01/320/$ED/$B0/$F1/$D3/$F0/$D1/$CB/$53/$28/$01/$FB)
 end;
 procedure bottom;
 begin
- rowaddr:=$4000+((port[$A3]+39)mod 40)*80;
- inline($3E/$40/$DB/$F1/$F5/$3E/$40/$D3/$F1/
+ rowaddr:=((port[$A3]+39)mod 40)*80;
+ inline($ED/$57/$F5/$F3/$AF/$DB/$F0/$F5/$3E/$40/$D3/$F0/
   $2A/rowaddr/$11/chars/$01/>80/$ED/$B0/
-  $2A/rowaddr/$01/$1000/$09/$11/attrs/$01/>80/$ED/$B0/$F1/$D3/$F1)
+  $2A/rowaddr/$01/$1000/$09/$11/attrs/$01/>80/$ED/$B0/$F1/$D3/$F0/$D1/$CB/$53/$28/$01/$FB)
 end;
 function pick:integer;
 begin calls:=calls+1;TextBackground(LightBlue);pick:=Yellow end;

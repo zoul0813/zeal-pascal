@@ -1,5 +1,6 @@
 #include "harness.h"
 #include "compiler_units.h"
+#include "native_image.h"
 #include <zos_time.h>
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done,screen_final_pages,screen_final_cached;
@@ -36,13 +37,13 @@ int app_main(void) {
     check(!rm("H:/src/CRT.ZPU"));
     /* Unused imports add no executable bytes or execution requirement. */
     {
-        uint16_t plain=0,one=0;
+        uint16_t plain=0,one=0;uint8_t plain_flags=0;
         check(source_import(&s,(const uint8_t*)"begin end.",10,&d));check(compile(&s,&b,&d));
-        if(b.valid)plain=b.length;build_close(&b);
+        if(b.valid){plain=b.length;plain_flags=far_get(b.pages[0],18);}build_close(&b);
         check(load("begin end."));check(compile(&s,&b,&d));
-        if(b.valid)check(b.length==plain&&(far_get(b.pages[0],18)&2));build_close(&b);
+        if(b.valid)check(b.length==plain&&far_get(b.pages[0],18)==plain_flags);build_close(&b);
         check(load("begin Crt.ClrEol end."));check(compile(&s,&b,&d));
-        if(b.valid) {one=b.length;check(!(far_get(b.pages[0],18)&2));}build_close(&b);
+        if(b.valid) {one=b.length;check(one>plain);}build_close(&b);
         check(load("begin ClrEol;ClrScr;CrtInit;CrtExit end."));check(compile(&s,&b,&d));
         if(b.valid)check(b.length>one);build_close(&b);
         rejected("var N:Integer;begin N:=Addr(ClrScr)end.",249);

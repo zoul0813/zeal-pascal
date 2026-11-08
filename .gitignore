@@ -395,3 +395,8 @@
 !/docs/crt-library.md
 !/docs/unit-reference-evidence.json
 !/reviews/zvb-register-docs-v1.md
+
+# CRT harness fit and hardware-test checkpoint.
+!/docs/hardware-testing.md
+!/docs/crt-harness-evidence.json
+!/reviews/crt-harness-v1.md
