@@ -68,3 +68,61 @@ Final standard focused suite `analysis/test-runs/20261108T170421.182335Z/suite.j
 Graphics report `analysis/native-slice/20261108T164404.908495Z-84521/zvb-report.json` passes115/0 forGFX,ZVBCHECK,SPRITES,FIRSTBAR, all4savedclients run withPAS/INC/ZPUfiles removed. GFX checks all256/128bytes through DMA to11FFFF. UnitSHAa5c11...matches the physicalacceptedfix. Sizes32789/22077/26455/16990 respectively. Canonicalbuild/ZVB.ZPU refreshed from that verifiedUnit; no TFpackage rebuilt or changed. All4existingTFdirectory payloads still match their original manifests.
 
 `docs/premerge-validation-evidence.json` records paths, hashes, timings and scoped proof. Final sources are frozen for the follow-up. No product compiler/runtime/library implementation was changed in this task; no main merge or push performed.
+
+## Opus turn 20261108T171337-952ad0a3
+
+Mode: code; read-only
+
+**No blockers remain for the focused scope.** All three first-round findings and all five questions are resolved in the supplied code and evidence. I found one low-severity provenance gap and one low-severity repository question. This doesn't establish merge readiness because the full 168-command suite hasn't run, and no merge or push is authorized.
+
+## Dispositions
+
+| Item | Status | Basis |
+|---|---|---|
+| 1. Stale compiler in focused input runs | Resolved | `native_targets()` now builds `zpascal`, `zptest`, and each driver's harness for input, ZVB, and examples. Each driver is asserted alone, and `test-input.py` hashes the base fixtures and `linked_integer_runtime.bin`. |
+| 2. GFX end-of-bank coverage | Resolved | `RequireSolidTile` reads 4×64 bytes from `$11FF00` and 2×64 bytes from `$11FF80`, so both end at `$11FFFF`. The GFX fixture hash in the report (`d1cd0254...`) matches the evidence source hash. |
+| 3. HelloWorld identity | Resolved | `hello_world_identity` marks the compiler checkpoint and source hash unverified and the COM hash uncaptured. |
+| Q1. `zpbootfail` and linked runtime | Resolved | `zpbootfail_bin` is mapped. CMake reaches `linked_integer_runtime.bin` through `zpascal` → `unit_runtime_core` → `runtime_layout`. |
+| Q2. ABI targets | Resolved | All four use `zos_add_outputs(... WITH_EXTENSION zpl)`, matching the existing `_bin` target usage, and the preflight reportedly built them. |
+| Q3. `CRT.ZPU` freshness | Resolved | `zpascal` depends on `screen_library`, and stock `.ZPU` and `.PAS` build files are now frozen. |
+| Q4. Leaf oracle in the plan | Resolved | `tools/test-zvb-leaves.py` is in the plan, and the expected totals are 94 and 168. |
+| Q5. Exact prebuilt Unit | Resolved | The report has `library_sha256` `a5c11c1b...` and `prebuilt library used: true`. |
+
+## New change: HALT completion fix
+I found no defect in this change.
+- **Cause matches the code:** `machine.asm` installs `HALT` at `FC00`, followed by `JR FC00` at `FC01`. A resumed run can therefore start at the completion point and halt at `FC01`.
+- **Completion checks stay strict:** Both drivers still step and require a final frame starting with `fc01`. `test-input.py` also now checks the supervisor prefix and stage 6, and its 300-second deadline is unchanged.
+- **Graphics isolation holds:** The baseline diff for `tools/test-native.py` is one hunk inside `main()`, supporting the claim that helpers imported by `test-zvb.py` are unchanged.
+
+## Established finding
+
+**1. Low: the graphics report doesn't identify its emulator by content**
+- **Location:** `analysis/native-slice/20261108T164404.908495Z-84521/zvb-report.json`, `emulator`; `docs/premerge-validation-evidence.json`, `graphics`
+- **Trigger and impact:** The run used `/opt/homebrew/bin/zeal-native`, a mutable path outside the default pinned `Zeal-NativeEmulator/build/zeal-native`. `test-zvb.py` doesn't hash it, so the graphics result can't be tied to an exact emulator build. The input report does hash its emulator, so the two runs can't be shown to share one.
+- **Fix:** If that binary is unchanged, add its SHA-256 to the evidence and say whether it matches the emulator hash in the input and native reports. Otherwise, record the emulator hash as uncaptured. No rerun is needed for this focused scope.
+
+## Question
+
+**1. Low: will `reviews/premerge-native-results.json` be committed?** `.gitignore` adds exceptions for `reviews/premerge-validation-v1.md` and the evidence JSON, but not this file, and it is absent from the diff. I only have the `.gitignore` diff, so I can't confirm it is ignored. If it should be retained, add an exception and check with `git check-ignore -v`; if it is only review context, no change is needed.
+
+## Optional coverage before a future merge
+- **Full suite:** Only `basic`, `read`, and `input` exercised the new completion stops. The other native chunks and the broader input freeze remain unproven across all 168 commands. A runner that writes under `tests/` or changes `build/*.ZPU` or `build/*.PAS` would fail closed as `inputs-changed`.
+- **Other input drivers:** Runners such as `test-console.py` and `test-keyboard.py` weren't supplied, so they may have the same `FC00` resume pattern. The full suite would expose this as a timeout.
+- **Build identity:** Graphics ran before the final focused suite. Compare `build/zpascal.*` hashes in `zvb-report.json` with `input_sha256` in `suite.json`, which wasn't supplied.
+- **Regression test:** No host test directly pins arming both `FC00` and `FC01`. The native reruns exercise the path, but a command-construction assertion would guard against removal.
+
+## Review limitations
+I ran nothing. Test results come from the supplied reports and summaries, and I couldn't independently verify the hashes of unsupplied logs, `suite.json`, or TF package contents. Physical acceptance remains partial and user-reported.
+
+### Codex reconciliation
+
+Follow-up reconciled: no blocker remains for the requested focused cleanup/regression/graphics scope. All first-round findings are resolved. No code changes after the final review.
+
+1. Accepted emulator provenance supplement. Both `/opt/homebrew/bin/zeal-native` and `/Users/higginsd/Projects/zeal/Zeal-NativeEmulator/build/zeal-native` have SHA256 `98a17242c9c239fc70f663721367786699af5597dab6148a32192acf79bdd075`. Their hashes were compared before the graphics run and again after the final review; they agree with the final input report's emulator hash and both final basic/read artifact hashes. This record supplements the committed evidence JSON without rewriting the reviewed snapshot. The graphics emulator is therefore the same binary content as the pinned path used by the focused regressions; no rerun needed.
+2. `reviews/premerge-native-results.json` is intentionally ignored, derived review context only. Its source report paths and hashes, actual results and timings are already retained in `docs/premerge-validation-evidence.json`; committing duplicate summaries is unnecessary. No repository change for this question.
+
+Additional verification: compared all eight production/runtime inputs between the graphics report and the final suite's frozen input map: zpascal.bin/zpl/map/banks.json, pascal_runtime.zpl/private/profile and runtime-layout.json. Every hash matches. Graphics and final regressions used the same product build.
+
+Optional full-suite coverage is explicitly outside the user-authorized focused pass: the full 168-command suite was not rerun. The final evidence says passed-focused and full_acceptance=false, not a full acceptance or physical-board sign-off. The requested native reruns exercise the formerly broken completion path; basic completes in 8.051 seconds, input in 130.723 seconds with its unchanged 300-second deadline. A host command-construction assertion would mostly repeat the implementation; the native completion/counter/image checks provide the relevant proof. Other input-driver completion patterns can be assessed in a later full-suite pass; no defect in them is established by this review.
+
+Two normal Opus turns are complete. All requested checks pass; implementation is frozen at tested checkpoint80bf99b. No new TF package, main merge or push was performed. The final commit only records these review dispositions. Remaining physical coverage stays scoped in the hardware record.
