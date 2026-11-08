@@ -4,6 +4,7 @@
 { Software tileset decoders. All decoding happens with the OS mapped.
   VRAMTransfer borrows page zero only during a bounded, guarded copy.
   Malformed streams return GfxInvalidArg; prior complete chunks may be visible. }
+{$I ZVBDECODE.INC}
 function LoadPacked(var Context: TGfxContext; var Tileset;
   Size, FromByte: Word; PaletteOffset: Byte; Opacity: Boolean;
   Bits: Byte): TGfxError;
@@ -69,72 +70,27 @@ function LoadEncoded(var Context: TGfxContext; var Tileset;
   Size, FromByte: Word; PaletteOffset: Byte; Opacity: Boolean;
   Kind: Byte): TGfxError;
 var Pixels: array[0..255] of Byte;
-  Address, I, Position, Known, Remaining, Destination, Count, Offset: Word;
-  Full: Boolean;
-  Command, Value, Error, RunKind: Byte;
+  State: TEncodedState;
+  Destination: Word; Error: Byte;
 begin
   LoadEncoded := GfxInvalidArg;
   if not GfxContextValid(Context) or (Context.BitsPerPixel <> 8) or
     (Size = 0) or not GfxBufferValid(Tileset, Size) then Exit;
   if (Kind <> TilesetCompRLE) and (Kind <> TilesetCompLZ) then Exit;
-  Address := Word(Addr(Tileset));
-  I := 0; Position := 0; Known := 0; Error := 0;
-  Destination := FromByte;
-  Full := FromByte = 0;
-  Remaining := Word(0 - FromByte);
-  while (I < Size) and (Error = 0) do begin
-    Command := Mem[Address + I]; I := I + 1;
-    { Decode a complete token before emitting. RunKind0 repeats Value,
-      1 copies source literals, 2 copies overlapping circular history. }
-    RunKind := 0;
-    if Kind = TilesetCompRLE then begin
-      if Command < $80 then begin
-        Count := Command + 1; RunKind := 1
-      end else begin
-        Count := Command - $80 + 1;
-        if I = Size then Error := GfxInvalidArg
-        else begin Value := Mem[Address + I]; I := I + 1 end
-      end
-    end else begin
-      if Command < $40 then begin Count := 1; Value := Command end
-      else if Command < $80 then begin
-        Count := (Command and $3F) + 1; RunKind := 1
-      end else begin
-        RunKind := 2;
-        if Command < $C0 then begin
-          Count := ((Command shr 4) and 3) + 3;
-          Offset := (Command and 15) + 1
-        end else begin
-          Count := (Command and $3F) + 4;
-          if I = Size then begin Error := GfxInvalidArg; Offset := 0 end
-          else begin Offset := Mem[Address + I] + 1; I := I + 1 end
-        end;
-        if Offset > Known then Error := GfxInvalidArg
-      end
-    end;
-    if (RunKind = 1) and (Count > Size - I) then Error := GfxInvalidArg;
-    { Full represents exactly65536 bytes, which a Word cannot hold.
-      Token counts are1..128, so the subtraction cannot wrap a live range. }
-    if (not Full) and (Count > Remaining) then Error := GfxInvalidArg;
-    if Error = 0 then begin
-      Remaining := Remaining - Count; Full := False;
-      Known := Known + Count; if Known > 256 then Known := 256;
-      while (Count <> 0) and (Error = 0) do begin
-        if RunKind = 1 then begin Value := Mem[Address + I]; I := I + 1 end
-        else if RunKind = 2 then Value := Pixels[(Position + 256 - Offset) and 255];
-        Pixels[Position] := Value;
-        Position := Position + 1; Count := Count - 1;
-        if Position = 256 then begin
-          Error := GfxTilesetLoadNone(Context, Pixels, 256, Destination,
-            PaletteOffset, Opacity);
-          Destination := Destination + 256; Position := 0
-        end
-      end
+  FillChar(State, SizeOf(State), 0);
+  State.InputAddress := Word(Addr(Tileset)); State.InputLeft := Size;
+  State.Remaining := Word(0 - FromByte); State.Full := FromByte = 0;
+  State.Kind := Kind; Destination := FromByte; Error := 0;
+  repeat
+    State.Position := 0;
+    DecodeEncoded(State, Pixels);
+    if (State.Error = 0) and (State.Position <> 0) then begin
+      Error := GfxTilesetLoadNone(Context, Pixels, State.Position,
+        Destination, PaletteOffset, Opacity);
+      Destination := Destination + State.Position
     end
-  end;
-  if (Position <> 0) and (Error = 0) then
-    Error := GfxTilesetLoadNone(Context, Pixels, Position, Destination,
-      PaletteOffset, Opacity);
+  until State.Done or (State.Error <> 0) or (Error <> 0);
+  if State.Error <> 0 then Error := State.Error;
   LoadEncoded := Error
 end;
 

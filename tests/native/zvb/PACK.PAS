@@ -1,9 +1,10 @@
 program ZVBPackedTiles;
 uses ZVB;
+{$I ZVBSTATE.INC}
 var Context: TGfxContext; Data: array[0..1025] of Byte;
   Result: array[0..63] of Byte;
   Descriptor: TDMADescriptor; Config: TDMADescriptorConfig;
-  Z, I, J: Integer; Mode: Byte;
+  Z, I, J: Integer; Mode: Byte; State: TEncodedState;
 procedure Require(OK: Boolean);
 begin if not OK then Z := 1 div Z end;
 procedure ReadVRAM(Offset: Word; Count: Word);
@@ -15,7 +16,11 @@ begin
   Require(DMAStartTransfer(Descriptor) = 0)
 end;
 begin
-  Z := 0; Mode := Port[$9C]; GfxEnableScreen(False);
+  Z := 0;
+  Require(SizeOf(State) = 19);
+  Require(Word(Addr(State.Full)) - Word(Addr(State)) = 16);
+  Require(Word(Addr(State.Error)) - Word(Addr(State)) = 18);
+  Mode := Port[$9C]; GfxEnableScreen(False);
   Require(GfxInitialize(GfxMode3208Bit, Context) = 0);
   Data[0] := $1B;
   Require(GfxTilesetLoad2Bit(Context, Data, 1, 0, 16, True) = 0);

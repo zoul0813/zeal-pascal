@@ -50,8 +50,8 @@
       "frames": 0,
       "direction": 1,
       "apple": [
-        3,
-        1
+        13,
+        4
       ],
       "tick": 0,
       "game_over": 0,
@@ -71,8 +71,8 @@
       "frames": 20,
       "direction": 1,
       "apple": [
-        6,
-        2
+        19,
+        10
       ],
       "tick": 0,
       "game_over": 0,
@@ -143,8 +143,8 @@
       "frames": 61,
       "direction": 1,
       "apple": [
-        2,
-        9
+        4,
+        0
       ],
       "tick": 0,
       "game_over": 0,
@@ -164,8 +164,8 @@
       "frames": 241,
       "direction": 1,
       "apple": [
-        13,
-        4
+        11,
+        2
       ],
       "tick": 0,
       "game_over": 0,
@@ -185,8 +185,8 @@
       "frames": 260,
       "direction": 0,
       "apple": [
-        13,
-        4
+        11,
+        2
       ],
       "tick": 0,
       "game_over": 0,
@@ -206,8 +206,8 @@
       "frames": 265,
       "direction": 2,
       "apple": [
-        10,
-        6
+        3,
+        10
       ],
       "tick": 0,
       "game_over": 0,
@@ -222,9 +222,9 @@
   },
   "observer_failure": null,
   "title_calls": 456,
-  "saved_bytes": 36798,
-  "sha256": "e72d0efb819a6128d9e4ff9832fabcc68d525b7f41d7c35b37f763d1d22f6039",
+  "saved_bytes": 35844,
+  "sha256": "8d1ae8b2ddc79a1299dd14080746f7f79b4fb47faa2bfe52e709666d051b5942",
   "emulator": "/opt/homebrew/bin/zeal-native",
   "reference_sha256": "25c7e8c59f6a4b3c7ef804f60b6fbee5bf9f1b30acf6dd7372a595e194950388",
-  "capture": "/private/tmp/zeal-pascal-units/analysis/native-slice/20261108T042138.694513Z-55576"
+  "capture": "/private/tmp/zeal-pascal-units/analysis/native-slice/20261108T045843.359520Z-90885"
 }

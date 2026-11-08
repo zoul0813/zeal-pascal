@@ -65,6 +65,89 @@ static void execute(uint8_t enabled){
     check(cpu.iff1==enabled&&cpu.iff2==enabled);
     check(cpu.mmu.pages[0]==17&&cpu.mmu.pages[1]==1&&cpu.mmu.pages[2]==2&&cpu.mmu.pages[3]==3);
 }
+/* Independent whole-output model: no circular/chunk implementation in oracle. */
+static unsigned last_decode_bytes;
+static unsigned model(const uint8_t *source,unsigned size,unsigned kind,unsigned budget,uint8_t *output,unsigned *length){
+    unsigned at=0,used=0;
+    while(at<size){
+        unsigned command=source[at++],count,offset=0,run=0,value=0;
+        if(kind==16){count=(command&127)+1;run=command<128?1:0;
+            if(!run){if(at==size)goto invalid;value=source[at++];}}
+        else if(command<64){count=1;value=command;}
+        else if(command<128){count=(command&63)+1;run=1;}
+        else {run=2;
+            if(command<192){count=((command>>4)&3)+3;offset=(command&15)+1;}
+            else{count=(command&63)+4;if(at==size)goto invalid;offset=source[at++]+1;}
+            if(offset>used||offset>256)goto invalid;
+        }
+        if((run==1&&count>size-at)||count>budget-used)goto invalid;
+        while(count--){output[used]=run==1?source[at++]:run==2?output[used-offset]:value;++used;}
+    }
+    *length=used;return 1;
+invalid:*length=used;return 0;
+}
+static void decoder_case(const uint8_t *source,unsigned size,unsigned kind,unsigned from,unsigned irq,unsigned high){
+    static uint8_t expected[65536],actual[65536];
+    unsigned length,valid=model(source,size,kind,65536-from,expected,&length),used=0,done=0,steps=0,i;
+    uint16_t address=high?(uint16_t)(65536-size):0xa000;
+    memset(memory+0xc200,0,19);put(0xc200,address);put(0xc202,size);put(0xc204,(uint16_t)(0-from));
+    memory[0xc20f]=kind;memory[0xc210]=!from;
+    if(size)memcpy(memory+address,source,size);
+    memset(memory+0x9102,0x6d,258);
+    while(!done){
+        unsigned count,error;
+        prepare(decode_code,sizeof(decode_code),irq);put(0xe004,0x9103);put(0xe006,0xc200);put(0xc206,0);
+        execute(irq);count=memory[0xc206]+256*memory[0xc207];error=memory[0xc212];done=memory[0xc211];
+        check(count<=256&&used+count<=65536);check(error==0||error==2);
+        check(memory[0x9102]==0x6d&&memory[0x9203]==0x6d);
+        if(error){check(!valid&&done);break;}
+        memcpy(actual+used,memory+0x9103,count);used+=count;
+        check(++steps<=257);check(count||done);check(selected==5);
+    }
+    check(used==(valid?length:length/256*256));
+    for(i=0;i<used;++i)check(actual[i]==expected[i]);
+    if(size)check(!memcmp(memory+address,source,size));last_decode_bytes=used;
+}
+static void decoder_tests(void){
+    unsigned random_long[2]={0,0};
+    unsigned i,n,irq,seed=0x7134;uint8_t source[2048];
+    for(irq=0;irq<2;++irq){
+        for(n=0;n<512;++n){source[2*n]=255;source[2*n+1]=(uint8_t)n;}
+        decoder_case(source,1024,16,0,irq,1);
+        source[1024]=255;source[1025]=17;decoder_case(source,1026,16,0,irq,0); /* output exceeds 64K */
+        for(n=0;n<4;++n){source[n*65]=127;for(i=0;i<64;++i)source[n*65+1+i]=(uint8_t)(n*64+i);}
+        source[260]=255;source[261]=255;source[262]=255;source[263]=0;
+        decoder_case(source,264,17,0,irq,1); /* offset256 and overlapping offset1 */
+        /* Deterministic mid-token chunk resumes: all three run kinds. */
+        for(n=0;n<4;++n){
+            unsigned at=0,total=n==3?476:220,remaining=total,offset=n==0?1:n==1?17:n==2?5:256;
+            while(remaining){unsigned count=remaining>64?64:remaining;
+                source[at++]=(uint8_t)(0x40+count-1);
+                for(i=0;i<count;++i)source[at++]=(uint8_t)(total-remaining+i);
+                remaining-=count;
+            }
+            source[at++]=255;source[at++]=(uint8_t)(offset-1);
+            decoder_case(source,at,17,0,irq,1);
+        }
+        source[0]=0xe3;source[1]=7;source[2]=0xff;source[3]=9;source[4]=0xff;source[5]=12;
+        decoder_case(source,6,16,0,irq,0); /* repeat straddles at228 */
+        source[0]=0xff;source[1]=7;source[2]=0xc7;source[3]=9;source[4]=0x7f;
+        for(i=0;i<128;++i)source[5+i]=(uint8_t)i;
+        decoder_case(source,133,16,0,irq,0); /* RLE literal starts at200 */
+        {unsigned at=0;for(n=0;n<4;++n){unsigned count=n==3?28:64;
+            source[at++]=(uint8_t)(0x40+count-1);for(i=0;i<count;++i)source[at++]=(uint8_t)i;}
+         source[at++]=0x7f;for(i=0;i<64;++i)source[at++]=(uint8_t)i;
+         decoder_case(source,at,17,0,irq,1); /* exactly enough LZ literal input */}
+        for(n=0;n<128;++n){source[0]=0x40+n%64;for(i=1;i<66;++i)source[i]=(uint8_t)i;
+            decoder_case(source,n%66,17,65536-(n+1),irq,0);}
+        for(n=0;n<2048;++n){unsigned size=1+(n%128),kind=n&1?16:17;
+            for(i=0;i<size;++i){seed=seed*1664525u+1013904223u;source[i]=(uint8_t)(seed>>24);}
+            decoder_case(source,size,kind,n%3?0:65536-(n%257+1),irq,n&1);
+            if(last_decode_bytes>256)++random_long[kind==17];
+        }
+    }
+    printf("Random cases producing >256 bytes: RLE %u, LZ %u; deterministic fixtures cover all pending run kinds\n",random_long[0],random_long[1]);
+}
 int main(void){
     unsigned f,irq,o,n,a,i;uint16_t counts[]={0,1,31,512,16391},offsets[]={0,16377};uint8_t adds[]={0,32,240};
     device_init_mem(&ram,"physical memory",rd,wr,sizeof(memory));device_init_io(&io,"mapped ports",in,out,256);
@@ -201,5 +284,6 @@ int main(void){
             check(selected==4&&registers[4][0]==0x80&&registers[4][1]==(physical&255)&&registers[4][2]==((physical>>8)&255)&&registers[4][3]==physical>>16);
         }
     }
+    decoder_tests();
     printf("%u ZVB Inline leaf assertions passed\n",assertions);return 0;
 }

@@ -30,7 +30,7 @@ are not promised. Physical SNES controller acceptance remains separate.
 
 ## Measured checkpoint
 
-The saved 36,798-byte COM passes the pixel, title cadence, controls, growth,
+The saved 35,844-byte COM passes the pixel, title cadence, controls, growth,
 collision, score, replay and actual successful OS-exit checks. It also completes
 its finite demo after all source and Unit files are removed. These checks use
 header-derived globals and instruction signatures from the linked ZVB methods.
@@ -48,3 +48,16 @@ The ZVB Unit follows the SDK's direct stores, LDIR copy/fill paths, OTIR CRC
 chunks, single-selection sound operations and direct DMA startup. Pascal
 validation, interrupt protection and preserved voice holds remain deliberate
 API contracts. See [the reference](zvb-library.md#sdk-implementation-paths).
+
+Startup is measured separately from the title animation and OS file loading.
+The shared bounded RLE/LZ decoder reduces entry-to-title CPU time from
+296,582,421 to 17,958,463 T-states (29.66 to 1.80 s at 10 MHz); C takes 3,259,102.
+The three LZ calls fall from 289,665,689 to 11,041,731 T-states. The COM shrinks
+by 954 bytes. Pixel/control checks remain unchanged and pass. See
+[the startup evidence](snake-startup-evidence.json).
+
+Removing compression has not been qualified: both ready-to-copy asset variants
+(Byte and Word literal arrays storing the same 11,776 bytes) fail compiler error 99.
+Their compile captures are retained. A native failure trace reaches
+`compiler_sources.c:177` after `sources_include` fails while retaining RAWDATA.INC.
+This occurs before final linking; the raw program's final RAM fit remains unmeasured. No hardware compression requirement is implied.

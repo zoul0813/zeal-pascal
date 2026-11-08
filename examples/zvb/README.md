@@ -83,7 +83,13 @@ replay still requires the keyboard. Physical-controller testing is separate.
 This version is silent, matching C; the earlier added sound effects are removed. `--demo` runs the title then 180 finite gameplay frames.
 The snake tiles, selected title/score glyphs, numbers and palettes are the original SDK pixels,
 embedded in one COM using the verified SDK LZ codec (2,139 compressed bytes).
-The checkerboard's two colored tiles are generated in code, as in C. No asset
+The checkerboard's two colored tiles are generated in code, as in C.
+CPU startup before the title now takes 1.80 s instead of 29.66 s; C takes 0.33 s.
+The library decodes RLE/LZ chunks in a bounded Z80 stream rather than a per-pixel
+Pascal loop. These timings exclude COM disk loading and the title animation.
+The raw-asset experiments still fail compiler error99, so the compressed asset
+build remains the qualified version. This is a compiler resource issue, not a
+ZVB requirement for compressed tiles. See [startup evidence](../../docs/snake-startup-evidence.json). No asset
 file is opened while playing. See [the fidelity contract](../../docs/snake-parity.md)
 for sequencing, verification and deliberate reliability differences.
 
@@ -139,8 +145,8 @@ pixel coordinates and physical addresses.
 
 ## Compact runtime checkpoint
 
-The current Snake Com-file build is 36,798 bytes: 6,042 runtime, 957 globals
-and 29,799 code. The runtime's omitted Real code leaves no padded reservation.
+The current Snake Com-file build is 35,844 bytes: 6,042 runtime, 957 globals
+and 28,845 code. The runtime's omitted Real code leaves no padded reservation.
 The final globals/code addresses are assigned at link time. See the
 [runtime compaction notes](../../docs/runtime-compaction-notes.md).
 

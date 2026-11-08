@@ -545,16 +545,27 @@ addresses at link time; omitted Real code leaves no reserved hole. See the
 [runtime compaction notes](runtime-compaction-notes.md) for placement and RAM
 allocation, and [the demo guide](../examples/zvb/README.md) for current binaries.
 
-The current optimized Unit authoring run passes 374 native assertions and
-produces a 55,529-byte ZPU containing 28,429 code bytes. Ten client regressions
-pass 286 harness assertions, with sources/Units absent during saved execution;
-the rebuilt hardware foundation separately passes 349 assertions. See the
-[qualification evidence](zvb-optimized-evidence.json). CPU tests execute the actual Inline bytes extracted
-from these sources, covering copies, fills, bank crossings, byte-write order,
-CRC chunks, samples, DMA, mapping and interrupt state. They pass 966,798
-assertions under host sanitizers. The direct tile placement leaf takes 338
-T-states including the test's RET; a public Pascal call also incurs generated
-frame, validation and return costs.
+The original SDK-path checkpoint passed ten client regressions and is retained
+in [its evidence](zvb-optimized-evidence.json). The current bounded RLE/LZ decoder
+produces a 53,412-byte ZPU containing 27,470 code bytes and passes 374 native
+authoring assertions. Focused PACK/PAGE clients pass 61 harness assertions,
+including native state-record layout checks and saved execution without Units.
+The actual linked decoder's 36 internal CALL/JP words are checked at its final
+address. CPU-oracle tests pass 1,366,213 sanitized assertions, including explicit
+chunk-straddling literal, repeat and overlapping-history runs. See
+[startup qualification](snake-startup-evidence.json).
+
+The private decoder stays in RAM and leaves the OS mapped. It validates each
+token before writing, preserves 256 bytes of circular history across chunks,
+checks source/history/destination bounds, then flushes through the ordinary VRAM
+loader. Previous complete chunks may be visible on malformed input; the current
+partial chunk is discarded. Regenerate its Inline stream with
+`tools/generate-zvb-decoder.py`; `--check` detects drift. Internal words use
+link-relocated Inline expressions, not fixed program addresses.
+
+The stock expanded ZVB source is guarded at 32,768 bytes to retain its two-source-
+page authoring RAM budget. This is a qualification constraint for this stock
+Unit, not the Pascal language's general source limit.
 
 Snake's saved Com-file run completes 180 demo frames with all PAS/INC/ZPU files
 removed. Current interactive behavior and pixels match the captured C reference;

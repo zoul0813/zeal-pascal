@@ -6,11 +6,13 @@ import re
 ROOT=Path(__file__).resolve().parents[1]
 def source():
     text=(ROOT/'libraries/ZVB.PAS').read_text()
-    for name in ('ZVBIO.INC','ZVBGFX.INC','ZVBPACK.INC'):
+    for name in ('ZVBIO.INC','ZVBGFX.INC','ZVBPACK.INC','ZVBDECODE.INC'):
         marker='{$I '+name+'}'
         assert text.count(marker)==1,name
         text=text.replace(marker,(ROOT/'libraries'/name).read_text())
     assert '{$I ' not in text
+    if len(text.encode())>32768:
+        raise ValueError('Stock ZVB authoring exceeds its two-source-page RAM budget (32768 bytes)')
     return text
 def first_bar_source():
     """Use the reference listing as the authoritative teaching example."""

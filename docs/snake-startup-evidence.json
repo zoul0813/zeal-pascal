@@ -1,0 +1,334 @@
+{
+  "passed": true,
+  "scope": "RLE/LZ startup optimization, not full Snake timing parity. CPU startup excludes COM disk loading and title animation.",
+  "baseline_checkpoint": "f1d1e20",
+  "before": {
+    "clock_hz": 10000000,
+    "scope": "CPU startup from COM entry through title entry; disk loading and title animation excluded. C contains full font; Pascal contains selected glyphs.",
+    "emulator": "/opt/homebrew/bin/zeal-native",
+    "programs": {
+      "pascal": {
+        "sha256": "e72d0efb819a6128d9e4ff9832fabcc68d525b7f41d7c35b37f763d1d22f6039",
+        "file_bytes": 36798,
+        "startup_tstates": 296582421,
+        "lz_calls": [
+          {
+            "compressed_bytes": 610,
+            "tstates": 96464219
+          },
+          {
+            "compressed_bytes": 794,
+            "tstates": 77262168
+          },
+          {
+            "compressed_bytes": 735,
+            "tstates": 115939302
+          }
+        ],
+        "lz_tstates": 289665689,
+        "capture": "/private/tmp/zeal-pascal-units/analysis/native-slice/20261108T044005.509827Z-74223"
+      },
+      "c": {
+        "sha256": "25c7e8c59f6a4b3c7ef804f60b6fbee5bf9f1b30acf6dd7372a595e194950388",
+        "file_bytes": 19315,
+        "startup_tstates": 3259102,
+        "lz_calls": [],
+        "lz_tstates": 0,
+        "capture": "/private/tmp/zeal-pascal-units/analysis/native-slice/20261108T044005.509827Z-74223"
+      }
+    }
+  },
+  "after": {
+    "clock_hz": 10000000,
+    "scope": "CPU startup from COM entry through title entry; disk loading and title animation excluded. C contains full font; Pascal contains selected glyphs.",
+    "emulator": "/opt/homebrew/bin/zeal-native",
+    "decoder": {
+      "address": 47049,
+      "bytes": 383,
+      "relocated_internal_words": 36
+    },
+    "programs": {
+      "pascal": {
+        "sha256": "8d1ae8b2ddc79a1299dd14080746f7f79b4fb47faa2bfe52e709666d051b5942",
+        "file_bytes": 35844,
+        "startup_tstates": 17958463,
+        "lz_calls": [
+          {
+            "compressed_bytes": 610,
+            "tstates": 3261240
+          },
+          {
+            "compressed_bytes": 794,
+            "tstates": 3023253
+          },
+          {
+            "compressed_bytes": 735,
+            "tstates": 4757238
+          }
+        ],
+        "lz_tstates": 11041731,
+        "capture": "/private/tmp/zeal-pascal-units/analysis/native-slice/20261108T045842.088263Z-90679"
+      },
+      "c": {
+        "sha256": "25c7e8c59f6a4b3c7ef804f60b6fbee5bf9f1b30acf6dd7372a595e194950388",
+        "file_bytes": 19315,
+        "startup_tstates": 3259102,
+        "lz_calls": [],
+        "lz_tstates": 0,
+        "capture": "/private/tmp/zeal-pascal-units/analysis/native-slice/20261108T045842.088263Z-90679"
+      }
+    }
+  },
+  "startup_speedup": 16.51491115915655,
+  "unit": {
+    "bytes": 53412,
+    "sha256": "54451a69b2f31fb714f453feaecbcd233c7c234dda9208bb1ebeb695b14e4f10",
+    "native_authoring": {
+      "standalone_clients": [],
+      "native_stack_margin": 8367,
+      "clients": [],
+      "scope": "Native hardware unit qualification and Pascal ZVB authoring probe.",
+      "passed": true,
+      "checks": {
+        "authenticated completion": true,
+        "native assertions pass": true,
+        "Pascal ZVB compiled": true
+      },
+      "assertions": 374,
+      "failed": 0,
+      "failure_indices": [],
+      "diagnostics": [],
+      "zvb": {
+        "compiled": 1,
+        "error": 0,
+        "position": 0,
+        "code_bytes": 27470,
+        "types": 22,
+        "maps": 472,
+        "code_relocations": 375
+      },
+      "emulator": "/opt/homebrew/bin/zeal-native",
+      "capture_directory": "analysis/native-slice/20261108T044852.856716Z-81443",
+      "installed_library": "/private/tmp/zeal-pascal-units/build/ZVB.ZPU"
+    }
+  },
+  "cpu_oracle": {
+    "assertions": 1366213,
+    "sanitizers": [
+      "address",
+      "undefined"
+    ],
+    "random_streams": 4096,
+    "random_cases_output_over_256": {
+      "RLE": 31,
+      "LZ": 0
+    },
+    "deterministic_resume_offsets": [
+      1,
+      5,
+      17,
+      256
+    ],
+    "decoder_bytes": 383,
+    "internal_relocation_words": 36
+  },
+  "native_clients": {
+    "standalone_clients": [
+      0,
+      1
+    ],
+    "native_stack_margin": 8367,
+    "clients": [
+      {
+        "flags": 0,
+        "code_bytes": 24826,
+        "globals_bytes": 1149,
+        "file_bytes": 32017,
+        "compile_error": 0,
+        "position": 0,
+        "name": "PACK"
+      },
+      {
+        "flags": 0,
+        "code_bytes": 9461,
+        "globals_bytes": 16424,
+        "file_bytes": 31927,
+        "compile_error": 0,
+        "position": 0,
+        "name": "PAGE"
+      }
+    ],
+    "scope": "Native hardware unit qualification and Pascal ZVB authoring probe.",
+    "passed": true,
+    "checks": {
+      "authenticated completion": true,
+      "native assertions pass": true,
+      "prebuilt library used": true,
+      "requested clients compiled and executed": true,
+      "saved clients run without ZPU PAS or INC files": true
+    },
+    "assertions": 61,
+    "failed": 0,
+    "failure_indices": [],
+    "diagnostics": [],
+    "zvb": {
+      "compiled": 0,
+      "error": 0,
+      "position": 0,
+      "code_bytes": 0,
+      "types": 0,
+      "maps": 0,
+      "code_relocations": 0
+    },
+    "emulator": "/opt/homebrew/bin/zeal-native",
+    "capture_directory": "analysis/native-slice/20261108T045602.288323Z-87320"
+  },
+  "snake_saved_demo": {
+    "standalone_clients": [
+      0
+    ],
+    "native_stack_margin": 8367,
+    "clients": [
+      {
+        "flags": 0,
+        "code_bytes": 28845,
+        "globals_bytes": 957,
+        "file_bytes": 35844,
+        "compile_error": 0,
+        "position": 0,
+        "name": "SNAKE"
+      }
+    ],
+    "scope": "Native hardware unit qualification and Pascal ZVB authoring probe.",
+    "passed": true,
+    "checks": {
+      "authenticated completion": true,
+      "native assertions pass": true,
+      "prebuilt library used": true,
+      "requested clients compiled and executed": true,
+      "saved clients run without ZPU PAS or INC files": true,
+      "Snake completes 180 demo frames": true
+    },
+    "assertions": 38,
+    "failed": 0,
+    "failure_indices": [],
+    "diagnostics": [],
+    "zvb": {
+      "compiled": 0,
+      "error": 0,
+      "position": 0,
+      "code_bytes": 0,
+      "types": 0,
+      "maps": 0,
+      "code_relocations": 0
+    },
+    "emulator": "/opt/homebrew/bin/zeal-native",
+    "capture_directory": "analysis/native-slice/20261108T045356.500405Z-85106"
+  },
+  "snake_behavior_passed": true,
+  "snake_full_timing_parity_passed": false,
+  "raw_asset_experiments": {
+    "asset_bytes_lz": 2139,
+    "asset_bytes_ready_to_copy": 11776,
+    "byte_arrays": {
+      "standalone_clients": [],
+      "native_stack_margin": 8367,
+      "clients": [
+        {
+          "flags": 0,
+          "code_bytes": 0,
+          "globals_bytes": 0,
+          "file_bytes": 0,
+          "compile_error": 99,
+          "position": 88,
+          "name": "SNAKE"
+        }
+      ],
+      "scope": "Native hardware unit qualification and Pascal ZVB authoring probe.",
+      "passed": false,
+      "checks": {
+        "authenticated completion": true,
+        "native assertions pass": false,
+        "prebuilt library used": true,
+        "requested clients compiled and executed": true,
+        "saved clients run without ZPU PAS or INC files": false,
+        "Snake completes 180 demo frames": false
+      },
+      "assertions": 29,
+      "failed": 1,
+      "failure_indices": [
+        9
+      ],
+      "diagnostics": [
+        99,
+        88
+      ],
+      "zvb": {
+        "compiled": 0,
+        "error": 0,
+        "position": 0,
+        "code_bytes": 0,
+        "types": 0,
+        "maps": 0,
+        "code_relocations": 0
+      },
+      "emulator": "/opt/homebrew/bin/zeal-native",
+      "capture_directory": "analysis/native-slice/20261108T045357.718737Z-85337"
+    },
+    "word_arrays_same_raw_bytes": {
+      "standalone_clients": [],
+      "native_stack_margin": 8367,
+      "clients": [
+        {
+          "flags": 0,
+          "code_bytes": 0,
+          "globals_bytes": 0,
+          "file_bytes": 0,
+          "compile_error": 99,
+          "position": 72,
+          "name": "SNAKE"
+        }
+      ],
+      "scope": "Native hardware unit qualification and Pascal ZVB authoring probe.",
+      "passed": false,
+      "checks": {
+        "authenticated completion": true,
+        "native assertions pass": false,
+        "prebuilt library used": true,
+        "requested clients compiled and executed": true,
+        "saved clients run without ZPU PAS or INC files": false,
+        "Snake completes 180 demo frames": false
+      },
+      "assertions": 29,
+      "failed": 1,
+      "failure_indices": [
+        9
+      ],
+      "diagnostics": [
+        99,
+        72
+      ],
+      "zvb": {
+        "compiled": 0,
+        "error": 0,
+        "position": 0,
+        "code_bytes": 0,
+        "types": 0,
+        "maps": 0,
+        "code_relocations": 0
+      },
+      "emulator": "/opt/homebrew/bin/zeal-native",
+      "capture_directory": "analysis/native-slice/20261108T045737.607694Z-89048"
+    },
+    "conclusion": "Both raw variants fail compiler source/include retention (error99) before final linking. No runtime RAM fit conclusion or hardware compression requirement is established.",
+    "failure_trace": {
+      "cc_fail_virtual_address": 34669,
+      "caller_return_virtual_address": 36665,
+      "error_argument": 99,
+      "caller_source": "src/compiler_sources.c:177",
+      "operation": "sources_include returned negative while retaining RAWDATA.INC",
+      "trace": "/tmp/snake-raw-failure-trace.json",
+      "note": "Source/include registration fails before final program linking; runtime fit remains unmeasured."
+    }
+  }
+}

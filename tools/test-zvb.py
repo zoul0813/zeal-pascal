@@ -16,6 +16,7 @@ z=module('zvb_source',ROOT/'tools/zvb-source.py')
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument("--hardware-only",action="store_true")
     parser.add_argument("--clients",action="store_true")
+    parser.add_argument("--snake-source",type=Path,help="Compile an alternate Snake source and adjacent includes")
     parser.add_argument("--disk-snake",action="store_true",help="Compile Snake through the saved-program disk workspace")
     parser.add_argument("--skip-hardware",action="store_true")
     parser.add_argument("--prebuilt",type=Path,help="Test clients against an already authored ZVB.ZPU")
@@ -34,6 +35,7 @@ def main():
     elif not args.hardware_only:fixtures['ZVB.PAS']=z.source().encode()
     if args.skip_hardware:fixtures['SKIPHW.RUN']=b'1'
     cases=args.case or (['USES','ORDER','SMOKE','CRC','DMA','GFX','PACK','OPTIONS','PAGE','SOUND','ZVBCHECK','SPRITES','SNAKE','FIRSTBAR','CRC32']if args.clients else [])
+    if args.snake_source and 'SNAKE' not in cases:parser.error("snake-source requires the Snake client")
     if args.disk_snake:
         if 'SNAKE' not in cases:parser.error("disk-snake requires the Snake client")
         fixtures['DISKSNAKE.RUN']=b'1'
@@ -42,10 +44,15 @@ def main():
         fixtures['CRT.ZPU']=(ROOT/'build/CRT.ZPU').read_bytes()
         for name in cases:
             path=ROOT/('tests/native/zvb'if name not in ('ZVBCHECK','SPRITES','SNAKE','CRC32')else 'examples/zvb')/(name+'.PAS')
+            if name=='SNAKE' and args.snake_source:path=args.snake_source
             fixtures[name+'.PAS']=path.read_bytes()
             if name=='FIRSTBAR' and fixtures[name+'.PAS']!=z.first_bar_source().encode():
                 parser.error('FirstBar fixture is stale; run tools/zvb-source.py --demos')
         fixtures.update({p.name:p.read_bytes()for p in(ROOT/'examples/zvb').glob('*.INC')})
+        if 'PACK' in cases:
+            fixtures['ZVBSTATE.INC']=(ROOT/'libraries/ZVBDECODE.INC').read_text().split('procedure DecodeEncoded',1)[0].encode()
+        if args.snake_source:
+            fixtures.update({p.name:p.read_bytes()for p in args.snake_source.parent.glob('*.INC')})
         if 'CRC32' in cases:
             fixtures.update({'EMPTY.DAT':b'', 'DIGITS.DAT':b'123456789',
                              'LARGE.DAT':bytes(range(256))*17+b'finish'})

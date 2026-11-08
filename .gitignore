@@ -378,3 +378,10 @@
 
 !/tests/host/staging-groups.c
 !/docs/zvb-optimized-evidence.json
+
+# Bounded decoder startup optimization.
+!/libraries/ZVBDECODE.INC
+!/tools/generate-zvb-decoder.py
+!/tools/profile-snake-startup.py
+!/docs/snake-startup-evidence.json
+!/reviews/zvb-decoder-v1.md
