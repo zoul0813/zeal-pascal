@@ -108,7 +108,7 @@ def main():
     parent_bytes=(ROOT/f'build/{parent}.bin').read_bytes()
     caller=(ROOT/'build/zexecuteprobe.bin').read_bytes();assert len(parent_bytes)<=16384
     inputs=[Path(__file__),ROOT/'tools/test-native.py',ROOT/'tools/test-chain-loader.py',ROOT/'CMakeLists.txt',n.EMULATOR,n.ROM]
-    inputs+=list((ROOT/'src').glob('*'))+list((ROOT/'tests/native').glob('execute-*'))
+    inputs+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+list((ROOT/'tests/native').glob('execute-*'))
     inputs+=[ROOT/f'build/{target}.{ext}'for target in (parent,'zexecuteprobe','execute_entry')for ext in ('bin','map')if (ROOT/f'build/{target}.{ext}').exists()]
     inputs += [ROOT/'build/execute_entry.zpl',ROOT/'build/pascal_runtime.zpl']
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()};cases={}

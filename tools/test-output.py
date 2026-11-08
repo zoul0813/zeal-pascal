@@ -101,7 +101,7 @@ def publication_checks(drive):
 def main():
     inputs = [Path(__file__), ROOT/'tools/test-native.py', ROOT/'tests/native/random.pas',
               n.EMULATOR, n.ROM, n.TF_TEMPLATE]
-    inputs += sorted((ROOT/'src').glob('*'))
+    inputs += sorted((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))
     inputs += [ROOT/('build/zpascal.'+ext) for ext in ('bin', 'zpl', 'map', 'banks.json')]
     hashes = {str(path): n.sha(path) for path in inputs if path.is_file()}
     results = [publication_checks(drive) for drive in ('H', 'T')]

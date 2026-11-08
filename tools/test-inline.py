@@ -26,7 +26,7 @@ def main():
     target='zinlinetest';sym=n.symbols(target)
     paths=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),ROOT/'tools/test-native.py',
         ROOT/'tools/test-sources.py',ROOT/'tools/package-native.py',n.EMULATOR,n.ROM]
-    paths+=list((ROOT/'src').glob('*'))+list((ROOT/'tests/native').rglob('*'))
+    paths+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+list((ROOT/'tests/native').rglob('*'))
     paths+=[ROOT/f'build/{target}.{ext}'for ext in ['bin','zpl','map','banks.json']]
     paths+=[ROOT/'build'/name for name in ['pascal_runtime.zpl','pascal_runtime.private','file_runtime.zpl','file_gate.zpl']]
     hashes={str(p):n.sha(p)for p in paths if p.is_file()}

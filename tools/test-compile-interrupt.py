@@ -26,7 +26,7 @@ def main():
     # This is a private observer, derived from the current SDCC output rather
     # than a frozen C-layout guess. Build remains unpublished in the IDE while
     # the compiler's invocation-local Build is on its retained stack.
-    assembly=(ROOT/'build/CMakeFiles/zp_core.dir/src/compiler_compile.c.asm').read_text()
+    assembly=(ROOT/'build/CMakeFiles/zp_core.dir/src/compiler/compile.c.asm').read_text()
     assignment=assembly.split('cc.input=&active;cc.sources=&sources;cc.image=b;cc.error=d;',1)[1].split(';/',1)[0]
     image_offsets=re.findall(r'_cc \+ (\d+)',assignment)
     assert len(image_offsets)==3
@@ -41,7 +41,7 @@ def main():
                 'project/main.COM': b'existing executable must survive cancellation',
                 'project/main.ZMP': b'existing map must survive cancellation'}
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(), ROOT/'tools/test-native.py', n.EMULATOR, n.ROM]
-    inputs += list((ROOT/'src').glob('*')) + list((ROOT/'tests/native').glob('*'))
+    inputs += list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file())) + list((ROOT/'tests/native').glob('*'))
     inputs += [ROOT/f'build/zpascal.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}
     typed = lambda text: n.type_text(text, ticks=100000000)

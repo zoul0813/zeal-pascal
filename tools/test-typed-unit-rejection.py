@@ -35,8 +35,8 @@ def main():
     n = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(n)
     sym = n.symbols('zpascal')
-    inputs = [Path(__file__), ROOT/'src/compiler_units_object.c', ROOT/'src/compiler_fragments.c',
-              ROOT/'src/compiler_fragments.h', ROOT/'tools/test-native.py',
+    inputs = [Path(__file__), ROOT/'src/units/object.c', ROOT/'src/units/linker/fragments.c',
+              ROOT/'src/units/linker/fragments.h', ROOT/'tools/test-native.py',
               ROOT/'build/zpascal.bin', ROOT/'build/zpascal.zpl', ROOT/'build/zpascal.map', args.unit]
     hashes = {str(path.resolve()): n.sha(path) for path in inputs}
     checks = {}

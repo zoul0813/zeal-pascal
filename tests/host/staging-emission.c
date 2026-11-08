@@ -1,5 +1,5 @@
-#include "compiler.h"
-#include "compiler_disk.h"
+#include "compiler/internal.h"
+#include "compiler/disk.h"
 #include <assert.h>
 #include <stdio.h>
 Compiler cc;

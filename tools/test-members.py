@@ -34,7 +34,7 @@ def main():
     assert fixtures[target+'.bin'][sym['_code_required']-0x4000] == bank_count
     inputs = [Path(__file__), ROOT/'CMakeLists.txt', ROOT/'tools/test-native.py',
               ROOT/'tools/package-native.py', n.EMULATOR, n.ROM]
-    inputs += sorted((ROOT/'src').glob('*'))
+    inputs += sorted((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))
     inputs += [ROOT/'tests/native'/name for name in ('members-main.c', 'members-probe.asm', 'late-cases.h', 'harness.c', 'harness.h', 'machine.asm')]
     inputs += [ROOT/f'build/{target}.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}

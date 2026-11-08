@@ -272,7 +272,7 @@ def compact_prefix_matches(image, executed=False):
         for first,last in ((0xbe,0xc0),(0x12c,0x130),(0x136,0x13c),(0x15c,0x15e),(0x167,0x169),(0x522,0x523)):
             skip.update(range(first,last))
     private=(ROOT/'build/pascal_runtime.private').read_bytes()
-    names=['RP_INPUT_READY']+re.findall(r'RP_[A-Z_]+',(ROOT/'src/compiler.h').read_text().split('enum { RP_INPUT_READY',1)[1].split('RP_COUNT }',1)[0])
+    names=['RP_INPUT_READY']+re.findall(r'RP_[A-Z_]+',(ROOT/'src/compiler/internal.h').read_text().split('enum { RP_INPUT_READY',1)[1].split('RP_COUNT }',1)[0])
     layout=json.loads((ROOT/'build/runtime-layout.json').read_text())
     def physical(value):
         if layout['gap_last']<=value<layout['legacy_end']:value-=layout['gap_last']-layout['gap_first']
@@ -1096,7 +1096,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     inputs = [ROOT / 'CMakeLists.txt', ROOT / 'tools/package-native.py', Path(__file__).resolve()]
     inputs += sorted((ROOT / 'cmake').glob('*.cmake'))
-    inputs += sorted((ROOT / 'src').glob('*')) + sorted((ROOT / 'tests/native').glob('*.pas'))
+    inputs += sorted((source_path for source_path in (ROOT / 'src').rglob('*') if source_path.is_file())) + sorted((ROOT / 'tests/native').glob('*.pas'))
     inputs += [ROOT/'tests/native'/name for name in ('main.c', 'harness.c', 'harness-cases.c', 'harness.h', 'core-groups.h', 'core-counts.json', 'machine.asm', 'startup-fail.c')]
     inputs += sorted(MEDIA.iterdir())
     input_hashes = {str(p.relative_to(ROOT)): sha(p) for p in inputs if p.is_file()}

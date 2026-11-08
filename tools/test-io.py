@@ -61,7 +61,7 @@ def main():
     reader = n.kernel_symbols()['keyboard_next_key']
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(), ROOT/'tools/test-native.py',
               ROOT/'tools/package-native.py', n.EMULATOR, n.ROM, n.KERNEL_MAP]
-    inputs += sorted((ROOT/'src').glob('*')) + sorted((ROOT/'tests/native').glob('*'))
+    inputs += sorted((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file())) + sorted((ROOT/'tests/native').glob('*'))
     for name in (target, 'zpascal'):
         inputs += [ROOT/f'build/{name}.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}

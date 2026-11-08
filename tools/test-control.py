@@ -25,7 +25,7 @@ def main():
     assert runtime['input_raw_buffer']+32<=n.symbols('ram_trampoline')['trampoline_map_page']
     inputs=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),ROOT/'tools/test-native.py',
             ROOT/'tools/package-native.py',n.EMULATOR,n.ROM]
-    inputs+=sorted((ROOT/'src').glob('*'))+sorted((ROOT/'tests/native').glob('*'))
+    inputs+=sorted((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+sorted((ROOT/'tests/native').glob('*'))
     inputs+=[ROOT/f'build/{target}.{ext}'for ext in ('bin','zpl','map','banks.json')]
     inputs+=[ROOT/'build/pascal_runtime.zpl',ROOT/'build/pascal_runtime.private',
              ROOT/'build/pascal_runtime.map',ROOT/'build/ram_trampoline.zpl',

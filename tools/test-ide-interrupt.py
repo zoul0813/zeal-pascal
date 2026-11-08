@@ -30,7 +30,7 @@ def main():
     prefix=b'{unsaved}\n'
     fixtures={'project/main.pas':root,'project/parts/run.inc':part}
     inputs=[ROOT/'CMakeLists.txt',Path(__file__),ROOT/'tools/test-native.py',n.EMULATOR,n.ROM]
-    inputs+=list((ROOT/'src').glob('*'))+[ROOT/f'build/zpascal.{ext}'for ext in ['bin','zpl','map','banks.json']]
+    inputs+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+[ROOT/f'build/zpascal.{ext}'for ext in ['bin','zpl','map','banks.json']]
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()}
     def snapshot():
         return ['regs','mmu',f"rb 0x{sym['_ide_state']:x} 1",f'rb 0x{work:x} 140',

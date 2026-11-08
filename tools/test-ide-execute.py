@@ -21,7 +21,7 @@ def main():
     assert child[3:7]!=b'ZP80' and 0<len(child)<49152
     fixtures={'project/main.pas':source,'external':child,'empty.bin':b''}
     paths=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),ROOT/'tools/test-native.py',n.EMULATOR,n.ROM]
-    paths+=list((ROOT/'src').glob('*'))+list((ROOT/'tests/native').glob('*'))
+    paths+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+list((ROOT/'tests/native').glob('*'))
     paths += [ROOT/f'build/zpascal.{ext}'for ext in ('bin','zpl','map','banks.json')]+[ROOT/'build/zpexecchild.bin']
     paths += [ROOT.parent/'zeal-dev-environment/home/Zeal-VideoBoard-SDK/include/zvb_hardware.h']
     hashes={str(p):n.sha(p)for p in paths if p.is_file()}

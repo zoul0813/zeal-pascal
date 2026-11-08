@@ -13,8 +13,8 @@ ROOT=Path(__file__).resolve().parents[1]
 def main():
     zeal=Path(os.environ.get('ZP_ZEAL_ROOT',str(ROOT.parent)))
     sdk=zeal/'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
-    files=['src/compiler_units_metadata.c','src/compiler_units_symbols.c','src/compiler_units_object.c',
-           'src/compiler_units.h','src/compiler_unsigned.c','src/compiler.h','src/compiler_sources.c','tests/host/unit-types.c',
+    files=['src/units/symbols/metadata.c','src/units/symbols/import.c','src/units/object.c',
+           'src/units/internal.h','src/compiler/codegen/unsigned/core.c','src/compiler/internal.h','src/compiler/sources.c','tests/host/unit-types.c',
            'tools/test-unit-types-host.py']
     with tempfile.TemporaryDirectory(prefix='zp-unit-types-') as directory:
         binary=str(Path(directory)/'unit-types')
@@ -22,7 +22,7 @@ def main():
                  '-ffunction-sections','-fdata-sections','-fsanitize=address,undefined',
                  '-fno-sanitize-recover=all','-DZP_UNITS_EXPERIMENT',
                  '-D__SDCC_VERSION_MAJOR=4','-D__SDCC_VERSION_MINOR=2','-D__sdcccall(x)=',
-                 '-Isrc','-I'+str(sdk),'src/compiler_units_metadata.c','src/compiler_units_symbols.c','src/compiler_unsigned.c','src/compiler_sources.c','tests/host/unit-types.c',
+                 '-Isrc','-I'+str(sdk),'src/units/symbols/metadata.c','src/units/symbols/import.c','src/compiler/codegen/unsigned/core.c','src/compiler/sources.c','tests/host/unit-types.c',
                  '-Wl,-dead_strip' if sys.platform=='darwin' else '-Wl,--gc-sections',
                  '-o',binary]
         subprocess.run(command,cwd=ROOT,check=True)

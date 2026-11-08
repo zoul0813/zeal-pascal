@@ -17,7 +17,7 @@ def module(name,path):
 def main():
     n=module('native',ROOT/'tools/test-native.py')
     inputs=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',ROOT/'tools/package-native.py',n.EMULATOR,n.ROM,n.KERNEL_MAP]
-    inputs+=list((ROOT/'src').glob('*'))+[ROOT/'tests/native/startup-receiver.pas']
+    inputs+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+[ROOT/'tests/native/startup-receiver.pas']
     inputs+=[ROOT/f'build/{target}.{ext}'for target in ('zchaincalltest','zexparent','zexecuteprobe')for ext in ('bin','map')]
     inputs+=[ROOT/'build'/name for name in ('zchaincalltest.zpl','execute_entry.zpl','execute_entry.map','pascal_runtime.profile')]
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()}

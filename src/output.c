@@ -9,7 +9,7 @@
 #define run_saved files_run_saved
 #endif
 #include "zp.h"
-#include "compiler_disk.h"
+#include "compiler/disk.h"
 #include "path.h"
 #include "sources.h"
 #include "output_transport.h"

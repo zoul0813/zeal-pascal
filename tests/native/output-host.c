@@ -3,8 +3,8 @@
  * at API boundaries, independently of the implementation's transaction stages. */
 #include "zp.h"
 #include "output_transport.h"
-#include "compiler_members.h"
-#include "compiler_groups.h"
+#include "compiler/groups/members.h"
+#include "compiler/groups/groups.h"
 #include "library.h"
 #include "file_runtime.h"
 #include <zos_vfs.h>

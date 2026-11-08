@@ -4,32 +4,40 @@ import json
 import hashlib
 from pathlib import Path
 import re
+import shlex
 ROOT=Path(__file__).resolve().parents[1]
 def main():
     mapping=(ROOT/'build/zpascal.map').read_text()
     symbols={name:int(value,16)for value,name in re.findall(r'^\s+([0-9A-F]{8})\s+([_\w]+)\s',mapping,re.M)}
     cold={name for name,value in symbols.items()if value>>16 in (6,8,10)}
     cold|={'b'+name for name in cold if name.startswith('_')}
-    allowed={'compiler.c.rel','compiler_compile.c.rel','compiler_crt.c.rel','compiler_expr.c.rel',
-        'compiler_runtime.c.rel','compiler_files.c.rel','compiler_hooks.c.rel','compiler_io.c.rel','compiler_routines.c.rel','compiler_strings.c.rel'}
-    providers={'optional_runtime_asset.asm.rel','compiler_expr.c.rel','compiler_interrupt.c.rel','compiler_files.c.rel','compiler_io.c.rel'}
+    allowed={'src/compiler/statements.c.rel','src/compiler/compile.c.rel','src/compiler/codegen/builtins/crt.c.rel','src/compiler/expressions.c.rel',
+        'src/units/symbols/names.c.rel','src/compiler/runtime.c.rel','src/compiler/codegen/builtins/files.c.rel','src/compiler/codegen/hooks.c.rel','src/compiler/codegen/builtins/io.c.rel','src/compiler/routines.c.rel','src/compiler/codegen/strings.c.rel'}
+    providers={'src/compiler/codegen/chain.c.rel','src/units/io/loader.c.rel','optional_runtime_asset.asm.rel','src/compiler/expressions.c.rel','src/compiler/codegen/builtins/interrupt.c.rel','src/compiler/codegen/builtins/files.c.rel','src/compiler/codegen/builtins/io.c.rel'}
     imports={};defined=set();violations=[]
     inputs={ROOT/'build/zpascal.map',ROOT/'build/zpascal.bin',ROOT/'build/zpascal.zpl',Path(__file__).resolve()}
-    for target in ('unit_runtime_core','image_compiler','real_compiler','ide_paths','zpascal'):
-        for path in sorted((ROOT/'build/CMakeFiles'/(target+'.dir')).rglob('*.rel')):
-            inputs.add(path)
-            content=path.read_text();defs=set(re.findall(r'^S (\S+) Def',content,re.M))&cold
-            if defs:
-                defined.add(path.name)
-                if path.name not in providers:violations.append('unexpected cold provider '+str(path))
-            refs=sorted(set(re.findall(r'^S (\S+) Ref',content,re.M))&cold)
-            if refs:
-                imports[str(path.relative_to(ROOT))]=refs
-                if path.name not in allowed:violations.append('retained-path cold import '+str(path))
+    # Include fragment objects as well as compiler objects: Unit loading and
+    # transfer compilation also provide startup-cold code.
+    # Inspect only linked objects: old paths can remain after source moves.
+    link=ROOT/'build/CMakeFiles/zpascal.dir/link.txt'
+    inputs.add(link)
+    for name in shlex.split(link.read_text()):
+        if not name.endswith('.rel'):continue
+        path=ROOT/'build'/name
+        source=name.split('.dir/',1)[1]
+        inputs.add(path)
+        content=path.read_text();defs=set(re.findall(r'^S (\S+) Def',content,re.M))&cold
+        if defs:
+            defined.add(source)
+            if source not in providers:violations.append('unexpected cold provider '+str(path))
+        refs=sorted(set(re.findall(r'^S (\S+) Ref',content,re.M))&cold)
+        if refs:
+            imports[str(path.relative_to(ROOT))]=refs
+            if source not in allowed:violations.append('retained-path cold import '+str(path))
     assert defined==providers,(defined,providers)
     assert symbols['_code_phase_restore']>>16==5,'phase loader must stay in retained BANK5'
     assembly=[]
-    for path in (ROOT/'src').glob('*.asm'):
+    for path in (ROOT/'src').rglob('*.asm'):
         inputs.add(path)
         for number,line in enumerate(path.read_text().splitlines(),1):
             if '_code_pages' in line:assembly.append(f'{path.name}:{number}: {line.strip()}')

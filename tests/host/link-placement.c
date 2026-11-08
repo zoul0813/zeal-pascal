@@ -1,4 +1,4 @@
-#include "compiler_link.h"
+#include "compiler/link/link.h"
 #include <assert.h>
 #include <stdio.h>
 Compiler cc;

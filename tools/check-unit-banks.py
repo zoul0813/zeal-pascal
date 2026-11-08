@@ -25,7 +25,7 @@ for object_name in re.findall(r'(\S+\.c\.rel)',(BUILD/'CMakeFiles/zpascal.dir/li
  obj=BUILD/object_name;asm=BUILD/(object_name[:-4]+'.asm')
  assert obj.is_file() and asm.is_file(),object_name
  inputs[object_name]=sha(obj);inputs[str(asm.relative_to(BUILD))]=sha(asm)
- unit=asm.stem;area=None;current=None
+ unit=object_name.split('.dir/',1)[1].removesuffix('.rel');area=None;current=None
  for line in asm.read_text().splitlines():
   match=re.match(r'\s*\.area\s+_(\w+)',line)
   if match:area=match[1]
@@ -118,7 +118,7 @@ assert set(drops[:4])=={n-1 for n in lent}
 assert bank_of(public['cc_source_byte'])==bank_of(public['cc_reference_position'])==names.index('CODE_FILE_RUNTIME')+1
 flags=BUILD/'CMakeFiles/unit_runtime_core.dir/flags.make'
 assert '-DZP_OPTIONAL_REAL'in flags.read_text()and '-DZP_UNITS_EXPERIMENT'in flags.read_text()
-assert public['cc_source_byte'][0]=='compiler_sources.c'and public['code_phase_unit_finish_begin'][0]=='library_phase.c'
+assert public['cc_source_byte'][0]=='src/compiler/sources.c'and public['code_phase_unit_finish_begin'][0]=='src/library_phase.c'
 # After a failed reload, only guarded compilation may reach parser code.
 # Walk every reverse edge, stopping at the compile-project body whose resident
 # entry points all check code_phase_restore before selecting its bank.

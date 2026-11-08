@@ -35,7 +35,7 @@ def main():
     out = ROOT/'analysis/units'/f'{stamp}-{os.getpid()}'
     out.mkdir(parents=True)
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(), ROOT/'tools/test-native.py']
-    inputs += sorted(p for p in (ROOT/'src').iterdir() if p.is_file())
+    inputs += sorted(p for p in (ROOT/'src').rglob('*') if p.is_file())
     inputs += [ROOT/'tests/native'/p for p in ('units-main.c','harness.c','harness-execute.c','code-capture.c','machine.asm')]
     inputs += [ROOT/'tests/native/private-unit.pas']
     hashes = {str(p.relative_to(ROOT)): sha(p) for p in inputs}

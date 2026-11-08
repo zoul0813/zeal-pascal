@@ -1,5 +1,5 @@
 #include "harness.h"
-#include "compiler.h"
+#include "compiler/internal.h"
 
 volatile uint16_t test_passed,test_failed,test_stage,test_failures[64],test_index;
 volatile uint8_t test_done;

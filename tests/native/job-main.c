@@ -1,5 +1,5 @@
 #include "harness.h"
-#include "compiler_job.h"
+#include "compiler/jobs/job.h"
 #include "library.h"
 
 volatile uint16_t test_passed,test_failed,test_stage;

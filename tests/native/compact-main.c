@@ -1,5 +1,5 @@
 #include "harness.h"
-#include "compiler.h"
+#include "compiler/internal.h"
 
 /* Deliberate proof-only address interval, not an allocator or public ABI.
  * Production runtime/linker and ordinary global placement stay unchanged. */

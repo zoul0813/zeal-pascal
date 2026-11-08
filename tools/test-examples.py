@@ -162,7 +162,7 @@ def main():
                          ROOT / 'tools/test-native.py',
                          n.EMULATOR, n.ROM, ROOT/'libraries/screen-engine.inc',
                          ROOT/'tools/screen-library.c', ROOT/'tools/package-screen.py']
-    inputs += sorted(p for p in (ROOT / 'src').iterdir() if p.is_file())
+    inputs += sorted(p for p in (ROOT / 'src').rglob('*') if p.is_file())
     inputs += [ROOT / f'build/{target}.{ext}' for ext in ('bin', 'zpl', 'map')]
     inputs += [ROOT/'build'/name for name in ('zpascal.bin', 'zpascal.zpl', 'zpascal.map',
                'zpascal.banks.json', 'pascal_runtime.zpl', 'pascal_runtime.private',
@@ -381,8 +381,8 @@ def main():
     compiler_commit = revision.stdout.strip() if revision.returncode == 0 else (ROOT / 'build/compiler-commit.txt').read_text().strip()
     assert re.fullmatch(r'[0-9a-f]{40}', compiler_commit), 'Invalid compiler revision record'
     compiler_digest = hashlib.sha256()
-    for path in sorted(p for p in (ROOT / 'src').iterdir() if p.is_file()):
-        compiler_digest.update(path.name.encode() + b'\0' + bytes.fromhex(hashes[str(path)]))
+    for path in sorted(p for p in (ROOT / 'src').rglob('*') if p.is_file()):
+        compiler_digest.update(path.relative_to(ROOT/'src').as_posix().encode() + b'\0' + bytes.fromhex(hashes[str(path)]))
     manifest = {'compiler_commit': compiler_commit, 'compiler_sources_sha256': compiler_digest.hexdigest(),
                 'format': 'Native Zeal executable; unchanged compiler COM image named .bin',
                 'build_command': 'zde --no-tty cmake build --target zexampletest_bin',

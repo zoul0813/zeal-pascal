@@ -157,7 +157,7 @@ def main():
         fixtures.update({folder+'/'+k:v for k,v in row['files'].items()})
     fixtures['CORPUS.DAT']=bytes(manifest)
     paths=[Path(__file__).resolve(),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',n.EMULATOR,n.ROM,n.KERNEL_MAP]
-    paths+=list((ROOT/'src').glob('*'))+list((ROOT/'tests/native').glob('*'))
+    paths+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+list((ROOT/'tests/native').glob('*'))
     paths+=list(REFERENCE.rglob('*'))+[ROOT/'docs/language-evidence.json']
     paths += [LEXICAL_ORACLES,ROOT/'docs/language-specification.md',ROOT/'docs/language-coverage.json']
     for row in rows:paths+=row.get('oracle_paths',[])

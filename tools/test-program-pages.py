@@ -236,7 +236,7 @@ def main():
         commands += typed('wH:/'+name+'.PAS\n') + ['tap C', n.ImageStop(sym['_key_read'], 'zpascal.bin'), '@run-'+name]
     commands += typed('q') + ['quit']
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(), ROOT/'tools/test-native.py']
-    inputs += sorted((ROOT/'src').glob('*'))
+    inputs += sorted((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))
     inputs += [ROOT/f'build/zpascal.{ext}' for ext in ('bin','zpl','map','banks.json')]
     inputs += [n.EMULATOR, n.ROM, ROOT/'build/pascal_runtime.private']
     hashes = {str(path):n.sha(path) for path in inputs if path.is_file()}

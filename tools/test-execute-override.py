@@ -49,7 +49,7 @@ def main():
         assert sym['s__'+area]+sym['l__'+area]<=0x7800
     image=bytes(f.handoff_executable(46080));disk=corrupt_tf(n,image)
     inputs=[Path(__file__),ROOT/'tools/test-native.py',ROOT/'tools/test-chain-loader.py',ROOT/'CMakeLists.txt',n.EMULATOR,n.ROM]
-    inputs+=list((ROOT/'src').glob('*'))+list((ROOT/'tests/native').glob('execute-probe.*'))
+    inputs+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+list((ROOT/'tests/native').glob('execute-probe.*'))
     inputs+=[ROOT/'tests/native/file-start.asm',ROOT/'tests/native/machine.asm']
     inputs+=[ROOT/f'build/{target}.{ext}'for ext in ('bin','map')]
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()}

@@ -1,5 +1,5 @@
 /* Exercise the synchronous capture/result/cleanup implementation directly. */
-#include "../../src/compiler_job.c"
+#include "../../src/compiler/jobs/job.c"
 static uint8_t mask_empty(const uint8_t *p,uint16_t n) {while(n--)if(*p++)return 0;return 1;}
 static uint8_t host_prepared,host_cancel_failure;
 static unsigned host_prepares,host_cancels;

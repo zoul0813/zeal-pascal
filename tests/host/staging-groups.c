@@ -1,5 +1,5 @@
 /* Exercise the real group close with a frozen catalog, including 16-bit wrap. */
-#include "compiler_groups.h"
+#include "compiler/groups/groups.h"
 #include <zos_errors.h>
 #include <assert.h>
 #include <stdio.h>

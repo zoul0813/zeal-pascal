@@ -13,7 +13,7 @@ def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 def main():
     out=ROOT/'analysis/startup-pages'/(datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')+f'-{os.getpid()}')
     out.mkdir(parents=True)
-    inputs=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),ROOT/'tools/test-native.py']+sorted(p for p in (ROOT/'src').iterdir()if p.is_file())
+    inputs=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),ROOT/'tools/test-native.py']+sorted(p for p in (source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file())if p.is_file())
     hashes={str(p.relative_to(ROOT)):sha(p)for p in inputs}
     artifacts={f'build/{target}.{ext}':sha(ROOT/f'build/{target}.{ext}') for target in ('zpascal','zptest','zpbootfail') for ext in ('bin','map')}
     artifacts.update({f'build/{target}.zpl':sha(ROOT/f'build/{target}.zpl')for target in ('zpascal','zptest')})

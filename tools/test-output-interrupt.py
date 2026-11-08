@@ -149,7 +149,7 @@ def main():
         print("\n".join(CASES));return
     if args.case:args.jobs=1
     inputs=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',n.EMULATOR,n.ROM,n.TF_TEMPLATE,n.COREUTILS/'cp',n.COREUTILS/'mkdir']
-    inputs+=list((ROOT/'src').glob('*'))+[ROOT/f'build/zpascal.{ext}'for ext in ('bin','zpl','map','banks.json')]
+    inputs+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+[ROOT/f'build/zpascal.{ext}'for ext in ('bin','zpl','map','banks.json')]
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()}
     selected=[args.case] if args.case else list(CASES)[:2] if args.quick else list(CASES)
     cases=[CASES[name] for name in selected]

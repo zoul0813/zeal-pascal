@@ -432,3 +432,14 @@
 
 # Compiled SYSFILE payload identity and stamping checks.
 !/tests/test_file_unit.py
+
+# Python build/test caches are not source inputs.
+__pycache__/
+*.py[cod]
+
+# Source-layout checkpoints and review.
+!/analysis/
+/analysis/*
+!/analysis/source-layout/
+!/analysis/source-layout/*.json
+!/reviews/source-layout-v1.md

@@ -1,10 +1,10 @@
 /* Independent type-graph fixtures exercise the production decoder. Native
  * author/import/run tests separately qualify parsing, serialization and code. */
-#include "compiler_units.h"
+#include "units/internal.h"
 #include <assert.h>
 /* Keep the artifact type-envelope validator in this translation unit so the
  * fixtures exercise its production bounds checks before semantic import. */
-#include "../../src/compiler_units_object.c"
+#include "../../src/units/object.c"
 #include <stdio.h>
 
 Compiler cc;

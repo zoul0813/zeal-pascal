@@ -1,6 +1,6 @@
 #include "harness.h"
 #include "chunk.h"
-#include "compiler.h"
+#include "compiler/internal.h"
 
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done;

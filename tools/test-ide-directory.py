@@ -32,7 +32,7 @@ def main():
     assert all(card_files.get(path)==data for path,data in {
         '/listdir/card.pas':b'lower\n','/listdir/CARD.PAS':b'upper\n','/listdir/readme.txt':b'note\n'}.items())
     inputs=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),ROOT/'tools/test-native.py',n.EMULATOR,n.ROM,n.TF_TEMPLATE]
-    inputs+=list((ROOT/'src').glob('*'))+list((ROOT/'tests/native').glob('*'))
+    inputs+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+list((ROOT/'tests/native').glob('*'))
     inputs += [ROOT/f'build/zpascal.{ext}'for ext in ('bin','zpl','map','banks.json')]
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()}
     labels=[];typed=lambda text:n.type_text(text,ticks=2000000)

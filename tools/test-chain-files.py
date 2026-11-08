@@ -18,7 +18,7 @@ def native():
     n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
     target='zchainfilestest';sym=n.symbols(target)
     paths=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',n.EMULATOR,n.ROM]
-    paths+=list((ROOT/'src').glob('*'))+[ROOT/'tests/native/chain-files.c',ROOT/'tests/native/file-start.asm',ROOT/'tests/native/file-probe.asm',ROOT/'tests/native/machine.asm']
+    paths+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+[ROOT/'tests/native/chain-files.c',ROOT/'tests/native/file-start.asm',ROOT/'tests/native/file-probe.asm',ROOT/'tests/native/machine.asm']
     paths+=[ROOT/f'build/{target}.{ext}'for ext in ('bin','map')]+[ROOT/'build/file_runtime.zpl',ROOT/'build/file_runtime.module.json']
     hashes={str(p):n.sha(p)for p in paths if p.is_file()}
     for area in ('HEADER','SYSTEM','TEXT','DATA','BSS'):

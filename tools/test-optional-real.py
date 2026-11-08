@@ -103,7 +103,7 @@ def session(target,cases,optional):
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--case',choices=CASES,action='append');args=parser.parse_args()
     cases=args.case or list(CASES)
-    paths=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py']+sorted(p for p in(ROOT/'src').iterdir()if p.is_file())
+    paths=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py']+sorted(p for p in(source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file())if p.is_file())
     paths += [ROOT/f'build/{target}.{ext}'for target in ('zpascal','zlegacypascal')for ext in ('bin','zpl','map','banks.json')]
     paths += [n.EMULATOR,n.ROM]
     hashes={str(p):sha(p)for p in paths}

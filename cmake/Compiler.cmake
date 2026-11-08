@@ -18,7 +18,7 @@ target_compile_definitions(real_compiler PRIVATE ZP_REAL_COMPILER)
 
 target_compile_options(real_compiler PRIVATE --std-c99 --opt-code-size "SHELL:--codeseg BANK9" "SHELL:--constseg BANK9")
 
-add_library(image_compiler OBJECT src/native_image.c src/compiler_image.c)
+add_library(image_compiler OBJECT src/native_image.c src/compiler/link/image.c)
 
 target_include_directories(image_compiler PRIVATE src)
 
@@ -37,7 +37,7 @@ target_include_directories(zpascal PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(zpascal PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 
 # Unit parsing/linking shares one source/cursor ABI across compiler objects.
-add_library(unit_fragment_core OBJECT src/compiler_fragments.c src/compiler_fragment_access.c src/compiler_fragment_source.c)
+add_library(unit_fragment_core OBJECT src/units/linker/fragments.c src/units/linker/access.c src/units/linker/source.c)
 
 target_compile_definitions(unit_fragment_core PRIVATE ZP_UNITS_EXPERIMENT)
 
@@ -46,9 +46,9 @@ target_include_directories(unit_fragment_core PRIVATE src)
 target_compile_options(unit_fragment_core PRIVATE --std-c99 --opt-code-size
     "SHELL:--codeseg BANK19" "SHELL:--constseg BANK19")
 
-add_library(unit_runtime_core OBJECT ${UNIT_CORE} ${CMAKE_BINARY_DIR}/unit_unpack_asset.asm src/compiler_unsigned.c src/compiler_unsigned_asset.c src/compiler_unsigned_intrinsics.c src/compiler_unsigned_ops.c src/compiler_runtime.c
-    src/compiler_units.c src/compiler_unit_references.c src/compiler_unit_files.c src/compiler_unit_paths.c src/compiler_unit_header.c src/compiler_unit_fragments.c src/compiler_unit_loader.c src/compiler_unit_reader.c src/compiler_unit_ranges.c src/compiler_units_symbols.c src/compiler_units_metadata.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c
-    src/compiler_units_link.c src/unit_output.c ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm)
+add_library(unit_runtime_core OBJECT ${UNIT_CORE} ${CMAKE_BINARY_DIR}/unit_unpack_asset.asm src/compiler/codegen/unsigned/core.c src/compiler/codegen/unsigned/asset.c src/compiler/codegen/unsigned/intrinsics.c src/compiler/codegen/unsigned/operations.c src/compiler/runtime.c
+    src/units/core.c src/units/linker/references.c src/units/io/files.c src/units/io/paths.c src/units/io/header.c src/units/io/fragments.c src/units/io/loader.c src/units/io/reader.c src/units/io/ranges.c src/units/symbols/import.c src/units/symbols/metadata.c src/units/graph.c src/units/object.c src/units/symbols/names.c
+    src/units/linker/object.c src/units/output.c ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm)
 
 target_compile_definitions(unit_runtime_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL ZP_PROGRAM_PAGES)
 

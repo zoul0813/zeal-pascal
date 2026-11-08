@@ -35,7 +35,7 @@ def main():
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
     out = ROOT/'analysis/fragments'/f'{stamp}-{os.getpid()}'
     out.mkdir(parents=True)
-    paths = [ROOT/name for name in ('CMakeLists.txt', 'src/compiler_fragments.c', 'src/compiler_fragment_access.c', 'src/compiler_fragment_source.c', 'src/compiler_fragments.h',
+    paths = [ROOT/name for name in ('CMakeLists.txt', 'src/units/linker/fragments.c', 'src/units/linker/access.c', 'src/units/linker/source.c', 'src/units/linker/fragments.h',
         'src/native.asm', 'src/zp.h', 'tests/native/fragments.c', 'tests/native/fragments.asm',
         'tests/native/file-start.asm', 'tests/native/machine.asm', 'tools/test-fragments.py', 'tools/test-native.py')]
     paths += sorted((ROOT/'cmake').glob('*.cmake'))
@@ -67,7 +67,7 @@ def main():
     report['build_output_sha256'] = artifact_hashes
     binary = out/'host-fragments'
     run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined',
-         '-fno-sanitize-recover=all', '-g', '-Isrc', 'src/compiler_fragments.c', 'src/compiler_fragment_access.c', 'src/compiler_fragment_source.c',
+         '-fno-sanitize-recover=all', '-g', '-Isrc', 'src/units/linker/fragments.c', 'src/units/linker/access.c', 'src/units/linker/source.c',
          'tests/native/fragments.c', '-o', str(binary)], 'host-build')
     host = run([str(binary)], 'host', out)
     assert host == '1024 fragment assertions passed, 0 failed\n', host

@@ -12,7 +12,7 @@ def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 def main():
     out=ROOT/'analysis/optional-real'/('corpus-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')+f'-{os.getpid()}')
     out.mkdir(parents=True)
-    inputs=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),ROOT/'tools/test-native.py']+sorted(p for p in (ROOT/'src').iterdir() if p.is_file())+sorted((ROOT/'tests/native').glob('*.c'))
+    inputs=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),ROOT/'tools/test-native.py']+sorted(p for p in (ROOT/'src').rglob('*') if p.is_file())+sorted((ROOT/'tests/native').glob('*.c'))
     hashes={str(p.relative_to(ROOT)):sha(p) for p in inputs}
     spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py');n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
     sym=n.symbols('zoptionalcorpus');artifacts={f'build/zoptionalcorpus.{ext}':sha(ROOT/f'build/zoptionalcorpus.{ext}')for ext in ('bin','zpl','map','ihx')}

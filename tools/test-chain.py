@@ -145,7 +145,7 @@ def ide():
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--ide-only',action='store_true');args=parser.parse_args()
     inputs=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',n.EMULATOR,n.ROM]
-    inputs+=list((ROOT/'src').glob('*'))+[ROOT/'tests/native/chain-entry.pas',ROOT/'tests/native/chain-main.c',ROOT/'tests/native/chain-replay.c',ROOT/'build/zchainreplay.bin']
+    inputs+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+[ROOT/'tests/native/chain-entry.pas',ROOT/'tests/native/chain-main.c',ROOT/'tests/native/chain-replay.c',ROOT/'build/zchainreplay.bin']
     inputs+=[ROOT/f'build/{target}.{ext}'for target in ('zpascal','zchaintest')for ext in ('bin','zpl','map','banks.json')]
     inputs+=[ROOT/'build'/name for name in ('pascal_runtime.private','pascal_runtime.zpl','pascal_runtime.profile','execute_entry.zpl')]
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()};checks={};details={}

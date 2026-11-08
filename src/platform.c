@@ -2,7 +2,7 @@
 #include "keys.h"
 #include "worker.h"
 #include "library.h"
-#include "compiler_job.h"
+#include "compiler/jobs/job.h"
 #include "native_image.h"
 #include <zos_sys.h>
 #include <zos_vfs.h>

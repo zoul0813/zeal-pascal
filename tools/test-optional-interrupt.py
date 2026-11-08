@@ -11,7 +11,7 @@ n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
 def main():
     sym=n.symbols('zpascal');checks={};captures={}
     source=b"var R:Real;begin R:=1.5;R:=R*4;writeln('PATCH-RETRY-OK')end."
-    state_asm=(ROOT/'build/CMakeFiles/optional_real_core.dir/src/compiler_state.c.asm').read_text()
+    state_asm=(ROOT/'build/CMakeFiles/optional_real_core.dir/src/compiler/state.c.asm').read_text()
     reason=state_asm.split('_compile_interrupt_reason:',1)[1].split(';/',1)[0]
     offset=int(re.search(r'_cc \+ (\d+)',reason)[1])
     for disk in (False,True):

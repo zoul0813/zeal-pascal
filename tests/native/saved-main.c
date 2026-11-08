@@ -1,7 +1,7 @@
 #include "harness.h"
 #include "sources.h"
-#include "compiler.h"
-#include "compiler_disk.h"
+#include "compiler/internal.h"
+#include "compiler/disk.h"
 volatile uint16_t test_passed,test_failed,test_stage,test_index,test_pc,test_io_pc;
 volatile uint16_t test_failures[64];
 volatile uint8_t test_done;

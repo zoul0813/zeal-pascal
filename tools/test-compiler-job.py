@@ -24,7 +24,7 @@ fixtures.update({'JOB.PAS':b'{original disk source retained}\r\n',
     'DISK.PAS':b"begin writeln('DISK-ROOT')end.",
     'LARGE.PAS':(ROOT/'tests/native/chain-call.pas').read_bytes()})
 inputs=[ROOT/'tools/test-span-irq.py',ROOT/'CMakeLists.txt',Path(__file__).resolve(),n.EMULATOR,n.ROM]
-inputs+=list((ROOT/'src').glob('*'))+list((ROOT/'tests/native').glob('*'))
+inputs+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+list((ROOT/'tests/native').glob('*'))
 inputs += [ROOT/f'build/zjobtest.{ext}'for ext in ('bin','zpl','banks.json')]
 hashes={str(p):n.sha(p)for p in inputs if p.is_file()}
 raw=n.execute('compiler-job',commands,fixtures,timeout=1800,console_class=SpanConsole)

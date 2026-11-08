@@ -71,7 +71,7 @@ def execute(n):
     """Production Execute, without a preload, injected caller or synthetic body."""
     target='zexecutecalltest';sym=n.symbols(target)
     inputs=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',ROOT/'tools/package-native.py',n.EMULATOR,n.ROM,n.KERNEL_MAP]
-    inputs+=list((ROOT/'src').glob('*'))+list((ROOT/'tests/native').glob('execute-*'))
+    inputs+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+list((ROOT/'tests/native').glob('execute-*'))
     inputs+=[ROOT/f'build/{name}.{ext}' for name in (target,'zexparent','zpascal') for ext in ('bin','map')]
     inputs+=[ROOT/'build'/name for name in (target+'.zpl','zpascal.zpl','zpascal.banks.json','transfer_runtime.zpl','transfer_runtime.packed','transfer_runtime.map','transfer_call.zpl','transfer_call.map','execute_entry.zpl','execute_entry.map','pascal_runtime.profile')]
     hashes={str(p):n.sha(p) for p in inputs if p.is_file()}
@@ -251,7 +251,7 @@ def main():
     n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
     if args.execute:return execute(n)
     inputs=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',ROOT/'tools/package-native.py',n.EMULATOR,n.ROM]
-    inputs+=list((ROOT/'src').glob('*'))+list((ROOT/'tests/native').glob('chain-*'))
+    inputs+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+list((ROOT/'tests/native').glob('chain-*'))
     inputs+=[ROOT/f'build/{target}.{ext}'for target in ('zchaincalltest','zchaincallparent','zpascal')for ext in ('bin','map')]
     inputs+=[ROOT/'build'/name for name in ('zchaincalltest.zpl','zpascal.zpl','transfer_call.zpl','transfer_runtime.zpl','transfer_gate.zpl','transfer_gate.map','pascal_runtime.profile')]
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()}

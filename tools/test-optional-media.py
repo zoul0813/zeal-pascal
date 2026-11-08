@@ -13,7 +13,7 @@ def main():
     source=b"var R:Real;begin R:=1.5;R:=R*4;if R<>6.0 then halt;writeln('MEDIA-REAL-OK')end."
     patch=json.loads((ROOT/'build/optional_runtime.json').read_text())
     patch_bytes=sum(end-first for first,end in patch['patch_spans'])
-    listing=(ROOT/'build/CMakeFiles/optional_real_core.dir/src/compiler_disk.c.lst').read_text()
+    listing=(ROOT/'build/CMakeFiles/optional_real_core.dir/src/compiler/disk.c.lst').read_text()
     local=lambda name:int(re.search(r'^\s+([0-9A-F]+)\s+\d+ _'+name+r'::?$',listing,re.M)[1],16)
     for drive in ('T','B'):
         outputs[drive]={}

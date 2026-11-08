@@ -19,7 +19,7 @@ def build(directory):
     constants = {name: int(re.search(r'#define '+name+r'\s+(0x[0-9a-fA-F]+)', text)[1],16)
                  for name in ('RT_IOSTATUS','RT_IOFAIL','RT_PC','RT_IOCALL','RT_RANGE','RT_GUARD')}
     private = (directory/'pascal_runtime.private').read_bytes()
-    private_names = re.findall(r'RP_[A-Z_]+', (ROOT/'src/compiler.h').read_text().split('enum { RP_INPUT_READY',1)[1].split('RP_COUNT }',1)[0])
+    private_names = re.findall(r'RP_[A-Z_]+', (ROOT/'src/compiler/internal.h').read_text().split('enum { RP_INPUT_READY',1)[1].split('RP_COUNT }',1)[0])
     private_names.insert(0,'RP_INPUT_READY')
     constants['SCREEN_ACTIVE'] = struct.unpack_from('<H',private,2*private_names.index('RP_CRT_ACTIVE'))[0]
     for name in ('RP_INPUT_KEY','RP_INPUT_MODE','RP_INPUT_CLEANUP','RP_INPUT_FAIL','RP_IO_ERROR','RP_INPUT_MODE_VALUE','RP_ECHO_FD'):

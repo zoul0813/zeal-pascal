@@ -1,5 +1,5 @@
 #include "image.h"
-#include "compiler_disk.h"
+#include "compiler/disk.h"
 uint8_t build_is_chain(const Build *b) SOURCE_BLOCK_CALL {
     uint8_t i;
     if(cc_disk_active(b))return cc_disk_chain(b);

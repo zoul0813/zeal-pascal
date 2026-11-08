@@ -13,7 +13,7 @@ def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 def main():
     out=ROOT/'analysis/units'/('corpus-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')+f'-{os.getpid()}')
     out.mkdir(parents=True)
-    inputs=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),ROOT/'tools/test-native.py']+sorted(p for p in (ROOT/'src').iterdir() if p.is_file())+sorted((ROOT/'tests/native').glob('*.c'))
+    inputs=[ROOT/'CMakeLists.txt',Path(__file__).resolve(),ROOT/'tools/test-native.py']+sorted(p for p in (ROOT/'src').rglob('*') if p.is_file())+sorted((ROOT/'tests/native').glob('*.c'))
     inputs += sorted((ROOT/'cmake').glob('*.cmake'))
     hashes={str(p.relative_to(ROOT)):sha(p) for p in inputs}
     with (out/'build.log').open('w') as log:

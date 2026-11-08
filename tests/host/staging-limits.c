@@ -1,4 +1,4 @@
-#include "compiler.h"
+#include "compiler/internal.h"
 #include <assert.h>
 #include <stdio.h>
 uint16_t cc_required_stack(void) {return 2048;}

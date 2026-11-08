@@ -1,5 +1,5 @@
-#include "compiler_units.h"
-#include "compiler_job.h"
+#include "units/internal.h"
+#include "compiler/jobs/job.h"
 #include "library.h"
 #include "image.h"
 #include <zos_errors.h>

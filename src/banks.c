@@ -1,5 +1,5 @@
 #include "library.h"
-#include "compiler_job.h"
+#include "compiler/jobs/job.h"
 #include "worker.h"
 #include "output_transport.h"
 #include <zos_errors.h>

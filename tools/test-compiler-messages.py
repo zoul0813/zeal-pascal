@@ -14,7 +14,7 @@ def host():
     OUT.mkdir(parents=True,exist_ok=True)
     executable=OUT/'messages-host'
     subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
-        '-fno-sanitize-recover=all','-g','-Isrc','src/compiler_messages.c',
+        '-fno-sanitize-recover=all','-g','-Isrc','src/compiler/messages.c',
         'tests/native/compiler-messages-host.c','-o',str(executable)],cwd=ROOT,check=True)
     subprocess.run([str(executable)],cwd=ROOT,check=True)
 
@@ -24,7 +24,7 @@ def native():
     sym=n.symbols('zpascal');key=sym['_key_read'];work=sym['_work'];build=sym['_build']
     clear=n.kernel_symbols()['_video_vram_set']
     paths=[Path(__file__).resolve(),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',n.EMULATOR,n.ROM]
-    paths+=list((ROOT/'src').glob('*'))+[ROOT/f'build/zpascal.{ext}'for ext in ('bin','zpl','map','banks.json')]
+    paths+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+[ROOT/f'build/zpascal.{ext}'for ext in ('bin','zpl','map','banks.json')]
     hashes={str(p):n.sha(p)for p in paths if p.is_file()}
     typed=lambda text:n.type_text(text,ticks=100000000)
     control=lambda letter:n.control(letter)[:-1]+['run 100000000']
@@ -85,7 +85,7 @@ def publication_error():
     video=n.kernel_symbols()['_video_vram_set'];build=sym['_build'];work=sym['_work']
     source=b'begin end.';injected=[];observed={}
     paths=[Path(__file__).resolve(),ROOT/'tools/test-native.py',n.EMULATOR,n.ROM]
-    paths+=list((ROOT/'src').glob('*'))+[ROOT/f'build/zpascal.{ext}'for ext in ('bin','zpl','map','banks.json')]
+    paths+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+[ROOT/f'build/zpascal.{ext}'for ext in ('bin','zpl','map','banks.json')]
     hashes={str(p):n.sha(p)for p in paths if p.is_file()}
     active={};base=n.DebugConsole
     class Console(base):

@@ -1,5 +1,5 @@
 /* Allocation/stream oracle; full Pascal metadata validation has its own tests. */
-#include "compiler_units.h"
+#include "units/internal.h"
 #include "output_transport.h"
 #include <zos_vfs.h>
 #include <zos_errors.h>

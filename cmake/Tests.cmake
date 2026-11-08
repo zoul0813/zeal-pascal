@@ -77,7 +77,7 @@ set_source_files_properties(tests/native/harness.c tests/native/harness-cases.c
     PROPERTIES COMPILE_OPTIONS "--opt-code-size")
 
 set_property(SOURCE tests/native/options-main.c tests/native/chain-call-main.c tests/native/chain-main.c tests/native/execute-call-main.c tests/native/job-main.c tests/native/members-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler/internal.h)
 
 set_property(SOURCE tests/native/main.c tests/native/harness.c tests/native/harness-cases.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
@@ -98,7 +98,7 @@ set_property(SOURCE tests/native/sources-main.c tests/native/inline-main.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources.h)
 
 set_property(SOURCE tests/native/members-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_groups.h ${CMAKE_SOURCE_DIR}/src/compiler_members.h ${CMAKE_SOURCE_DIR}/src/compiler_late.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler/groups/groups.h ${CMAKE_SOURCE_DIR}/src/compiler/groups/members.h ${CMAKE_SOURCE_DIR}/src/compiler/groups/late.h)
 
 set_property(SOURCE tests/native/unit-real-main.c tests/native/harness-execute.c tests/native/chain-main.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/native_image.h)
@@ -126,7 +126,7 @@ set_property(SOURCE tests/native/conformance-main.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 
 set_property(SOURCE tests/native/job-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_disk.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler/disk.h)
 
 add_executable(zptest src/startup.asm src/banks.c tests/native/main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 
@@ -209,7 +209,7 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/compact_asset.asm CONTENT
 set_source_files_properties(${CMAKE_BINARY_DIR}/compact_asset.asm
     PROPERTIES OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/compact_runtime.zpl;${CMAKE_BINARY_DIR}/compact_runtime.private;${CMAKE_BINARY_DIR}/compact_runtime.profile;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
 
-add_library(compact_compile OBJECT src/compiler_compile.c src/compiler_chain.c)
+add_library(compact_compile OBJECT src/compiler/compile.c src/compiler/codegen/chain.c)
 
 target_include_directories(compact_compile PRIVATE src ${CMAKE_BINARY_DIR})
 
@@ -222,7 +222,7 @@ add_dependencies(compact_compile transfer_assets)
 add_executable(zcompacttest src/startup.asm src/banks.c tests/native/compact-main.c
     tests/native/harness.c tests/native/machine.asm ${CMAKE_BINARY_DIR}/compact_asset.asm
     ${CMAKE_BINARY_DIR}/compact_file_asset.asm
-    "$<FILTER:$<TARGET_OBJECTS:zp_core>,EXCLUDE,/((runtime|file)_asset[.]asm|src/compiler_(compile|chain)[.]c)[.]rel$>"
+    "$<FILTER:$<TARGET_OBJECTS:zp_core>,EXCLUDE,/((runtime|file)_asset[.]asm|src/compiler/(compile|codegen/chain)[.]c)[.]rel$>"
     $<TARGET_OBJECTS:compact_compile>
     $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 
@@ -234,7 +234,7 @@ set_source_files_properties(tests/native/compact-main.c
     PROPERTIES COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 
 set_property(SOURCE tests/native/compact-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/tests/native/harness.h ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/tests/native/harness.h ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h)
 
 add_executable(zcontroltest src/startup.asm src/banks.c tests/native/control-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 
@@ -249,7 +249,7 @@ target_include_directories(zmaptest PRIVATE src)
 target_compile_options(zmaptest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 
 set_property(SOURCE tests/native/saved-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/path.h ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/compiler_disk.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/path.h ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/compiler/disk.h)
 
 add_executable(zdevtest src/startup.asm src/banks.c tests/native/devices-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 
@@ -311,7 +311,7 @@ set_source_files_properties(tests/native/job-main.c
     PROPERTIES COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 
 set_property(SOURCE tests/native/job-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_job.h ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler/jobs/job.h ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 
 add_executable(zoptionstest src/startup.asm src/banks.c tests/native/options-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 
@@ -335,19 +335,19 @@ set_source_files_properties(tests/native/chain-call-main.c
     PROPERTIES COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 
 set_property(SOURCE tests/native/chain-call-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 
 set_source_files_properties(tests/native/chain-main.c
     PROPERTIES COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 
 set_property(SOURCE tests/native/chain-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/path.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/path.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 
 set_property(SOURCE tests/native/options-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/path.h ${CMAKE_SOURCE_DIR}/tests/native/save-path-native.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/path.h ${CMAKE_SOURCE_DIR}/tests/native/save-path-native.h)
 
 set_property(SOURCE tests/native/chain-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/chain_abi.h ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/path.h ${CMAKE_SOURCE_DIR}/src/image.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/chain_abi.h ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/path.h ${CMAKE_SOURCE_DIR}/src/image.h)
 
 add_executable(zworkertest src/startup.asm src/banks.c tests/native/worker-main.c tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 
@@ -388,7 +388,7 @@ set_source_files_properties(tests/native/execute-call-main.c
     PROPERTIES COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 
 set_property(SOURCE tests/native/execute-call-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 
 add_executable(zmemberstest src/startup.asm src/banks.c tests/native/members-main.c tests/native/members-probe.asm tests/native/harness.c tests/native/machine.asm $<TARGET_OBJECTS:zp_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 
@@ -400,7 +400,7 @@ set_source_files_properties(tests/native/members-main.c
     PROPERTIES COMPILE_OPTIONS "--codeseg;BANK1;--constseg;BANK1")
 
 set_property(SOURCE tests/native/members-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_members.h ${CMAKE_SOURCE_DIR}/src/compiler_groups.h ${CMAKE_SOURCE_DIR}/src/output_transport.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h ${CMAKE_SOURCE_DIR}/tests/native/late-cases.h ${CMAKE_SOURCE_DIR}/src/compiler_late.h ${CMAKE_SOURCE_DIR}/src/file_runtime.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler/groups/members.h ${CMAKE_SOURCE_DIR}/src/compiler/groups/groups.h ${CMAKE_SOURCE_DIR}/src/output_transport.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h ${CMAKE_SOURCE_DIR}/tests/native/late-cases.h ${CMAKE_SOURCE_DIR}/src/compiler/groups/late.h ${CMAKE_SOURCE_DIR}/src/file_runtime.h)
 
 # Keep the shared execution fixture out of the resident page. It accepts only
 # scalar arguments; source literals remain in the retained harness caller.
@@ -785,7 +785,7 @@ endforeach()
 
 # Isolated symbolic fragment-link proof; no production compiler/parser wiring.
 add_executable(zfragmenttest tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
-    src/compiler_fragments.c src/compiler_fragment_access.c src/compiler_fragment_source.c src/native.asm tests/native/fragments.c
+    src/units/linker/fragments.c src/units/linker/access.c src/units/linker/source.c src/native.asm tests/native/fragments.c
     tests/native/fragments.asm tests/native/machine.asm)
 
 target_include_directories(zfragmenttest PRIVATE src)
@@ -796,7 +796,7 @@ set_source_files_properties(tests/native/fragments.c
     PROPERTIES COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;TEST;--constseg;TEST;--dataseg;TEST_DATA")
 
 set_property(SOURCE tests/native/fragments.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_fragments.h ${CMAKE_SOURCE_DIR}/src/zp.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/units/linker/fragments.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 
 target_link_options(zfragmenttest PRIVATE "SHELL:-b _HOME=0x7000" "SHELL:-b _TEST=0x8000" "SHELL:-b _TEST_DATA=0xc000")
 
@@ -805,8 +805,8 @@ zp_add_outputs(zfragmenttest)
 add_custom_target(fragment_toolchain
     COMMAND ${CMAKE_C_COMPILER} --version VERBATIM)
 
-add_library(unit_core OBJECT src/compiler_unsigned.c src/compiler_unsigned_asset.c src/compiler_unsigned_intrinsics.c src/compiler_unsigned_ops.c ${LEGACY_CORE} src/compiler_units.c
-    src/compiler_unit_references.c src/compiler_unit_files.c src/compiler_unit_paths.c src/compiler_unit_header.c src/compiler_unit_fragments.c src/compiler_unit_loader.c src/compiler_unit_reader.c src/compiler_unit_ranges.c src/compiler_units_symbols.c src/compiler_units_metadata.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c src/compiler_units_link.c src/unit_output.c)
+add_library(unit_core OBJECT src/compiler/codegen/unsigned/core.c src/compiler/codegen/unsigned/asset.c src/compiler/codegen/unsigned/intrinsics.c src/compiler/codegen/unsigned/operations.c ${LEGACY_CORE} src/units/core.c
+    src/units/linker/references.c src/units/io/files.c src/units/io/paths.c src/units/io/header.c src/units/io/fragments.c src/units/io/loader.c src/units/io/reader.c src/units/io/ranges.c src/units/symbols/import.c src/units/symbols/metadata.c src/units/graph.c src/units/object.c src/units/symbols/names.c src/units/linker/object.c src/units/output.c)
 
 target_compile_definitions(unit_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT)
 
@@ -841,7 +841,7 @@ set_source_files_properties(tests/native/units-main.c
     PROPERTIES COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
 
 set_property(SOURCE tests/native/units-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_units.h ${CMAKE_SOURCE_DIR}/src/compiler.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/units/internal.h ${CMAKE_SOURCE_DIR}/src/compiler/internal.h)
 
 add_dependencies(zunittest transfer_assets)
 
@@ -886,7 +886,7 @@ set(OPTIONAL_CORE ${LEGACY_CORE})
 
 list(REMOVE_ITEM OPTIONAL_CORE ${CMAKE_BINARY_DIR}/runtime_asset.asm)
 
-add_library(optional_real_core OBJECT ${OPTIONAL_CORE} src/compiler_runtime.c
+add_library(optional_real_core OBJECT ${OPTIONAL_CORE} src/compiler/runtime.c
     ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm)
 
 target_compile_definitions(optional_real_core PRIVATE ZP_IDE_PATHS ZP_OPTIONAL_REAL)
@@ -937,7 +937,7 @@ set_source_files_properties(tests/native/optional-real-main.c
     PROPERTIES COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
 
 set_property(SOURCE tests/native/optional-real-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_BINARY_DIR}/optional_runtime.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_BINARY_DIR}/optional_runtime.h)
 
 add_dependencies(zoptionaltest optional_runtime_assets transfer_assets)
 
@@ -955,7 +955,7 @@ add_custom_target(zoptionaltest_bin
 # The SDK has no compiler depfiles. New optional sources need the same explicit
 # ABI dependencies as the existing compiler and native fixtures.
 set_property(SOURCE tests/native/optional-real-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/real.h ${CMAKE_SOURCE_DIR}/src/chain_abi.h ${CMAKE_SOURCE_DIR}/src/output_transport.h ${CMAKE_SOURCE_DIR}/src/compiler_disk.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/real.h ${CMAKE_SOURCE_DIR}/src/chain_abi.h ${CMAKE_SOURCE_DIR}/src/output_transport.h ${CMAKE_SOURCE_DIR}/src/compiler/disk.h)
 
 add_library(optional_test_execution OBJECT tests/native/harness-execute.c)
 
@@ -1011,7 +1011,7 @@ set_source_files_properties(tests/native/unit-real-main.c
     PROPERTIES COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
 
 set_property(SOURCE tests/native/unit-real-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/compiler_units.h ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/units/internal.h ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 
 add_dependencies(zunitrealtest transfer_assets)
 
@@ -1043,7 +1043,7 @@ set_source_files_properties(tests/native/unit-init-main.c
     PROPERTIES COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
 
 set_property(SOURCE tests/native/unit-init-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/compiler_units.h ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/units/internal.h ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 
 add_dependencies(zunitinittest transfer_assets)
 
@@ -1074,7 +1074,7 @@ set_source_files_properties(tests/native/unsigned-main.c
     PROPERTIES COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
 
 set_property(SOURCE tests/native/unsigned-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/compiler_units.h ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/units/internal.h ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 
 add_dependencies(zunsignedtest transfer_assets)
 
@@ -1106,7 +1106,7 @@ set_source_files_properties(tests/native/zvb-main.c
     PROPERTIES COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
 
 set_property(SOURCE tests/native/zvb-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/compiler_units.h ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/sources.h ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/units/internal.h ${CMAKE_SOURCE_DIR}/src/image.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/src/zp.h)
 
 add_dependencies(zzvbtest transfer_assets)
 
@@ -1142,7 +1142,7 @@ set_source_files_properties(tests/native/screen-main.c
     PROPERTIES COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
 
 set_property(SOURCE tests/native/screen-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/native_image.h ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/native_image.h ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 
 add_dependencies(zscreentest transfer_assets crt_zpu zexparent_bin)
 

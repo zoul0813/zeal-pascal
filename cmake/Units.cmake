@@ -7,7 +7,7 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/CRT.ZPU ${CMAKE_BINARY_DIR}/CRT.PA
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-screen.py ${CMAKE_BINARY_DIR}
     DEPENDS runtime_profile ${CMAKE_BINARY_DIR}/pascal_runtime.private
         ${CMAKE_BINARY_DIR}/pascal_runtime.profile ${CMAKE_SOURCE_DIR}/src/zp.h
-        ${CMAKE_SOURCE_DIR}/src/compiler.h
+        ${CMAKE_SOURCE_DIR}/src/compiler/internal.h
         ${CMAKE_SOURCE_DIR}/tools/package-screen.py ${CMAKE_SOURCE_DIR}/tools/screen-library.c
         ${CMAKE_SOURCE_DIR}/libraries/screen-engine.inc VERBATIM)
 

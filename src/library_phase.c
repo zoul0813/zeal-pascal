@@ -1,5 +1,5 @@
 #include "library.h"
-#include "compiler.h"
+#include "compiler/internal.h"
 #include <zos_sys.h>
 #include <zos_vfs.h>
 

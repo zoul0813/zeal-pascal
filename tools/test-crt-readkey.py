@@ -3,7 +3,7 @@
 from pathlib import Path
 import importlib.util,re,struct,json,argparse
 root=Path(__file__).resolve().parents[1];sp=importlib.util.spec_from_file_location('native',root/'tools/test-native.py');n=importlib.util.module_from_spec(sp);sp.loader.exec_module(n);parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--emulator',type=Path);args=parser.parse_args();n.EMULATOR=args.emulator or n.EMULATOR;sym=n.symbols('zzvbtest')
-names=re.findall(r'RP_[A-Z_]+',(root/'src/compiler.h').read_text().split('enum { RP_INPUT_READY',1)[1].split('RP_COUNT }',1)[0]);names.insert(0,'RP_INPUT_READY');private=(root/'build/pascal_runtime.private').read_bytes();raw=struct.unpack_from('<H',private,2*names.index('RP_INPUT_RAW_KEY'))[0];runtime=(root/'build/pascal_runtime.zpl').read_bytes();gold=runtime[raw-0x4000:raw-0x4000+16];hits=[]
+names=re.findall(r'RP_[A-Z_]+',(root/'src/compiler/internal.h').read_text().split('enum { RP_INPUT_READY',1)[1].split('RP_COUNT }',1)[0]);names.insert(0,'RP_INPUT_READY');private=(root/'build/pascal_runtime.private').read_bytes();raw=struct.unpack_from('<H',private,2*names.index('RP_INPUT_RAW_KEY'))[0];runtime=(root/'build/pascal_runtime.zpl').read_bytes();gold=runtime[raw-0x4000:raw-0x4000+16];hits=[]
 # Absolute private-state operands relocate with the compact runtime. Match only
 # the decoder's opcodes and branch displacement, then verify the live image.
 fixed=(0,3,4,5,6,7,10,13,14,15)

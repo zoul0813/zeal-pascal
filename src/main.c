@@ -2,9 +2,9 @@
 #include "main_display.h"
 #include "sources.h"
 #include "keys.h"
-#include "compiler_job.h"
-#include "compiler_disk.h"
-#include "compiler_messages.h"
+#include "compiler/jobs/job.h"
+#include "compiler/disk.h"
+#include "compiler/messages.h"
 #if defined(ZP_UNITS_EXPERIMENT) && defined(ZP_OPTIONAL_REAL)
 #include "runtime-layout.h"
 static uint16_t compiled_data_base;

@@ -1,8 +1,8 @@
 #include "hash-evidence.h"
 /* Host structural/failure tests for the exact C front end used on Zeal.
  * These are deliberately not counted as native execution tests. */
-#include "compiler.h"
-#include "compiler_job.h"
+#include "compiler/internal.h"
+#include "compiler/jobs/job.h"
 #include <zos_vfs.h>
 #include "stream-hash.h"
 #include "source_move.h"

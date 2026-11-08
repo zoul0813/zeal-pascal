@@ -24,7 +24,7 @@ def main():
               ROOT/'tools/package-native.py', n.EMULATOR, n.ROM]
     inputs += [ROOT/'build/CRT.ZPU',ROOT/'build/CRT.PAS',
                ROOT/'libraries/screen-engine.inc',ROOT/'tools/screen-library.c',ROOT/'tools/package-screen.py']
-    inputs += sorted((ROOT/'src').glob('*')) + sorted((ROOT/'tests/native').glob('*'))
+    inputs += sorted((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file())) + sorted((ROOT/'tests/native').glob('*'))
     inputs += [ROOT/f'build/{target}.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}
     linked=ROOT/f'build/{target}.ihx'

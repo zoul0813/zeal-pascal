@@ -1,0 +1,782 @@
+{
+  "src/compiler.c": {
+    "current": "src/compiler/statements.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "bed6e37dae34a8a12557d782b2cac2e8a28bb550fc40a28810b92b94eabd1f29"
+  },
+  "src/compiler.h": {
+    "current": "src/compiler/internal.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "c246c0bf33f00cadd010a27b86c0ea67c49dea8fdf0c6fd3286b23d42b640376"
+  },
+  "src/compiler_activation.c": {
+    "current": "src/compiler/link/activation.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "7d4c20168fc971bd29c9e8030c21231dc7712f5e8dc377519325d3748e28a111"
+  },
+  "src/compiler_artifact.c": {
+    "current": "src/compiler/link/artifact.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "8f787fbcb88972378b0d3191179d3ac8f126adfc609f60c4badff31ab6385fe4"
+  },
+  "src/compiler_asset.c": {
+    "current": "src/compiler/codegen/asset.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "5dcda17bb281dc9d76f12a7e923fa4c39edd9ce44be37ed4cf25bbc4c8da90cd"
+  },
+  "src/compiler_bridges.c": {
+    "current": "src/compiler/codegen/bridges.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "855369e369e9fe4c905942e80de8405889dcce2ccbd4c15e48dd940346f3d9ef"
+  },
+  "src/compiler_build.c": {
+    "current": "src/compiler/build.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "19fde887b7e18eb863e5279551c008520dcb797af8b7b57ba9e87c840a1865f5"
+  },
+  "src/compiler_chain.c": {
+    "current": "src/compiler/codegen/chain.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "26ed65419f2f008644b8aa112934199fecfd34d0f7efb057ff8d94b5a9fb8cdb"
+  },
+  "src/compiler_compile.c": {
+    "current": "src/compiler/compile.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "e8090a73cfc7aba33097d57ee68b7f9e5882facb1d9249d3b1b75c5370259a28"
+  },
+  "src/compiler_console.c": {
+    "current": "src/compiler/codegen/builtins/console.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "550724a5807fc0a2dce93669b186aa5be1fee3f854abacd75d0b0d3e7df11c40"
+  },
+  "src/compiler_crt.c": {
+    "current": "src/compiler/codegen/builtins/crt.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "f8a052fd7152d46d8f8100d8a5eed6e8115bd201863b2237eb230b5ad657dcd7"
+  },
+  "src/compiler_disk.c": {
+    "current": "src/compiler/disk.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "f47bf5d2db5f109eec01a546821f32066ed21dfa28c6f179a880611bd697a7ce"
+  },
+  "src/compiler_disk.h": {
+    "current": "src/compiler/disk.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "11d22e0e0ca16bcb39f9684ca51991e16ea6b0b52fb924269ea5bbe43a4adb31"
+  },
+  "src/compiler_emit.c": {
+    "current": "src/compiler/codegen/emit.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "4aabe3d9677faa4a4fe375a29b67223eed6e0e45aa2f2bf019c9089940f01257"
+  },
+  "src/compiler_expr.c": {
+    "current": "src/compiler/expressions.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "39281a4fc9e2592b248e08a3137326c6ae0c0cf51b1084b0822da6d62f8818da"
+  },
+  "src/compiler_file_link.c": {
+    "current": "src/compiler/codegen/builtins/file_link.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "078847ed0db0d6da94ffdc1938dde80ebc544a8a858af6bef33b459a5d27b967"
+  },
+  "src/compiler_files.c": {
+    "current": "src/compiler/codegen/builtins/files.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "bd94ba1441c7d973ae8a0adcdec84e2505df4cdf963c8dcbeb5b70f0dfddbfe5"
+  },
+  "src/compiler_fragment_access.c": {
+    "current": "src/units/linker/access.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "762077f69714a7084d9daf5f6c473a5f58779f3a08489090475dd6d192207d42"
+  },
+  "src/compiler_fragment_source.c": {
+    "current": "src/units/linker/source.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "26676bfc20109a40b4805e963beac84f80d314442ec0fac0619afef3cec0558a"
+  },
+  "src/compiler_fragments.c": {
+    "current": "src/units/linker/fragments.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "b91453caa66030c1b83045d6868dca1cee320e813c50ed7ea2ca18bda761b842"
+  },
+  "src/compiler_fragments.h": {
+    "current": "src/units/linker/fragments.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "f54875f146410cf6149f19bb8541fef390c009e4107e77021b2ba2bcd557ff1c"
+  },
+  "src/compiler_frames.c": {
+    "current": "src/compiler/codegen/frames.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "6fdf9081e4f33dac5f0d0e4d587480ec54d4ee67375f9e4be165bfc87eb13295"
+  },
+  "src/compiler_front.c": {
+    "current": "src/compiler/frontend.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "0683973d5b41451b28fcce44e2c99165b794d784f7531757f473220a312144d9"
+  },
+  "src/compiler_groups.c": {
+    "current": "src/compiler/groups/groups.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "d8d95e10ace3d5d24d0ca7cbc7e3738975dbd716574a40ce68c772a91f9d6b2d"
+  },
+  "src/compiler_groups.h": {
+    "current": "src/compiler/groups/groups.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "633cba6d31e2584e6f2c4c82786b3bf9797866ac8a21611905b9055cc7d9ccc1"
+  },
+  "src/compiler_hooks.c": {
+    "current": "src/compiler/codegen/hooks.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "1875623ee3d1d17a0ac84610fe4a90789537e842f7c569a2c5454c69d9162439"
+  },
+  "src/compiler_image.c": {
+    "current": "src/compiler/link/image.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "5bd521bb05eed4743d9f9578e6f50f144cc0177b14179b664901f8d951b43eb5"
+  },
+  "src/compiler_inline.c": {
+    "current": "src/compiler/codegen/inline.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "98d9264548837b92d2d1a01462f729d9097fc89b6065732821e4c1c098fa803d"
+  },
+  "src/compiler_interrupt.c": {
+    "current": "src/compiler/codegen/builtins/interrupt.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "761dbb9053caa7ee75b6abafacd86476371056ec07b9425664a47f92c5af85e4"
+  },
+  "src/compiler_io.c": {
+    "current": "src/compiler/codegen/builtins/io.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "1b9a0629a7ec3132e1e8d9074eacaf4936a7d022450cad2b1a3e3cf43e7dcb37"
+  },
+  "src/compiler_job.c": {
+    "current": "src/compiler/jobs/job.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "6240afa5029bca580a950d58e361ad030e871969db0c45d28fd72a6754a553b6"
+  },
+  "src/compiler_job.h": {
+    "current": "src/compiler/jobs/job.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "16f0a5c5e38769a7b9baee1a36a2117e74d42d7fcc2a49b40fded217a8d06cd9"
+  },
+  "src/compiler_job_pages.c": {
+    "current": "src/compiler/jobs/pages.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "cf95d21c5c3fd4b1f1f2f1b81f64526608513919801c21c0bfa0ac76f34e08f4"
+  },
+  "src/compiler_job_result.c": {
+    "current": "src/compiler/jobs/result.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "c4bc103e90519db0ca6bb94cff12e71bbc6e6ed0d7a1da13b3975047db91d5d9"
+  },
+  "src/compiler_keyboard.c": {
+    "current": "src/compiler/codegen/builtins/keyboard.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "5c6a29a206387e6803b326c7119e878136b2c063cb633a64f15d62bdc803cb9f"
+  },
+  "src/compiler_keyboard_engine.c": {
+    "current": "src/compiler/codegen/builtins/keyboard_engine.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "9ef56bb173db7392483f7568c81f9ea5957e16f0a7166f9dd66658fd11b697f2"
+  },
+  "src/compiler_late.c": {
+    "current": "src/compiler/groups/late.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "5a5fff6c17e7a1d6dee78985cd925428330f1be517395da4da23cbae76f7b5ba"
+  },
+  "src/compiler_late.h": {
+    "current": "src/compiler/groups/late.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "a5f266e0f2b9af75739f62459e3521d3138603cae25f18d7d065935a8ef8be27"
+  },
+  "src/compiler_layout.c": {
+    "current": "src/compiler/link/layout.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "e11b3fa1855ef75e311f43841b107ef4aee33b15f838b0ee258fee79c00e0f11"
+  },
+  "src/compiler_layout.h": {
+    "current": "src/compiler/link/layout.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "90886a15a71d7d5f5f679e582eda025e69689a3cee072d7744ffb109288e32c2"
+  },
+  "src/compiler_layout_emit.c": {
+    "current": "src/compiler/link/emit.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "4a80e4dfc0768ce73659f3f44267b88136b7cfe0b1d0b34bd315dfc943e418a4"
+  },
+  "src/compiler_link.c": {
+    "current": "src/compiler/link/link.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "952fc7bc17e4824be33bdd59e95cc581f161c711d14aebb00a96b848d7336cf8"
+  },
+  "src/compiler_link.h": {
+    "current": "src/compiler/link/link.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "3187e1632a74af7c88ac5c8ea7a2090d4e3fc7af86b53ace6adbab5a90e84ea9"
+  },
+  "src/compiler_members.c": {
+    "current": "src/compiler/groups/members.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "ff0b04fa7027e4f2d19f95068b4316d8f8cb2bd956a01a61494924971a182bd4"
+  },
+  "src/compiler_members.h": {
+    "current": "src/compiler/groups/members.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "ed7f5e0e0d60b0e01b89ba627d82b52387a5c36525ef271cb2a171bfced1ff00"
+  },
+  "src/compiler_messages.c": {
+    "current": "src/compiler/messages.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "6a363f752714f134a8d3e44a65899ea816c39d9f755f7bfa123faa8fbb75741d"
+  },
+  "src/compiler_messages.h": {
+    "current": "src/compiler/messages.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "97f85fab701d501658c24471a157b6248214c930362fc479a4c6e2466791162e"
+  },
+  "src/compiler_module.c": {
+    "current": "src/compiler/codegen/module.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "4bf682a5b561a4d0df46880f206feecdc2708544a31756fc4c33a96d38b9dec8"
+  },
+  "src/compiler_params.c": {
+    "current": "src/compiler/codegen/builtins/params.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "dbbc56bf61350064f07a44d602cc6a840d6e30f2fc3f97038857b56dd898942e"
+  },
+  "src/compiler_predicates.c": {
+    "current": "src/compiler/predicates.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "bde5c56e8c9d595f68cbf1e5d58f3205cdd563c26c3b0b042fa4d0f0e0fe4270"
+  },
+  "src/compiler_random.c": {
+    "current": "src/compiler/codegen/builtins/random.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "7a70d5f6789e02b1311287cdc624bb503ac0e74f4feac9fdc6c3379fcbf0bf17"
+  },
+  "src/compiler_real.c": {
+    "current": "src/compiler/codegen/real.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "355c171f4a95ddb85ff831105d1aa4c5a60da93b375c7722b266aff8dd6a8669"
+  },
+  "src/compiler_recursion.c": {
+    "current": "src/compiler/codegen/recursion.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "221da8a1fee1109315ba3fb4b8f26cf1a7b5a038d2219f4571bead346da5a105"
+  },
+  "src/compiler_routines.c": {
+    "current": "src/compiler/routines.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "9055c1cd2dcbc822250283017e90aa134e919d758ce004d3f7b269beefea65f5"
+  },
+  "src/compiler_runtime.c": {
+    "current": "src/compiler/runtime.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "f4daee08d3ae73fe0ec1ffa66207f1e7883f3ea1c5237bd003f676d16b6b0a25"
+  },
+  "src/compiler_sources.c": {
+    "current": "src/compiler/sources.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "4d02b0890e36617b64260cc0a815de18ee952e6f9b51284f64ebbc501530cb01"
+  },
+  "src/compiler_state.c": {
+    "current": "src/compiler/state.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "e7be6a7b214a59a3c0b47bf5c08eeb9baeeebcba56c33c5b8cd66f86545593f9"
+  },
+  "src/compiler_strings.c": {
+    "current": "src/compiler/codegen/strings.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "0fa96056c5b9a935a18a8b39decc81862a6189094242575eeeba2c382cedb635"
+  },
+  "src/compiler_table_arena.c": {
+    "current": "src/compiler/tables/arena.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "aa9afb97ebc27cdc4f8e318a775f0c3912ddb3eefda755d61789ce67a90b1b81"
+  },
+  "src/compiler_table_arena.h": {
+    "current": "src/compiler/tables/arena.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "cd758645554eedc983f6f3251f800b9c73338f7a5add8fe2b50ef0b9b6f280e7"
+  },
+  "src/compiler_tables.c": {
+    "current": "src/compiler/tables/storage.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "a7640c7b87f0f844c8d14908e84b97278e4e917949c46676356b64cb656c3134"
+  },
+  "src/compiler_transfer_asset.c": {
+    "current": "src/compiler/codegen/transfer_asset.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "789914d891d03125bbf5711bd65789e384f6240aa13b1e1106b5c9f19bbafcdf"
+  },
+  "src/compiler_types.c": {
+    "current": "src/compiler/types.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "f7a18849b36b4a189f474e1d8411e92175a7845b73f27bce245ae3e748578054"
+  },
+  "src/compiler_unit_files.c": {
+    "current": "src/units/io/files.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "964b3eab52b305fd94bc1840ff86ebbf1f11476c01420fded5a317e41440e750"
+  },
+  "src/compiler_unit_fragments.c": {
+    "current": "src/units/io/fragments.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "1578cfaff53ca1587040bcd486c00e9c53eed5aca821af80d7b6180096e4988c"
+  },
+  "src/compiler_unit_header.c": {
+    "current": "src/units/io/header.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "69c359d0ca614fe4d3d537371cefa6edc2e3fdea42cd2f079636f60294f2aada"
+  },
+  "src/compiler_unit_loader.c": {
+    "current": "src/units/io/loader.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "de221033a5d1e0837b302488b831b7087339b119bd29a4fea04bc04d88d73d86"
+  },
+  "src/compiler_unit_paths.c": {
+    "current": "src/units/io/paths.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "cebdc0d6dcab0ff71a7c95ea9bee0723f96f619efa57ef029fc93e1d7b395711"
+  },
+  "src/compiler_unit_ranges.c": {
+    "current": "src/units/io/ranges.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "f7de40b7c3e745cb66a20a9bb0b23065096dadc5eb6fbc4e91499761c83f20a7"
+  },
+  "src/compiler_unit_reader.c": {
+    "current": "src/units/io/reader.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "83fd97278683ded890a8bf5bc2cdcb35430be16b67f5cb609a9b150c755111a2"
+  },
+  "src/compiler_unit_references.c": {
+    "current": "src/units/linker/references.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "17c3e414b974a833e7cf92f6549cc0640463deeff4630f14c54de3e179140d19"
+  },
+  "src/compiler_unit_stream.h": {
+    "current": "src/units/io/stream.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "f5b6cc993d3675976c87e239dbeb347a0d22f3ee152b0bee3d845631d5da7174"
+  },
+  "src/compiler_units.c": {
+    "current": "src/units/core.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "d73bb6cfee68e65f32be51e79e9c82087d5167971f43f1bafc4b96c27a82d521"
+  },
+  "src/compiler_units.h": {
+    "current": "src/units/internal.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "a5afbc734f1f26168e8e88aac4629f3bf80b22f3bab6b96c63de138f26a61b95"
+  },
+  "src/compiler_units_graph.c": {
+    "current": "src/units/graph.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "41b4b7dff9dac0070c1e8d0f2064cadd86ca4a04234e7abfb6d68905e9d29593"
+  },
+  "src/compiler_units_link.c": {
+    "current": "src/units/linker/object.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "3fa90e682a6336099300e3cb7dde01342e8337a897e58e1fe036cac4f43442b0"
+  },
+  "src/compiler_units_metadata.c": {
+    "current": "src/units/symbols/metadata.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "d7d721037335cca88e02aa3ef84651174d4f4fa238520c3fe888786cb648fd89"
+  },
+  "src/compiler_units_names.c": {
+    "current": "src/units/symbols/names.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "bac6f115db8f0e8aae98224917f2ce3e724711a53d85184fa08b63a419117944"
+  },
+  "src/compiler_units_object.c": {
+    "current": "src/units/object.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "602d1fa546d0081ae722df4aa4ec80f2bbe14687b40a772a73802e4625e1b29d"
+  },
+  "src/compiler_units_symbols.c": {
+    "current": "src/units/symbols/import.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "237694d15172f3745cdd4eeb54f006db3a19aa065b3bbcca09493b08109ef63f"
+  },
+  "src/compiler_unsigned.c": {
+    "current": "src/compiler/codegen/unsigned/core.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "bc6d3137127a1099a44475ba8c35d018397b989b0525e8ec0a5c3547f0717329"
+  },
+  "src/compiler_unsigned_asset.c": {
+    "current": "src/compiler/codegen/unsigned/asset.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "57efb640ebea839ad09e3a5636eaf5106cf982928d116a57ed06a92b56bd8322"
+  },
+  "src/compiler_unsigned_internal.h": {
+    "current": "src/compiler/codegen/unsigned/internal.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "51f42f985d7b9668d4a2804d2a5f70fef0ee94a0f04ed4ad9218fe490825bfac"
+  },
+  "src/compiler_unsigned_intrinsics.c": {
+    "current": "src/compiler/codegen/unsigned/intrinsics.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "75df53434741848fea8ad219f76f2d59551cd19b4337f1d7a72a3a178ced242a"
+  },
+  "src/compiler_unsigned_ops.c": {
+    "current": "src/compiler/codegen/unsigned/operations.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "fa64686a7607fcfb36030b9187f434df16195895de15abb04686f51a02496813"
+  },
+  "src/unit_output.c": {
+    "current": "src/units/output.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "107b6fad3b703014e5c42e0465dbd7b4fb764cc695d40e0a24fd66b5115fe91a"
+  },
+  "src/unit_output.h": {
+    "current": "src/units/output.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "ee2acc32308c411b28ff43607289d5fe279876b202ebf1674f67a78b812515f5"
+  },
+  "src/banks.c": {
+    "current": "src/banks.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "c9aff0cda7f2b40358840870e378aab176ab61373b9daa7687d906eb6e7c7567"
+  },
+  "src/buffer_access.c": {
+    "current": "src/buffer_access.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "84cece5cfaaebafab312a64f0c41d885c7b2ddc18b63c4d7f2d4aa15c42012aa"
+  },
+  "src/buffer_memory.c": {
+    "current": "src/buffer_memory.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "d0394c4ee4e17e0c4f2ba84fe6b0e94ed096db12501556b46507b2be4349bb8f"
+  },
+  "src/chain.c": {
+    "current": "src/chain.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "0f31154ffcefa3543e860fdfc8a05af7e01d57f8178aff09f653f2747726fe6d"
+  },
+  "src/chain.h": {
+    "current": "src/chain.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "8dfef58181bbb676d4722f4b27e1c023c93a89f5c8f76b892b5d45cbf3ac5d25"
+  },
+  "src/chain_abi.h": {
+    "current": "src/chain_abi.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "aa4e146a9f5a7ca07cb727bb4b17dc945f94c2487b0712a39d13f6211450c3ea"
+  },
+  "src/chain_native.asm": {
+    "current": "src/chain_native.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "86d9f2d37fc5fd5c0093726f2bc51acb03ff47d70ebe43189933cf051308604c"
+  },
+  "src/editor.c": {
+    "current": "src/editor.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "c31ddc50c05d798410a980853179b48aa60d9768bf905f9b0ac81010cb28ce48"
+  },
+  "src/editor.h": {
+    "current": "src/editor.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "5e07a789b1ef4a311834a5b0529acc523f6650b609658d7229b14b4542d5ef89"
+  },
+  "src/execute_entry.asm": {
+    "current": "src/execute_entry.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "374e1d83dc6872fd4fa914904f4d8308796c0ad56b108c56aef630caef07b781"
+  },
+  "src/execute_handoff.h": {
+    "current": "src/execute_handoff.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "e479f95f5b3661962b005275aa35978704e2168c10ee0bded22e8a93a6d6b152"
+  },
+  "src/execute_native.asm": {
+    "current": "src/execute_native.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "e83b45bb00c867f35557ed63263335c8c1238eabdc69e83cf0fdeac551f8a0bc"
+  },
+  "src/file_direct.asm": {
+    "current": "src/file_direct.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "9b24429d136add33369e018d85812b274a7fab221e719567b199b9c91f457faa"
+  },
+  "src/file_gate.asm": {
+    "current": "src/file_gate.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "a319481d3cea3379d6c40310c143b5006d35931550489847098c93c903c21a2e"
+  },
+  "src/file_low_copy.asm": {
+    "current": "src/file_low_copy.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "8b6cd05adea505ea5600d14676424a0338aecf42eceb33bdcb6944d1833dd392"
+  },
+  "src/file_module.asm": {
+    "current": "src/file_module.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "95bbae5aacbc0c4c903022c57600a6fd43532b9587d5381c88f2176060a3b48c"
+  },
+  "src/file_native.asm": {
+    "current": "src/file_native.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "43bb5cbc7ef31ed078a0eb02733261a1f0545f8492443e5b495c611ecbbd2724"
+  },
+  "src/file_runtime.c": {
+    "current": "src/file_runtime.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "f7d7ce89c2ed778d50cfff8b2de9972bd4c8d39609dd44bfee2a2ceb935f9d29"
+  },
+  "src/file_runtime.h": {
+    "current": "src/file_runtime.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "78462f0d31212287b7f7665059f776b6fa97503fc2ac7a753e1a949fbeaa66a8"
+  },
+  "src/format.asm": {
+    "current": "src/format.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "2bb0412f93cdc6458d89fb61e0869a270a3cf55e4280b29c4bf295b9ac08afb8"
+  },
+  "src/image.c": {
+    "current": "src/image.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "336f7699ba399da88a917d3a1eeeb6425b3f40313f2b211aa141cfbac50519ea"
+  },
+  "src/image.h": {
+    "current": "src/image.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "e824c36c0484948454852ccae283d1102558dfb72fc0fd34ca8ac1b1907e2678"
+  },
+  "src/input.asm": {
+    "current": "src/input.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "4be17f804def1af67a5e65ff29ccf94d7fa8652596b9a6faa7537b1c4140ab8d"
+  },
+  "src/keys.c": {
+    "current": "src/keys.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "6e5867527224e134a6247aa10c0f8c113e9ce9a2292b36bc3794a3cf30d665e3"
+  },
+  "src/keys.h": {
+    "current": "src/keys.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "780a8bb57953c9d02cdea57a128a33d7e11fb00908df315483de7d01f84f043f"
+  },
+  "src/library.c": {
+    "current": "src/library.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "d3afcbe3e1b7e76b9ce167d9e5eab52cfa8d42fec6013e4b07ced0f2956792c5"
+  },
+  "src/library.h": {
+    "current": "src/library.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "b6244a8d60ebb455bdc3683a6ff31e8e005fdd8cfefb1fab4ed5bc04e0acf945"
+  },
+  "src/library_phase.c": {
+    "current": "src/library_phase.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "585b44c394ab47da11a1bed468e2368091b67c78523b49cbe384a79961c2f4d1"
+  },
+  "src/main.c": {
+    "current": "src/main.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "072dc4ef4245c378a70de4173cd46c615ba9df03843a10d471c3c1686bf1fbdc"
+  },
+  "src/main_display.c": {
+    "current": "src/main_display.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "e2f389105bb495ca14f7a5ea0b77d042255537b31982087825d11cb5fe5743c9"
+  },
+  "src/main_display.h": {
+    "current": "src/main_display.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "c6c9cf7f72947f0041a89108b01452d77c1eb41f5535b32b30890763af34d07d"
+  },
+  "src/module_unpack.asm": {
+    "current": "src/module_unpack.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "34fca90e2b2137390cabbcb07f67868a816a05643781bde9e6101437021fc9e9"
+  },
+  "src/native.asm": {
+    "current": "src/native.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "1d24a36f15a310e8213aff332d218bd377251e835165bcc2a4f7b5cbc2147e7f"
+  },
+  "src/native_image.c": {
+    "current": "src/native_image.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "a58934f94dab33d6ed843676aa12fb5a6d0a8d1f74293a3061a961643945aff9"
+  },
+  "src/native_image.h": {
+    "current": "src/native_image.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "317c0cb174104ca8ffc3760560630a5dbd0648af544441dc9dae73527346c0d7"
+  },
+  "src/output.c": {
+    "current": "src/output.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "feb5cd6efe24d953c4821c738dd37c328d2bda7cef4e9111bd67b78fc648e4c6"
+  },
+  "src/output_transport.c": {
+    "current": "src/output_transport.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "e20179573605dff0d3ab7d2b166d7cea8461e6ab48ab4f04bae44b19a52b4a2d"
+  },
+  "src/output_transport.h": {
+    "current": "src/output_transport.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "7b4dd7d8b29a74686f7134406e544f5438e10116f3c52172d985b0a03a199f5b"
+  },
+  "src/overlay.c": {
+    "current": "src/overlay.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "1841dd31cec836511ab541da9db54b0bccae1abfd8657464149ee7b566aa20b5"
+  },
+  "src/overlay.h": {
+    "current": "src/overlay.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "ed2e2d7b9ef4fb5f9a0f3de2da315e68890ef36ac1ccc2a5fb91222c05934be3"
+  },
+  "src/path.c": {
+    "current": "src/path.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "8901182d1188ab7cb0d83726e094ab92eee446a9fd7ed43cc285b065c37909fe"
+  },
+  "src/path.h": {
+    "current": "src/path.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "daa6fb1fc2c0472fb6816b9cf5d8607af8a481a7adda171f3d4a12f91e977398"
+  },
+  "src/platform.c": {
+    "current": "src/platform.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "7ea06fe9542356a247539371edb03fb437385833bb98b90f20a703a8d3ccec8c"
+  },
+  "src/real.c": {
+    "current": "src/real.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "11e0b8ab62de4abbdf2bd832eb6ec8eb0973d1056cd6ebd2f90d69bf3cd3bc2a"
+  },
+  "src/real.h": {
+    "current": "src/real.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "3e5048890ce5d7f1e80524fecad3a2cdc4c8c416d963cf2ce0482e104c4e8bfb"
+  },
+  "src/real_adapter.asm": {
+    "current": "src/real_adapter.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "8926d0a25e9e839d9693721508f0d3e580dbd342cb5eb491508025ca39183975"
+  },
+  "src/runtime.asm": {
+    "current": "src/runtime.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "babc1c13b90a0bc9301c25e4cc41d478c7e7b95c1c839ed0425ace29b60b1a67"
+  },
+  "src/source.c": {
+    "current": "src/source.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "d48457f0f9dd770abd45e818cd7a45783bbb98e6a1c64ceae6323175553cb6a6"
+  },
+  "src/source_blocks.c": {
+    "current": "src/source_blocks.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "9e32e3872c1e482ea8607b0fa311a9efa03987c2ef6049a35f8817be278fefb8"
+  },
+  "src/source_internal.h": {
+    "current": "src/source_internal.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "8934959e7ed8ea5482da4cb32d170c3db68313389791e954611341ab5db11341"
+  },
+  "src/source_location.c": {
+    "current": "src/source_location.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "1eed463432e5078682a0cbe6b832d27a3d7b5a004675290b9271113754226910"
+  },
+  "src/source_move.c": {
+    "current": "src/source_move.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "fa016f7b7a09838ffdab2cd51985f8ab327cc00a135fbf520d63d519b0aeb41d"
+  },
+  "src/source_move.h": {
+    "current": "src/source_move.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "00d13adf530773debf6b9793d41bb6e8925489089d68b9eb3087168bee442402"
+  },
+  "src/source_validation.c": {
+    "current": "src/source_validation.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "ebd9e8373fd3c18bf0df7631d8e12a6bac377bbd58f8589d41cdf47a878e5ae5"
+  },
+  "src/source_validation.h": {
+    "current": "src/source_validation.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "27ca4b3a26835d939220b710b77693fbe396fc9c924a0463de74faac92a20ffc"
+  },
+  "src/sources.c": {
+    "current": "src/sources.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "472d725467e983b740dacb8033037449f0879dbbe23ef59fb42b1c48493a28a1"
+  },
+  "src/sources.h": {
+    "current": "src/sources.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "212457a000498a541ac840f4b535c064ccb4a337c3bff8c2e92d4bc5a1948810"
+  },
+  "src/startup.asm": {
+    "current": "src/startup.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "9f32bd24b400a3235b8128ccf75807d3ce9dfe51fc9fd71c1a4560bfe01eca7c"
+  },
+  "src/trampoline.asm": {
+    "current": "src/trampoline.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "cb3b82909eaca5019b37d8d3693a807b25bd7e239c57faf4a0e028b9fd0f9ea7"
+  },
+  "src/transcendental.c": {
+    "current": "src/transcendental.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "206359c8a7986d88c12956aba6cd67d06676ff87256359992898bd181a1264ba"
+  },
+  "src/transfer.c": {
+    "current": "src/transfer.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "843c7d77d3160f065a56bab60757ab192e5cdbb17b0cc7f6aab525f80305e255"
+  },
+  "src/transfer.h": {
+    "current": "src/transfer.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "0055d669572f4faa530d983060e9cba969d7173e353ee367b35487c9c35d43d0"
+  },
+  "src/transfer_call.asm": {
+    "current": "src/transfer_call.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "dd5049327c314d3972532df331a7ef7c370bc000ce618347af80faec475ce7e1"
+  },
+  "src/transfer_gate.asm": {
+    "current": "src/transfer_gate.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "757f6210841c4a9a94cee758704f45a8bbd923bea86248690a1c0d9edb45e65a"
+  },
+  "src/transfer_module.asm": {
+    "current": "src/transfer_module.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "7adbd2e3cb880659fbd791273dc83e073ebac42edf8d3d6e8494ae15d7dcf695"
+  },
+  "src/transfer_native.asm": {
+    "current": "src/transfer_native.asm",
+    "path_normalized_content_unchanged": true,
+    "sha256": "a8544f3508cc4f32bacf2039210454723a5d2cfb0f50f384a30c0acd36a1ad66"
+  },
+  "src/worker.c": {
+    "current": "src/worker.c",
+    "path_normalized_content_unchanged": true,
+    "sha256": "0f88a14a1f33f3c0f4eb20ae755917bc9f55b2dfead3ff83c47b2d19d9fa4d6b"
+  },
+  "src/worker.h": {
+    "current": "src/worker.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "9738295e8be73e3de1c5b1779bd29cbaf829710ae8e591e26f3b674c2be345ae"
+  },
+  "src/zp.h": {
+    "current": "src/zp.h",
+    "path_normalized_content_unchanged": true,
+    "sha256": "5f9b2af31cc758761bf6fcc0359dae988c202669bac3ac4569cf42048913ccbb"
+  }
+}

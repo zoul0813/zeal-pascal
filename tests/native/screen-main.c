@@ -1,5 +1,5 @@
 #include "harness.h"
-#include "compiler_units.h"
+#include "units/internal.h"
 #include "native_image.h"
 #include <zos_time.h>
 volatile uint16_t test_passed,test_failed,test_stage;

@@ -1,6 +1,6 @@
 #include "harness.h"
-#include "compiler_members.h"
-#include "compiler_groups.h"
+#include "compiler/groups/members.h"
+#include "compiler/groups/groups.h"
 #include "output_transport.h"
 #include "file_runtime.h"
 

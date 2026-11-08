@@ -93,7 +93,7 @@ def native():
     for area in ('DATA','BSS','INITIALIZED'):
         assert symbols['s__'+area]+symbols['l__'+area]<=0x8000
     inputs=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',n.EMULATOR,n.ROM]
-    inputs+=list((ROOT/'src').glob('*'))+[ROOT/'tests/native/chain-load.c',ROOT/'tests/native/chain-host.c']
+    inputs+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+[ROOT/'tests/native/chain-load.c',ROOT/'tests/native/chain-host.c']
     inputs+=[ROOT/f'build/{target}.{ext}'for ext in ('bin','map')]
     hashes={str(p):n.sha(p)for p in inputs if p.is_file()}
     commands=['run 100000000']+n.type_text('H:/'+target+'.bin',ticks=2000000)

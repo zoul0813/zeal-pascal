@@ -47,20 +47,20 @@ def main():
         binary = str(Path(temp)/'placement')
         subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-g',
             '-fsanitize=address,undefined','-fno-sanitize-recover=all','-ffunction-sections',
-            '-fdata-sections','-DZP_UNITS_EXPERIMENT','-Isrc','src/compiler_link.c',
-            'src/compiler_tables.c','src/compiler_table_arena.c','src/compiler_layout_emit.c','tests/host/link-placement.c','-Wl,-dead_strip','-o',binary],cwd=ROOT,check=True)
+            '-fdata-sections','-DZP_UNITS_EXPERIMENT','-Isrc','src/compiler/link/link.c',
+            'src/compiler/tables/storage.c','src/compiler/tables/arena.c','src/compiler/link/emit.c','tests/host/link-placement.c','-Wl,-dead_strip','-o',binary],cwd=ROOT,check=True)
         host = subprocess.check_output([binary],text=True)
         assert host == '83 link placement assertions passed\n', host
     spec = importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py')
     n = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(n)
     sym = n.symbols('zpascal')
-    inputs = [ROOT/name for name in ('CMakeLists.txt','src/compiler_link.c','src/compiler_link.h',
-        'src/compiler_tables.c','src/compiler_table_arena.c','src/compiler_layout_emit.c','src/compiler_table_arena.h','src/compiler_front.c','src/compiler_inline.c','src/compiler_build.c',
-        'src/compiler_compile.c','src/compiler_units_link.c','src/compiler_units_object.c',
-        'src/compiler_units_graph.c','src/compiler.h','src/library.h','src/library_phase.c',
-        'src/startup.asm','src/compiler_members.c','src/compiler_members.h','src/compiler_groups.c',
-        'src/compiler_groups.h','tools/test-linked-addresses.py','tests/host/link-placement.c',
+    inputs = [ROOT/name for name in ('CMakeLists.txt','src/compiler/link/link.c','src/compiler/link/link.h',
+        'src/compiler/tables/storage.c','src/compiler/tables/arena.c','src/compiler/link/emit.c','src/compiler/tables/arena.h','src/compiler/frontend.c','src/compiler/codegen/inline.c','src/compiler/build.c',
+        'src/compiler/compile.c','src/units/linker/object.c','src/units/object.c',
+        'src/units/graph.c','src/compiler/internal.h','src/library.h','src/library_phase.c',
+        'src/startup.asm','src/compiler/groups/members.c','src/compiler/groups/members.h','src/compiler/groups/groups.c',
+        'src/compiler/groups/groups.h','tools/test-linked-addresses.py','tests/host/link-placement.c',
         'build/zpascal.bin','build/zpascal.zpl','build/zpascal.map','build/zpascal.banks.json')]
     hashes = {str(path):n.sha(path) for path in inputs}
     source = b"uses ByteUnit;var Pad:array[1..257]of Byte;begin Pad[257]:=42;if Value<>Pad[257]then halt;writeln('LINKED-BYTES-OK')end."

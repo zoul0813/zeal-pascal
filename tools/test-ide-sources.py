@@ -30,7 +30,7 @@ def main():
         root=root.replace(b'writeln(value)',b"if value<>7 then halt;\nwriteln('INLINE-IDE-OK')")
     fixtures={'project/main.pas':root,'project/parts/run.inc':part}
     paths=[ROOT/'CMakeLists.txt',Path(__file__),ROOT/'tools/test-native.py',n.EMULATOR,n.ROM]
-    paths+=list((ROOT/'src').glob('*'))+[ROOT/f'build/zpascal.{ext}'for ext in ['bin','zpl','map','banks.json']]
+    paths+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+[ROOT/f'build/zpascal.{ext}'for ext in ['bin','zpl','map','banks.json']]
     hashes={str(p):n.sha(p)for p in paths if p.is_file()}
     labels=[]
     def checkpoint(label,trigger,cycles=4000000000):

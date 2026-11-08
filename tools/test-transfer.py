@@ -31,7 +31,7 @@ def host():
 
 def native_case(n,label,with_file):
     inputs=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',ROOT/'tools/package-native.py',n.EMULATOR,n.ROM]
-    inputs+=list((ROOT/'src').glob('*'))+list((ROOT/'tests/native').glob('transfer-*'))
+    inputs+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+list((ROOT/'tests/native').glob('transfer-*'))
     inputs+=[ROOT/f'build/{target}.{ext}'for target in ('zchaintest','ztransferparent')for ext in ('bin','map')]
     inputs+=[ROOT/'build'/name for name in ('zchaintest.zpl','transfer_runtime.zpl','transfer_runtime.module.json',
              'transfer_gate.zpl','transfer_gate.map','ztransferdriver.zpl','ztransferdriver.map','pascal_runtime.profile')]

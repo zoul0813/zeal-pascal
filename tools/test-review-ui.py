@@ -12,7 +12,7 @@ sym=n.symbols('zpascal');key=sym['_key_read'];clear=n.kernel_symbols()['_video_v
 typed=lambda text:n.type_text(text,ticks=100000000)
 source=b'begin writeln(7 div 0)end.\n'
 inputs=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',n.EMULATOR,n.ROM]
-inputs+=list((ROOT/'src').glob('*'))+[ROOT/f'build/zpascal.{ext}'for ext in ('bin','zpl','map')]
+inputs+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+[ROOT/f'build/zpascal.{ext}'for ext in ('bin','zpl','map')]
 hashes={str(p):n.sha(p)for p in inputs if p.is_file()}
 checks={}
 

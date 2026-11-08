@@ -157,7 +157,7 @@ def main():
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(),
               ROOT/'tools/package-native.py', ROOT/'tools/test-native.py',
               ROOT/'tools/test-real.py', ROOT/'tools/test-runtime-profile.py', n.EMULATOR, n.ROM]
-    inputs += sorted((ROOT/'src').glob('*'))
+    inputs += sorted((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))
     inputs += sorted((ROOT/'tests/native').glob('*'))
     inputs += [ROOT/'build'/name for name in (
         'compact_runtime.zpl', 'compact_runtime.private', 'compact_runtime.profile',
