@@ -1,4 +1,8 @@
-# Shipped Crt library
+# Shipped Crt library implementation notes
+
+For the complete user API, examples, argument ranges, input, errors and
+limitations, see [the CRT reference](crt-library.md). This page records
+implementation history and its captured verification checkpoints.
 
 See [the current unit guide](units.md) for shared lookup, format and memory rules.
 

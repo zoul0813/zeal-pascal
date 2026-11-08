@@ -385,3 +385,13 @@
 !/tools/profile-snake-startup.py
 !/docs/snake-startup-evidence.json
 !/reviews/zvb-decoder-v1.md
+
+# Named SDK hardware access, complete Unit references and qualification.
+!/libraries/ZVBHW.INC
+!/tools/generate-zvb-hardware.py
+!/tools/test-zvb-hardware.py
+!/tools/test-unit-docs.py
+!/docs/zvb-registers.md
+!/docs/crt-library.md
+!/docs/unit-reference-evidence.json
+!/reviews/zvb-register-docs-v1.md

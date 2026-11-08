@@ -56,6 +56,7 @@ type
     Flags: TDMAFlags;
   end;
 
+{$I ZVBHW.INC}
 const
   GfxSuccess = 0;
   GfxFailure = 1;

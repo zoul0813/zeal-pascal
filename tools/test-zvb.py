@@ -16,6 +16,7 @@ z=module('zvb_source',ROOT/'tools/zvb-source.py')
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument("--hardware-only",action="store_true")
     parser.add_argument("--clients",action="store_true")
+    parser.add_argument("--source",nargs=2,action="append",metavar=("CASE","PATH"),help="Override a requested client source for focused example checks")
     parser.add_argument("--snake-source",type=Path,help="Compile an alternate Snake source and adjacent includes")
     parser.add_argument("--disk-snake",action="store_true",help="Compile Snake through the saved-program disk workspace")
     parser.add_argument("--skip-hardware",action="store_true")
@@ -35,7 +36,12 @@ def main():
     elif not args.hardware_only:fixtures['ZVB.PAS']=z.source().encode()
     if args.skip_hardware:fixtures['SKIPHW.RUN']=b'1'
     cases=args.case or (['USES','ORDER','SMOKE','CRC','DMA','GFX','PACK','OPTIONS','PAGE','SOUND','ZVBCHECK','SPRITES','SNAKE','FIRSTBAR','CRC32']if args.clients else [])
-    if args.snake_source and 'SNAKE' not in cases:parser.error("snake-source requires the Snake client")
+    overrides={case:Path(path)for case,path in args.source or []}
+    if len(overrides)!=len(args.source or []):parser.error("duplicate source override")
+    if args.snake_source:
+        if 'SNAKE' in overrides:parser.error("duplicate Snake source override")
+        overrides['SNAKE']=args.snake_source
+    if set(overrides)-set(cases):parser.error("source overrides require their requested client cases")
     if args.disk_snake:
         if 'SNAKE' not in cases:parser.error("disk-snake requires the Snake client")
         fixtures['DISKSNAKE.RUN']=b'1'
@@ -44,15 +50,17 @@ def main():
         fixtures['CRT.ZPU']=(ROOT/'build/CRT.ZPU').read_bytes()
         for name in cases:
             path=ROOT/('tests/native/zvb'if name not in ('ZVBCHECK','SPRITES','SNAKE','CRC32')else 'examples/zvb')/(name+'.PAS')
-            if name=='SNAKE' and args.snake_source:path=args.snake_source
+            path=overrides.get(name,path)
             fixtures[name+'.PAS']=path.read_bytes()
             if name=='FIRSTBAR' and fixtures[name+'.PAS']!=z.first_bar_source().encode():
                 parser.error('FirstBar fixture is stale; run tools/zvb-source.py --demos')
         fixtures.update({p.name:p.read_bytes()for p in(ROOT/'examples/zvb').glob('*.INC')})
+        if 'SMOKE' in cases:
+            fixtures['HWVALUES.INC']=(ROOT/'tests/native/zvb/HWVALUES.INC').read_bytes()
         if 'PACK' in cases:
             fixtures['ZVBSTATE.INC']=(ROOT/'libraries/ZVBDECODE.INC').read_text().split('procedure DecodeEncoded',1)[0].encode()
-        if args.snake_source:
-            fixtures.update({p.name:p.read_bytes()for p in args.snake_source.parent.glob('*.INC')})
+        for path in overrides.values():
+            fixtures.update({p.name:p.read_bytes()for p in path.parent.glob('*.INC')})
         if 'CRC32' in cases:
             fixtures.update({'EMPTY.DAT':b'', 'DIGITS.DAT':b'123456789',
                              'LARGE.DAT':bytes(range(256))*17+b'finish'})
@@ -139,6 +147,9 @@ def main():
             at=symbols['_test_clients']+12*index+2*field
             values.append(state.get(at,0)|(state.get(at+1,0)<<8))
         metrics.append(dict(zip(('flags','code_bytes','globals_bytes','file_bytes','compile_error','position'),values),name=name))
+    if 'USES' in cases and 'ORDER' in cases:
+        directory=n.RUN/'zvb/hostfs'
+        checks['named/literal ports and reversed uses order produce identical output']=(directory/'USES.COM').exists() and (directory/'ORDER.COM').exists() and (directory/'USES.COM').read_bytes()==(directory/'ORDER.COM').read_bytes()
     report={'standalone_clients':standalone,'native_stack_margin':word('_test_stack_low')-word('_test_heap_base'),'clients':metrics,'scope':'hardware unit foundation'if args.hardware_only else __doc__,'passed':all(checks.values()),'checks':checks,'assertions':word('_test_passed'),'failed':word('_test_failed'),
             'failure_indices':[state.get(symbols['_test_failures']+2*i,0)|(state.get(symbols['_test_failures']+2*i+1,0)<<8)for i in range(min(word('_test_failed'),64))],
             'diagnostics':[state.get(symbols['_test_diagnostics']+2*i,0)|(state.get(symbols['_test_diagnostics']+2*i+1,0)<<8)for i in range(min(2*word('_test_failed'),128))],
@@ -155,5 +166,6 @@ def main():
             finally:
                 temporary.unlink(missing_ok=True)
         report['installed_library']=str(destination)
+    if overrides:report['source_overrides']={case:str(path)for case,path in overrides.items()}
     (n.RUN/'zvb-report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2));return 0 if report['passed']else 1
 if __name__=='__main__':raise SystemExit(main())

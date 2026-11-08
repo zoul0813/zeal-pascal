@@ -5,7 +5,10 @@ Full Snake timing parity and physical hardware verification remain open.**
 
 `ZVB` gives native Pascal programs graphics, hardware sprites, CRC32, sound and
 DMA through 45 routines. Its interface follows the public Zeal Video Board C SDK,
-using Pascal names and records. The implementation is Pascal, with short `Inline`
+using Pascal names and records. The 41 published SDK functions have Pascal
+counterparts; three macro equivalents and `GfxPaletteRead` bring the count to 45.
+The public hardware headers also have named constants, documented in the
+[complete register reference](zvb-registers.md). The implementation is Pascal, with short `Inline`
 instruction sequences for atomic peripheral I/O, CRC feeding and temporary VRAM
 mapping. It uses neither the C calling convention nor a C runtime.
 
@@ -88,8 +91,21 @@ SDK attribution, license and Pascal changes are recorded in
 [libraries/ZVB-NOTICE.txt](../libraries/ZVB-NOTICE.txt). Demo assets have
 separate credits in [CREDITS.md](../examples/zvb/CREDITS.md).
 
-The authoritative interface is [ZVB.PAS](../libraries/ZVB.PAS). `ZVBIO.INC`,
-`ZVBGFX.INC` and `ZVBPACK.INC` beside it are private implementation files.
+The authoritative interface is [ZVB.PAS](../libraries/ZVB.PAS).
+`ZVBHW.INC` supplies public constants; `ZVBIO.INC`, `ZVBGFX.INC`, `ZVBPACK.INC` and
+`ZVBDECODE.INC` beside it are implementation files.
+
+## Direct register access
+
+Use `Port[Name] := Value` for a write and `Value := Port[Name]` for a read.
+Pascal assignment uses `:=`, and register constants name addresses rather than
+mutable variables. All 64 public SDK register addresses and 69 object constants
+are listed in [the register reference](zvb-registers.md). `_BIT` names are bit
+positions; use `1 shl Name` to form a mask. Configuration/display controls are
+non-banked; peripheral ports require `ZVB_CONFIG_DEV_IDX` selection. High-level
+ZVB calls may change that selection. Raw access does not add validation or
+automatic cleanup. SDK version constants describe the API reference, whereas
+`ZVB_CONFIG_VER_*` ports report live firmware.
 
 ## Conventions
 
@@ -118,6 +134,27 @@ Records are packed, with little-endian multi-byte fields. See
 [Word and LongWord](unsigned-integers.md) for casts, arithmetic and initial limits.
 Use `65535` or `Word($FFFF)` for an unsigned mask: a 16-bit hex literal keeps its
 established signed Integer bit-pattern interpretation.
+
+The complete public type set is:
+
+| Type | Representation and use |
+| --- | --- |
+| `TGfxError`, `TDMAError` | Byte result codes, 0 success, 1 failure, 2 invalid argument |
+| `TCRC32` | LongWord checksum, 4 bytes |
+| `TPhysicalAddress` | LongWord physical address, 4 bytes; DMA uses its low 24 bits |
+| `TGfxContext` | 5-byte library-managed record; fields listed under graphics setup |
+| `TGfxTilesetOptions` | 5-byte record: Compression, FromByte, PaletteOffset, Opacity |
+| `PGfxTilesetOptions` | 2-byte pointer to TGfxTilesetOptions; Nil selects default raw loading |
+| `TGfxSprite` | 8-byte record; field layout listed under hardware sprites |
+| `TSoundVoices` | Byte mask of tone voices and/or sample channel |
+| `TSoundWaveform` | Byte waveform code including square-wave duty bits |
+| `TSoundVolume` | Byte encoded volume, not a percentage |
+| `TSoundSampleMode` | Byte sample-format code |
+| `TSoundSamplesConfig` | 2-byte record: Mode, Divider |
+| `TDMAFlags` | Byte packed descriptor flags |
+| `TDMAClock` | Byte read/write clock fields; usable with the raw DMA clock port |
+| `TDMADescriptor` | 12-byte hardware descriptor; field layout listed under DMA |
+| `TDMADescriptorConfig` | 11-byte record: ReadAddress, WriteAddress, Length, Flags |
 
 ### Buffers
 
@@ -202,7 +239,10 @@ loader and tile-index limits apply; this unit adds no bitmap drawing API.
 It does **not** clear layer 1 or the sprites, reset scrolling, install a palette
 or restore an earlier screen. Call `GfxEnableScreen(False)` first while preparing
 a scene, then enable it explicitly. The unit has no scrolling routines; the demos
-write the eight scroll registers `$94..$9B` directly.
+write the eight scroll registers through `Port[]`. For example,
+`Port[ZVB_CTRL_L0_SCR_Y_LOW] := 0;` writes the low byte; write
+`ZVB_CTRL_L0_SCR_Y_HIGH` afterward to commit the Word. See the register
+reference for all names, bank selection and bit positions.
 
 Pass the same initialized `TGfxContext` to every Gfx call that takes a context. Its five one-byte
 fields (`VideoMode`, `BitsPerPixel`, `AlphaIndex`, `VirtualPage`, `BackupPage`)
@@ -417,8 +457,8 @@ SoundSetHold(SoundVoice0, True);
 | `SoundPlaySamples(Config, Samples, Length)` | Play samples, blocking |
 
 - **Waveforms:** `SoundSquare`, `SoundTriangle`, `SoundSawtooth`, `SoundNoise`.
-  Combine square with `or` and a duty constant: `SoundDuty12`, `25`, `37`, `50`,
-  `62`, `75` or `87`.
+  Combine square with `or` and a duty constant: `SoundDuty12`, `SoundDuty25`, `SoundDuty37`,
+  `SoundDuty50`, `SoundDuty62`, `SoundDuty75` or `SoundDuty87`.
 - **Volumes:** use `SoundVol0`, `SoundVol25`, `SoundVol50`, `SoundVol75` and
   `SoundVol100`. These are encodings (128, 0, 1, 2, 3), not percentages.
 - **Tone divider:** the low 16 bits of `floor(65536*Hz/44091)`, using full
@@ -519,6 +559,146 @@ physical chained transfers are unqualified. Avoid zero-length chain entries on
 unqualified hardware. Every other DMA helper returns 0. `TDMAClock` is declared for
 the SDK's clock nibbles; no routine takes it yet.
 
+## Complete high-level constants
+
+These are the values exported by the checked API. The separate
+[hardware reference](zvb-registers.md) lists every raw SDK constant.
+
+```pascal
+const
+  GfxSuccess = 0;
+  GfxFailure = 1;
+  GfxInvalidArg = 2;
+  GfxSpritesCount = 128;
+  SoundSampleTableSize = 256;
+  DMADescLast = 1;
+  GfxModeText640 = 0; GfxModeText320 = 1;
+  GfxModeBitmap256 = 2; GfxModeBitmap320 = 3;
+  GfxMode6408Bit = 4; GfxMode3208Bit = 5;
+  GfxMode6404Bit = 6; GfxMode3204Bit = 7;
+  TilesetCompNone = 0; TilesetComp1Bit = 1; TilesetComp4Bit = 2;
+  TilesetComp2Bit = 3; TilesetCompRLE = 16; TilesetCompLZ = 17;
+  SpriteNone = 0; SpriteTileBit9 = 1; SpriteBehindFG = 2;
+  SpriteFlipY = 4; SpriteFlipX = 8;
+  SpritePaletteShift = 4; SpritePaletteMask = 240;
+  SpriteOptionNone = 0; SpriteOption32Px = 2;
+  SoundVoice0 = 1; SoundVoice1 = 2; SoundVoice2 = 4; SoundVoice3 = 8;
+  SoundSampleTable = 128;
+  SoundSquare = 0; SoundTriangle = 1; SoundSawtooth = 2; SoundNoise = 3;
+  SoundVol0 = 128; SoundVol25 = 0; SoundVol50 = 1;
+  SoundVol75 = 2; SoundVol100 = 3;
+  SoundDuty12 = 32; SoundDuty25 = 64; SoundDuty37 = 96;
+  SoundDuty50 = 128; SoundDuty62 = 160; SoundDuty75 = 192;
+  SoundDuty87 = 224;
+  SoundSampleUInt8 = 0; SoundSampleUInt16 = 1; SoundSampleSInt16 = 2;
+  DMAOpIncrement = 0; DMAOpDecrement = 1;
+  DMAReadDecrement = 2; DMAWriteDecrement = 8;
+  SpritePalette00 = 0;
+  SpritePalette01 = 16;
+  SpritePalette02 = 32;
+  SpritePalette03 = 48;
+  SpritePalette04 = 64;
+  SpritePalette05 = 80;
+  SpritePalette06 = 96;
+  SpritePalette07 = 112;
+  SpritePalette08 = 128;
+  SpritePalette09 = 144;
+  SpritePalette10 = 160;
+  SpritePalette11 = 176;
+  SpritePalette12 = 192;
+  SpritePalette13 = 208;
+  SpritePalette14 = 224;
+  SpritePalette15 = 240;
+```
+
+## Complete typed routine declarations
+
+These declarations match the public Unit interface. The sections above explain
+buffer capacities, field ranges, results and side effects.
+
+```pascal
+{ Graphics: public zvb_gfx.h and RGB conversion macro. }
+function RGB888ToRGB565(R, G, B: Byte): Word;
+function GfxInitialize(Mode: Byte; var Context: TGfxContext): TGfxError;
+procedure GfxEnableScreen(Enabled: Boolean);
+function GfxPaletteLoad(var Context: TGfxContext; var Palette;
+  Size: Word; FromColor: Byte): TGfxError;
+{ Pascal extension, usable before GfxInitialize. }
+function GfxPaletteRead(var Palette; Size: Word; FromColor: Byte): TGfxError;
+function GfxTilesetLoad(var Context: TGfxContext; var Tileset;
+  Size: Word; Options: PGfxTilesetOptions): TGfxError; { Nil = raw data. }
+function GfxTilesetLoadNone(var Context: TGfxContext; var Tileset;
+  Size, FromByte: Word; PaletteOffset: Byte; Opacity: Boolean): TGfxError;
+function GfxTilesetLoad1Bit(var Context: TGfxContext; var Tileset;
+  Size, FromByte: Word; PaletteOffset: Byte): TGfxError;
+function GfxTilesetLoad2Bit(var Context: TGfxContext; var Tileset;
+  Size, FromByte: Word; PaletteOffset: Byte; Opacity: Boolean): TGfxError;
+function GfxTilesetLoad4Bit(var Context: TGfxContext; var Tileset;
+  Size, FromByte: Word; PaletteOffset: Byte; Opacity: Boolean): TGfxError;
+function GfxTilesetLoadRLE(var Context: TGfxContext; var Tileset;
+  Size, FromByte: Word; PaletteOffset: Byte; Opacity: Boolean): TGfxError;
+function GfxTilesetLoadLZ(var Context: TGfxContext; var Tileset;
+  Size, FromByte: Word; PaletteOffset: Byte; Opacity: Boolean): TGfxError;
+function GfxTilesetAddColorTile(var Context: TGfxContext;
+  Index: Word; Color: Byte): TGfxError;
+function GfxTilemapLoad(var Context: TGfxContext; var Tiles;
+  Size, Layer, X, Y: Byte): TGfxError;
+function GfxTilemapPlace(var Context: TGfxContext;
+  Tile, Layer, X, Y: Byte): TGfxError;
+function GfxWaitVBlank(var Context: TGfxContext): TGfxError;
+function GfxWaitEndVBlank(var Context: TGfxContext): TGfxError;
+
+{ Hardware sprites: public zvb_sprite.h. }
+function GfxSpriteRender(var Context: TGfxContext; SpriteIndex: Byte;
+  var Sprite: TGfxSprite): TGfxError;
+function GfxSpriteRenderArray(var Context: TGfxContext; FromIndex: Byte;
+  var Sprites; Count: Byte): TGfxError;
+function GfxSpriteSetXY(var Context: TGfxContext; SpriteIndex: Byte;
+  X, Y: Word): TGfxError;
+function GfxSpriteSetX(var Context: TGfxContext;
+  SpriteIndex: Byte; X: Word): TGfxError;
+function GfxSpriteSetY(var Context: TGfxContext;
+  SpriteIndex: Byte; Y: Word): TGfxError;
+function GfxSpriteSetTile(var Context: TGfxContext;
+  SpriteIndex, Tile: Byte): TGfxError;
+function GfxSpriteSetFlags(var Context: TGfxContext;
+  SpriteIndex, Flags: Byte): TGfxError;
+function SpritePalette(Palette: Byte): Byte; { (Palette and 15) shl 4. }
+
+{ Incremental hardware CRC32: public zvb_crc.h. }
+procedure CRCInitialize(Reset: Boolean);
+procedure CRCReset;
+function CRCUpdate(var Buffer; Size: Word): TCRC32;
+
+{ Sound: public zvb_sound.h and frequency conversion macro. }
+function SoundFrequencyToDivider(Frequency: Word): Word;
+procedure SoundInitialize(Reset: Boolean);
+procedure SoundReset;
+procedure SoundSetVoices(Voices: TSoundVoices; Divider: Word;
+  Waveform: TSoundWaveform);
+procedure SoundSetVoicesVol(Voices: TSoundVoices; Volume: TSoundVolume);
+procedure SoundSetHold(Voices: TSoundVoices; Hold: Boolean);
+procedure SoundSetChannels(LeftVoices, RightVoices: TSoundVoices);
+procedure SoundSetVolume(Volume: TSoundVolume);
+procedure SoundSetVolumes(Left, Right: TSoundVolume);
+procedure SoundPlaySamples(var Config: TSoundSamplesConfig;
+  var Samples; Length: Word);
+
+{ DMA: public zvb_dma.h. Virtual conversion snapshots the current CPU mapping.
+  Physically discontinuous buffers need separate descriptors; the SDK helper
+  does not automatically split a transfer at CPU page boundaries. }
+function DMAVirtToPhys(var Buffer): TPhysicalAddress;
+function DMAPrepareDescriptor(var Descriptor: TDMADescriptor;
+  var Config: TDMADescriptorConfig): TDMAError;
+function DMASetRead(var Descriptor: TDMADescriptor;
+  Address: TPhysicalAddress): TDMAError;
+function DMASetReadVirt(var Descriptor: TDMADescriptor; var Buffer): TDMAError;
+function DMASetWrite(var Descriptor: TDMADescriptor;
+  Address: TPhysicalAddress): TDMAError;
+function DMASetWriteVirt(var Descriptor: TDMADescriptor; var Buffer): TDMAError;
+function DMAStartTransfer(var Descriptor: TDMADescriptor): TDMAError;
+```
+
 ## Demos, differences and verification
 
 See [the demo guide](../examples/zvb/README.md) for Snake, sprites, the file
@@ -546,14 +726,23 @@ addresses at link time; omitted Real code leaves no reserved hole. See the
 allocation, and [the demo guide](../examples/zvb/README.md) for current binaries.
 
 The original SDK-path checkpoint passed ten client regressions and is retained
-in [its evidence](zvb-optimized-evidence.json). The current bounded RLE/LZ decoder
-produces a 53,412-byte ZPU containing 27,470 code bytes and passes 374 native
+in [its evidence](zvb-optimized-evidence.json). The bounded RLE/LZ decoder checkpoint
+produced a 53,412-byte ZPU containing 27,470 code bytes and passes 374 native
 authoring assertions. Focused PACK/PAGE clients pass 61 harness assertions,
 including native state-record layout checks and saved execution without Units.
 The actual linked decoder's 36 internal CALL/JP words are checked at its final
 address. CPU-oracle tests pass 1,366,213 sanitized assertions, including explicit
 chunk-straddling literal, repeat and overlapping-history runs. See
 [startup qualification](snake-startup-evidence.json).
+
+The named-register checkpoint adds all 133 public hardware definitions (64 port
+addresses and 69 other constants). Its expanded ZPU is 58,217 bytes with the same
+27,470 code bytes and passes 374 native authoring assertions. The four focused
+register clients pass 117 harness assertions; Snake and FirstBar pass 65,
+including saved execution without source or Units. Named and numeric port access
+produce identical binaries even with reversed `uses` order. Snake's 35,844-byte
+COM remains byte-for-byte unchanged. See the [Unit reference evidence](unit-reference-evidence.json)
+for hashes, compiler residency proofs and the separate CRT checks.
 
 The private decoder stays in RAM and leaves the OS mapped. It validates each
 token before writing, preserves 256 bytes of circular history across chunks,
@@ -563,7 +752,10 @@ partial chunk is discarded. Regenerate its Inline stream with
 `tools/generate-zvb-decoder.py`; `--check` detects drift. Internal words use
 link-relocated Inline expressions, not fixed program addresses.
 
-The stock expanded ZVB source is guarded at 32,768 bytes to retain its two-source-
+The generated stock ZVB source removes non-license comments, blank lines and
+indentation while preserving quoted text and compiler directives. Readable
+component files are unchanged; diagnostic positions refer to the exact
+generated file compiled on Zeal. The result is guarded at 32,768 bytes to retain its two-source-
 page authoring RAM budget. This is a qualification constraint for this stock
 Unit, not the Pascal language's general source limit.
 

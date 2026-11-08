@@ -249,7 +249,7 @@ TF packaging installs these files beside `T:/lib/zpascal.zpl`:
 | File | Contents |
 | --- | --- |
 | `SYSFILE.ZPU` | Private statically linked file helpers, used automatically by the compiler |
-| `CRT.ZPU` | Screen, cursor, color, `Delay` and `ReadKey` routines |
+| `CRT.ZPU` | Screen, cursor, color, `Delay` and `ReadKey`; see the [CRT reference](crt-library.md) |
 | `CRT.PAS` | Interface reference only, not the implementation source |
 | `ZVB.ZPU` | Zeal Video Board graphics, sprites, CRC32, sound and DMA; see the [ZVB reference](zvb-library.md) |
 | `ZVB.LIC` | Apache-2.0 license for ZVB |

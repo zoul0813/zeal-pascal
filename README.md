@@ -1040,7 +1040,7 @@ selected Crt routines and run after the library is removed.
 
 Focused library validation: `python3 tools/test-screen.py` after `zde cmake`.
 The independent legacy control remains `python3 tools/test-crt.py`.
-See [Crt library](docs/screen-library.md) for the native contract.
+See [Crt library](docs/crt-library.md) for the native contract.
 Physical display/timing qualification remains separate from emulator acceptance.
 
 Overlay declarations in Memory mode now report compiler error77 at the
