@@ -56,7 +56,7 @@ def main():
         def command(self,command,capture=False):
             if command!='@clients-complete':return super().command(command,capture)
             call=lambda value:super(SavedClients,self).command(value)
-            entry=symbols['_exec'];stop=symbols['_test_stop'];return_at=None;held=[]
+            entry=symbols['_exec'];stop=symbols['_test_stop'];return_at=None;held=[];current_client=None
             def supervisor():
                 state=n.memory(call('rb 0x4000 32'))
                 return bytes(state.get(0x4000+i,0)for i in range(32))==fixtures[target+'.bin'][:32]
@@ -70,6 +70,11 @@ def main():
                 for _ in range(256):
                     call('run 20000000000');registers=call('regs')
                     if f'PC={entry:04x} 'in registers and return_at is None and supervisor():
+                        state=n.memory(call(f"rb 0x{symbols['_test_stage']:x} 2"))
+                        stage=state[symbols['_test_stage']]|(state[symbols['_test_stage']+1]<<8)
+                        if not 10<=stage<10+len(cases):
+                            call('s');continue
+                        current_client=stage-10
                         sp=int(re.search(r'SP=([0-9a-fA-F]+)',registers)[1],16)
                         state=n.memory(call(f'rb 0x{sp:x} 2'));return_at=state[sp]|(state[sp+1]<<8)
                         for path in(self.directory/'hostfs').iterdir():
@@ -79,7 +84,7 @@ def main():
                                 path.rename(backup);held.append((path,backup))
                         call(f'bc 0x{entry:x}');call(f'bp 0x{return_at:x}')
                     elif return_at is not None and f'PC={return_at:04x} 'in registers and supervisor():
-                        restore();standalone.append(True)
+                        restore();standalone.append(current_client)
                         call(f'bc 0x{return_at:x}');return_at=None;call(f'bp 0x{entry:x}')
                     elif f'PC={stop:04x} 'in registers and supervisor():
                         state=n.memory(call(f"rb 0x{symbols['_test_done']:x} 1"))
@@ -103,7 +108,7 @@ def main():
     else:checks['Pascal ZVB compiled']=byte('_test_unit_attempted')==1 and byte('_test_unit_ok')==1 and byte('_test_unit_error')==0
     if cases:
         checks['requested clients compiled and executed']=word('_test_client_count')==len(cases)
-        checks['saved clients run without ZPU PAS or INC files']=len(standalone)==len(cases)
+        checks['saved clients run without ZPU PAS or INC files']=sorted(standalone)==list(range(len(cases)))
     if 'CRC32' in cases:
         output=(n.RUN/'zvb/hostfs/CRCOUT.TXT')
         expected=''.join(f'{zlib.crc32(fixtures[name]):08X}    H:/{name}\n'
@@ -120,7 +125,7 @@ def main():
             at=symbols['_test_clients']+12*index+2*field
             values.append(state.get(at,0)|(state.get(at+1,0)<<8))
         metrics.append(dict(zip(('flags','code_bytes','globals_bytes','file_bytes','compile_error','position'),values),name=name))
-    report={'native_stack_margin':word('_test_stack_low')-word('_test_heap_base'),'clients':metrics,'scope':'hardware unit foundation'if args.hardware_only else __doc__,'passed':all(checks.values()),'checks':checks,'assertions':word('_test_passed'),'failed':word('_test_failed'),
+    report={'standalone_clients':standalone,'native_stack_margin':word('_test_stack_low')-word('_test_heap_base'),'clients':metrics,'scope':'hardware unit foundation'if args.hardware_only else __doc__,'passed':all(checks.values()),'checks':checks,'assertions':word('_test_passed'),'failed':word('_test_failed'),
             'failure_indices':[state.get(symbols['_test_failures']+2*i,0)|(state.get(symbols['_test_failures']+2*i+1,0)<<8)for i in range(min(word('_test_failed'),64))],
             'diagnostics':[state.get(symbols['_test_diagnostics']+2*i,0)|(state.get(symbols['_test_diagnostics']+2*i+1,0)<<8)for i in range(min(2*word('_test_failed'),128))],
             'zvb':{'compiled':byte('_test_unit_ok'),'error':byte('_test_unit_error'),'position':word('_test_unit_position'),'code_bytes':word('_test_unit_code'),'types':word('_test_unit_types'),'maps':word('_test_unit_maps'),'code_relocations':word('_test_unit_relocations')},

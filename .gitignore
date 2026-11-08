@@ -355,3 +355,7 @@
 !/tools/test-unit-phase.py
 !/reviews/runtime-compaction-v1.md
 !/docs/runtime-compaction-evidence.json
+!/tools/check-unit-banks.py
+!/tools/test-compact-hooks.py
+!/tests/native/compact-hooks.pas
+!/docs/runtime-compaction-notes.md

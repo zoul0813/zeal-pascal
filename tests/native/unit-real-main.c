@@ -220,10 +220,10 @@ static void layout_helpers(void) {
 }
 static void layout_limits(void) {
     CompileOptions options={0,0xfbffu,COMPILE_PROGRAM};CompileFailure failure;
-    uint16_t bytes,limit,value;uint8_t i,header[160];NativeImage id;char text[96],*digit;
+    uint16_t bytes,limit,value,data;uint8_t i,header[160];NativeImage id;char text[96],*digit;
     check(source_new(&s,"H:/LIMIT.PAS"));check(load("begin end."));
     options.start=0x8000u;
-    check(compile_request(&s,&b,&failure,0,&options));bytes=b.code_bytes;
+    check(compile_request(&s,&b,&failure,0,&options));bytes=b.code_bytes;data=page_word(b.pages[0],24);
     check(far_get(b.pages[0],18)&(NATIVE_SHARED_STACK|NATIVE_SINGLE_PAGE));
     closed();source_close(&s);
     /* Measure the emitted two-page stub, including its exact final extent. */
@@ -235,7 +235,7 @@ static void layout_limits(void) {
         } else {
             options.start=0;
             strcpy(text,"var A:array[1..00000]of Byte;begin end.");
-            digit=strstr(text,"00000")+5;value=limit-0x579au+(i-2);
+            digit=strstr(text,"00000")+5;value=limit-data+(i-2);
             do {*--digit='0'+value%10;value/=10;}while(value);
             check(load(text));
         }
