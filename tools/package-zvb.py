@@ -46,8 +46,8 @@ def report_hash(report, suffix):
 
 
 def authoring_sources():
-    paths = [ROOT/'CMakeLists.txt', ROOT/'cmake/Tests.cmake',
-             ROOT/'tools/package-native.py', ROOT/'tools/package-zvb.py']
+    paths = [ROOT/'CMakeLists.txt', ROOT/'tools/package-native.py', ROOT/'tools/package-zvb.py']
+    paths += sorted((ROOT/'cmake').glob('*.cmake'))
     paths += sorted(p for p in (ROOT/'src').rglob('*') if p.is_file())
     paths += sorted(p for p in (ROOT/'tests/native').rglob('*') if p.is_file())
     return {str(p.relative_to(ROOT)): sha(p) for p in paths}

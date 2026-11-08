@@ -70,7 +70,7 @@ def main():
     commands += [f'rb 0x{symbols[name]:x} 2'for name in fields]
     commands += [f"rb 0x{symbols['_test_clients']:x} 192",f"rb 0x{symbols['_test_failures']:x} 128",f"rb 0x{symbols['_test_diagnostics']:x} 256",'quit']
     fixture_hashes={name:hashlib.sha256(data).hexdigest() for name,data in fixtures.items()}
-    inputs=[ROOT/'CMakeLists.txt',ROOT/'cmake/Tests.cmake']+sorted(p for p in (ROOT/'src').iterdir() if p.is_file())
+    inputs=[ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py']+sorted((ROOT/'cmake').glob('*.cmake'))+sorted(p for p in (ROOT/'src').iterdir() if p.is_file())
     inputs += [ROOT/'build'/name for name in ('zpascal.bin','zpascal.zpl','zpascal.map',
                'zpascal.banks.json','pascal_runtime.zpl','pascal_runtime.private',
                'pascal_runtime.profile','runtime-layout.json')]
@@ -123,7 +123,7 @@ def main():
             finally:restore()
     if cases:
         commands[commands.index('run 120000000000')]='@clients-complete'
-    raw=n.execute('zvb',commands,fixtures,timeout=3600 if cases else 1200,
+    raw=n.execute('zvb',commands,fixtures,base_programs=('zpascal',),timeout=3600 if cases else 1200,
                   console_class=SavedClients if cases else None)
     frame=re.split(r'\[DBG\] PC=',raw)[-1];state=n.memory(frame)
     word=lambda name:state.get(symbols[name],0)|(state.get(symbols[name]+1,0)<<8)

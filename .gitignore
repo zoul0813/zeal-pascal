@@ -429,3 +429,6 @@
 !/docs/building.md
 !/docs/release-build-evidence.json
 !/reviews/release-build-v1.md
+
+# Compiled SYSFILE payload identity and stamping checks.
+!/tests/test_file_unit.py

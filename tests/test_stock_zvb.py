@@ -77,7 +77,7 @@ class StockZVB(unittest.TestCase):
                 path.write_bytes(before)
 
     def test_authoring_provenance_rejects_stale_compiler_or_source(self):
-        for path in (self.build/'zzvbtest.bin', self.root/'CMakeLists.txt'):
+        for path in (self.build/'zzvbtest.bin', self.root/'CMakeLists.txt', self.root/'cmake/Compiler.cmake'):
             with self.subTest(path=path):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 existed = path.exists()

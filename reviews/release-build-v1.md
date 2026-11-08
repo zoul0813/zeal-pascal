@@ -168,3 +168,46 @@ Question 2: searched all planned test drivers; ZVB tests author their own Unit, 
 Verification: actual central runner started with tests OFF, configured ON, built its explicit prerequisites, and passed the sanitized host suite and native basic acceptance. Final OFF default build passes with 39 targets, zero test sources, and all six product/runtime artifact hashes equal the original default and known-good main outputs. An actual temporary compiler-source change caused an incremental zvb_library build to fail with the expected zpascal.bin binding error; source was restored exactly and the default rebuild passed. See docs/release-build-evidence.json.
 Unresolved validation: expanded build checks exposed resident-bound failures in three legacy/experimental test targets: zoptionalcorpus_bin, zunittest_bin and zunitcorpus_bin. Exploratory layout/optimization changes were reverted; compiler/runtime and native harness sources remain unchanged. Full 168-chunk acceptance is not claimed. These failures require a separate harness correction before a full-suite pass.
 Review limit: two successful Opus turns are used. Final follow-up corrections, fresh manifest and complete prerequisite mapping have local verification but no third independent review. This record is not finalized and no final Opus approval is claimed. Extra rounds require an explicit user request under the project review skill.
+
+
+## Follow-up implementation on main: grouped product build
+
+The user clarified that legitimate internal component targets are desirable,
+while the top-level file must be readable and unused legacy work must leave the
+production build. CMakeLists.txt now contains 25 lines: setup, four production
+module includes, product entry points and the opt-in Tests.cmake include.
+Sources.cmake owns sources/header dependencies/bank placement; Runtime.cmake
+owns numeric templates and execution assets; Compiler.cmake owns compiler
+objects and BIN/ZPL linking; Units.cmake owns the three shipped Units.
+
+The old file_runtime image/core/bin targets exist only in Tests.cmake. Production
+fingerprinting no longer reads or validates that obsolete image. To preserve
+file-ABI identity, SYSFILE compiles once to a neutral sysfile.payload, that
+actual compiled implementation participates in the runtime fingerprint, then
+the final Unit header is stamped. Invalid payloads, stale reports, non-neutral
+headers and truncated fingerprints cannot publish an output. SDK/header/tool
+inputs are explicit build dependencies. Project-local SDK output wrappers add
+an explicit linker dependency, so component exclusion from ALL does not rely
+on global default-target ordering. No installed SDK source was modified.
+
+Native ZVB authoring explicitly requests only its modern base compiler images;
+it no longer requires an otherwise unused legacy zptest image. All CMake
+modules are included in relevant input/provenance hashes. Stock ZVB was freshly
+authored and recorded against this compiler; its contents differ only in the
+fingerprint/checksum fields. Compiler/runtime C and assembly remain unchanged.
+
+Verification: final product-only default build passes, with four product entry
+points and 37 production components, zero test sources and no old file-module
+outputs. Retained compiled sources, compiler options and linker options match
+the pre-refactor graph. Host checks pass: 60 packaging/no-publication checks,
+four SYSFILE stamping tests, ten stock tests, 27 runner tests, 13 hardware
+package tests and Unit documentation coverage. Native authoring/SMOKE/GFX/CRC32
+passes 116 assertions, including direct file I/O and saved-program execution.
+BIN/ZPL sizes remain 16,115 / 276,741 bytes. Fingerprint changes deliberately
+update their hashes and all stock Unit headers. See the grouped_build_followup
+section in docs/release-build-evidence.json for current artifact hashes.
+
+Review status: these follow-up changes have local verification only. The two
+Opus turns above remain the review budget used; no additional review approval
+or full legacy-suite pass is claimed. Further Opus rounds require the user's
+explicit request under .agents/skills/opus-code-review/SKILL.md.

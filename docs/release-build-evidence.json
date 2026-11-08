@@ -176,5 +176,56 @@
     },
     "library_sha256": "a5c11c1bfe8fb0420796d38983fd11e448621f5038b3ccc2fbd0cfc3ac966bc0"
   },
-  "stock_manifest_sha256": "a107c9700df4d92b836ff9dd4dbd381f60919f16bce46a7cb2ff09c4a6ac9efe"
+  "stock_manifest_sha256": "a107c9700df4d92b836ff9dd4dbd381f60919f16bce46a7cb2ff09c4a6ac9efe",
+  "grouped_build_followup": {
+    "root_cmake_lines": 25,
+    "production_modules": [
+      "Sources.cmake",
+      "Runtime.cmake",
+      "Compiler.cmake",
+      "Units.cmake"
+    ],
+    "default_products": [
+      "zpascal_bin",
+      "crt_zpu",
+      "sysfile_zpu",
+      "zvb_zpu"
+    ],
+    "production_component_count": 37,
+    "test_source_count": 0,
+    "legacy_file_module_targets_or_outputs": false,
+    "retained_compile_and_link_settings_unchanged": true,
+    "file_abi_identity": "compiled neutral sysfile.payload is fingerprinted before stamping SYSFILE.ZPU; same file implementation is compiled once",
+    "default_build_passed": true,
+    "tests_enabled_at_finish": false,
+    "artifact_sha256": {
+      "zpascal.bin": "ff0cf81fc1a744e0ff39876bcca409cd46c55c6f142651b3794220bcd30b8c97",
+      "zpascal.zpl": "dc01c1eaadeba25f1738cb09b95fb3d13c2d6e8b96a5e166c10880efd0e116a0",
+      "CRT.ZPU": "003a5b1b9e9a61dc0a69a3151be71f5a7b99ae6571543a8b5c90bb06b0a3b47f",
+      "SYSFILE.ZPU": "e466a4495a769d5a0affb4ee4c81bed1e47d9635bba1fef416df4bf5147862e8",
+      "ZVB.ZPU": "9d9702766b7ccda4880601d43171627e00a5f14fc11e8fd1478c58fcb3ef5d3c",
+      "pascal_runtime.profile": "f5367c74f161896a9c3c4df1dc50860a9619a5389cc19564de6e69ab457099d4"
+    },
+    "host_checks": {
+      "packaging_and_no_publication": 60,
+      "file_unit_stamp": 4,
+      "stock_unit": 10,
+      "runner": 27,
+      "hardware_packager": 13,
+      "unit_docs": true
+    },
+    "native_qualification": {
+      "report": "analysis/native-slice/20261108T225434.545318Z-74253/zvb-report.json",
+      "sha256": "d4590167103b1a2fe5a7e5a9bfdce6f1830a1d2511e8fa375d1cf64a14cb3603",
+      "passed": true,
+      "assertions": 116,
+      "clients": [
+        "SMOKE",
+        "GFX",
+        "CRC32"
+      ]
+    },
+    "zvb_code_and_metadata_unchanged_except_profile_and_checksum": true,
+    "review": "Follow-up changes locally verified; no third Opus round authorized. Prior full-suite limitations remain recorded above."
+  }
 }

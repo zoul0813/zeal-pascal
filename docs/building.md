@@ -19,9 +19,42 @@ notice from `units/zvb/` when distributing its Unit. Other runtime ZPLs, IHX,
 REL, map files, headers and JSON files in `build/` are intermediate build assets;
 they are not additional files the user needs to install.
 
+## Build targets
+
+The default build has four product entry points:
+
+| Target | Output |
+| --- | --- |
+| `zpascal_bin` | `zpascal.bin` and its matching `zpascal.zpl` |
+| `crt_zpu` | `CRT.ZPU` and `CRT.PAS` |
+| `sysfile_zpu` | `SYSFILE.ZPU` |
+| `zvb_zpu` | Validated stock `ZVB.ZPU` |
+
+The root `CMakeLists.txt` only sets up the project, includes
+four production modules, and conditionally includes `cmake/Tests.cmake`:
+
+- `Sources.cmake`: source lists, bank placement and header dependencies.
+- `Runtime.cmake`: numeric runtime templates, execution handoff and asset generation.
+- `Compiler.cmake`: compiler object groups and BIN/ZPL linking.
+- `Units.cmake`: CRT, SYSFILE and ZVB generation or staging.
+
+Internal targets are excluded from `ALL` and run when
+required by a product dependency. CMake still reports those compile/link steps
+as “Built target …”; those messages do not identify extra shipped programs.
+
+The old full `file_runtime` module is not part of the production graph or
+runtime fingerprint. Its builders live in `Tests.cmake` for explicit legacy
+probes. Production file support is generated as selectively linked SYSFILE.ZPU
+functions; this still compiles the file operations it needs from `file_runtime.c`.
+`runtime_profile` fingerprints the numeric runtime, handoff assets and compiled
+SYSFILE payload. SYSFILE compiles once into a payload with a neutral fingerprint;
+its final ZPU header is stamped after that payload has been fingerprinted.
+
+The BIN and ZPL are produced together so they remain a matching compiler pair.
+
 ## Opt-in test targets
 
-`ZP_BUILD_TESTS` defaults to `OFF`. The root CMake file defines product targets;
+`ZP_BUILD_TESTS` defaults to `OFF`. The root CMake file includes the product definition;
 `cmake/Tests.cmake` is included only when this option is on. It contains native
 acceptance executables, legacy/experimental compiler variants, independent
 runtime probes and generated test fixtures.

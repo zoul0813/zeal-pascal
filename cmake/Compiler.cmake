@@ -1,0 +1,87 @@
+# Compiler object groups and the matching zpascal.bin / zpascal.zpl pair.
+# Included in root scope so source properties apply to shared test compilers.
+
+# The shared pure path resolver lives beside IDE file operations, and in the
+# disk module's own retained prefix when used by generated Pascal programs.
+add_library(ide_paths OBJECT src/path.c)
+
+target_compile_definitions(ide_paths PRIVATE ZP_IDE_PATHS)
+
+target_compile_options(ide_paths PRIVATE --std-c99 --opt-code-size
+    "SHELL:--codeseg BANK3" "SHELL:--constseg BANK3")
+
+# Compiler execution needs only literal/integer conversion. Generated programs
+# use the full arithmetic/format/Val/transcendental runtime template.
+add_library(real_compiler OBJECT src/real.c)
+
+target_compile_definitions(real_compiler PRIVATE ZP_REAL_COMPILER)
+
+target_compile_options(real_compiler PRIVATE --std-c99 --opt-code-size "SHELL:--codeseg BANK9" "SHELL:--constseg BANK9")
+
+add_library(image_compiler OBJECT src/native_image.c src/compiler_image.c)
+
+target_include_directories(image_compiler PRIVATE src)
+
+# Saved-image checks also run outside compilation and must survive a failed
+# parser-bank reload. Keep the entry and near decoder in retained support.
+target_compile_options(image_compiler PRIVATE --std-c99 "SHELL:--codeseg BANK11" "SHELL:--constseg BANK11")
+
+add_executable(zpascal src/startup.asm src/banks.c src/main.c src/editor.c src/source_blocks.c $<TARGET_OBJECTS:unit_runtime_core> $<TARGET_OBJECTS:unit_fragment_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
+
+target_sources(zpascal PRIVATE src/main_display.c)
+
+target_compile_definitions(zpascal PRIVATE ZP_OPTIONAL_REAL ZP_UNITS_EXPERIMENT)
+
+target_include_directories(zpascal PRIVATE src ${CMAKE_BINARY_DIR})
+
+target_compile_options(zpascal PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+
+# Unit parsing/linking shares one source/cursor ABI across compiler objects.
+add_library(unit_fragment_core OBJECT src/compiler_fragments.c src/compiler_fragment_access.c src/compiler_fragment_source.c)
+
+target_compile_definitions(unit_fragment_core PRIVATE ZP_UNITS_EXPERIMENT)
+
+target_include_directories(unit_fragment_core PRIVATE src)
+
+target_compile_options(unit_fragment_core PRIVATE --std-c99 --opt-code-size
+    "SHELL:--codeseg BANK19" "SHELL:--constseg BANK19")
+
+add_library(unit_runtime_core OBJECT ${UNIT_CORE} ${CMAKE_BINARY_DIR}/unit_unpack_asset.asm src/compiler_unsigned.c src/compiler_unsigned_asset.c src/compiler_unsigned_intrinsics.c src/compiler_unsigned_ops.c src/compiler_runtime.c
+    src/compiler_units.c src/compiler_unit_references.c src/compiler_unit_files.c src/compiler_unit_paths.c src/compiler_unit_header.c src/compiler_unit_fragments.c src/compiler_unit_loader.c src/compiler_unit_reader.c src/compiler_unit_ranges.c src/compiler_units_symbols.c src/compiler_units_metadata.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c
+    src/compiler_units_link.c src/unit_output.c ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm)
+
+target_compile_definitions(unit_runtime_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL ZP_PROGRAM_PAGES)
+
+target_include_directories(unit_runtime_core PRIVATE src ${CMAKE_BINARY_DIR})
+
+target_compile_options(unit_runtime_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+
+add_dependencies(unit_runtime_core optional_runtime_assets ram_trampoline_bin transfer_assets
+    runtime_profile file_gate_bin module_unpack_bin)
+
+add_dependencies(zpascal crt_zpu)
+
+add_dependencies(unit_runtime_core runtime_layout)
+
+add_dependencies(unit_runtime_core sysfile_zpu)
+
+add_dependencies(zpascal sysfile_zpu)
+
+# Compiler launcher plus its nineteen code banks.
+target_sources(zpascal PRIVATE ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm)
+
+add_dependencies(zpascal transfer_assets)
+
+target_link_options(zpascal PRIVATE "SHELL:-b _INITIALIZED=0xc000")
+
+foreach(bank RANGE 1 19)
+    math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
+    target_link_options(zpascal PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
+endforeach()
+
+add_custom_target(zpascal_bin ALL
+    BYPRODUCTS ${CMAKE_BINARY_DIR}/zpascal.bin ${CMAKE_BINARY_DIR}/zpascal.zpl ${CMAKE_BINARY_DIR}/zpascal.banks.json
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zpascal>
+    DEPENDS zpascal ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+
+set_property(TARGET zpascal_bin PROPERTY RAW_BINARY ${CMAKE_BINARY_DIR}/zpascal.bin)

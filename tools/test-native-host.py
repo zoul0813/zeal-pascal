@@ -20,9 +20,9 @@ runtime = (ROOT / 'build/pascal_runtime.zpl').read_bytes()
 # Independent framing check: generated CHN activation must identify all private
 # runtime/file assets, not just the public ABI or one module's code addresses.
 framed=b'ZP80-private-ABI-v2\0'
-for name in ('pascal_runtime.zpl','pascal_runtime.private','file_runtime.zpl','file_gate.zpl',
+for name in ('pascal_runtime.zpl','pascal_runtime.private','sysfile.payload','file_gate.zpl',
              'transfer_runtime.zpl','transfer_gate.zpl','execute_entry.zpl','transfer_runtime.packed',
-             'file_runtime.packed','module_unpack.zpl'):
+             'module_unpack.zpl'):
     data=(ROOT/'build'/name).read_bytes()
     framed+=name.encode('ascii')+b'\0'+struct.pack('<I',len(data))+data
 assert (ROOT/'build/pascal_runtime.profile').read_bytes()==hashlib.sha256(framed).digest()[:4]
@@ -58,6 +58,8 @@ subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests',
                 '-p', 'test_hardware_package.py'], cwd=ROOT, check=True)
 subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests',
                 '-p', 'test_stock_zvb.py'], cwd=ROOT, check=True)
+subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests',
+                '-p', 'test_file_unit.py'], cwd=ROOT, check=True)
 # Progress is mutable; the independently reviewed functional body is not.
 # Together with verify-spec.py's frozen-input hashes, this prevents relocating
 # the historical review from silently exempting later normative changes.

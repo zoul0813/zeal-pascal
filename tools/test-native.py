@@ -495,12 +495,12 @@ class DebugConsole:
         (self.directory/'console.txt').write_text(''.join(self.acceptance))
 
 
-def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, timeout=180, after_command=None, console_class=None):
+def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, timeout=180, after_command=None, console_class=None, base_programs=('zpascal', 'zptest')):
     directory = RUN / name
     directory.mkdir(parents=True, exist_ok=False)
     hostfs = directory / 'hostfs'
     hostfs.mkdir(exist_ok=True)
-    for target in ('zpascal', 'zptest'):
+    for target in base_programs:
         for extension in ('bin', 'zpl'):
             shutil.copyfile(ROOT / f'build/{target}.{extension}', hostfs / f'{target}.{extension}')
     if (ROOT/'build/SYSFILE.ZPU').exists():
@@ -1095,6 +1095,7 @@ def main():
     integrated = not args.core_only and not args.case
     OUT.mkdir(parents=True, exist_ok=True)
     inputs = [ROOT / 'CMakeLists.txt', ROOT / 'tools/package-native.py', Path(__file__).resolve()]
+    inputs += sorted((ROOT / 'cmake').glob('*.cmake'))
     inputs += sorted((ROOT / 'src').glob('*')) + sorted((ROOT / 'tests/native').glob('*.pas'))
     inputs += [ROOT/'tests/native'/name for name in ('main.c', 'harness.c', 'harness-cases.c', 'harness.h', 'core-groups.h', 'core-counts.json', 'machine.asm', 'startup-fail.c')]
     inputs += sorted(MEDIA.iterdir())

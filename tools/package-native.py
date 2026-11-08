@@ -41,12 +41,12 @@ def read_symbols(path):
         r'^\s+([0-9A-F]{8})\s+([_\w]+)\s', path.with_suffix('.map').read_text(), re.M)}
 
 
-def runtime_profile(directory, runtime_name="pascal_runtime", file_name="file_runtime"):
+def runtime_profile(directory, runtime_name="pascal_runtime"):
     """Host-generated private ABI identifier; target performs only a byte compare."""
     tag = hashlib.sha256(b'ZP80-private-ABI-v2\0')
-    for name in (runtime_name+'.zpl',runtime_name+'.private',file_name+'.zpl','file_gate.zpl',
+    for name in (runtime_name+'.zpl',runtime_name+'.private','sysfile.payload','file_gate.zpl',
                  'transfer_runtime.zpl','transfer_gate.zpl','execute_entry.zpl',
-                 'transfer_runtime.packed',file_name+'.packed','module_unpack.zpl'):
+                 'transfer_runtime.packed','module_unpack.zpl'):
         data=(directory/name).read_bytes()
         tag.update(name.encode('ascii')+b'\0'+struct.pack('<I',len(data))+data)
     return tag.digest()[:4]
@@ -116,11 +116,11 @@ def validate_module_unpack(path):
 
 
 def validate_file_assets(memory,symbols,directory,file_name="file_runtime"):
-    packed=(directory/(file_name+'.packed')).read_bytes()
-    if unpack_module(packed)!=(directory/(file_name+'.zpl')).read_bytes():
-        raise ValueError('packed file constant differs from its checked module')
     assets=[('_unpack_start','_unpack_end','module_unpack.zpl')]
     if '_file_start' in symbols:
+        packed=(directory/(file_name+'.packed')).read_bytes()
+        if unpack_module(packed)!=(directory/(file_name+'.zpl')).read_bytes():
+            raise ValueError('packed file constant differs from its checked module')
         assets[:0]=[('_file_start','_file_end',file_name+'.packed'),
                     ('_file_gate_start','_file_gate_end','file_gate.zpl')]
     else:
@@ -464,7 +464,7 @@ def package(path, runtime_name="pascal_runtime", file_name="file_runtime", optio
     private=runtime.with_suffix('.private').read_bytes()
     template=runtime.read_bytes()
     metadata=json.loads(runtime.with_suffix('.runtime.json').read_text())
-    profile=runtime_profile(path.parent,runtime_name,file_name)
+    profile=runtime_profile(path.parent,runtime_name)
     if (metadata['sha256']!=hashlib.sha256(template).hexdigest() or
             metadata['private_sha256']!=hashlib.sha256(private).hexdigest() or
             private!=struct.pack('<26H',*metadata['private_input_addresses']) or
@@ -512,7 +512,7 @@ if __name__ == '__main__':
     elif sys.argv[1]=='--optional-real':package(Path(sys.argv[2]),optional_real=True)
     elif sys.argv[1]=='--compact-experiment':package(Path(sys.argv[2]),'compact_runtime','compact_file_runtime')
     elif sys.argv[1]=='--compact-runtime-profile':
-        path=Path(sys.argv[2]);path.write_bytes(runtime_profile(path.parent,'compact_runtime','compact_file_runtime'))
+        path=Path(sys.argv[2]);path.write_bytes(runtime_profile(path.parent,'compact_runtime'))
     elif sys.argv[1]=='--trampoline':validate_trampoline(Path(sys.argv[2]))
     elif sys.argv[1]=='--file-runtime':validate_file_runtime(Path(sys.argv[2]))
     elif sys.argv[1]=='--file-gate':validate_file_gate(Path(sys.argv[2]))

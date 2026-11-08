@@ -1,3 +1,23 @@
+# Legacy file-module fixtures: opt-in tests only.
+# The full file-module image is retained only for explicit legacy probes.
+# Production uses selectively linked SYSFILE.ZPU functions.
+add_library(file_runtime_core OBJECT src/path.c src/file_runtime.c src/file_native.asm)
+
+target_include_directories(file_runtime_core PRIVATE src)
+
+target_compile_options(file_runtime_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+
+add_executable(file_runtime src/file_module.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
+    $<TARGET_OBJECTS:file_runtime_core>)
+
+set_target_properties(file_runtime PROPERTIES LINKER_LANGUAGE ASM)
+
+zp_add_outputs(file_runtime WITH_EXTENSION zpl)
+
+add_custom_command(TARGET file_runtime_bin POST_BUILD BYPRODUCTS ${CMAKE_BINARY_DIR}/file_runtime.packed
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --file-runtime
+        ${CMAKE_BINARY_DIR}/file_runtime.ihx VERBATIM)
+
 # Optional native acceptance harnesses and experimental compiler variants.
 # Included in the root directory so shared per-source bank properties apply.
 set(LEGACY_CORE ${PASCAL_CORE})
@@ -15,7 +35,7 @@ target_link_options(compact_runtime PRIVATE "SHELL:-b _REAL_ADAPTER=0x4c73"
     "SHELL:-b _REAL=0x4d8a" "SHELL:-b _REAL_DATA=0x5800"
     "SHELL:-b _TEXT=0x4bd6" "SHELL:-b _CODE=0x5000")
 
-zos_add_outputs(compact_runtime WITH_EXTENSION zpl)
+zp_add_outputs(compact_runtime WITH_EXTENSION zpl)
 
 add_custom_command(TARGET compact_runtime_bin POST_BUILD
     BYPRODUCTS ${CMAKE_BINARY_DIR}/compact_runtime.private ${CMAKE_BINARY_DIR}/compact_runtime.runtime.json
@@ -36,7 +56,7 @@ target_compile_options(zfilegatetest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;-
 
 add_dependencies(zfilegatetest file_gate_bin)
 
-zos_add_outputs(zfilegatetest)
+zp_add_outputs(zfilegatetest)
 
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/runtime_asset.asm CONTENT
 ".area _BANK8\n.globl _runtime_start\n.globl _runtime_end\n.globl _trampoline_start\n.globl _trampoline_end\n_runtime_start:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.zpl\"\n_runtime_end:\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.private\"\n.incbin \"${CMAKE_BINARY_DIR}/pascal_runtime.profile\"\n.area _RODATA\n_trampoline_start:\n.incbin \"${CMAKE_BINARY_DIR}/ram_trampoline.zpl\"\n_trampoline_end:\n")
@@ -438,7 +458,7 @@ add_executable(zpbootfail ${CMAKE_BINARY_DIR}/test_sdk_startup.asm tests/native/
 
 target_compile_options(zpbootfail PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 
-zos_add_outputs(zpbootfail)
+zp_add_outputs(zpbootfail)
 
 add_executable(zpexecchild ${CMAKE_BINARY_DIR}/test_sdk_startup.asm tests/native/execute-child.c)
 
@@ -449,13 +469,13 @@ target_include_directories(zpexecchild PRIVATE "$ENV{ZOS_PATH}/../Zeal-VideoBoar
 set_property(SOURCE tests/native/execute-child.c
     APPEND PROPERTY OBJECT_DEPENDS "$ENV{ZOS_PATH}/../Zeal-VideoBoard-SDK/include/zvb_hardware.h")
 
-zos_add_outputs(zpexecchild)
+zp_add_outputs(zpexecchild)
 
 add_executable(zchainreplay ${CMAKE_BINARY_DIR}/test_sdk_startup.asm tests/native/chain-replay.c)
 
 target_compile_options(zchainreplay PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 
-zos_add_outputs(zchainreplay)
+zp_add_outputs(zchainreplay)
 
 add_executable(zchainloadtest ${CMAKE_BINARY_DIR}/test_sdk_startup.asm src/chain.c src/chain_native.asm src/execute_native.asm src/native_image.c tests/native/chain-load.c ${CMAKE_BINARY_DIR}/execute_entry_asset.asm)
 
@@ -468,7 +488,7 @@ set_property(SOURCE tests/native/chain-load.c
 
 add_dependencies(zchainloadtest execute_entry_bin)
 
-zos_add_outputs(zchainloadtest)
+zp_add_outputs(zchainloadtest)
 
 # Standalone overlay staging proof; compiler/publication/runtime integration
 # remains separate and the production image decoder still rejects overlays.
@@ -493,7 +513,7 @@ set_property(SOURCE tests/native/overlay-native.c
 
 add_dependencies(zoverlaytest overlay_fixtures)
 
-zos_add_outputs(zoverlaytest)
+zp_add_outputs(zoverlaytest)
 
 add_executable(zexecuteprobe tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm src/chain.c src/chain_native.asm
     src/execute_native.asm src/native_image.c
@@ -509,7 +529,7 @@ set_property(SOURCE tests/native/execute-probe.c
 
 add_dependencies(zexecuteprobe file_gate_bin execute_entry_bin)
 
-zos_add_outputs(zexecuteprobe)
+zp_add_outputs(zexecuteprobe)
 
 add_executable(zexparent ${CMAKE_BINARY_DIR}/test_sdk_startup.asm tests/native/execute-parent.c tests/native/execute-parent-stop.asm src/chain_native.asm)
 
@@ -520,32 +540,32 @@ target_compile_options(zexparent PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt
 set_property(SOURCE tests/native/execute-parent.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/chain.h)
 
-zos_add_outputs(zexparent)
+zp_add_outputs(zexparent)
 
 # Independent test-only native procedure bytes; not deployed with the product.
 add_executable(stringabi tests/native/stringabi.asm)
 
-zos_add_outputs(stringabi WITH_EXTENSION zpl)
+zp_add_outputs(stringabi WITH_EXTENSION zpl)
 
 add_executable(setabi tests/native/setabi.asm)
 
-zos_add_outputs(setabi WITH_EXTENSION zpl)
+zp_add_outputs(setabi WITH_EXTENSION zpl)
 
 add_executable(pointerabi tests/native/pointerabi.asm)
 
-zos_add_outputs(pointerabi WITH_EXTENSION zpl)
+zp_add_outputs(pointerabi WITH_EXTENSION zpl)
 
 add_executable(realabi tests/native/realabi.asm)
 
-zos_add_outputs(realabi WITH_EXTENSION zpl)
+zp_add_outputs(realabi WITH_EXTENSION zpl)
 
 add_executable(workerabi tests/native/workerabi.asm)
 
-zos_add_outputs(workerabi WITH_EXTENSION zpl)
+zp_add_outputs(workerabi WITH_EXTENSION zpl)
 
 add_executable(diskabi tests/native/diskabi.asm)
 
-zos_add_outputs(diskabi WITH_EXTENSION zpl)
+zp_add_outputs(diskabi WITH_EXTENSION zpl)
 
 add_executable(zlowcopytest tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
     tests/native/low-copy.c tests/native/low-copy.asm tests/native/machine.asm src/file_low_copy.asm)
@@ -559,7 +579,7 @@ target_compile_options(zlowcopytest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 set_property(SOURCE tests/native/low-copy.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/file_runtime.h)
 
-zos_add_outputs(zlowcopytest)
+zp_add_outputs(zlowcopytest)
 
 # Experimental low-buffer transport; normal file_runtime remains unchanged.
 add_library(compact_file_core OBJECT src/path.c src/file_runtime.c src/file_native.asm src/file_low_copy.asm)
@@ -575,7 +595,7 @@ add_executable(compact_file_runtime src/file_module.asm ${CMAKE_BINARY_DIR}/sdk_
 
 set_target_properties(compact_file_runtime PROPERTIES LINKER_LANGUAGE ASM)
 
-zos_add_outputs(compact_file_runtime WITH_EXTENSION zpl)
+zp_add_outputs(compact_file_runtime WITH_EXTENSION zpl)
 
 add_custom_command(TARGET compact_file_runtime_bin POST_BUILD
     BYPRODUCTS ${CMAKE_BINARY_DIR}/compact_file_runtime.packed
@@ -611,7 +631,7 @@ set_property(SOURCE tests/native/unpack-native.c
 
 add_dependencies(zunpacktest unpack_fixtures)
 
-zos_add_outputs(zunpacktest)
+zp_add_outputs(zunpacktest)
 
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/file_asset.asm CONTENT
 ".area _BANK11\n.globl _file_start,_file_end,_file_gate_start,_file_gate_end,_unpack_start,_unpack_end\n_file_start:\n.incbin \"${CMAKE_BINARY_DIR}/file_runtime.packed\"\n_file_end:\n_file_gate_start:\n.incbin \"${CMAKE_BINARY_DIR}/file_gate.zpl\"\n_file_gate_end:\n_unpack_start:\n.incbin \"${CMAKE_BINARY_DIR}/module_unpack.zpl\"\n_unpack_end:\n")
@@ -651,7 +671,7 @@ add_executable(ztransferdriver tests/native/transfer-driver.asm ${CMAKE_BINARY_D
 
 add_dependencies(ztransferdriver runtime_profile)
 
-zos_add_outputs(ztransferdriver WITH_EXTENSION zpl)
+zp_add_outputs(ztransferdriver WITH_EXTENSION zpl)
 
 add_executable(ztransferparent ${CMAKE_BINARY_DIR}/test_sdk_startup.asm tests/native/transfer-parent.c tests/native/transfer-stop.asm src/chain_native.asm)
 
@@ -662,13 +682,13 @@ target_compile_options(ztransferparent PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99
 set_property(SOURCE tests/native/transfer-parent.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/chain.h)
 
-zos_add_outputs(ztransferparent)
+zp_add_outputs(ztransferparent)
 
 add_executable(zchaincallparent ${CMAKE_BINARY_DIR}/test_sdk_startup.asm tests/native/chain-call-parent.c tests/native/transfer-stop.asm)
 
 target_compile_options(zchaincallparent PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
 
-zos_add_outputs(zchaincallparent)
+zp_add_outputs(zchaincallparent)
 
 add_executable(zfilecoretest tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
     tests/native/file-core.c tests/native/file-probe.asm tests/native/machine.asm $<TARGET_OBJECTS:file_runtime_core>)
@@ -683,7 +703,7 @@ set_property(SOURCE tests/native/file-core.c
 
 target_link_options(zfilecoretest PRIVATE "SHELL:-b _TEST=0x8000" "SHELL:-b _TEST_DATA=0xe000")
 
-zos_add_outputs(zfilecoretest)
+zp_add_outputs(zfilecoretest)
 
 add_executable(zchainfilestest tests/native/file-start.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm
     tests/native/chain-files.c tests/native/file-probe.asm tests/native/machine.asm $<TARGET_OBJECTS:file_runtime_core>)
@@ -698,7 +718,7 @@ set_property(SOURCE tests/native/chain-files.c
 
 target_link_options(zchainfilestest PRIVATE "SHELL:-b _TEST=0x8000" "SHELL:-b _TEST_DATA=0xe000")
 
-zos_add_outputs(zchainfilestest)
+zp_add_outputs(zchainfilestest)
 
 # The Real6 component is checked independently before compiler integration.
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/real_vectors.h
@@ -725,7 +745,7 @@ target_compile_options(zrealtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt
 # completion marker start at E000, leaving at least4 KiB for the C stack.
 target_link_options(zrealtest PRIVATE "SHELL:-b _INITIALIZED=0xe000")
 
-zos_add_outputs(zrealtest)
+zp_add_outputs(zrealtest)
 
 # Separate tables keep all existing component vectors while adding full-range
 # trigonometric cases within an ordinary native executable's memory limit.
@@ -748,7 +768,7 @@ target_compile_options(ztrigtest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt
 
 target_link_options(ztrigtest PRIVATE "SHELL:-b _INITIALIZED=0xe000")
 
-zos_add_outputs(ztrigtest)
+zp_add_outputs(ztrigtest)
 
 # Component harnesses begin at the compiler boundary; production IDE startup
 # intentionally leaves compiler-only phases unloaded until its first compile.
@@ -780,7 +800,7 @@ set_property(SOURCE tests/native/fragments.c
 
 target_link_options(zfragmenttest PRIVATE "SHELL:-b _HOME=0x7000" "SHELL:-b _TEST=0x8000" "SHELL:-b _TEST_DATA=0xc000")
 
-zos_add_outputs(zfragmenttest)
+zp_add_outputs(zfragmenttest)
 
 add_custom_target(fragment_toolchain
     COMMAND ${CMAKE_C_COMPILER} --version VERBATIM)
@@ -1124,7 +1144,7 @@ set_source_files_properties(tests/native/screen-main.c
 set_property(SOURCE tests/native/screen-main.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/native_image.h ${CMAKE_SOURCE_DIR}/src/compiler.h ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_SOURCE_DIR}/src/library.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
 
-add_dependencies(zscreentest transfer_assets screen_library zexparent_bin)
+add_dependencies(zscreentest transfer_assets crt_zpu zexparent_bin)
 
 target_link_options(zscreentest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
@@ -1137,11 +1157,11 @@ add_custom_target(zscreentest_bin ALL
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zscreentest>
     DEPENDS zscreentest ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 
-add_dependencies(zexampletest screen_library)
+add_dependencies(zexampletest crt_zpu)
 
-add_dependencies(zunitrealtest screen_library)
+add_dependencies(zunitrealtest crt_zpu)
 
-add_dependencies(zunitinittest screen_library zexparent_bin)
+add_dependencies(zunitinittest crt_zpu zexparent_bin)
 
 # Build-time relocation oracle. These are not production runtime variants.
 add_library(runtime_object_probe OBJECT tests/native/runtime-objects.c)
@@ -1160,7 +1180,7 @@ foreach(variant IN ITEMS a b)
         target_link_options(runtime_object_${variant} PRIVATE
             "SHELL:-b _RUNTIME_PROBE=0x9237" "SHELL:-b _DATA=0xb0ff")
     endif()
-    zos_add_outputs(runtime_object_${variant} WITH_EXTENSION zpl)
+    zp_add_outputs(runtime_object_${variant} WITH_EXTENSION zpl)
 endforeach()
 
 # Record provenance only after both native compilers are current.

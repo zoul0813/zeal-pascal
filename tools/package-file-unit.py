@@ -22,7 +22,7 @@ def split_assembly(text,prefix):
  assert count
  return '\n'.join(result)+'\n'
 
-def build(directory,cc,assembler,sdk):
+def build(directory,cc,assembler,sdk,payload_only=False):
  directory=directory.resolve();out=directory/'direct-file';out.mkdir(exist_ok=True)
  paths=[]
  for source,prefix in [('file_runtime.c','F'),('path.c','P')]:
@@ -86,14 +86,43 @@ def build(directory,cc,assembler,sdk):
  unit=b'sysfile';path=b'T:/lib/SYSFILE.PAS';start=48+len(unit)+len(path)
  metadata=unit+path+exports+bytes(count)
  blob=b'ZPF1'+struct.pack('<6H',1,count,len(references),len(payload),0,0)+records+b''.join(struct.pack('<4H',*r)for r in references)+payload
- header=bytearray(48);header[:4]=b'ZPU1';struct.pack_into('<HH',header,4,1,48+len(metadata)+len(blob));header[8:12]=(directory/'pascal_runtime.profile').read_bytes()
+ header=bytearray(48);header[:4]=b'ZPU1';struct.pack_into('<HH',header,4,1,48+len(metadata)+len(blob));# Profile is stamped after this payload participates in its fingerprint.
  struct.pack_into('<IHBB3H',header,12,fnv(b' '),1,len(unit),len(path),len(EXPORTS),0,0)
  struct.pack_into('<H',header,26,48+len(metadata));struct.pack_into('<HH',header,32,code_bytes,data_size)
  struct.pack_into('<6H',header,36,0,0,start,start,start,0)
  artifact=header+metadata+blob;assert len(artifact)<=65534 and len(payload)<32768
- struct.pack_into('<I',artifact,28,fnv(artifact[:28]+artifact[32:]));(directory/'SYSFILE.ZPU').write_bytes(artifact)
- (directory/'file-unit.h').write_text(f'/* Compiler-private file backend identity. */\n#define SYSFILE_CHECKSUM {struct.unpack_from("<I",artifact,28)[0]}UL\n')
+ struct.pack_into('<I',artifact,28,fnv(artifact[:28]+artifact[32:]))
+ (directory/'sysfile.payload').write_bytes(artifact)
  report={'bytes':len(artifact),'code_bytes':code_bytes,'data_bytes':data_size,'fragments':count,'relocations':len(references),'sdk_members':[members[i].name for i in selected],'sha256':hashlib.sha256(artifact).hexdigest()}
+ (directory/'direct-file.payload.json').write_text(json.dumps(report,indent=2)+'\n')
+ if not payload_only:return stamp(directory)
+ print(json.dumps(report))
+
+
+def stamp(directory):
+ """Bind the compiled payload to its runtime fingerprint without recompiling."""
+ payload=(directory/'sysfile.payload').read_bytes()
+ report=json.loads((directory/'direct-file.payload.json').read_text())
+ if (len(payload)<48 or payload[:6]!=b'ZPU1\1\0' or
+     struct.unpack_from('<H',payload,6)[0]!=len(payload) or payload[8:12]!=bytes(4) or
+     struct.unpack_from('<I',payload,28)[0]!=fnv(payload[:28]+payload[32:]) or
+     report['sha256']!=hashlib.sha256(payload).hexdigest()):
+  raise ValueError('invalid or stale SYSFILE payload')
+ profile=(directory/'pascal_runtime.profile').read_bytes()
+ if len(profile)!=4:raise ValueError('runtime fingerprint must contain four bytes')
+ artifact=bytearray(payload);artifact[8:12]=profile
+ checksum=fnv(artifact[:28]+artifact[32:]);struct.pack_into('<I',artifact,28,checksum)
+ report['sha256']=hashlib.sha256(artifact).hexdigest()
+ (directory/'SYSFILE.ZPU').write_bytes(artifact)
+ (directory/'file-unit.h').write_text(f'/* Compiler-private file backend identity. */\n#define SYSFILE_CHECKSUM {checksum}UL\n')
  (directory/'direct-file.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))
+
+
 if __name__=='__main__':
- p=argparse.ArgumentParser();p.add_argument('directory',type=Path);p.add_argument('--cc',required=True);p.add_argument('--assembler',required=True);p.add_argument('--sdk',required=True,type=Path);a=p.parse_args();build(a.directory,a.cc,a.assembler,a.sdk)
+ p=argparse.ArgumentParser();p.add_argument('directory',type=Path)
+ mode=p.add_mutually_exclusive_group();mode.add_argument('--payload-only',action='store_true');mode.add_argument('--stamp',action='store_true')
+ p.add_argument('--cc');p.add_argument('--assembler');p.add_argument('--sdk',type=Path);a=p.parse_args()
+ if a.stamp:stamp(a.directory)
+ else:
+  if not all((a.cc,a.assembler,a.sdk)):p.error('payload compilation requires --cc, --assembler and --sdk')
+  build(a.directory,a.cc,a.assembler,a.sdk,a.payload_only)

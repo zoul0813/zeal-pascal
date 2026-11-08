@@ -48,27 +48,42 @@ def main():
         try:package.unpack_module(data)
         except ValueError:checks+=1
         else:raise AssertionError('invalid transfer constant accepted')
-    assets = ('pascal_runtime.zpl', 'pascal_runtime.private', 'file_runtime.zpl', 'file_gate.zpl',
-              'transfer_runtime.zpl', 'transfer_gate.zpl', 'execute_entry.zpl','transfer_runtime.packed','file_runtime.packed','module_unpack.zpl')
+    assets = ('pascal_runtime.zpl', 'pascal_runtime.private', 'sysfile.payload', 'file_gate.zpl',
+              'transfer_runtime.zpl', 'transfer_gate.zpl', 'execute_entry.zpl','transfer_runtime.packed','module_unpack.zpl')
     names = (*assets, 'transfer_call.zpl', 'pascal_runtime.profile', 'pascal_runtime.runtime.json',
-             'zpascal.ihx', 'zpascal.map', 'zpascal.bin', 'zpascal.zpl')
+             'zpascal.ihx', 'zpascal.map', 'zpascal.bin', 'zpascal.zpl',
+             'integer_runtime.zpl','integer_head.bin','integer_tail.bin','real_patch.bin',
+             'optional_runtime.json','SYSFILE.ZPU')
     original = {name: (ROOT/'build'/name).read_bytes() for name in names}
     with tempfile.TemporaryDirectory(prefix='zeal-chain-profile-') as folder:
         directory = Path(folder);image = directory/'zpascal.ihx'
         for name, data in original.items():
             (directory/name).write_bytes(data)
+        # The current compiler packages without any legacy file-module files.
+        assert not (directory/'file_runtime.zpl').exists()
+        assert not (directory/'file_runtime.packed').exists()
         with contextlib.redirect_stdout(io.StringIO()):
-            package.package(image)
+            package.package(image, optional_real=True)
         pair = {name: original[name] for name in ('zpascal.bin', 'zpascal.zpl')}
         assert all((directory/name).read_bytes() == data for name, data in pair.items())
         checks += 1
+        # Stale legacy outputs may remain in an incremental build directory.
+        # They must affect neither the current fingerprint nor publication.
+        for name in ('file_runtime.zpl','file_runtime.packed'):
+            (directory/name).write_bytes(b'obsolete module: deliberately invalid')
+        assert package.runtime_profile(directory)==original['pascal_runtime.profile']
+        with contextlib.redirect_stdout(io.StringIO()):
+            package.package(image, optional_real=True)
+        assert all((directory/name).read_bytes()==data for name,data in pair.items())
+        for name in ('file_runtime.zpl','file_runtime.packed'):(directory/name).unlink()
+        checks += 1
 
-        def rejected(message='metadata or Chain profile'):
+        def rejected(message=None):
             nonlocal checks
             try:
-                package.package(image)
+                package.package(image, optional_real=True)
             except ValueError as error:
-                assert message in str(error), str(error)
+                if message is not None:assert message in str(error), str(error)
             else:
                 raise AssertionError('mixed private-runtime assets were accepted')
             assert all((directory/name).read_bytes() == data for name, data in pair.items())
@@ -88,7 +103,8 @@ def main():
         changed = bytearray(original['pascal_runtime.profile']);changed[-1] ^= 1
         (directory/'pascal_runtime.profile').write_bytes(changed);rejected()
         (directory/'pascal_runtime.profile').write_bytes(original['pascal_runtime.profile'])
-        address = 0x88000+len(original['pascal_runtime.zpl'])+len(original['pascal_runtime.private'])
+        symbols=package.read_symbols(image)
+        address = symbols['_integer_tail']+len(original['integer_tail.bin'])-4
         image.write_text(flip_hex(original['zpascal.ihx'].decode(), address+1));rejected()
         image.write_bytes(original['zpascal.ihx'])
         symbols=package.read_symbols(image)
@@ -107,7 +123,7 @@ def main():
             image.write_text(flip_hex(original['zpascal.ihx'].decode(),address))
             rejected('embedded transfer asset')
         image.write_bytes(original['zpascal.ihx'])
-        for name in ('_file_start','_file_gate_start','_unpack_start'):
+        for name in ('_unpack_start',):
             image.write_text(flip_hex(original['zpascal.ihx'].decode(),symbols[name]))
             rejected('embedded file/unpack assets')
         image.write_bytes(original['zpascal.ihx'])

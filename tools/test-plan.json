@@ -555,14 +555,6 @@
       "runtime_object_b_bin"
     ],
     "tools/test-runtime-profile.py": [
-      "execute_entry_bin",
-      "file_gate_bin",
-      "file_runtime_bin",
-      "module_unpack_bin",
-      "pascal_runtime_bin",
-      "transfer_call_bin",
-      "transfer_gate_bin",
-      "transfer_runtime_bin",
       "zpascal_bin"
     ],
     "tools/test-screen.py": [
@@ -640,7 +632,6 @@
     "tools/test-zvb.py": [
       "pascal_runtime_bin",
       "zpascal_bin",
-      "zptest_bin",
       "zzvbtest_bin"
     ]
   }
