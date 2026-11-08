@@ -410,3 +410,6 @@
 # Physical acceptance: write-only device-memory fills.
 !/reviews/zvb-hardware-fill-v1.md
 !/docs/zvb-hardware-fill-evidence.json
+
+# User-confirmed physical Snake graphics acceptance.
+!/docs/snake-hardware-acceptance.json
