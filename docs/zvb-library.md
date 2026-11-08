@@ -1,7 +1,7 @@
 # ZVB: Zeal Video Board
 
-**Development build: native emulator tests pass for the unit and demos.
-Physical display and audio verification remains outstanding.**
+**Development build: native Unit authoring and the saved Snake demo pass.
+Full Snake timing parity and physical hardware verification remain open.**
 
 `ZVB` gives native Pascal programs graphics, hardware sprites, CRC32, sound and
 DMA through 45 routines. Its interface follows the public Zeal Video Board C SDK,
@@ -76,8 +76,8 @@ To save a demo executable in the IDE, save its Pascal source with **S**, select
 **O → C (Com-file) → Q**, then press **C** to compile. This writes the COM beside
 the source; run it from ZShell, or use **R** in Com-file mode. Memory mode
 (**O → M → Q**) supports compilation and RAM execution without a disk workspace.
-To publish a COM after Memory testing, select Com-file and compile again. Both
-compiler paths produce identical saved Snake bytes in the qualification harness.
+To publish a COM after Memory testing, select Com-file and compile again. The latest Snake source is qualified in Com-file mode; its Memory-mode
+asset-include allocation exceeds available compiler RAM.
 
 A saved program contains its reachable unit code and needs no ZPU or Pascal
 source at run time. When redistributing a program containing ZVB code, include
@@ -148,8 +148,8 @@ Each routine restores the CPU memory mapping and the caller's interrupt-enable
 state. VRAM is mapped only inside one bounded raw instruction sequence; Pascal
 guards and OS calls run with the OS mapped.
 
-Interrupts remain disabled for the whole of each VRAM copy and each `CRCUpdate`,
-and a DMA transfer holds the bus. A long buffer therefore delays interrupts for
+Interrupts remain disabled for each VRAM copy, `CRCUpdate` and
+`SoundPlaySamples` stream; a DMA transfer holds the bus. A long buffer therefore delays interrupts for
 the length of that operation. Split long work into smaller calls when timing
 matters; `CRC32.PAS` feeds 1 KB at a time.
 
@@ -161,6 +161,25 @@ must coordinate.
 ZVB saves nothing for you. A program that changes video or sound state owns
 restoring it, and a run that ends without reaching that code leaves the state
 behind. See [Graphics cleanup](../examples/zvb/README.md#graphics-cleanup).
+
+### SDK implementation paths
+
+The Pascal implementation follows the SDK's hardware processes: tile placement
+maps VRAM and stores one byte; sprite setters write fields directly in the SDK's
+low/high commit order. Palette, tilemap and sprite copies use Z80 LDIR.
+Tileset copies and fills use LDIR within a bank when no pixel transformation is
+needed; transformed and cross-bank streams retain bounded loops. CRC input uses
+OTIR chunks. Sound routines select the device once per operation, and sample
+playback configures once, polls the FIFO, streams bytes and drains it. DMA startup
+converts the descriptor address, selects DMA, writes its three address bytes and
+starts the transfer directly.
+
+These are Pascal ABI instruction leaves, without SDCC or a C runtime. Pascal
+argument validation and function frames still have their own cost. The Unit
+preserves earlier hold bits when configuring voices, matching its documented
+contract rather than the SDK implementation's unconditional selected-voice
+release. Sample playback masks interrupts until the stream drains; use bounded
+sample chunks when interrupt latency matters.
 
 ## Graphics setup and palette
 
@@ -519,36 +538,32 @@ Pascal differences:
 - full unsigned frequency arithmetic;
 - compression decoders that preserve partial final chunks.
 
-The Zeal-native compiler produces `build/ZVB.ZPU`: 61,539 bytes, with 31,293 bytes
-of code and 908 bytes of library globals. Import retains 29,338 bytes of metadata in two
-16 KB pages; it streams selected code from disk with a 64-byte buffer. Those two
-pages hold imported-object metadata. Source, catalog and compiler tables also
-need RAM; these figures are not the whole compilation budget. `zpascal.zpl` is 277,338 bytes. The compiler's cached code occupies
-10 pages on a cold launch and 15 after compilation (160 KB and 240 KB); the ZVB
-import does not increase those startup counts.
+The Zeal-native compiler produces `build/ZVB.ZPU`; selected fragments are
+statically linked into the program. ZPU files are needed during compilation,
+not execution. Runtime code, globals and program code receive final compact
+addresses at link time; omitted Real code leaves no reserved hole. See the
+[runtime compaction notes](runtime-compaction-notes.md) for placement and RAM
+allocation, and [the demo guide](../examples/zvb/README.md) for current binaries.
 
-Measured saved executables using this unit:
+The current optimized Unit authoring run passes 374 native assertions and
+produces a 55,529-byte ZPU containing 28,429 code bytes. Ten client regressions
+pass 286 harness assertions, with sources/Units absent during saved execution;
+the rebuilt hardware foundation separately passes 349 assertions. See the
+[qualification evidence](zvb-optimized-evidence.json). CPU tests execute the actual Inline bytes extracted
+from these sources, covering copies, fills, bank crossings, byte-write order,
+CRC chunks, samples, DMA, mapping and interrupt state. They pass 966,798
+assertions under host sanitizers. The direct tile placement leaf takes 338
+T-states including the test's RET; a public Pascal call also incurs generated
+frame, validation and return costs.
 
-| Program | Code bytes | Saved COM bytes |
-| --- | ---: | ---: |
-| FirstBar (reference example) | 11,131 | 28,082 |
-| Sprites | 20,294 | 37,350 |
-| CRC32 | 9,312 | 27,074 |
-| ZVBCHECK | 17,571 | 34,195 |
-| Snake | 28,121 | 45,909 |
+Snake's saved Com-file run completes 180 demo frames with all PAS/INC/ZPU files
+removed. Current interactive behavior and pixels match the captured C reference;
+full timing parity is still open: its 280-cell wipe takes 24,385,215 T-states
+against C's 11,584,421, retaining the same per-cell placement plus 4 ms sleep.
+The [parity evidence](snake-parity-evidence.json) deliberately reports this timing
+failure. It does not certify complete gameplay performance equivalence.
 
-The saved clients run with every ZPU/PAS/INC removed from the launch directory.
-CRC32 golden output covers empty, 9-byte and 4,358-byte raw files. A program
-declaring its own Inline procedures also includes Real-runtime instructions,
-even without Real arithmetic. Calling ZVB routines does not require them. The
-runtime prefix has a fixed extent, so this alone need not change the file length.
-
-Snake passes Memory and Com-file compilation, producing identical executables.
-Its saved run completes all 180 demo frames, including restart and added sound.
-The static address-space margin is 171 bytes; remeasure after changing the game
-or compiler. All globals, selected code and generated helpers must end before
-`$F400`, with at least 2 KB of stack below the default `$FC00` stack top. Exceeding
-this capacity reports error 98 for variable storage or error 99 for code capacity.
-Emulator results establish software behavior; physical display and audio output
-have not been qualified on a board. This API work does not complete the historical
-Turbo Pascal specification.
+The latest Snake source is qualified in Com-file mode. Memory compilation hits
+an asset-include allocation limit and is not qualified. Physical display,
+controller and audio output have not been qualified on a board. This API work
+does not complete the historical Turbo Pascal specification.

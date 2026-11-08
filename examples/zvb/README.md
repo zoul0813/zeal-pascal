@@ -1,8 +1,8 @@
 # ZVB demos
 
-**Development checkpoint: unit authoring, focused graphics/decoder tests and
-Snake's saved demo pass. Final interactive layout validation and Opus review
-of the latest changes remain pending. Physical hardware is unqualified.**
+**Development checkpoint: native Unit authoring and Snake's saved demo pass.
+Interactive pixels and behavior pass; the original wipe is still slower than C
+(2.44 s versus 1.16 s). Two Opus review turns are recorded and Codex verified the follow-up corrections. Physical hardware is unqualified.**
 
 Four small programs for the Pascal ZVB unit. They need a Zeal Video Board; the
 graphics demos also need its display clock running, because their vblank waits
@@ -10,7 +10,7 @@ block until it ticks.
 
 | Program | What it shows | Controls |
 | --- | --- | --- |
-| `SNAKE.PAS` | Tilemaps, LZ asset loading, sound effects, vblank timing | Arrow keys or WASD move; R restart; Q or Esc exit |
+| `SNAKE.PAS` | Original title sprites, tilemaps, LZ assets, vblank timing | Arrow keys or WASD move; fresh key after game over replays; Q or Esc exit |
 | `SPRITES.PAS` | RGB565 palette, 2-bit tiles, sprite arrays, flips, position updates | Any key exits |
 | `CRC32.PAS` | Hardware CRC32 over files, fed in chunks | File names on the command line |
 | `ZVBCHECK.PAS` | CRC32 interleaved with sound, page-aware DMA copying, tone and sample playback | Runs to completion |
@@ -23,12 +23,13 @@ unit search path. Save the demo's Pascal source with **S**, select
 the source. Run it from ZShell, or press **R** in Com-file mode to compile and run.
 
 Memory mode (**O → M → Q**) compiles and runs from RAM without a disk workspace.
-To publish a COM after Memory testing, select Com-file and compile again. The
-earlier qualification baseline confirms identical COM bytes from both paths;
-the latest layout checkpoint has only been repeated in Com-file mode.
+To publish a COM after Memory testing, select Com-file and compile again. The latest Snake source is qualified through Com-file mode. Its asset includes
+exceed the compiler RAM available at the Memory-mode peak; that path is not
+qualified for Snake.
 
-The public demo sources are standalone: generated include sections already
-contain the helpers and assets. Saved executables embed their selected library
+The public demos embed helpers and assets in generated include sections.
+Snake additionally needs `NUMBERS.INC` and `SNAKEFONT.INC` beside its source
+at compile time to keep its root source within one source page. Saved executables embed their selected library
 code and assets; they need no PAS, INC or ZPU files at run time. Redistribute
 `ZVB.LIC` and `ZVB.NTC` with programs containing ZVB code. Snake also carries its
 font attribution and license links; keep the [asset credits](CREDITS.md).
@@ -38,7 +39,7 @@ font attribution and license links; keep the [asset credits](CREDITS.md).
 From the repository root, use the existing Zeal development environment:
 
 ```sh
-zde --no-tty cmake --target zpascal_bin zzvbtest_bin --parallel 6
+zde --no-tty cmake build --target zpascal_bin zzvbtest_bin -j4
 python3 tools/test-zvb.py --skip-hardware --output-library build/ZVB.ZPU
 python3 tools/test-zvb.py --skip-hardware --prebuilt build/ZVB.ZPU --clients
 python3 tools/package-tf.py
@@ -62,27 +63,30 @@ Edit the authoritative INC files rather than generated include sections.
 
 ## Snake
 
-Eat apples; avoid the walls and your own body. Each apple grows the snake and adds
-a point. Reversing straight into your next segment is ignored. Fill the snake to
-256 segments and you win. Normal play waits for a direction before moving;
-R resets into that waiting state. A tail icon beside the `SCORE:000` display
-marks game over; an apple icon marks a win. The field alternates generated
-background tiles32/33, using original palette colours16/17, above a darker
-score strip. Movement starts at20 frames per step, speeding up every8 apples
-to a minimum10 frames, matching the C game's pace.
+The opening matches the SDK C demo: six sprites spelling SNAKE followed by the
+snake head bounce into place, one at a time, over the original checkerboard.
+After the title, play starts automatically. The dark bottom row has the original
+`SCORE:000` at columns 10–18. No menu, waiting prompt, win icon or lose icon is added.
 
-A short tone marks each new game, a higher square-wave tone each apple, and a low
-noise burst a collision. Each effect is released and held again by frame count,
-so sound never blocks movement.
+Arrow keys, WASD or numeric keypad 8/2/4/6 steer. Reversals against the selected direction are ignored;
+like C, two valid turns in separate frames before a move can produce a U-turn.
+Movement takes 20 vblanks initially, falling to 10 as speed increases every eight
+scored apples. Eating relocates the fruit immediately; growth and score follow
+on the next move. Length caps at 255 and score at 253 while play continues.
 
-The snake tiles, numbers and palette data come from the C SDK's Snake demo. The
-gameplay is written in Pascal, with added sound, restart and normal exit.
-The SDK LZ codec compresses each tile independently. The game embeds only the
-snake tiles, numeric font and five selected SCORE glyphs, totaling1,786
-compressed bytes. The generator checks decoded pixels against the originals.
-The complete alphabet remains available for other demos; the C title animation
-is omitted from this selected-asset version.
-Tone dividers for its three fixed effects are precomputed. No asset file is opened while playing.
+On collision, apples wipe across the playfield. A fresh key replays without
+repeating the title. Unlike the original's broken replay, Pascal restores the
+board and palette and uses an iterative loop. Esc or Q returns to ZShell.
+`-c` enables the original SNES controller protocol on the PIO user port;
+replay still requires the keyboard. Physical-controller testing is separate.
+
+This version is silent, matching C; the earlier added sound effects are removed. `--demo` runs the title then 180 finite gameplay frames.
+The snake tiles, selected title/score glyphs, numbers and palettes are the original SDK pixels,
+embedded in one COM using the verified SDK LZ codec (2,139 compressed bytes).
+The checkerboard's two colored tiles are generated in code, as in C. No asset
+file is opened while playing. See [the fidelity contract](../../docs/snake-parity.md)
+for sequencing, verification and deliberate reliability differences.
+
 See [CREDITS.md](CREDITS.md) for the Clear_code and JROB774 asset credits and
 licenses. **Redistributing the game, including a saved executable, requires the
 font's CC BY 3.0 credit.** `assets.json` binds the reused bytes to their source
@@ -135,17 +139,21 @@ pixel coordinates and physical addresses.
 
 ## Compact runtime checkpoint
 
-The current Snake Memory and Com-file builds are identical at 35,699 bytes: 6,042 runtime, 893 globals
-and 28,764 code. It has 10,381 bytes before the static limit. The same-source
-pre-compaction build was 46,041 bytes with 39 bytes free; removing the Real
-reservation recovered exactly 10,342 bytes without further asset packing.
-Snake remains one self-contained COM and completes its 180-frame saved demo
-without PAS, INC or ZPU files.
+The current Snake Com-file build is 36,798 bytes: 6,042 runtime, 957 globals
+and 29,799 code. The runtime's omitted Real code leaves no padded reservation.
+The final globals/code addresses are assigned at link time. See the
+[runtime compaction notes](../../docs/runtime-compaction-notes.md).
 
-The earlier [interactive evidence](../../docs/zvb-interactive-evidence.json)
-records the waiting-state and layout work before runtime compaction. Current
-qualification is recorded in the [compaction evidence](../../docs/runtime-compaction-evidence.json).
-The precompiled demos are in `build/zvb/`; keep the supplied licenses and asset
+Snake remains one self-contained COM and completes its saved 180-frame demo
+without PAS, INC or ZPU files. The current [parity evidence](../../docs/snake-parity-evidence.json)
+records title trajectory/cadence, actual VRAM pixels and palette, raw input,
+growth, score, collisions, replay and OS exit. Its overall result remains failed
+because the wipe is slower than C; the same placement and 4 ms delay sequence
+is retained. Current compiler overhead remains visible rather than changing
+that gameplay sequence to conceal it. Memory-mode compilation is not qualified
+for this larger source.
+
+Precompiled demos are in `build/zvb/`; keep the supplied licenses and asset
 credits when redistributing them. Loading speed and physical hardware remain
 separate acceptance questions.
 

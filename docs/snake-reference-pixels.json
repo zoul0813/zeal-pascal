@@ -1,0 +1,33 @@
+{
+  "reference_sha256": "25c7e8c59f6a4b3c7ef804f60b6fbee5bf9f1b30acf6dd7372a595e194950388",
+  "failure": null,
+  "capture": "/private/tmp/zeal-pascal-units/analysis/native-slice/20261108T024446.563043Z-62237",
+  "wipe_tstates": 11584421,
+  "snake_sha256": "82082eeeb4f1a70a8b9e6b67a517a1cf99ff3e31dd1b8ba8e09eed8a38f77acc",
+  "checker_sha256": "97b3997c0193e1ad8a2b73c3ee2e69014ff8f7d8b79492b408b71936a9f10006",
+  "numbers_sha256": "e93403e96a22418c53ba9776f1b05e1bd3ea7ff42d764cea977ffeb969452208",
+  "font_sha256": {
+    "A": "8b7217d942d7dd29f5758a63cd63d4a277adca1d66d9f2ac74200907a9d71b8a",
+    "C": "ab4c01d654bf10ded3e83a9a02b867b3a74280dd44a977bb5775a76362812b3d",
+    "E": "30bd9bb55cdb4d958d83934d7451cd9b3c24dce528db14a7162786348c05f99b",
+    "K": "59bf34d62dd759283f0d373241e44c1905b588359e15796189483c6f374825de",
+    "N": "91d5acd163cc4b687141d88741377c92f1a0865d838cc4c9a74b6959899e7306",
+    "O": "a8b44cd150cd542774024a7008ed0b457529d0df122a739bea21516a8850de88",
+    "R": "620c8adb5acbec4a5447d4405ebf87e0da7e8540ee055291b9eb09c3e6690893",
+    "S": "814eca28874f9a19588bea40316b627ddb13c2e867cdabfabfce7c8fb1c93fd3"
+  },
+  "font_palette": [
+    0,
+    0,
+    131,
+    168,
+    203,
+    241,
+    199,
+    252,
+    82,
+    255,
+    255,
+    255
+  ]
+}

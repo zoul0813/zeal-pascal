@@ -37,23 +37,28 @@ def main():
         entry.update(encoding='lz-8bpp',stored_bytes=len(packed),decoded_bytes=len(pixels),
             stored_sha256=sha(packed),decoded_sha256=sha(pixels),
             source_format='8bpp'if symbol=='SnakeTiles'else'4bpp, expanded before compression')
-    # Only SCORE is needed by the compact, self-contained Pascal game.
+    # Keep ASCII tile positions through S, with original pixels for the eight
+    # displayed glyphs and transparent unused slots. This is asset selection,
+    # not font redesign; no omitted glyph can be displayed by Snake.
     letters=(args.sdk/'examples/snake/assets/letters.zts').read_bytes()
-    pixels=bytes(pixel for letter in 'SCORE'
-                 for value in letters[(ord(letter)-65)*128:(ord(letter)-64)*128]
+    selected='ACEKNORS'
+    pixels=bytes(pixel for letter in range(65,84)
+                 for value in (letters[(letter-65)*128:(letter-64)*128]
+                               if chr(letter) in selected else bytes(128))
                  for pixel in (value>>4,value&15))
     packed=bytes(token for at in range(0,len(pixels),256)
                  for token in compress(list(pixels[at:at+256])))
     assert bytes(decompress(packed))==pixels
-    (out/'SCORE.INC').write_text(
-        '{ Original SDK SCORE glyphs, LZ encoded. See CREDITS.md and assets.json. }\n'
-        'const ScoreLetters: array[0..'+str(len(packed)-1)+'] of Byte = (\n'+
+    (out/'SNAKEFONT.INC').write_text(
+        '{ Original SDK title/score glyphs at ASCII tile IDs; unused slots transparent. }\n'
+        'const SnakeFont: array[0..'+str(len(packed)-1)+'] of Byte = (\n'+
         ',\n'.join('  '+','.join(str(value) for value in packed[at:at+24])
                    for at in range(0,len(packed),24))+'\n);\n')
-    manifest['score_letters']={'source':'letters.zts','glyphs':'SCORE',
-        'include':'SCORE.INC','encoding':'lz-8bpp','stored_bytes':len(packed),
+    manifest['snake_font']={'source':'letters.zts','glyphs':selected,
+        'include':'SNAKEFONT.INC','encoding':'lz-8bpp','stored_bytes':len(packed),
         'decoded_bytes':len(pixels),'stored_sha256':sha(packed),
         'decoded_sha256':sha(pixels)}
+    manifest.pop('score_letters',None)
     manifest['generator']='python3 tools/generate-zvb-assets.py --sdk <Zeal-VideoBoard-SDK>'
     manifest['encoder_sha256']=sha(encoder.read_bytes());manifest['decoder_sha256']=sha(decoder.read_bytes())
     (out/'assets.json').write_text(json.dumps(manifest,indent=2)+'\n')

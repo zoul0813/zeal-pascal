@@ -25,6 +25,10 @@ def standalone_demo(path):
     """Refresh generated include sections while keeping the demo one source."""
     text=path.read_text()
     def section(name):
+        # Keep the root within one source page at the native linker's RAM peak.
+        # These source includes are still embedded into the one saved COM.
+        if path.stem == 'SNAKE' and name in ('NUMBERS.INC','SNAKEFONT.INC'):
+            return '{$I '+name+'}'
         return ('{ BEGIN GENERATED INCLUDE: '+name+' }\n'+
                 (path.parent/name).read_text().rstrip()+
                 '\n{ END GENERATED INCLUDE: '+name+' }')
