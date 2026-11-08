@@ -7,7 +7,7 @@ input lines for a short demo. No shared example libraries, includes or compiler 
 
 | Example | Application | Pascal strengths |
 | --- | --- | --- |
-| [Lighthouse](lighthouse/README.md) | Text adventure | Enumerations, sets, command parsing, full-screen TP3 terminal dashboard |
+| [Lighthouse](lighthouse/README.md) | Text adventure | Enumerations, sets, cached screen updates, color and CP437 graphics |
 | [Parts Bin](partsbin/README.md) | Persistent stock database | Records, typed files, random access, recoverable I/O |
 | [Loan](loan/README.md) | Financial calculation | Real6, Exp/Ln, cent rounding, formatted tables |
 | [Calculator](calc/README.md) | Expression interpreter | Recursive descent, A- locals, Real arithmetic, error positions |
