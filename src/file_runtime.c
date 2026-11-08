@@ -55,7 +55,11 @@ extern uint8_t zf_memory_mode;
 #define MEMORY_MODE zf_memory_mode
 #else
 #define USER(at) ((uint8_t *)(at))
+#ifdef ZP_DIRECT_FILE
+#define MEMORY_MODE 0
+#else
 #define MEMORY_MODE (*((uint8_t *)0xfe78))
+#endif
 #endif
 static uint16_t word(uint16_t at) {
     return (uint16_t)USER(at)[0]|((uint16_t)USER(at)[1]<<8);
@@ -111,8 +115,24 @@ static uint8_t heap_span(uint16_t at,uint16_t size) {
     return 1;
 }
 static uint8_t readable(uint16_t at,uint16_t size) {
+#ifdef ZP_DIRECT_FILE
+    uint16_t data=word(0x4018),logical=at;
+    uint8_t pages=USER(0x4012)[0];
+    if(pages&4u) {
+        if(at<0x4000u)return 0;
+        logical=(at&0x3fffu)|0x4000u;
+        if(within(logical,size,data,job->static_end))return 1;
+        logical|=0x8000u;
+    } else if((pages&2u)&&at>=0x8000u) {
+        logical=at&0xbfffu;
+        if(within(logical,size,data,job->static_end))return 1;
+        logical|=0x4000u;
+    } else if(within(at,size,data,job->static_end))return 1;
+    return within(logical,size,job->stack_pointer,0xfc00)||heap_span(logical,size);
+#else
     return within(at,size,0x8000,job->static_end)||
         within(at,size,job->stack_pointer,0xfc00)||heap_span(at,size);
+#endif
 }
 /* Only typed/untyped data transfers opt into the experimental low interval.
  * File blocks, descriptors, paths and Text metadata retain readable() checks. */
@@ -171,7 +191,13 @@ static uint8_t standards(void) {
     for(i=0;i<count;++i) {
         at=table+2+4*i;object=word(at);identity=word(at+2);
         if(!identity||identity>ZF_STANDARD_USR||(identities&(1u<<(identity-1)))||
-           !within(object,ZF_FILE_BYTES,0x8000,job->code_origin))goto invalid;
+           !within(object,ZF_FILE_BYTES,
+#ifdef ZP_DIRECT_FILE
+               word(0x4018),
+#else
+               0x8000,
+#endif
+               job->code_origin))goto invalid;
         identities|=1u<<(identity-1);
         for(j=0;j<i;++j)if(word(table+2+4*j)==object)goto invalid;
     }
@@ -691,6 +717,49 @@ static void logical_stream(void) {
     job->stream=record->device;
     job->lookahead=(uint8_t)record->next|((record->state&LOOKAHEAD)?0x100u:0);
 }
+#ifdef ZP_DIRECT_FILE
+/* Program linking fills only retained operations. The table itself has no
+ * references to unused handlers, so the ordinary fragment linker can omit them. */
+typedef void (*FileOperation)(void);
+FileOperation zf_operations[34];
+void zf_op_reset(void) {activate(0);}
+void zf_op_rewrite(void) {activate(1);}
+void zf_op_close(void) {close_record();}
+void zf_op_read(void) {component(0);}
+void zf_op_write(void) {component(1);}
+void zf_op_position(void) {
+    if(job->operation==ZF_EOF&&!record->family) {if(access(0))text_predicate(ZF_EOF);return;}
+    if(!record->family)fail(0x20,0);
+    else if(access(0))job->result=job->operation==ZF_POSITION?record->position:
+        job->operation==ZF_SIZE?record->count:record->position>=record->count;
+}
+void zf_op_seek(void) {
+    if(!record->family)fail(0x20,0);
+    else if(access(0)) {if(job->count>record->count)fail(0x91,0);else record->position=job->count;}
+}
+void zf_op_flush(void) {
+    if(record->family!=1)fail(0x20,0);else if(record->state&OPENED)flush();else fail(3,0);
+}
+void zf_op_erase(void) {
+    uint8_t error;
+    if(record->state&OPENED)fail(0x20,0);
+    else {error=stat_file();if(error)native_error(error,2);
+        else if(!D_ISFILE(info.s_flags))fail(0x20,0);
+        else {error=remove_file();if(error)native_error(error,2);}}
+}
+void zf_op_rename(void) {rename_file();}
+void zf_op_blocks(void) {blocks(job->operation>=ZF_BLOCKWRITE,job->operation&1);}
+void zf_op_text_read(void) {if(record->family)fail(0x20,0);else if(access(0))text_read();}
+void zf_op_text_readln(void) {if(record->family)fail(0x20,0);else if(access(0))text_readln();}
+void zf_op_predicate(void) {if(record->family)fail(0x20,0);else if(access(0))text_predicate(job->operation);}
+void zf_op_text_write(void) {if(record->family)fail(0x20,0);else if(access(1))text_write(job->operation==ZF_TEXT_WRITELN);}
+void zf_op_begin(void) {if(record->family)fail(0x20,0);}
+void zf_op_path(void) {
+    uint16_t size=(uint16_t)strlen(record->path)+1;
+    if(job->count<size||!readable(job->data,size))fail(0x20,0);
+    else {memcpy(USER(job->data),record->path,size);job->actual=size-1;}
+}
+#endif
 static void dispatch(FileJob *invocation) {
     uint16_t family,width;
     uint8_t valid,error;
@@ -698,10 +767,22 @@ static void dispatch(FileJob *invocation) {
     if(job->operation!=ZF_STREAM_RETURN) {
         job->error=0; job->detail=0; job->result=0; job->actual=0; job->stream=0; job->lookahead=0;
     }
-    if(job->static_end<0x8000u||job->static_end>job->heap_floor||
+    if(job->static_end<
+#ifdef ZP_DIRECT_FILE
+       word(0x4018)||word(0x4018)<0x40a0u||
+#else
+       0x8000u||
+#endif
+       job->static_end>job->heap_floor||
        job->heap_floor>job->heap_frontier||job->heap_frontier>job->stack_pointer||
        job->stack_pointer<0xc800u||job->stack_pointer>0xfc00u||
-       job->code_origin<0x8000u||job->code_origin>job->static_end||
+       job->code_origin<
+#ifdef ZP_DIRECT_FILE
+       word(0x4018)||
+#else
+       0x8000u||
+#endif
+       job->code_origin>job->static_end||
        (job->heap_floor&1)||!descriptor(&family,&width)||!readable(job->object,ZF_FILE_BYTES)) {
         fail(0x1ff,0); return;
     }
@@ -751,6 +832,10 @@ static void dispatch(FileJob *invocation) {
              (job->operation>=ZF_EOLN&&job->operation<=ZF_SEEKEOLN)?2:3,0); return;
     }
     if(record->device) { logical_stream();flags();return; }
+#ifdef ZP_DIRECT_FILE
+    if(job->operation<34&&zf_operations[job->operation])zf_operations[job->operation]();
+    else fail(0x20,ERR_NOT_IMPLEMENTED);
+#else
     /* No descriptor is ever read from the copied/forged FIB slot. */
     switch(job->operation) {
     case ZF_TRANSFER_PATH: case ZF_TRANSFER_EXECUTE:
@@ -812,6 +897,7 @@ static void dispatch(FileJob *invocation) {
         break;
     default: fail(0x20,ERR_NOT_IMPLEMENTED); break;
     }
+#endif
     flags(); /* Reflect validated state changes even if transfer/close failed. */
 }
 void zf_dispatch(FileJob *invocation) ZFILE_CALL {

@@ -31,7 +31,10 @@
 #define CF_FRAGMENT_MASK 0x0fffu
 #define CF_REFERENCE_RESERVED 0x3000u
 #define CF_REFERENCE_SHIFT 14u
-enum { CF_WORD16,CF_LOW8,CF_HIGH8 };
+/* Runtime16 has target identity0, a14-bit logical runtime offset and addend0.
+ * It is resolved by the program linker, not a unit's fragment graph. */
+#define CF_RUNTIME_MASK 0x3fffu
+enum { CF_WORD16,CF_LOW8,CF_HIGH8,CF_RUNTIME16 };
 #define CC_FRAGMENT_OBJECTS 32u
 #define CC_FRAGMENT_LIMIT (PAGE_SIZE/4u)
 enum { CF_OK,CF_ARGUMENT,CF_OBJECT,CF_TARGET,CF_CAPACITY,CF_MEMORY,CF_CANCELLED,CF_OWNERSHIP };

@@ -18,7 +18,7 @@ def main():
     frame=re.split(r'\[DBG\] PC=',raw)[-1];state=n.memory(frame)
     word=lambda name:state.get(symbols[name],0)|(state.get(symbols[name]+1,0)<<8)
     checks={'authenticated completion':frame.startswith('fc01 ')and state.get(symbols['_test_done'])==255 and bytes(state.get(0x4000+i,0)for i in range(32))==fixtures[target+'.bin'][:32],
-            'all native assertions pass':word('_test_passed')==word('_test_index')==1188 and word('_test_failed')==0,
+            'all native assertions pass':word('_test_passed')==word('_test_index')==1246 and word('_test_failed')==0,
             'library deletion stage completed':word('_test_stage')==3}
     folder=n.RUN/'unsigned/hostfs';output=(folder/'UNSIGNED.TXT').read_bytes()if(folder/'UNSIGNED.TXT').exists()else b''
     for name,count in [('ARITH',3),('CAST',3),('CALL',4),('CONST',3),('INDEX',3),('WORD',3),('HEX',3)]:
@@ -26,7 +26,7 @@ def main():
     checks['unsigned decimal field width']=output.count(b'  4294967295\r\n')==3
     checks['unsigned decimal output']=output.count(b'65535 4294967295\r\n')==3
     checks['libraries and source removed']=all(not(folder/('WIDEMATH'+ext)).exists()for ext in ('.PAS','.ZPU'))
-    report={'passed':all(checks.values()),'checks':checks,'assertions':word('_test_passed'),'expected_assertions':1188,'failed':word('_test_failed'),
+    report={'passed':all(checks.values()),'checks':checks,'assertions':word('_test_passed'),'expected_assertions':1246,'failed':word('_test_failed'),
             'failure_indices':[state.get(symbols['_test_failures']+2*i,0)|(state.get(symbols['_test_failures']+2*i+1,0)<<8)for i in range(min(word('_test_failed'),64))],
             'diagnostics':[state.get(symbols['_test_diagnostics']+2*i,0)|(state.get(symbols['_test_diagnostics']+2*i+1,0)<<8)for i in range(min(2*word('_test_failed'),128))],
             'capture_directory':str(n.RUN.relative_to(ROOT))}

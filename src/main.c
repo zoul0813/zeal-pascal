@@ -5,6 +5,10 @@
 #include "compiler_job.h"
 #include "compiler_disk.h"
 #include "compiler_messages.h"
+#if defined(ZP_UNITS_EXPERIMENT) && defined(ZP_OPTIONAL_REAL)
+#include "runtime-layout.h"
+static uint16_t compiled_data_base;
+#endif
 #include <zos_sys.h>
 #include <zos_errors.h>
 #include <zos_vfs.h>
@@ -464,6 +468,9 @@ static uint8_t compile_work(uint8_t running) {
         output("Saved ");output(output_path());
         output("\n");
     }
+#if defined(ZP_UNITS_EXPERIMENT) && defined(ZP_OPTIONAL_REAL)
+    compiled_data_base=saved_mode==2?GLOBAL_BASE:image_get(&build,24)|((uint16_t)image_get(&build,25)<<8);
+#endif
     compiled_main_lines=build.source_lines;
     if(saved_mode&&!running)build_close(&build);
     return 1;
@@ -481,6 +488,13 @@ static uint8_t hexadecimal(const char *text,uint16_t *value) {
     }
     return 1;
 }
+static uint8_t option_limits(const CompileOptions *options,CompileLimits *limits) {
+    uint16_t data=GLOBAL_BASE;
+#if defined(ZP_UNITS_EXPERIMENT) && defined(ZP_OPTIONAL_REAL)
+    if(options->kind!=COMPILE_CHAIN)data=build.code_bytes&&compiled_data_base?compiled_data_base:RUNTIME_COMPACT_END;
+#endif
+    return compile_limits_at(data,build.code_bytes?build.globals_bytes:0,build.code_bytes,options,limits);
+}
 static void options_screen(void) {
     CompileLimits limits;
     screen_clear();output("Compiler options\nM Memory  C Com-file  H cHn-file  ");
@@ -493,7 +507,7 @@ static void options_screen(void) {
     if(saved_mode==COMPILER_UNIT_MODE){output("Compiled unit (.ZPU) selected\n");return;}
 #endif
     if(!saved_mode) {output("Memory selected\n");return;}
-    compile_limits(build.code_bytes?build.globals_bytes:0,build.code_bytes,&compile_options,&limits);
+    option_limits(&compile_options,&limits);
     output(saved_mode==2?"Native cHn-file selected\nS Start  E End\nStart: ":"Native Com-file selected\nS Start  E End\nStart: ");
     if(compile_options.start)output_hex(compile_options.start,4);else output("AUTO");
     output(" (min ");output_hex(limits.minimum_start,4);output(" max ");output_hex(limits.maximum_start,4);
@@ -511,7 +525,7 @@ static void option_address(uint8_t start) {
         if(field==3||hexadecimal(text,&value)) {
             if(field==3)value=start?0:0xfbffu;
             if(start)proposed.start=value;else proposed.end=value;
-            if(compile_limits(build.code_bytes?build.globals_bytes:0,build.code_bytes,&proposed,&limits)) {
+            if(option_limits(&proposed,&limits)) {
                 if(proposed.start!=compile_options.start||proposed.end!=compile_options.end) {
                     compile_options=proposed;build_close(&build);
                 }

@@ -1,4 +1,5 @@
 #include "compiler.h"
+#include "compiler_layout.h"
 #include "compiler_disk.h"
 #include "transfer_asset.h"
 #include "native_image.h"
@@ -45,10 +46,12 @@ uint8_t cc_seal(const Source *s,const CompileOptions *options) FRONTEND {
     b->map_length=cc.entries*MAP_RECORD_BYTES;
     buffer_initialized(b->map_page,b->map_length);
     cc_word(10,b->length);cc_word(20,b->code_origin);cc_word(22,b->code_bytes);
-    cc_word(24,GLOBAL_BASE);cc_word(26,b->globals_bytes);cc_word(28,0x4000u+b->length);
+    cc_word(24,cc_data_base());cc_word(26,b->globals_bytes);cc_word(28,0x4000u+b->length);
     cc_word(30,options?options->end:0xfbffu);
+    cc_word(32,cc_required_stack());
+    cc_word(132,cc_data_base()-0x4000u);
 #ifdef ZP_PROGRAM_PAGES
-    cc_word(18,cc.shared_stack?NATIVE_SHARED_STACK:0);
+    cc_word(18,cc.shared_stack==2?NATIVE_SINGLE_PAGE:cc.shared_stack?NATIVE_SHARED_STACK:0);
 #endif
     if(options&&options->kind==COMPILE_CHAIN)chain_image();
     else {

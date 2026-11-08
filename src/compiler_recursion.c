@@ -1,4 +1,4 @@
-#include "compiler.h"
+#include "compiler_layout.h"
 #ifdef ZP_UNITS_EXPERIMENT
 #include "compiler_units.h"
 #endif
@@ -21,7 +21,7 @@ static void block(uint16_t address,uint16_t bytes,uint8_t restoring) {
 #ifdef ZP_UNITS_EXPERIMENT
     if(cc.sources->unit_mode)cc_units_global(restoring?0x11:0x21,address);else
 #endif
-    cc_op16(restoring?0x11:0x21,address);
+    cc_data_op(restoring?0x11:0x21,address);
     cc_op16(0x01,bytes);cc_emit(0xed);cc_emit(0xb0);
 }
 static void copy(uint8_t restoring) {

@@ -2,6 +2,7 @@
 #define ZP_NATIVE_IMAGE_H
 #include <stdint.h>
 #define NATIVE_SHARED_STACK 2u
+#define NATIVE_SINGLE_PAGE 4u
 /* Decoded version-2 layout, never a serialized host structure. */
 typedef struct {
     uint16_t origin,bytes,length;

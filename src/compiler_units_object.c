@@ -178,6 +178,8 @@ uint8_t cc_units_write_object(void) ROUTINES {
         if(cursor.kind==UR_EXTERNAL) {
             module=cc_unit_word(cc_unit_word(reference+4)+8)+1;
             owner_id=cc_unit_word(reference+8);delta=cc_unit_word(reference+10);
+        } else if(cursor.kind==UR_RUNTIME) {
+            module=0;owner_id=(CF_RUNTIME16<<CF_REFERENCE_SHIFT)|(cursor.value-0x4000u);delta=0;
         } else if(cursor.kind==UR_GLOBAL) {
             owner_id=fragments;delta=cursor.value-GLOBAL_BASE;
             if(delta>=cc.image->globals_bytes){cc_fail(UNIT_FORMAT);return 0;}
@@ -305,7 +307,8 @@ static uint8_t pc_sites_valid(uint16_t module,uint16_t at,uint16_t pcs,uint16_t 
         }
         while(cursor<limit) {
             p=cc_unit_module_word(module,refbase+8*cursor);
-            width=(cc_unit_module_word(module,refbase+8*cursor+4)>>CF_REFERENCE_SHIFT)==CF_WORD16?2:1;
+            width=cc_unit_module_word(module,refbase+8*cursor+4)>>CF_REFERENCE_SHIFT;
+            width=width==CF_LOW8||width==CF_HIGH8?1:2;
             if(p+width>site)break;
             ++cursor;
         }
@@ -341,7 +344,9 @@ uint8_t cc_unit_validate_object(uint16_t module,const char *name,uint32_t stream
      * checksum-bound artifact bytes. Dependency IDs are resolved after loading. */
     if(cc_unit_module_word(module,blob+4)!=1)return 0;
     for(i=0;i<cc_unit_module_word(module,blob+8);++i) {
-        if(!cc_unit_module_word(module,refbase+i*8+2)||cc_unit_module_word(module,refbase+i*8+2)>cc_unit_module_word(module,36)+1)return 0;
+        if((cc_unit_module_word(module,refbase+i*8+4)>>CF_REFERENCE_SHIFT)==CF_RUNTIME16) {
+            if(cc_unit_module_word(module,refbase+i*8+2))return 0;
+        } else if(!cc_unit_module_word(module,refbase+i*8+2)||cc_unit_module_word(module,refbase+i*8+2)>cc_unit_module_word(module,36)+1)return 0;
     }
     if(!code_bytes||cc_unit_module_word(module,blob+10)!=(uint32_t)code_bytes+cc_unit_module_word(module,34))return 0;
     k=count;

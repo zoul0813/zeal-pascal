@@ -1,5 +1,6 @@
 #include "compiler.h"
 #include "compiler_disk.h"
+#include "compiler_layout.h"
 #include "path.h"
 #include "output_transport.h"
 #include <zos_vfs.h>
@@ -13,7 +14,7 @@ static const Build *owner;
 static int8_t disk=-1;
 static char scratch[128];
 static uint8_t cache[128],zero[128],cached,dirty,placed,sealed,chain_kind,owned;
-static uint16_t cache_at,extent,code_at,code_bytes,globals,code_base,code_used;
+static uint16_t cache_at,extent,code_at,code_bytes,globals,code_base,code_used,data_at;
 
 static uint8_t failure(void) {
     if(!platform_error)platform_error=ERR_FAILURE;
@@ -33,7 +34,14 @@ static uint8_t write_cache(void) {
     uint8_t reported,ok;
     if(output_write_buffer(disk,cache,128))return 1;
     reported=platform_error;
-    if(extent<PREFIX_BYTES||cache_at>=extent||reported<0x40u||reported>=0xc0u)return 0;
+    if(extent<PREFIX_BYTES||cache_at>=extent||reported<0x40u
+#ifndef ZP_STATIC_LAYOUT
+       ||reported>=0xc0u
+#endif
+       )return 0;
+    /* Compact final images can use a scratch extent above 48 KiB. Its
+     * file-size status byte may consequently be C0..FF; exact readback, not
+     * the old scratch ceiling, authenticates the committed overwrite. */
     ok=position(cache_at)&&output_read_buffer(disk,zero,128)&&!memcmp(cache,zero,128);
     memset(zero,0,sizeof(zero));
     platform_error=ok?0:reported;
@@ -102,7 +110,13 @@ static uint8_t raw_get(uint16_t at) {return disk>=0&&sector(at)?cache[at&127u]:0
  * fixed compiler ceilings. No full image or code page is held in RAM. */
 static uint8_t global_space(uint16_t code_length) {
     uint16_t wanted,at,n,i;uint8_t bytes[128];
-    if((uint32_t)PREFIX_BYTES+owner->globals_bytes+code_length>CC_STATIC_LIMIT-0x4000u) {
+    if((uint32_t)PREFIX_BYTES+owner->globals_bytes+code_length>
+#ifdef ZP_STATIC_LAYOUT
+       65535UL
+#else
+       CC_STATIC_LIMIT-0x4000u
+#endif
+       ) {
         cc_fail(99);return 0;
     }
     wanted=(PREFIX_BYTES+owner->globals_bytes+127u)&0xff80u;
@@ -139,16 +153,19 @@ uint8_t cc_disk_get(uint16_t at) {
 }
 void cc_disk_place(Build *b,uint16_t origin,uint16_t bytes) {
     if(!global_space(code_used))return;
-    code_at=origin-0x4000u;code_bytes=bytes;globals=b->globals_bytes;placed=compiler_disk_placed=1;
+    code_at=origin-0x4000u;code_bytes=bytes;globals=b->globals_bytes;
+    data_at=cc_data_base()-0x4000u;
+    placed=compiler_disk_placed=1;
 }
 static uint16_t image_offset(uint16_t at) {
     if(sealed&&chain_kind)return at<96?at:code_base+at-96;
     if(placed&&at>=code_at&&at-code_at<code_bytes)return code_base+at-code_at;
+    if(placed&&!chain_kind&&at>=data_at&&at-data_at<globals)return PREFIX_BYTES+at-data_at;
     return at;
 }
 uint8_t cc_disk_image(const Build *b,uint16_t at) {
     if(!cc_disk_active(b))return 0;
-    if(placed&&!chain_kind&&at>=0x4000u+globals&&at<code_at)return 0;
+    if(placed&&!chain_kind&&at>=data_at+globals&&at<code_at)return 0;
     return raw_get(image_offset(at));
 }
 /* Final-image writes after placement share the same mapper as reads. */

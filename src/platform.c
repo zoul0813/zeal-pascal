@@ -185,7 +185,7 @@ uint8_t run_build(const Source *s,Build *b) {
     if(!build_ready(s,b)) return 0;
     if(build_is_chain(b)) { platform_error=ERR_NOT_SUPPORTED;return 0; }
 #ifdef ZP_PROGRAM_PAGES
-    shared=(far_get(b->pages[0],18)&NATIVE_SHARED_STACK)&&b->pages[2]==255;
+    shared=far_get(b->pages[0],18)&(NATIVE_SHARED_STACK|NATIVE_SINGLE_PAGE);
 #endif
     if(!code_phase_park()) {code_phase_return();return 0;}
     if(!worker_control(WORKER_START)) {code_phase_return();return 0;}
@@ -193,7 +193,8 @@ uint8_t run_build(const Source *s,Build *b) {
      * address windows need backing; typed constants/code survive later Runs. */
     for(i=0;i<3;++i) {
 #ifdef ZP_PROGRAM_PAGES
-        if(i==2&&shared) {child[i]=child[1];continue;}
+        if((shared&NATIVE_SINGLE_PAGE)&&i) {child[i]=child[0];continue;}
+        if(i==2&&(shared&NATIVE_SHARED_STACK)) {child[i]=child[1];continue;}
 #endif
         if(b->pages[i]==255) {
             b->pages[i]=page_new(PAGE_IMAGE);

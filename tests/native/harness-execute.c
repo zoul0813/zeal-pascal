@@ -38,6 +38,7 @@ void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) SOURCE
     if(test_stage==7||saved_corpus()) check(save_build(&s,&b,0));
     owned=pages_used();
     for(i=0;i<3;++i)if(b.pages[i]==255&&
+        !(i&&(far_get(b.pages[0],18)&NATIVE_SINGLE_PAGE))&&
         !(i==2&&(far_get(b.pages[0],18)&NATIVE_SHARED_STACK)))++owned;
     test_machine(before);
     check(run_build(&s,&b));

@@ -132,7 +132,7 @@ void cc_reloc_put(uint16_t offset,uint8_t value) FRONTEND {byte_put(TABLE_RELOCA
 void cc_link_reference(uint16_t site,uint8_t space,uint16_t symbol,uint16_t addend,uint8_t kind) FRONTEND {
     uint8_t i;uint16_t words[3];uint32_t at=(uint32_t)cc.links*CC_LINK_BYTES;
     if(cc.error->code||cc.suppress)return;
-    if(kind>CF_HIGH8||space>CL_DATA_ADJUST||
+    if(kind>CF_HIGH8||space>CL_RUNTIME||
        (space!=CL_DATA_ADJUST&&symbol)||
        (space==CL_DATA_ADJUST&&(!symbol||addend||kind==CF_HIGH8))||site<CC_CODE_BASE||
        site>=CC_STATIC_LIMIT||cc.links==65535u){cc_fail(99);return;}

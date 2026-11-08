@@ -166,6 +166,9 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     cc_file_engine_finish();cc_keyboard_finish();cc_interrupt_finish();
     cc_transfer_finish();cc_file_stream_finish();cc_hooks_finish();cc_console_finish();cc_file_finish();cc_error_finish();
     cc_unpack_finish();
+#ifdef ZP_STATIC_LAYOUT
+    if(!cc_file_native_prepare())goto failed;
+#endif
     if(!options||options->kind!=COMPILE_CHAIN)cc_startup_finish();
     if(d->code||!cc_place_code())goto failed;
     if(!release_stages())goto failed;

@@ -1,4 +1,5 @@
 #include "compiler_link.h"
+#include "compiler_layout.h"
 #ifdef ZP_UNITS_EXPERIMENT
 static uint16_t word(const uint8_t *record,uint8_t at) {
     return record[at]|((uint16_t)record[at+1]<<8);
@@ -9,7 +10,7 @@ uint8_t cc_link_apply(uint16_t code_origin,uint16_t data_origin) ROUTINES {
     for(i=0;i<cc.links;++i) {
         if(!cc_poll()||!cc_link_read(i,record))return 0;
         site=word(record,0);offset=word(record,4);space=record[6];kind=record[7];
-        if(kind>CF_HIGH8||space>CL_DATA_ADJUST||
+        if(kind>CF_HIGH8||space>CL_RUNTIME||
            (space!=CL_DATA_ADJUST&&word(record,2))||site<CC_CODE_BASE||
            site>=cc.emitted||(kind==CF_WORD16&&site==cc.emitted-1))goto invalid;
         if(space==CL_DATA_ADJUST) {
@@ -21,11 +22,15 @@ uint8_t cc_link_apply(uint16_t code_origin,uint16_t data_origin) ROUTINES {
             if(cc.error->code)return 0;
             continue;
         }
-        if(space==CL_CODE) {
+        if(space==CL_RUNTIME) {
+            if(offset<0x4000u||offset>=GLOBAL_BASE)goto invalid;
+            address=cc_runtime_address(offset);
+        } else if(space==CL_CODE) {
             if(offset>=cc.emitted-CC_CODE_BASE)goto invalid;
             address=(uint32_t)code_origin+offset;
         } else {
-            if(offset>=cc.image->globals_bytes)goto invalid;
+            /* A zero-width final global has the one-past data address. */
+            if(offset>cc.image->globals_bytes)goto invalid;
             address=(uint32_t)data_origin+offset;
         }
         if(address>65535UL)goto invalid;

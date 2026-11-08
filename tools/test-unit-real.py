@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import re
 # The nineteenth bank adds one pending-owner assertion at each of 58 cleanup checkpoints.
-EXPECTED_ASSERTIONS=1761
+EXPECTED_ASSERTIONS=1763
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py')
 n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
@@ -35,7 +35,7 @@ def main():
     fixtures={target+'.'+ext:(ROOT/f'build/{target}.{ext}').read_bytes()for ext in ('bin','zpl')}
     fixtures.update(argument_fixtures())
     fixtures['CRT.ZPU']=(ROOT/'build/CRT.ZPU').read_bytes()
-    commands=['run 100000000']+n.program_launch(target)+[f"bp 0x{symbols['_test_stop']:x}",'run 20000000000','s','regs','rb 0x4000 32']
+    commands=['run 100000000']+n.program_launch(target)+[n.ImageStop(symbols['_test_stop'],target+'.bin'),'s','regs','rb 0x4000 32']
     for name in ('_test_done','_test_passed','_test_failed','_test_index','_test_stage'):
         commands += [f'rb 0x{symbols[name]:x} 2']
     commands += [f"rb 0x{symbols['_test_failures']:x} 128",f"rb 0x{symbols['_test_diagnostics']:x} 256",'quit']
@@ -52,7 +52,7 @@ def main():
     core=(ROOT/'build/integer_runtime.zpl').read_bytes();full=(ROOT/'build/pascal_runtime.zpl').read_bytes()
     for name,real in [('PLAIN',False),('COPY',False),('SCALE',True),('TRANSIT',True),('UNUSED',False),('FAULTRUN',True),('TYPELEAF',False)]:
         path=folder/(name+'.COM')
-        checks[name+' selects correct Real engine']=path.is_file()and path.read_bytes()[3466:14285]==(full if real else core)[3466:14285]
+        checks[name+' selects correct Real engine']=path.is_file()and int.from_bytes(path.read_bytes()[132:134],'little')==(16383 if real else 6042)and (path.read_bytes()[3466:14285]==full[3466:14285] if real else n.compact_prefix_matches(path.read_bytes(),executed=True))
     checks['unit source and library deleted']=not(folder/'MIXED.PAS').exists()and not(folder/'MIXED.ZPU').exists()
     report={'passed':all(checks.values()),'checks':checks,'assertions':word('_test_passed'),'expected_assertions':EXPECTED_ASSERTIONS,'failed':word('_test_failed'),
             'failure_indices':[state.get(symbols['_test_failures']+2*i,0)|(state.get(symbols['_test_failures']+2*i+1,0)<<8)for i in range(min(word('_test_failed'),64))],

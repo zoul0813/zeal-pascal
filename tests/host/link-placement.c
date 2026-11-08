@@ -35,12 +35,12 @@ int main(void){
  reset();cc_link_reference(0x80ff,CL_CODE,0,0,CF_HIGH8);check(cc_link_apply(0x8101,0x8000));check(code[255]==0x81);
  reset();cc_link_reference(0x80ff,CL_CODE,0,0,CF_WORD16);check(!cc_link_apply(0x8101,0x8000)&&diagnostic.code==99);
  reset();cc_link_reference(0x8000,CL_CODE,0,256,CF_HIGH8);check(!cc_link_apply(0x8101,0x8000)&&diagnostic.code==99);
- reset();cc_link_reference(0x8000,CL_DATA,0,8,CF_LOW8);check(!cc_link_apply(0x8101,0x8000)&&diagnostic.code==99);
+ reset();cc_link_reference(0x8000,CL_DATA,0,9,CF_LOW8);check(!cc_link_apply(0x8101,0x8000)&&diagnostic.code==99);
  reset();cc_link_reference(0x8000,CL_CODE,0,255,CF_WORD16);check(!cc_link_apply(0xff01,0x8000)&&diagnostic.code==99);
  reset();cc_link_reference(0x8000,CL_DATA,0,7,CF_WORD16);check(!cc_link_apply(0x8101,0xffff)&&diagnostic.code==99);
  reset();cc_link_reference(0x7fff,CL_CODE,0,0,CF_WORD16);check(diagnostic.code==99&&!cc.links);
  reset();cc_link_reference(0x8000,CL_CODE,1,0,CF_WORD16);check(diagnostic.code==99&&!cc.links);
- reset();cc_link_reference(0x8000,CL_DATA_ADJUST+1,0,0,CF_WORD16);check(diagnostic.code==99&&!cc.links);
+ reset();cc_link_reference(0x8000,CL_RUNTIME+1,0,0,CF_WORD16);check(diagnostic.code==99&&!cc.links);
  reset();cc_link_reference(0x8000,CL_CODE,0,0,CF_HIGH8+1);check(diagnostic.code==99&&!cc.links);
  reset();cc.suppress=1;cc_link_reference(0x8000,CL_CODE,0,0,CF_WORD16);check(!cc.links&&!diagnostic.code);
  reset();cc_link_reference(0x8000,CL_CODE,0,0,CF_WORD16);cancel=1;check(!cc_link_apply(0x8101,0x8000)&&diagnostic.code==COMPILE_INTERRUPTED);check(code[0]==0xa5);
@@ -48,6 +48,8 @@ int main(void){
  cc_link_reference(0x8002,CL_DATA_ADJUST,65535u,0,CF_LOW8);code[2]=0x10;
  check(cc_link_apply(0x8101,0x5001));check((code[0]|((uint16_t)code[1]<<8))==0x2203);check(code[2]==0x0f);
  reset();cc_link_reference(0x8000,CL_DATA_ADJUST,1,0,CF_HIGH8);check(diagnostic.code==99&&!cc.links);
+ reset();
+ cc_link_reference(0x8000,CL_DATA,0,8,CF_WORD16);check(cc_link_apply(0x8101,0x5000));check((code[0]|((uint16_t)code[1]<<8))==0x5008);
  reset();
  /* Cross64 KiB without reducing ordinary four-byte relocation capacity. */
  for(i=0;i<9000;++i)cc_link_reference(0x8000,CL_CODE,0,i%256,CF_HIGH8);

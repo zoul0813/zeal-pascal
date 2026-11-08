@@ -36,7 +36,7 @@ static void client(const char *path,const char *text,uint8_t full) {
     uint8_t status=255;
     check(source_new(&s,path));check(load(text));check(compile(&s,&b,&d));
     if(b.valid) {
-        check(!!(far_get(b.pages[0],18)&NATIVE_SHARED_STACK)==!full);
+        check(!!(far_get(b.pages[0],18)&(NATIVE_SHARED_STACK|NATIVE_SINGLE_PAGE))==!full);
         if(!full)check(b.pages[2]==255);
         check(save_build(&s,&b,0));
         {uint8_t ok=run_build(&s,&b);if(ram_result[26]!=1){d.code=ram_result[28];d.start=ram_result[30]|((uint16_t)ram_result[31]<<8);}check(ok&&ram_result[26]==1);}
@@ -75,34 +75,34 @@ int app_main(void) {
         "if(L<=2147483647)or(L div 65536<>32768)or(L shr 31<>1)then Z:=1 div Z;\n"
         "L:=$12345678;if L*3<>$369D0368 then Z:=1 div Z;\n"
         "if(L and 65535<>$5678)or(L xor $FFFFFFFF<>$EDCBA987)then Z:=1 div Z;\n"
-        "writeln('UNSIGNED-ARITH-OK')end.",1);
+        "writeln('UNSIGNED-ARITH-OK')end.",0);
     client("H:/UCAST.PAS","var W:Word;L:LongWord;I,Z:Integer;begin Z:=0;I:=-1;W:=Word(I);L:=LongWord(I);\n"
         "if(W<>65535)or(L<>4294967295)then Z:=1 div Z;W:=Word($1234ABCD);if W<>$ABCD then Z:=1 div Z;\n"
         "L:=LongWord(65535)+1;if L<>65536 then Z:=1 div Z;\n"
         "if(Hi(L)<>1)or(Lo(L)<>0)or(not Odd(L+1))or(Swap(L)<>1)then Z:=1 div Z;\n"
-        "writeln('UNSIGNED-CAST-OK')end.",1);
+        "writeln('UNSIGNED-CAST-OK')end.",0);
     client("H:/UCALL.PAS","uses WideMath;var L:LongWord;B:TBox;Z:Integer;\n"
         "function Twice(X:LongWord):LongWord;begin Twice:=X*2 end;\n"
         "begin Z:=0;L:=Mix(65535,65535);if L<>Max32 then Z:=1 div Z;B.A:=Max16;B.B:=L;\n"
         "Bump(L);if(L<>0)or(B.A<>65535)or(B.B<>Max32)then Z:=1 div Z;\n"
         "L:=Twice(Twice(123456789));if L<>493827156 then Z:=1 div Z;\n"
-        "writeln('UNSIGNED-CALL-OK')end.",1);
+        "writeln('UNSIGNED-CALL-OK')end.",0);
     client("H:/UCONST.PAS","const A:array[1..2]of LongWord=(0,$FFFFFFFF);W:Word=65535;\n"
         "var L:LongWord;Z:Integer;S:string[12];begin Z:=0;L:=A[2];if(L<>4294967295)or(W<>65535)then Z:=1 div Z;\n"
-        "Str(L:12,S);if S<>'  4294967295'then Z:=1 div Z;writeln('UNSIGNED-CONST-OK');writeln(W,' ',L);writeln(L:12)end.",1);
+        "Str(L:12,S);if S<>'  4294967295'then Z:=1 div Z;writeln('UNSIGNED-CONST-OK');writeln(W,' ',L);writeln(L:12)end.",0);
     client("H:/UINDEX.PAS","{$R+}uses WideMath;var A:TBytes;B:array[0..3]of Word;I:Word;Z,N:Integer;begin Z:=0;N:=0;\n"
         "for I:=32760 to 32775 do begin A[I]:=Byte(I);N:=N+1 end;if N<>16 then Z:=1 div Z;\n"
         "for I:=32760 to 32775 do if A[I]<>Byte(I)then Z:=1 div Z;\n"
         "for I:=0 to 3 do B[I]:=65535-I;if B[3]<>65532 then Z:=1 div Z;I:=40000;\n"
         "case I of 0..32767:Z:=1 div Z;40000:N:=42 end;if N<>42 then Z:=1 div Z;\n"
-        "writeln('UNSIGNED-INDEX-OK')end.",1);
+        "writeln('UNSIGNED-INDEX-OK')end.",0);
     client("H:/ULITE.PAS","var W:Word;begin W:=65535;W:=(W+2)*3;if(W<>3)or(W shr 1<>1)then halt end.",0);
     client("H:/UWORD.PAS","var W:Word;I,Z:Integer;C:Char;begin Z:=0;I:=-1;W:=5;\n"
         "if(W>=I)or(W>-1)or(-10 div W<>13105)then Z:=1 div Z;\n"
         "W:=65535;if(W shr 1<>32767)or(W shr 16<>0)or(W shl 16<>0)or(W*W<>1)then Z:=1 div Z;\n"
         "if(W shr 256<>0)or(W shl 256<>0)or(W shr 65535<>0)or(W shl 65535<>0)then Z:=1 div Z;\n"
         "W:=65;C:=Chr(W);if(C<>'A')or(Char(W)<>'A')or(Word('A')<>65)then Z:=1 div Z;\n"
-        "writeln('UNSIGNED-WORD-OK')end.",1);
+        "writeln('UNSIGNED-WORD-OK')end.",0);
     client("H:/URETURN.PAS","uses WideMath;var L:LongWord;Z:Integer;\n"
         "begin Z:=0;L:=Fixed;if(Hi(L)<>$1234)or(Lo(L)<>$5678)or(Hi(Swap(L))<>$5678)or(Lo(Swap(L))<>$1234)then Z:=1 div Z end.",0);
     client("H:/UHEX.PAS","{$R+}const Minus=$FFFF;var X:Byte absolute $C000;P:^Byte;I,Z:Integer;\n"
@@ -110,12 +110,12 @@ int app_main(void) {
         "begin Z:=0;I:=$FFFF;P:=Ptr($C000);if(I<>-1)or(Minus<>-1)or($FFFF div 2<>0)or($FFFF shr 1<>32767)then Z:=1 div Z;\n"
         "writeln('UNSIGNED-HEX-OK')end.",1);
     client("H:/USHADOW.PAS","const Y=1;var Z:Integer;procedure P;const X:Integer=Y;Y=2;W:Word=65535;\n"
-        "begin if(X<>1)or(W<>65535)then Z:=1 div Z end;begin Z:=0;P end.",1);
+        "begin if(X<>1)or(W<>65535)then Z:=1 div Z end;begin Z:=0;P end.",0);
     client("H:/UTFILES.PAS","var F:file of Word;G:file of LongWord;W:Word;L:LongWord;Z:Integer;\n"
         "begin Z:=0;W:=65535;Assign(F,'H:/WORDS.DAT');Rewrite(F);Write(F,W);Close(F);\n"
         "W:=0;Reset(F);Read(F,W);Close(F);if W<>65535 then Z:=1 div Z;\n"
         "L:=$FEDCBA98;Assign(G,'H:/LONGS.DAT');Rewrite(G);Write(G,L);Close(G);\n"
-        "L:=0;Reset(G);Read(G,L);Close(G);if L<>$FEDCBA98 then Z:=1 div Z end.",1);
+        "L:=0;Reset(G);Read(G,L);Close(G);if L<>$FEDCBA98 then Z:=1 div Z end.",0);
     reject("var C:Char;W:Word;begin C:=W end.",44);
     reject("var C:Char;L:LongWord;begin C:=L end.",44);
     reject("var C:Char;begin C:=40000 end.",44);

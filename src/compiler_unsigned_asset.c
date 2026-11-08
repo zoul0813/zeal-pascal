@@ -18,5 +18,5 @@ static uint16_t engine(void) {
 void cc_unsigned_call(uint8_t op) BACKEND {
     uint16_t entry;
     if(cc.suppress||cc.error->code)return;
-    entry=engine();cc_require_full_memory();cc_reserve(96);cc_emit(0x3e);cc_emit(op);cc_address(0xcd,entry);
+    entry=engine();cc_reserve(96);cc_emit(0x3e);cc_emit(op);cc_address(0xcd,entry);
 }

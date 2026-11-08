@@ -1,3 +1,4 @@
+#include "compiler_layout.h"
 #include "compiler_late.h"
 
 /* Execution polls borrow the same nondestructive physical lookahead as
@@ -19,7 +20,7 @@ static void engine(void) {
     cc_patch(probe);cc_address(0xcd,cc.keyboard_probe);
     cc_emit(0xfe);cc_emit(3);cc_patch(stop);
     probe=cc_forward(0xca);cc_address(0xc3,cc.keyboard_enqueue);cc_patch(probe);
-    cc_op16(0xc3,cc_runtime_private(RP_USER_BREAK));
+    cc_runtime_op(0xc3,cc_runtime_private(RP_USER_BREAK));
     cc_patch(skip);
 
     cc_root_bind(LATE_ROOT,LATE_INTERRUPT,cc.interrupt_entry);

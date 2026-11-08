@@ -40,7 +40,7 @@ static void author(const char *path,const char *artifact,const char *text,uint8_
 static void client(const char *path,const char *text,uint8_t shared) {
     uint8_t status=255;check(source_new(&s,path));check(load(text));check(compile(&s,&b,&d));
     if(b.valid) {
-        check(!cc.real_needed);check(!!(far_get(b.pages[0],18)&NATIVE_SHARED_STACK)==shared);
+        check(!cc.real_needed);check(!!(far_get(b.pages[0],18)&(NATIVE_SHARED_STACK|NATIVE_SINGLE_PAGE))==shared);
         check(save_build(&s,&b,0));
         {uint8_t ok=run_build(&s,&b);if(ram_result[26]!=1){d.code=ram_result[28];d.start=ram_result[30]|((uint16_t)ram_result[31]<<8);}check(ok&&ram_result[26]==1);}
         check(run_build(&s,&b)&&ram_result[26]==1);
@@ -237,7 +237,7 @@ unit_probe:
                 file_client("H:/PAGE.PAS",0,0);file_client("H:/SOUND.PAS",0,0);
                 file_client("H:/ZVBCHECK.PAS",0,0);
                 file_client("H:/SPRITES.PAS",1,0);file_client("H:/SNAKE.PAS",present("H:/DISKSNAKE.RUN")?3:4,0);
-                file_client("H:/FIRSTBAR.PAS",1,0);file_client("H:/CRC32.PAS",2,1);
+                file_client("H:/FIRSTBAR.PAS",1,0);file_client("H:/CRC32.PAS",2,0);
             }
         }
 done:

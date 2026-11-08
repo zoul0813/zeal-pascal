@@ -1,5 +1,10 @@
+#include "compiler_layout.h"
+#include "compiler_link.h"
 #include "compiler_late.h"
 #include "file_runtime.h"
+#ifdef ZP_STATIC_LAYOUT
+static void backend_call(void) {cc.file_native_operand=cc_link(0xcd,cc.file_native_operand);}
+#endif
 typedef char text_kinds_match[(K_INTEGER==ZF_TEXT_INTEGER&&K_STRING==ZF_TEXT_STRING&&
     K_CHAR==ZF_TEXT_CHAR&&K_BYTE==ZF_TEXT_BYTE&&K_REAL==ZF_TEXT_REAL)?1:-1];
 
@@ -9,7 +14,11 @@ static void index_store(uint8_t opcode,uint8_t offset) { cc_emit(0xfd); cc_emit(
 static void guard(uint16_t bytes) {
     cc_op16(0x2a,RT_PC);
     cc_address(0x22,cc.emitted+8);
+#ifdef ZP_STATIC_LAYOUT
+    cc_native_reserve(bytes);
+#else
     cc_reserve(bytes);
+#endif
 }
 /* Transport leaves a numeric token in a caller-owned context. Convert only
  * after the original runtime prefix is restored; Val supplies the same grammar
@@ -52,15 +61,15 @@ static void number_result(void) {
  * Peek/Take; the physical source cursor is independent for other bindings. */
 static void console_predicate(void) {
     uint16_t loop=cc.emitted,lines,test,skip,no,yes,answer,end;
-    cc_op16(0xcd,cc_runtime_private(RP_INPUT_READY)); cc_emit(0x47);
+    cc_runtime_op(0xcd,cc_runtime_private(RP_INPUT_READY)); cc_emit(0x47);
     index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_SEEKEOF); lines=cc_forward(0xca);
     cc_emit(0xfe); cc_emit(ZF_SEEKEOLN); answer=cc_forward(0xc2);
     cc_emit(0x78); cc_emit(0xfe); cc_emit(32); skip=cc_forward(0xca);
     cc_emit(0xfe); cc_emit(9); no=cc_forward(0xc2);
-    cc_patch(skip); cc_op16(0xcd,cc_runtime_private(RP_INPUT_ADVANCE)); cc_address(0xc3,loop);
+    cc_patch(skip); cc_runtime_op(0xcd,cc_runtime_private(RP_INPUT_ADVANCE)); cc_address(0xc3,loop);
     cc_patch(lines); cc_emit(0x78); cc_emit(0xfe); cc_emit(26); yes=cc_forward(0xca);
     cc_emit(0xfe); cc_emit(33); test=cc_forward(0xd2);
-    cc_op16(0xcd,cc_runtime_private(RP_INPUT_ADVANCE)); cc_address(0xc3,loop);
+    cc_runtime_op(0xcd,cc_runtime_private(RP_INPUT_ADVANCE)); cc_address(0xc3,loop);
     cc_patch(answer); cc_patch(no); cc_emit(0x78); cc_emit(0xfe); cc_emit(26); answer=cc_forward(0xca);
     index_store(0x7e,0); cc_emit(0xfe); cc_emit(ZF_EOF); end=cc_forward(0xca);
     cc_emit(0x78); cc_emit(0xfe); cc_emit(13); skip=cc_forward(0xc2);
@@ -87,7 +96,12 @@ static void stream_result(void) {
      * owner preserves the first error and the operation's result/count. */
     index_store(0x7e,0); cc_emit(0xf5);
     index_store(0x36,0); cc_emit(ZF_STREAM_RETURN);
-    cc_emit(0xfd); cc_emit(0xe5); cc_emit(0xe1); cc_emit(0xaf); cc_op16(0xcd,0xfe90);
+    cc_emit(0xfd); cc_emit(0xe5); cc_emit(0xe1); cc_emit(0xaf);
+#ifdef ZP_STATIC_LAYOUT
+    backend_call();
+#else
+    cc_op16(0xcd,0xfe90);
+#endif
     cc_emit(0xf1); index_store(0x77,0);
     number_result(); cc_patch(finish); cc_patch(write); cc_patch(end); done=cc_forward(0xc3);
     cc_word(operand,cc.emitted);
@@ -115,6 +129,37 @@ static void stream_result(void) {
     cc_patch(predicate); console_predicate();
     cc_patch(disk); number_result(); cc_patch(done);
 }
+#ifdef ZP_STATIC_LAYOUT
+static void engine(void) {
+    uint16_t skip,ready;
+    if(cc.file_entry||cc.suppress||cc.error->code)return;
+    if(cc_root_member()){cc_root_request(LATE_ROOT,LATE_FILE);return;}
+    skip=cc_forward(0xc3);cc.file_entry=cc.emitted;
+    cc_op16(0x3a,RT_IOSTATUS);cc_emit(0xb7);cc_op16(0xc2,RT_IOFAIL);
+    cc_emit(0xfd);cc_emit(0xe5);cc_emit(0xe5); /* saved With and caller job */
+    /* IY must name the FileJob; retain it across the native C boundary. */
+    cc_emit(0xe5);cc_emit(0xfd);cc_emit(0xe1);
+    guard(1536);
+    cc_op16(0x2a,RT_HEAPFLOOR);index_store(0x75,14);index_store(0x74,15);
+    cc_op16(0x2a,RT_HEAPPTR);index_store(0x75,16);index_store(0x74,17);
+    cc_op16(0x2a,0x401c);index_store(0x75,18);index_store(0x74,19);
+    cc_op16(0x2a,RT_PC);index_store(0x75,26);index_store(0x74,27);
+    cc_op16(0x21,0);cc_emit(0x39);index_store(0x75,28);index_store(0x74,29);
+    cc_op16(0x2a,0x4014);index_store(0x75,30);index_store(0x74,31);
+    cc.standard_table_operand=cc.emitted+1;cc_address(0x21,0);
+    index_store(0x75,32);index_store(0x74,33);
+    cc.hook_mask_call=cc.emitted;cc_op16(0xcd,0);
+    cc_emit(0xfd);cc_emit(0xe5);cc_emit(0xe1);backend_call();
+    cc.file_stream_operand=cc.emitted;cc_emit(0);cc_emit(0);cc_emit(0);
+    index_store(0x6e,24);index_store(0x66,25);cc_op16(0x22,0xfe7a);
+    index_store(0x5e,22);index_store(0x56,23);
+    cc_emit(0xe1);cc_emit(0xfd);cc_emit(0xe1);
+    cc_emit(0x7a);cc_emit(0xb7);ready=cc_forward(0xca);
+    cc_emit(0x7b);cc_emit(0x06);cc_emit(2);cc_op16(0xc3,RT_ERROR);
+    cc_patch(ready);cc_emit(0x7b);cc_emit(0xb7);cc_emit(0xc8);cc_op16(0xc3,RT_IOFAIL);
+    cc_patch(skip);cc_root_bind(LATE_ROOT,LATE_FILE,cc.file_entry);
+}
+#else
 static void engine(void) {
     uint16_t skip,asset,gate,bootstrap,ready,normal,allocated,i;
     uint16_t packed_bytes=cc_file_asset_size(0),gate_bytes=cc_file_asset_size(1);
@@ -183,15 +228,26 @@ static void engine(void) {
     cc_patch(skip);
     cc_root_bind(LATE_ROOT,LATE_FILE,cc.file_entry);
 }
+#endif
 static void store(uint8_t offset,uint16_t extra) {
     cc_emit(0x44); cc_emit(0x4d); cc_op16(0x21,offset+extra); cc_emit(0x39);
     cc_emit(0x71); cc_emit(0x23); cc_emit(0x70);
 }
+/* Every emitted operation contributes its retained native handler, including
+ * partial block calls and Text operations that replace the initial opcode. */
+static void retain_operation(uint8_t operation) {
+#ifdef ZP_STATIC_LAYOUT
+    if(!cc.suppress&&!cc.error->code)cc.file_operations[operation>>3]|=1u<<(operation&7u);
+#else
+    (void)operation;
+#endif
+}
+static void job_operation(uint8_t operation,uint16_t extra) {cc_op16(0x21,operation);store(0,extra);}
 static uint16_t job_start(uint8_t operation) {
     uint16_t before=cc.temporaries;
     cc_temporary(ZF_JOB_BYTES); cc_op16(0x21,0); cc_emit(0x39);
     cc_op16(0x01,ZF_JOB_BYTES); cc_emit(0xaf); cc_call(RT_FILL);
-    cc_op16(0x21,operation); store(0,0);
+    job_operation(operation,0);
     return before;
 }
 static void argument_descriptor(TypeId type) {
@@ -209,8 +265,8 @@ static TypeId file_argument(uint16_t base) {
     cc_release(base+ZF_JOB_BYTES); argument_descriptor(type);
     return type;
 }
-static void invoke(uint16_t base) {
-    engine();
+static void invoke(uint16_t base,uint8_t operation) {
+    retain_operation(operation);engine();
     cc_reserve(64); cc_op16(0x21,cc.temporaries-base-ZF_JOB_BYTES); cc_emit(0x39);
     cc_op16(0xcd,RT_IOCALL); cc_root_operand(LATE_ROOT,LATE_FILE,cc.file_entry,0); cc_emit(cc.io_check);
 }
@@ -223,7 +279,7 @@ uint16_t cc_file_default_output(void) FRONTEND {
     cc_op16(0x2a,RT_PC); cc_emit(0xe5);
     cc_op16(0x21,4); cc_emit(0x39); cc_emit(0x46);
     cc_temporary(2); cc_emit(0x3e); cc_emit(1); cc_emit(0x12); cc_emit(0x13); cc_emit(0x78); cc_emit(0x12);
-    base=job_start(ZF_TEXT_WRITE);
+    base=job_start(ZF_TEXT_WRITE);retain_operation(ZF_TEXT_WRITE);
     type=cc_standard_reference(ZF_STANDARD_AUX); argument_descriptor(type);
     cc_op16(0x21,ZF_JOB_BYTES); cc_emit(0x39); store(6,0);
     cc_op16(0x21,ZF_OUTPUT_NATIVE); store(8,0);
@@ -265,12 +321,12 @@ uint8_t cc_file_statement(void) FRONTEND {
         if(cc.token==',') {
             cc_next(); if(cc_reference(41)!=K_INTEGER) cc_fail(24);
             cc_release(base+ZF_JOB_BYTES); cc_reserve(2); cc_emit(0xe5); cc.temporaries+=2;
-            actual=1; cc_op16(0x21,operation+1); store(0,2);
+            actual=1; job_operation(operation+1,2);
         }
     }
     cc_expect(')',5);
-    if(operation==ZF_TRANSFER_PATH||operation==ZF_TRANSFER_EXECUTE) {engine();cc_transfer_statement(base);cc_release(base);return 1;}
-    invoke(base);
+    if(operation==ZF_TRANSFER_PATH||operation==ZF_TRANSFER_EXECUTE) {retain_operation(operation);engine();cc_transfer_statement(base);cc_release(base);return 1;}
+    invoke(base,operation+actual);
     if(actual) {
         result(base,10); cc_emit(0xeb); cc_emit(0xe1); cc.temporaries-=2;
         cc_emit(0x73); cc_emit(0x23); cc_emit(0x72);
@@ -291,7 +347,7 @@ int16_t cc_file_function(void) FRONTEND {
         cc_expect('(',4); type=file_argument(base); cc_expect(')',5);
     }
     if(cc_family(type)==K_FILE&&CCT(type,capacity)!=FILE_TEXT&&operation>=ZF_EOLN) cc_fail(66);
-    invoke(base); result(base,20); cc_release(base);
+    invoke(base,operation); result(base,20); cc_release(base);
     return operation==ZF_POSITION||operation==ZF_SIZE?K_INTEGER:K_BOOLEAN;
 }
 /* Selection-only lookahead does not evaluate an index twice at runtime. The
@@ -314,16 +370,16 @@ void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND {
     if(CCT(type,capacity)==FILE_TEXT) {
         if(!writing) {
             uint8_t checking=cc.io_check;
-            cc_op16(0x21,ZF_TEXT_BEGIN); store(0,0);
+            job_operation(ZF_TEXT_BEGIN,0);
             cc_op16(0x21,newline?4:cc.token==')'?2:0); store(8,0);
             /* Preparation cannot raise a pending I/O error before destination
              * expressions run. The actual field/ReadLn owns checked delivery. */
             if(cc.token==','||newline) cc.io_check=0;
-            invoke(base); cc.io_check=checking;
+            invoke(base,ZF_TEXT_BEGIN); cc.io_check=checking;
         }
         while(cc.token==','&&!cc.error->code) {
             cc_next();
-            cc_op16(0x21,writing?ZF_TEXT_WRITE:ZF_TEXT_READ); store(0,0);
+            job_operation(writing?ZF_TEXT_WRITE:ZF_TEXT_READ,0);
             if(writing) {
                 cc_formatted_value(); store(6,cc.temporaries-base-ZF_JOB_BYTES);
             } else {
@@ -340,11 +396,11 @@ void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND {
                 cc_op16(0x21,kind|((uint16_t)(kind==K_STRING?CCT(actual,capacity):0)<<8));
                 store(8,cc.temporaries-base-ZF_JOB_BYTES);
             }
-            invoke(base); cc_release(base+ZF_JOB_BYTES);
+            invoke(base,writing?ZF_TEXT_WRITE:ZF_TEXT_READ); cc_release(base+ZF_JOB_BYTES);
         }
         cc_expect(')',5);
         if(newline) {
-            cc_op16(0x21,writing?ZF_TEXT_WRITELN:ZF_TEXT_READLN); store(0,0); invoke(base);
+            job_operation(writing?ZF_TEXT_WRITELN:ZF_TEXT_READLN,0); invoke(base,writing?ZF_TEXT_WRITELN:ZF_TEXT_READLN);
         }
         cc_release(base); return;
     }
@@ -356,7 +412,7 @@ void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND {
            (cc_family(actual)==K_POINTER&&cc_family(component)==K_POINTER&&cc_compatible(component,actual))&&!
            (cc_family(actual)==K_STRING&&cc_family(component)==K_STRING&&CCT(actual,width)==CCT(component,width)))
             cc_fail(44);
-        store(6,0); invoke(base);
+        store(6,0); invoke(base,writing?ZF_WRITE:ZF_READ);
     }
     cc_expect(')',5); cc_release(base);
 }
@@ -377,6 +433,9 @@ void cc_file_finish(void) FRONTEND {
         if(CCS(i,role)==S_STANDARD&&CCS(i,address)) ++count;
     cc_emit((uint8_t)count); cc_emit(0);
     for(i=0;i<cc.symbol_count;++i) if(CCS(i,role)==S_STANDARD&&CCS(i,address)) {
+#ifdef ZP_STATIC_LAYOUT
+        cc_link_reference(cc.emitted,CL_DATA,0,CCS(i,address)-GLOBAL_BASE,CF_WORD16);
+#endif
         cc_emit((uint8_t)CCS(i,address)); cc_emit((uint8_t)(CCS(i,address)>>8));
         cc_emit(CCS(i,initial_type)); cc_emit(0);
     }

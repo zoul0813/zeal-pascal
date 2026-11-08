@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import re
 # The nineteenth bank adds one pending-owner assertion at each of 19 cleanup checkpoints.
-EXPECTED_ASSERTIONS=642
+EXPECTED_ASSERTIONS=643
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py')
 n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
@@ -44,7 +44,7 @@ def main():
     core=(ROOT/'build/integer_runtime.zpl').read_bytes();full=(ROOT/'build/pascal_runtime.zpl').read_bytes()
     for name,real in [('INITUSE',False),('REVERSE',False),('ONLYINIT',True),('EMPTYUSE',False),('EMPTYRAM',False),('BRIDGERUN',True)]:
         path=folder/(name+'.COM')
-        checks[name+' selects correct Real engine']=path.is_file()and path.read_bytes()[3466:14285]==(full if real else core)[3466:14285]
+        checks[name+' selects correct Real engine']=path.is_file()and int.from_bytes(path.read_bytes()[132:134],'little')==(16383 if real else 6042)and (path.read_bytes()[3466:14285]==full[3466:14285] if real else n.compact_prefix_matches(path.read_bytes(),executed=True))
     checks['sources and libraries deleted']=all(not(folder/(name+ext)).exists()for name in ('TRACK','LEFT','RIGHT','EMPTY','INITREAL','INITFAULT','BRIDGE','INITCHAIN','CRT')for ext in ('.PAS','.ZPU'))
     # Mutation of a disposable saved CHN: run initialization before clearing
     # the borrowed CRT-active flag. Keep production sources and artifacts intact.

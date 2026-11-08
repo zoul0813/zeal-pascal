@@ -31,7 +31,7 @@ void cc_units_imports(void) ROUTINES {
 static uint16_t next_export(uint16_t module,uint16_t at) {
     return at+14+cc_unit_module_byte(module,at)+4*cc_unit_module_word(module,at+6)+cc_unit_module_word(module,at+12);
 }
-static uint16_t find_export(uint16_t module,const char *name) {
+uint16_t cc_unit_export(uint16_t module,const char *name) ROUTINES {
     uint16_t at=cc_unit_word(module+10),count=cc_unit_module_word(module,20),i,j,n;
     for(i=0;i<count;++i,at=next_export(module,at)) {
         n=cc_unit_module_byte(module,at);if(strlen(name)!=n)continue;
@@ -63,7 +63,7 @@ int16_t cc_units_lookup(void) ROUTINES {
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_MODULE&&cc_unit_word(at+8)) {
         if(!(cc_unit_word(cc_units_state(at)+4)&UM_VISIBLE))continue;
         if(cc.sources->unit_qualifier&&cc.sources->unit_qualifier!=cc_unit_word(at+8))continue;
-        export=find_export(at,cc.name);
+        export=cc_unit_export(at,cc.name);
         if(export) {
             if(match){cc_fail(UNIT_AMBIGUOUS);return -1;}
             match=at;candidate=export;

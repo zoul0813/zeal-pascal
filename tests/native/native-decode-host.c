@@ -40,7 +40,21 @@ static void program_pages(void) {
     word(header+10,0x7400);word(header+22,0x3400);word(header+28,0xb400);
     word(header+32,4096);
     assert(decode_generic(header,0,&id)==ERR_ENTRY_CORRUPTED);
-    puts("PASS: shared-stack image bounds and legacy image compatibility");
+    word(header+18,NATIVE_SINGLE_PAGE);word(header+20,0x5800);word(header+22,0x1c00);
+    word(header+24,0x579a);word(header+132,6042);word(header+32,2048);
+    word(header+10,0x3400);word(header+28,0x7400);
+    assert(!decode_generic(header,0,&id));
+    word(header+10,0x3401);word(header+22,0x1c01);word(header+28,0x7401);
+    assert(decode_generic(header,0,&id)==ERR_ENTRY_CORRUPTED);
+    word(header+10,0x3400);word(header+22,0x1c00);word(header+28,0x7400);
+    word(header+18,NATIVE_SINGLE_PAGE|NATIVE_SHARED_STACK);
+    assert(decode_generic(header,0,&id)==ERR_ENTRY_CORRUPTED);
+    word(header+18,NATIVE_SINGLE_PAGE);word(header+132,6043);
+    assert(decode_generic(header,0,&id)==ERR_ENTRY_CORRUPTED);
+    word(header+132,6042);word(header+18,NATIVE_SHARED_STACK);word(header+32,16000);
+    assert(decode_generic(header,0,&id)==ERR_ENTRY_CORRUPTED);
+    word(header+32,15360);assert(!decode_generic(header,0,&id));
+    puts("PASS: compact one/two-page bounds and invalid alias flags");
 }
 int main(void) {
     uint8_t good[160]={0},header[160];uint16_t at,value;uint32_t seed=1;unsigned i;

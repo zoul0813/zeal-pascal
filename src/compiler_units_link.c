@@ -6,7 +6,7 @@
  * near arrays live only during final linking on the compiler's retained C
  * stack. Exported names acquire lexical symbols lazily; checked type graphs
  * can own additional compile-time metadata. */
-#define UNIT_LINK_ROOTS 128u
+#define UNIT_LINK_ROOTS 162u
 static uint8_t location(const CompilerFragmentLayout *layout,uint16_t module,uint16_t fragment,uint16_t *address) {
     uint8_t status=cc_fragment_layout_get(layout,cc_unit_word(module+8),fragment,address);
     if(status==CF_OK)return 1;
@@ -30,6 +30,9 @@ static uint8_t append_metadata(uint16_t module,const CompilerFragmentLayout *lay
             if(!cc_poll())return 0;site=cc_unit_module_word(module,refbase+8*(first+i));
             encoded=cc_unit_module_word(module,refbase+8*(first+i)+4);
             kind=(uint8_t)(encoded>>CF_REFERENCE_SHIFT);
+            if(kind==CF_RUNTIME16) {
+                cc_link_reference(address+site,CL_RUNTIME,0,0x4000u+(encoded&CF_RUNTIME_MASK),CF_WORD16);continue;
+            }
             if(!location(layout,cc_unit_target(module,cc_unit_module_word(module,refbase+8*(first+i)+2)),encoded&CF_FRAGMENT_MASK,&target)) {
                 cc_fail(UNIT_FORMAT);return 0;
             }
@@ -87,6 +90,12 @@ uint8_t cc_units_link_object(void) ROUTINES {
         roots[root_count].identity=cc_unit_word(module+8);
         roots[root_count].fragment=cc_unit_module_word(module,46)-1;++root_count;
     }
+    for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_NATIVE) {
+        if(root_count==UNIT_LINK_ROOTS){cc_fail(99);return 0;}
+        module=cc_unit_word(at+2);export=cc_unit_word(at+4);
+        roots[root_count].identity=cc_unit_word(module+8);
+        roots[root_count].fragment=cc_unit_module_word(module,export+8);++root_count;
+    }
     if(cc.error->code)return 0;
     if(!root_count)return 1;
     origin=cc.emitted;cc_fragment_image_init(&linked);cc_fragment_layout_init(&layout);
@@ -127,6 +136,7 @@ uint8_t cc_units_link_object(void) ROUTINES {
         cc_word(cc_unit_word(at+4),address);
     }
     for(i=0;i<count;++i)if(!append_metadata(modules[i],&layout))goto done;
+    if(!cc_file_native_bind(&layout,end))goto done;
     ok=!cc.error->code;
 done:
     primary=platform_error;

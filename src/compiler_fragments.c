@@ -95,15 +95,19 @@ static uint8_t validate(Link *l,uint8_t resolve) {
                 if(!poll(l))return 0;
                 p=ref(l,i,r+at,0);
                 encoded=ref(l,i,r+at,4);
-                if((encoded&CF_REFERENCE_RESERVED)||(encoded&0xc000u)==0xc000u)return fail(l,CF_OBJECT);
+                if((encoded>>CF_REFERENCE_SHIFT)!=CF_RUNTIME16&&(encoded&CF_REFERENCE_RESERVED))return fail(l,CF_OBJECT);
                 if(p>=size||(at&&p<previous))return fail(l,CF_OBJECT);
                 previous=p+1;
-                if(!(encoded&0xc000u)) {
+                if(!(encoded&0xc000u)||(encoded>>CF_REFERENCE_SHIFT)==CF_RUNTIME16) {
                     if(previous==size)return fail(l,CF_OBJECT);
                     ++previous;
                 }
-                if(!ref(l,i,r+at,2))return fail(l,CF_TARGET);
-                if(resolve&&!target(l,i,r+at,&id,&addend))return 0;
+                if((encoded>>CF_REFERENCE_SHIFT)==CF_RUNTIME16) {
+                    if(ref(l,i,r+at,2)||ref(l,i,r+at,6))return fail(l,CF_OBJECT);
+                } else {
+                    if(!ref(l,i,r+at,2))return fail(l,CF_TARGET);
+                    if(resolve&&!target(l,i,r+at,&id,&addend))return 0;
+                }
             }
             n+=size;r+=count;
         }
@@ -151,11 +155,13 @@ static uint8_t emit(Link *l) {
         }
         r=field(l,i,f,4);count=field(l,i,f,6);
         for(j=0;j<count;++j) {
-            if(!poll(l)||!target(l,i,r+j,&to,&addend))return 0;
-            patch=ref(l,i,r+j,0);value=catalog(l,to,2)+addend;
+            if(!poll(l))return 0;
             kind=(uint8_t)(ref(l,i,r+j,4)>>CF_REFERENCE_SHIFT);
+            if(kind==CF_RUNTIME16)value=0x4000u+(ref(l,i,r+j,4)&CF_RUNTIME_MASK);
+            else {if(!target(l,i,r+j,&to,&addend))return 0;value=catalog(l,to,2)+addend;}
+            patch=ref(l,i,r+j,0);
             emit_byte(l,start+patch,(uint8_t)(kind==CF_HIGH8?value>>8:value));
-            if(kind==CF_WORD16)emit_byte(l,start+patch+1,(uint8_t)(value>>8));
+            if(kind==CF_WORD16||kind==CF_RUNTIME16)emit_byte(l,start+patch+1,(uint8_t)(value>>8));
         }
     }
     return !l->error;
@@ -188,7 +194,9 @@ static uint8_t link(const CompilerFragmentObject *objects,uint8_t count,
         f=to-l.bases[o];r=field(&l,o,f,4);j=field(&l,o,f,6);
         if(l.error||!poll(&l))goto failed;
         for(i=0;i<j;++i) {
-            if(!poll(&l)||!target(&l,o,r+i,&to,&addend))goto failed;
+            if(!poll(&l))goto failed;
+            if((ref(&l,o,r+i,4)>>CF_REFERENCE_SHIFT)==CF_RUNTIME16)continue;
+            if(!target(&l,o,r+i,&to,&addend))goto failed;
             if(!catalog(&l,to,0)){put(&l,to,0,1);put(&l,to,2,n);n=to+1;}
         }
     }

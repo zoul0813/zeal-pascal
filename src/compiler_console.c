@@ -1,3 +1,4 @@
+#include "compiler_layout.h"
 #include "compiler.h"
 #include "compiler_disk.h"
 
@@ -41,8 +42,8 @@ static uint16_t flow(uint16_t scan,uint16_t enqueue) {
     cc_patch(got);cc_emit(0xfe);cc_emit(3);stop=cc_forward(0xca);
     cc_emit(0xfe);cc_emit(19);cc_emit(0xc8);cc_emit(0xfe);cc_emit(17);cc_emit(0xc8);
     cc_address(0xcd,enqueue);cc_address(0xc3,paused);
-    cc_patch(stop);cc_op16(0xcd,cc_runtime_private(RP_INPUT_CLEANUP));
-    cc_op16(0xc3,cc_runtime_private(RP_USER_BREAK));return entry;
+    cc_patch(stop);cc_runtime_op(0xcd,cc_runtime_private(RP_INPUT_CLEANUP));
+    cc_runtime_op(0xc3,cc_runtime_private(RP_USER_BREAK));return entry;
 }
 /* Only video stdout has console flow control. A regular redirected file does
  * not acquire a keyboard dependency. Classification uses the supported video
@@ -53,7 +54,7 @@ static uint16_t stdout_flow(uint16_t target) {
      * placement is variable; use the prefix's reserved syscall scratch. No
      * callback can run during this query and its contents need not survive. */
     cc_op16(0x3a,RT_IOSTATUS);cc_emit(0xb7);cc_op16(0xc2,RT_IOFAIL);
-    cc_op16(0x11,cc_runtime_private(RP_INPUT_CONSOLE_AREA));cc_emit(0x0e);cc_emit(1); /* CMD_GET_AREA */
+    cc_runtime_op(0x11,cc_runtime_private(RP_INPUT_CONSOLE_AREA));cc_emit(0x0e);cc_emit(1); /* CMD_GET_AREA */
     cc_op16(0x2a,RT_PC);cc_emit(0xe5);cc_op16(0x21,7);cc_emit(0xcf);
     cc_emit(0xe1);cc_op16(0x22,RT_PC);cc_emit(0xb7);cc_emit(0xc0);
     cc_address(0xc3,target);return entry;
@@ -73,7 +74,7 @@ static uint16_t wrap(uint16_t original,uint8_t staged,uint16_t target,uint8_t ki
     cc_op16(0xcd,RT_IOCALL);body=cc.emitted;cc_relocate(body);cc_emit(0);cc_emit(0);cc_emit(0);
     cc_op16(0x3a,RT_IOSTATUS);cc_emit(0xb7);failed=cc_forward(0xc2);
     cc_preserve_registers(1);cc_address(0xc3,fallback);
-    cc_patch(failed);if(kind==1)cc_op16(0xcd,cc_runtime_private(RP_INPUT_CLEANUP));
+    cc_patch(failed);if(kind==1)cc_runtime_op(0xcd,cc_runtime_private(RP_INPUT_CLEANUP));
     cc_preserve_registers(1);
     /* This check runs before the physical adapter can establish its own I-
      * landing. Its native polling failures belong to that transport's F0

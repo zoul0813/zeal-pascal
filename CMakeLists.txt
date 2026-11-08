@@ -97,7 +97,7 @@ set_source_files_properties(${CMAKE_BINARY_DIR}/runtime_asset.asm PROPERTIES
 set(PASCAL_CORE src/compiler_frames.c src/source.c src/sources.c src/compiler_sources.c src/compiler.c src/compiler_emit.c src/compiler_artifact.c src/image.c src/compiler_activation.c src/compiler_build.c src/compiler_expr.c src/compiler_strings.c src/compiler_recursion.c src/compiler_types.c src/compiler_inline.c src/compiler_front.c src/compiler_routines.c src/compiler_hooks.c src/compiler_real.c src/compiler_io.c src/compiler_random.c src/compiler_params.c src/compiler_files.c src/compiler_keyboard.c src/compiler_interrupt.c src/compiler_console.c src/compiler_crt.c src/compiler_state.c src/compiler_predicates.c src/compiler_asset.c src/library.c src/platform.c src/worker.c src/keys.c src/output.c src/output_transport.c src/native.asm
     ${CMAKE_BINARY_DIR}/runtime_asset.asm ${CMAKE_BINARY_DIR}/file_asset.asm)
 list(APPEND PASCAL_CORE src/compiler_chain.c src/compiler_transfer_asset.c src/compiler_module.c src/compiler_bridges.c src/library_phase.c src/compiler_members.c src/compiler_groups.c src/compiler_late.c src/compiler_keyboard_engine.c src/compiler_compile.c src/compiler_job.c src/compiler_job_result.c src/compiler_job_pages.c)
-list(APPEND PASCAL_CORE src/compiler_link.c src/compiler_table_arena.c src/compiler_tables.c src/compiler_disk.c src/compiler_messages.c src/source_move.c src/source_validation.c src/source_location.c src/buffer_access.c src/buffer_memory.c)
+list(APPEND PASCAL_CORE src/compiler_file_link.c src/compiler_layout.c src/compiler_layout_emit.c src/compiler_link.c src/compiler_table_arena.c src/compiler_tables.c src/compiler_disk.c src/compiler_messages.c src/source_move.c src/source_validation.c src/source_location.c src/buffer_access.c src/buffer_memory.c)
 set_property(SOURCE src/main.c src/compiler_messages.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/compiler_messages.h)
 set_source_files_properties(${CMAKE_BINARY_DIR}/transfer_ide_asset.asm ${CMAKE_BINARY_DIR}/transfer_test_asset.asm PROPERTIES GENERATED TRUE)
@@ -244,7 +244,7 @@ set_source_files_properties(src/compiler_emit.c src/compiler_disk.c PROPERTIES C
 set_property(SOURCE src/main.c src/output.c src/image.c tests/native/job-main.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/compiler_disk.h)
 set_source_files_properties(src/platform.c PROPERTIES COMPILE_OPTIONS "--opt-code-size")
-set_source_files_properties(src/compiler_chain.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK2;--constseg;BANK2")
+set_source_files_properties(src/compiler_chain.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK10;--constseg;BANK10")
 set_source_files_properties(src/compiler_interrupt.c PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK6;--constseg;BANK6")
 # CRT generation shares existing bank11 headroom; no new runtime/code bank.
 set_property(SOURCE src/compiler_crt.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/libraries/screen-engine.inc)
@@ -987,7 +987,12 @@ set_source_files_properties(src/compiler_unsigned_ops.c PROPERTIES
     COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK12;--constseg;BANK12"
     OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/src/compiler.h;${CMAKE_SOURCE_DIR}/src/compiler_unsigned_internal.h")
 set_property(SOURCE src/compiler_unsigned.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_unsigned_internal.h)
-add_library(unit_runtime_core OBJECT ${OPTIONAL_CORE} src/compiler_unsigned.c src/compiler_unsigned_asset.c src/compiler_unsigned_intrinsics.c src/compiler_unsigned_ops.c src/compiler_runtime.c
+set(UNIT_CORE ${OPTIONAL_CORE})
+list(REMOVE_ITEM UNIT_CORE ${CMAKE_BINARY_DIR}/file_asset.asm)
+file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/unit_unpack_asset.asm CONTENT
+    ".area _BANK11\n.globl _unpack_start,_unpack_end\n_unpack_start:\n.incbin \"${CMAKE_BINARY_DIR}/module_unpack.zpl\"\n_unpack_end:\n")
+set_source_files_properties(${CMAKE_BINARY_DIR}/unit_unpack_asset.asm PROPERTIES OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/module_unpack.zpl)
+add_library(unit_runtime_core OBJECT ${UNIT_CORE} ${CMAKE_BINARY_DIR}/unit_unpack_asset.asm src/compiler_unsigned.c src/compiler_unsigned_asset.c src/compiler_unsigned_intrinsics.c src/compiler_unsigned_ops.c src/compiler_runtime.c
     src/compiler_units.c src/compiler_unit_references.c src/compiler_unit_files.c src/compiler_unit_paths.c src/compiler_unit_header.c src/compiler_unit_fragments.c src/compiler_unit_loader.c src/compiler_unit_reader.c src/compiler_unit_ranges.c src/compiler_units_symbols.c src/compiler_units_metadata.c src/compiler_units_graph.c src/compiler_units_object.c src/compiler_units_names.c
     src/compiler_units_link.c src/unit_output.c ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm)
 target_compile_definitions(unit_runtime_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL ZP_PROGRAM_PAGES)
@@ -1203,3 +1208,33 @@ set_property(SOURCE src/compiler_link.c src/compiler_tables.c src/compiler_build
 
 set_property(SOURCE src/compiler_tables.c src/compiler_table_arena.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/compiler_table_arena.h)
+
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/runtime-layout.h ${CMAKE_BINARY_DIR}/runtime-layout.json ${CMAKE_BINARY_DIR}/linked_integer_runtime.bin
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-runtime-layout.py ${CMAKE_BINARY_DIR}
+    DEPENDS integer_runtime_bin pascal_runtime_bin ${CMAKE_SOURCE_DIR}/tools/package-runtime-layout.py ${CMAKE_SOURCE_DIR}/tools/runtime_objects.py VERBATIM)
+add_custom_target(runtime_layout DEPENDS ${CMAKE_BINARY_DIR}/runtime-layout.h)
+add_dependencies(unit_runtime_core runtime_layout)
+set_source_files_properties(src/compiler_layout.c PROPERTIES COMPILE_OPTIONS "--std-c99;--opt-code-size")
+set_source_files_properties(src/compiler_layout_emit.c PROPERTIES COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK9;--constseg;BANK9")
+set_property(SOURCE src/compiler_layout.c src/compiler_layout_emit.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/runtime-layout.h)
+foreach(source IN LISTS PASCAL_CORE)
+    set_property(SOURCE ${source} APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler_layout.h)
+endforeach()
+
+add_dependencies(screen_library runtime_layout)
+
+# File code is a normal compile-time unit. It stays on disk until a program
+# needs file operations, and its retained functions become ordinary COM bytes.
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/SYSFILE.ZPU ${CMAKE_BINARY_DIR}/direct-file.json ${CMAKE_BINARY_DIR}/file-unit.h
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-file-unit.py ${CMAKE_BINARY_DIR}
+        --cc ${CMAKE_C_COMPILER} --assembler ${CMAKE_ASM_COMPILER} --sdk $ENV{ZOS_PATH}/sdk/sdcc
+    DEPENDS runtime_profile ${CMAKE_SOURCE_DIR}/tools/package-file-unit.py
+        ${CMAKE_SOURCE_DIR}/tools/runtime_objects.py ${CMAKE_SOURCE_DIR}/src/file_runtime.c
+        ${CMAKE_SOURCE_DIR}/src/file_runtime.h ${CMAKE_SOURCE_DIR}/src/file_direct.asm
+        ${CMAKE_SOURCE_DIR}/src/file_native.asm ${CMAKE_SOURCE_DIR}/src/path.c VERBATIM)
+add_custom_target(file_library ALL DEPENDS ${CMAKE_BINARY_DIR}/SYSFILE.ZPU ${CMAKE_BINARY_DIR}/file-unit.h)
+set_property(SOURCE src/compiler_file_link.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/file-unit.h)
+add_dependencies(unit_runtime_core file_library)
+add_dependencies(zpascal file_library)
+
+set_property(SOURCE src/main.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/runtime-layout.h)

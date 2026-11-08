@@ -56,6 +56,20 @@ static uint16_t call(uint16_t operation) {
 #endif
     return invocation.error;
 }
+#ifdef ZP_DIRECT_FILE
+#define FILE_HANDLERS(X) X(reset) X(rewrite) X(close) X(read) X(write) X(position) X(seek) X(flush) X(erase) X(rename) X(blocks) X(text_read) X(text_readln) X(predicate) X(text_write) X(begin) X(path)
+#define DECLARE_HANDLER(n) extern void zf_op_##n(void);
+FILE_HANDLERS(DECLARE_HANDLER)
+extern void (*zf_operations[34])(void);
+static void bind_operations(void) {
+    static void (*const table[34])(void)={0,zf_op_reset,zf_op_rewrite,zf_op_close,zf_op_read,zf_op_write,
+        zf_op_seek,zf_op_position,zf_op_position,zf_op_position,zf_op_flush,zf_op_erase,
+        zf_op_blocks,zf_op_blocks,zf_op_blocks,zf_op_blocks,0,0,0,0,
+        zf_op_text_read,zf_op_text_write,zf_op_text_readln,zf_op_text_write,
+        zf_op_predicate,zf_op_predicate,zf_op_predicate,zf_op_rename,zf_op_begin,0,zf_op_path,0,0,zf_op_path};
+    memcpy(zf_operations,table,sizeof(table));put(0x4018,0x8000);
+}
+#endif
 static void defaults(void) {
     memset(&invocation,0,sizeof(invocation));
     invocation.object=0xc000; invocation.descriptor=0xd100; invocation.data=0xd200;
@@ -874,10 +888,38 @@ static void compact_transfers(void) {
     check(call(ZF_CLOSE)==0);check(rm("H:/LOWHOST.DAT")==0);
 }
 #endif
+#ifdef ZP_DIRECT_FILE
+static void compact_direct_files(void) {
+    uint8_t mode;
+    for(mode=2;mode<=4;mode+=2) {
+        defaults();put(0x4018,0x579a);VM(0x4012)[0]=mode;
+        invocation.object=0x6000;invocation.descriptor=0x6800;invocation.data=0x6200;
+        invocation.code_origin=0x6800;invocation.static_end=0x7000;
+        invocation.heap_floor=invocation.heap_frontier=mode==4?0xf000:0xc000;
+        invocation.stack_pointer=0xf800;memset(VM(0x6000),0,ZF_FILE_BYTES);
+        VM(0x6800)[0]=1;put(0x6801,2);
+        VM(0x6200)[0]=13;memcpy(VM(0x6201),"H:/DIRECT.DAT",13);
+        check(call(ZF_ASSIGN)==0);check(call(ZF_REWRITE)==0);
+        put(0x6200,42);check(call(ZF_WRITE)==0);check(call(ZF_CLOSE)==0);
+        check(call(ZF_RESET)==0);put(0x6200,0);
+        check(call(ZF_READ)==0&&get(0x6200)==42);check(call(ZF_CLOSE)==0);
+        memset(VM(0x6000),0,ZF_FILE_BYTES);VM(0x6800)[0]=0;put(0x6801,0);
+        invocation.standard_table=0x6820;put(0x6820,1);put(0x6822,0x6000);put(0x6824,ZF_STANDARD_OUTPUT);
+        check(call(ZF_TEXT_WRITELN)==0&&invocation.stream==ZF_STANDARD_OUTPUT);
+    }
+    put(0x4018,0x8000);VM(0x4012)[0]=0;
+}
+#endif
 int main(void) {
+#ifdef ZP_DIRECT_FILE
+    bind_operations();
+#endif
     check(sizeof(FileJob)==ZF_JOB_BYTES&&sizeof(FileCleanup)==6);
     basic(); lifetime(); boundaries(); block_files(); many(); scoped_disks(); wide_components(); text_files(); text_resume(); file_paths(); renames(); standard_files(); keyboard_files(); console_files(); printer_files(); callback_output_files();
 #ifndef __SDCC
+#ifdef ZP_DIRECT_FILE
+    compact_direct_files();
+#endif
     serial_files(); faults(); rename_faults(); resume_faults(); close_retries(); check(model_pages==0&&model_handles==0);
 #ifdef ZP_COMPACT_EXPERIMENT
     compact_transfers();compact_negative_spans();compact_bridge_faults();check(model_pages==0&&model_handles==0);

@@ -24,13 +24,13 @@ def build(directory):
     constants['SCREEN_ACTIVE'] = struct.unpack_from('<H',private,2*private_names.index('RP_CRT_ACTIVE'))[0]
     for name in ('RP_INPUT_KEY','RP_INPUT_MODE','RP_INPUT_CLEANUP','RP_INPUT_FAIL','RP_IO_ERROR','RP_INPUT_MODE_VALUE','RP_ECHO_FD'):
         constants[name] = struct.unpack_from('<H',private,2*private_names.index(name))[0]
-    header = ''.join(f'#define {name} {value}u\n' for name,value in constants.items())
+    header = '#include "runtime-layout.h"\n'+''.join(f'#define {name} {value}u\n' for name,value in constants.items())
     (directory/'screen-runtime.h').write_text(header)
     subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-I',str(directory),
                     str(ROOT/'tools/screen-library.c'),'-o',str(directory/'screen-library')],check=True)
     raw = subprocess.check_output([str(directory/'screen-library')])
-    length, count = struct.unpack_from('<HH',raw)
-    at = 4
+    length, count, runtime_count = struct.unpack_from('<HHH',raw)
+    at = 6
     fragments, entries = [], []
     for i in range(len(NAMES)+1):
         start,end = struct.unpack_from('<HH',raw,at);at += 4
@@ -38,6 +38,7 @@ def build(directory):
         if i < len(NAMES):
             entries.append(struct.unpack_from('<H',raw,at)[0]);at += 2
     relocations = struct.unpack_from('<'+'H'*count,raw,at);at += 2*count
+    runtime_refs=[struct.unpack_from('<HH',raw,at+4*i)for i in range(runtime_count)];at+=4*runtime_count
     payload = raw[at:]
     assert len(payload) == length
     # Include the sentinel at zero in the shared fragment; layout is contiguous.
@@ -50,11 +51,14 @@ def build(directory):
     refs, records = [], bytearray()
     for start,end in fragments:
         first = len(refs)
-        for site in sorted(relocations):
-            if start <= site < end:
-                assert site+2 <= end
-                target,offset = locate(struct.unpack_from('<H',payload,site)[0])
-                refs.append((site-start,1,target,offset))
+        selected=[]
+        for site in relocations:
+            if start<=site<end:
+                target,offset=locate(struct.unpack_from('<H',payload,site)[0])
+                selected.append((site-start,1,target,offset))
+        for site,value in runtime_refs:
+            if start<=site<end:selected.append((site-start,0,0xc000|(value-0x4000),0))
+        refs.extend(sorted(selected))
         records += struct.pack('<4H',start,end-start,first,len(refs)-first)
     source = 'unit Crt;interface\n'
     exports = bytearray()
@@ -79,7 +83,7 @@ def build(directory):
     blob = b'ZPF1'+struct.pack('<6H',1,len(fragments),len(refs),len(payload),0,0)
     blob += records+b''.join(struct.pack('<4H',*r) for r in refs)+payload
     unit_name = b'crt'
-    metadata = unit_name+source_path+exports+bytes([2]*len(fragments))
+    metadata = unit_name+source_path+exports+bytes(len(fragments))
     header = bytearray(48)
     header[:4] = b'ZPU1'
     struct.pack_into('<HH',header,4,1,48+len(metadata)+len(blob))

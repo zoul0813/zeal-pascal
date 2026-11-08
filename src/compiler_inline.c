@@ -1,4 +1,5 @@
 #include "compiler.h"
+#include "compiler_link.h"
 #ifdef ZP_UNITS_EXPERIMENT
 #include "compiler_units.h"
 #endif
@@ -29,7 +30,7 @@ static uint16_t address(uint16_t id,InlineDelta *delta) {
 #endif
         cc_bind_storage(id);
 #ifdef ZP_UNITS_EXPERIMENT
-        if(cc.sources->unit_mode&&CCS(id,role)!=S_ADDRESS&&CCS(id,address)>=GLOBAL_BASE)delta->global=1;
+        if(CCS(id,role)!=S_ADDRESS&&CCS(id,address)>=GLOBAL_BASE)delta->global=1;
 #endif
         return CCS(id,address);
     }
@@ -78,9 +79,7 @@ void cc_inline(void) FRONTEND {
     uint8_t force;uint8_t word;uint8_t subtract;
 #ifdef ZP_UNITS_EXPERIMENT
     cc_require_hardware();
-    /* A unit records raw access explicitly. Ordinary opaque Inline retains
-     * its historical conservative Real requirement. */
-    if(!cc.sources->unit_mode)cc_require_real();
+    /* Raw access retains independent mappings; Real is an explicit request. */
 #else
     if(!cc.suppress)cc.console_dynamic=1;
     cc_require_real();
@@ -104,7 +103,13 @@ void cc_inline(void) FRONTEND {
             else cc_units_note(UR_GLOBAL,cc.emitted,value);
         } else
 #endif
-        cc_relocate_value(cc.emitted,delta.code,!word);
+        {
+            cc_relocate_value(cc.emitted,delta.code,!word);
+#ifdef ZP_STATIC_LAYOUT
+            if(!cc.sources->unit_mode&&delta.global)
+                cc_link_reference(cc.emitted,CL_DATA_ADJUST,delta.global,0,word?CF_WORD16:CF_LOW8);
+#endif
+        }
         cc_emit((uint8_t)value);if(word)cc_emit((uint8_t)(value>>8));
         if(cc.token!='/')break;
         cc_next();

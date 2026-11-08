@@ -8,7 +8,7 @@
  * public interfaces carry routines, constants and canonical type metadata.
  * A caller owns the fresh output descriptor, including close/publication. */
 enum { UNIT_FORMAT=248,UNIT_UNSUPPORTED,UNIT_MISSING,UNIT_STALE,UNIT_AMBIGUOUS,UNIT_INTERFACE };
-enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CODE,UR_STATE,UR_EXTERNAL,UR_TYPE,UR_INITIALIZER,UR_INIT_CALL,UR_ARTIFACT,UR_FILE,UR_HASH,UR_PATH };
+enum { UR_GLOBAL=1,UR_PC,UR_FRAGMENT,UR_EXPORT,UR_MODULE,UR_SEAL,UR_IMPORT,UR_CODE,UR_STATE,UR_EXTERNAL,UR_TYPE,UR_INITIALIZER,UR_INIT_CALL,UR_ARTIFACT,UR_FILE,UR_HASH,UR_PATH,UR_RUNTIME,UR_NATIVE };
 /* Every imported module has a stream record and eight hash words after its
  * seal. Three hash words fit in UR_FILE; five follow the UR_HASH tag. */
 #define UNIT_FILE_AT(module) ((module)+2u*UNIT_RECORD_BYTES)
@@ -63,6 +63,7 @@ uint16_t cc_units_load(const char *name,const char *path) ROUTINES;
 uint16_t cc_units_find(const char *name) ROUTINES;
 uint16_t cc_units_state(uint16_t module) ROUTINES;
 uint16_t cc_units_graph(const char *name,uint8_t visible) ROUTINES;
+uint16_t cc_unit_export(uint16_t module,const char *name) ROUTINES;
 uint16_t cc_units_graph_load(const char *name,uint8_t visible) ROUTINES;
 uint8_t cc_units_graph_validate(void) ROUTINES;
 uint16_t cc_unit_target(uint16_t module,uint16_t identity) ROUTINES;
@@ -101,4 +102,5 @@ uint16_t cc_unit_word(uint16_t at) ROUTINES;
 void cc_unit_put(uint16_t at,uint16_t value) ROUTINES;
 uint8_t cc_unit_byte(uint16_t at) ROUTINES;
 void cc_unit_set(uint16_t at,uint8_t value) ROUTINES;
+uint8_t cc_file_native_bind(const CompilerFragmentLayout *layout,uint16_t end) ROUTINES;
 #endif

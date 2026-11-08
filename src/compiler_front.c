@@ -1,4 +1,5 @@
 #include "compiler.h"
+#include "compiler_layout.h"
 #include "compiler_disk.h"
 #ifdef ZP_UNITS_EXPERIMENT
 #include "compiler_units.h"
@@ -119,11 +120,11 @@ void cc_patch_chain(uint16_t head,uint16_t value) FRONTEND {
         cc_word(head,value); head=next;
     }
 }
-void cc_reserve(uint16_t bytes) FRONTEND {
-    /* Include arguments already pushed while evaluating subsequent/nested
-     * arguments. Larger caller frames retain independent memory windows. */
-    if((uint32_t)bytes+cc.temporaries+cc.arguments>512u)cc_require_full_memory();
+void cc_native_reserve(uint16_t bytes) FRONTEND {
     uint16_t pc=cc.emitted-CC_CODE_BASE;
+    uint32_t required=(uint32_t)bytes+cc.temporaries+cc.arguments+512u;
+    if(required>65535UL){cc_fail(99);return;}
+    if(required>cc.stack_bytes)cc.stack_bytes=(uint16_t)required;
     /* Runtime consumes inline size/PC words and preserves both register sets. */
     cc_op16(0xcd,RT_GUARD);
     cc_emit((uint8_t)bytes); cc_emit((uint8_t)(bytes>>8));
@@ -131,6 +132,14 @@ void cc_reserve(uint16_t bytes) FRONTEND {
     if(cc.sources->unit_mode)cc_units_note(UR_PC,cc.emitted,CC_CODE_BASE+pc);
 #endif
     cc_emit((uint8_t)pc); cc_emit((uint8_t)(pc>>8));
+}
+void cc_reserve(uint16_t bytes) FRONTEND {
+#ifdef ZP_UNITS_EXPERIMENT
+    /* Unit artifacts retain the existing conservative large-frame contract.
+     * Programs record known stack demand for final page selection instead. */
+    if(cc.sources->unit_mode&&(uint32_t)bytes+cc.temporaries+cc.arguments>512u)cc_require_full_memory();
+#endif
+    cc_native_reserve(bytes);
 }
 void cc_guard(void) FRONTEND { cc_reserve(0); }
 /* Preserve the actual caller PC and every operand, including an optional A
@@ -158,7 +167,11 @@ uint16_t cc_original_entry(uint16_t entry,uint8_t staged) FRONTEND {
             cc_relocate_value(at+1,coefficient,(encoded&0x8000u)!=0);break;
         }
     }
-    if(staged) cc_address(0xc3,entry+3); else cc_op16(0xc3,entry+3);
+    if(staged) cc_address(0xc3,entry+3);
+    else {
+        cc_runtime_copy_operand(at+1,entry+1);
+        cc_runtime_op(0xc3,entry+3);
+    }
     return at;
 }
 /* Generated private helpers preserve complete Pascal CPU state around polls. */
@@ -211,8 +224,7 @@ void cc_store_indirect(TypeId type) FRONTEND {
     if(CCT(type,width)==2) { cc_emit(0x13); cc_emit(0x7c); cc_emit(0x12); }
 }
 void cc_call(uint16_t address) FRONTEND {
-    if((address>=RT_ALLOC&&address<=RT_STACKSET)||
-       (address>=RT_FORMAT&&address<=RT_INPUT_END))cc_require_full_memory();
+    if(address>=RT_ALLOC&&address<=RT_STACKSET)cc_require_full_memory();
     cc_guard(); cc_op16(0xcd,address);
 }
 static void literal(void) {
@@ -276,6 +288,15 @@ void cc_next(void) FRONTEND {
                     if(cc.error->code){cc.token=T_EOF;return;}
                     continue;
                 }
+                if(lower(get(cc.scan))=='r'&&lower(get(cc.scan+1))=='u') {
+                    static const char request[]="runtime";
+                    static const char real[]="real";
+                    for(n=0;n<7;++n)if(lower(get(cc.scan++))!=request[n]){cc_fail(93);return;}
+                    if(get(cc.scan)!=' '&&get(cc.scan)!='\t'){cc_fail(93);return;}
+                    while(get(cc.scan)==' '||get(cc.scan)=='\t')++cc.scan;
+                    for(n=0;n<4;++n)if(lower(get(cc.scan++))!=real[n]){cc_fail(93);return;}
+                    cc_require_real();n=0;
+                } else {
                 do {
                     c=lower(get(cc.scan)); value=get(cc.scan+1)=='+';
                     if(c=='w'&&digit(get(cc.scan+1))) cc.with_limit=get(cc.scan+1)-'0';
@@ -294,6 +315,7 @@ void cc_next(void) FRONTEND {
                     if(get(cc.scan)!=',') break;
                     ++cc.scan;
                 } while(!cc.error->code);
+                }
                 while(get(cc.scan)==' '||get(cc.scan)=='\t') ++cc.scan;
                 if(!(q=='{'?get(cc.scan)=='}':get(cc.scan)=='*'&&get(cc.scan+1)==')')) {
                     cc_fail(93); cc.token=T_EOF; return;
@@ -461,6 +483,11 @@ static void storage_address(uint8_t opcode,uint16_t id) {
 #ifdef ZP_UNITS_EXPERIMENT
     if(cc.sources->unit_mode&&CCS(id,address)>=GLOBAL_BASE&&CCS(id,role)!=S_ADDRESS) {
         cc_units_global(opcode,CCS(id,address));return;
+    }
+#endif
+#ifdef ZP_STATIC_LAYOUT
+    if(CCS(id,address)>=GLOBAL_BASE&&CCS(id,role)!=S_ADDRESS) {
+        cc_data_op(opcode,CCS(id,address));return;
     }
 #endif
     cc_op16(opcode,CCS(id,address));

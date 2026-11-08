@@ -1,7 +1,7 @@
 #ifdef __SDCC
 #define compile_project compiler_compile_project
 #endif
-#include "compiler.h"
+#include "compiler_layout.h"
 
 
 static uint16_t pc(void) { return cc.emitted-CC_CODE_BASE; }
@@ -358,21 +358,25 @@ static SourcePosition statement(void) {
 }
 SourcePosition cc_statement(void) BACKEND { return statement(); }
 /* Shared job bounds also drive the IDE options annotations. */
-uint8_t compile_limits(uint16_t globals,uint16_t code,const CompileOptions *options,CompileLimits *limits) SOURCE_BLOCK_CALL {
+uint8_t compile_limits_at(uint16_t data,uint16_t globals,uint16_t code,const CompileOptions *options,CompileLimits *limits) SOURCE_BLOCK_CALL {
     uint32_t start,end,top,needed;
+    uint16_t stack=code?cc_required_stack():2048u;
     memset(limits,0,sizeof(*limits));
-    if((uint32_t)GLOBAL_BASE+globals>=CC_STATIC_LIMIT||(options&&options->kind>COMPILE_CHAIN))return 0;
-    limits->minimum_start=GLOBAL_BASE+globals;
+    if(data<0x40a0u||(uint32_t)data+globals>=CC_STATIC_LIMIT||(options&&options->kind>COMPILE_CHAIN))return 0;
+    limits->minimum_start=data+globals;
     start=options&&options->start?options->start:limits->minimum_start;
     end=options?options->end:0xfbffu;
     if(!code)code=1; /* UI platform bounds before a program has been compiled. */
     top=end+1;
-    if(top>=2048UL+code)limits->maximum_start=(uint16_t)(((top-2048u)&~1UL)-code);
-    needed=((start+code+1)&~1UL)+2048u-1;
+    if(top>=(uint32_t)stack+code)limits->maximum_start=(uint16_t)(((top-stack)&~1UL)-code);
+    needed=((start+code+1)&~1UL)+stack-1;
     if(needed<0xcfffu)needed=0xcfffu;
     limits->minimum_end=needed>65535u?65535u:(uint16_t)needed;
     return end>=0xcfffu&&end<=0xfbffu&&start>=limits->minimum_start&&
         start<=limits->maximum_start&&end>=needed;
+}
+uint8_t compile_limits(uint16_t globals,uint16_t code,const CompileOptions *options,CompileLimits *limits) SOURCE_BLOCK_CALL {
+    return compile_limits_at(GLOBAL_BASE,globals,code,options,limits);
 }
 #ifndef __SDCC
 uint8_t compile(const Source *s,Build *b,Diagnostic *d) {

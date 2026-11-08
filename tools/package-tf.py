@@ -11,7 +11,7 @@ spec = importlib.util.spec_from_file_location('native', ROOT/'tools/test-native.
 n = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(n)
 
-names = ['build/zpascal.bin', 'build/zpascal.zpl', 'build/zpascal.map', 'build/zpascal.banks.json', 'build/CRT.ZPU', 'build/CRT.PAS', 'build/ZVB.ZPU',
+names = ['build/zpascal.bin', 'build/zpascal.zpl', 'build/zpascal.map', 'build/zpascal.banks.json', 'build/SYSFILE.ZPU', 'build/CRT.ZPU', 'build/CRT.PAS', 'build/ZVB.ZPU',
          'libraries/ZVB-LICENSE.txt', 'libraries/ZVB-NOTICE.txt']
 snapshots = {name: (ROOT/name).read_bytes() for name in names}
 hashes = {name: hashlib.sha256(data).hexdigest() for name, data in snapshots.items()}
@@ -31,6 +31,7 @@ previous = image.read_bytes() if image.exists() else None
 base = previous if previous is not None else gzip.decompress(n.TF_TEMPLATE.read_bytes())
 existing = n.zealfs_files(base)
 install = {'/bin/zpascal.bin': resident, '/lib/zpascal.zpl': library,
+           '/lib/SYSFILE.ZPU': snapshots['build/SYSFILE.ZPU'],
            '/lib/CRT.ZPU': snapshots['build/CRT.ZPU'],
            '/lib/CRT.PAS': snapshots['build/CRT.PAS'],
            '/lib/ZVB.ZPU': snapshots['build/ZVB.ZPU'],

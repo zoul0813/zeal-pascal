@@ -1,3 +1,4 @@
+#include "compiler_layout.h"
 #include "compiler_late.h"
 
 /* Each activation owns a 255-character circular typeahead queue (count, head,
@@ -18,7 +19,7 @@ void cc_keyboard_engine(void) FRONTEND {
     cc_address(0x3a,state+1);cc_emit(0x6f);cc_emit(0x26);cc_emit(0);
     cc_emit(0x3c);cc_address(0x32,state+1);
     cc_address(0x11,state+2);cc_emit(0x19);cc_emit(0x7e);cc_emit(0xc9);
-    cc_patch(empty); cc_op16(0xc3,cc_runtime_private(RP_INPUT_RAW_KEY));
+    cc_patch(empty); cc_runtime_op(0xc3,cc_runtime_private(RP_INPUT_RAW_KEY));
 
     cc.keyboard_probe=cc.emitted;
     cc_op16(0x3a,RT_IOSTATUS); cc_emit(0xb7); cc_op16(0xc2,RT_IOFAIL);
@@ -29,22 +30,22 @@ void cc_keyboard_engine(void) FRONTEND {
     /* A nested console check borrows input without taking its caller's echo
      * handle or raw mode. Catch physical failures locally before restoring
      * those owners and propagating the primary I/O result. */
-    cc_op16(0x3a,cc_runtime_private(RP_ECHO_FD));cc_emit(0xf5);
-    cc_op16(0x3a,cc_runtime_private(RP_INPUT_MODE_VALUE));cc_emit(0xf5);
-    cc_emit(0x3e); cc_emit(255); cc_op16(0x32,cc_runtime_private(RP_ECHO_FD));
+    cc_runtime_op(0x3a,cc_runtime_private(RP_ECHO_FD));cc_emit(0xf5);
+    cc_runtime_op(0x3a,cc_runtime_private(RP_INPUT_MODE_VALUE));cc_emit(0xf5);
+    cc_emit(0x3e); cc_emit(255); cc_runtime_op(0x32,cc_runtime_private(RP_ECHO_FD));
     cc_op16(0xcd,RT_IOCALL);body=cc.emitted;cc_relocate(body);
     cc_emit(0);cc_emit(0);cc_emit(0);
     cc_emit(0xf5);cc_op16(0x21,3);cc_emit(0x39);cc_emit(0x5e);cc_emit(0x16);cc_emit(0);
-    cc_op16(0xcd,cc_runtime_private(RP_INPUT_MODE));cc_emit(0x47);
+    cc_runtime_op(0xcd,cc_runtime_private(RP_INPUT_MODE));cc_emit(0x47);
     cc_emit(0xf1);cc_emit(0xd1);cc_emit(0xd1);cc_emit(0x4f);
-    cc_emit(0x7a);cc_op16(0x32,cc_runtime_private(RP_ECHO_FD));
+    cc_emit(0x7a);cc_runtime_op(0x32,cc_runtime_private(RP_ECHO_FD));
     cc_op16(0x3a,RT_IOSTATUS);cc_emit(0xb7);cc_op16(0xc2,RT_IOFAIL);
-    cc_emit(0x78);cc_emit(0xb7);cc_op16(0xc2,cc_runtime_private(RP_IO_ERROR));
+    cc_emit(0x78);cc_emit(0xb7);cc_runtime_op(0xc2,cc_runtime_private(RP_IO_ERROR));
     cc_emit(0x79);cc_emit(0xc9);
     cc_word(body,cc.emitted);
-    cc_op16(0x11,4); cc_op16(0xcd,cc_runtime_private(RP_INPUT_MODE));
-    cc_emit(0xb7); cc_op16(0xc2,cc_runtime_private(RP_INPUT_FAIL));
-    cc_op16(0xc3,cc_runtime_private(RP_INPUT_RAW_KEY));
+    cc_op16(0x11,4); cc_runtime_op(0xcd,cc_runtime_private(RP_INPUT_MODE));
+    cc_emit(0xb7); cc_runtime_op(0xc2,cc_runtime_private(RP_INPUT_FAIL));
+    cc_runtime_op(0xc3,cc_runtime_private(RP_INPUT_RAW_KEY));
 
     /* Probe guarantees space. Zero means no decoded key, never queue data. */
     cc.keyboard_enqueue=cc.emitted;

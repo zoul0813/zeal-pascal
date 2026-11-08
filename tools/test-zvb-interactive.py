@@ -43,9 +43,12 @@ def main():
     private = (ROOT/'build/pascal_runtime.private').read_bytes()
     raw = struct.unpack_from('<H', private, 2*private_names.index('RP_INPUT_RAW_KEY'))[0]
     image = args.snake.read_bytes()
+    layout=json.loads((ROOT/'build/runtime-layout.json').read_text())
+    if int.from_bytes(image[132:134],'little')==layout['runtime_bytes'] and layout['gap_last']<=raw<layout['legacy_end']:
+        raw-=layout['gap_last']-layout['gap_first']
     observations = {}
     checks = {}
-    base = 0x8000 + 5 + 280
+    base = int.from_bytes(image[24:26],'little') + 5 + 280
 
     class Controls(n.DebugConsole):
         def command(self, command, capture=False):
@@ -88,7 +91,9 @@ def main():
             call('tap R')
             call('run 5000000')
             assert f'PC={mapped:04x} ' in call('regs')
-            field = n.memory(call('rb 0x0000 1140'))
+            field = {}
+            for at in range(0,1140,256):
+                field.update(n.memory(call(f'rb 0x{at:04x} {min(256,1140-at)}')))
             label = n.memory(call('rb 0x146a 9'))
             checks['original checkerboard layout'] = all(
                 field[y*80+x] == 32 + ((x+y) & 1)
@@ -121,11 +126,19 @@ def main():
     commands = ['run 100000000'] + n.type_text('H:/zvb/SNAKE.COM') + [
         'bp 0x4000', 'tap ENTER', 'run 2000000000', 'bc 0x4000', 's',
         '@snake-controls', 'quit']
+    def detach(command,response,directory):
+        if command=='run 100000000':
+            for path in (directory/'hostfs').rglob('*'):
+                if path.is_file() and path.suffix.upper() in ('.BIN','.ZPL','.ZPU','.PAS','.INC'):
+                    path.unlink()
     n.execute('snake-interactive', commands, {'zvb/SNAKE.COM': image},
-              timeout=180, console_class=Controls)
+              timeout=180, console_class=Controls, after_command=detach)
+    checks['no compiler units or sources present'] = not any(
+        path.suffix.upper() in ('.BIN','.ZPL','.ZPU','.PAS','.INC')
+        for path in (n.RUN/'snake-interactive/hostfs').rglob('*') if path.is_file())
     failure_path = n.RUN/'snake-interactive/input-error.json'
     failure = json.loads(failure_path.read_text()) if failure_path.exists() else None
-    checks['all control and layout observations completed'] = not failure and len(checks) == 10
+    checks['all control and layout observations completed'] = not failure and len(checks) == 11
     console = (n.RUN/'snake-interactive/console-all.txt').read_text()
     cycles = re.findall(r'Paused @ 0x[0-9a-fA-F]+ \(cyc=(\d+)\)', console)
     startup_cycles = int(cycles[1]) - int(cycles[0]) if len(cycles) >= 2 else None

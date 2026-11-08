@@ -15,6 +15,7 @@ uint16_t cc_units_graph_load(const char *name,uint8_t visible) ROUTINES {
     uint32_t expected,actual,version;char path[128],directory[128],filename[16],child[12];
     uint8_t page;
     if(!cc_stack_check())return 0;
+    if(visible&&!strcmp(name,"sysfile")){cc_fail(UNIT_UNSUPPORTED);return 0;}
     if(own_name(name)){cc_fail(UNIT_CYCLE);return 0;}
     module=cc_units_find(name);
     if(module) {
@@ -31,7 +32,7 @@ uint16_t cc_units_graph_load(const char *name,uint8_t visible) ROUTINES {
     i=(uint16_t)strlen(directory);while(i&&directory[i-1]!='/')--i;directory[i]=0;
     /* An unrepresentable source candidate is absent; the normal loader still
      * tries the directory of the loaded compiler container. */
-    if(!sources_path(filename,directory,path))path[0]=0;
+    if(!strcmp(name,"sysfile")||!sources_path(filename,directory,path))path[0]=0;
     module=cc_units_load(name,path);if(!module)return 0;
     state=cc_units_state(module);cc_unit_put(state+4,UM_LOADING|(visible?UM_VISIBLE:0));
     count=cc_unit_module_word(module,36);at=cc_unit_module_word(module,40);

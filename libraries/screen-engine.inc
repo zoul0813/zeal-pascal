@@ -1,8 +1,8 @@
 /* Pascal CRT targets the supported Zeal 80x40 text console, independently of
  * redirected Output and Pascal character callbacks. Helpers live in generated
- * code (>=8000), so page1 can briefly expose the board's character/attribute
+ * code (>=4000), so page0 can briefly expose the board's character/attribute
  * planes. No syscall, callback or runtime-prefix call occurs while it is mapped.
- * The mapper, page1 and caller IFF are restored before every return. */
+ * The mapper, page0 and caller IFF are restored before every return. */
 enum { CRT_CLEAR,CRT_EOL,CRT_XY,CRT_INSERT,CRT_DELETE,CRT_INIT,CRT_EXIT,
        CRT_LOW,CRT_NORMAL,CRT_HIGH,CRT_DELAY,CRT_FOREGROUND,CRT_BACKGROUND,CRT_WHERE_X,CRT_WHERE_Y };
 static void crt_in(uint8_t port) {cc_emit(0xdb);cc_emit(port);}
@@ -14,11 +14,11 @@ static void crt_enter(uint8_t vram) {
     cc_emit(0x3e);cc_emit(0x20);cc_op16(0xc3,RT_IOFAIL);cc_patch(valid);
     cc_emit(0xed);cc_emit(0x57);cc_emit(0xf5);cc_emit(0xf3); /* LD A,I; PUSH AF; DI */
     crt_in(0x8e);cc_emit(0xf5);crt_byte(0,0x8e);
-    if(vram) {cc_emit(0x3e);cc_emit(0x40);crt_in(0xf1);cc_emit(0xf5);crt_byte(0x40,0xf1);}
+    if(vram) {cc_emit(0x3e);cc_emit(0);crt_in(0xf0);cc_emit(0xf5);crt_byte(0x40,0xf0);}
 }
 static void crt_restore(uint8_t vram) {
     uint16_t disabled;
-    if(vram){cc_emit(0xf1);crt_out(0xf1);}
+    if(vram){cc_emit(0xf1);crt_out(0xf0);}
     cc_emit(0xf1);crt_out(0x8e);cc_emit(0xf1);
     disabled=cc_forward(0xe2); /* saved LD A,I parity is the caller IFF2 */
     cc_emit(0xfb);cc_patch(disabled);
@@ -32,7 +32,7 @@ static void crt_yield(void) {
      * here. The supported kernel's IRQ handlers do not change video mode. */
     cc_emit(0xed);cc_emit(0x57);cc_emit(0xf5);cc_emit(0xf3);
     crt_in(0x8e);cc_emit(0xf5);crt_byte(0,0x8e);
-    cc_emit(0x3e);cc_emit(0x40);crt_in(0xf1);cc_emit(0xf5);crt_byte(0x40,0xf1);
+    cc_emit(0x3e);cc_emit(0);crt_in(0xf0);cc_emit(0xf5);crt_byte(0x40,0xf0);
 }
 /* E is logical row, D is retained. Return mapped character row HL. Physical
  * rows form a40-row ring, each80 bytes; attributes are at row+1000h. */
@@ -52,7 +52,7 @@ static uint16_t crt_row(void) {
     cc_emit(0x6f);cc_emit(0x26);cc_emit(0);
     cc_emit(0x29);cc_emit(0x29);cc_emit(0x29);cc_emit(0x29);
     cc_emit(0x44);cc_emit(0x4d);cc_emit(0x29);cc_emit(0x29);cc_emit(0x09);
-    cc_op16(0x01,0x4000);cc_emit(0x09);cc_emit(0xc9);return entry;
+    cc_op16(0x01,0);cc_emit(0x09);cc_emit(0xc9);return entry;
 }
 /* Fill an entire physical row: zero glyph is the console's blank character.
  * Fill attributes with the current rendition, not the previous row's color. */
@@ -66,7 +66,6 @@ static void crt_blank(void) {
 static uint16_t crt_engine(uint8_t op) {
     uint16_t skip,entry,row=0,loop,done,again,ready,state,invalid_row=0;
     uint8_t i,vram=op==CRT_CLEAR||op==CRT_EOL||op==CRT_INSERT||op==CRT_DELETE;
-    cc_require_full_memory(); /* Every CRT helper has its own stack contract. */
     if(cc.crt_entries[op])return cc.crt_entries[op];
     skip=cc_forward(0xc3);
     if(op==CRT_INIT||op==CRT_EXIT) {
@@ -123,10 +122,10 @@ static uint16_t crt_engine(uint8_t op) {
             /* The kernel line editor also uses the board's single saved-
              * cursor slot. Keep our snapshot entirely in Pascal storage. */
             crt_in(0xa9);cc_emit(0xe6);cc_emit(0x38);cc_address(0x32,state);
-            cc_emit(0x3e);cc_emit(1);cc_op16(0x32,cc_runtime_private(RP_CRT_ACTIVE));
+            cc_emit(0x3e);cc_emit(1);cc_runtime_op(0x32,cc_runtime_private(RP_CRT_ACTIVE));
             crt_byte(15,0xa5);crt_byte(0xf0,0xa8);
         } else {
-            cc_op16(0x3a,cc_runtime_private(RP_CRT_ACTIVE));cc_emit(0xb7);done=cc_forward(0xca);
+            cc_runtime_op(0x3a,cc_runtime_private(RP_CRT_ACTIVE));cc_emit(0xb7);done=cc_forward(0xca);
             /* Restore Y, scrolling and rendition first; X=80 represents a
              * pending wrap and cannot be written directly to cursor X. */
             for(i=0;i<8;++i)if(i!=1){cc_address(0x3a,state+1+i);crt_out(0xa1+i);}
@@ -137,15 +136,15 @@ static uint16_t crt_engine(uint8_t op) {
              * with its own attribute. Temporarily zero scroll X so the
              * hardware print addresses this exact physical column. */
             crt_byte(79,0xa2);crt_byte(0,0xa4);
-            cc_emit(0x3e);cc_emit(0x40);crt_in(0xf1);cc_emit(0xf5);crt_byte(0x40,0xf1);
+            cc_emit(0x3e);cc_emit(0);crt_in(0xf0);cc_emit(0xf5);crt_byte(0x40,0xf0);
             crt_in(0xa1);cc_emit(0x5f);cc_address(0xcd,row);
             cc_op16(0x01,79);cc_emit(0x09);cc_emit(0x4e);
             cc_op16(0x11,0x1000);cc_emit(0x19);cc_emit(0x7e);crt_out(0xa5);
             cc_emit(0x79);crt_out(0xa0);
-            cc_emit(0xf1);crt_out(0xf1);
+            cc_emit(0xf1);crt_out(0xf0);
             cc_address(0x3a,state+5);crt_out(0xa5);
             cc_address(0x3a,state+4);crt_out(0xa4);
-            cc_patch(ready);cc_emit(0xaf);cc_op16(0x32,cc_runtime_private(RP_CRT_ACTIVE));cc_patch(done);
+            cc_patch(ready);cc_emit(0xaf);cc_runtime_op(0x32,cc_runtime_private(RP_CRT_ACTIVE));cc_patch(done);
         }
     } else if(op==CRT_EOL) {
         crt_in(0xa1);cc_emit(0x5f);cc_address(0xcd,row); /* row base */

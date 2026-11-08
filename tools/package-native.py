@@ -119,9 +119,21 @@ def validate_file_assets(memory,symbols,directory,file_name="file_runtime"):
     packed=(directory/(file_name+'.packed')).read_bytes()
     if unpack_module(packed)!=(directory/(file_name+'.zpl')).read_bytes():
         raise ValueError('packed file constant differs from its checked module')
-    for start,end,name in (('_file_start','_file_end',file_name+'.packed'),
-                           ('_file_gate_start','_file_gate_end','file_gate.zpl'),
-                           ('_unpack_start','_unpack_end','module_unpack.zpl')):
+    assets=[('_unpack_start','_unpack_end','module_unpack.zpl')]
+    if '_file_start' in symbols:
+        assets[:0]=[('_file_start','_file_end',file_name+'.packed'),
+                    ('_file_gate_start','_file_gate_end','file_gate.zpl')]
+    else:
+        if '_cc_file_native_bind' not in symbols or '_cc_file_asset_get' in symbols or '_file_gate_start' in symbols:
+            raise ValueError('missing file assets without the static file backend')
+        unit=(directory/'SYSFILE.ZPU').read_bytes()
+        checksum=2166136261
+        for value in unit[:28]+unit[32:]:checksum=((checksum^value)*16777619)&0xffffffff
+        if (len(unit)<48 or unit[:6]!=b'ZPU1\1\0' or struct.unpack_from('<H',unit,6)[0]!=len(unit)
+                or unit[8:12]!=(directory/'pascal_runtime.profile').read_bytes()
+                or struct.unpack_from('<I',unit,28)[0]!=checksum):
+            raise ValueError('compiler-private file unit is stale or corrupt')
+    for start,end,name in assets:
         data=(directory/name).read_bytes();a=symbols[start];z=symbols[end]
         if not 0xb8000<=a<z<=0xbc000 or z-a!=len(data) or bytes(memory.get(at,0)for at in range(a,z))!=data:
             raise ValueError('embedded file/unpack assets are stale or out of bounds')

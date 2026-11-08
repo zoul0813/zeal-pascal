@@ -48,15 +48,15 @@ def main():
         subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-g',
             '-fsanitize=address,undefined','-fno-sanitize-recover=all','-ffunction-sections',
             '-fdata-sections','-DZP_UNITS_EXPERIMENT','-Isrc','src/compiler_link.c',
-            'src/compiler_tables.c','src/compiler_table_arena.c','tests/host/link-placement.c','-Wl,-dead_strip','-o',binary],cwd=ROOT,check=True)
+            'src/compiler_tables.c','src/compiler_table_arena.c','src/compiler_layout_emit.c','tests/host/link-placement.c','-Wl,-dead_strip','-o',binary],cwd=ROOT,check=True)
         host = subprocess.check_output([binary],text=True)
-        assert host == '80 link placement assertions passed\n', host
+        assert host == '83 link placement assertions passed\n', host
     spec = importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py')
     n = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(n)
     sym = n.symbols('zpascal')
     inputs = [ROOT/name for name in ('CMakeLists.txt','src/compiler_link.c','src/compiler_link.h',
-        'src/compiler_tables.c','src/compiler_table_arena.c','src/compiler_table_arena.h','src/compiler_front.c','src/compiler_inline.c','src/compiler_build.c',
+        'src/compiler_tables.c','src/compiler_table_arena.c','src/compiler_layout_emit.c','src/compiler_table_arena.h','src/compiler_front.c','src/compiler_inline.c','src/compiler_build.c',
         'src/compiler_compile.c','src/compiler_units_link.c','src/compiler_units_object.c',
         'src/compiler_units_graph.c','src/compiler.h','src/library.h','src/library_phase.c',
         'src/startup.asm','src/compiler_members.c','src/compiler_members.h','src/compiler_groups.c',

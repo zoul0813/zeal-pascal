@@ -1,3 +1,4 @@
+#include "compiler_layout.h"
 #include "compiler.h"
 
 /* The runtime wrapper owns one call's error landing and restores its exact
@@ -102,7 +103,7 @@ void cc_str(void) FRONTEND {
 void cc_val(void) FRONTEND {
     uint16_t before=cc.temporaries,argument_before;
     TypeId type;TypeId code_type;
-    cc_require_full_memory(); /* Parsing helpers have a separate stack contract. */
+
     cc_next();cc_expect('(',4);cc_string_value();push_word();cc_expect(',',3);
     argument_before=cc.temporaries;type=cc_reference(41);
     if(cc_family(type)!=K_REAL&&
@@ -170,8 +171,8 @@ void cc_error_finish(void) FRONTEND {
     for(i=0;i<4;++i)cc_emit(0x0f);
     cc_address(0xcd,nibble);cc_emit(0xf1);cc_address(0xc3,nibble);
     cc.error_entry=cc.emitted;
-    cc_op16(0x3a,cc_runtime_private(RP_ERROR_CODE));cc_op16(0x32,0xfcbf);
-    cc_op16(0x3a,cc_runtime_private(RP_ERROR_NAMESPACE));cc_emit(0xfe);cc_emit(3);choose=cc_forward(0xca);
+    cc_runtime_op(0x3a,cc_runtime_private(RP_ERROR_CODE));cc_op16(0x32,0xfcbf);
+    cc_runtime_op(0x3a,cc_runtime_private(RP_ERROR_NAMESPACE));cc_emit(0xfe);cc_emit(3);choose=cc_forward(0xca);
     cc_address(0x21,normal);cc_op16(0x11,0xfc80);cc_op16(0x01,sizeof(runtime)-1);cc_emit(0xed);cc_emit(0xb0);
     cc_op16(0x11,0xfc8e);cc_emit(0x3e);cc_emit(sizeof(runtime)-1);ready=cc_forward(0xc3);
     cc_patch(choose);

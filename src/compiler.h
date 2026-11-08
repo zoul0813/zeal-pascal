@@ -1,6 +1,9 @@
 #ifndef ZP_COMPILER_H
 #define ZP_COMPILER_H
 #include "zp.h"
+#if defined(ZP_UNITS_EXPERIMENT) && defined(ZP_OPTIONAL_REAL)
+#define ZP_STATIC_LAYOUT
+#endif
 #include "real.h"
 #include "sources.h"
 #include "chain_abi.h"
@@ -93,6 +96,7 @@ typedef struct {
     TypeId text_type;
     uint16_t parameter_entry;
     uint16_t file_entry;
+    uint16_t file_native_operand;uint8_t file_operations[5];
     uint16_t standard_table_operand,file_stream_operand;
     uint16_t keyboard_entry,keyboard_poll,keyboard_status,keyboard_state,interrupt_entry;
     uint16_t keyboard_probe,keyboard_enqueue,keyboard_console_probe;
@@ -114,6 +118,7 @@ typedef struct {
 #ifdef ZP_OPTIONAL_REAL
     uint8_t real_needed;
 #endif
+    uint16_t stack_bytes; /* Final program stack budget; keep existing field offsets stable. */
 } Compiler;
 extern Compiler cc;
 /* Field tags contain the byte offset and16-bit-width flag. Private host and
@@ -221,6 +226,7 @@ void cc_preserve_registers(uint8_t restore) FRONTEND;
 uint16_t cc_original_entry(uint16_t entry,uint8_t staged) FRONTEND;
 void cc_finish(uint16_t entry) FRONTEND;
 void cc_reserve(uint16_t bytes) FRONTEND;
+void cc_native_reserve(uint16_t bytes) FRONTEND;
 void cc_temporary(uint16_t bytes) FRONTEND;
 void cc_string_snapshot(uint16_t bytes) FRONTEND;
 void cc_drop_stack(uint16_t bytes) FRONTEND;
@@ -259,6 +265,7 @@ void cc_logical_stream(void) FRONTEND;
 void cc_keyboard_engine(void) FRONTEND;
 void cc_keyboard_finish(void) FRONTEND;
 void cc_interrupt_finish(void) FRONTEND;
+uint8_t cc_file_native_prepare(void) ROUTINES;
 void cc_file_engine_finish(void) FRONTEND;
 void cc_user_interrupt(void) FRONTEND;
 void cc_console_finish(void) FRONTEND;

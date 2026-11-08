@@ -168,7 +168,7 @@ static void page_pressure(uint8_t shared) {
     check(load(shared?"begin end.":"var P:^Integer;begin New(P);P^:=42;Dispose(P)end."));
     check(compile(&s,&b,&d));
     if(b.valid) {
-        check(!!(far_get(b.pages[0],18)&NATIVE_SHARED_STACK)==shared);
+        check(!!(far_get(b.pages[0],18)&(NATIVE_SHARED_STACK|NATIVE_SINGLE_PAGE))==shared);
         check(b.pages[2]==255);
         check(code_phase_park());
         while(count<32) {
@@ -183,7 +183,8 @@ static void page_pressure(uint8_t shared) {
         } else {
             check(!run_build(&s,&b)&&platform_error==ERR_NO_MORE_MEMORY);
             check(b.pages[2]==255&&build_ready(&s,&b));
-            if(!count)goto restore;
+            if(count<2)goto restore;
+            check(page_drop(held[--count]));
             check(page_drop(held[--count]));
             check(run_build(&s,&b)&&ram_result[26]==1);
             check(ram_pages[1]!=ram_pages[2]);
@@ -210,7 +211,7 @@ static void layout_helpers(void) {
         check(source_new(&s,"H:/HELPER.PAS"));check(load(cases[i]));
         check(compile(&s,&b,&d));
         if(b.valid) {
-            check(!(far_get(b.pages[0],18)&NATIVE_SHARED_STACK));
+            check(!!(far_get(b.pages[0],18)&(NATIVE_SHARED_STACK|NATIVE_SINGLE_PAGE))==(i<7));
             check(far_read(b.pages[0],0,header,sizeof(header))&&!native_header(header,0,&id));
             if(i!=1)check(run_build(&s,&b)&&ram_result[26]==1);
         }
@@ -221,11 +222,12 @@ static void layout_limits(void) {
     CompileOptions options={0,0xfbffu,COMPILE_PROGRAM};CompileFailure failure;
     uint16_t bytes,limit,value;uint8_t i,header[160];NativeImage id;char text[96],*digit;
     check(source_new(&s,"H:/LIMIT.PAS"));check(load("begin end."));
-    check(compile(&s,&b,&d));bytes=b.code_bytes;
-    check(far_get(b.pages[0],18)&NATIVE_SHARED_STACK);
+    options.start=0x8000u;
+    check(compile_request(&s,&b,&failure,0,&options));bytes=b.code_bytes;
+    check(far_get(b.pages[0],18)&(NATIVE_SHARED_STACK|NATIVE_SINGLE_PAGE));
     closed();source_close(&s);
-    /* The emitted stub is70 bytes; the selector reserves128. */
-    limit=0xb400u-bytes-(128u-70u);
+    /* Measure the emitted two-page stub, including its exact final extent. */
+    limit=0xb400u-bytes;
     for(i=0;i<4;++i) {
         check(source_new(&s,"H:/LIMIT.PAS"));
         if(i<2) {
@@ -233,13 +235,13 @@ static void layout_limits(void) {
         } else {
             options.start=0;
             strcpy(text,"var A:array[1..00000]of Byte;begin end.");
-            digit=strstr(text,"00000")+5;value=limit-0x8000u+(i-2);
+            digit=strstr(text,"00000")+5;value=limit-0x579au+(i-2);
             do {*--digit='0'+value%10;value/=10;}while(value);
             check(load(text));
         }
         check(compile_request(&s,&b,&failure,0,&options));
         if(b.valid) {
-            check(!!(far_get(b.pages[0],18)&NATIVE_SHARED_STACK)==!(i&1));
+            check(!!(far_get(b.pages[0],18)&(NATIVE_SHARED_STACK|NATIVE_SINGLE_PAGE))==!(i&1));
             check(far_read(b.pages[0],0,header,sizeof(header))&&!native_header(header,0,&id));
             check(run_build(&s,&b)&&ram_result[26]==1);
         }
@@ -252,7 +254,7 @@ static void execute_shared(void) {
     check(load("var F:File;begin Assign(F,'H:/SHARED.COM');Execute(F)end."));
     check(compile(&s,&b,&d));
     if(b.valid) {
-        check(!(far_get(b.pages[0],18)&NATIVE_SHARED_STACK));
+        check(!(far_get(b.pages[0],18)&(NATIVE_SHARED_STACK|NATIVE_SINGLE_PAGE)));
         check(save_build(&s,&b,0));
         /* Memory mode must refuse transfer before retiring any Build owner. */
         check(run_build(&s,&b)&&ram_result[26]==3&&ram_result[28]==21&&build_ready(&s,&b));
@@ -272,10 +274,12 @@ static void argument_calls(void) {
     }
     closed();source_close(&s);
     for(i=0;i<4;++i) {
-        shared=i==0||i==3;
+        /* Every known argument frame fits the recorded stack budget. Large
+         * root calls no longer force a third page just for crossing512 bytes. */
+        shared=1;
         check(read_block(&s,paths[i],&d));check(compile(&s,&b,&d));
         if(b.valid) {
-            check(!!(far_get(b.pages[0],18)&NATIVE_SHARED_STACK)==shared);
+            check(!!(far_get(b.pages[0],18)&(NATIVE_SHARED_STACK|NATIVE_SINGLE_PAGE))==shared);
             check(far_read(b.pages[0],0,header,sizeof(header))&&!native_header(header,0,&id));
             check(run_build(&s,&b)&&ram_result[26]==1);
             check((ram_pages[1]==ram_pages[2])==shared);
@@ -395,7 +399,7 @@ static void metadata_types(void) {
     check(source_new(&s,"H:/TYPELEAF.PAS"));
     check(load("uses Kinds;var P:TPoint;begin P.X:=Limit end."));check(compile(&s,&b,&d));
     if(b.valid) {
-        check((far_get(b.pages[0],18)&NATIVE_SHARED_STACK)&&b.pages[2]==255&&b.globals_bytes==4);
+        check((far_get(b.pages[0],18)&(NATIVE_SHARED_STACK|NATIVE_SINGLE_PAGE))&&b.pages[2]==255&&b.globals_bytes==4);
         check(save_build(&s,&b,0));check(run_build(&s,&b)&&ram_result[26]==1);
     }
     closed();source_close(&s);

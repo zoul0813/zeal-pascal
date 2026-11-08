@@ -36,7 +36,7 @@ static void client(const char *path,const char *text,uint8_t full) {
     uint8_t status=255;
     check(source_new(&s,path));check(load(text));check(compile(&s,&b,&d));
     if(b.valid) {
-        check(!!(far_get(b.pages[0],18)&NATIVE_SHARED_STACK)==!full);
+        check(!!(far_get(b.pages[0],18)&(NATIVE_SHARED_STACK|NATIVE_SINGLE_PAGE))==!full);
         if(!full)check(b.pages[2]==255);
         check(save_build(&s,&b,0));
         check(run_build(&s,&b)&&ram_result[26]==1);
@@ -140,7 +140,7 @@ int app_main(void) {
     client("H:/INITUSE.PAS","uses Left,Right,Track;var Z:Integer;begin Z:=0;if Value<>123 then Z:=1 div Z;Mark(4);writeln('UNIT-INIT-OK')end.",1);
     client("H:/REVERSE.PAS","uses Right,Left,Track;var Z:Integer;begin Z:=0;if Value<>132 then Z:=1 div Z;writeln('UNIT-REVERSE-OK')end.",1);
     client("H:/ONLYINIT.PAS","uses InitReal;begin writeln('UNIT-INITREAL-OK')end.",1);
-    client("H:/EMPTYUSE.PAS","uses Empty;begin writeln('UNIT-EMPTY-OK')end.",1);
+    client("H:/EMPTYUSE.PAS","uses Empty;begin writeln('UNIT-EMPTY-OK')end.",0);
     client("H:/EMPTYRAM.PAS","uses Empty;var N:Integer;begin N:=1 end.",0);
     client("H:/BRIDGERUN.PAS","uses Bridge,Track;var Z:Integer;begin Z:=0;if Value<>15 then Z:=1 div Z;writeln('UNIT-BRIDGE-OK')end.",1);
     chain_activation();

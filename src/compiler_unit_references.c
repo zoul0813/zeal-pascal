@@ -55,7 +55,7 @@ void cc_unit_reference_next(UnitReference *cursor) ROUTINES {
     } else if(node) {
         cursor->record=node;cursor->site=cc_unit_word(node+2);cursor->value=cc_unit_word(node+4);
         cursor->kind=(uint8_t)cc_unit_word(node);cursor->next=cc_unit_word(node+6);
-        if(cursor->kind!=UR_GLOBAL&&cursor->kind!=UR_EXTERNAL)cc_fail(UNIT_FORMAT);
+        if(cursor->kind!=UR_GLOBAL&&cursor->kind!=UR_EXTERNAL&&cursor->kind!=UR_RUNTIME)cc_fail(UNIT_FORMAT);
     }
 }
 void cc_unit_reference_begin(UnitReference *cursor) ROUTINES {

@@ -3,6 +3,13 @@
 #ifdef ZP_UNITS_EXPERIMENT
 #include "compiler_units.h"
 #endif
+#if defined(__SDCC) && defined(ZP_STATIC_LAYOUT)
+/* Unit serialization still reads declaration names and constants after the
+ * parser returns. Keep source access in the retained support bank so the
+ * otherwise idle Inline/transfer generator can lend its physical page. */
+#pragma codeseg BANK11
+#pragma constseg BANK11
+#endif
 
 static uint8_t flags(void) {
     return cc.absolute_mode|(cc.var_strict<<1)|(cc.range_check<<2)|

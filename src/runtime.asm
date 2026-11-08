@@ -186,7 +186,8 @@ start:
     ld hl,(0x401c)
     inc hl
     res 0,l
-    bit 7,h                    ; reject prefix overlap and FFFF alignment wrap
+    ld a,h                     ; final static extent may be below8000
+    or l                       ; reject FFFF alignment wrap
     jp z,heap_error
 heap_aligned:
     ld (heap_floor),hl

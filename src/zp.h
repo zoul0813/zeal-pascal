@@ -205,6 +205,7 @@ uint16_t source_rebase(uint16_t position,uint16_t first,uint16_t last,uint16_t i
 uint16_t source_editor_offset(const Source *s, uint16_t canonical);
 uint8_t compile(const Source *s, Build *b, Diagnostic *d);
 uint8_t compile_project(const Source *root,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options);
+uint8_t compile_limits_at(uint16_t data,uint16_t globals,uint16_t code,const CompileOptions *options,CompileLimits *limits) SOURCE_BLOCK_CALL;
 uint8_t compile_limits(uint16_t globals,uint16_t code,const CompileOptions *options,CompileLimits *limits) SOURCE_BLOCK_CALL;
 uint8_t compile_interrupt_reason(void);
 /* On compile failure the source path survives until the next compile. */

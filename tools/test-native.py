@@ -238,12 +238,16 @@ class ImageStop:
         self.address, self.program, self.memory_mode = address, program, memory_mode
 
 
-def input_layout():
+def input_layout(image=None):
     """Bind private observer addresses to the assembled runtime instructions."""
     runtime = symbols('pascal_runtime')
+    if image is not None and (len(image)<16383 or int.from_bytes(image[132:134],'little')<16383):
+        placement=json.loads((ROOT/'build/runtime-layout.json').read_text())
+        shift=placement['gap_last']-placement['gap_first']
+        runtime={name:value-shift if placement['gap_last']<=value<placement['legacy_end'] else value for name,value in runtime.items()}
     first = runtime['line_remaining']
     buffer, length = first + 4, first + 134
-    prefix = (ROOT/'build/pascal_runtime.zpl').read_bytes()
+    prefix = image if image is not None else (ROOT/'build/pascal_runtime.zpl').read_bytes()
     word = lambda n: struct.pack('<H', n)
     finished = b'\x21'+word(buffer)+b'\x22'+word(runtime['line_next'])+b'\x3a'+word(length)
     if not (0x4000 <= buffer < buffer+129 <= 0x8000 and 0x4000 <= length < 0x8000):
@@ -252,6 +256,32 @@ def input_layout():
         raise RuntimeError('assembled input observer layout changed')
     return {'buffer': buffer, 'length': length, 'finished': 0x4000+prefix.index(finished),
             'mode': runtime['memory_mode'], 'cleanup': runtime['input_cleanup'], 'pattern': finished}
+
+
+def compact_prefix_matches(image, executed=False):
+    """Compare every core byte except precisely enumerated compiler patches."""
+    golden=(ROOT/'build/linked_integer_runtime.bin').read_bytes()
+    if len(image)<len(golden)or int.from_bytes(image[132:134],'little')!=len(golden):return False
+    skip=set()
+    for first,last in ((1,3),(10,14),(18,34),(132,134),(0x152,0x153)):
+        skip.update(range(first,last))
+    if executed:
+        # Save-after-Run fixtures contain these named mutable runtime words:
+        # source PC, HeapPtr/RecurPtr, scalar return scratch, heap floor,
+        # I/O target and memory mode.
+        for first,last in ((0xbe,0xc0),(0x12c,0x130),(0x136,0x13c),(0x15c,0x15e),(0x167,0x169),(0x522,0x523)):
+            skip.update(range(first,last))
+    private=(ROOT/'build/pascal_runtime.private').read_bytes()
+    names=['RP_INPUT_READY']+re.findall(r'RP_[A-Z_]+',(ROOT/'src/compiler.h').read_text().split('enum { RP_INPUT_READY',1)[1].split('RP_COUNT }',1)[0])
+    layout=json.loads((ROOT/'build/runtime-layout.json').read_text())
+    def physical(value):
+        if layout['gap_last']<=value<layout['legacy_end']:value-=layout['gap_last']-layout['gap_first']
+        return value-0x4000
+    gates=[int.from_bytes(golden[0xad:0xaf],'little')]
+    for name in ('RP_PROGRAM_ENTER','RP_INPUT_KEY','RP_INPUT_OPEN','RP_INPUT_ECHO','RP_NORMAL_ERROR'):
+        gates.append(struct.unpack_from('<H',private,2*names.index(name))[0])
+    for gate in gates:skip.update(range(physical(gate),physical(gate)+3))
+    return all(a==b for at,(a,b)in enumerate(zip(image,golden))if at not in skip)
 
 
 class DebugConsole:
@@ -332,7 +362,7 @@ class DebugConsole:
             raise RuntimeError('invalid input program header/extent')
         if image[36:132] != bytes(96):
             raise RuntimeError('invalid reserved header bytes')
-        layout = input_layout(); offset = layout['finished']-0x4000
+        layout = input_layout(image); offset = layout['finished']-0x4000
         if image[offset:offset+len(layout['pattern'])] != layout['pattern']:
             raise RuntimeError('input program uses a different runtime observer layout')
         return image[36:68], 36
@@ -456,6 +486,8 @@ def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, tim
     for target in ('zpascal', 'zptest'):
         for extension in ('bin', 'zpl'):
             shutil.copyfile(ROOT / f'build/{target}.{extension}', hostfs / f'{target}.{extension}')
+    if (ROOT/'build/SYSFILE.ZPU').exists():
+        shutil.copyfile(ROOT/'build/SYSFILE.ZPU', hostfs/'SYSFILE.ZPU')
     for filename, data in (fixtures or {}).items():
         path = hostfs / filename
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -613,7 +645,7 @@ def interactive_checks():
          and all(first.get(user_pages + i) == last.get(user_pages + i) for i in range(3))),
         ('ZShell raw nonblocking keyboard convention restored', first.get(mode) == last.get(mode) == 4),
         ('read-only installation files; Memory workflow creates no source/output files',
-         sorted(p.name for p in (RUN / 'interactive/hostfs').iterdir()) == ['zpascal.bin', 'zpascal.zpl', 'zptest.bin', 'zptest.zpl']),
+         sorted(p.name for p in (RUN / 'interactive/hostfs').iterdir()) == ['SYSFILE.ZPU', 'zpascal.bin', 'zpascal.zpl', 'zptest.bin', 'zptest.zpl']),
         ('kernel page unchanged at every interactive checkpoint',
          all(mappings(part) and mappings(part)[0] == ('0000', '000000') for part in parts)),
     ]
@@ -626,7 +658,7 @@ def user_break_checks():
     typed = lambda text: type_text(text, ticks=2000000)
     source = b'var s:string[8];\nbegin\nreadln(s)\nend.'
     reader, setter = kernel['keyboard_next_key'], kernel['keyboard_ioctl']
-    cleanup = symbols('pascal_runtime')['input_cleanup']
+    cleanup = input_layout((ROOT/'build/linked_integer_runtime.bin').read_bytes())['cleanup']
     work, build, result = sym['_work'], sym['_build'], sym['_ram_result']
     def probe():
         return ['regs', 'mmu', f"rb 0x{sym['_ide_state']:x} 1",

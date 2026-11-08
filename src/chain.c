@@ -168,7 +168,7 @@ void chain_install(ImageLoad *load) {
 #ifndef ZP_CHAIN_ONLY
 static uint8_t handoff_capable(ImageLoad *load) {
     uint16_t at,i,n,done=0;
-    if(load->entry<0x8000u||execute_entry_length>load->length||
+    if(load->entry<0x40a0u||execute_entry_length>load->length||
        load->entry-0x4000u>load->length-execute_entry_length)return 0;
     at=load->entry-0x4000u;
     while(done<execute_entry_length) {

@@ -1,3 +1,4 @@
+#include "compiler_layout.h"
 #include "compiler_late.h"
 #include "file_runtime.h"
 
@@ -18,7 +19,7 @@ static uint16_t word(uint16_t at) {
 }
 static uint16_t character(void) { return word(RT_CHAR+1); }
 static void adapter_call(uint16_t entry) {
-    if(entry<CC_CODE_BASE) cc_op16(0xcd,entry);
+    if(entry<CC_CODE_BASE) cc_runtime_op(0xcd,entry);
     else cc_address(0xcd,entry);
 }
 static void job_index(uint8_t op,uint8_t offset) { cc_emit(0xfd); cc_emit(op); cc_emit(offset); }
@@ -56,12 +57,12 @@ static uint16_t physical(uint16_t open,uint16_t echo) {
     cc_op16(0x3a,RT_IOSTATUS); cc_emit(0xb7); cc_op16(0xc2,RT_IOFAIL);
     cc_op16(0x21,2); cc_emit(0x39); cc_emit(0x7e); cc_emit(0xf5);
     cc_op16(0x2a,RT_PC); cc_emit(0xe5);
-    cc_op16(0x3a,cc_runtime_private(RP_ECHO_FD)); cc_emit(0xf5);
-    cc_emit(0x3e); cc_emit(255); cc_op16(0x32,cc_runtime_private(RP_ECHO_FD));
+    cc_runtime_op(0x3a,cc_runtime_private(RP_ECHO_FD)); cc_emit(0xf5);
+    cc_emit(0x3e); cc_emit(255); cc_runtime_op(0x32,cc_runtime_private(RP_ECHO_FD));
     cc_op16(0x21,4); cc_emit(0x39); cc_emit(0x23); cc_emit(0x7e);
     cc_op16(0xcd,RT_IOCALL); body=cc.emitted; cc_relocate(body);
     cc_emit(0); cc_emit(0); cc_emit(0);
-    cc_emit(0xc1); cc_emit(0x78); cc_op16(0x32,cc_runtime_private(RP_ECHO_FD));
+    cc_emit(0xc1); cc_emit(0x78); cc_runtime_op(0x32,cc_runtime_private(RP_ECHO_FD));
     cc_emit(0xe1); cc_op16(0x22,RT_PC); cc_emit(0xf1);
     cc_emit(0xd1); cc_emit(0xc1); cc_emit(0xd5);
     cc_op16(0x3a,RT_IOSTATUS); cc_emit(0xb7); cc_emit(0xc8);
@@ -69,8 +70,8 @@ static uint16_t physical(uint16_t open,uint16_t echo) {
     cc_word(body,cc.emitted);
     cc_emit(0x4f); cc_op16(0x3a,RT_IOSTATUS); cc_emit(0xb7); cc_op16(0xc2,RT_IOFAIL); cc_emit(0x79);
     cc_emit(0xf5); adapter_call(open); cc_emit(0xf1); adapter_call(echo);
-    cc_op16(0xcd,cc_runtime_private(RP_INPUT_CLOSE)); cc_emit(0xb7); cc_emit(0xc8);
-    cc_op16(0xc3,cc_runtime_private(RP_IO_ERROR));
+    cc_runtime_op(0xcd,cc_runtime_private(RP_INPUT_CLOSE)); cc_emit(0xb7); cc_emit(0xc8);
+    cc_runtime_op(0xc3,cc_runtime_private(RP_IO_ERROR));
     return entry;
 }
 static void restore(void) { cc_emit(0x79); cc_emit(0xe1); cc_emit(0xd1); cc_emit(0xc1); }
@@ -79,16 +80,16 @@ static void restore(void) { cc_emit(0x79); cc_emit(0xe1); cc_emit(0xd1); cc_emit
 static uint16_t console(uint8_t kind,uint16_t native,uint16_t invoke) {
     uint16_t entry=cc.emitted,default_path,owned=0;
     cc_capture_guard(512,1); cc_emit(0xc5); cc_emit(0xd5); cc_emit(0xe5); cc_emit(0x4f);
-    cc_op16(0x2a,cc.hook_variables[HOOK_CON_OUT]);
+    cc_data_op(0x2a,cc.hook_variables[HOOK_CON_OUT]);
     cc_address(0x11,cc.hook_defaults[HOOK_CON_OUT]); cc_emit(0xb7); cc_emit(0xed); cc_emit(0x52);
     default_path=cc_forward(0xca);
     if(kind!=2) {
-        cc_op16(0x2a,cc.hook_variables[HOOK_CON_OUT]); cc_emit(0x79); cc_address(0xcd,invoke);
+        cc_data_op(0x2a,cc.hook_variables[HOOK_CON_OUT]); cc_emit(0x79); cc_address(0xcd,invoke);
     }
     restore(); cc_emit(0xc9);
     cc_patch(default_path);
     if(kind==1) {
-        cc_op16(0x3a,cc_runtime_private(RP_ECHO_FD)); cc_emit(0xfe); cc_emit(255); owned=cc_forward(0xc2);
+        cc_runtime_op(0x3a,cc_runtime_private(RP_ECHO_FD)); cc_emit(0xfe); cc_emit(255); owned=cc_forward(0xc2);
         cc_address(0x21,cc.hook_defaults[HOOK_CON_OUT]); cc_emit(0x79); cc_address(0xcd,invoke);
         restore(); cc_emit(0xc9); cc_patch(owned);
     }
@@ -96,7 +97,7 @@ static uint16_t console(uint8_t kind,uint16_t native,uint16_t invoke) {
     return entry;
 }
 static void target(uint8_t kind,uint16_t fallback) {
-    if(cc.hook_variables[kind]) cc_op16(0x2a,cc.hook_variables[kind]);
+    if(cc.hook_variables[kind]) cc_data_op(0x2a,cc.hook_variables[kind]);
     else cc_address(0x21,fallback);
 }
 static void mask(void) {
@@ -113,7 +114,7 @@ static void mask(void) {
     job_index(0x7e,9); cc_emit(0xcb); cc_emit(0x7f); cc_emit(0xc0);
     cc_emit(0xc5); cc_emit(0xd5); cc_emit(0xe5); cc_emit(0x0e); cc_emit(0);
     for(k=HOOK_LST_OUT;k<=HOOK_AUX_OUT;++k) if(cc.hook_variables[k]) {
-        cc_op16(0x2a,cc.hook_variables[k]); cc_address(0x11,cc.hook_defaults[k]);
+        cc_data_op(0x2a,cc.hook_variables[k]); cc_address(0x11,cc.hook_defaults[k]);
         cc_emit(0xb7); cc_emit(0xed); cc_emit(0x52); skip=cc_forward(0xca);
         cc_emit(0xcb); cc_emit(k==HOOK_LST_OUT?0xc1:0xc9); cc_patch(skip);
     }
@@ -166,11 +167,11 @@ void cc_hooks_finish(void) ROUTINES {
         cc_capture_guard(512,0); cc_address(0xcd,poll); cc_op16(0x21,0); cc_address(0x3a,cc.keyboard_status); cc_emit(0x6f); cc_emit(0xc9);
         invoke=invocation(1); entry=cc.emitted;
         cc_capture_guard(512,0); cc_emit(0xe5); cc_emit(0xd5);
-        cc_op16(0x2a,cc.hook_variables[HOOK_STATUS]); cc_address(0x11,cc.hook_defaults[HOOK_STATUS]);
+        cc_data_op(0x2a,cc.hook_variables[HOOK_STATUS]); cc_address(0x11,cc.hook_defaults[HOOK_STATUS]);
         cc_emit(0xb7); cc_emit(0xed); cc_emit(0x52); skip=cc_forward(0xc2);
         cc_emit(0xd1); cc_emit(0xe1); cc_address(0xc3,poll); cc_patch(skip);
         cc_emit(0xaf); cc_address(0x32,cc.keyboard_status);
-        cc_op16(0x2a,cc.hook_variables[HOOK_STATUS]); cc_address(0xcd,invoke);
+        cc_data_op(0x2a,cc.hook_variables[HOOK_STATUS]); cc_address(0xcd,invoke);
         cc_emit(0xd1); cc_emit(0xe1); cc_emit(0xc9);
         cc_put(cc.keyboard_poll,0xc3); cc_word(cc.keyboard_poll+1,entry); cc_relocate(cc.keyboard_poll+1);
     }
@@ -182,10 +183,10 @@ void cc_hooks_place(uint16_t delta) ROUTINES {
     for(k=0;k<3;++k) {
         at=k==0?character():cc_runtime_private(k==1?RP_INPUT_ECHO:RP_INPUT_OPEN);
         value=k==0?cc.hook_character:k==1?cc.hook_echo:cc.hook_open;
-        if(value) { cc_put(at-0x4000u,0xc3); cc_word(at-0x4000u+1,value+delta); }
+        if(value) { cc_put(cc_runtime_address(at)-0x4000u,0xc3); cc_word(cc_runtime_address(at)-0x4000u+1,value+delta); }
     }
     if(cc.error_entry) {
-        at=cc_runtime_private(RP_NORMAL_ERROR)-0x4000u;
+        at=cc_runtime_address(cc_runtime_private(RP_NORMAL_ERROR))-0x4000u;
         cc_put(at,0xc3);cc_word(at+1,cc.error_entry+delta);
     }
 }

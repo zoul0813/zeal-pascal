@@ -129,7 +129,13 @@ uint8_t compile_request(const Source *root,Build *b,CompileFailure *failure,
     if(options)effective=*options;
     if(mode>2||(mode==2&&(!options||effective.kind!=COMPILE_CHAIN))||
        (mode!=2&&effective.kind!=COMPILE_PROGRAM)||effective.end<0xcfffu||effective.end>0xfbffu||
-       (effective.start&&(effective.start<0x8000u||effective.start>0xf400u))) {platform_error=ERR_INVALID_PARAMETER;goto platform;}
+       (effective.start&&(effective.start<
+#if defined(ZP_UNITS_EXPERIMENT) && defined(ZP_OPTIONAL_REAL)
+        (mode==2?0x8000u:0x40a0u)
+#else
+        0x8000u
+#endif
+        ||effective.start>0xf400u))) {platform_error=ERR_INVALID_PARAMETER;goto platform;}
     compiler_allocating=COMPILER_ALLOC_PARENT;
     if(mode) {
         if(!prepare_build(root,mode==2,1)) {

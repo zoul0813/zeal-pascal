@@ -1,4 +1,5 @@
 #include "library.h"
+#include "compiler.h"
 #include <zos_sys.h>
 #include <zos_vfs.h>
 
@@ -106,18 +107,33 @@ uint8_t code_phase_unit_link_begin(void) SOURCE_BLOCK_CALL {
 }
 /* Final linking and serialization run after every parser frame has returned. Unsigned value
  * decoding lives in the retained support bank, so the expression generator
- * can lend its slot as well as the file generator until output is sealed. */
+ * can lend its slot as well as the file generator until output is sealed.
+ * Static-layout builds retain source access separately, so Inline/transfer
+ * generation can lend its idle bank too. This leaves room
+ * for a large unit's artifact while its relocation tables are still live. */
 uint8_t code_phase_unit_finish_begin(void) SOURCE_BLOCK_CALL {
     uint8_t primary;
     if(!drop_bank(CODE_FILE_COMPILER))return 0;
-    if(drop_bank(CODE_EXPRESSIONS)&&restore(1UL<<CODE_LINKER))return 1;
+    if(drop_bank(CODE_EXPRESSIONS)&&
+#ifdef ZP_STATIC_LAYOUT
+       drop_bank(CODE_TRANSFER)&&
+#endif
+       restore(1UL<<CODE_LINKER))return 1;
     primary=platform_error;drop_bank(CODE_LINKER);
-    restore((1UL<<CODE_FILE_COMPILER)|(1UL<<CODE_EXPRESSIONS));platform_error=primary;return 0;
+    restore((1UL<<CODE_FILE_COMPILER)|(1UL<<CODE_EXPRESSIONS)
+#ifdef ZP_STATIC_LAYOUT
+            |(1UL<<CODE_TRANSFER)
+#endif
+            );platform_error=primary;return 0;
 }
 uint8_t code_phase_unit_finish_end(void) SOURCE_BLOCK_CALL {
     if(!drop_bank(CODE_LINKER))return 0;
     resume_mask&=~(1UL<<CODE_LINKER);
-    return restore((1UL<<CODE_FILE_COMPILER)|(1UL<<CODE_EXPRESSIONS));
+    return restore((1UL<<CODE_FILE_COMPILER)|(1UL<<CODE_EXPRESSIONS)
+#ifdef ZP_STATIC_LAYOUT
+                   |(1UL<<CODE_TRANSFER)
+#endif
+                   );
 }
 uint8_t code_phase_unit_link_end(void) SOURCE_BLOCK_CALL {
     if(!drop_bank(CODE_LINKER))return 0;

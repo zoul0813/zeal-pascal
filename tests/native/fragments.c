@@ -533,6 +533,21 @@ static void byte_references(void) {
     check(cc_fragment_link(&source,1,&root,1,0x8000,0xf400,&image)==CF_TARGET);
     check(page_drop(source.page)&&!used);
 }
+static void runtime_references(void) {
+    static const uint16_t size[]={4};
+    static const uint16_t refs[]={1,0,(CF_RUNTIME16<<CF_REFERENCE_SHIFT)|0x37c0,0};
+    static const uint16_t owners[]={0};
+    CompilerFragmentObject source;CompilerFragmentRoot root;
+    object(&source,1,1,size,1,refs,owners);root.identity=1;root.fragment=0;
+    check(cc_fragment_link(&source,1,&root,1,0x8000,0xf400,&image)==CF_OK);
+    check(image.fragments==1&&getword(0x8001)==0x77c0);
+    check(cc_fragment_image_close(&image));
+    poke(&source,16+8+2,1);seal(&source);
+    check(cc_fragment_validate_source(&source)==CF_OBJECT);
+    poke(&source,16+8+2,0);poke(&source,16+8+6,1);seal(&source);
+    check(cc_fragment_validate_source(&source)==CF_OBJECT);
+    check(page_drop(source.page)&&!used);
+}
 int main(void) {
     free_page=255;mutate_page=255;cc_fragment_image_init(&image);build_objects();
 #ifdef __SDCC
@@ -546,7 +561,7 @@ int main(void) {
     }
     negative();faults();ownership_and_edges();patches_and_cycles();capacity();independent();
     check(cc_fragment_image_close(&image));check(!used);
-    embedded_layout();dependency_bindings();paged_sources();metadata_only();byte_references();
+    embedded_layout();dependency_bindings();paged_sources();metadata_only();byte_references();runtime_references();
 #ifndef __SDCC
     maximum_objects();
 #endif

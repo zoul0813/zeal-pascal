@@ -94,7 +94,7 @@ void cc_units_handoff_cleanup(void) ROUTINES {
 void cc_units_note(uint16_t kind,uint16_t site,uint16_t value) ROUTINES {
     if(!cc.sources->unit_mode||cc.suppress||cc.error->code)return;
     {uint16_t at=cc_unit_record(kind,site,value,0,0,0),tail;
-    if(kind==UR_GLOBAL&&at) {
+    if((kind==UR_GLOBAL||kind==UR_RUNTIME)&&at) {
         tail=cc_unit_word(UH_REFERENCE_TAIL);
         if(tail)cc_unit_put(tail+6,at);else cc_unit_put(UH_REFERENCES,at);
         cc_unit_put(UH_REFERENCE_TAIL,at);cc_unit_put(UH_REFERENCE_COUNT,cc_unit_word(UH_REFERENCE_COUNT)+1);
@@ -120,6 +120,7 @@ void cc_units_header(void) ROUTINES {
     if(!cc_is("unit")||!requested){cc_fail(UNIT_INTERFACE);return;}
     if(!cc_units_begin())return;
     cc_next();if(cc.token!=T_ID){cc_fail(53);return;}
+    if(cc_is("sysfile")){cc_fail(UNIT_UNSUPPORTED);return;}
     n=(uint8_t)strlen(cc.name);
     /* Zeal's initial canonical lookup uses UPPERCASE.ZPU and never truncates
      * identities. Longer-name/output mapping needs a separate search contract. */

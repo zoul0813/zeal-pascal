@@ -9,15 +9,22 @@
 static struct {uint16_t emitted,crt_row,crt_state,crt_entries[16];} cc;
 static uint8_t code[16384];
 static uint16_t relocs[4096],reloc_count;
+static uint16_t runtime_sites[4096],runtime_targets[4096],runtime_count;
 static void cc_emit(uint8_t b) {assert(cc.emitted<sizeof(code));code[cc.emitted++]=b;}
 static void word(uint16_t at,uint16_t value) {code[at]=value;code[at+1]=value>>8;}
 static void cc_op16(uint8_t op,uint16_t value) {cc_emit(op);cc_emit(value);cc_emit(value>>8);}
+static void cc_runtime_op(uint8_t op,uint16_t value) {
+    if(value>=RUNTIME_GAP_LAST&&value<RUNTIME_OWNED_END) {
+        assert(runtime_count<4096);runtime_sites[runtime_count]=cc.emitted+1;
+        runtime_targets[runtime_count++]=value;
+    }
+    cc_op16(op,value);
+}
 static void cc_relocate(uint16_t at) {assert(reloc_count<4096);relocs[reloc_count++]=at;}
 static void cc_address(uint8_t op,uint16_t value) {cc_relocate(cc.emitted+1);cc_op16(op,value);}
 static uint16_t cc_forward(uint8_t op) {uint16_t at=cc.emitted+1;cc_address(op,0);return at;}
 static void cc_patch(uint16_t at) {word(at,cc.emitted);}
 static uint16_t cc_runtime_private(uint8_t unused) {(void)unused;return SCREEN_ACTIVE;}
-static void cc_require_full_memory(void) {}
 #define RP_CRT_ACTIVE 0
 #include "../libraries/screen-engine.inc"
 
@@ -68,20 +75,20 @@ static uint16_t wrapper(uint8_t op,uint8_t params,uint16_t helper) {
  * before the outer wrapper applies its caller's I/O checking policy. */
 static uint16_t read_key(void) {
     uint16_t entry=cc.emitted,body,loop;
-    cc_op16(0x3a,RP_ECHO_FD);cc_emit(0xf5);
-    cc_op16(0x3a,RP_INPUT_MODE_VALUE);cc_emit(0xf5);
-    cc_emit(0x3e);cc_emit(255);cc_op16(0x32,RP_ECHO_FD);
+    cc_runtime_op(0x3a,RP_ECHO_FD);cc_emit(0xf5);
+    cc_runtime_op(0x3a,RP_INPUT_MODE_VALUE);cc_emit(0xf5);
+    cc_emit(0x3e);cc_emit(255);cc_runtime_op(0x32,RP_ECHO_FD);
     cc_op16(0xcd,RT_IOCALL);body=cc.emitted;cc_relocate(body);
     cc_emit(0);cc_emit(0);cc_emit(0);
     cc_op16(0x21,1);cc_emit(0x39);cc_emit(0x5e);cc_emit(0x16);cc_emit(0);
-    cc_op16(0xcd,RP_INPUT_MODE);cc_emit(0x47);
-    cc_emit(0xd1);cc_emit(0xd1);cc_emit(0x7a);cc_op16(0x32,RP_ECHO_FD);
+    cc_runtime_op(0xcd,RP_INPUT_MODE);cc_emit(0x47);
+    cc_emit(0xd1);cc_emit(0xd1);cc_emit(0x7a);cc_runtime_op(0x32,RP_ECHO_FD);
     cc_op16(0x3a,RT_IOSTATUS);cc_emit(0xb7);cc_op16(0xc2,RT_IOFAIL);
-    cc_emit(0x78);cc_emit(0xb7);cc_op16(0xc2,RP_IO_ERROR);cc_emit(0xc9);
+    cc_emit(0x78);cc_emit(0xb7);cc_runtime_op(0xc2,RP_IO_ERROR);cc_emit(0xc9);
     word(body,cc.emitted);
-    cc_op16(0x11,0);cc_op16(0xcd,RP_INPUT_MODE);
-    cc_emit(0xb7);cc_op16(0xc2,RP_INPUT_FAIL);
-    loop=cc.emitted;cc_op16(0xcd,RP_INPUT_KEY);
+    cc_op16(0x11,0);cc_runtime_op(0xcd,RP_INPUT_MODE);
+    cc_emit(0xb7);cc_runtime_op(0xc2,RP_INPUT_FAIL);
+    loop=cc.emitted;cc_runtime_op(0xcd,RP_INPUT_KEY);
     cc_emit(0xb7);cc_address(0xca,loop);
     /* The query wrapper owns its zeroed result at IX-2. */
     cc_emit(0xdd);cc_emit(0x77);cc_emit(0xfe);cc_emit(0xc9);
@@ -102,9 +109,10 @@ int main(void) {
         params=op==CRT_XY?2:op==CRT_DELAY||op==CRT_FOREGROUND||op==CRT_BACKGROUND?1:0;
         entries[op]=wrapper(op,params,helper);ends[op]=cc.emitted;
     }
-    out_word(cc.emitted);out_word(reloc_count);
+    out_word(cc.emitted);out_word(reloc_count);out_word(runtime_count);
     for(op=0;op<17;++op) {out_word(starts[op]);out_word(ends[op]);if(op<16)out_word(entries[op]);}
     for(helper=0;helper<reloc_count;++helper)out_word(relocs[helper]);
+    for(helper=0;helper<runtime_count;++helper){out_word(runtime_sites[helper]);out_word(runtime_targets[helper]);}
     assert(fwrite(code,1,cc.emitted,stdout)==cc.emitted);
     return ferror(stdout)?1:0;
 }

@@ -13,8 +13,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def host(compact=False):
-    out = ROOT/('analysis/file-runtime/host-compact' if compact else 'analysis/file-runtime/host')
+def host(compact=False,direct=False):
+    out = ROOT/('analysis/file-runtime/host-direct' if direct else 'analysis/file-runtime/host-compact' if compact else 'analysis/file-runtime/host')
     out.mkdir(parents=True, exist_ok=True)
     sdk = Path(os.environ.get('ZP_ZEAL_ROOT', str(ROOT.parent)))/'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
     command = ['cc', '-std=c99', '-Wall', '-Wextra', '-Werror',
@@ -22,6 +22,7 @@ def host(compact=False):
                '-DZP_FILE_HOST', '-D__SDCC_VERSION_MAJOR=4', '-D__SDCC_VERSION_MINOR=2',
                '-D__sdcccall(x)=', '-Isrc', '-I'+str(sdk)]
     if compact:command += ['-DZP_COMPACT_EXPERIMENT']
+    if direct:command += ['-DZP_DIRECT_FILE']
     command += ['-D'+name+'=zf_model_'+name for name in ('open', 'close', 'read', 'write', 'seek', 'ioctl', 'exit')]
     command += ['src/path.c', 'src/file_runtime.c', 'tests/native/file-core.c', 'tests/native/file-model.c',
                 '-o', str(out/'file-core')]
@@ -33,7 +34,7 @@ def host(compact=False):
     subprocess.run(command, cwd=ROOT, check=True)
     result = subprocess.run([str(out/'file-core')], cwd=ROOT, capture_output=True, text=True)
     (out/'result.txt').write_text(result.stdout+result.stderr)
-    expected = 12583 if compact else 1522
+    expected = 1538 if direct else 12583 if compact else 1522
     summary = re.fullmatch(r'(\d+) file runtime assertions passed, (\d+) failed\n?', result.stdout)
     checks = {'successful process': result.returncode == 0,
               'exact assertion count': bool(summary) and tuple(map(int, summary.groups())) == (expected, 0),
@@ -122,8 +123,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--host', action='store_true')
     parser.add_argument('--compact-host', action='store_true')
+    parser.add_argument('--direct-host', action='store_true')
     parser.add_argument('--native', action='store_true')
     args = parser.parse_args()
     if args.host: host()
     if args.compact_host:host(True)
+    if args.direct_host:host(direct=True)
     if args.native: native()

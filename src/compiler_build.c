@@ -8,6 +8,7 @@
 #endif
 #include "compiler.h"
 #include "compiler_link.h"
+#include "compiler_layout.h"
 #ifdef ZP_UNITS_EXPERIMENT
 #include "library.h"
 #endif
@@ -94,11 +95,15 @@ void cc_global_put(uint16_t p,uint8_t value) FRONTEND {
 uint8_t cc_place_code(void) FRONTEND {
     uint16_t i,p,at,value,coefficient,origin;
     uint8_t byte;
-    uint16_t count=cc.emitted-CC_CODE_BASE,delta;
+    uint16_t count=cc.emitted-CC_CODE_BASE,delta,data=cc_data_base();
     CompileLimits limits;
-    if(!compile_limits(cc.image->globals_bytes,count,cc.sources->options,&limits)) { cc_fail(99);return 0; }
+    if(!compile_limits_at(data,cc.image->globals_bytes,count,cc.sources->options,&limits)) { cc_fail(99);return 0; }
     origin=cc.sources->options&&cc.sources->options->start?cc.sources->options->start:limits.minimum_start;
     delta=origin-CC_CODE_BASE;
+    if(!cc_disk_active(cc.image)) {
+        if(cc.image->globals_bytes>PAGE_SIZE&&!separate_globals())return 0;
+        if(cc.image->globals_bytes&&!cc_image_page(1))return 0;
+    }
     for(i=0;i<cc.relocations;++i) {
         if(!(i&63)&&!cc_poll())return 0;
         p=i*RELOCATION_BYTES;
@@ -112,17 +117,17 @@ uint8_t cc_place_code(void) FRONTEND {
         if(byte)cc_put(at,(uint8_t)value);else cc_word(at,value);
     }
 #ifdef ZP_UNITS_EXPERIMENT
-    if(cc.links) {
+    if(cc.links||cc_layout_active()) {
         uint8_t ok,primary;
         if(!code_phase_unit_finish_begin()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
-        ok=cc_link_apply(origin,GLOBAL_BASE);primary=platform_error;
+        ok=cc_link_apply(origin,data)&&cc_layout_finish();primary=platform_error;
         if(!code_phase_unit_finish_end()){cc_fail(COMPILE_PLATFORM_FAILURE);return 0;}
         if(!ok){platform_error=primary;return 0;}
     }
 #endif
     if(!cc_disk_active(cc.image)) {
     if(cc.image->globals_bytes>PAGE_SIZE&&!separate_globals())return 0;
-    if(!cc_image_page(1))return 0;
+    if(!cc_layout_active()&&!cc_image_page(1))return 0;
     cc.placing=1;
     /* A higher Start may overlap the first staging page in either direction.
      * Reverse only for an upward overlapping move. The second staging page
@@ -143,14 +148,14 @@ uint8_t cc_place_code(void) FRONTEND {
     /* Bind the private key dispatch only after final placement is known.
      * Both RAM and saved images own their typeahead state and exact target. */
     if(cc.keyboard_entry)
-        cc_word(cc_runtime_private(RP_INPUT_KEY)-0x4000u+1,cc.keyboard_entry+delta);
+        cc_word(cc_runtime_address(cc_runtime_private(RP_INPUT_KEY))-0x4000u+1,cc.keyboard_entry+delta);
     for(i=0;i<HOOK_COUNT;++i) if(cc.hook_variables[i])
-        cc_word(cc.hook_variables[i]-0x4000u,cc.hook_defaults[i]+delta);
+        cc_word(data+cc.hook_variables[i]-GLOBAL_BASE-0x4000u,cc.hook_defaults[i]+delta);
 #ifdef ZP_PROGRAM_PAGES
     if(cc.shared_stack) {
         /* Redirect the existing runtime dispatch, preserving all program data
          * and explicit native addresses in the emitted code. */
-        at=cc_runtime_private(RP_PROGRAM_ENTER)-0x4000u;
+        at=cc_runtime_address(cc_runtime_private(RP_PROGRAM_ENTER))-0x4000u;
         cc_put(at,0x21);cc_word(at+1,cc.page_entry+delta);
     }
 #endif
@@ -172,7 +177,7 @@ static uint8_t image_layout(const Build *b) {
             if(page_role(b->pages[i])!=PAGE_IMAGE)return 0;
         } else if(b->pages[i]!=255&&page_role(b->pages[i])!=PAGE_IMAGE)return 0;
     }
-    return b->length>=PAGE_SIZE||build_is_chain(b);
+    return b->length>=160||build_is_chain(b);
 }
 uint8_t build_check(const Source *s,const Build *b) {
     uint8_t i;Source snapshot;

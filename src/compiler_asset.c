@@ -64,6 +64,7 @@ uint16_t cc_runtime_private(uint8_t entry) {
     return runtime_private[2*entry]|((uint16_t)runtime_private[2*entry+1]<<8);
 #endif
 }
+#ifndef ZP_STATIC_LAYOUT
 uint16_t cc_file_asset_size(uint8_t gate) {
     return gate?(uint16_t)(file_gate_end-file_gate_start):(uint16_t)(file_end-file_start);
 }
@@ -75,3 +76,5 @@ uint8_t cc_file_asset_get(uint8_t gate,uint16_t offset) {
     return (gate?file_gate_start:file_start)[offset];
 #endif
 }
+
+#endif
