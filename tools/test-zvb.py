@@ -21,7 +21,9 @@ def main():
     parser.add_argument("--prebuilt",type=Path,help="Test clients against an already authored ZVB.ZPU")
     parser.add_argument("--case",action="append",choices=['USES','ORDER','SMOKE','CRC','DMA','GFX','PACK','OPTIONS','PAGE','SOUND','ZVBCHECK','SPRITES','SNAKE','FIRSTBAR','CRC32'])
     parser.add_argument("--output-library",type=Path,help="Install a freshly authored, verified ZPU at this path")
+    parser.add_argument("--emulator",type=Path,help="Use an installed native emulator")
     args=parser.parse_args()
+    if args.emulator:n.EMULATOR=args.emulator
     if args.output_library and (args.hardware_only or args.prebuilt):
         parser.error("output-library requires fresh Pascal unit authoring")
     if args.hardware_only and (args.clients or args.case or args.skip_hardware or args.prebuilt):parser.error("hardware-only excludes client fixtures")
@@ -102,7 +104,12 @@ def main():
     checks={'authenticated completion':frame.startswith('fc01 ')and byte('_test_done')==255 and bytes(state.get(0x4000+i,0)for i in range(32))==fixtures[target+'.bin'][:32],
             'native assertions pass':word('_test_passed')==word('_test_index')and word('_test_passed')>0 and word('_test_failed')==0}
     if args.hardware_only:
-        checks['exact focused assertion count']=word('_test_index')==336
+        # 11 author fixtures (6 checks), two clients (9), five lifecycle
+        # checks, plus 13 closes checking every configured compiler bank slot.
+        bank_limit=int(re.search(r'^#define CODE_BANK_LIMIT (\d+)',
+            (ROOT/'src/library.h').read_text(),re.M)[1])
+        expected_assertions=11*6+2*9+5+13*(1+bank_limit)
+        checks['exact focused assertion count']=word('_test_index')==expected_assertions
         checks['library probe skipped']=byte('_test_unit_attempted')==0
     elif args.prebuilt:checks['prebuilt library used']=byte('_test_unit_attempted')==0
     else:checks['Pascal ZVB compiled']=byte('_test_unit_attempted')==1 and byte('_test_unit_ok')==1 and byte('_test_unit_error')==0
@@ -129,7 +136,7 @@ def main():
             'failure_indices':[state.get(symbols['_test_failures']+2*i,0)|(state.get(symbols['_test_failures']+2*i+1,0)<<8)for i in range(min(word('_test_failed'),64))],
             'diagnostics':[state.get(symbols['_test_diagnostics']+2*i,0)|(state.get(symbols['_test_diagnostics']+2*i+1,0)<<8)for i in range(min(2*word('_test_failed'),128))],
             'zvb':{'compiled':byte('_test_unit_ok'),'error':byte('_test_unit_error'),'position':word('_test_unit_position'),'code_bytes':word('_test_unit_code'),'types':word('_test_unit_types'),'maps':word('_test_unit_maps'),'code_relocations':word('_test_unit_relocations')},
-            'capture_directory':str(n.RUN.relative_to(ROOT))}
+            'emulator':str(n.EMULATOR),'capture_directory':str(n.RUN.relative_to(ROOT))}
     if args.output_library and report['passed']:
         destination=args.output_library.resolve();destination.parent.mkdir(parents=True,exist_ok=True)
         payload=(n.RUN/'zvb/hostfs/ZVB.ZPU').read_bytes()

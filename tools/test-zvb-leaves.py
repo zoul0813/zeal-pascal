@@ -9,10 +9,20 @@ ROOT=Path(__file__).resolve().parents[1]
 CPU=Path(os.environ.get('ZP_CPU_ROOT','/private/tmp/Zeal-NativeEmulator'))
 if not CPU.exists():CPU=ROOT.parent/'Zeal-NativeEmulator'
 leaves={}
-for name,file in [('transfer','ZVBGFX.INC'),('write','ZVBIO.INC'),('read','ZVBIO.INC'),('crc','ZVBIO.INC')]:
-    procedure={'transfer':'VRAMTransfer','write':'WritePeripheral','read':'ReadPeripheralRaw','crc':'CRCFeed'}[name]
+for name,procedure in {
+    'transfer':'VRAMTransfer', 'write':'WritePeripheral', 'read':'ReadPeripheralRaw',
+    'crc':'CRCFeed', 'tile':'GfxTilemapPlace', 'tileload':'GfxTilemapLoad',
+    'palette':'GfxPaletteLoad', 'palread':'GfxPaletteRead',
+    'sprite':'GfxSpriteRender', 'sprites':'GfxSpriteRenderArray',
+    'setx':'GfxSpriteSetX', 'sety':'GfxSpriteSetY', 'setxy':'GfxSpriteSetXY',
+    'settile':'GfxSpriteSetTile', 'setflags':'GfxSpriteSetFlags',
+    'hold':'SoundSetHold', 'voices':'SoundSetVoices',
+    'volume':'SoundSetVoicesVol', 'channels':'SoundSetChannels',
+    'samples':'SoundPlaySamples', 'dma':'DMAStartTransfer',
+}.items():
+    file='ZVBIO.INC' if name in ('write','read','crc','hold','voices','volume','channels','samples','dma') else 'ZVBGFX.INC'
     text=(ROOT/'libraries'/file).read_text()
-    raw=re.search(r'procedure\s+'+procedure+r'\b.*?Inline\((.*?)\)',text,re.S)[1]
+    raw=re.search(r'(?:procedure|function)\s+'+procedure+r'\b.*?Inline\((.*?)\)',text,re.S)[1]
     leaves[name]=bytes(int(v,16)for v in re.findall(r'\$([0-9A-Fa-f]{2})',raw))
 with tempfile.TemporaryDirectory(prefix='zvb-leaves-')as directory:
     temp=Path(directory)

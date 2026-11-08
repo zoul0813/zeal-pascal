@@ -63,6 +63,11 @@ begin
   Require(GfxTilemapPlace(Context, 29, 1, 5, 2) = 0);
   ReadVRAM($1010A5, 1); Require(Result[0] = 29);
   Require(GfxTilemapLoad(Context, Data, 20, 0, 70, 0) = GfxInvalidArg);
+  Require(GfxTilemapPlace(Context, $7B, 1, 79, 39) = 0);
+  Require(GfxTilemapPlace(Context, 1, 1, 80, 39) = GfxInvalidArg);
+  Require(GfxTilemapPlace(Context, 1, 1, 79, 40) = GfxInvalidArg);
+  ReadVRAM($101C7F, 1); Require(Result[0] = $7B);
+  Require(Port[$F0] = Mapping);
   Require(GfxTilemapPlace(Context, 1, 2, 0, 0) = GfxInvalidArg);
   Sprites[0].X := 300; Sprites[0].Y := 200; Sprites[0].Tile := 7;
   Sprites[0].Flags := SpriteFlipX or SpritePalette(3); Sprites[0].Options := 2;

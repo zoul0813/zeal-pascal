@@ -29,13 +29,15 @@ end;
 
 procedure CRCFeed(var Buffer; Size: Word; var Value: LongWord);
 begin
-{ Buffer is IX+8, Size IX+6, result pointer IX+4. No OS call while DI. }
-  Inline($DD/$6E/$08/$DD/$66/$09/$DD/$4E/$06/$DD/$46/$07/
-    $DD/$5E/$04/$DD/$56/$05/$ED/$57/$F5/$F3/$3E/$02/
-    $D3/$8E/$78/$B1/$28/$07/$7E/$D3/$A1/$23/$0B/$18/
-    $F5/$DB/$A4/$12/$13/$DB/$A5/$12/$13/$DB/$A6/$12/
-    $13/$DB/$A7/$12/$13/$C1/$CB/$51/$28/$01/$FB)
+  { SDK OTIR chunks: low-byte count first, then full 256-byte blocks.
+    Count zero reads only; a wrapped loop count represents 256 blocks. }
+  Inline($DD/$6E/$08/$DD/$66/$09/$DD/$4E/$06/$DD/$46/$07/$DD/$5E/$04/$DD/
+    $56/$05/$ED/$57/$F5/$F3/$3E/$02/$D3/$8E/$78/$B1/$28/$0E/$78/$41/
+    $0E/$A1/$05/$04/$28/$01/$3C/$ED/$B3/$3D/$20/$FB/$DB/$A4/$12/$13/
+    $DB/$A5/$12/$13/$DB/$A6/$12/$13/$DB/$A7/$12/$C1/$CB/$51/$28/$01/
+    $FB)
 end;
+
 
 procedure CRCInitialize(Reset: Boolean);
 var Control: Byte;
@@ -62,38 +64,36 @@ begin
 end;
 
 procedure SoundSetHold(Voices: TSoundVoices; Hold: Boolean);
-var Value: Byte;
 begin
-  Value := ReadPeripheral(3, $AD);
-  if Hold then Value := Value or Voices
-  else Value := Value and not Voices;
-  WritePeripheral(3, $AD, Value)
+  Inline($ED/$57/$F5/$F3/$3E/$03/$D3/$8E/$DB/$AD/$4F/$DD/$7E/$04/$B7/$28/
+    $08/$DD/$7E/$06/$B1/$D3/$AD/$18/$07/$DD/$7E/$06/$2F/$A1/$D3/$AD/
+    $C1/$CB/$51/$28/$01/$FB)
 end;
+
 
 procedure SoundSetVoices(Voices: TSoundVoices; Divider: Word;
   Waveform: TSoundWaveform);
-var Held: Byte;
 begin
-  Held := ReadPeripheral(3, $AD);
-  WritePeripheral(3, $AD, Held or Voices);
-  WritePeripheral(3, $AF, Voices);
-  WritePeripheral(3, $A0, Lo(Divider));
-  WritePeripheral(3, $A1, Hi(Divider));
-  WritePeripheral(3, $A2, Waveform);
-  WritePeripheral(3, $AD, Held)
+  { One device selection and the SDK register sequence; preserve prior holds. }
+  Inline($ED/$57/$F5/$F3/$3E/$03/$D3/$8E/$DB/$AD/$47/$DD/$4E/$08/$B1/$D3/
+    $AD/$79/$D3/$AF/$DD/$7E/$06/$D3/$A0/$DD/$7E/$07/$D3/$A1/$DD/$7E/
+    $04/$D3/$A2/$78/$D3/$AD/$C1/$CB/$51/$28/$01/$FB)
 end;
+
 
 procedure SoundSetVoicesVol(Voices: TSoundVoices; Volume: TSoundVolume);
 begin
-  WritePeripheral(3, $AF, Voices);
-  WritePeripheral(3, $A3, Volume)
+  Inline($ED/$57/$F5/$F3/$3E/$03/$D3/$8E/$DD/$7E/$06/$D3/$AF/$DD/$7E/$04/
+    $D3/$A3/$C1/$CB/$51/$28/$01/$FB)
 end;
+
 
 procedure SoundSetChannels(LeftVoices, RightVoices: TSoundVoices);
 begin
-  WritePeripheral(3, $AB, LeftVoices);
-  WritePeripheral(3, $AC, RightVoices)
+  Inline($ED/$57/$F5/$F3/$3E/$03/$D3/$8E/$DD/$7E/$06/$D3/$AB/$DD/$7E/$04/
+    $D3/$AC/$C1/$CB/$51/$28/$01/$FB)
 end;
+
 
 procedure SoundSetVolumes(Left, Right: TSoundVolume);
 var Value: Byte;
@@ -128,28 +128,19 @@ end;
 
 procedure SoundPlaySamples(var Config: TSoundSamplesConfig;
   var Samples; Length: Word);
-var Address, I: Word; Held, Mode: Byte;
+var Address: Word;
 begin
   if (Length = 0) or (Config.Mode > SoundSampleSInt16) then Exit;
   if (Config.Mode <> SoundSampleUInt8) and Odd(Length) then Exit;
   Address := Word(Addr(Samples));
   if LongWord(Address) + Length > 65536 then Exit;
-  if Config.Mode = SoundSampleUInt8 then Mode := 1
-  else if Config.Mode = SoundSampleSInt16 then Mode := 4
-  else Mode := 0;
-  WritePeripheral(3, $AF, SoundSampleTable);
-  WritePeripheral(3, $A2, Mode);
-  WritePeripheral(3, $A1, Config.Divider);
-  Held := ReadPeripheral(3, $AD);
-  WritePeripheral(3, $AD, Held and $7F);
-  I := 0;
-  while I < Length do begin
-    while (ReadPeripheral(3, $A2) and $40) <> 0 do begin end;
-    WritePeripheral(3, $A0, Mem[Address + I]);
-    I := I + 1
-  end;
-  while (ReadPeripheral(3, $A2) and $80) = 0 do begin end;
-  WritePeripheral(3, $AD, Held)
+  { SDK FIFO process: configure once, stream while not full, drain, restore hold. }
+  Inline($ED/$57/$F5/$F3/$3E/$03/$D3/$8E/$3E/$80/$D3/$AF/$DD/$6E/$08/$DD/
+    $66/$09/$7E/$B7/$20/$04/$3E/$01/$18/$08/$FE/$02/$3E/$00/$20/$02/
+    $3E/$04/$D3/$A2/$23/$7E/$D3/$A1/$DB/$AD/$5F/$E6/$7F/$D3/$AD/$DD/
+    $6E/$06/$DD/$66/$07/$DD/$4E/$04/$DD/$46/$05/$DB/$A2/$CB/$77/$20/
+    $FA/$7E/$D3/$A0/$23/$0B/$78/$B1/$20/$F1/$DB/$A2/$CB/$7F/$28/$FA/
+    $7B/$D3/$AD/$C1/$CB/$51/$28/$01/$FB)
 end;
 
 function DMAVirtToPhys(var Buffer): TPhysicalAddress;
@@ -201,16 +192,15 @@ begin
 end;
 
 function DMAStartTransfer(var Descriptor: TDMADescriptor): TDMAError;
-var Address: LongWord;
 begin
   if (Word(Addr(Descriptor)) and $3FFF) > 16372 then begin
     DMAStartTransfer := GfxInvalidArg;
     Exit
   end;
-  Address := DMAVirtToPhys(Descriptor);
-  WritePeripheral(4, $A1, Byte(Address));
-  WritePeripheral(4, $A2, Byte(Address shr 8));
-  WritePeripheral(4, $A3, Byte(Address shr 16));
-  WritePeripheral(4, $A0, $80);
+  { Convert the descriptor address and select/write/start DMA once, as the SDK. }
+  Inline($ED/$57/$F5/$F3/$DD/$6E/$04/$DD/$66/$05/$5D/$7C/$E6/$3F/$57/$7C/
+    $DB/$F0/$0F/$0F/$67/$E6/$C0/$B2/$57/$7C/$E6/$3F/$6F/$3E/$04/$D3/
+    $8E/$7B/$D3/$A1/$7A/$D3/$A2/$7D/$D3/$A3/$3E/$80/$D3/$A0/$C1/$CB/
+    $51/$28/$01/$FB);
   DMAStartTransfer := 0
 end;
