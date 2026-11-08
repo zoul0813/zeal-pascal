@@ -87,6 +87,7 @@
     "tools/test-unit-navigation.py",
     "tools/test-program-pages.py",
     "tools/test-screen.py",
+    "tools/test-zvb-leaves.py",
     "tools/test-unit-docs.py",
     "tools/test-unit-phase.py",
     "tools/test-runtime-objects.py",

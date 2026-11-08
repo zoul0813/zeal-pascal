@@ -150,10 +150,10 @@ static void decoder_tests(void){
     printf("Random cases producing >256 bytes: RLE %u, LZ %u; deterministic fixtures cover all pending run kinds\n",random_long[0],random_long[1]);
 }
 int main(void){
-    unsigned f,irq,o,n,a,i;uint16_t counts[]={0,1,31,512,16391},offsets[]={0,16377};uint8_t adds[]={0,32,240};
+    unsigned f,irq,o,n,a,i;uint16_t counts[]={0,1,31,256,512,16384,16391},offsets[]={0,16377,16128};uint8_t adds[]={0,32,240};
     device_init_mem(&ram,"physical memory",rd,wr,sizeof(memory));device_init_io(&io,"mapped ports",in,out,256);
     memset(&cpu,0,sizeof(cpu));for(i=0;i<256;++i){cpu.mmu.io_mapping[i].dev=&io;cpu.mmu.io_mapping[i].page_from=0;}
-    for(f=0;f<4;++f)for(irq=0;irq<2;++irq)for(o=0;o<2;++o)for(n=0;n<5;++n)for(a=0;a<3;++a){
+    for(f=0;f<4;++f)for(irq=0;irq<2;++irq)for(o=0;o<sizeof(offsets)/sizeof(offsets[0]);++o)for(n=0;n<sizeof(counts)/sizeof(counts[0]);++n)for(a=0;a<3;++a){
         uint16_t size=counts[n],offset=offsets[o];uint32_t target=68u*16384+offset;
         prepare(transfer_code,sizeof(transfer_code),irq);
         memset(memory+target-1,0x6d,size+2);
@@ -165,7 +165,7 @@ int main(void){
     }
     /* SDK memset_vram writes each byte. Filling device memory must never
      * copy back a previously written byte through a VRAM read. */
-    for(irq=0;irq<2;++irq)for(o=0;o<2;++o)for(n=0;n<5;++n)for(f=2;f<4;++f)for(a=0;a<2;++a){
+    for(irq=0;irq<2;++irq)for(o=0;o<sizeof(offsets)/sizeof(offsets[0]);++o)for(n=0;n<sizeof(counts)/sizeof(counts[0]);++n)for(f=2;f<4;++f)for(a=0;a<2;++a){
         uint16_t size=counts[n],offset=offsets[o];uint32_t target=68u*16384+offset;
         prepare(transfer_code,sizeof(transfer_code),irq);
         memset(memory+target-1,0x6d,size+2);
@@ -176,7 +176,7 @@ int main(void){
         if(size&&(unsigned)offset+size<=16384)check(leaf_cycles<45u*size+1000);
         check(memory[target-1]==0x6d&&memory[target+size]==0x6d);
     }
-    for(irq=0;irq<2;++irq)for(o=0;o<2;++o)for(n=0;n<5;++n){
+    for(irq=0;irq<2;++irq)for(o=0;o<sizeof(offsets)/sizeof(offsets[0]);++o)for(n=0;n<sizeof(counts)/sizeof(counts[0]);++n){
         uint16_t size=counts[n],offset=offsets[o];uint32_t target=68u*16384+offset;
         prepare(transfer_code,sizeof(transfer_code),irq);
         memset(memory+0x9000-1,0x6d,size+2);

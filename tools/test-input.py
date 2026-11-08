@@ -2,6 +2,7 @@
 """Focused native console corpus using the real compiler and RAM/COM loader."""
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,10 +20,15 @@ def main():
     inputs += sorted((ROOT/'src').glob('*')) + sorted((ROOT/'tests/native').glob('*.pas'))
     inputs += [ROOT/'tests/native'/name for name in ('input-main.c', 'harness.c', 'harness.h', 'machine.asm')]
     inputs += [ROOT/f'build/{target}.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
+    inputs += [ROOT/f'build/{name}.{ext}' for name in ('zpascal', 'zptest')
+               for ext in ('bin', 'zpl', 'map', 'banks.json')]
+    inputs += [ROOT/'build/linked_integer_runtime.bin']
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}
     assert sym['_test_stop'] == 0xfc00
     commands = ['run 100000000'] + n.program_launch(target)
-    commands += [f"bp 0x{sym['_test_stop']:x}"]
+    # Completion may occur during the last key-delivery step. Cover both
+    # the HALT instruction and its already-halted PC when the next run resumes.
+    commands += [f"bp 0x{sym['_test_stop']:x}", f"bp 0x{sym['_test_stop']+1:x}"]
     def ctrl(letter):
         return n.control(letter)
     typed = lambda value: n.type_text(value, ticks=2000000)
@@ -61,7 +67,7 @@ def main():
             if pass_index < len(passes)-4:
                 commands += ['press ENTER', 'run 100000000']
                 enter_held = True
-    commands += ['run 12000000000', 's', 'regs', 'mmu']
+    commands += ['run 12000000000', 's', 'regs', 'mmu', 'rb 0x4000 32']
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage'):
         commands += [f'rb 0x{sym[name]:x} 2']
     commands += [f"rb 0x{sym['_test_failures']:x} 128", 'quit']
@@ -70,7 +76,8 @@ def main():
     fixtures.update({p.name.upper(): p.read_bytes() for p in
                      (ROOT/'tests/native').glob('*.pas')})
     raw = n.execute('input-component', commands, fixtures, timeout=300)
-    memory = n.memory(raw)
+    frame = re.split(r'\[DBG\] PC=', raw)[-1]
+    memory = n.memory(frame)
     def word(name):
         p = sym[name]
         return memory.get(p, 0) | (memory.get(p+1, 0) << 8)
@@ -82,7 +89,10 @@ def main():
     checks = {
         '46 numeric lines delivered to the intended invocation and verified before Enter': len(receipts) == 46,
         'input delivery completed without an observer/protocol error': input_error is None,
-        'actual native completion': memory.get(sym['_test_done']) == 255,
+        'authenticated native completion':
+            frame.startswith('fc01 ') and memory.get(sym['_test_done']) == 255
+            and word('_test_stage') == 6
+            and bytes(memory.get(0x4000+i, 0) for i in range(32)) == fixtures[target+'.bin'][:32],
         'shared RAM/COM ownership, ABI, source and execution assertions':
             word('_test_failed') == 0 and word('_test_passed') >= 95,
         'typed input, buffering, end markers and bounded console editing in RAM/COM':

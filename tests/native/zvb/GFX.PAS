@@ -16,6 +16,16 @@ begin
   Require(DMAPrepareDescriptor(Descriptor, Config) = 0);
   Require(DMAStartTransfer(Descriptor) = 0)
 end;
+procedure RequireSolidTile(Address: LongWord; Size: Word; Color: Byte);
+var Offset: Word;
+begin
+  Offset := 0;
+  while Offset < Size do begin
+    ReadVRAM(Address + LongWord(Offset), 64);
+    for I := 0 to 63 do Require(Result[I] = Color);
+    Offset := Offset + 64
+  end
+end;
 begin
   Z := 0; Mode := Port[$9C]; Mapping := Port[$F0];
   GfxEnableScreen(False);
@@ -30,8 +40,7 @@ begin
   Port[ZVB_CTRL_L0_SCR_Y_LOW] := SavedYLow;
   Port[ZVB_CTRL_L0_SCR_Y_HIGH] := SavedYHigh;
   Require(GfxTilesetAddColorTile(Context, 255, 42) = 0);
-  ReadVRAM($11FF00, 64);
-  for I := 0 to 63 do Require(Result[I] = 42);
+  RequireSolidTile($11FF00, 256, 42);
   Require(GfxTilesetAddColorTile(Context, 256, 0) = GfxInvalidArg);
   Palette[0] := RGB888ToRGB565(255, 255, 255);
   Palette[1] := RGB888ToRGB565(255, 0, 0);
@@ -103,8 +112,7 @@ begin
   Require(GfxTilemapPlace(Context, $A1, 1, 0, 0) = 0);
   ReadVRAM($101000, 1); Require(Result[0] = $A1);
   Require(GfxTilesetAddColorTile(Context, 511, $33) = 0);
-  ReadVRAM($11FF80, 64);
-  for I := 0 to 63 do Require(Result[I] = $33);
+  RequireSolidTile($11FF80, 128, $33);
   Require(GfxTilesetAddColorTile(Context, 512, 0) = GfxInvalidArg);
   Require(GfxInitialize(GfxModeText640, Context) = GfxInvalidArg);
   Require(Port[$F0] = Mapping);

@@ -413,3 +413,7 @@
 
 # User-confirmed physical Snake graphics acceptance.
 !/docs/snake-hardware-acceptance.json
+
+# Final pre-merge test cleanup and regression evidence.
+!/reviews/premerge-validation-v1.md
+!/docs/premerge-validation-evidence.json

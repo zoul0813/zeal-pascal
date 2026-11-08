@@ -96,14 +96,13 @@ def dependencies(plan, index):
 
 
 def inputs():
-    paths = [ROOT / 'CMakeLists.txt', PLAN, Path(__file__).resolve(),
-             ROOT / 'tests/test_runner.py', ROOT / 'tests/test_native_chunks.py']
-    for folder in ('src', 'tests/native', 'tools', 'examples'):
+    paths = [ROOT / 'CMakeLists.txt', PLAN, Path(__file__).resolve()]
+    for folder in ('src', 'tests', 'tools', 'examples'):
         paths.extend(p for p in (ROOT / folder).rglob('*')
                      if p.is_file() and '__pycache__' not in p.parts)
     paths.extend(p for p in (ROOT / 'build').iterdir()
                  if p.is_file() and p.suffix in
-                 ('.bin', '.zpl', '.map', '.json', '.h', '.packed', '.private', '.profile'))
+                 ('.bin', '.zpl', '.map', '.json', '.h', '.packed', '.private', '.profile', '.ZPU', '.PAS'))
     return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
             for p in sorted(set(paths))}
 
@@ -112,11 +111,14 @@ def native_targets(plan):
     # Build once under the checkout lock, before freezing artifacts or starting
     # parallel readers. Individual unit drivers never mutate the build tree.
     targets = {
+        'tools/test-native.py': ('zpascal_bin', 'zptest_bin', 'zpbootfail_bin', 'stringabi_bin',
+                                 'setabi_bin', 'pointerabi_bin', 'realabi_bin'),
+        'tools/test-input.py': ('zpascal_bin', 'zptest_bin', 'zinputtest_bin'),
         'tools/test-runtime-objects.py': ('runtime_object_a_bin', 'runtime_object_b_bin', 'compact_runtime_bin', 'file_runtime_bin', 'integer_runtime_bin', 'pascal_runtime_bin'),
         'tools/test-screen.py': ('zscreentest_bin',),
         'tools/test-linked-addresses.py': ('zpascal_bin',),
         'tools/test-compact-programs.py': ('zpascal_bin', 'zzvbtest_bin'),
-        'tools/test-examples.py': ('zexampletest_bin',),
+        'tools/test-examples.py': ('zpascal_bin', 'zptest_bin', 'zexampletest_bin'),
         'tools/test-program-pages.py': ('zpascal_bin',),
         'tools/test-error-location.py': ('zmaptest_bin',),
         'tools/test-params.py': ('zparamtest_bin',),
@@ -124,7 +126,7 @@ def native_targets(plan):
         'tools/test-unit-real.py': ('zunitrealtest_bin',),
         'tools/test-unit-init.py': ('zunitinittest_bin',),
         'tools/test-unsigned.py': ('zunsignedtest_bin',),
-        'tools/test-zvb.py': ('zzvbtest_bin',),
+        'tools/test-zvb.py': ('zpascal_bin', 'zptest_bin', 'zzvbtest_bin'),
         'tools/test-unit-storage.py': ('zzvbtest_bin',),
         'tools/test-crt-readkey.py': ('zzvbtest_bin',),
         'tools/test-word-counts.py': ('integer_runtime_bin',),
@@ -264,7 +266,7 @@ def main():
         if targets:
             print(f'Building native prerequisites: {", ".join(targets)}', flush=True)
             with (directory / 'native-build.log').open('w') as output:
-                child = subprocess.Popen(['zde', '--no-tty', 'cmake', '--target', *targets,
+                child = subprocess.Popen(['zde', '--no-tty', 'cmake', 'build', '--target', *targets,
                                           '--parallel', '6'], cwd=ROOT, stdout=output,
                                          stderr=subprocess.STDOUT, start_new_session=True)
                 active[0] = {'child': child, 'output': output}

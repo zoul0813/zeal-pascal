@@ -1,0 +1,201 @@
+{
+  "baseline_checkpoint": "8a95cdb",
+  "scope": "Requested test cleanup, focused regressions and rebuilt emulator graphics clients; no updated TF package and no main merge.",
+  "focused_suite": {
+    "path": "analysis/test-runs/20261108T170421.182335Z/suite.json",
+    "sha256": "0f2758767c67b77a0b833e2c5bfc1820f159ff53725d8d0da0c68bb0cd0becc9",
+    "status": "passed-focused",
+    "selected_passed": true,
+    "full_acceptance": false,
+    "commands": 5,
+    "changed_inputs": [],
+    "results": [
+      {
+        "index": 1,
+        "seconds": 23.118,
+        "exit_code": 0,
+        "log_sha256": "a32c9ae2e65e15c0df8013b032b1348861c53d3ec5fefe34bc82b57c3659a141"
+      },
+      {
+        "index": 2,
+        "seconds": 8.051,
+        "exit_code": 0,
+        "log_sha256": "eace30393d296ca699a56b0a2634a9641d002bc32fffd7e969fccc72fe212ce6"
+      },
+      {
+        "index": 5,
+        "seconds": 3.017,
+        "exit_code": 0,
+        "log_sha256": "27442fd218cc8c2b3e1dfefe1074c5f606289ea0440538b151abd3956e4b2ced"
+      },
+      {
+        "index": 3,
+        "seconds": 56.283,
+        "exit_code": 0,
+        "log_sha256": "9e01a0f35358bac04f02ed14888e698ef1cc3e277b7adc0923b00e4436e95283"
+      },
+      {
+        "index": 4,
+        "seconds": 130.723,
+        "exit_code": 0,
+        "log_sha256": "ddc1ce77ade120bdad258fe6655a40de1d25f1c94b8deee00ecf4ff2ce03112c"
+      }
+    ]
+  },
+  "host_checks": {
+    "sanitized": true,
+    "front_end_identity_allocation": 180362,
+    "raw_keys": 104,
+    "pascal_raw_keys": 98,
+    "editor": 4010,
+    "source_validity_oracles": 45809,
+    "runner_tests": 28,
+    "chunk_tests": 6,
+    "package_tests": 13,
+    "vram_leaf_assertions": 4046917
+  },
+  "native_regressions": {
+    "basic": {
+      "path": "analysis/native-slice/20261108T170603.102373Z-6507/report.json",
+      "sha256": "90bbaa4afb4b5dd35811d96e94952c9e83bece7e34d89449424394f81a46b150",
+      "assertions_passed": 135,
+      "assertions_failed": 0
+    },
+    "read": {
+      "path": "analysis/native-slice/20261108T170603.096971Z-6508/report.json",
+      "sha256": "6b10bb458fe059bb69200b4b572878ac5db95645de95409c8dcb1ce236d90563",
+      "assertions_passed": 78,
+      "assertions_failed": 0
+    },
+    "input": {
+      "path": "analysis/native-slice/20261108T170603.087607Z-6509/input-report.json",
+      "sha256": "ddc1ce77ade120bdad258fe6655a40de1d25f1c94b8deee00ecf4ff2ce03112c",
+      "assertions_passed": 95,
+      "assertions_failed": 0
+    }
+  },
+  "graphics": {
+    "report": "analysis/native-slice/20261108T164404.908495Z-84521/zvb-report.json",
+    "report_sha256": "9c88a5f4aed9b5141f4c914f8fda4690faa0e8e88bec042147ba1af524f218a5",
+    "assertions": 115,
+    "failed": 0,
+    "clients": [
+      {
+        "flags": 0,
+        "code_bytes": 26542,
+        "globals_bytes": 205,
+        "file_bytes": 32789,
+        "compile_error": 0,
+        "position": 0,
+        "name": "GFX"
+      },
+      {
+        "flags": 0,
+        "code_bytes": 15795,
+        "globals_bytes": 240,
+        "file_bytes": 22077,
+        "compile_error": 0,
+        "position": 0,
+        "name": "ZVBCHECK"
+      },
+      {
+        "flags": 0,
+        "code_bytes": 19741,
+        "globals_bytes": 672,
+        "file_bytes": 26455,
+        "compile_error": 0,
+        "position": 0,
+        "name": "SPRITES"
+      },
+      {
+        "flags": 0,
+        "code_bytes": 10381,
+        "globals_bytes": 567,
+        "file_bytes": 16990,
+        "compile_error": 0,
+        "position": 0,
+        "name": "FIRSTBAR"
+      }
+    ],
+    "library_sha256": "a5c11c1bfe8fb0420796d38983fd11e448621f5038b3ccc2fbd0cfc3ac966bc0",
+    "program_sha256": {
+      "GFX": "ace716502d140efc7f11cd8b1373ad8fda84c8877daf4c601ab3cf6bb4aa23f1",
+      "ZVBCHECK": "b484df62bf905b5551123af4b93a463ed9834fffa5d169d509aad931f98ccf3c",
+      "SPRITES": "3eedecda5ac0603eaebbd8ec2ae3eeb8b7402463521baeb7d9dec9fb23a8c445",
+      "FIRSTBAR": "0c43e3f5be4c4d813d159d83a2ff039bd8bbea8e7adad826dd9d9a98472770d5"
+    },
+    "saved_clients_without_source_or_units": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "full_last_tile_dma_readback": {
+      "8_bit_bytes": 256,
+      "4_bit_bytes": 128,
+      "last_address": "$11FFFF"
+    },
+    "imported_debug_helpers_unchanged_during_graphics": true,
+    "only_native_cli_main_changed": true
+  },
+  "harness_completion_fix": {
+    "initial_failed_suite": "analysis/test-runs/20261108T164104.623183Z/suite.json",
+    "symptom": "Input completion wait timed out; fail-fast canceled basic. Isolated basic was interrupted while spinning after completion.",
+    "diagnostic_report": "analysis/native-slice/20261108T165555.439514Z-96036/input-report.json",
+    "diagnostic_assertions": 95,
+    "cause": "A preceding key-delivery run had reached completion at FC00; the final long run resumed into HALT and spun at FC01.",
+    "fix": "Arm FC00 and FC01 completion stops; input also authenticates returned supervisor prefix and final stage.",
+    "input_timeout_seconds": 300,
+    "timeout_increased": false,
+    "final_basic_seconds": 8.051,
+    "final_input_seconds": 130.723
+  },
+  "standard_plan": {
+    "monolithic_commands": 94,
+    "expanded_commands": 168,
+    "vram_oracle_registered": true,
+    "package_tests_registered": true,
+    "test_sources_and_stock_units_frozen": true
+  },
+  "existing_tf_packages": {
+    "build/tf-acceptance": {
+      "manifest_sha256": "68bfcc03b149c8a10abe4ba327fee75374e408b6ca0f48cfa5dc2b7c12326610",
+      "payload_files": 87,
+      "all_payload_hashes_match": true
+    },
+    "build/tf-acceptance-review": {
+      "manifest_sha256": "cde1b6137194f0734e0081b7b76dd8ee2fe797c6da03d2c23fcc51029e35233a",
+      "payload_files": 87,
+      "all_payload_hashes_match": true
+    },
+    "build/tf-snake-retest": {
+      "manifest_sha256": "e443404a7ef9346f138f21bff38299d23c77437a5f362c6e7d680d667bdb9a04",
+      "payload_files": 4,
+      "all_payload_hashes_match": true
+    },
+    "build/tf-snake-retest-review": {
+      "manifest_sha256": "ee84174315f5cf05195df31dadeb3dc0fa3c62e5d415a707f378a533df5160e6",
+      "payload_files": 3,
+      "all_payload_hashes_match": true
+    }
+  },
+  "tf_package_updated": false,
+  "source_sha256": {
+    ".gitignore": "eaa50803bb46965cbdc3a3a4330e472e5cec0255cfc5325c2f265c766d5ab5d0",
+    "docs/hardware-testing.md": "475974a8d3227a1c37fa23bc918f317834ea5de7f53a2aa747a98ed1312feff7",
+    "docs/snake-hardware-acceptance.json": "58b6b42f2d19874ada1d84752e4786fc300cbd980ba0c1da10a0d7f5e4975eb0",
+    "tests/host/zvb-leaves.c": "b99e518d3156878214eac119fbe289298d4012d8a37c4b3feaee5bc4c2d3bf7d",
+    "tests/native/zvb/GFX.PAS": "d1cd0254dbf673e9b60626dab879395fc503363e75b9e9780e55655339674c38",
+    "tests/test_runner.py": "e2c0675604cdd6230debb89f20fbaf1d33fb9770179fad5da7a3ed905d76ab04",
+    "tools/run-tests.py": "31aded81ba1d2ea64a14c85971a6e2f50e1f04b129b170d679e48cc8005f439f",
+    "tools/test-input.py": "297d369bf323e5104251cebe724c2b3541c7e35a3bf29e426568b1d28475472a",
+    "tools/test-native-host.py": "1b715354e0d433a22868afd16a712a11ee034398c5f0a277e1673db49647b8ba",
+    "tools/test-native.py": "d8547ee3d62f1f6503652ac6baf573ac65784a187bc7a0a3c79da4b4d865a0ae",
+    "tools/test-plan.json": "2a123d62c84435bb26233af704f069c19f52eae29820ba5473e46b3e60daafab",
+    "tools/test-zvb-leaves.py": "898cb97864aab8fb768731b324dbd8415a5a10ae1a0b5176279a4265412a42b2"
+  },
+  "limitations": [
+    "Full 168-command acceptance suite was not rerun; requested focused checks passed.",
+    "Graphics clients were tested in the emulator here; prior user-reported physical results are recorded separately."
+  ]
+}

@@ -7,8 +7,8 @@ import subprocess
 import tempfile
 import sys
 ROOT=Path(__file__).resolve().parents[1]
-CPU=Path(os.environ.get('ZP_CPU_ROOT','/private/tmp/Zeal-NativeEmulator'))
-if not CPU.exists():CPU=ROOT.parent/'Zeal-NativeEmulator'
+ZEAL=Path(os.environ.get('ZP_ZEAL_ROOT',str(ROOT.parent)))
+CPU=Path(os.environ.get('ZP_CPU_ROOT',str(ZEAL/'Zeal-NativeEmulator')))
 subprocess.run([sys.executable,str(ROOT/'tools/generate-zvb-decoder.py'),'--check'],check=True)
 leaves={}
 for name,procedure in {

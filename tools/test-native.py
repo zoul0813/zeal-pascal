@@ -1128,7 +1128,10 @@ def main():
     # alternative to the full run, not an extra prerequisite for its coverage.
     # program_launch already stops at code_ready; do not resume past it.
     commands += ['regs','mmu','rb 0x4000 32']
-    commands += ['run 100000000', f"bp 0x{sym['_test_stop']:x}"]
+    # A preceding input step can already reach the completion HALT. Resuming
+    # then advances PC by one; stop there too instead of burning the full budget.
+    commands += ['run 100000000', f"bp 0x{sym['_test_stop']:x}",
+                 f"bp 0x{sym['_test_stop']+1:x}"]
     commands += input_commands(args.case)
     # The completion breakpoint is mandatory; this bounded budget includes the
     # RAM/COM control/routine/string corpora and source-recovery executions.

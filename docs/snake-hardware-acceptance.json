@@ -4,7 +4,7 @@
   "retest_checkpoint": "b5d0aa0c02ef28ce02c2ca01d4fa995ceb7d1f1e",
   "kernel": "0.8.0",
   "zvb_firmware": "1.0.0 (reported earlier in this hardware session)",
-  "scope": "Snake graphics and repeated-launch consistency; Minimal and HelloName Memory-mode compilation; Life compilation and execution in Memory mode. This does not sign off the complete hardware checklist.",
+  "scope": "Snake graphics and repeated-launch consistency; Minimal and HelloName Memory-mode compilation; Life compilation and execution in Memory mode. This does not sign off the complete hardware checklist. HelloWorld also compiles to COM and executes from disk on hardware.",
   "snake": {
     "graphics_passed": true,
     "repeated_launch_consistency_passed": true,
@@ -18,14 +18,23 @@
     "minimal_memory_compile_passed": true,
     "hello_name_memory_compile_passed": true,
     "user_report": "I updated to the latest 0.8.0 kernel - and both the minimal and helloname programs now compile",
-    "conclusion": "Updating the kernel resolves the reported native error 6; no Pascal compiler change was required."
+    "conclusion": "Updating the kernel resolves the reported native error 6; no Pascal compiler change was required.",
+    "hello_world_com_compile_passed": true,
+    "hello_world_com_disk_run_passed": true,
+    "hello_world_source": "program HelloWorld; begin WriteLn('Hello World'); end.",
+    "hello_world_user_report": "I am also confirming that compiling a COM file on hardware and running it worked - ran a simple program HelloWorld; begin WriteLn('Hello World'); end. test and it compiled and ran from disk COM without issue",
+    "hello_world_identity": {
+      "compiler_checkpoint_verified": false,
+      "physical_source_hash_verified": false,
+      "com_sha256_captured": false
+    }
   },
   "complete_hardware_checklist_passed": false,
   "not_individually_signed_off_in_this_report": [
     "Snake growth, score, collision/replay and exit/text restoration",
     "CRT fixture coverage",
     "Physical CRC32, DMA and audio checks",
-    "On-card Unit recompilation and saved-program execution"
+    "On-card recompilation importing shipped Units"
   ],
   "historical_evidence": "docs/zvb-hardware-fill-evidence.json records the pre-retest snapshot; its pending physical flags and the package manifest remain unchanged for audit.",
   "test_checklist": "docs/hardware-testing.md",

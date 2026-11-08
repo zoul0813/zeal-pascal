@@ -54,8 +54,8 @@ class Selection(unittest.TestCase):
         definition = json.loads(runner.PLAN.read_text())
         expanded = runner.expand_commands(definition)
         original = runner.expand_commands(definition, monolithic=True)
-        self.assertEqual(len(original), 93)
-        self.assertEqual(len(expanded), 167)
+        self.assertEqual(len(original), 94)
+        self.assertEqual(len(expanded), 168)
         expected = [command + shlex.split(suffix) for command in original
                     for suffix in definition.get('chunks', {}).get(' '.join(command), [''])]
         self.assertEqual(expanded, expected)
@@ -230,6 +230,39 @@ class Selection(unittest.TestCase):
 
 
 class RunnerDependencies(unittest.TestCase):
+    def test_focused_examples_and_units_rebuild_the_product(self):
+        for script, harness in (('tools/test-examples.py', 'zexampletest_bin'),
+                                ('tools/test-zvb.py', 'zzvbtest_bin'),
+                                ('tools/test-input.py', 'zinputtest_bin')):
+            with self.subTest(script=script):
+                self.assertEqual(runner.native_targets([[script]]),
+                                 sorted(('zpascal_bin', 'zptest_bin', harness)))
+
+    def test_legacy_input_regressions_build_their_harnesses(self):
+        self.assertEqual(runner.native_targets([
+            ['tools/test-native.py', '--case', 'basic'],
+            ['tools/test-native.py', '--case', 'read'],
+            ['tools/test-input.py']]),
+            ['pointerabi_bin', 'realabi_bin', 'setabi_bin', 'stringabi_bin',
+             'zinputtest_bin', 'zpascal_bin', 'zpbootfail_bin', 'zptest_bin'])
+
+    def test_host_test_sources_are_frozen_but_caches_are_not(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            for name in ('tools', 'build', 'tests', 'tests/__pycache__'):
+                (root/name).mkdir(exist_ok=True)
+            for name in ('CMakeLists.txt', 'tools/test-plan.json', 'tools/run-tests.py',
+                         'tests/test_hardware_package.py', 'build/CRT.ZPU',
+                         'tests/__pycache__/test_hardware_package.pyc'):
+                (root/name).write_text('test fixture')
+            with patch.object(runner, 'ROOT', root), patch.object(runner, 'PLAN', root/'tools/test-plan.json'), \
+                    patch.object(runner, '__file__', str(root/'tools/run-tests.py')):
+                frozen = runner.inputs()
+            self.assertIn('tests/test_hardware_package.py', frozen)
+            self.assertIn('build/CRT.ZPU', frozen)
+            self.assertFalse(any('__pycache__' in name for name in frozen))
+
     def test_native_build_happens_once_before_frozen_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
@@ -243,7 +276,7 @@ class RunnerDependencies(unittest.TestCase):
                 (root/'tools'/name).write_text(f'from pathlib import Path\nassert Path("build/{target}.bin").read_bytes()==b"built"\n')
             (root/'tools/test-plan.json').write_text(json.dumps({'full':['tools/test-native-host.py',*('tools/'+name for name in names)],'redundant':[]}))
             fake=root/'fakebin/zde'
-            fake.write_text(f'#!{sys.executable}\nimport sys\nfrom pathlib import Path\nargs=sys.argv\nfor target in args[args.index("--target")+1:args.index("--parallel")]:Path("build/"+target+".bin").write_bytes(b"built")\nwith Path("build-calls.txt").open("a")as out:out.write("build\\n")\n')
+            fake.write_text(f'#!{sys.executable}\nimport sys\nfrom pathlib import Path\nargs=sys.argv\nassert args[1:4]==["--no-tty","cmake","build"],args\nfor target in args[args.index("--target")+1:args.index("--parallel")]:Path("build/"+target+".bin").write_bytes(b"built")\nwith Path("build-calls.txt").open("a")as out:out.write("build\\n")\n')
             fake.chmod(0o755)
             env={**os.environ,'PATH':str(fake.parent)+os.pathsep+os.environ.get('PATH','')}
             result=subprocess.run([sys.executable,'tools/run-tests.py','--only','units','--only','unit-real','--only','optional-corpus','--only','error-location','--only','params'],cwd=root,env=env,capture_output=True,text=True)

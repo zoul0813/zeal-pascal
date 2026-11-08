@@ -75,7 +75,7 @@ failure. Record the last visible state and the exact program/path used.
 | 2 | Compile a minimal program in Memory mode, then save it in Com-file mode | RAM Run and the saved COM both execute; no missing stock Unit error |
 | 3 | Run `zvb/ZVBCHECK.COM` | CRC and DMA verification complete; tone and sample playback are audible; returns to ZShell |
 | 4 | Run `zvb/CRC32.COM T:/zvb/DIGITS.TXT` (adjust path) | The file checksum is `CBF43926`; returns to ZShell |
-| 5 | Run `zvb/CRTCHECK.COM` | All 16 CRT routines' fixture checks complete and print `CRT-GUIDE-OK` |
+| 5 | Run `zvb/CRTCHECK.COM` | Cursor/lifecycle checks complete and print `CRT-GUIDE-OK`; ReadKey runs only if a key is pending. Use the interactive BoardCRT source below to check ReadKey explicitly. |
 | 6 | Run `zvb/FIRSTBAR.COM` without arguments | Orange bar on dark blue; a key exits; original text mode/settings return |
 | 7 | Run `zvb/SPRITES.COM` | Moving sprites render correctly; any key exits; shell remains usable |
 | 8 | Run `zvb/SNAKE.COM` | Animated title, checkerboard, apple and bottom score render; arrow keys and WASD steer |

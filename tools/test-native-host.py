@@ -54,6 +54,8 @@ subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests',
                 '-p', 'test_runner.py'], cwd=ROOT, check=True)
 subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests',
                 '-p', 'test_native_chunks.py'], cwd=ROOT, check=True)
+subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests',
+                '-p', 'test_hardware_package.py'], cwd=ROOT, check=True)
 # Progress is mutable; the independently reviewed functional body is not.
 # Together with verify-spec.py's frozen-input hashes, this prevents relocating
 # the historical review from silently exempting later normative changes.
