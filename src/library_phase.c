@@ -9,13 +9,23 @@ uint8_t code_phase_pending[CODE_BANK_LIMIT]={
 };
 static uint32_t valid,resume_mask;
 
+/* Statement parsing is eagerly loaded at startup, but may lend its bank after
+ * all parser frames return. Reloadability does not change cold-start policy. */
+static uint8_t reloadable(uint8_t bank) {
+    return CODE_DEFERRED(bank)
+#ifdef ZP_STATIC_LAYOUT
+        ||bank==CODE_STATEMENTS
+#endif
+        ;
+}
+
 /* Keep the original open handle and declared bank offsets for later reads. */
 void code_phase_bind(int8_t fd) SOURCE_BLOCK_CALL {
     uint8_t bank,index;
     valid=resume_mask=0;
     memset(code_phase_pending,255,sizeof(code_phase_pending));
     for(bank=0;bank<code_required;++bank) {
-        if(CODE_DEFERRED(bank)) {
+        if(reloadable(bank)) {
             index=bank;
             if(code_pages[bank]!=255)valid|=(1UL<<index);
         }
@@ -53,7 +63,7 @@ static uint32_t bank_offset(uint8_t bank) {
 static uint8_t restore(uint32_t wanted) {
     uint8_t bank,index,page,error;
     int32_t seek_to;
-    for(bank=0;bank<code_owned;++bank)if(CODE_DEFERRED(bank)&&(wanted&(1UL<<bank))) {
+    for(bank=0;bank<code_owned;++bank)if(reloadable(bank)&&(wanted&(1UL<<bank))) {
         index=bank;
         if((valid&(1UL<<index))&&code_pages[bank]!=255)continue;
         valid&=~(1UL<<index);
@@ -109,20 +119,20 @@ uint8_t code_phase_unit_link_begin(void) SOURCE_BLOCK_CALL {
  * decoding lives in the retained support bank, so the expression generator
  * can lend its slot as well as the file generator until output is sealed.
  * Static-layout builds retain source access separately, so Inline/transfer
- * generation can lend its idle bank too. This leaves room
+ * generation and statement parsing can lend their idle banks too. This leaves room
  * for a large unit's artifact while its relocation tables are still live. */
 uint8_t code_phase_unit_finish_begin(void) SOURCE_BLOCK_CALL {
     uint8_t primary;
     if(!drop_bank(CODE_FILE_COMPILER))return 0;
     if(drop_bank(CODE_EXPRESSIONS)&&
 #ifdef ZP_STATIC_LAYOUT
-       drop_bank(CODE_TRANSFER)&&
+       drop_bank(CODE_TRANSFER)&&drop_bank(CODE_STATEMENTS)&&
 #endif
        restore(1UL<<CODE_LINKER))return 1;
     primary=platform_error;drop_bank(CODE_LINKER);
     restore((1UL<<CODE_FILE_COMPILER)|(1UL<<CODE_EXPRESSIONS)
 #ifdef ZP_STATIC_LAYOUT
-            |(1UL<<CODE_TRANSFER)
+            |(1UL<<CODE_TRANSFER)|(1UL<<CODE_STATEMENTS)
 #endif
             );platform_error=primary;return 0;
 }
@@ -131,7 +141,7 @@ uint8_t code_phase_unit_finish_end(void) SOURCE_BLOCK_CALL {
     resume_mask&=~(1UL<<CODE_LINKER);
     return restore((1UL<<CODE_FILE_COMPILER)|(1UL<<CODE_EXPRESSIONS)
 #ifdef ZP_STATIC_LAYOUT
-                   |(1UL<<CODE_TRANSFER)
+                   |(1UL<<CODE_TRANSFER)|(1UL<<CODE_STATEMENTS)
 #endif
                    );
 }

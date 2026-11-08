@@ -35,7 +35,7 @@ int main(void){
  unsigned failures,total;uint8_t coordinator,source;
  setup();coordinator=code_pages[CODE_COMPILE];source=code_pages[CODE_FILE_RUNTIME];
  check(code_phase_unit_finish_begin());total=events;
- check(code_pages[CODE_EXPRESSIONS]==255&&code_pages[CODE_FILE_COMPILER]==255&&code_pages[CODE_TRANSFER]==255&&code_pages[CODE_LINKER]!=255);
+ check(code_pages[CODE_STATEMENTS]==255&&code_pages[CODE_EXPRESSIONS]==255&&code_pages[CODE_FILE_COMPILER]==255&&code_pages[CODE_TRANSFER]==255&&code_pages[CODE_LINKER]!=255);
  check(code_pages[CODE_COMPILE]==coordinator&&code_pages[CODE_FILE_RUNTIME]==source);
  check(code_phase_unit_io()&&code_phase_unit_meta());inventory();
  check(code_phase_unit_meta_release()&&code_phase_unit_io_release()&&code_phase_unit_finish_end());inventory();
@@ -44,8 +44,19 @@ int main(void){
   check(!code_phase_unit_finish_begin()&&platform_error);inventory();
   check(code_pages[CODE_COMPILE]==coordinator&&code_pages[CODE_FILE_RUNTIME]==source);
   fail_at=0;check(code_phase_unit_finish_end()&&code_phase_restore());inventory();
-  check(code_pages[CODE_EXPRESSIONS]!=255&&code_pages[CODE_FILE_COMPILER]!=255&&code_pages[CODE_TRANSFER]!=255&&code_pages[CODE_LINKER]==255);
+  check(code_pages[CODE_STATEMENTS]!=255&&code_pages[CODE_EXPRESSIONS]!=255&&code_pages[CODE_FILE_COMPILER]!=255&&code_pages[CODE_TRANSFER]!=255&&code_pages[CODE_LINKER]==255);
  }
- printf("PASS: %u unit-phase assertions across %u native failure boundaries\n",checks,total);
+ /* Fail every restoration boundary, including the eagerly loaded statement
+  * bank; the next guarded compiler entry retries the complete warm set. */
+ setup();check(code_phase_unit_finish_begin());events=0;
+ check(code_phase_unit_finish_end());total=events;
+ for(failures=1;failures<=total;++failures){
+  setup();check(code_phase_unit_finish_begin());events=0;fail_at=failures;
+  check(!code_phase_unit_finish_end()&&platform_error);inventory();
+  fail_at=0;check(code_phase_restore());inventory();
+  check(code_pages[CODE_STATEMENTS]!=255&&code_pages[CODE_EXPRESSIONS]!=255&&
+        code_pages[CODE_FILE_COMPILER]!=255&&code_pages[CODE_TRANSFER]!=255);
+ }
+ printf("PASS: %u unit-phase assertions across %u restoration failure boundaries\n",checks,total);
  return 0;
 }

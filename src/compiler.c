@@ -357,45 +357,8 @@ static SourcePosition statement(void) {
     return start;
 }
 SourcePosition cc_statement(void) BACKEND { return statement(); }
-/* Shared job bounds also drive the IDE options annotations. */
-uint8_t compile_limits_at(uint16_t data,uint16_t globals,uint16_t code,const CompileOptions *options,CompileLimits *limits) SOURCE_BLOCK_CALL {
-    uint32_t start,end,top,needed;
-    uint16_t stack=code?cc_required_stack():2048u;
-    memset(limits,0,sizeof(*limits));
-    if(data<0x40a0u||(uint32_t)data+globals>=CC_STATIC_LIMIT||(options&&options->kind>COMPILE_CHAIN))return 0;
-    limits->minimum_start=data+globals;
-    start=options&&options->start?options->start:limits->minimum_start;
-    end=options?options->end:0xfbffu;
-    if(!code)code=1; /* UI platform bounds before a program has been compiled. */
-    top=end+1;
-    if(top>=(uint32_t)stack+code)limits->maximum_start=(uint16_t)(((top-stack)&~1UL)-code);
-    needed=((start+code+1)&~1UL)+stack-1;
-    if(needed<0xcfffu)needed=0xcfffu;
-    limits->minimum_end=needed>65535u?65535u:(uint16_t)needed;
-    return end>=0xcfffu&&end<=0xfbffu&&start>=limits->minimum_start&&
-        start<=limits->maximum_start&&end>=needed;
-}
-uint8_t compile_limits(uint16_t globals,uint16_t code,const CompileOptions *options,CompileLimits *limits) SOURCE_BLOCK_CALL {
-    return compile_limits_at(GLOBAL_BASE,globals,code,options,limits);
-}
 #ifndef __SDCC
 uint8_t compile(const Source *s,Build *b,Diagnostic *d) {
     return compile_project(s,b,d,0,0);
 }
 #endif
-
-/* Error provenance is captured while invocation-owned compiler inputs live. */
-void cc_sources_error(void) ROUTINES {
-    Source failed;const Source *original=0;
-    cc.literal_length=0;
-    if(cc.sources->external_error){strcpy(cc.name,cc.input->path);return;}
-    if(!sources_get(&cc.image->sources,cc.sources->error_file,&failed)) {
-        strcpy(cc.name,cc.sources->root->path);return;
-    }
-    strcpy(cc.name,failed.path);
-    if(!cc.sources->error_file)original=cc.sources->root;
-    if(original) {
-        cc.error->start=source_editor_offset(original,cc.error->start);
-        cc.error->end=source_editor_offset(original,cc.error->end);
-    }
-}

@@ -23,7 +23,9 @@ target_compile_definitions(real_compiler PRIVATE ZP_REAL_COMPILER)
 target_compile_options(real_compiler PRIVATE --std-c99 --opt-code-size "SHELL:--codeseg BANK9" "SHELL:--constseg BANK9")
 add_library(image_compiler OBJECT src/native_image.c src/compiler_image.c)
 target_include_directories(image_compiler PRIVATE src)
-target_compile_options(image_compiler PRIVATE --std-c99 "SHELL:--codeseg BANK2" "SHELL:--constseg BANK2")
+# Saved-image checks also run outside compilation and must survive a failed
+# parser-bank reload. Keep the entry and near decoder in retained support.
+target_compile_options(image_compiler PRIVATE --std-c99 "SHELL:--codeseg BANK11" "SHELL:--constseg BANK11")
 add_library(key_runtime OBJECT src/keys.c)
 target_compile_definitions(key_runtime PRIVATE ZP_PASCAL_KEYS)
 target_compile_options(key_runtime PRIVATE --std-c99 "SHELL:--codeseg CODE"

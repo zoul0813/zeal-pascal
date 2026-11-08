@@ -9,7 +9,7 @@ with tempfile.TemporaryDirectory(prefix='zp-staging-')as directory:
     temp=Path(directory)
     subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-g','-Isrc',
         '-ffunction-sections','-fdata-sections','-fsanitize=address,undefined',
-        '-fno-sanitize-recover=all','src/compiler.c','tests/host/staging-limits.c',
+        '-fno-sanitize-recover=all','src/compiler_sources.c','tests/host/staging-limits.c',
         '-Wl,-dead_strip','-o',str(temp/'limits')],cwd=ROOT,check=True)
     subprocess.run([str(temp/'limits')],check=True)
     subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-g','-Isrc',

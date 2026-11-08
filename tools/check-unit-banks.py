@@ -19,7 +19,7 @@ for bank,size in enumerate(metadata['bank_bytes'],1):
  assert int(re.search(r'^\s*([0-9A-Fa-f]{8})\s+l__BANK'+str(bank)+r'\s',map_text,re.M)[1],16)==size
  assert size<=16384
 names=re.findall(r'CODE_\w+',re.search(r'enum \{(.*?)\};',(ROOT/'src/library.h').read_text(),re.S)[1])
-lent={names.index(n)+1 for n in ('CODE_EXPRESSIONS','CODE_FILE_COMPILER','CODE_TRANSFER')}
+lent={names.index(n)+1 for n in ('CODE_STATEMENTS','CODE_EXPRESSIONS','CODE_FILE_COMPILER','CODE_TRANSFER')}
 functions={};inputs={}
 for object_name in re.findall(r'(\S+\.c\.rel)',(BUILD/'CMakeFiles/zpascal.dir/link.txt').read_text()):
  obj=BUILD/object_name;asm=BUILD/(object_name[:-4]+'.asm')
@@ -114,14 +114,30 @@ for line in phase['lines']:
   value=re.match(r'\s*ld\s+a,\s*#0x([0-9a-fA-F]+)\s*$',previous);assert value
   drops.append(int(value[1],16))
  previous=line
-assert set(drops[:3])=={n-1 for n in lent}
+assert set(drops[:4])=={n-1 for n in lent}
 assert bank_of(public['cc_source_byte'])==bank_of(public['cc_reference_position'])==names.index('CODE_FILE_RUNTIME')+1
 flags=BUILD/'CMakeFiles/unit_runtime_core.dir/flags.make'
 assert '-DZP_OPTIONAL_REAL'in flags.read_text()and '-DZP_UNITS_EXPERIMENT'in flags.read_text()
 assert public['cc_source_byte'][0]=='compiler_sources.c'and public['code_phase_unit_finish_begin'][0]=='library_phase.c'
-report={'passed':True,'scope':'Direct C call/SDK banked-call closure of each lending interval; all ancestor callers; compiled static-layout gating.',
+# After a failed reload, only guarded compilation may reach parser code.
+# Walk every reverse edge, stopping at the compile-project body whose resident
+# entry points all check code_phase_restore before selecting its bank.
+parser_bank=names.index('CODE_STATEMENTS')+1
+parser_ancestors=set();pending=[k for k in functions if bank_of(k)==parser_bank]
+while pending:
+ key=pending.pop()
+ if key in parser_ancestors:continue
+ parser_ancestors.add(key)
+ if key==public['compiler_compile_project']:continue
+ assert reverse[key],('unguarded parser entry after failed restore',key)
+ pending.extend(reverse[key])
+for name in ('compile_limits_at','compile_limits','cc_sources_error','native_header'):
+ assert bank_of(public[name])==names.index('CODE_FILE_RUNTIME')+1,('shared service must remain loaded',name)
+
+report={'passed':True,'scope':'Direct C call/SDK banked-call closure of each lending interval; all ancestor callers; compiled static-layout gating; reverse parser entry closure and retained shared services.',
  'map_sha256':sha(BUILD/'zpascal.map'),'library_sha256':metadata['library_sha256'],'flags_sha256':sha(flags),
  'lent_banks':sorted(lent),'source_access_bank':bank_of(public['cc_source_byte']),
+ 'parser_ancestor_count':len(parser_ancestors),'parser_entry_guard':'compiler_compile_project via checked resident compile_project/compile_request/compile_unit',
  'caller_count':len(callers),'callers':[{ 'module':k[0],'function':k[1],'bank':bank_of(k)}for k in sorted(callers)],
  'intervals':{name:{'function_count':len(seen),'banks':sorted({bank_of(k)for k in seen})}for name,seen in closure.items()},
  'required_functions':{name:sorted({bank_of(k)for seen in closure.values()for k in seen if k[1]==name})for name in sorted(required)},
