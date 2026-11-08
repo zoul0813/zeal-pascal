@@ -400,3 +400,9 @@
 !/docs/hardware-testing.md
 !/docs/crt-harness-evidence.json
 !/reviews/crt-harness-v1.md
+
+# Integrated main examples and reproducible physical acceptance overlay.
+!/tools/package-hardware.py
+!/docs/main-integration-evidence.json
+!/reviews/main-units-integration-v1.md
+!/tests/test_hardware_package.py

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Native hardware unit qualification and Pascal ZVB authoring probe."""
 import argparse
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -68,6 +69,14 @@ def main():
     fields=('_test_done','_test_passed','_test_failed','_test_index','_test_stage','_test_unit_ok','_test_unit_error','_test_unit_position','_test_unit_code','_test_unit_types','_test_unit_attempted','_test_unit_maps','_test_unit_relocations','_test_client_count','_test_stack_low','_test_heap_base')
     commands += [f'rb 0x{symbols[name]:x} 2'for name in fields]
     commands += [f"rb 0x{symbols['_test_clients']:x} 192",f"rb 0x{symbols['_test_failures']:x} 128",f"rb 0x{symbols['_test_diagnostics']:x} 256",'quit']
+    fixture_hashes={name:hashlib.sha256(data).hexdigest() for name,data in fixtures.items()}
+    inputs=[ROOT/'CMakeLists.txt']+sorted(p for p in (ROOT/'src').iterdir() if p.is_file())
+    inputs += [ROOT/'build'/name for name in ('zpascal.bin','zpascal.zpl','zpascal.map',
+               'zpascal.banks.json','pascal_runtime.zpl','pascal_runtime.private',
+               'pascal_runtime.profile','runtime-layout.json')]
+    inputs += sorted(p for p in (ROOT/'libraries').iterdir() if p.is_file())
+    inputs += [ROOT/'tools/zvb-source.py', ROOT/'tools/test-zvb.py']
+    input_hashes={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
     standalone=[]
     class SavedClients(n.DebugConsole):
         def command(self,command,capture=False):
@@ -150,11 +159,19 @@ def main():
     if 'USES' in cases and 'ORDER' in cases:
         directory=n.RUN/'zvb/hostfs'
         checks['named/literal ports and reversed uses order produce identical output']=(directory/'USES.COM').exists() and (directory/'ORDER.COM').exists() and (directory/'USES.COM').read_bytes()==(directory/'ORDER.COM').read_bytes()
+    checks['compiler and runtime inputs unchanged']=all(hashlib.sha256(Path(p).read_bytes()).hexdigest()==value for p,value in input_hashes.items())
     report={'standalone_clients':standalone,'native_stack_margin':word('_test_stack_low')-word('_test_heap_base'),'clients':metrics,'scope':'hardware unit foundation'if args.hardware_only else __doc__,'passed':all(checks.values()),'checks':checks,'assertions':word('_test_passed'),'failed':word('_test_failed'),
             'failure_indices':[state.get(symbols['_test_failures']+2*i,0)|(state.get(symbols['_test_failures']+2*i+1,0)<<8)for i in range(min(word('_test_failed'),64))],
             'diagnostics':[state.get(symbols['_test_diagnostics']+2*i,0)|(state.get(symbols['_test_diagnostics']+2*i+1,0)<<8)for i in range(min(2*word('_test_failed'),128))],
             'zvb':{'compiled':byte('_test_unit_ok'),'error':byte('_test_unit_error'),'position':word('_test_unit_position'),'code_bytes':word('_test_unit_code'),'types':word('_test_unit_types'),'maps':word('_test_unit_maps'),'code_relocations':word('_test_unit_relocations')},
             'emulator':str(n.EMULATOR),'capture_directory':str(n.RUN.relative_to(ROOT))}
+    report['input_sha256']=input_hashes
+    report['fixture_sha256']=fixture_hashes
+    directory=n.RUN/'zvb/hostfs'
+    report['program_sha256']={case:hashlib.sha256((directory/(case+'.COM')).read_bytes()).hexdigest()
+                              for case in cases if (directory/(case+'.COM')).exists()}
+    if (directory/'ZVB.ZPU').exists():
+        report['library_sha256']=hashlib.sha256((directory/'ZVB.ZPU').read_bytes()).hexdigest()
     if args.output_library and report['passed']:
         destination=args.output_library.resolve();destination.parent.mkdir(parents=True,exist_ok=True)
         payload=(n.RUN/'zvb/hostfs/ZVB.ZPU').read_bytes()

@@ -348,8 +348,19 @@ class DebugConsole:
         finally:
             self.command(f'bc 0x{stop.address:x}')
 
+    def line_layout(self, line):
+        path = self.directory/'hostfs'/line.program if line.program else None
+        if line.source is None and path is not None and path.exists():
+            image = path.read_bytes()
+            # Publication writes the image in chunks. Do not parse a partial
+            # prefix; identity() still rejects malformed images at input time.
+            if (len(image) >= 160 and image[3:8] == b'ZP80\x02'
+                    and len(image) == int.from_bytes(image[10:12], 'little')):
+                return input_layout(image)
+        return getattr(self, 'active_input_layout', None) or input_layout()
+
     def observe(self):
-        layout = input_layout()
+        layout = getattr(self, 'active_input_layout', None) or input_layout()
         self.last_observation = (self.command('regs')+self.command('mmu')+self.command('rb 0x4000 160')+
                                  self.command(f'rb 0x{layout["finished"]:x} {len(layout["pattern"])}'))
         return self.last_observation
@@ -372,7 +383,7 @@ class DebugConsole:
         except FileNotFoundError: return False
         data = memory(frame)
         actual = bytes(data.get(0x4000+offset+i, 0) for i in range(32))
-        layout = input_layout()
+        layout = getattr(self, 'active_input_layout', None) or input_layout()
         return (actual == expected and bytes(data.get(0x4003+i, 0) for i in range(5)) == b'ZP80\x02'
                 and bytes(data.get(layout['finished']+i, 0) for i in range(len(layout['pattern']))) == layout['pattern'])
 
@@ -383,7 +394,12 @@ class DebugConsole:
         # programs. response() owns the run's wall deadline; counting chunks
         # here must not expire a still-progressing compiler before that bound.
         while polls <= 10000 and pending <= 1000:
+            layout.update(self.line_layout(line))
+            self.active_input_layout = layout
             self.command(f'bp 0x{reader:x}'); self.command('run 2000000000')
+            # The source may have compiled/published during this run chunk.
+            layout.update(self.line_layout(line))
+            self.active_input_layout = layout
             frame = self.observe(); self.command(f'bc 0x{reader:x}')
             match = re.search(r'\[DBG\] PC=([0-9a-fA-F]+)', frame)
             if not match: raise RuntimeError('missing emulator PC observation')
@@ -419,7 +435,8 @@ class DebugConsole:
         return bytes(data.get(layout['buffer']+i, 0) for i in range(size))
 
     def physical_line(self, line):
-        layout, kernel = input_layout(), kernel_symbols()
+        layout, kernel = self.line_layout(line), kernel_symbols()
+        self.active_input_layout = layout
         reader, mode = kernel['keyboard_next_key'], kernel['kb_mode']
         waits = self.ready(line, layout, reader, mode)
         if self.held_enter:
@@ -1079,7 +1096,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     inputs = [ROOT / 'CMakeLists.txt', ROOT / 'tools/package-native.py', Path(__file__).resolve()]
     inputs += sorted((ROOT / 'src').glob('*')) + sorted((ROOT / 'tests/native').glob('*.pas'))
-    inputs += [ROOT/'tests/native'/name for name in ('main.c', 'harness.c', 'harness.h', 'core-groups.h', 'core-counts.json', 'machine.asm', 'startup-fail.c')]
+    inputs += [ROOT/'tests/native'/name for name in ('main.c', 'harness.c', 'harness-cases.c', 'harness.h', 'core-groups.h', 'core-counts.json', 'machine.asm', 'startup-fail.c')]
     inputs += sorted(MEDIA.iterdir())
     input_hashes = {str(p.relative_to(ROOT)): sha(p) for p in inputs if p.is_file()}
     artifacts = artifact_hashes()

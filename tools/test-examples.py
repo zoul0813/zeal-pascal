@@ -65,7 +65,7 @@ class ExampleConsole(n.DebugConsole):
             self.screen_armed = False
             program = self.directory / 'hostfs/lighthouse/lighthouse.bin'
             image = program.read_bytes()
-            signature = bytes.fromhex('3e40dbf1f53e40d3f1')
+            signature = bytes.fromhex('3e00dbf0f53e40d3f0')
             sites = [0x4000+i+len(signature) for i in range(len(image))
                      if image.startswith(signature, i)]
             if not sites:
@@ -76,16 +76,16 @@ class ExampleConsole(n.DebugConsole):
                 result = self.native_command(command, capture)
                 frame = super().command('regs') + super().command('mmu')
                 pc = re.search(r'PC=([0-9a-fA-F]+)', frame)
-                if not pc or int(pc[1], 16) not in sites or '4000 -> 100000' not in frame:
+                if not pc or int(pc[1], 16) not in sites or '0000 -> 100000' not in frame:
                     raise RuntimeError('Lighthouse did not reach its mapped CRT checkpoint: '+frame)
                 data = {}
-                for base in (0x4000, 0x5000):
+                for base in (0x0000, 0x1000):
                     for offset in range(0, 3200, 256):
                         data.update(n.memory(super().command(f'rb 0x{base+offset:x} {min(256,3200-offset)}')))
                 screen = {'command': self.screen_line,
-                          'rows': [''.join(chr(data[0x4000+y*80+x] or 32) for x in range(80))
+                          'rows': [''.join(chr(data[y*80+x] or 32) for x in range(80))
                                    for y in range(40)],
-                          'attributes': [data[0x5000+i] for i in range(3200)]}
+                          'attributes': [data[0x1000+i] for i in range(3200)]}
                 self.screens.append(screen)
                 (self.directory/'lighthouse-screens.json').write_text(json.dumps(self.screens,indent=2)+'\n')
                 if self.screen_line.upper() in ('Q','QUIT') or 'Press Enter to leave.' in screen['rows'][31]:
@@ -96,7 +96,7 @@ class ExampleConsole(n.DebugConsole):
                     super().command(f'bc 0x{site:x}')
         result = self.native_command(command, capture)
         if (getattr(self, 'screen_line', None) is not None and
-                command == f'bc 0x{n.input_layout()["finished"]:x}'):
+                command == f'bc 0x{self.active_input_layout["finished"]:x}'):
             self.screen_armed = True
             image = (self.directory/'hostfs/lighthouse/lighthouse.bin').read_bytes()
             signature = bytes.fromhex('7d3dd3a17b3dd3a2')
@@ -116,7 +116,8 @@ class ExampleConsole(n.DebugConsole):
                 self.screen_line = line.value
             else: self.screen_line = None
             return super().physical_line(line)
-        layout, kernel = n.input_layout(), n.kernel_symbols()
+        layout, kernel = self.line_layout(line), n.kernel_symbols()
+        self.active_input_layout = layout
         self.ready(line, layout, kernel['keyboard_next_key'], kernel['kb_mode'])
         if self.held_enter:
             self.command('release ENTER'); self.command('run 4000000'); self.held_enter = False
@@ -145,8 +146,10 @@ class ExampleConsole(n.DebugConsole):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--emulator', type=Path, help='Use an installed native emulator')
     parser.add_argument('--package', action='store_true', help='Refresh shipped .bin images after native checks pass')
     args = parser.parse_args()
+    if args.emulator is not None: n.EMULATOR = args.emulator
     target = 'zexampletest'
     sym = n.symbols(target)
     examples = sorted(p for p in (ROOT / 'examples').rglob('*')
@@ -154,14 +157,19 @@ def main():
                                           or p.name in ('README.md', 'sample.txt')))
     inputs = examples + [Path(__file__).resolve(), ROOT / 'CMakeLists.txt',
                          ROOT / 'tests/native/examples-main.c', ROOT / 'tests/native/harness.c',
+                         ROOT / 'tests/native/harness-cases.c', ROOT / 'build/CRT.ZPU', ROOT / 'build/SYSFILE.ZPU',
                          ROOT / 'tests/native/harness.h', ROOT / 'tests/native/examples-probe.asm',
                          ROOT / 'tools/test-native.py',
-                         n.EMULATOR, n.ROM]
+                         n.EMULATOR, n.ROM, ROOT/'libraries/screen-engine.inc',
+                         ROOT/'tools/screen-library.c', ROOT/'tools/package-screen.py']
     inputs += sorted(p for p in (ROOT / 'src').iterdir() if p.is_file())
     inputs += [ROOT / f'build/{target}.{ext}' for ext in ('bin', 'zpl', 'map')]
+    inputs += [ROOT/'build'/name for name in ('zpascal.bin', 'zpascal.zpl', 'zpascal.map',
+               'zpascal.banks.json', 'pascal_runtime.zpl', 'pascal_runtime.private',
+               'pascal_runtime.profile', 'runtime-layout.json')]
     hashes = {str(p): n.sha(p) for p in inputs}
     fixtures = {str(p.relative_to(ROOT / 'examples')): p.read_bytes() for p in examples}
-    fixtures['lighthouse/lighthouse.pas']=fixtures['lighthouse/lighthouse.pas'].replace(b'uses Crt;',b'{uses Crt;}')
+    fixtures['CRT.ZPU'] = (ROOT/'build/CRT.ZPU').read_bytes()
     fixtures.update({f'{target}.{ext}': (ROOT / f'build/{target}.{ext}').read_bytes()
                      for ext in ('bin', 'zpl')})
     commands = ['run 100000000'] + n.program_launch(target)
@@ -240,7 +248,7 @@ def main():
     checks = {
         'native completion, successful compilation/runs and owner cleanup':
             memory.get(sym['_test_done']) == 255 and word('_test_stage') == 9
-            and word('_test_failed') == 0 and word('_test_passed') == 184,
+            and word('_test_failed') == 0 and word('_test_passed') == 185,
         'adventure rejects premature action and locked door, then wins':
             any('You must reach the lamp first.' in row for screen in screens for row in screen['rows'])
             and any('The cellar door is locked.' in row for screen in screens for row in screen['rows'])
@@ -377,9 +385,11 @@ def main():
         compiler_digest.update(path.name.encode() + b'\0' + bytes.fromhex(hashes[str(path)]))
     manifest = {'compiler_commit': compiler_commit, 'compiler_sources_sha256': compiler_digest.hexdigest(),
                 'format': 'Native Zeal executable; unchanged compiler COM image named .bin',
-                'build_command': 'zde --no-tty cmake --target zexampletest_bin',
+                'build_command': 'zde --no-tty cmake build --target zexampletest_bin',
                 'verification': 'python3 tools/test-examples.py --package',
                 'runtime_sha256': n.sha(ROOT / 'build/pascal_runtime.zpl'),
+                'compiler_harness_sha256': {ext: n.sha(ROOT/f'build/{target}.{ext}') for ext in ('bin','zpl')},
+                'stock_units_sha256': {name: n.sha(ROOT/'build'/name) for name in ('CRT.ZPU','SYSFILE.ZPU')},
                 'programs': {}}
     for source in sorted((ROOT / 'examples').glob('*/*.pas')):
         image = folder / source.parent.name / (source.stem + '.bin')
@@ -406,7 +416,10 @@ def main():
     if args.package:
         provenance.write_text(json.dumps(manifest, indent=2) + '\n')
     else:
-        assert json.loads(provenance.read_text()) == manifest, 'Refresh examples/binaries.json with --package'
+        # The source/build hashes identify the compiler; HEAD also changes when
+        # the generated manifest itself is committed.
+        existing = json.loads(provenance.read_text())
+        assert {k:v for k,v in existing.items() if k != 'compiler_commit'} == {k:v for k,v in manifest.items() if k != 'compiler_commit'}, 'Refresh examples/binaries.json with --package'
     checks['shipped binaries match native-tested output and source provenance'] = True
     report['passed'] = True
     (n.RUN / 'examples-report.json').write_text(json.dumps(report, indent=2) + '\n')

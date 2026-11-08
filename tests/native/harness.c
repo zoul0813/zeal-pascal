@@ -6,6 +6,7 @@ void check(uint8_t ok) {
     if(ok) ++test_passed;
     else { if(test_failed<64) test_failures[test_failed]=test_index; ++test_failed; }
 }
+#ifndef ZP_TEST_ASSERTIONS_ONLY
 uint8_t seed(const char *path,const char *text) {
     int8_t fd;
     uint16_t n=(uint16_t)strlen(text),expected=n;
@@ -15,3 +16,5 @@ uint8_t seed(const char *path,const char *text) {
     if(write(fd,console_scratch,&n)||n!=expected) { close(fd); return 0; }
     return close(fd)==0;
 }
+
+#endif

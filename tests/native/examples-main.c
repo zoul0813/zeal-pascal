@@ -178,7 +178,7 @@ static uint8_t example(const char *path,const char *output_path) {
     return ready;
 }
 int app_main(void) {
-    uint8_t ready,i;
+    uint8_t ready,i,cached=0;
     if(!console_open())return 1;
     check(source_new(&s,"H:/lighthouse/lighthouse.pas"));
     test_stage=1;
@@ -226,6 +226,9 @@ int app_main(void) {
     }
     build_close(&b);
     example("H:/measure/stats.pas","H:/measure-reopen.out");build_close(&b);
-    source_close(&s);check(pages_used()==code_required);
+    source_close(&s);
+    for(i=0;i<code_owned;++i)if(code_pages[i]!=255)++cached;
+    /* Real and the three transient unit banks are not part of the warm cache. */
+    check(cached==code_required-4);check(pages_used()==cached);
     test_done=255;test_complete();return 0;
 }

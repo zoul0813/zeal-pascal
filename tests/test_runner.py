@@ -54,8 +54,8 @@ class Selection(unittest.TestCase):
         definition = json.loads(runner.PLAN.read_text())
         expanded = runner.expand_commands(definition)
         original = runner.expand_commands(definition, monolithic=True)
-        self.assertEqual(len(original), 86)
-        self.assertEqual(len(expanded), 160)
+        self.assertEqual(len(original), 93)
+        self.assertEqual(len(expanded), 167)
         expected = [command + shlex.split(suffix) for command in original
                     for suffix in definition.get('chunks', {}).get(' '.join(command), [''])]
         self.assertEqual(expanded, expected)
@@ -75,6 +75,24 @@ class Selection(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
+
+    def test_partial_publication_preserves_observer_until_complete(self):
+        from unittest.mock import patch
+        module = self.native_helper()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); (root/'hostfs').mkdir()
+            image = bytearray(200); image[3:8] = b'ZP80\x02'; image[10:12] = (200).to_bytes(2, 'little')
+            path = root/'hostfs/APP.COM'
+            console = object.__new__(module.DebugConsole); console.directory = root
+            previous = {'finished': 0x7000}; console.active_input_layout = previous
+            line = module.PhysicalLine('', 'APP.COM', 0)
+            with patch.object(module, 'input_layout', return_value={'finished': 0x5000}) as parser:
+                path.write_bytes(image[:100])
+                self.assertIs(console.line_layout(line), previous)
+                parser.assert_not_called()
+                path.write_bytes(image)
+                self.assertEqual(console.line_layout(line), {'finished': 0x5000})
+                parser.assert_called_once_with(bytes(image))
 
     def test_native_manifest_covers_every_c_family_and_workflow(self):
         import re

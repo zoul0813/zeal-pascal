@@ -43,8 +43,8 @@ client stages explicitly.
   global at the end of its data. Empty record types and program-level one-past
   globals remain supported.
 - The existing CPU-stack window remains `$C800`–`$FC00`, with runtime guards.
-  The standalone screen-test fixture retains its documented pre-existing
-  resident overflow; shipped CRT is covered by other native tests.
+  The standalone screen-test fixture was subsequently repaired and passes
+  all 502 checks; see [CRT harness evidence](crt-harness-evidence.json).
 
 [Opus review and dispositions](../reviews/runtime-compaction-v1.md) cover the
 production checkpoint `287e183`. The additional bank-residency proof checks the

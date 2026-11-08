@@ -1,34 +1,42 @@
 {
-  "compiler_commit": "4bf9aef63fb88d9c715d52ee6fdf44835e7dce68",
-  "compiler_sources_sha256": "04bf826a94db6ed81d06d623ea85ed73f59905b7407d9fb02cf3b91efeed1067",
+  "compiler_commit": "8e66980e55780382b8b7dd486f9954c591aacfa1",
+  "compiler_sources_sha256": "e0ab30059a1e9f3192d2f5e047d41bce176dfd43826656bb5821fa430a83c2be",
   "format": "Native Zeal executable; unchanged compiler COM image named .bin",
-  "build_command": "zde --no-tty cmake --target zexampletest_bin",
+  "build_command": "zde --no-tty cmake build --target zexampletest_bin",
   "verification": "python3 tools/test-examples.py --package",
-  "runtime_sha256": "1da9d420f5598640ed57fa37b099faf09c76fa60dbae31a212b1b341aadf53a3",
+  "runtime_sha256": "187a28b9bd66bbf66fbfc201fb845f2a9e37b15dfead9d4ce855fe59e40c9af7",
+  "compiler_harness_sha256": {
+    "bin": "2a30c171eecffc4329a196241d0f0db49b8f97051edd53068e79fd9c7d7e7273",
+    "zpl": "58d87c91f4a07f8b8a1390cd57dc78ecba7e60c9febdfe657052db2264a1212c"
+  },
+  "stock_units_sha256": {
+    "CRT.ZPU": "7bbf5284ee7c556a5d536e5436eddd4dac2eb72f6ff1349a4e28bf697f674308",
+    "SYSFILE.ZPU": "07c4e579dcb4847f16fc99c67c5c984e3a190f093acb6b83decf45a92ef4f76c"
+  },
   "programs": {
     "calc/calc.bin": {
       "source": "calc/calc.pas",
       "source_sha256": "08b1a4aa3b7325d2b6ab0dbc54b423131680e9ef8a164ce426d1b812b657683b",
-      "binary_sha256": "fdd866a2a79564698627489a962400b276413993210b3ba4ae9f21b774840ef6",
-      "binary_bytes": 41017
+      "binary_sha256": "fa7cd8827ef531588624c04f2a695edd03627695770cd01d91c7e1528b44175d",
+      "binary_bytes": 41755
     },
     "concord/concord.bin": {
       "source": "concord/concord.pas",
       "source_sha256": "3a62609b8f8aea60eee5e993ddc4c81c0fbf7ae30d75d4f6ee24ac53aa3c066f",
-      "binary_sha256": "63b6818466d240998460813aab2e502aa196cca907172b55a92ec12a83cd26aa",
-      "binary_bytes": 39395
+      "binary_sha256": "bc708529904d9698c80415692a12e494315f8e862f993ea3aa64086eb6360f07",
+      "binary_bytes": 41389
     },
     "life/life.bin": {
       "source": "life/life.pas",
       "source_sha256": "f64c4ac03419423fed44c870585163506aeb6de0180c7257eb8817d24e1bdaf7",
-      "binary_sha256": "92af0a872322f05801ab63f5a42700f4a98ca4d6885f84a4d4d27b4d6aed8bef",
-      "binary_bytes": 36583
+      "binary_sha256": "c31c0e5fcabeda82d283116db1ea57e20f426358df7e3dc2788854f31305f024",
+      "binary_bytes": 26980
     },
     "lighthouse/lighthouse.bin": {
       "source": "lighthouse/lighthouse.pas",
-      "source_sha256": "c337e905228c9575c2943bcebdf965c4a4a74fcdee3a9a856e997ff17f4e37ef",
-      "binary_sha256": "eec0183719b34a88c88422593742f87744f38e2b88312a8f0ed8af5a1afc8f5c",
-      "binary_bytes": 36929,
+      "source_sha256": "2254b2d685f4d6d438e91c0e259dc97ce594d6c8d685d744440918e343a49b35",
+      "binary_sha256": "2ef1e0d276fcc9a173e4b5143955df378b5148f660dfb8ce33d9f3db9c54dc4d",
+      "binary_bytes": 27134,
       "includes_sha256": {
         "lighthouse/include/beam.pas": "1878084feec354d58977d721273d87a12a4301733c87bdd641070502b874bb39",
         "lighthouse/include/data.pas": "9e8b363cefa9f60505ca2b520fea812302e525169bb335ad4378282e44aa7159",
@@ -39,38 +47,38 @@
     "loan/loan.bin": {
       "source": "loan/loan.pas",
       "source_sha256": "05e3715e2f7bb810a88bc977f98f891523bf4615c7fd9100d21aaba541cccc5e",
-      "binary_sha256": "b3f2b6bfdd177b64af92bda6d6540a6cea170d785dd3b938cd61cf168c345a89",
-      "binary_bytes": 39563
+      "binary_sha256": "6b59e43e5844d9d7a437702d086daeda6ef41704bcfd7ed316b1207fd98afcd7",
+      "binary_bytes": 40301
     },
     "measure/measure.bin": {
       "source": "measure/measure.pas",
       "source_sha256": "0a30c67d974dc1a6f7a52c6502d61bd3341a90d509625af7e1da6d28e5eb2a90",
-      "binary_sha256": "429e221d524cef0a14cd6b25117b3111dc7aae0abbee6af50dcde4e540dcda25",
-      "binary_bytes": 41569
+      "binary_sha256": "a74f026ae6da4b602f605870083c3d01c9da773a5753445f8efba03e2a1a49a2",
+      "binary_bytes": 44486
     },
     "measure/stats.bin": {
       "source": "measure/stats.pas",
       "source_sha256": "c4aa1240c49b03729a30e543279e7053b16cda1a3158c5f73c9c2e2e42d55546",
-      "binary_sha256": "df778d475c9c49864b41f8b24ec52c8927d1dce2d49c1c590a693cffae44d078",
-      "binary_bytes": 42046
+      "binary_sha256": "70d90e6216a1e0102507f8c9bda5c41968abe8383cee65fa7ff51d5aede56477",
+      "binary_bytes": 44875
     },
     "partsbin/partsbin.bin": {
       "source": "partsbin/partsbin.pas",
       "source_sha256": "58d7678b3ec666d7c65224dc777a827ecf444b9b807f247b838c12799b6e535b",
-      "binary_sha256": "e34db776adf06557737e151b622132734fa59f17cac9b5217d45d1438c2734f7",
-      "binary_bytes": 39094
+      "binary_sha256": "7a6fb9f68a4907ba6944f32101a4a6c6f43f8691b6be6b89ff23f8ac7e142255",
+      "binary_bytes": 31305
     },
     "queens/queens.bin": {
       "source": "queens/queens.pas",
       "source_sha256": "3ea1a2f49e2179d0f435f909cdfe28e8dbae9457fbd888edad1902a921262c55",
-      "binary_sha256": "0867dbd2de8615451b680f8730c123fd3e80b7f6f28c89285c12e04233ffe7fb",
-      "binary_bytes": 35320
+      "binary_sha256": "77158c4ac9dcef5f2f4398fda7b847aa4a7c86b18bdf50747621dbf6444fe64f",
+      "binary_bytes": 36058
     },
     "tasks/tasks.bin": {
       "source": "tasks/tasks.pas",
       "source_sha256": "9599acdd04183f8739502e9c92f1808de77953e1e3fcb0e688cad3242c8e2178",
-      "binary_sha256": "2ac19e5c749cbc6c8ce272bc79a0ea3c3348483f44443ae314abb81e1840bc23",
-      "binary_bytes": 37137
+      "binary_sha256": "fdf97d9ce58cbd214101376d2f1771b2ae766fd36db3c9341c99c4cd16d740fe",
+      "binary_bytes": 27534
     }
   }
 }

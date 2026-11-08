@@ -85,7 +85,14 @@
     "tools/test-optional-real.py",
     "tools/test-optional-chain.py",
     "tools/test-unit-navigation.py",
-    "tools/test-program-pages.py"
+    "tools/test-program-pages.py",
+    "tools/test-screen.py",
+    "tools/test-unit-docs.py",
+    "tools/test-unit-phase.py",
+    "tools/test-runtime-objects.py",
+    "tools/test-linked-addresses.py",
+    "tools/test-compact-programs.py",
+    "tools/test-zvb.py --skip-hardware --clients --disk-snake"
   ],
   "redundant": [
     "tools/test-native.py --core-only",
