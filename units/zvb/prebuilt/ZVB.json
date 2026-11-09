@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "unit_sha256": "908f77968123a9cdb641804302254cf0f5e5103109b4c62c245673904f67576e",
+  "unit_sha256": "f626b78f4ced981f33a26e74a128336f2e260e44c3e1ab7160c9d6375d1852b1",
   "source_sha256": {
     "units/zvb/ZVB.PAS": "7319166cc54b70b59aca7ab59487c39fe03023933d691dc2048917655f6c72fb",
     "units/zvb/ZVBHW.INC": "582836c01ac34b9e58a655b0309ca6e62f41a0a125b12f6652e297e95a06faa3",
@@ -11,13 +11,13 @@
     "tools/zvb-source.py": "5fd09ddfea67aa4aaa75d52c6429a1ff700f382636c56a2072a4a0a14cdeb011"
   },
   "build_sha256": {
-    "zpascal.bin": "0200d4222353b727f3d36d0ddb5e1c92d9f9d667dd7c0936f86026a665f49a61",
-    "zpascal.zpl": "684593bf588bbcccfbc6c384fdfeca38fcbadf474c7f2583a713ffac646c030d",
-    "pascal_runtime.profile": "a7cecb775eb0cab3d1a26e168cbbf5ef7a549e482a26822a8d61be86ca71eda0"
+    "zpascal.bin": "0f82caa0766d3da4c9c9a8ad2eddc0c5f6df5ba951ef2636ca582e1922070451",
+    "zpascal.zpl": "3d969c5161e4c0060eea5f2463d6d81df832cac41e6fcd1731422723a5faafde",
+    "pascal_runtime.profile": "2d5c2d193cf701c23db004dd897312ac024cfae3b01988a950f8bb42f5411376"
   },
-  "native_authoring_report_sha256": "dc1c5dabc9b9b67a951dac63128072bd8cd3eb0fbf66deae7ed37386d1ccaddf",
+  "native_authoring_report_sha256": "50fb8d21ce7d38e5595d091d281897068adffb96447f491587b56678ca97550e",
   "authoring_compiler_sha256": {
-    "zzvbtest.bin": "526ff4ed165610d5b48ee2d3f7e438c514133ccf3deb1ee9d6271aca949b668a",
-    "zzvbtest.zpl": "340e87349faf386f4df2d439336cefc166ec65cbd370c100bd5cbc49087c0a4b"
+    "zzvbtest.bin": "b74d17ef65acc7cf3119b0500344990a6e6f3c0ab823a9fa18b14c3f0bf3809b",
+    "zzvbtest.zpl": "7a0f0da1128fd070daf3ee8a37aea02e214ad97136dd6f0320e6d6ee77d4a376"
   }
 }

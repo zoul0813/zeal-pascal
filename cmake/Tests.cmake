@@ -373,7 +373,9 @@ add_library(test_evidence OBJECT tests/native/code-capture.c)
 
 target_include_directories(test_evidence PRIVATE src)
 
-target_compile_options(test_evidence PRIVATE --std-c99 "SHELL:--codeseg BANK12" "SHELL:--constseg BANK12")
+# Capture helpers run after compiler phases and need permanent spare capacity.
+# BANK12 is shared with syscall parsing; BANK13 remains retained by the loader.
+target_compile_options(test_evidence PRIVATE --std-c99 "SHELL:--codeseg BANK13" "SHELL:--constseg BANK13")
 
 set_property(SOURCE tests/native/code-capture.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/tests/native/harness.h ${CMAKE_SOURCE_DIR}/src/common/zp.h ${CMAKE_SOURCE_DIR}/src/platform/banks/loader.h)

@@ -86,6 +86,21 @@ allocating a new page. Every built-in opts into the full-memory calling layout.
 
 The current kernel can return INVALID_FILESYSTEM for DSTAT on a writable handle;
 STAT by path or DSTAT on a read-only handle avoids that kernel limitation.
+The pinned kernel also has an overwrite-status defect in
+`kernel/disks.asm`, `_zos_disk_write_epilogue`: an early `ret nz` can return a
+file-size byte in A after the driver has already written the data. The native
+`syscall-kernel.pas` fixture creates a 1024-byte file and overwrites its first byte;
+both raw and checked calls return 4 (NO_SUCH_ENTRY), while readback proves the
+write occurred. Checked Count is zero because no chunk reported success. Count
+therefore describes confirmed successful chunks, not every possible device side
+effect on error. The bridge preserves the kernel status; it does not hide this
+platform defect.
+
+The pinned emulator HostFS also reports the pre-truncation size when opening an
+existing file with TRUNC (`hw/hostfs.c`, `fs_open`). Transfer fixtures and write
+benchmarks remove and recreate their disposable files to start with a genuinely
+zero-size kernel handle. Neither external component is modified by this feature.
+
 Driver IOCTL support is command-specific; the video driver leaves GET_ATTR
 unimplemented. The bridge returns these native errors unchanged.
 
@@ -133,3 +148,13 @@ enabling ZP_BUILD_TESTS. Run `python3 tools/test-syscalls.py` for native accepta
 The host transport fixture is tests/host/syscalls.c, compiled with ZS_HOST and the
 SDK include directory. Runtime profile, production unit acceptance and sanitized loader regressions
 must also pass because the private runtime table and ZPU export flags changed.
+
+
+`tools/measure-syscalls.py PATH/TO/ZBENCH.COM` measures the saved benchmark
+produced by native acceptance. It reports 21 CPU-cycle cases, minimal linked
+program sizes/pages, stack writes observed with sentinels, scratch preservation,
+MMU/SP preservation, and IFF2 at window boundaries. The empty window removes
+shared probe overhead. Checked transfers use 128-byte chunks; zero-byte requests
+make no kernel call. HostFS CPU cycles are not board or storage throughput, and
+the observed stack watermark is not an upper bound on reserved stack. Exact
+results and platform hashes belong in `zos-syscall-validation.json`.

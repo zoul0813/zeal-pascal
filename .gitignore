@@ -395,3 +395,8 @@ __pycache__/
 !/docs/specification.md
 
 !/tools/package-zos.py
+
+!/tests/native/syscall-boundaries.pas
+!/tools/measure-syscalls.py
+!/docs/zos-syscall-validation.json
+!/tests/native/syscall-kernel.pas

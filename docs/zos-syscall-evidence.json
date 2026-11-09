@@ -29,33 +29,50 @@
         "sdk/sdcc/include/zos_errors.h": "f71b9be8b4cb6909df6a5e3dc05b7707b7222ab1a3b943b9f105cd8180ab435e",
         "sdk/sdcc/src/zeal8bitos.asm": "a141c43e0a21bd847d8bfb7631de24239ce0d1f9369dd701303b13d7a488a741",
         "target/zeal8bit/include/mmu_h.asm": "c9110d4c145348528780065ea22ce6ea14055a523319eb78ded1b18761b4be01",
-        "target/zeal8bit/video.asm": "f34a3db62431322b857b789da0252bf26f2e9df0d73e0e0759134aa047f3b197"
+        "target/zeal8bit/video.asm": "f34a3db62431322b857b789da0252bf26f2e9df0d73e0e0759134aa047f3b197",
+        "kernel/disks.asm": "e15c38b965305b36ffcf33799c1032e0d42bccdfc8927d10ac7b2b5e85455f3c"
       }
     }
   },
   "observed": {
-    "host_transport": "passed",
+    "host_transport": "passed with address/undefined sanitizers",
     "native_emulator": {
-      "syscall_assertions": 75,
+      "syscall_assertions": 112,
       "failures": 0,
-      "capture": "analysis/native-slice/20261109T062812.423976Z-6221",
-      "direct_preserve_exec_status": 0
+      "stages": 22,
+      "capture": "analysis/native-slice/20261109T201431.600642Z-1816",
+      "direct_preserve_exec_status": 0,
+      "exit_cleanup_failure_primary": 73,
+      "exit_cleanup_failure_secondary": 13
     },
-    "hardware": "not run",
+    "hardware": "pending: user confirmed no board connected",
     "production_unit_assertions": 643,
+    "asm_sysfile_assertions": 1712,
+    "crt_assertions": 512,
     "unit_phase_assertions": 6068,
     "runtime_profile_checks": 60,
-    "release_build": "passed with ZP_BUILD_TESTS=OFF",
+    "release_build": "passed with ZP_BUILD_TESTS=OFF;9 outputs identical to test-enabled build",
     "artifacts": {
-      "zpascal.bin": "1151983da49752f7dcacd6385a12c8449653e7d7e49a682bf17d54e70dda8044",
-      "zpascal.zpl": "10a5203fd1f85f325332e3af5daa9b2a11e7e148129812e0cff33f41b55eec58",
-      "ZOS.ZPU": "57ed467b74a40ada4c47b780f69b59650fe6a25d2554aad7673e2fe06239ce3c",
-      "pascal_runtime.zpl": "7cfb2a03f49e698109c518a1513f3af2d204d11c532f164da528ce6cf441017f"
+      "zpascal.bin": "0f82caa0766d3da4c9c9a8ad2eddc0c5f6df5ba951ef2636ca582e1922070451",
+      "zpascal.zpl": "3d969c5161e4c0060eea5f2463d6d81df832cac41e6fcd1731422723a5faafde",
+      "SYSFILE.ZPU": "0be3c1a19369fb18b32147a8afa10731223bb51318c017cfb5207df0ed658c0e",
+      "CRT.ZPU": "97d2972c9a8de3bc085058552146960286208cfc505d4bda26b932b756471eab",
+      "CRT.PAS": "38cb123d3daae7ff834473ba9bc6e3c7dbed90d1069065ac5783fca3e469ae6b",
+      "ZVB.ZPU": "f626b78f4ced981f33a26e74a128336f2e260e44c3e1ab7160c9d6375d1852b1",
+      "ZOS.ZPU": "746132330ea5c14589b68d6a9dea6e9b86db6072b3b8e585153a8a8733be1070",
+      "ZOS.PAS": "d1e17f0968e0fadf393a31cf761b1500a65c4f3285de6c152d7c2129e79ca1e9",
+      "pascal_runtime.profile": "2d5c2d193cf701c23db004dd897312ac024cfae3b01988a950f8bb42f5411376"
+    },
+    "platform": {
+      "emulator_sha256": "98a17242c9c239fc70f663721367786699af5597dab6148a32192acf79bdd075",
+      "rom_sha256": "f34d453a1feb17d34c582f64139c5e8a42ac3e0f6642874b1d588695b4036b4a"
     },
     "limits": [
-      "hardware not run",
-      "legacy zunittest cannot be packaged: resident and banks3/11/15 exceed bounds; production unit-init and sanitized loader/phase tests used instead"
-    ]
+      "hardware pending",
+      "legacy zunittest bank overflows reproduced on untouched parent-main66afe5f",
+      "pinned kernel false overwrite status; emulator HostFS stale size on TRUNC; see validation record"
+    ],
+    "qualification_details": "zos-syscall-validation.json"
   },
   "decisions": {
     "normal_selector": "compile-time constant",
@@ -74,7 +91,7 @@
       "27 runner checks",
       "relocated packager identical artifact"
     ],
-    "full_native_qualification": "pending",
-    "stock_CRT_ZVB_reauthoring": "pending"
+    "full_native_qualification": "passed112 checks, direct EXEC and EXIT fault",
+    "stock_CRT_ZVB_reauthoring": "passed; native-authored prebuilt binaries and compiler bindings refreshed"
   }
 }

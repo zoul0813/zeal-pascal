@@ -23,7 +23,7 @@ static void client(const char *path,uint8_t expected) {
     if(!expected&&ok){char exe[128];strcpy(exe,path);strcpy(exe+strlen(exe)-3,"COM");check(!exec(EXEC_PRESERVE_PROGRAM,exe,0,&status)&&status==0);}
 }
 static void saved(const char *path,uint8_t code) {
-    uint8_t status=0;char exe[128];
+    uint8_t status=255;char exe[128];
     check(source_new(&s,path));check(load_source(&s,path,&d));check(compile(&s,&b,&d));
     if(b.valid)check(save_build(&s,&b,0));
     build_close(&b);source_close(&s);strcpy(exe,path);strcpy(exe+strlen(exe)-3,"COM");
@@ -52,5 +52,12 @@ int app_main(void) {
     test_stage=13;client("H:/BAD/STALE.PAS",UNIT_STALE);
     test_stage=14;client("H:/ZPAGE.PAS",0);
     test_stage=15;client("H:/ZIORES.PAS",0);
+    test_stage=16;client("H:/ZBOUND.PAS",0);
+    test_stage=17;saved("H:/ZBENCH.PAS",0);
+    test_stage=18;saved("H:/ZEMPTY.PAS",0);
+    test_stage=19;saved("H:/ZUNUSED.PAS",0);
+    test_stage=20;saved("H:/ZCHECK.PAS",0);
+    test_stage=21;saved("H:/ZREG.PAS",0);
+    test_stage=22;client("H:/ZKERNEL.PAS",0);
     test_done=255;test_complete();return 0;
 }

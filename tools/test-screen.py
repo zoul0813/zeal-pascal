@@ -77,7 +77,7 @@ def main():
     # Invalid export flags with a valid checksum exercise structural validation.
     import struct
     bad=bytearray(fixtures['CRT.ZPU']);export=struct.unpack_from('<H',bad,44)[0]
-    bad[export+2]=2
+    bad[export+2]=4
     h=2166136261
     for value in bad[:28]+bad[32:]:h=((h^value)*16777619)&0xffffffff
     struct.pack_into('<I',bad,28,h)
@@ -95,7 +95,7 @@ def main():
         b'(fcode=0)and(bcode=0)and(port[$A5]=$F4)and(port[$A8]=$4F)')
     fixtures['src/COLORS.PAS'] = b'uses Crt;\n'+colors_source
     fixtures['src/MMU.PAS'] = b'uses Crt;\n'+(ROOT/'tests/native/crt-mmu.pas').read_bytes()
-    raw = n.execute('screen-library', commands, fixtures, timeout=1200,console_class=CRTConsole)
+    raw = n.execute('screen-library', commands, fixtures, timeout=1200,base_programs=('zpascal',),console_class=CRTConsole)
     memory = n.memory(raw)
     word = lambda name: memory.get(sym[name], 0) | memory.get(sym[name]+1, 0) << 8
     output = n.RUN/'screen-library/hostfs/CRT.TXT'
@@ -134,7 +134,7 @@ def main():
         for name in ('_test_done','_test_passed','_test_failed'):
             commands += [f'rb 0x{probe[name]:x} 2']
         commands += ['quit']
-        trace=n.execute('screen-chain-standalone',commands,files,timeout=300,after_command=remove)
+        trace=n.execute('screen-chain-standalone',commands,files,timeout=300,after_command=remove,base_programs=())
         state=n.memory(trace);frames=re.split(r'\[DBG\] PC=',trace)[1:]
         value=lambda name:state.get(probe[name],0)|(state.get(probe[name]+1,0)<<8)
         result=n.RUN/'screen-chain-standalone/hostfs/RESULT.TXT'
