@@ -93,7 +93,8 @@
     "tools/test-runtime-objects.py",
     "tools/test-linked-addresses.py",
     "tools/test-compact-programs.py",
-    "tools/test-zvb.py --skip-hardware --clients --disk-snake"
+    "tools/test-zvb.py --skip-hardware --clients --disk-snake",
+    "tools/test-build-layout.py"
   ],
   "redundant": [
     "tools/test-native.py --core-only",
@@ -633,6 +634,7 @@
       "pascal_runtime_bin",
       "zpascal_bin",
       "zzvbtest_bin"
-    ]
+    ],
+    "tools/test-build-layout.py": []
   }
 }

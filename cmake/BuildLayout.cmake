@@ -1,0 +1,42 @@
+# Raw runtime fragments are build inputs, never additional applications.
+set(zp_test_definitions "${CMAKE_CURRENT_LIST_DIR}/Tests.cmake")
+function(zp_prepare_build_layout directory tests_enabled)
+    file(MAKE_DIRECTORY "${directory}/assets")
+    if(tests_enabled OR NOT EXISTS "${zp_test_definitions}")
+        return()
+    endif()
+
+    # CMake does not remove products of targets disabled by a later configure.
+    # Preserve known test outputs outside the release directory. Do not glob
+    # arbitrary user binaries or move sources, directories or symlinks.
+    file(STRINGS "${zp_test_definitions}" declarations
+        REGEX "^[ \t]*add_executable\\([A-Za-z0-9_]+[ \t)]")
+    set(outputs)
+    foreach(declaration IN LISTS declarations)
+        string(REGEX MATCH "add_executable\\(([A-Za-z0-9_]+)" matched "${declaration}")
+        set(target "${CMAKE_MATCH_1}")
+        if(target STREQUAL "zpascal")
+            continue()
+        endif()
+        foreach(extension IN ITEMS bin zpl ihx map lk noi sym banks.json
+                packed private runtime.json module.json call.json)
+            set(source "${directory}/${target}.${extension}")
+            if(EXISTS "${source}" AND NOT IS_DIRECTORY "${source}" AND NOT IS_SYMLINK "${source}")
+                list(APPEND outputs "${source}")
+            endif()
+        endforeach()
+    endforeach()
+    if(outputs)
+        set(generation 1)
+        set(archive "${directory}/tests/${generation}")
+        while(EXISTS "${archive}" OR IS_SYMLINK "${archive}")
+            math(EXPR generation "${generation}+1")
+            set(archive "${directory}/tests/${generation}")
+        endwhile()
+        file(MAKE_DIRECTORY "${archive}")
+        foreach(source IN LISTS outputs)
+            get_filename_component(name "${source}" NAME)
+            file(RENAME "${source}" "${archive}/${name}")
+        endforeach()
+    endif()
+endfunction()

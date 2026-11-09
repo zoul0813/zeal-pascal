@@ -15,18 +15,20 @@ def main():
     memory=p.read_hex(ROOT/'build/zpascal.ihx');symbols=p.read_symbols(ROOT/'build/zpascal.ihx')
     names=['pascal_runtime.zpl','integer_runtime.zpl','pascal_runtime.private','integer_runtime.private',
            'pascal_runtime.profile','pascal_runtime.runtime.json','integer_runtime.map','optional_runtime.json',
-           'integer_head.bin','integer_tail.bin','real_patch.bin']
+           'assets/integer_head.bin','assets/integer_tail.bin','assets/real_patch.bin']
     full=(ROOT/'build/pascal_runtime.zpl').read_bytes();private=(ROOT/'build/pascal_runtime.private').read_bytes();profile=(ROOT/'build/pascal_runtime.profile').read_bytes()
     result={}
     with tempfile.TemporaryDirectory(prefix='optional-runtime-')as temp:
         directory=Path(temp)
         def reset():
-            for name in names:shutil.copyfile(ROOT/'build'/name,directory/name)
+            for name in names:
+                (directory/name).parent.mkdir(parents=True,exist_ok=True)
+                shutil.copyfile(ROOT/'build'/name,directory/name)
         def validate(mem=None,bank=None):
             p.validate_optional_runtime(memory if mem is None else mem,symbols,directory,
-                (directory/'real_patch.bin').read_bytes()if bank is None else bank,full,private,profile)
+                (directory/'assets/real_patch.bin').read_bytes()if bank is None else bank,full,private,profile)
         reset();validate();result['actual linked core and Real asset']=True
-        original=(directory/'real_patch.bin').read_bytes()
+        original=(directory/'assets/real_patch.bin').read_bytes()
         mutations={
             'magic':lambda b:b.__setitem__(0,ord('?')),
             'record count':lambda b:struct.pack_into('<H',b,4,0xffff),
@@ -35,7 +37,7 @@ def main():
             'backref before output':lambda b:(b.__setitem__(12,b[12]|1),struct.pack_into('<H',b,13,0)),
             'trailing byte':lambda b:b.extend(b'!')}
         for label,change in mutations.items():
-            reset();data=bytearray(original);change(data);(directory/'real_patch.bin').write_bytes(data)
+            reset();data=bytearray(original);change(data);(directory/'assets/real_patch.bin').write_bytes(data)
             try:validate(bank=data)
             except ValueError:result['reject '+label]=True
             else:raise AssertionError(label)

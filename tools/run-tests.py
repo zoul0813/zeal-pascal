@@ -107,6 +107,7 @@ def inputs():
     paths.extend(p for p in (ROOT / 'build').iterdir()
                  if p.is_file() and p.suffix in
                  ('.bin', '.zpl', '.map', '.json', '.h', '.packed', '.private', '.profile', '.ZPU', '.PAS'))
+    paths.extend(p for p in (ROOT / 'build' / 'assets').glob('*.bin') if p.is_file())
     return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
             for p in sorted(set(paths))}
 

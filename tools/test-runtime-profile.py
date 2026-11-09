@@ -52,12 +52,13 @@ def main():
               'transfer_runtime.zpl', 'transfer_gate.zpl', 'execute_entry.zpl','transfer_runtime.packed','module_unpack.zpl')
     names = (*assets, 'transfer_call.zpl', 'pascal_runtime.profile', 'pascal_runtime.runtime.json',
              'zpascal.ihx', 'zpascal.map', 'zpascal.bin', 'zpascal.zpl',
-             'integer_runtime.zpl','integer_head.bin','integer_tail.bin','real_patch.bin',
+             'integer_runtime.zpl','assets/integer_head.bin','assets/integer_tail.bin','assets/real_patch.bin',
              'optional_runtime.json','SYSFILE.ZPU')
     original = {name: (ROOT/'build'/name).read_bytes() for name in names}
     with tempfile.TemporaryDirectory(prefix='zeal-chain-profile-') as folder:
         directory = Path(folder);image = directory/'zpascal.ihx'
         for name, data in original.items():
+            (directory/name).parent.mkdir(parents=True,exist_ok=True)
             (directory/name).write_bytes(data)
         # The current compiler packages without any legacy file-module files.
         assert not (directory/'file_runtime.zpl').exists()
@@ -104,7 +105,7 @@ def main():
         (directory/'pascal_runtime.profile').write_bytes(changed);rejected()
         (directory/'pascal_runtime.profile').write_bytes(original['pascal_runtime.profile'])
         symbols=package.read_symbols(image)
-        address = symbols['_integer_tail']+len(original['integer_tail.bin'])-4
+        address = symbols['_integer_tail']+len(original['assets/integer_tail.bin'])-4
         image.write_text(flip_hex(original['zpascal.ihx'].decode(), address+1));rejected()
         image.write_bytes(original['zpascal.ihx'])
         symbols=package.read_symbols(image)

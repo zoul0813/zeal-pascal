@@ -22,7 +22,7 @@ def main():
     inputs += [ROOT/f'build/{target}.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
     inputs += [ROOT/f'build/{name}.{ext}' for name in ('zpascal', 'zptest')
                for ext in ('bin', 'zpl', 'map', 'banks.json')]
-    inputs += [ROOT/'build/linked_integer_runtime.bin']
+    inputs += [ROOT/'build/assets/linked_integer_runtime.bin']
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}
     assert sym['_test_stop'] == 0xfc00
     commands = ['run 100000000'] + n.program_launch(target)

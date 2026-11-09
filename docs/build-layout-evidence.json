@@ -1,0 +1,112 @@
+{
+  "baseline_commit": "c1f5b14ec52f35a2d912d077da5828f36c723fa1",
+  "scope": "Clean the release build top-level .bin list; preserve required raw runtime inputs under assets/ and archive recognized disabled test products under tests/. CMake/link intermediates remain in the build workspace.",
+  "release_configuration_tests_OFF": true,
+  "default_release_build_passed": true,
+  "top_level_bin_files": [
+    "zpascal.bin"
+  ],
+  "assets_bin_files": [
+    "integer_head.bin",
+    "integer_tail.bin",
+    "real_patch.bin",
+    "linked_integer_runtime.bin"
+  ],
+  "archived_test_bin_files": [
+    "1/zcompacttest.bin",
+    "1/zexparent.bin",
+    "1/zinputtest.bin",
+    "1/zmathtest.bin",
+    "1/zoptionaltest.bin",
+    "1/zpbootfail.bin",
+    "1/zptest.bin",
+    "1/zunpacktest.bin",
+    "zcompacttest.bin",
+    "zexparent.bin",
+    "zfragmenttest.bin",
+    "zmathtest.bin",
+    "zoverlaytest.bin",
+    "zptest.bin",
+    "zscreentest.bin",
+    "zunpacktest.bin",
+    "zzvbtest.bin"
+  ],
+  "ram_trampoline": {
+    "output": "ram_trampoline.zpl",
+    "bytes": 358,
+    "role": "Embedded Memory Run/return transition code, not a separate application"
+  },
+  "baseline_sha256": {
+    "zpascal.bin": "ea92735953735004bbe6a1e5b3cefe6f8a54b54ce11af2fe2d38a17d8761150f",
+    "zpascal.zpl": "b940e889d6add33c9324a785c8ef1f3737a6342fc60bc5b9e801e4d69e292c9a",
+    "CRT.ZPU": "dcc538fca13f39b3c9fb8c7b913526321a99024ba8d0dd4ceb1b81d96a1f50c1",
+    "SYSFILE.ZPU": "e466a4495a769d5a0affb4ee4c81bed1e47d9635bba1fef416df4bf5147862e8",
+    "ZVB.ZPU": "4b93c3f66b23bd213f0dedacaaea2466d3ca310449f68f66f383d1615638a2b9",
+    "integer_head.bin": "6039890807986a84543d126a28a7c8ab8d9448520dc767f0e5539a67f4ceda3d",
+    "integer_tail.bin": "c9cd66095ae42d8dbb2658ff4c9ab044e4ee9e87c379bb36a3b421eeae3a9e22",
+    "real_patch.bin": "a4e8564c17fdb5e329c3a63740c60888fe10b9b1c5d5bcdcf28bfe554f8201a3",
+    "linked_integer_runtime.bin": "622295d4b41ef406671cf50615cb53f442e61d31c45418039b2e428b85627610"
+  },
+  "after_sha256": {
+    "zpascal.bin": "ea92735953735004bbe6a1e5b3cefe6f8a54b54ce11af2fe2d38a17d8761150f",
+    "zpascal.zpl": "b940e889d6add33c9324a785c8ef1f3737a6342fc60bc5b9e801e4d69e292c9a",
+    "CRT.ZPU": "dcc538fca13f39b3c9fb8c7b913526321a99024ba8d0dd4ceb1b81d96a1f50c1",
+    "SYSFILE.ZPU": "e466a4495a769d5a0affb4ee4c81bed1e47d9635bba1fef416df4bf5147862e8",
+    "ZVB.ZPU": "4b93c3f66b23bd213f0dedacaaea2466d3ca310449f68f66f383d1615638a2b9",
+    "integer_head.bin": "6039890807986a84543d126a28a7c8ab8d9448520dc767f0e5539a67f4ceda3d",
+    "integer_tail.bin": "c9cd66095ae42d8dbb2658ff4c9ab044e4ee9e87c379bb36a3b421eeae3a9e22",
+    "real_patch.bin": "a4e8564c17fdb5e329c3a63740c60888fe10b9b1c5d5bcdcf28bfe554f8201a3",
+    "linked_integer_runtime.bin": "622295d4b41ef406671cf50615cb53f442e61d31c45418039b2e428b85627610"
+  },
+  "checks": {
+    "all_five_release_products_and_four_raw_assets_byte_identical": true,
+    "layout_fixture_passed": true,
+    "existing_archives_preserved": true,
+    "unrelated_files_directories_and_symlinks_preserved": true,
+    "tests_ON_fixture_preserves_active_test_outputs": true,
+    "optional_runtime_integrity_checks_passed": true,
+    "runtime_profile_no_publication_checks": 60
+  },
+  "emulator_rerun": true,
+  "runtime_note": "Production compiler, Units and raw asset bytes are unchanged. A test-only non-Unit Inline bookkeeping correction restores the optional/legacy compiler bank fit.",
+  "archive_policy": "New OFF-configure snapshots keep binaries, banks and sidecars together in tests/<generation>/; prior archives are preserved. Snapshots are unvalidated workspace history, manually retained.",
+  "asset_roles": {
+    "integer_head.bin": "Embedded integer-runtime head",
+    "integer_tail.bin": "Embedded integer-runtime tail",
+    "real_patch.bin": "Embedded optional Real patch",
+    "linked_integer_runtime.bin": "Verification oracle/by-product, not embedded or installed"
+  },
+  "qualification": {
+    "OFF_ON_OFF_cycle_passed": true,
+    "rebuilt_targets": [
+      "zcompacttest_bin",
+      "zoptionaltest_bin",
+      "zunpacktest_bin",
+      "zptest_bin",
+      "zinputtest_bin",
+      "zexparent_bin"
+    ],
+    "focused_suite": "analysis/test-runs/20261109T150510.648061Z/suite.json",
+    "focused_suite_sha256": "4cd0f98e2339e6d22bb4c0a46d538efafea260f86c13acd95600293e04c1ea33",
+    "focused_selected_passed": true,
+    "full_acceptance": false,
+    "checks": [
+      "sanitized host suite",
+      "native basic",
+      "IDE Ctrl-C recovery",
+      "physical input RAM/COM",
+      "layout fixture through central runner"
+    ],
+    "compact_MIN_report": "analysis/native-slice/20261109T150911.799785Z-16729/compact-programs.json",
+    "compact_MIN_report_sha256": "0607fb600fbaf68c52d015565eb685f397403b279e18b31a95587bba8a07bd04",
+    "compact_MIN_passed": true,
+    "runner_unit_tests": 27
+  },
+  "non_Unit_compiler_fix": {
+    "file": "src/compiler/codegen/inline.c",
+    "change": "Exclude native Unit runtime-operand bookkeeping from compilers built without Unit support.",
+    "BANK15_before_bytes": 16401,
+    "BANK15_after_bytes": 16336,
+    "production_compiler_and_units_byte_identical": true
+  }
+}

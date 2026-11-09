@@ -260,7 +260,7 @@ def input_layout(image=None):
 
 def compact_prefix_matches(image, executed=False):
     """Compare every core byte except precisely enumerated compiler patches."""
-    golden=(ROOT/'build/linked_integer_runtime.bin').read_bytes()
+    golden=(ROOT/'build/assets/linked_integer_runtime.bin').read_bytes()
     if len(image)<len(golden)or int.from_bytes(image[132:134],'little')!=len(golden):return False
     skip=set()
     for first,last in ((1,3),(10,14),(18,34),(132,134),(0x152,0x153)):
@@ -675,7 +675,7 @@ def user_break_checks():
     typed = lambda text: type_text(text, ticks=2000000)
     source = b'var s:string[8];\nbegin\nreadln(s)\nend.'
     reader, setter = kernel['keyboard_next_key'], kernel['keyboard_ioctl']
-    cleanup = input_layout((ROOT/'build/linked_integer_runtime.bin').read_bytes())['cleanup']
+    cleanup = input_layout((ROOT/'build/assets/linked_integer_runtime.bin').read_bytes())['cleanup']
     work, build, result = sym['_work'], sym['_build'], sym['_ram_result']
     def probe():
         return ['regs', 'mmu', f"rb 0x{sym['_ide_state']:x} 1",

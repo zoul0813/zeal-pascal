@@ -54,8 +54,8 @@ class Selection(unittest.TestCase):
         definition = json.loads(runner.PLAN.read_text())
         expanded = runner.expand_commands(definition)
         original = runner.expand_commands(definition, monolithic=True)
-        self.assertEqual(len(original), 94)
-        self.assertEqual(len(expanded), 168)
+        self.assertEqual(len(original), 95)
+        self.assertEqual(len(expanded), 169)
         expected = [command + shlex.split(suffix) for command in original
                     for suffix in definition.get('chunks', {}).get(' '.join(command), [''])]
         self.assertEqual(expanded, expected)
@@ -245,11 +245,12 @@ class RunnerDependencies(unittest.TestCase):
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
-            for name in ('tools', 'build', 'tests', 'tests/__pycache__', 'cmake', 'units'):
+            for name in ('tools', 'build', 'build/assets', 'build/tests', 'tests', 'tests/__pycache__', 'cmake', 'units'):
                 (root/name).mkdir(exist_ok=True)
             for name in ('CMakeLists.txt', 'tools/test-plan.json', 'tools/run-tests.py',
                          'tests/test_hardware_package.py', 'build/CRT.ZPU', 'cmake/Tests.cmake', 'units/ZVB.PAS',
-                         'tests/__pycache__/test_hardware_package.pyc'):
+                         'tests/__pycache__/test_hardware_package.pyc',
+                         'build/assets/integer_head.bin', 'build/tests/old-test.bin'):
                 (root/name).write_text('test fixture')
             with patch.object(runner, 'ROOT', root), patch.object(runner, 'PLAN', root/'tools/test-plan.json'), \
                     patch.object(runner, '__file__', str(root/'tools/run-tests.py')):
@@ -258,6 +259,8 @@ class RunnerDependencies(unittest.TestCase):
             self.assertIn('build/CRT.ZPU', frozen)
             self.assertIn('cmake/Tests.cmake', frozen)
             self.assertIn('units/ZVB.PAS', frozen)
+            self.assertIn('build/assets/integer_head.bin', frozen)
+            self.assertNotIn('build/tests/old-test.bin', frozen)
             self.assertFalse(any('__pycache__' in name for name in frozen))
 
     def test_native_build_happens_once_before_frozen_inputs(self):

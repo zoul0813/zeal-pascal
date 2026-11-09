@@ -70,7 +70,9 @@ def build(directory):
 static const struct {{uint16_t site,target;uint8_t kind;}} runtime_relocations[]={{
 '''+''.join(f' {{{site}u,{target}u,{kind}}},\n'for site,target,kind in refs)+'};\n#endif\n#ifdef ZP_RUNTIME_COPY_OPERANDS\nstatic const struct {uint16_t site,target;} runtime_copy_operands[]={\n'+''.join(f' {{{site}u,{target}u}},\n' for site,target in copies)+'};\n#endif\n'
     (directory/'runtime-layout.h').write_text(header)
-    (directory/'linked_integer_runtime.bin').write_bytes(packed)
+    assets=directory/'assets';assets.mkdir(exist_ok=True)
+    (assets/'linked_integer_runtime.bin').write_bytes(packed)
+    (directory/'linked_integer_runtime.bin').unlink(missing_ok=True)
     (directory/'runtime-layout.json').write_text(json.dumps({'legacy_end':end,'gap_first':first,'gap_last':last,'recovered_bytes':gap+0x8000-end,'compact_end':end-gap,'runtime_bytes':len(packed),'references':len(refs)},indent=2)+'\n')
     print((directory/'runtime-layout.json').read_text())
 if __name__=='__main__':build(Path(sys.argv[1]))

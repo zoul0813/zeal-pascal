@@ -49,9 +49,11 @@ def build(directory):
         reconstructed[first:end]=p.unpack_module(packed)
     if reconstructed!=full:raise ValueError('Real patch does not exactly reconstruct the full runtime')
     if len(patch)>0x3000:raise ValueError('Real patch overlaps its 4 KiB decoding history')
-    (directory/'integer_head.bin').write_bytes(core[:head])
-    (directory/'integer_tail.bin').write_bytes(core[tail:]+private+profile)
-    (directory/'real_patch.bin').write_bytes(patch)
+    assets=directory/'assets';assets.mkdir(exist_ok=True)
+    for name,data in (('integer_head.bin',core[:head]),
+                      ('integer_tail.bin',core[tail:]+private+profile),('real_patch.bin',patch)):
+        (assets/name).write_bytes(data)
+        (directory/name).unlink(missing_ok=True)
     header=(f'#define OPTIONAL_RUNTIME_BYTES {len(core)}u\n'
             f'#define INTEGER_HEAD_BYTES {head}u\n#define INTEGER_TAIL_OFFSET {tail}u\n'
             f'#define INTEGER_TAIL_BYTES {len(core)-tail+len(private)+len(profile)}u\n'

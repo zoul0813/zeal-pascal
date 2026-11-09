@@ -19,6 +19,16 @@ notice from `units/zvb/` when distributing its Unit. Other runtime ZPLs, IHX,
 REL, map files, headers and JSON files in `build/` are intermediate build assets;
 they are not additional files the user needs to install.
 
+In a release configuration, the only top-level `.bin` is `zpascal.bin`.
+`build/assets/` holds the raw integer runtime fragments, optional Real patch
+and linked integer verification image. The integer head/tail and Real patch are
+embedded into compiler assets. `linked_integer_runtime.bin` is an independent
+byte-comparison image emitted by the layout generator for verification; it is
+not embedded or installed. None of these raw files is an application.
+The `ram_trampoline_bin` target is an SDK conversion-helper name: it produces
+`ram_trampoline.zpl`, a 358-byte transition stub embedded in the compiler for
+Memory Run and return to the IDE. It is not another installed program.
+
 ## Build targets
 
 The default build has four product entry points:
@@ -30,7 +40,7 @@ The default build has four product entry points:
 | `sysfile_zpu` | `SYSFILE.ZPU` |
 | `zvb_zpu` | Validated stock `ZVB.ZPU` |
 
-The root `CMakeLists.txt` only sets up the project, includes
+The root `CMakeLists.txt` sets up the project and build layout, includes
 four production modules, and conditionally includes `cmake/Tests.cmake`:
 
 - `Sources.cmake`: source lists, bank placement and header dependencies.
@@ -124,10 +134,17 @@ zde --no-tty exec cmake -S . -B build -DZP_BUILD_TESTS=OFF
 zde cmake
 ```
 
-Turning the option off removes test targets from the build graph; it does not
-delete previously built test files. Use a fresh build directory when checking a
-clean release build. Reconfiguring is through `zde exec`; actual target builds
-use `zde cmake`.
+Turning the option off removes test targets from the build graph and archives
+recognized stale test executables, banks and link metadata together under a new
+`build/tests/<generation>/` directory. Existing snapshots are preserved. These
+are workspace snapshots, not newly validated packages; remove unneeded snapshots
+manually. Other binaries, sources,
+directories and symlinks are left alone. Required runtime assets still build;
+turning tests off does not disable the compiler's runtime generators. Use a fresh
+build directory when checking a clean release build. Reconfiguring is through
+`zde exec`; actual target builds use `zde cmake`.
+The [layout evidence](build-layout-evidence.json) records the release file list
+and checks that moving build inputs did not change any shipped binary.
 
 ## Stock ZVB Unit
 

@@ -399,7 +399,7 @@ def validate_optional_runtime(memory,symbols,directory,real_bank,full,private,pr
     for name,filename,bank,offset in (
             ('_integer_head','integer_head.bin',10,0),
             ('_integer_tail','integer_tail.bin',12,0x37cd)):
-        data=(directory/filename).read_bytes();at=symbols[name]
+        data=(directory/'assets'/filename).read_bytes();at=symbols[name]
         if at>>16!=bank or not 0x8000<=(at&65535)<=(at&65535)+len(data)<=0xc000:
             raise ValueError('integer core span escapes its compiler bank')
         if bytes(memory.get(at+i,0)for i in range(len(data)))!=data:
@@ -407,7 +407,7 @@ def validate_optional_runtime(memory,symbols,directory,real_bank,full,private,pr
         core[offset:offset+len(data)]=data
     if core!=((directory/'integer_runtime.zpl').read_bytes()+private+profile):
         raise ValueError('sparse integer core differs from its linked image')
-    packed=(directory/'real_patch.bin').read_bytes()
+    packed=(directory/'assets/real_patch.bin').read_bytes()
     if real_bank!=packed or symbols['_real_patch_start']!=0x88000 or symbols['_real_patch_end']!=0x88000+len(packed):
         raise ValueError('embedded Real component is stale')
     if packed[:4]!=b'ZRL1' or len(packed)<6:raise ValueError('invalid Real component header')

@@ -8,6 +8,9 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 option(ZP_BUILD_TESTS "Build native acceptance binaries and experimental targets" OFF)
 
+include(cmake/BuildLayout.cmake)
+zp_prepare_build_layout("${CMAKE_BINARY_DIR}" "${ZP_BUILD_TESTS}")
+
 # zpascal.bin + zpascal.zpl, CRT.ZPU, SYSFILE.ZPU and ZVB.ZPU.
 include(cmake/Sources.cmake)
 include(cmake/Runtime.cmake)

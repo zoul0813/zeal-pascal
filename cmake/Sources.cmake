@@ -308,7 +308,7 @@ set_property(SOURCE src/app/banks.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/units/internal.h ${CMAKE_SOURCE_DIR}/src/compiler/internal.h)
 
 set_source_files_properties(${CMAKE_BINARY_DIR}/optional_runtime_asset.asm
-    PROPERTIES OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/integer_head.bin;${CMAKE_BINARY_DIR}/integer_tail.bin;${CMAKE_BINARY_DIR}/real_patch.bin;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
+    PROPERTIES OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/assets/integer_head.bin;${CMAKE_BINARY_DIR}/assets/integer_tail.bin;${CMAKE_BINARY_DIR}/assets/real_patch.bin;${CMAKE_BINARY_DIR}/ram_trampoline.zpl")
 
 set_source_files_properties(src/compiler/runtime.c
     PROPERTIES COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK5;--constseg;BANK5")

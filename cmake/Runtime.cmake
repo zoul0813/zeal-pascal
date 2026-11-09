@@ -167,8 +167,8 @@ add_custom_target(transfer_assets DEPENDS ${CMAKE_BINARY_DIR}/transfer_ide_asset
 
 # Optional built-in Real component. Production uses the sparse integer core.
 # Legacy controls and the experimental unit compiler retain the full template.
-add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/integer_head.bin
-    ${CMAKE_BINARY_DIR}/integer_tail.bin ${CMAKE_BINARY_DIR}/real_patch.bin
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/assets/integer_head.bin
+    ${CMAKE_BINARY_DIR}/assets/integer_tail.bin ${CMAKE_BINARY_DIR}/assets/real_patch.bin
     ${CMAKE_BINARY_DIR}/optional_runtime.h ${CMAKE_BINARY_DIR}/optional_runtime.json
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-optional-runtime.py ${CMAKE_BINARY_DIR}
     DEPENDS integer_runtime_bin runtime_profile
@@ -181,16 +181,16 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/integer_head.bin
     VERBATIM)
 
 add_custom_target(optional_runtime_assets DEPENDS ${CMAKE_BINARY_DIR}/optional_runtime.h
-    ${CMAKE_BINARY_DIR}/integer_head.bin ${CMAKE_BINARY_DIR}/integer_tail.bin
-    ${CMAKE_BINARY_DIR}/real_patch.bin)
+    ${CMAKE_BINARY_DIR}/assets/integer_head.bin ${CMAKE_BINARY_DIR}/assets/integer_tail.bin
+    ${CMAKE_BINARY_DIR}/assets/real_patch.bin)
 
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm CONTENT
-".area _BANK8\n.globl _real_patch_start,_real_patch_end\n_real_patch_start:\n.incbin \"${CMAKE_BINARY_DIR}/real_patch.bin\"\n_real_patch_end:\n.area _BANK10\n.globl _integer_head\n_integer_head:\n.incbin \"${CMAKE_BINARY_DIR}/integer_head.bin\"\n.area _BANK12\n.globl _integer_tail\n_integer_tail:\n.incbin \"${CMAKE_BINARY_DIR}/integer_tail.bin\"\n.area _RODATA\n.globl _trampoline_start,_trampoline_end\n_trampoline_start:\n.incbin \"${CMAKE_BINARY_DIR}/ram_trampoline.zpl\"\n_trampoline_end:\n")
+".area _BANK8\n.globl _real_patch_start,_real_patch_end\n_real_patch_start:\n.incbin \"${CMAKE_BINARY_DIR}/assets/real_patch.bin\"\n_real_patch_end:\n.area _BANK10\n.globl _integer_head\n_integer_head:\n.incbin \"${CMAKE_BINARY_DIR}/assets/integer_head.bin\"\n.area _BANK12\n.globl _integer_tail\n_integer_tail:\n.incbin \"${CMAKE_BINARY_DIR}/assets/integer_tail.bin\"\n.area _RODATA\n.globl _trampoline_start,_trampoline_end\n_trampoline_start:\n.incbin \"${CMAKE_BINARY_DIR}/ram_trampoline.zpl\"\n_trampoline_end:\n")
 
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/unit_unpack_asset.asm CONTENT
     ".area _BANK11\n.globl _unpack_start,_unpack_end\n_unpack_start:\n.incbin \"${CMAKE_BINARY_DIR}/module_unpack.zpl\"\n_unpack_end:\n")
 
-add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/runtime-layout.h ${CMAKE_BINARY_DIR}/runtime-layout.json ${CMAKE_BINARY_DIR}/linked_integer_runtime.bin
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/runtime-layout.h ${CMAKE_BINARY_DIR}/runtime-layout.json ${CMAKE_BINARY_DIR}/assets/linked_integer_runtime.bin
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-runtime-layout.py ${CMAKE_BINARY_DIR}
     DEPENDS integer_runtime_bin pascal_runtime_bin ${CMAKE_SOURCE_DIR}/tools/package-runtime-layout.py ${CMAKE_SOURCE_DIR}/tools/runtime_objects.py VERBATIM)
 
