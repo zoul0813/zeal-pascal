@@ -369,3 +369,11 @@ __pycache__/
 !/tests/test_build_layout.cmake
 !/docs/build-layout-evidence.json
 !/tools/test-build-layout.py
+
+!/tools/measure-sysfile.py
+!/units/sysfile/
+!/units/sysfile/**
+!/tests/native/sysfile-asm.asm
+!/docs/sysfile-asm-evidence.json
+!/docs/sysfile-asm.md
+!/tests/native/sysfile-mock.asm

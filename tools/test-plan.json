@@ -46,7 +46,7 @@
     "tools/test-bridges.py",
     "tools/test-bridges.py --corpus routines",
     "tools/test-bridges.py --corpus real",
-    "tools/test-file-runtime.py --host --native",
+    "tools/test-file-runtime.py --host --direct-host --native --asm-native",
     "tools/test-file-gate.py",
     "tools/test-workers.py",
     "tools/test-params.py",
@@ -385,7 +385,11 @@
     ],
     "tools/test-file-runtime.py": [
       "file_runtime_bin",
-      "zfilecoretest_bin"
+      "zfilecoretest_bin",
+      "zsysfiletest_bin",
+      "sysfile_relocations",
+      "sysfile_mock",
+      "sysfile_zpu"
     ],
     "tools/test-files.py": [
       "diskabi_bin",

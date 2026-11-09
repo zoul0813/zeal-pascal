@@ -1218,3 +1218,33 @@ add_custom_target(crt_authoring
     DEPENDS zpascal_bin runtime_profile
         ${CMAKE_SOURCE_DIR}/units/crt/CRT.PAS
         ${CMAKE_SOURCE_DIR}/tools/author-crt.py VERBATIM)
+
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    ${CMAKE_SOURCE_DIR}/units/sysfile/workspace.asm)
+# Assembly SYSFILE conformance against the existing disk/state/ownership suite.
+file(READ ${CMAKE_SOURCE_DIR}/units/sysfile/workspace.asm sysfile_test_workspace)
+string(REPLACE "_ZPDATA" "_DATA" sysfile_test_workspace "${sysfile_test_workspace}")
+file(WRITE ${CMAKE_BINARY_DIR}/workspace-test.asm "${sysfile_test_workspace}")
+add_executable(zsysfiletest tests/native/file-start.asm tests/native/sysfile-asm.asm
+    tests/native/file-core.c tests/native/file-probe.asm tests/native/machine.asm)
+target_include_directories(zsysfiletest PRIVATE src units/sysfile ${CMAKE_BINARY_DIR})
+target_compile_definitions(zsysfiletest PRIVATE ZP_DIRECT_FILE)
+target_link_options(zsysfiletest PRIVATE "SHELL:-b _TEST=0x8000" "SHELL:-b _TEST_DATA=0xe000")
+zp_add_outputs(zsysfiletest)
+
+set_property(SOURCE tests/native/sysfile-asm.asm APPEND PROPERTY OBJECT_DEPENDS
+    ${sysfile_sources} ${CMAKE_BINARY_DIR}/workspace-test.asm)
+
+# Test-only second standard link proves the authored relocation table complete.
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/assets/sysfile-reloc-probe.ihx
+    COMMAND ${CMAKE_LINKER} -n -i -m -w -b _ZPCODE=0x5000 -b _ZPDATA=0xa000
+        ${CMAKE_BINARY_DIR}/assets/sysfile-reloc-probe.ihx ${sysfile_object}
+    DEPENDS sysfile_payload ${sysfile_object} VERBATIM)
+add_custom_target(sysfile_relocations DEPENDS ${CMAKE_BINARY_DIR}/assets/sysfile-reloc-probe.ihx)
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/assets/sysfile-mock.ihx
+    COMMAND ${CMAKE_ASM_COMPILER} -o ${CMAKE_BINARY_DIR}/assets/sysfile-mock.rel
+        ${CMAKE_SOURCE_DIR}/tests/native/sysfile-mock.asm
+    COMMAND ${CMAKE_LINKER} -n -i -m -w -b _MOCK=0x4800
+        ${CMAKE_BINARY_DIR}/assets/sysfile-mock.ihx ${CMAKE_BINARY_DIR}/assets/sysfile-mock.rel
+    DEPENDS ${CMAKE_SOURCE_DIR}/tests/native/sysfile-mock.asm VERBATIM)
+add_custom_target(sysfile_mock DEPENDS ${CMAKE_BINARY_DIR}/assets/sysfile-mock.ihx)

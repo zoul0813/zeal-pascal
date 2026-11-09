@@ -8,6 +8,8 @@ import json
 import os
 import re
 import subprocess
+import struct
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,11 +50,47 @@ def host(compact=False,direct=False):
     assert report['passed'], report
 
 
-def native():
+
+def assembled_relocations(directory):
+    """Compare a second ordinary link with every declared ZPU address field."""
+    paths=[ROOT/'build/sysfile.payload',ROOT/'build/assets/sysfile-reloc-probe.ihx']
+    unit=paths[0].read_bytes();blob=struct.unpack_from('<H',unit,26)[0]
+    fragments,references=struct.unpack_from('<HH',unit,blob+6)
+    code,workspace=struct.unpack_from('<HH',unit,32)
+    records=[struct.unpack_from('<4H',unit,blob+16+8*i)for i in range(fragments)]
+    refbase=blob+16+8*fragments;payload=refbase+8*references
+    expected=bytearray(unit[payload:payload+code]);covered=set();checked=0
+    for start,size,first,count in records:
+        for index in range(first,first+count):
+            site,identity,encoded,offset=struct.unpack_from('<4H',unit,refbase+8*index)
+            assert identity==1 and start<code
+            target=records[encoded&0xfff][0]+offset;kind=encoded>>14
+            value=(0x5000+target if target<code else 0xa000+target-code)
+            before=bytes(expected[start+site:start+site+(1 if kind else 2)])
+            if kind:expected[start+site]=(value>>(8*(kind-1)))&255
+            else:struct.pack_into('<H',expected,start+site,value)
+            width=1 if kind else 2
+            assert before!=expected[start+site:start+site+width],'Unused relocation in two-base proof'
+            covered.update(range(start+site,start+site+width));checked+=1
+    spec=importlib.util.spec_from_file_location('package_native',ROOT/'tools/package-native.py')
+    pack=importlib.util.module_from_spec(spec);spec.loader.exec_module(pack)
+    second=pack.read_hex(paths[1]);actual=bytes(second[0x5000+i]for i in range(code))
+    assert actual==expected,'Missing or incorrect authored relocation'
+    assert all(second[0xa000+i]==0 for i in range(workspace))
+    changed={i for i in range(code)if actual[i]!=unit[payload+i]}
+    assert changed<=covered
+    report={'passed':True,'relocations_checked':checked,'code_bytes_checked':code,
+            'changed_code_bytes':len(changed),'workspace_bytes_checked':workspace,
+            'input_sha256':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()for p in paths}}
+    directory.mkdir(parents=True,exist_ok=True)
+    (directory/'relocations.json').write_text(json.dumps(report,indent=2)+'\n')
+    print(json.dumps(report,indent=2))
+
+def native(assembly=False):
     spec = importlib.util.spec_from_file_location('native', ROOT/'tools/test-native.py')
     n = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(n)
-    target = 'zfilecoretest'
+    target = 'zsysfiletest' if assembly else 'zfilecoretest'
     sym = n.symbols(target)
     inputs = [Path(__file__).resolve(), ROOT/'tools/test-native.py', ROOT/'tools/package-native.py',
               ROOT/'CMakeLists.txt', ROOT/'src/common/path.c', ROOT/'src/common/path.h', ROOT/'src/runtime/files/operations.c', ROOT/'src/runtime/files/operations.h',
@@ -60,7 +98,8 @@ def native():
               ROOT/'tests/native/file-start.asm', ROOT/'tests/native/file-probe.asm',
               ROOT/'tests/native/machine.asm', n.EMULATOR, n.ROM,n.TF_TEMPLATE]
     inputs += [ROOT/f'build/{target}.{ext}' for ext in ('bin', 'map')]
-    inputs += [ROOT/'build/file_runtime.zpl', ROOT/'build/file_runtime.module.json']
+    inputs += (list((ROOT/'units/sysfile').glob('*.asm'))+[ROOT/'tests/native/sysfile-asm.asm'] if assembly else
+               [ROOT/'build/file_runtime.zpl', ROOT/'build/file_runtime.module.json'])
     hashes = {str(path): n.sha(path) for path in inputs}
     for area in ('HEADER', 'SYSTEM', 'TEXT', 'DATA', 'BSS'):
         at, size = sym['s__'+area], sym['l__'+area]
@@ -76,7 +115,8 @@ def native():
     template=gzip.decompress(n.TF_TEMPLATE.read_bytes())
     raw = n.execute('file-runtime-core', commands,
                     {f'{target}.bin': (ROOT/f'build/{target}.bin').read_bytes()},
-                    tf_image=template,eeprom_image=n.blank_eeprom(),timeout=360)
+                    tf_image=template,eeprom_image=n.blank_eeprom(),timeout=360,
+                    base_programs=() if assembly else ('zpascal','zptest'))
     memory = n.memory(raw)
     word = lambda name: memory.get(sym[name], 0) | memory.get(sym[name]+1, 0) << 8
     directory = n.RUN/'file-runtime-core/hostfs'
@@ -117,6 +157,7 @@ def native():
     (n.RUN/'file-runtime-report.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))
     assert report['passed']
+    return n.RUN
 
 
 if __name__ == '__main__':
@@ -125,8 +166,14 @@ if __name__ == '__main__':
     parser.add_argument('--compact-host', action='store_true')
     parser.add_argument('--direct-host', action='store_true')
     parser.add_argument('--native', action='store_true')
+    parser.add_argument('--asm-native', action='store_true')
     args = parser.parse_args()
     if args.host: host()
     if args.compact_host:host(True)
     if args.direct_host:host(direct=True)
     if args.native: native()
+    if args.asm_native:
+        directory=native(assembly=True)
+        assembled_relocations(directory)
+        subprocess.run([sys.executable,str(ROOT/'tools/measure-sysfile.py'),'--serial',
+                        '--output',str(directory/'sysfile-serial-report.json')],cwd=ROOT,check=True)

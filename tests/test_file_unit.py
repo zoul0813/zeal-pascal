@@ -1,5 +1,6 @@
 """Stamp the compiled file Unit without weakening its payload identity."""
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -27,7 +28,7 @@ class NativeFileTool(unittest.TestCase):
         cls.tool = Path(cls.host.name)/'sysfile-tool'
         flags = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-g'] if os.environ.get('SYSFILE_TEST_SANITIZE') else []
         subprocess.run([*shlex.split(os.environ.get('CC', 'cc')), '-std=c99', '-Wall', '-Wextra', '-Werror', *flags,
-                        str(ROOT/'tools/sysfile/main.c'), str(ROOT/'tools/sysfile/objects.c'),
+                        str(ROOT/'tools/sysfile/seal.c'),
                         str(ROOT/'tools/host/sha256.c'), '-o', str(cls.tool)], check=True)
 
     def invoke(self, *args):
@@ -135,208 +136,121 @@ class FileUnitStamp(NativeFileTool):
                 self.assert_previous_outputs()
 
 
-EXPORTS = ('_zf_entry', '_zf_operations_address',
-           *('_zf_op_'+name for name in ('reset', 'rewrite', 'close', 'read', 'write',
-              'position', 'seek', 'flush', 'erase', 'rename', 'blocks', 'text_read',
-              'text_readln', 'predicate', 'text_write', 'begin', 'path')))
 
-
-def object_text(mode=0, defined=True):
-    size = 3 if mode & 1 else 4
-    definitions = ['S '+name+' Def000000' for name in EXPORTS]
-    data_symbol = ['S external Def000000'] if defined else []
-    operand = '00 00 00' if mode & 1 else '00 00'
-    return '\n'.join(['XL3', f'H 2 areas {1+len(definitions)+len(data_symbol):X} global symbols',
-        'S external Ref000000', f'A _CODE size {size:X} flags 0 addr 0',
-        *definitions, 'A _DATA size 4 flags 0 addr 0', *data_symbol,
-        f'T 00 00 00 21 {operand} C9', f'R 00 00 00 00 {mode:02X} 04 00 00'])+'\n'
-
-
-def archive_member(name, payload):
-    header = f'{name:<16}{0:<12}{0:<6}{0:<6}{0:<8}{len(payload):<10}`\n'.encode()
-    return header+payload+(b'\n' if len(payload) & 1 else b'')
-
-
-class FileUnitObjects(NativeFileTool):
+class FileUnitSeal(NativeFileTool):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.directory = Path(self.temp.name)
-        self.object = self.directory/'input.rel'
-        self.library = self.directory/'input.lib'
-        self.library.write_bytes(b'!<arch>\n')
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.directory=Path(self.temp.name);self.raw=self.directory/'unit.raw'
+        # Two code operands reference a separate zeroed workspace fragment.
+        name=b'uT:/u.pas';export=struct.pack('<BB6H',1,0,0,65535,0,0,0,0)+b'p'
+        self.blob=48+len(name)+len(export)+2
+        self.payload=self.blob+16+16+16
+        self.data=bytearray(self.payload+7+4)
+        struct.pack_into('<4sHH',self.data,0,b'ZPU1',1,len(self.data))
+        self.data[18:20]=bytes((1,8))
+        struct.pack_into('<H',self.data,20,1)
+        struct.pack_into('<H',self.data,26,self.blob)
+        struct.pack_into('<HH',self.data,32,7,4)
+        struct.pack_into('<3H',self.data,40,57,57,57)
+        self.data[48:48+len(name)+len(export)]=name+export
+        struct.pack_into('<4s6H',self.data,self.blob,b'ZPF1',1,2,2,11,0,0)
+        struct.pack_into('<8H',self.data,self.blob+16,0,7,0,2,7,4,2,0)
+        struct.pack_into('<8H',self.data,self.blob+32,1,1,1,0,4,1,1,0)
+        self.data[self.payload:self.payload+7]=struct.pack('<BHBHB',0x21,self.payload+7,0x11,self.payload+7,0xc9)
 
-    def pack(self, text):
-        self.object.write_text(text)
-        return self.invoke('payload', self.directory, self.object, self.library)
+    def test_only_the_checksum_changes_when_sealing_assembled_bytes(self):
+        self.raw.write_bytes(self.data)
+        result=self.invoke('seal',self.directory,self.raw)
+        self.assertEqual(result.returncode,0,result.stderr)
+        data=(self.directory/'sysfile.payload').read_bytes()
+        self.assertEqual(data[:28]+data[32:],self.data[:28]+self.data[32:])
+        self.assertEqual(struct.unpack_from('<I',data,28)[0],fnv(data[:28]+data[32:]))
+        report=json.loads((self.directory/'direct-file.payload.json').read_text())
+        self.assertEqual(report['sha256'],hashlib.sha256(data).hexdigest())
+        self.assertEqual(report['code_bytes'],7)
+        self.assertEqual(self.raw.read_bytes(),self.data)
 
-    def test_word_low_high_area_and_symbol_relocations(self):
-        for mode in (0, 2, 9, 11, 137, 139):
-            with self.subTest(mode=mode):
-                result = self.pack(object_text(mode))
-                self.assertEqual(result.returncode, 0, result.stderr)
-                data = (self.directory/'sysfile.payload').read_bytes()
-                report = json.loads((self.directory/'direct-file.payload.json').read_text())
-                self.assertEqual(report['sha256'], hashlib.sha256(data).hexdigest())
-                self.assertEqual(data[:6], b'ZPU1\x01\0')
-                self.assertEqual(struct.unpack_from('<I', data, 28)[0], fnv(data[:28]+data[32:]))
-                blob = struct.unpack_from('<H', data, 26)[0]
-                self.assertEqual(data[blob:blob+4], b'ZPF1')
-                count, references = struct.unpack_from('<HH', data, blob+6)
-                self.assertEqual((count, references), (2, 1))
-                kind = 2 if mode & 128 else 1 if mode & 1 else 0
-                self.assertEqual(struct.unpack_from('<4H', data, blob+16+8*count),
-                                 (1, 1, (1 if mode & 2 else 0) | kind << 14, 0))
-                expected = b'\x21\0\xc9' if mode & 1 else b'\x21\0\0\xc9'
-                self.assertEqual(data[blob+16+8*count+8:], expected+bytes(4))
+    def test_bad_extents_or_presealed_input_cannot_replace_previous_payload(self):
+        variants=[b'',self.data[:40],self.data[:-1],self.data+b'?',b'BAD!'+self.data[4:]]
+        for offset in (6,8,26,28,32,34,self.blob,self.blob+4,self.blob+6,self.blob+8,self.blob+10):
+            data=bytearray(self.data);data[offset]^=1;variants.append(data)
+        for data in variants:
+            with self.subTest(data=bytes(data).hex()):
+                (self.directory/'sysfile.payload').write_bytes(b'previous')
+                self.raw.write_bytes(data)
+                result=self.invoke('seal',self.directory,self.raw)
+                self.assertNotEqual(result.returncode,0)
+                self.assertEqual((self.directory/'sysfile.payload').read_bytes(),b'previous')
 
-    def test_library_closure_imports_only_the_required_provider(self):
-        provider = b'XL3\nH 1 areas 1 global symbols\nA _TEXT size 1 flags 0 addr 0\nS external Def000000\nT 00 00 00 C9\nR 00 00 00 00\n'
-        unused = provider.replace(b'external', b'unused')
-        cases = [('provider.rel', b'provider.rel/', provider),
-                 ('a_long_provider_name.rel', b'/0', provider),
-                 ('bsd-provider.rel', b'#1/16', b'bsd-provider.rel'+provider)]
-        for expected, name, payload in cases:
+    def test_invalid_directory_records_or_operands_cannot_publish(self):
+        records=self.blob+16;refs=self.blob+32
+        changes={
+            'fragment gap':[(records,1)],
+            'fragment crosses code boundary':[(records+2,8)],
+            'reference gap':[(records+4,1)],
+            'patch outside fragment':[(refs,6)],
+            'overlapping patches':[(refs+8,2)],
+            'reversed patches':[(refs,4),(refs+8,1)],
+            'reserved bits':[(refs+4,0x1001)],
+            'runtime reference forbidden':[(refs+4,0xc001)],
+            'unknown target':[(refs+4,2)],
+            'foreign identity':[(refs+2,2)],
+            'one-past target':[(refs+6,4)],
+            'workspace relocations':[(records+6,0),(records+12,0),(records+14,2)],
+            'unknown export':[(57+8,2)],
+            'workspace export':[(57+8,1)],
+            'one-past export':[(57+10,7)],
+            'missing exports':[(20,2)],
+            'operand disagrees with directory':[(self.payload+1,123)],
+        }
+        for name,edits in changes.items():
             with self.subTest(name=name):
-                table = archive_member('//', b'a_long_provider_name.rel/\n') if name == b'/0' else b''
-                self.library.write_bytes(b'!<arch>\n'+table+archive_member(name.decode(), payload)+
-                                         archive_member('unused.rel/', unused))
-                result = self.pack(object_text(2, defined=False))
-                self.assertEqual(result.returncode, 0, result.stderr)
-                report = json.loads((self.directory/'direct-file.payload.json').read_text())
-                self.assertEqual(report['sdk_members'], [expected])
-                self.assertEqual(report['fragments'], 3)
+                data=bytearray(self.data)
+                for offset,value in edits:struct.pack_into('<H',data,offset,value)
+                (self.directory/'sysfile.payload').write_bytes(b'previous')
+                (self.directory/'direct-file.payload.json').write_bytes(b'previous report')
+                self.raw.write_bytes(data)
+                result=self.invoke('seal',self.directory,self.raw)
+                self.assertNotEqual(result.returncode,0,name)
+                self.assertEqual((self.directory/'sysfile.payload').read_bytes(),b'previous')
+                self.assertEqual((self.directory/'direct-file.payload.json').read_bytes(),b'previous report')
+        for offset in (self.payload+7, self.blob-1):
+            data=bytearray(self.data);data[offset]=1;self.raw.write_bytes(data)
+            self.assertNotEqual(self.invoke('seal',self.directory,self.raw).returncode,0)
 
-    def test_ambiguous_unresolved_and_malformed_archives_cannot_publish(self):
-        provider = b'XL3\nH 1 areas 1 global symbols\nA _TEXT size 1 flags 0 addr 0\nS external Def000000\n'
-        original = b'previous payload'
-        (self.directory/'sysfile.payload').write_bytes(original)
-        archives = [b'bad', b'!<arch>\n', b'!<arch>\n'+archive_member('a.rel/', provider)+archive_member('b.rel/', provider),
-                    b'!<arch>\n'+archive_member('/0', provider),
-                    b'!<arch>\n'+archive_member('a.rel/', provider)[:-1]]
-        for library in archives:
-            with self.subTest(library=library):
-                self.library.write_bytes(library)
-                result = self.pack(object_text(2, defined=False))
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual((self.directory/'sysfile.payload').read_bytes(), original)
 
-    def test_invalid_object_records_cannot_publish(self):
-        good = object_text()
-        cases = [good.replace('XL3', 'XH3'), good.replace('H 2', 'H 3'),
-                 good.replace('flags 0', 'flags 4', 1),
-                 good.replace('flags 0', 'flags 8', 1),
-                 good.replace('size 4', 'size 1', 1),
-                 good.replace('R 00 00 00 00 00', 'R 00 00 00 00 04'),
-                 good.replace('R 00 00 00 00 00 04', 'R 00 00 00 00 00 06'),
-                 good.replace('R 00 00 00 00 00 04 00 00', 'R 00 00 00 00 00 04 FF FF'),
-                 good+'T 00 00 00\n', good+'P unsupported\n',
-                 good+'T 00 00 00 C9\nR 00 00 00 00\n',
-                 good+'T 00 00 00 00\nR 00 00 01 00\n',
-                 object_text(11).replace('21 00 00 00', '21 00 00 01')]
-        for text in cases:
-            with self.subTest(text=text):
-                (self.directory/'sysfile.payload').write_bytes(b'previous payload')
-                result = self.pack(text)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual((self.directory/'sysfile.payload').read_bytes(), b'previous payload')
+    def test_invalid_or_duplicate_names_cannot_publish(self):
+        for at,value in ((48,0),(48,ord('1')),(49,0),(71,0),(71,255)):
+            data=bytearray(self.data);data[at]=value;self.raw.write_bytes(data)
+            self.assertNotEqual(self.invoke('seal',self.directory,self.raw).returncode,0)
+        data=bytearray(self.data);data[72:72]=data[57:72]
+        struct.pack_into('<H',data,6,len(data))
+        struct.pack_into('<H',data,20,2)
+        struct.pack_into('<H',data,26,self.blob+15)
+        for at in (self.payload+15+1,self.payload+15+4):
+            struct.pack_into('<H',data,at,self.payload+15+7)
+        self.raw.write_bytes(data);result=self.invoke('seal',self.directory,self.raw)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('duplicate export',result.stderr)
 
-    def test_empty_area_relocations_and_c_initialization_are_rejected(self):
-        cases = []
-        for mode in (0, 9, 137):
-            text = object_text(mode).replace('H 2 areas', 'H 3 areas')
-            text = text.replace('A _DATA size 4', 'A _EMPTY size 0 flags 0 addr 0\nA _DATA size 4')
-            text = text.replace(f'{mode:02X} 04 00 00', f'{mode:02X} 04 01 00')
-            cases.extend([text, text.replace('_EMPTY', '.__.ABS.').replace('size 0 flags 0', 'size 0 flags 8')])
-        for area in ('_INITIALIZED', '_INITIALIZER', '_GSINIT', '_GSFINAL'):
-            cases.append(object_text().replace('_DATA', area))
-        for text in cases:
-            with self.subTest(text=text):
-                (self.directory/'sysfile.payload').write_bytes(b'previous payload')
-                result = self.pack(text)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual((self.directory/'sysfile.payload').read_bytes(), b'previous payload')
 
-    def test_conflicting_missing_and_data_exports_are_rejected(self):
-        good = object_text()
-        conflicting = good.replace('H 2 areas 15', 'H 2 areas 16').replace(
-            'S _zf_entry Def000000', 'S _zf_entry Def000000\nS _zf_entry Def000001')
-        missing = good.replace('_zf_entry', '_missing')
-        in_data = good.replace('S _zf_entry Def000000\n', '').replace(
-            'A _DATA size 4 flags 0 addr 0', 'A _DATA size 4 flags 0 addr 0\nS _zf_entry Def000000')
-        for text in (conflicting, missing, in_data):
-            with self.subTest(text=text):
-                (self.directory/'sysfile.payload').write_bytes(b'previous payload')
-                result = self.pack(text)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual((self.directory/'sysfile.payload').read_bytes(), b'previous payload')
+    def test_serial_probe_rejects_a_stale_default_unit_before_using_its_map(self):
+        from unittest.mock import patch
+        spec=importlib.util.spec_from_file_location('measure_sysfile',ROOT/'tools/measure-sysfile.py')
+        measure=importlib.util.module_from_spec(spec);spec.loader.exec_module(measure)
+        build=self.directory/'build';build.mkdir()
+        neutral=bytes(self.data);(build/'sysfile.payload').write_bytes(neutral)
+        stale=bytearray(neutral);stale[self.payload+6]=0
+        stale[8:12]=b'ABCD'
+        struct.pack_into('<I',stale,28,fnv(stale[:28]+stale[32:]))
+        (build/'SYSFILE.ZPU').write_bytes(stale)
+        output=self.directory/'proof.json'
+        with patch.object(measure,'ROOT',self.directory):
+            with self.assertRaisesRegex(AssertionError,'requires the current ASM Unit'):
+                measure.main(['--serial','--output',str(output)])
+        self.assertFalse(output.exists())
+        self.assertEqual((build/'SYSFILE.ZPU').read_bytes(),stale)
+        self.assertEqual((build/'sysfile.payload').read_bytes(),neutral)
 
-    def test_signed_addend_wrap_and_positive_overflow(self):
-        # external is at code offset 4; FFFF encodes -1, targeting the final RET.
-        result = self.pack(object_text(2).replace('21 00 00 C9', '21 FF FF C9'))
-        self.assertEqual(result.returncode, 0, result.stderr)
-        data = (self.directory/'sysfile.payload').read_bytes()
-        blob = struct.unpack_from('<H', data, 26)[0]
-        self.assertEqual(struct.unpack_from('<4H', data, blob+16+16), (1, 1, 0, 3))
-        # An absolute external at FFFF plus positive 1 must not wrap to zero.
-        text = object_text(2).replace('S external Ref000000',
-            'S external Ref000000\nS external Def00FFFF').replace(
-            '\nS external Def000000', '').replace('21 00 00 C9', '21 01 00 C9')
-        previous = data
-        result = self.pack(text)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual((self.directory/'sysfile.payload').read_bytes(), previous)
 
-    def test_out_of_order_text_records_sort_the_relocations(self):
-        text = object_text().replace('A _CODE size 4', 'A _CODE size 8')
-        text = text.replace('T 00 00 00',
-            'T 04 00 00 21 00 00 C9\nR 00 00 00 00 00 04 00 00\nT 00 00 00')
-        result = self.pack(text)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        data = (self.directory/'sysfile.payload').read_bytes()
-        blob = struct.unpack_from('<H', data, 26)[0]
-        self.assertEqual(struct.unpack_from('<8H', data, blob+16+16),
-                         (1, 1, 0, 0, 5, 1, 0, 0))
-
-    def test_transitive_library_closure_uses_lifo_order(self):
-        text = object_text(2, defined=False).replace('H 2 areas 14', 'H 2 areas 15')
-        text = text.replace('S external Ref000000', 'S external Ref000000\nS other Ref000000')
-        text = text.replace('A _CODE size 4', 'A _CODE size 8')
-        text += 'T 04 00 00 21 00 00 C9\nR 00 00 00 00 02 04 01 00\n'
-
-        def provider(name, child=None, opcode=0xc9):
-            records = ['XL3', f'H 1 areas {2 if child else 1} global symbols']
-            if child:
-                records.append(f'S {child} Ref000000')
-            records.extend([f'A _TEXT size {3 if child else 1} flags 0 addr 0',
-                            f'S {name} Def000000'])
-            records.extend(['T 00 00 00 21 00 00', 'R 00 00 00 00 02 04 00 00'] if child
-                           else [f'T 00 00 00 {opcode:02X}', 'R 00 00 00 00'])
-            return ('\n'.join(records)+'\n').encode()
-
-        library = b'!<arch>\n'
-        for name, data in [('A', provider('external', 'childB')), ('B', provider('childB', opcode=0x0b)),
-                           ('C', provider('other', 'childD')), ('D', provider('childD', opcode=0x0d))]:
-            library += archive_member(name+'.rel/', data)
-        self.library.write_bytes(library)
-        result = self.pack(text)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        report = json.loads((self.directory/'direct-file.payload.json').read_text())
-        self.assertEqual(report['sdk_members'], ['A.rel', 'C.rel', 'D.rel', 'B.rel'])
-        data = (self.directory/'sysfile.payload').read_bytes()
-        self.assertEqual(data[-6:], b'\x0d\x0b'+bytes(4))
-
-    def test_assembly_preparation_retains_function_boundaries(self):
-        source = self.directory/'in.asm'
-        destination = self.directory/'out.asm'
-        source.write_text('\t.area _CODE\n; Function one\none:\n ret\n; Function two\ntwo:\n ret\n')
-        result = self.invoke('split', source, destination, 'F')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(destination.read_text(), '\t.area _F_constants\n\t.area _F_1\n; Function one\none:\n ret\n\t.area _F_2\n; Function two\ntwo:\n ret\n')
-        source.write_text('\t.globl _read\n\t.globl _getchar\n\t.globl _putchar\n_read:\n ret\n_getchar:\n ret\n_putchar:\n ret\nlocal:\n ret\n')
-        result = self.invoke('sdk', source, destination)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        result = destination.read_text()
-        self.assertIn('\t.area _SDK_read\n_read:', result)
-        self.assertEqual(result.count('\t.area _SDKstdio'), 2)
-        self.assertNotIn('_SDKlocal', result)
+if __name__=='__main__':unittest.main()

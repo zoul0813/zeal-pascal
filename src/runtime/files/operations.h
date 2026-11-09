@@ -7,7 +7,8 @@
 #define ZFILE_CALL
 #endif
 
-/* Private callable module at4000. All words are native little-endian u16;
+/* Private file backend interface; production SYSFILE is statically relocated.
+ * Legacy test modules retain their4000 entry. All words are little-endian u16;
  * operands/results belong to the invoking program, never a shared prefix
  * return buffer. File associations live in the176-byte Pascal file block. */
 enum {
