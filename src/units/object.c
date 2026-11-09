@@ -384,7 +384,7 @@ uint8_t cc_unit_validate_object(uint16_t module,const char *name,uint32_t stream
         params=cc_unit_module_word(module,at+6);fragment=cc_unit_module_word(module,at+8);offset=cc_unit_module_word(module,at+10);
         size=cc_unit_module_word(module,at+12);wide=(uint32_t)at+14+n+4UL*params+size;
         if(wide>blob||!identifier(module,at+14,n)||c>3||cc_unit_module_byte(module,at+3)||
-           (cc_unit_module_byte(module,at+2)&~ZPU_CALLER_IO))return 0;
+           (cc_unit_module_byte(module,at+2)&~(ZPU_CALLER_IO|ZPU_INTERNAL)))return 0;
         if(c>=2) {
             if(params||fragment||cc_unit_module_byte(module,at+2)||!type_id(module,k))return 0;
             if(c==3) {if(offset||size||k==K_STRING)return 0;}

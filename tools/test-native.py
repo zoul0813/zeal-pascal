@@ -269,8 +269,9 @@ def compact_prefix_matches(image, executed=False):
         # Save-after-Run fixtures contain these named mutable runtime words:
         # source PC, HeapPtr/RecurPtr, scalar return scratch, heap floor,
         # I/O target and memory mode.
-        for first,last in ((0xbe,0xc0),(0x12c,0x130),(0x136,0x13c),(0x15c,0x15e),(0x167,0x169),(0x522,0x523)):
+        for first,last in ((0xbe,0xc0),(0x12c,0x130),(0x136,0x13c),(0x15c,0x15e),(0x167,0x169)):
             skip.update(range(first,last))
+    if executed:skip.add(symbols('pascal_runtime')['memory_mode']-0x4000)
     private=(ROOT/'build/pascal_runtime.private').read_bytes()
     names=['RP_INPUT_READY']+re.findall(r'RP_[A-Z_]+',(ROOT/'src/compiler/internal.h').read_text().split('enum { RP_INPUT_READY',1)[1].split('RP_COUNT }',1)[0])
     layout=json.loads((ROOT/'build/runtime-layout.json').read_text())

@@ -11,10 +11,10 @@ Ship these files from `build/`:
 
 - `zpascal.bin`: native IDE/compiler launcher.
 - `zpascal.zpl`: matching compiler banks.
-- `SYSFILE.ZPU`, `CRT.ZPU`, `ZVB.ZPU`: stock statically linked Units.
-- `CRT.PAS`: the complete Pascal CRT source, when distributing Unit sources.
+- `SYSFILE.ZPU`, `CRT.ZPU`, `ZVB.ZPU`, `ZOS.ZPU`: stock statically linked Units.
+- `CRT.PAS`: the complete Pascal CRT source; `ZOS.PAS`: the generated ZOS interface.
 
-Keep the three ZPU files beside the loaded ZPL. Include the ZVB licence and
+Keep the four ZPU files beside the loaded ZPL. Include the ZVB licence and
 notice from `units/zvb/` when distributing its Unit. Other runtime ZPLs, IHX,
 REL, map files, headers and JSON files in `build/` are intermediate build assets;
 they are not additional files the user needs to install.
@@ -31,7 +31,7 @@ Memory Run and return to the IDE. It is not another installed program.
 
 ## Build targets
 
-The default build has four product entry points:
+The default build has five product entry points:
 
 | Target | Output |
 | --- | --- |
@@ -39,6 +39,7 @@ The default build has four product entry points:
 | `crt_zpu` | `CRT.ZPU` and `CRT.PAS` |
 | `sysfile_zpu` | `SYSFILE.ZPU` |
 | `zvb_zpu` | Validated stock `ZVB.ZPU` |
+| `zos_zpu` | Native syscall `ZOS.ZPU` and its `ZOS.PAS` interface |
 
 The root `CMakeLists.txt` sets up the project and build layout, includes
 four production modules, and conditionally includes `cmake/Tests.cmake`:

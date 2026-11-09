@@ -88,9 +88,9 @@ def main():
         raise RuntimeError('Compiler launcher/bank artifacts do not match')
     add('bin/zpascal.bin', launcher, 'matched product build')
     add('lib/zpascal.zpl', bank, 'matched product build')
-    for name in ('SYSFILE.ZPU', 'CRT.ZPU', 'CRT.PAS', 'ZVB.ZPU'):
+    for name in ('SYSFILE.ZPU', 'CRT.ZPU', 'CRT.PAS', 'ZVB.ZPU', 'ZOS.ZPU', 'ZOS.PAS'):
         data = (ROOT / 'build' / name).read_bytes()
-        if name in ('SYSFILE.ZPU', 'CRT.ZPU'):
+        if name in ('SYSFILE.ZPU', 'CRT.ZPU', 'ZOS.ZPU', 'ZOS.PAS'):
             expected = examples['input_sha256'][str(ROOT / 'build' / name)]
             if digest(data) != expected:
                 raise RuntimeError('Stock unit changed since example verification: ' + name)

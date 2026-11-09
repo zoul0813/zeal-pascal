@@ -95,7 +95,8 @@
     "tools/test-compact-programs.py",
     "tools/test-zvb.py --skip-hardware --clients --disk-snake",
     "tools/test-build-layout.py",
-    "tools/test-build-outputs.py"
+    "tools/test-build-outputs.py",
+    "tools/test-syscalls.py"
   ],
   "redundant": [
     "tools/test-native.py --core-only",
@@ -643,6 +644,11 @@
     "tools/test-build-layout.py": [],
     "tools/test-build-outputs.py": [
       "pascal_runtime_bin"
+    ],
+    "tools/test-syscalls.py": [
+      "zsyscalltest_bin",
+      "zpascal_bin",
+      "zos_zpu"
     ]
   }
 }

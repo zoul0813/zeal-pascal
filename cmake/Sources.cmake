@@ -424,3 +424,9 @@ set_property(SOURCE src/units/native.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SO
 
 set_source_files_properties(src/units/runtime.c PROPERTIES COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK15;--constseg;BANK15")
 set_property(SOURCE src/units/runtime.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/units/internal.h ${CMAKE_SOURCE_DIR}/src/compiler/internal.h)
+
+set_source_files_properties(src/compiler/codegen/builtins/syscalls.c
+    PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK12;--constseg;BANK12")
+set_property(SOURCE src/compiler/codegen/builtins/syscalls.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/units/internal.h
+    ${CMAKE_SOURCE_DIR}/src/runtime/syscalls/abi.h ${CMAKE_SOURCE_DIR}/src/compiler/link/layout.h ${CMAKE_BINARY_DIR}/zos-unit.h)

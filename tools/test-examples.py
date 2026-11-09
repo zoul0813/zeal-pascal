@@ -157,7 +157,7 @@ def main():
                                           or p.name in ('README.md', 'sample.txt')))
     inputs = examples + [Path(__file__).resolve(), ROOT / 'CMakeLists.txt',
                          ROOT / 'tests/native/examples-main.c', ROOT / 'tests/native/harness.c',
-                         ROOT / 'tests/native/harness-cases.c', ROOT / 'build/CRT.ZPU', ROOT / 'build/SYSFILE.ZPU',
+                         ROOT / 'tests/native/harness-cases.c', ROOT / 'build/CRT.ZPU', ROOT / 'build/SYSFILE.ZPU', ROOT / 'build/ZOS.ZPU', ROOT / 'build/ZOS.PAS',
                          ROOT / 'tests/native/harness.h', ROOT / 'tests/native/examples-probe.asm',
                          ROOT / 'tools/test-native.py',
                          n.EMULATOR, n.ROM, ROOT/'libraries/screen-engine.inc',
@@ -389,7 +389,7 @@ def main():
                 'verification': 'python3 tools/test-examples.py --package',
                 'runtime_sha256': n.sha(ROOT / 'build/pascal_runtime.zpl'),
                 'compiler_harness_sha256': {ext: n.sha(ROOT/f'build/{target}.{ext}') for ext in ('bin','zpl')},
-                'stock_units_sha256': {name: n.sha(ROOT/'build'/name) for name in ('CRT.ZPU','SYSFILE.ZPU')},
+                'stock_units_sha256': {name: n.sha(ROOT/'build'/name) for name in ('CRT.ZPU','SYSFILE.ZPU','ZOS.ZPU')},
                 'programs': {}}
     for source in sorted((ROOT / 'examples').glob('*/*.pas')):
         image = folder / source.parent.name / (source.stem + '.bin')

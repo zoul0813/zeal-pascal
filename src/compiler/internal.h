@@ -97,7 +97,7 @@ typedef struct {
     uint16_t random_entry,random_state;
     TypeId text_type;
     uint16_t parameter_entry;
-    uint16_t file_entry;
+    uint16_t file_entry;uint8_t unit_load_preserve;
     uint16_t file_native_operand;uint8_t file_operations[5];
     uint16_t standard_table_operand,file_stream_operand;
     uint16_t keyboard_entry,keyboard_poll,keyboard_status,keyboard_state,interrupt_entry;
@@ -258,7 +258,7 @@ enum { RP_INPUT_READY,RP_INPUT_ADVANCE,RP_LINE_NEXT,RP_LINE_REMAINING,RP_LINE_EO
        RP_INPUT_KEY,RP_INPUT_RAW_KEY,RP_INPUT_MODE,RP_INPUT_CLEANUP,RP_INPUT_FAIL,RP_IO_ERROR,RP_ECHO_FD,
        RP_INPUT_SOURCE,RP_INPUT_OPEN,RP_INPUT_ECHO,RP_INPUT_CLOSE,RP_USER_BREAK,
        RP_INPUT_MODE_VALUE,RP_INPUT_BREAK,RP_INPUT_CONSOLE_AREA,
-       RP_NORMAL_ERROR,RP_ERROR_CODE,RP_ERROR_NAMESPACE,RP_CRT_ACTIVE,RP_PROGRAM_ENTER,RP_COUNT };
+       RP_NORMAL_ERROR,RP_ERROR_CODE,RP_ERROR_NAMESPACE,RP_CRT_ACTIVE,RP_PROGRAM_ENTER,RP_SYSCALL_SCRATCH,RP_SYSCALL_EXIT,RP_COUNT };
 uint16_t cc_runtime_private(uint8_t entry);
 /* Profile follows the private table in the same immutable BANK8 asset. */
 #define cc_runtime_profile_get(offset) cc_runtime_get(cc_runtime_size()+2u*RP_COUNT+(offset))
@@ -375,6 +375,7 @@ void cc_randomize(void) FRONTEND;
 void cc_params(uint8_t string_result) FRONTEND;
 uint8_t cc_file_statement(void) FRONTEND;
 int16_t cc_file_function(void) FRONTEND;
+int16_t cc_zos_function(void) BACKEND;
 uint8_t cc_file_prefix(void) FRONTEND;
 void cc_file_transfer(uint8_t writing,uint8_t newline) FRONTEND;
 void cc_formatted_value(void) FRONTEND;

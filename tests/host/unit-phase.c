@@ -6,6 +6,7 @@
 #include <zos_errors.h>
 #include <assert.h>
 #include <stdio.h>
+Compiler cc;
 uint8_t code_pages[CODE_BANK_LIMIT],code_owned,boot_error,platform_error;
 uint16_t code_sizes[CODE_BANK_LIMIT];
 const uint8_t code_required=CODE_BANK_LIMIT,code_version[4]={0};
@@ -20,7 +21,7 @@ uint8_t code_read_bank(int8_t fd,uint8_t page,uint16_t size){check(fd==1&&owned[
 zos_err_t exec(zos_exec_mode_t mode,const char *name,const char *argv[],uint8_t *status){(void)mode;(void)name;(void)argv;(void)status;assert(0);return ERR_FAILURE;}
 static void setup(void){
  uint8_t bank,page=32;memset(owned,0,sizeof(owned));memset(code_pages,255,sizeof(code_pages));
- code_owned=CODE_BANK_LIMIT;platform_error=boot_error=0;events=fail_at=0;
+ memset(&cc,0,sizeof(cc));code_owned=CODE_BANK_LIMIT;platform_error=boot_error=0;events=fail_at=0;
  for(bank=0;bank<CODE_BANK_LIMIT;++bank){code_sizes[bank]=17;if(bank==CODE_RUNTIME||bank==CODE_UNIT_IO||bank==CODE_UNIT_META||bank==CODE_LINKER)continue;code_pages[bank]=page;owned[page++]=1;}
  code_phase_bind(1);
 }
@@ -33,6 +34,17 @@ static void inventory(void){
 }
 int main(void){
  unsigned failures,total;uint8_t coordinator,source;
+ /* An implicit unit load beneath a file expression must retain the exact
+  * physical page token, including when linker restoration fails. */
+ setup();source=code_pages[CODE_FILE_COMPILER];cc.unit_load_preserve=1;
+ check(code_phase_unit_link_begin());check(code_pages[CODE_FILE_COMPILER]==source);
+ check(code_phase_unit_link_end());check(code_pages[CODE_FILE_COMPILER]==source);inventory();
+ setup();source=code_pages[CODE_FILE_COMPILER];cc.unit_load_preserve=1;fail_at=1;
+ check(!code_phase_unit_link_begin());check(code_pages[CODE_FILE_COMPILER]==source);inventory();
+ fail_at=0;check(code_phase_unit_link_begin()&&code_phase_unit_link_end());
+ check(code_pages[CODE_FILE_COMPILER]==source);inventory();
+ setup();check(code_phase_unit_link_begin());check(code_pages[CODE_FILE_COMPILER]==255);
+ check(code_phase_unit_link_end());check(code_pages[CODE_FILE_COMPILER]!=255);inventory();
  setup();coordinator=code_pages[CODE_COMPILE];source=code_pages[CODE_FILE_RUNTIME];
  check(code_phase_unit_finish_begin());total=events;
  check(code_pages[CODE_STATEMENTS]==255&&code_pages[CODE_EXPRESSIONS]==255&&code_pages[CODE_FILE_COMPILER]==255&&code_pages[CODE_TRANSFER]==255&&code_pages[CODE_LINKER]!=255);

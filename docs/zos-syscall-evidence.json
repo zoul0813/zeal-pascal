@@ -1,0 +1,97 @@
+{
+  "scope": "Deliberate native ZOS extension; source evidence is not runtime qualification",
+  "sources": {
+    "research": {
+      "revision": "91c0e8d135057efedb7e9a4e11f1a3d7abbcd26c",
+      "sha256": {
+        "kernel/syscalls.asm": "0b0555fde86d5b3aee3eb79b954ab7f62f5faefec58273ca559bfaf8f1945f30",
+        "kernel/time.asm": "7a3d8274e44dfba629250eb3e8eef54dfb2148c26070df6f991c8172bb4628e6",
+        "kernel/vfs.asm": "3be3158090a3110ad89c87dd04aad635266fafe67c2a2b8fc77f5ea1b5acc58c",
+        "kernel/loader.asm": "b597fda6384869ce1e970859670d0a8691af95c2dd69bb91020032f3656f3a6e",
+        "sdk/z88dk-z80asm/zos_sys.asm": "6e546605492fd7fd99d3333f3c9883c56aef36a38a1c5e0708c991864a89bb4a",
+        "sdk/sdcc/include/zos_sys.h": "29076634f50e78de00c7d86e1ea4c86484ed40279670fceef3e0797cd46442a2",
+        "sdk/sdcc/include/zos_vfs.h": "41fbabed1ba7bbfb04adebb4e11b9d86c700325efca3fdbb7552041ecdc25420",
+        "sdk/sdcc/include/zos_time.h": "b0641b1b883b8a6bd360052b7882d89adfed2677448111c98d2d051e00e274ee",
+        "sdk/sdcc/include/zos_errors.h": "f71b9be8b4cb6909df6a5e3dc05b7707b7222ab1a3b943b9f105cd8180ab435e"
+      }
+    },
+    "zde_sdk": {
+      "revision": "4d6c869ab57d2417f916258bb813408726b86c6e",
+      "sha256": {
+        "kernel/syscalls.asm": "0b0555fde86d5b3aee3eb79b954ab7f62f5faefec58273ca559bfaf8f1945f30",
+        "kernel/time.asm": "7a3d8274e44dfba629250eb3e8eef54dfb2148c26070df6f991c8172bb4628e6",
+        "kernel/vfs.asm": "3be3158090a3110ad89c87dd04aad635266fafe67c2a2b8fc77f5ea1b5acc58c",
+        "kernel/loader.asm": "b597fda6384869ce1e970859670d0a8691af95c2dd69bb91020032f3656f3a6e",
+        "sdk/z88dk-z80asm/zos_sys.asm": "6e546605492fd7fd99d3333f3c9883c56aef36a38a1c5e0708c991864a89bb4a",
+        "sdk/sdcc/include/zos_sys.h": "29076634f50e78de00c7d86e1ea4c86484ed40279670fceef3e0797cd46442a2",
+        "sdk/sdcc/include/zos_vfs.h": "41fbabed1ba7bbfb04adebb4e11b9d86c700325efca3fdbb7552041ecdc25420",
+        "sdk/sdcc/include/zos_time.h": "b0641b1b883b8a6bd360052b7882d89adfed2677448111c98d2d051e00e274ee",
+        "sdk/sdcc/include/zos_errors.h": "f71b9be8b4cb6909df6a5e3dc05b7707b7222ab1a3b943b9f105cd8180ab435e",
+        "sdk/sdcc/src/zeal8bitos.asm": "a141c43e0a21bd847d8bfb7631de24239ce0d1f9369dd701303b13d7a488a741",
+        "target/zeal8bit/include/mmu_h.asm": "c9110d4c145348528780065ea22ce6ea14055a523319eb78ded1b18761b4be01",
+        "target/zeal8bit/video.asm": "f34a3db62431322b857b789da0252bf26f2e9df0d73e0e0759134aa047f3b197",
+        "kernel/disks.asm": "e15c38b965305b36ffcf33799c1032e0d42bccdfc8927d10ac7b2b5e85455f3c"
+      }
+    }
+  },
+  "observed": {
+    "host_transport": "passed with address/undefined sanitizers",
+    "native_emulator": {
+      "syscall_assertions": 112,
+      "failures": 0,
+      "stages": 22,
+      "capture": "analysis/native-slice/20261109T201431.600642Z-1816",
+      "direct_preserve_exec_status": 0,
+      "exit_cleanup_failure_primary": 73,
+      "exit_cleanup_failure_secondary": 13
+    },
+    "hardware": "pending: user confirmed no board connected",
+    "production_unit_assertions": 643,
+    "asm_sysfile_assertions": 1712,
+    "crt_assertions": 512,
+    "unit_phase_assertions": 6068,
+    "runtime_profile_checks": 60,
+    "release_build": "passed with ZP_BUILD_TESTS=OFF;9 outputs identical to test-enabled build",
+    "artifacts": {
+      "zpascal.bin": "0f82caa0766d3da4c9c9a8ad2eddc0c5f6df5ba951ef2636ca582e1922070451",
+      "zpascal.zpl": "3d969c5161e4c0060eea5f2463d6d81df832cac41e6fcd1731422723a5faafde",
+      "SYSFILE.ZPU": "0be3c1a19369fb18b32147a8afa10731223bb51318c017cfb5207df0ed658c0e",
+      "CRT.ZPU": "97d2972c9a8de3bc085058552146960286208cfc505d4bda26b932b756471eab",
+      "CRT.PAS": "38cb123d3daae7ff834473ba9bc6e3c7dbed90d1069065ac5783fca3e469ae6b",
+      "ZVB.ZPU": "f626b78f4ced981f33a26e74a128336f2e260e44c3e1ab7160c9d6375d1852b1",
+      "ZOS.ZPU": "746132330ea5c14589b68d6a9dea6e9b86db6072b3b8e585153a8a8733be1070",
+      "ZOS.PAS": "d1e17f0968e0fadf393a31cf761b1500a65c4f3285de6c152d7c2129e79ca1e9",
+      "pascal_runtime.profile": "2d5c2d193cf701c23db004dd897312ac024cfae3b01988a950f8bb42f5411376"
+    },
+    "platform": {
+      "emulator_sha256": "98a17242c9c239fc70f663721367786699af5597dab6148a32192acf79bdd075",
+      "rom_sha256": "f34d453a1feb17d34c582f64139c5e8a42ac3e0f6642874b1d588695b4036b4a"
+    },
+    "limits": [
+      "hardware pending",
+      "legacy zunittest bank overflows reproduced on untouched parent-main66afe5f",
+      "pinned kernel false overwrite status; emulator HostFS stale size on TRUNC; see validation record"
+    ],
+    "qualification_details": "zos-syscall-validation.json"
+  },
+  "decisions": {
+    "normal_selector": "compile-time constant",
+    "mapping": "raw interface only",
+    "ioctl_buffer_max": 128,
+    "staging": "save/borrow/restore 256 private runtime-data bytes; page3 invocation stack",
+    "mapping_encoding": "H:BC contains the full 24-bit physical byte address; verified against SDK implementation and kernel MMU macro, correcting ambiguous SDK prose"
+  },
+  "rebase": {
+    "main": "66afe5f15b9e3a6b8b1d19755eff7415065a2ea2",
+    "prior_observations": "pre-rebase build",
+    "post_rebase_checks": [
+      "CMake configure",
+      "sanitized syscall transport",
+      "6068 phase assertions",
+      "27 runner checks",
+      "relocated packager identical artifact"
+    ],
+    "full_native_qualification": "passed112 checks, direct EXEC and EXIT fault",
+    "stock_CRT_ZVB_reauthoring": "passed; native-authored prebuilt binaries and compiler bindings refreshed"
+  }
+}

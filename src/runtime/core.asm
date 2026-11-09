@@ -9,7 +9,7 @@
 .globl input_state_begin,input_reset_count,echo_fd
 .globl _key_reset
 .globl normal_error,error_code,error_namespace
-.globl runtime_prefix_end,crt_active,program_enter
+.globl runtime_prefix_end,crt_active,program_enter,syscall_exit
 .globl character,neg_hl,false_text,true_text
 .globl io_call,io_result,io_check,io_fail,io_status
 .globl tail_length,tail
@@ -207,9 +207,18 @@ program_enter:
     ld hl,(0x4014)
     jp (hl)
 done:
+    xor a
+    ld (error_code),a
     ld a,#1
     jr finish
+syscall_exit:
+    ld b,#2                    ; explicit status survives terminal cleanup failure
+    ld a,l
+    jr terminal_status
 halt:
+    xor a
+terminal_status:
+    ld (error_code),a
     ld a,#4
 finish:
     ld sp,#0xfc00
@@ -225,7 +234,8 @@ finish:
     ld (0xfc1a),a
     jp 0xfd80
 os_exit:
-    ld h,#0
+    ld a,(error_code)
+    ld h,a
     ld l,#15
     rst 8
 

@@ -32,7 +32,7 @@ def main():
     for name in ('_test_done','_test_passed','_test_failed','_test_index','_test_stage'):
         commands += [f'rb 0x{symbols[name]:x} 2']
     commands += [f"rb 0x{symbols['_test_failures']:x} 128",f"rb 0x{symbols['_test_diagnostics']:x} 256",'quit']
-    raw=n.execute('unit-init',commands,fixtures,timeout=600,console_class=UnitConsole)
+    raw=n.execute('unit-init',commands,fixtures,timeout=600,base_programs=('zpascal',),console_class=UnitConsole)
     frame=re.split(r'\[DBG\] PC=',raw)[-1];state=n.memory(frame)
     word=lambda name:state.get(symbols[name],0)|(state.get(symbols[name]+1,0)<<8)
     checks={'authenticated completion':frame.startswith('fc01 ')and state.get(symbols['_test_done'])==255 and bytes(state.get(0x4000+i,0)for i in range(32))==fixtures[target+'.bin'][:32],
@@ -60,7 +60,7 @@ def main():
     commands += [f"bp 0x{ps['_execute_parent_stop']:x}",'tap ENTER','run 10000000000','regs']
     for field in ('_test_done','_test_passed','_test_failed'):commands += [f'rb 0x{ps[field]:x} 2']
     commands+=['quit']
-    mutation=n.execute('unit-init-chain-order',commands,media,timeout=180);observed=n.memory(mutation)
+    mutation=n.execute('unit-init-chain-order',commands,media,timeout=180,base_programs=());observed=n.memory(mutation)
     observed_word=lambda field:observed.get(ps[field],0)|(observed.get(ps[field]+1,0)<<8)
     output=(n.RUN/'unit-init-chain-order/hostfs/RESULT.TXT').read_bytes()
     checks['Chain order mutation fails with expected runtime status2']=(observed.get(ps['_test_done'])==255

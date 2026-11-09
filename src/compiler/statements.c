@@ -315,6 +315,9 @@ static SourcePosition statement(void) {
 #ifndef ZP_UNITS_EXPERIMENT
     } else if(cc_crt_statement()) {
 #endif
+#if defined(ZP_UNITS_EXPERIMENT) && defined(ZP_PROGRAM_PAGES)
+    } else if(cc_zos_function()>=0) {
+#endif
     } else if(cc_runtime_statement()) {
     } else if((cc_is("halt")||cc_is("exit"))&&cc_lookup()<0) {
         newline=cc_is("halt"); cc_next();
