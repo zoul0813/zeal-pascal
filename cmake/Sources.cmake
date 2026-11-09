@@ -1,9 +1,4 @@
-# SDK conversions need an explicit dependency on their linked executable when
-# component targets are excluded from ALL. Keep this project rule local.
-function(zp_add_outputs target)
-    zos_add_outputs(${target} ${ARGN})
-    add_dependencies(${target}_bin ${target})
-endfunction()
+include("${CMAKE_CURRENT_LIST_DIR}/Outputs.cmake")
 
 # Compiler source lists, bank placement and shared header dependencies.
 # Included in root scope so source properties apply to shared test compilers.

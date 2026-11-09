@@ -81,9 +81,26 @@ foreach(bank RANGE 1 19)
     target_link_options(zpascal PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
 
-add_custom_target(zpascal_bin ALL
-    BYPRODUCTS ${CMAKE_BINARY_DIR}/zpascal.bin ${CMAKE_BINARY_DIR}/zpascal.zpl ${CMAKE_BINARY_DIR}/zpascal.banks.json
+# Package only when the link image or a checked input changes. Stock Unit
+# validation still runs on every default build (Units.cmake).
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/zpascal.bin ${CMAKE_BINARY_DIR}/zpascal.zpl
+        ${CMAKE_BINARY_DIR}/zpascal.banks.json
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zpascal>
-    DEPENDS zpascal ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+    DEPENDS zpascal $<TARGET_FILE:zpascal> ${CMAKE_BINARY_DIR}/zpascal.map
+        ${CMAKE_SOURCE_DIR}/tools/package-native.py
+        ${CMAKE_BINARY_DIR}/pascal_runtime.zpl ${CMAKE_BINARY_DIR}/pascal_runtime.private
+        ${CMAKE_BINARY_DIR}/pascal_runtime.runtime.json ${CMAKE_BINARY_DIR}/pascal_runtime.profile
+        ${CMAKE_BINARY_DIR}/SYSFILE.ZPU ${CMAKE_BINARY_DIR}/sysfile.payload
+        ${CMAKE_BINARY_DIR}/integer_runtime.zpl ${CMAKE_BINARY_DIR}/optional_runtime.json
+        ${CMAKE_BINARY_DIR}/assets/integer_head.bin ${CMAKE_BINARY_DIR}/assets/integer_tail.bin
+        ${CMAKE_BINARY_DIR}/assets/real_patch.bin ${CMAKE_BINARY_DIR}/file_gate.zpl
+        ${CMAKE_BINARY_DIR}/transfer_runtime.zpl ${CMAKE_BINARY_DIR}/transfer_runtime.packed
+        ${CMAKE_BINARY_DIR}/transfer_gate.zpl ${CMAKE_BINARY_DIR}/transfer_call.zpl
+        ${CMAKE_BINARY_DIR}/transfer_call.call.json ${CMAKE_BINARY_DIR}/execute_entry.zpl
+        ${CMAKE_BINARY_DIR}/module_unpack.zpl
+    VERBATIM)
+add_custom_target(zpascal_bin ALL DEPENDS ${CMAKE_BINARY_DIR}/zpascal.bin
+    ${CMAKE_BINARY_DIR}/zpascal.zpl ${CMAKE_BINARY_DIR}/zpascal.banks.json)
+add_dependencies(zpascal_bin zpascal)
 
 set_property(TARGET zpascal_bin PROPERTY RAW_BINARY ${CMAKE_BINARY_DIR}/zpascal.bin)

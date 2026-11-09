@@ -377,3 +377,6 @@ __pycache__/
 !/docs/sysfile-asm-evidence.json
 !/docs/sysfile-asm.md
 !/tests/native/sysfile-mock.asm
+
+!/tools/test-build-outputs.py
+!/docs/incremental-build-evidence.json

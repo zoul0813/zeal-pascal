@@ -12,11 +12,8 @@ add_executable(file_runtime src/runtime/files/legacy_entry.asm ${CMAKE_BINARY_DI
 
 set_target_properties(file_runtime PROPERTIES LINKER_LANGUAGE ASM)
 
-zp_add_outputs(file_runtime WITH_EXTENSION zpl)
-
-add_custom_command(TARGET file_runtime_bin POST_BUILD BYPRODUCTS ${CMAKE_BINARY_DIR}/file_runtime.packed
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --file-runtime
-        ${CMAKE_BINARY_DIR}/file_runtime.ihx VERBATIM)
+zp_add_outputs(file_runtime WITH_EXTENSION zpl PACKAGE file-runtime
+    EXTRA_OUTPUTS ${CMAKE_BINARY_DIR}/file_runtime.packed ${CMAKE_BINARY_DIR}/file_runtime.module.json)
 
 # Optional native acceptance harnesses and experimental compiler variants.
 # Included in the root directory so shared per-source bank properties apply.
@@ -35,12 +32,8 @@ target_link_options(compact_runtime PRIVATE "SHELL:-b _REAL_ADAPTER=0x4c73"
     "SHELL:-b _REAL=0x4d8a" "SHELL:-b _REAL_DATA=0x5800"
     "SHELL:-b _TEXT=0x4bd6" "SHELL:-b _CODE=0x5000")
 
-zp_add_outputs(compact_runtime WITH_EXTENSION zpl)
-
-add_custom_command(TARGET compact_runtime_bin POST_BUILD
-    BYPRODUCTS ${CMAKE_BINARY_DIR}/compact_runtime.private ${CMAKE_BINARY_DIR}/compact_runtime.runtime.json
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --compact-runtime
-        ${CMAKE_BINARY_DIR}/compact_runtime.ihx VERBATIM)
+zp_add_outputs(compact_runtime WITH_EXTENSION zpl PACKAGE compact-runtime
+    EXTRA_OUTPUTS ${CMAKE_BINARY_DIR}/compact_runtime.private ${CMAKE_BINARY_DIR}/compact_runtime.runtime.json)
 
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/test_file_gate_asset.asm CONTENT
     ".area _TEXT\n.globl _gate_start,_gate_end\n_gate_start:\n.incbin \"${CMAKE_BINARY_DIR}/file_gate.zpl\"\n_gate_end:\n")
@@ -595,12 +588,8 @@ add_executable(compact_file_runtime src/runtime/files/legacy_entry.asm ${CMAKE_B
 
 set_target_properties(compact_file_runtime PROPERTIES LINKER_LANGUAGE ASM)
 
-zp_add_outputs(compact_file_runtime WITH_EXTENSION zpl)
-
-add_custom_command(TARGET compact_file_runtime_bin POST_BUILD
-    BYPRODUCTS ${CMAKE_BINARY_DIR}/compact_file_runtime.packed
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --file-runtime
-        ${CMAKE_BINARY_DIR}/compact_file_runtime.ihx VERBATIM)
+zp_add_outputs(compact_file_runtime WITH_EXTENSION zpl PACKAGE file-runtime
+    EXTRA_OUTPUTS ${CMAKE_BINARY_DIR}/compact_file_runtime.packed ${CMAKE_BINARY_DIR}/compact_file_runtime.module.json)
 
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/compact_file_asset.asm CONTENT
 ".area _BANK11\n.globl _file_start,_file_end,_file_gate_start,_file_gate_end,_unpack_start,_unpack_end\n_file_start:\n.incbin \"${CMAKE_BINARY_DIR}/compact_file_runtime.packed\"\n_file_end:\n_file_gate_start:\n.incbin \"${CMAKE_BINARY_DIR}/file_gate.zpl\"\n_file_gate_end:\n_unpack_start:\n.incbin \"${CMAKE_BINARY_DIR}/module_unpack.zpl\"\n_unpack_end:\n")
@@ -644,7 +633,7 @@ add_dependencies(zp_core file_runtime_bin file_gate_bin module_unpack_bin)
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/compact_runtime.profile
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --compact-runtime-profile
         ${CMAKE_BINARY_DIR}/compact_runtime.profile
-    DEPENDS runtime_profile compact_runtime_bin compact_file_runtime_bin
+    DEPENDS runtime_profile compact_runtime_bin compact_file_runtime_bin file_runtime_bin
         ${CMAKE_BINARY_DIR}/compact_file_runtime.zpl ${CMAKE_BINARY_DIR}/compact_file_runtime.packed
         ${CMAKE_BINARY_DIR}/compact_runtime.zpl ${CMAKE_BINARY_DIR}/compact_runtime.private
         ${CMAKE_BINARY_DIR}/file_runtime.zpl ${CMAKE_BINARY_DIR}/file_gate.zpl
@@ -657,7 +646,7 @@ add_custom_target(compact_profile DEPENDS ${CMAKE_BINARY_DIR}/compact_runtime.pr
 
 add_dependencies(zcompacttest compact_profile)
 
-add_dependencies(zp_core runtime_profile)
+add_dependencies(zp_core runtime_profile runtime_layout sysfile_zpu optional_runtime_assets)
 
 add_dependencies(zp_core transfer_assets)
 
@@ -815,7 +804,7 @@ target_include_directories(unit_core PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(unit_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
 
 add_dependencies(unit_core pascal_runtime_bin ram_trampoline_bin transfer_assets
-    runtime_profile file_runtime_bin file_gate_bin module_unpack_bin)
+    runtime_layout sysfile_zpu optional_runtime_assets runtime_profile file_runtime_bin file_gate_bin module_unpack_bin)
 
 add_library(unit_test_execution OBJECT tests/native/harness-execute.c)
 
@@ -896,7 +885,7 @@ target_include_directories(optional_real_core PRIVATE src ${CMAKE_BINARY_DIR})
 target_compile_options(optional_real_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 
 add_dependencies(optional_real_core optional_runtime_assets ram_trampoline_bin transfer_assets
-    runtime_profile file_runtime_bin file_gate_bin module_unpack_bin)
+    runtime_layout sysfile_zpu runtime_profile file_runtime_bin file_gate_bin module_unpack_bin)
 
 # Independent full-runtime IDE for byte-for-byte regression controls.
 add_executable(zlegacypascal src/app/startup.asm src/app/banks.c src/editor/ide.c src/editor/core.c

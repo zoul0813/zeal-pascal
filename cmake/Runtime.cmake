@@ -29,12 +29,8 @@ target_link_options(pascal_runtime PRIVATE "SHELL:-b _REAL_ADAPTER=0x4c73"
     "SHELL:-b _REAL=0x4d8a" "SHELL:-b _REAL_DATA=0x7ea6"
     "SHELL:-b _TEXT=0x4bd6" "SHELL:-b _CODE=0x77cd")
 
-zp_add_outputs(pascal_runtime WITH_EXTENSION zpl)
-
-add_custom_command(TARGET pascal_runtime_bin POST_BUILD
-    BYPRODUCTS ${CMAKE_BINARY_DIR}/pascal_runtime.private ${CMAKE_BINARY_DIR}/pascal_runtime.runtime.json
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --runtime
-        ${CMAKE_BINARY_DIR}/pascal_runtime.ihx VERBATIM)
+zp_add_outputs(pascal_runtime WITH_EXTENSION zpl PACKAGE runtime
+    EXTRA_OUTPUTS ${CMAKE_BINARY_DIR}/pascal_runtime.private ${CMAKE_BINARY_DIR}/pascal_runtime.runtime.json)
 
 # Integer conversion code used by the production integer runtime.
 add_library(compact_integer OBJECT src/runtime/numbers/real.c)
@@ -57,28 +53,16 @@ target_link_options(integer_runtime PRIVATE "SHELL:-b _REAL_ADAPTER=0x4c73"
     "SHELL:-b _REAL=0x4d8a" "SHELL:-b _REAL_DATA=0x7ea6"
     "SHELL:-b _TEXT=0x4bd6" "SHELL:-b _CODE=0x77cd")
 
-zp_add_outputs(integer_runtime WITH_EXTENSION zpl)
-
-add_custom_command(TARGET integer_runtime_bin POST_BUILD
-    BYPRODUCTS ${CMAKE_BINARY_DIR}/integer_runtime.private ${CMAKE_BINARY_DIR}/integer_runtime.runtime.json
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --runtime
-        ${CMAKE_BINARY_DIR}/integer_runtime.ihx VERBATIM)
+zp_add_outputs(integer_runtime WITH_EXTENSION zpl PACKAGE runtime
+    EXTRA_OUTPUTS ${CMAKE_BINARY_DIR}/integer_runtime.private ${CMAKE_BINARY_DIR}/integer_runtime.runtime.json)
 
 add_executable(ram_trampoline src/runtime/trampoline.asm)
 
-zp_add_outputs(ram_trampoline WITH_EXTENSION zpl)
-
-add_custom_command(TARGET ram_trampoline_bin POST_BUILD
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --trampoline
-        ${CMAKE_BINARY_DIR}/ram_trampoline.ihx VERBATIM)
+zp_add_outputs(ram_trampoline WITH_EXTENSION zpl PACKAGE trampoline)
 
 add_executable(file_gate src/runtime/files/gate.asm)
 
-zp_add_outputs(file_gate WITH_EXTENSION zpl)
-
-add_custom_command(TARGET file_gate_bin POST_BUILD
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --file-gate
-        ${CMAKE_BINARY_DIR}/file_gate.ihx VERBATIM)
+zp_add_outputs(file_gate WITH_EXTENSION zpl PACKAGE file-gate)
 
 # Loader component executes entirely below8000; its synthetic caller window
 # is disposable test memory. Production Pascal handoff is a separate gate.
@@ -91,19 +75,11 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/execute_entry_asset.asm CONTENT
 
 add_executable(module_unpack src/runtime/unpack.asm)
 
-zp_add_outputs(module_unpack WITH_EXTENSION zpl)
-
-add_custom_command(TARGET module_unpack_bin POST_BUILD
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --module-unpack
-        ${CMAKE_BINARY_DIR}/module_unpack.ihx VERBATIM)
+zp_add_outputs(module_unpack WITH_EXTENSION zpl PACKAGE module-unpack)
 
 add_executable(transfer_gate src/runtime/process/transfer_gate.asm)
 
-zp_add_outputs(transfer_gate WITH_EXTENSION zpl)
-
-add_custom_command(TARGET transfer_gate_bin POST_BUILD
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --transfer-gate
-        ${CMAKE_BINARY_DIR}/transfer_gate.ihx VERBATIM)
+zp_add_outputs(transfer_gate WITH_EXTENSION zpl PACKAGE transfer-gate)
 
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/transfer_file_gate.asm CONTENT
     ".area _TEXT\n.globl _transfer_file_gate,_transfer_file_gate_bytes\n_transfer_file_gate:\n.incbin \"${CMAKE_BINARY_DIR}/file_gate.zpl\"\n_transfer_file_gate_bytes = .-_transfer_file_gate\n")
@@ -121,11 +97,9 @@ add_dependencies(transfer_runtime file_gate_bin execute_entry_bin)
 
 set_target_properties(transfer_runtime PROPERTIES LINKER_LANGUAGE ASM)
 
-zp_add_outputs(transfer_runtime WITH_EXTENSION zpl)
-
-add_custom_command(TARGET transfer_runtime_bin POST_BUILD BYPRODUCTS ${CMAKE_BINARY_DIR}/transfer_runtime.packed
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --transfer-runtime
-        ${CMAKE_BINARY_DIR}/transfer_runtime.ihx VERBATIM)
+zp_add_outputs(transfer_runtime WITH_EXTENSION zpl PACKAGE transfer-runtime
+    EXTRA_OUTPUTS ${CMAKE_BINARY_DIR}/transfer_runtime.packed ${CMAKE_BINARY_DIR}/transfer_runtime.module.json
+    DEPENDS ${CMAKE_BINARY_DIR}/file_gate.zpl)
 
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/pascal_runtime.profile
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --runtime-profile
@@ -152,18 +126,17 @@ add_executable(transfer_call src/runtime/process/transfer_call.asm)
 
 add_dependencies(transfer_call transfer_call_data)
 
-zp_add_outputs(transfer_call WITH_EXTENSION zpl)
+zp_add_outputs(transfer_call WITH_EXTENSION zpl PACKAGE transfer-call
+    EXTRA_OUTPUTS ${CMAKE_BINARY_DIR}/transfer_call.call.json
+    DEPENDS ${CMAKE_BINARY_DIR}/pascal_runtime.profile ${CMAKE_BINARY_DIR}/pascal_runtime.private ${CMAKE_BINARY_DIR}/transfer_runtime.zpl ${CMAKE_BINARY_DIR}/transfer_gate.zpl)
 
-add_custom_command(TARGET transfer_call_bin POST_BUILD BYPRODUCTS ${CMAKE_BINARY_DIR}/transfer_call.call.json
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --transfer-call ${CMAKE_BINARY_DIR}/transfer_call.ihx VERBATIM)
-
-add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm ${CMAKE_BINARY_DIR}/transfer_test_asset.asm ${CMAKE_BINARY_DIR}/transfer_asset.h
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm ${CMAKE_BINARY_DIR}/transfer_test_asset.asm ${CMAKE_BINARY_DIR}/transfer_asset.h ${CMAKE_BINARY_DIR}/transfer_asset.zpl
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --transfer-assets ${CMAKE_BINARY_DIR}
     DEPENDS transfer_call_bin ${CMAKE_BINARY_DIR}/transfer_call.zpl ${CMAKE_BINARY_DIR}/transfer_call.call.json
         ${CMAKE_BINARY_DIR}/transfer_runtime.zpl ${CMAKE_BINARY_DIR}/transfer_gate.zpl
         ${CMAKE_BINARY_DIR}/execute_entry.zpl ${CMAKE_BINARY_DIR}/transfer_runtime.packed ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 
-add_custom_target(transfer_assets DEPENDS ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm ${CMAKE_BINARY_DIR}/transfer_test_asset.asm ${CMAKE_BINARY_DIR}/transfer_asset.h)
+add_custom_target(transfer_assets DEPENDS ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm ${CMAKE_BINARY_DIR}/transfer_test_asset.asm ${CMAKE_BINARY_DIR}/transfer_asset.h ${CMAKE_BINARY_DIR}/transfer_asset.zpl)
 
 # Optional built-in Real component. Production uses the sparse integer core.
 # Legacy controls and the experimental unit compiler retain the full template.
@@ -192,6 +165,11 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/unit_unpack_asset.asm CONTENT
 
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/runtime-layout.h ${CMAKE_BINARY_DIR}/runtime-layout.json ${CMAKE_BINARY_DIR}/assets/linked_integer_runtime.bin
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-runtime-layout.py ${CMAKE_BINARY_DIR}
-    DEPENDS integer_runtime_bin pascal_runtime_bin ${CMAKE_SOURCE_DIR}/tools/package-runtime-layout.py ${CMAKE_SOURCE_DIR}/tools/runtime_objects.py VERBATIM)
+    DEPENDS integer_runtime_bin pascal_runtime_bin
+        $<TARGET_FILE:integer_runtime> $<TARGET_FILE:pascal_runtime>
+        ${CMAKE_BINARY_DIR}/integer_runtime.map ${CMAKE_BINARY_DIR}/pascal_runtime.map
+        ${CMAKE_BINARY_DIR}/CMakeFiles/integer_runtime.dir/link.txt
+        ${CMAKE_SOURCE_DIR}/tools/package-runtime-layout.py ${CMAKE_SOURCE_DIR}/tools/runtime_objects.py
+        ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 
 add_custom_target(runtime_layout DEPENDS ${CMAKE_BINARY_DIR}/runtime-layout.h)

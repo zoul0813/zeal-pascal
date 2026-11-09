@@ -63,6 +63,13 @@ Internal targets are excluded from `ALL` and run when
 required by a product dependency. CMake still reports those compile/link steps
 as “Built target …”; those messages do not identify extra shipped programs.
 
+Conversions and packaging use file-based rules in `Outputs.cmake`. An unchanged
+`zde cmake --parallel 4` skips compilation, linking and asset/header generation;
+changing a generator input or deleting an output schedules the required work.
+Stock CRT/ZVB integrity checks still run on each default build and preserve
+unchanged output timestamps. “Built target …” alone does not mean work ran.
+ZDE/VM startup and dependency checks still contribute to elapsed time.
+
 The old full `file_runtime` module is not part of the production graph or
 runtime fingerprint. Its builders live in `Tests.cmake` for explicit legacy
 probes. Production file support is generated as selectively linked SYSFILE.ZPU
