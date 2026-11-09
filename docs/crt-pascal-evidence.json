@@ -131,7 +131,20 @@
       "CRT",
       "SYSFILE",
       "ZVB"
-    ]
+    ],
+    "clean_checkout": {
+      "commit": "806c364",
+      "tests_enabled": false,
+      "default_build_passed": true,
+      "products_identical_to_main_build": {
+        "zpascal.bin": "ea92735953735004bbe6a1e5b3cefe6f8a54b54ce11af2fe2d38a17d8761150f",
+        "zpascal.zpl": "b940e889d6add33c9324a785c8ef1f3737a6342fc60bc5b9e801e4d69e292c9a",
+        "pascal_runtime.profile": "f5367c74f161896a9c3c4df1dc50860a9619a5389cc19564de6e69ab457099d4",
+        "CRT.ZPU": "dcc538fca13f39b3c9fb8c7b913526321a99024ba8d0dd4ceb1b81d96a1f50c1",
+        "ZVB.ZPU": "4b93c3f66b23bd213f0dedacaaea2466d3ca310449f68f66f383d1615638a2b9",
+        "SYSFILE.ZPU": "e466a4495a769d5a0affb4ee4c81bed1e47d9635bba1fef416df4bf5147862e8"
+      }
+    }
   },
   "keyboard_pending_error": {
     "physical_key_injections": 2,
@@ -167,5 +180,101 @@
   "remaining_acceptance": [
     "Physical hardware acceptance of the Pascal-authored CRT",
     "Full historical Turbo Pascal equivalence"
+  ],
+  "zvb_regression": {
+    "combined_report_sha256": "af4a3954f8708729433c45701228f79f0fb7b7f18de9331b513384b74f4c3fc5",
+    "combined_report_passed": false,
+    "passing_clients": [
+      {
+        "flags": 0,
+        "code_bytes": 7406,
+        "globals_bytes": 6,
+        "file_bytes": 13454,
+        "compile_error": 0,
+        "position": 0,
+        "name": "CRC"
+      },
+      {
+        "flags": 0,
+        "code_bytes": 10612,
+        "globals_bytes": 128,
+        "file_bytes": 16782,
+        "compile_error": 0,
+        "position": 0,
+        "name": "DMA"
+      },
+      {
+        "flags": 0,
+        "code_bytes": 26542,
+        "globals_bytes": 205,
+        "file_bytes": 32789,
+        "compile_error": 0,
+        "position": 0,
+        "name": "GFX"
+      },
+      {
+        "flags": 0,
+        "code_bytes": 9226,
+        "globals_bytes": 310,
+        "file_bytes": 15578,
+        "compile_error": 0,
+        "position": 0,
+        "name": "SOUND"
+      },
+      {
+        "flags": 0,
+        "code_bytes": 21374,
+        "globals_bytes": 672,
+        "file_bytes": 28088,
+        "compile_error": 0,
+        "position": 0,
+        "name": "SPRITES"
+      }
+    ],
+    "passing_saved_clients_without_sources_or_units": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "compiler_inputs_unchanged": true,
+    "known_memory_limit": {
+      "client": "SNAKE",
+      "error": 99,
+      "position": 2287,
+      "matches_existing_documented_asset_include_allocation_limit": true,
+      "reference": "zvb-library.md"
+    },
+    "snake_com": {
+      "passed": true,
+      "report_sha256": "2d1229dcf432d37424a1bae79063d9a5003dedbcd5ce1f844dc66de5286d90ee",
+      "checks": {
+        "authenticated completion": true,
+        "native assertions pass": true,
+        "prebuilt library used": true,
+        "requested clients compiled and executed": true,
+        "saved clients run without ZPU PAS or INC files": true,
+        "Snake completes 180 demo frames": true,
+        "compiler and runtime inputs unchanged": true
+      },
+      "assertions": 38,
+      "failed": 0,
+      "client": {
+        "flags": 0,
+        "code_bytes": 30466,
+        "globals_bytes": 957,
+        "file_bytes": 37465,
+        "compile_error": 0,
+        "position": 0,
+        "name": "SNAKE"
+      },
+      "program_sha256": "5e53eafe2b83b5dcfb14e5685ba75d0989b98aa6b0b158ab02a57b04839754ec"
+    }
+  },
+  "scope": "Pascal CRT focused qualification, clean release build and ZVB clients; Snake COM path qualified separately from its existing Memory-mode allocation limit.",
+  "not_rerun": [
+    "Full native corpus",
+    "Full device suite"
   ]
 }
