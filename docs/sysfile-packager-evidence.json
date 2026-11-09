@@ -1,0 +1,73 @@
+{
+  "baseline_commit": "e5cdc532b019e895f861d3818277aef8035fa4b9",
+  "scope": "Replace SYSFILE host-side Python packaging with native C, preserving every generated target byte. Other build stages still use Python.",
+  "python_baseline_sha256": {
+    "sysfile.payload": "e95ca33658117282e8e9355c782e1380b4284afd4945a1726009617395e8106c",
+    "SYSFILE.ZPU": "e466a4495a769d5a0affb4ee4c81bed1e47d9635bba1fef416df4bf5147862e8",
+    "direct-file.payload.json": "0fd7041aae635939e3b509432b594f0c864943c95d090e55e937c638f09543bf",
+    "direct-file.json": "f44d43aaefd6c5799b542e076394a1415271c9f055e99cf900f09688256bd5ac",
+    "file-unit.h": "e49771264e762e38823ed1a8b757e4e185417d23a881acaff744e6fce975adde"
+  },
+  "native_incremental_sha256": {
+    "sysfile.payload": "e95ca33658117282e8e9355c782e1380b4284afd4945a1726009617395e8106c",
+    "SYSFILE.ZPU": "e466a4495a769d5a0affb4ee4c81bed1e47d9635bba1fef416df4bf5147862e8",
+    "direct-file.payload.json": "0fd7041aae635939e3b509432b594f0c864943c95d090e55e937c638f09543bf",
+    "direct-file.json": "f44d43aaefd6c5799b542e076394a1415271c9f055e99cf900f09688256bd5ac",
+    "file-unit.h": "e49771264e762e38823ed1a8b757e4e185417d23a881acaff744e6fce975adde"
+  },
+  "native_fresh_sha256": {
+    "sysfile.payload": "e95ca33658117282e8e9355c782e1380b4284afd4945a1726009617395e8106c",
+    "SYSFILE.ZPU": "e466a4495a769d5a0affb4ee4c81bed1e47d9635bba1fef416df4bf5147862e8",
+    "direct-file.payload.json": "0fd7041aae635939e3b509432b594f0c864943c95d090e55e937c638f09543bf",
+    "direct-file.json": "f44d43aaefd6c5799b542e076394a1415271c9f055e99cf900f09688256bd5ac",
+    "file-unit.h": "e49771264e762e38823ed1a8b757e4e185417d23a881acaff744e6fce975adde"
+  },
+  "compiler_and_profile_sha256_before_and_after": {
+    "zpascal.bin": "ea92735953735004bbe6a1e5b3cefe6f8a54b54ce11af2fe2d38a17d8761150f",
+    "zpascal.zpl": "b940e889d6add33c9324a785c8ef1f3737a6342fc60bc5b9e801e4d69e292c9a",
+    "pascal_runtime.profile": "f5367c74f161896a9c3c4df1dc50860a9619a5389cc19564de6e69ab457099d4"
+  },
+  "payload_metrics": {
+    "bytes": 21960,
+    "code_bytes": 13655,
+    "data_bytes": 657,
+    "fragments": 116,
+    "relocations": 766,
+    "sdk_members": [
+      "strlen.rel",
+      "_strcat.rel",
+      "_memchr.rel",
+      "crtenter.rel",
+      "__mulsint2slong.rel",
+      "_strcmp.rel",
+      "_memcmp.rel",
+      "__sdcc_call_hl.rel"
+    ]
+  },
+  "checks": {
+    "all_five_SYSFILE_outputs_byte_identical": true,
+    "no_target_sources_changed": true,
+    "main_tests_OFF_default_release_build": true,
+    "fresh_tests_OFF_parallel_SYSFILE_build": true,
+    "tests_ON_configuration": true,
+    "new_source_paths_eligible_for_tracking": true,
+    "no_stale_references_to_deleted_packager_or_old_SHA_paths": true
+  },
+  "tests": {
+    "packager_tests": 16,
+    "packager_ASan_UBSan": true,
+    "Apple_Clang_Wall_Wextra_Werror": true,
+    "ZDE_GCC_Wall_Wextra_Werror": true,
+    "sanitized_host_frontend_assertions": 180362,
+    "editor_assertions": 4010,
+    "source_oracle_assertions": 45809,
+    "output_publication_assertions": 366841,
+    "output_publication_scenarios": 2528,
+    "chain_staging_assertions": 1642949,
+    "chain_scenarios": 2119,
+    "chain_decode_assertions": 44577,
+    "deferred_overlay_assertions": 30411570,
+    "deferred_overlay_scenarios": 487
+  },
+  "runtime_proof": "Generated SYSFILE payload, stamped Unit, compiler BIN/ZPL and runtime profile are byte-identical. Emulator/hardware tests were not rerun for this host-tool-only change."
+}

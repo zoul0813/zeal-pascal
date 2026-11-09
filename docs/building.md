@@ -38,6 +38,14 @@ four production modules, and conditionally includes `cmake/Tests.cmake`:
 - `Compiler.cmake`: compiler object groups and BIN/ZPL linking.
 - `Units.cmake`: CRT, SYSFILE and ZVB generation or staging.
 
+`Units.cmake` includes `SysFile.cmake` for the file backend's build steps.
+ZDE's host C compiler builds `sysfile-tool` from `tools/sysfile/` and the shared
+host SHA-256 helper. CMake then runs SDCC and the assembler; the C tool prepares
+function-sized assembly sections, reads relocatable objects and required SDK
+archive members, and writes the SYSFILE ZPU. SYSFILE packaging and profile
+stamping do not invoke Python. Other compiler/runtime asset builders and stock
+CRT/ZVB validation still use Python.
+
 Internal targets are excluded from `ALL` and run when
 required by a product dependency. CMake still reports those compile/link steps
 as “Built target …”; those messages do not identify extra shipped programs.
@@ -49,6 +57,9 @@ functions; this still compiles the file operations it needs from `src/runtime/fi
 `runtime_profile` fingerprints the numeric runtime, handoff assets and compiled
 SYSFILE payload. SYSFILE compiles once into a payload with a neutral fingerprint;
 its final ZPU header is stamped after that payload has been fingerprinted.
+Stamping verifies the neutral payload's checksum and SHA-256 report before
+publishing the bound Unit and compiler-private checksum header. This preserves
+selective linking and adds no code or memory to generated programs.
 
 The BIN and ZPL are produced together so they remain a matching compiler pair.
 
