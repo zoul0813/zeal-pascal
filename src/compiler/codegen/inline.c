@@ -8,7 +8,12 @@
  * retain static workspace addresses; a VAR slot contains the referent pointer.
  * Routine operands are native entries (nested callers supply the lexical link),
  * while Addr's captured nested thunk remains a Pascal-callable pointer value. */
-typedef struct { uint16_t code,global,runtime; } InlineDelta;
+typedef struct {
+    uint16_t code,global;
+#ifdef ZP_UNITS_EXPERIMENT
+    uint16_t runtime;
+#endif
+} InlineDelta;
 static uint16_t address(uint16_t id,InlineDelta *delta) {
     uint16_t scope;
     while(CCS(id,role)==S_ALIAS)id=CCS(id,address);
@@ -48,7 +53,11 @@ static uint16_t data(InlineDelta *delta,uint8_t *word) {
     int16_t id;
     uint16_t value=0;
     uint8_t sign=0;TypeId family;
+#ifdef ZP_UNITS_EXPERIMENT
     delta->code=delta->global=delta->runtime=0;
+#else
+    delta->code=delta->global=0;
+#endif
     if(cc.token=='+'||cc.token=='-') {sign=cc.token=='-'?2:1;cc_next();}
     if(cc.token==T_NUMBER) {
         if(cc.number_overflow
@@ -111,9 +120,11 @@ void cc_inline(void) FRONTEND {
 #endif
     cc_guard(); /* Native bodies supply their own guard; never split raw bytes. */
     do {
-        force=0;word=0;delta.code=delta.global=delta.runtime=0;value=0;subtract=0;
 #ifdef ZP_UNITS_EXPERIMENT
+        force=0;word=0;delta.code=delta.global=delta.runtime=0;value=0;subtract=0;
         terms=0;
+#else
+        force=0;word=0;delta.code=delta.global=0;value=0;subtract=0;
 #endif
         if(cc.token=='<'||cc.token=='>') {force=cc.token;cc_next();}
         for(;;) {
@@ -125,8 +136,13 @@ void cc_inline(void) FRONTEND {
             if((part.runtime&&(terms!=1||cc.token=='+'||cc.token=='-'))||
                (delta.runtime&&(cc.token=='+'||cc.token=='-')))cc_fail(UNIT_UNSUPPORTED);
 #endif
+#ifdef ZP_UNITS_EXPERIMENT
             if(subtract) {value-=term;delta.code-=part.code;delta.global-=part.global;delta.runtime-=part.runtime;}
             else {value+=term;delta.code+=part.code;delta.global+=part.global;delta.runtime+=part.runtime;}
+#else
+            if(subtract) {value-=term;delta.code-=part.code;delta.global-=part.global;}
+            else {value+=term;delta.code+=part.code;delta.global+=part.global;}
+#endif
             if(cc.error->code|| (cc.token!='+'&&cc.token!='-'))break;
             subtract=cc.token=='-';cc_next();
         }
