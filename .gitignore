@@ -94,48 +94,28 @@
 !/tests/host/*
 !/tests/native/code-capture.c
 
-!/reviews/
-/reviews/*
-!/reviews/no-z80-hashes-v1.md
-
-# Reconciled TP3 catch-up review reports and supporting evidence.
-!/reviews/tp3-catchup-storage-20261103.md
-!/reviews/tp3-catchup-runtime-20261103.md
-!/reviews/tp3-catchup-kernel-evidence.txt
-!/reviews/tp3-catchup-verification.txt
+/reviews
 
 # Measure Lab working dataset.
 /examples/measure/values.dat
 
-# Operation-scoped disk-handle review.
-!/reviews/disk-handles-20261104.md
-!/reviews/disk-handles-evidence-20261104.json
-
 # Native Pascal CRT acceptance and reconciled review.
 !/tools/test-crt.py
-!/reviews/crt-20261104.md
-!/reviews/crt-evidence-20261104.json
 
-# Native color/query acceptance and reconciled review.
-!/reviews/color-20261104.md
-!/reviews/color-evidence-20261104.json
 
 # Library exploration and its hash-bound evidence/review.
 !/docs/library-exploration.md
 !/docs/library-exploration-evidence.json
-!/reviews/library-exploration-v1.md
 
 # Isolated compact-prefix proof and its reconciled review.
 !/tools/test-compact.py
 !/docs/compact-layout-experiment.md
 !/docs/compact-layout-evidence.json
-!/reviews/compact-layout-v1.md
 
 # Follow-on compact low-file transfer proof.
 !/tools/test-low-copy.py
 !/docs/low-file-experiment.md
 !/docs/low-file-evidence.json
-!/reviews/compact-file-access-v1.md
 
 !/tools/test-low-file.py
 
@@ -143,25 +123,21 @@
 !/tools/test-fragments.py
 !/docs/unit-fragment-experiment.md
 !/docs/unit-fragment-evidence.json
-!/reviews/unit-fragments-v1.md
 
 # Experimental native Pascal unit compiler and acceptance.
 !/tools/test-units.py
 !/tools/test-unit-corpus.py
 !/docs/pascal-units-experiment.md
 !/docs/pascal-units-evidence.json
-!/reviews/pascal-units-v1.md
 
 # Private implementation and declaration-shadowing acceptance.
 !/docs/private-unit-evidence.json
-!/reviews/private-units-v1.md
 
 # In-progress startup RAM optimization and qualification.
 !/tools/test-startup-pages.py
 !/tools/check-startup-banks.py
 !/docs/startup-pages-experiment.md
 !/docs/startup-pages-evidence.json
-!/reviews/startup-pages-v1.md
 
 # Optional native Real component and production qualification.
 !/tools/package-optional-runtime.py
@@ -171,7 +147,6 @@
 !/tools/test-optional-failures.py
 !/docs/optional-real.md
 !/docs/optional-real-evidence.json
-!/reviews/optional-real-v1.md
 !/tools/test-optional-corpus.py
 !/tools/test-optional-interrupt.py
 !/tools/test-optional-chain.py
@@ -181,13 +156,11 @@
 !/tools/test-unit-real.py
 !/docs/ide-units.md
 !/docs/ide-units-evidence.json
-!/reviews/ide-units-v1.md
 !/tools/test-ide-units.py
 !/tools/test-ide-unit-failures.py
 
 # Optional-source unit qualification.
 !/tools/test-unit-navigation.py
-!/reviews/sourcefree-units-v1.md
 !/docs/sourcefree-units-evidence.json
 
 !/tools/test-program-pages.py
@@ -197,12 +170,10 @@
 !/docs/program-pages-baseline.json
 
 !/docs/program-pages-evidence.json
-!/reviews/program-pages-v1.md
 
 # Caller argument allocation checkpoint.
 !/docs/allocation-arguments.md
 !/docs/allocation-arguments-evidence.json
-!/reviews/allocation-arguments-v1.md
 
 # Shipped native Screen unit.
 !/libraries/
@@ -213,7 +184,6 @@
 !/tools/test-screen.py
 !/docs/screen-library.md
 !/docs/screen-library-evidence.json
-!/reviews/screen-library-v1.md
 
 # Historical Crt unit naming correction.
 !/docs/crt-rename-evidence.json
@@ -225,7 +195,6 @@
 !/src/compiler_units_graph.c
 !/docs/unit-dependencies.md
 !/docs/unit-dependencies-evidence.json
-!/reviews/unit-dependencies-v1.md
 
 !/src/compiler_units_metadata.c
 !/docs/unit-exports.md
@@ -245,7 +214,6 @@
 !/tools/test-unit-init.py
 !/docs/unit-initialization.md
 !/docs/unit-init-evidence.json
-!/reviews/unit-initialization-v1.md
 
 # Native unsigned integer support and qualification.
 !/src/compiler_frames.c
@@ -263,7 +231,6 @@
 
 !/docs/unsigned-integers.md
 !/docs/unsigned-integers-evidence.json
-!/reviews/unsigned-scalars-v1.md
 
 !/tests/native/zvb-main.c
 !/tools/test-zvb.py
@@ -278,7 +245,6 @@
 !/tools/test-unit-references-host.py
 !/tools/test-unit-storage.py
 !/tools/test-word-counts.py
-!/reviews/hardware-units-v1.md
 
 !/tests/host/unit-reader.c
 !/tools/test-unit-reader-host.py
@@ -299,17 +265,9 @@
 !/tools/test-zvb-leaves.py
 !/tools/test-crt-readkey.py
 !/tests/host/zvb-leaves.c
-!/reviews/zvb-pascal-v1.md
-!/reviews/zvb-docs-v1.md
-
-!/reviews/zeal-vfs-close-reference.txt
 
 # ZVB qualification reports and hash-bound public reference excerpts.
 !/docs/zvb-library-evidence.json
-!/reviews/zvb-rtl-reference.md
-!/reviews/zvb-snake-reference.txt
-!/reviews/zvb-rle-reference.txt
-!/reviews/zvb-kernel-reference.txt
 
 # Current consolidated unit contract.
 !/docs/units.md
@@ -325,10 +283,6 @@
 !/tools/runtime_objects.py
 !/tools/test-runtime-objects.py
 
-!/reviews/runtime-foundation-v1.md
-!/reviews/runtime-object-verification.json
-
-!/reviews/runtime-typed-links-v1.md
 !/docs/runtime-typed-links-evidence.json
 !/tools/test-typed-unit-rejection.py
 
@@ -336,7 +290,6 @@
 !/src/compiler_link.h
 !/tests/host/link-placement.c
 !/tools/test-linked-addresses.py
-!/reviews/runtime-placement-v1.md
 !/docs/runtime-placement-evidence.json
 !/src/compiler_table_arena.c
 !/src/compiler_table_arena.h
@@ -353,7 +306,6 @@
 !/src/file_direct.asm
 !/tests/host/unit-phase.c
 !/tools/test-unit-phase.py
-!/reviews/runtime-compaction-v1.md
 !/docs/runtime-compaction-evidence.json
 !/tools/check-unit-banks.py
 !/tools/test-compact-hooks.py
@@ -365,8 +317,6 @@
 !/docs/snake-c-observation.json
 !/docs/snake-parity-evidence.json
 !/tools/test-snake-parity.py
-!/reviews/snake-parity-creative-v1.md
-!/reviews/snake-parity-code-v1.md
 !/tools/capture-snake-reference.py
 !/tools/capture-snake-pixels.py
 !/docs/snake-reference-pixels.json
@@ -384,7 +334,6 @@
 !/tools/generate-zvb-decoder.py
 !/tools/profile-snake-startup.py
 !/docs/snake-startup-evidence.json
-!/reviews/zvb-decoder-v1.md
 
 # Named SDK hardware access, complete Unit references and qualification.
 !/libraries/ZVBHW.INC
@@ -394,28 +343,23 @@
 !/docs/zvb-registers.md
 !/docs/crt-library.md
 !/docs/unit-reference-evidence.json
-!/reviews/zvb-register-docs-v1.md
 
 # CRT harness fit and hardware-test checkpoint.
 !/docs/hardware-testing.md
 !/docs/crt-harness-evidence.json
-!/reviews/crt-harness-v1.md
 
 # Integrated main examples and reproducible physical acceptance overlay.
 !/tools/package-hardware.py
 !/docs/main-integration-evidence.json
-!/reviews/main-units-integration-v1.md
 !/tests/test_hardware_package.py
 
 # Physical acceptance: write-only device-memory fills.
-!/reviews/zvb-hardware-fill-v1.md
 !/docs/zvb-hardware-fill-evidence.json
 
 # User-confirmed physical Snake graphics acceptance.
 !/docs/snake-hardware-acceptance.json
 
 # Final pre-merge test cleanup and regression evidence.
-!/reviews/premerge-validation-v1.md
 !/docs/premerge-validation-evidence.json
 
 # Product-only CMake build and stock Pascal Units.
@@ -428,7 +372,6 @@
 !/tests/test_stock_zvb.py
 !/docs/building.md
 !/docs/release-build-evidence.json
-!/reviews/release-build-v1.md
 
 # Compiled SYSFILE payload identity and stamping checks.
 !/tests/test_file_unit.py
@@ -442,7 +385,6 @@ __pycache__/
 /analysis/*
 !/analysis/source-layout/
 !/analysis/source-layout/*.json
-!/reviews/source-layout-v1.md
 
 # Read-only dead-code and warning audit; probe builds remain local.
 !/analysis/dead-code-audit/
@@ -455,4 +397,3 @@ __pycache__/
 !/analysis/dead-code-audit/emitted-evidence.txt
 !/analysis/dead-code-audit/symbol-literal-consumers.json
 !/analysis/dead-code-audit/scan.py
-!/reviews/dead-code-audit-v1.md
