@@ -1,0 +1,30 @@
+{
+  "sdcc_version": "4.4.0 #14620",
+  "signed_minimal_warning_158": true,
+  "unsigned_minimal_warning_158": false,
+  "original_fragment_warning_158_lines": [
+    540,
+    555
+  ],
+  "explicit_boolean_fragment_warning_158_lines": [
+    540,
+    555
+  ],
+  "unsigned_fragment_warning_158_lines": [],
+  "original_unsigned_object_T_and_R_records_identical": true,
+  "real_variant_warning_110": {
+    "real_runtime": [
+      256,
+      356
+    ],
+    "real_compiler": [
+      256
+    ],
+    "compact_integer": []
+  },
+  "logs_sha256": {
+    "zeal-dead-audit-probes2.log": "f3544ea10d5641c28fda9d85ff17eeff555c7ba4077b8f0e65fc4bcd66b898dc",
+    "zeal-dead-audit-probes3.log": "e0560c239ad541edb8ce289861c09a75d67fe8f743d301881e940d75d4684a99",
+    "zeal-dead-audit-real-probes.log": "a06477940f4dfd5eb76a5dc689629d7b299f1b59ba0a3f59350d37ccf82dca9f"
+  }
+}

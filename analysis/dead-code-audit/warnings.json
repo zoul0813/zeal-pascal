@@ -1,0 +1,202 @@
+[
+  {
+    "build": "release",
+    "file": "src/runtime/files/operations.c",
+    "line": 83,
+    "number": 126,
+    "message": "unreachable code",
+    "target": "sysfile_payload",
+    "configuration": "ZP_DIRECT_FILE",
+    "assessment": "MEMORY_MODE is constant 0; service branch is already omitted."
+  },
+  {
+    "build": "release",
+    "file": "src/runtime/files/operations.c",
+    "line": 84,
+    "number": 126,
+    "message": "unreachable code",
+    "target": "sysfile_payload",
+    "configuration": "ZP_DIRECT_FILE",
+    "assessment": "MEMORY_MODE is constant 0; service branch is already omitted."
+  },
+  {
+    "build": "release",
+    "file": "src/runtime/numbers/real.c",
+    "line": 256,
+    "number": 110,
+    "message": "conditional flow changed by optimizer: so said EVELYN the modified DOG",
+    "target": "real_runtime",
+    "configuration": "ZP_REAL_RUNTIME",
+    "assessment": "W110 optimizer transformation; isolated variants reproduce it; no arithmetic defect identified."
+  },
+  {
+    "build": "release",
+    "file": "src/runtime/numbers/real.c",
+    "line": 356,
+    "number": 110,
+    "message": "conditional flow changed by optimizer: so said EVELYN the modified DOG",
+    "target": "real_runtime",
+    "configuration": "ZP_REAL_RUNTIME",
+    "assessment": "W110 optimizer transformation; isolated variants reproduce it; no arithmetic defect identified."
+  },
+  {
+    "build": "release",
+    "file": "src/runtime/numbers/real.c",
+    "line": 256,
+    "number": 110,
+    "message": "conditional flow changed by optimizer: so said EVELYN the modified DOG",
+    "target": "real_compiler",
+    "configuration": "ZP_REAL_COMPILER",
+    "assessment": "W110 optimizer transformation; isolated variants reproduce it; no arithmetic defect identified."
+  },
+  {
+    "build": "release",
+    "file": "src/units/linker/object.c",
+    "line": 145,
+    "number": 110,
+    "message": "conditional flow changed by optimizer: so said EVELYN the modified DOG",
+    "target": "unit_runtime_core",
+    "configuration": "ZP_UNITS_EXPERIMENT + ZP_OPTIONAL_REAL",
+    "assessment": "First cleanup_error test is always true on that first failure; preserves later first-error precedence."
+  },
+  {
+    "build": "selected_tests",
+    "file": "src/compiler/sources.c",
+    "line": 58,
+    "number": 110,
+    "message": "conditional flow changed by optimizer: so said EVELYN the modified DOG",
+    "target": "zp_core",
+    "configuration": "ZP_IDE_PATHS; no Units/optional Real",
+    "assessment": "Constant flags (raw=0, unsigned_field=0, files=1) or no-op cc_require_real macro simplify branches."
+  },
+  {
+    "build": "selected_tests",
+    "file": "src/compiler/sources.c",
+    "line": 74,
+    "number": 110,
+    "message": "conditional flow changed by optimizer: so said EVELYN the modified DOG",
+    "target": "zp_core",
+    "configuration": "ZP_IDE_PATHS; no Units/optional Real",
+    "assessment": "Constant flags (raw=0, unsigned_field=0, files=1) or no-op cc_require_real macro simplify branches."
+  },
+  {
+    "build": "selected_tests",
+    "file": "src/compiler/codegen/builtins/io.c",
+    "line": 38,
+    "number": 110,
+    "message": "conditional flow changed by optimizer: so said EVELYN the modified DOG",
+    "target": "zp_core",
+    "configuration": "ZP_IDE_PATHS; no Units/optional Real",
+    "assessment": "Constant flags (raw=0, unsigned_field=0, files=1) or no-op cc_require_real macro simplify branches."
+  },
+  {
+    "build": "selected_tests",
+    "file": "src/compiler/codegen/builtins/io.c",
+    "line": 50,
+    "number": 110,
+    "message": "conditional flow changed by optimizer: so said EVELYN the modified DOG",
+    "target": "zp_core",
+    "configuration": "ZP_IDE_PATHS; no Units/optional Real",
+    "assessment": "Constant flags (raw=0, unsigned_field=0, files=1) or no-op cc_require_real macro simplify branches."
+  },
+  {
+    "build": "selected_tests",
+    "file": "src/compiler/codegen/builtins/io.c",
+    "line": 50,
+    "number": 126,
+    "message": "unreachable code",
+    "target": "zp_core",
+    "configuration": "ZP_IDE_PATHS; no Units/optional Real",
+    "assessment": "Constant flags (raw=0, unsigned_field=0, files=1) or no-op cc_require_real macro simplify branches."
+  },
+  {
+    "build": "selected_tests",
+    "file": "src/compiler/codegen/builtins/io.c",
+    "line": 116,
+    "number": 110,
+    "message": "conditional flow changed by optimizer: so said EVELYN the modified DOG",
+    "target": "zp_core",
+    "configuration": "ZP_IDE_PATHS; no Units/optional Real",
+    "assessment": "Constant flags (raw=0, unsigned_field=0, files=1) or no-op cc_require_real macro simplify branches."
+  },
+  {
+    "build": "selected_tests",
+    "file": "src/compiler/codegen/builtins/io.c",
+    "line": 137,
+    "number": 110,
+    "message": "conditional flow changed by optimizer: so said EVELYN the modified DOG",
+    "target": "zp_core",
+    "configuration": "ZP_IDE_PATHS; no Units/optional Real",
+    "assessment": "Constant flags (raw=0, unsigned_field=0, files=1) or no-op cc_require_real macro simplify branches."
+  },
+  {
+    "build": "selected_tests",
+    "file": "src/compiler/codegen/builtins/files.c",
+    "line": 387,
+    "number": 110,
+    "message": "conditional flow changed by optimizer: so said EVELYN the modified DOG",
+    "target": "zp_core",
+    "configuration": "ZP_IDE_PATHS; no Units/optional Real",
+    "assessment": "Constant flags (raw=0, unsigned_field=0, files=1) or no-op cc_require_real macro simplify branches."
+  },
+  {
+    "build": "selected_tests",
+    "file": "src/compiler/jobs/pages.c",
+    "line": 28,
+    "number": 110,
+    "message": "conditional flow changed by optimizer: so said EVELYN the modified DOG",
+    "target": "zp_core",
+    "configuration": "ZP_IDE_PATHS; no Units/optional Real",
+    "assessment": "Constant flags (raw=0, unsigned_field=0, files=1) or no-op cc_require_real macro simplify branches."
+  },
+  {
+    "build": "selected_tests",
+    "file": "src/compiler/jobs/pages.c",
+    "line": 29,
+    "number": 110,
+    "message": "conditional flow changed by optimizer: so said EVELYN the modified DOG",
+    "target": "zp_core",
+    "configuration": "ZP_IDE_PATHS; no Units/optional Real",
+    "assessment": "Constant flags (raw=0, unsigned_field=0, files=1) or no-op cc_require_real macro simplify branches."
+  },
+  {
+    "build": "selected_tests",
+    "file": "src/compiler/jobs/pages.c",
+    "line": 28,
+    "number": 126,
+    "message": "unreachable code",
+    "target": "zp_core",
+    "configuration": "ZP_IDE_PATHS; no Units/optional Real",
+    "assessment": "Constant flags (raw=0, unsigned_field=0, files=1) or no-op cc_require_real macro simplify branches."
+  },
+  {
+    "build": "selected_tests",
+    "file": "tests/native/compact-main.c",
+    "line": 31,
+    "number": 85,
+    "message": "in function physical_cell unreferenced function argument : 'address'",
+    "target": "zcompacttest",
+    "configuration": "naked inline ASM helper",
+    "assessment": "Parameter is used by ABI/registers in assembly, not by a C expression."
+  },
+  {
+    "build": "selected_tests",
+    "file": "tests/native/fragments.c",
+    "line": 540,
+    "number": 158,
+    "message": "overflow in implicit constant conversion",
+    "target": "zfragmenttest",
+    "configuration": "TEST segment, SDCC 16-bit int",
+    "assessment": "Signed enum shifts in static initializers overflow int; warning attributed to final statement. Unsigned shifts remove diagnostics with identical object T/R records."
+  },
+  {
+    "build": "selected_tests",
+    "file": "tests/native/fragments.c",
+    "line": 555,
+    "number": 158,
+    "message": "overflow in implicit constant conversion",
+    "target": "zfragmenttest",
+    "configuration": "TEST segment, SDCC 16-bit int",
+    "assessment": "Signed enum shifts in static initializers overflow int; warning attributed to final statement. Unsigned shifts remove diagnostics with identical object T/R records."
+  }
+]

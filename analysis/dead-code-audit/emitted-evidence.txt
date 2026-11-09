@@ -1,0 +1,55 @@
+analysis/dead-code-audit/probes/build/CMakeFiles/fragments-original.dir/fragments-original.c.asm sha256 6e6a3c2e4b9e3e06c226c72efa9f53ec65a5f00a03a3ec6d64afb63f6c54fae6
+_byte_references_refs_10000_265:
+	.dw #0x0000
+	.dw #0x0001
+	.dw #0x4001
+	.dw #0x00ff
+	.dw #0x0001
+	.dw #0x0001
+	.dw #0x8001
+	.dw #0x00ff
+	.dw #0x0002
+	.dw #0x0001
+	.dw #0x0001
+	.dw #0x00ff
+	.dw #0x0004
+	.dw #0x0001
+	.dw #0x4001
+	.dw #0x00ff
+_runtime_references_refs_10000_269:
+	.dw #0x0001
+	.dw #0x0000
+	.dw #0xf7c0
+	.dw #0x0000
+
+analysis/dead-code-audit/probes/build/CMakeFiles/fragments-unsigned.dir/fragments-unsigned.c.asm sha256 f06e15e7f78343fd8e0b82214db2d2f18b5e6a5779350b1f60e0489e2736e44e
+_byte_references_refs_10000_265:
+	.dw #0x0000
+	.dw #0x0001
+	.dw #0x4001
+	.dw #0x00ff
+	.dw #0x0001
+	.dw #0x0001
+	.dw #0x8001
+	.dw #0x00ff
+	.dw #0x0002
+	.dw #0x0001
+	.dw #0x0001
+	.dw #0x00ff
+	.dw #0x0004
+	.dw #0x0001
+	.dw #0x4001
+	.dw #0x00ff
+_runtime_references_refs_10000_269:
+	.dw #0x0001
+	.dw #0x0000
+	.dw #0xf7c0
+	.dw #0x0000
+
+analysis/dead-code-audit/probes/build/CMakeFiles/tags.dir/tags.c.asm sha256 972606d9a82c24cab4df8583769c56812a5ebc5861148c5c8f3c7966e60f09b5
+_signed_tag_t_10000_3:
+	.dw #0x8001
+_unsigned_tag_t_10000_5:
+	.dw #0x8001
+
+Original vs unsigned full-fixture T and R records: identical (asserted)

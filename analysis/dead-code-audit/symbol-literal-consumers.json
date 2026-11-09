@@ -1,0 +1,142 @@
+[
+  {
+    "file": "tools/check-unit-banks.py",
+    "line": 134,
+    "symbol_literal": "compile_limits"
+  },
+  {
+    "file": "tools/check-unit-banks.py",
+    "line": 134,
+    "symbol_literal": "native_header"
+  },
+  {
+    "file": "tools/test-typed-unit-rejection.py",
+    "line": 43,
+    "symbol_literal": "word"
+  },
+  {
+    "file": "tools/test-typed-unit-rejection.py",
+    "line": 58,
+    "symbol_literal": "word"
+  },
+  {
+    "file": "tools/test-unit-real.py",
+    "line": 57,
+    "symbol_literal": "failed"
+  },
+  {
+    "file": "tools/test-overlays.py",
+    "line": 232,
+    "symbol_literal": "failed"
+  },
+  {
+    "file": "tools/test-unit-storage.py",
+    "line": 190,
+    "symbol_literal": "position"
+  },
+  {
+    "file": "tools/test-chain-files.py",
+    "line": 40,
+    "symbol_literal": "failed"
+  },
+  {
+    "file": "tools/test-chain.py",
+    "line": 46,
+    "symbol_literal": "failed"
+  },
+  {
+    "file": "tools/language-verify-spec.py",
+    "line": 61,
+    "symbol_literal": "compile"
+  },
+  {
+    "file": "tools/language-verify-spec.py",
+    "line": 62,
+    "symbol_literal": "compile"
+  },
+  {
+    "file": "tools/language-verify-spec.py",
+    "line": 65,
+    "symbol_literal": "compile"
+  },
+  {
+    "file": "tools/test-editor-native.py",
+    "line": 35,
+    "symbol_literal": "failed"
+  },
+  {
+    "file": "tools/test-unit-init.py",
+    "line": 68,
+    "symbol_literal": "failed"
+  },
+  {
+    "file": "tools/test-module-unpack.py",
+    "line": 111,
+    "symbol_literal": "failed"
+  },
+  {
+    "file": "tools/run-tests.py",
+    "line": 348,
+    "symbol_literal": "failed"
+  },
+  {
+    "file": "tools/run-tests.py",
+    "line": 338,
+    "symbol_literal": "failed"
+  },
+  {
+    "file": "tools/test-chain-loader.py",
+    "line": 116,
+    "symbol_literal": "failed"
+  },
+  {
+    "file": "tools/package-file-unit.py",
+    "line": 8,
+    "symbol_literal": "position"
+  },
+  {
+    "file": "tools/test-optional-failures.py",
+    "line": 23,
+    "symbol_literal": "failed"
+  },
+  {
+    "file": "tools/package-native.py",
+    "line": 430,
+    "symbol_literal": "_native_header"
+  },
+  {
+    "file": "tools/package-native.py",
+    "line": 430,
+    "symbol_literal": "_native_decode"
+  },
+  {
+    "file": "tools/test-unsigned.py",
+    "line": 29,
+    "symbol_literal": "failed"
+  },
+  {
+    "file": "tools/test-zvb.py",
+    "line": 166,
+    "symbol_literal": "failed"
+  },
+  {
+    "file": "tools/test-zvb.py",
+    "line": 169,
+    "symbol_literal": "position"
+  },
+  {
+    "file": "tools/test-zvb.py",
+    "line": 161,
+    "symbol_literal": "position"
+  },
+  {
+    "file": "tests/test_runner.py",
+    "line": 328,
+    "symbol_literal": "failed"
+  },
+  {
+    "file": "tests/native/input-driver-host.py",
+    "line": 219,
+    "symbol_literal": "failed"
+  }
+]

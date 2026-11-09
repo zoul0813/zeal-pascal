@@ -1,0 +1,589 @@
+{
+  "baseline": "db23b18728e60a469cce38691839dc6ad1117168",
+  "product_sha256": {
+    "zpascal.bin": "ff0cf81fc1a744e0ff39876bcca409cd46c55c6f142651b3794220bcd30b8c97",
+    "zpascal.zpl": "dc01c1eaadeba25f1738cb09b95fb3d13c2d6e8b96a5e166c10880efd0e116a0"
+  },
+  "linked_objects": 101,
+  "c_functions": 936,
+  "no_incoming_reference_candidates": [
+    {
+      "unit": "src/app/banks.c",
+      "name": "compile",
+      "area": "_TEXT",
+      "bytes_to_next_label_or_area_end": 23,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/app/banks.c",
+      "name": "build_locate",
+      "area": "_TEXT",
+      "bytes_to_next_label_or_area_end": 50,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/editor/ide.c",
+      "name": "kernel_config",
+      "area": "_BANK1",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/source/core.c",
+      "name": "source_import",
+      "area": "_TEXT",
+      "bytes_to_next_label_or_area_end": 141,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/sources.c",
+      "name": "compile_limits",
+      "area": "_BANK11",
+      "bytes_to_next_label_or_area_end": 61,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/build.c",
+      "name": "cc_global_put",
+      "area": "_BANK7",
+      "bytes_to_next_label_or_area_end": 134,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/platform/banks/loader.c",
+      "name": "kernel_config",
+      "area": "_TEXT",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/platform/zeal.c",
+      "name": "kernel_config",
+      "area": "_TEXT",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/storage/files.c",
+      "name": "kernel_config",
+      "area": "_BANK3",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/phase.c",
+      "name": "kernel_config",
+      "area": "_BANK5",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_groups_begin",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 264,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_groups_discard",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 423,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_groups_domain",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 75,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_group_open",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 950,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_group_member_begin",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 335,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_group_member_end",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 1338,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_group_close",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 760,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_group_get",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 371,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_group_member_get",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 523,
+      "last_in_area": true
+    },
+    {
+      "unit": "src/compiler/groups/late.c",
+      "name": "cc_late_finish",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 467,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/tables/storage.c",
+      "name": "cc_reference_get",
+      "area": "_BANK16",
+      "bytes_to_next_label_or_area_end": 58,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/units/io/files.c",
+      "name": "cc_unit_file",
+      "area": "_BANK3",
+      "bytes_to_next_label_or_area_end": 15,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/units/io/loader.c",
+      "name": "kernel_config",
+      "area": "_BANK6",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/units/io/reader.c",
+      "name": "kernel_config",
+      "area": "_BANK18",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/units/object.c",
+      "name": "kernel_config",
+      "area": "_BANK17",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/units/linker/fragments.c",
+      "name": "cc_fragment_link",
+      "area": "_BANK19",
+      "bytes_to_next_label_or_area_end": 62,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/units/linker/fragments.c",
+      "name": "cc_fragment_link_with_layout",
+      "area": "_BANK19",
+      "bytes_to_next_label_or_area_end": 77,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/link/image.c",
+      "name": "native_header",
+      "area": "_BANK11",
+      "bytes_to_next_label_or_area_end": 31,
+      "last_in_area": true
+    }
+  ],
+  "unreachable_from_conservative_roots": [
+    {
+      "unit": "src/app/banks.c",
+      "name": "compile",
+      "area": "_TEXT",
+      "bytes_to_next_label_or_area_end": 23,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/app/banks.c",
+      "name": "build_locate",
+      "area": "_TEXT",
+      "bytes_to_next_label_or_area_end": 50,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/editor/ide.c",
+      "name": "kernel_config",
+      "area": "_BANK1",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/source/core.c",
+      "name": "source_import",
+      "area": "_TEXT",
+      "bytes_to_next_label_or_area_end": 141,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/sources.c",
+      "name": "compile_limits",
+      "area": "_BANK11",
+      "bytes_to_next_label_or_area_end": 61,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/build.c",
+      "name": "cc_global_put",
+      "area": "_BANK7",
+      "bytes_to_next_label_or_area_end": 134,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/build.c",
+      "name": "compiler_build_locate",
+      "area": "_BANK7",
+      "bytes_to_next_label_or_area_end": 80,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/platform/banks/loader.c",
+      "name": "kernel_config",
+      "area": "_TEXT",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/platform/zeal.c",
+      "name": "kernel_config",
+      "area": "_TEXT",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/storage/files.c",
+      "name": "kernel_config",
+      "area": "_BANK3",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/phase.c",
+      "name": "kernel_config",
+      "area": "_BANK5",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/members.c",
+      "name": "failed",
+      "area": "_BANK16",
+      "bytes_to_next_label_or_area_end": 13,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/members.c",
+      "name": "position",
+      "area": "_BANK16",
+      "bytes_to_next_label_or_area_end": 88,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/members.c",
+      "name": "cc_members_begin",
+      "area": "_BANK16",
+      "bytes_to_next_label_or_area_end": 76,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/members.c",
+      "name": "word",
+      "area": "_BANK16",
+      "bytes_to_next_label_or_area_end": 36,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/members.c",
+      "name": "member_byte",
+      "area": "_BANK16",
+      "bytes_to_next_label_or_area_end": 590,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/members.c",
+      "name": "cc_members_flush",
+      "area": "_BANK16",
+      "bytes_to_next_label_or_area_end": 2202,
+      "last_in_area": true
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "get",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 9,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "word",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 37,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "put_word",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 40,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "group_at",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 16,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "member_at",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 17,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "frozen",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 268,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_groups_init",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 58,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_groups_begin",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 264,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_groups_discard",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 423,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_groups_domain",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 75,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_group_open",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 950,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_group_member_begin",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 335,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_group_member_end",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 1338,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_group_close",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 760,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_group_get",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 371,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/groups.c",
+      "name": "cc_group_member_get",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 523,
+      "last_in_area": true
+    },
+    {
+      "unit": "src/compiler/groups/late.c",
+      "name": "code_word",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 15,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/late.c",
+      "name": "cc_late_init",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 32,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/late.c",
+      "name": "cc_late_discard",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 134,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/late.c",
+      "name": "cc_late_value",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 130,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/late.c",
+      "name": "cc_late_chain",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 442,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/late.c",
+      "name": "cc_late_range",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 384,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/late.c",
+      "name": "cc_late_byte",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 95,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/late.c",
+      "name": "cc_late_retire",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 76,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/groups/late.c",
+      "name": "cc_late_finish",
+      "area": "_BANK14",
+      "bytes_to_next_label_or_area_end": 467,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/tables/storage.c",
+      "name": "cc_reference_get",
+      "area": "_BANK16",
+      "bytes_to_next_label_or_area_end": 58,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/compiler/disk.c",
+      "name": "cc_disk_global_put",
+      "area": "_TEXT",
+      "bytes_to_next_label_or_area_end": 29,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/units/io/files.c",
+      "name": "cc_unit_file",
+      "area": "_BANK3",
+      "bytes_to_next_label_or_area_end": 15,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/units/io/loader.c",
+      "name": "kernel_config",
+      "area": "_BANK6",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/units/io/reader.c",
+      "name": "kernel_config",
+      "area": "_BANK18",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/units/object.c",
+      "name": "kernel_config",
+      "area": "_BANK17",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/units/linker/fragments.c",
+      "name": "cc_fragment_link",
+      "area": "_BANK19",
+      "bytes_to_next_label_or_area_end": 62,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/units/linker/fragments.c",
+      "name": "cc_fragment_link_with_layout",
+      "area": "_BANK19",
+      "bytes_to_next_label_or_area_end": 77,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/program/decode.c",
+      "name": "word",
+      "area": "_BANK11",
+      "bytes_to_next_label_or_area_end": 5,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/program/decode.c",
+      "name": "zeros",
+      "area": "_BANK11",
+      "bytes_to_next_label_or_area_end": 29,
+      "last_in_area": false
+    },
+    {
+      "unit": "src/program/decode.c",
+      "name": "native_decode",
+      "area": "_BANK11",
+      "bytes_to_next_label_or_area_end": 1752,
+      "last_in_area": true
+    },
+    {
+      "unit": "src/compiler/link/image.c",
+      "name": "native_header",
+      "area": "_BANK11",
+      "bytes_to_next_label_or_area_end": 31,
+      "last_in_area": true
+    }
+  ],
+  "data_directive_function_roots": 0,
+  "method": "All named references in data directives across complete ASM files are independent roots; function area is bound at its actual label. Conservative emitted-ASM symbol references, bank aliases, assembly object Ref symbols and data address references. Not a proof against numeric entry points or unreferenced cycles. Function spans may include constant pools; manually verify before removal."
+}
