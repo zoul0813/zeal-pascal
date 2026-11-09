@@ -4,11 +4,7 @@
 !/CMakeLists.txt
 !/README.md
 !/src/
-!/tests/
-/tests/*
-!/tests/native/
-!/tests/test_runner.py
-!/tests/test_native_chunks.py
+/tests/cpm
 !/tools/
 /tools/*
 !/tools/test-native.py
@@ -90,11 +86,8 @@
 !/tools/artifact_format.py
 !/tools/test-no-sha.py
 
-!/tests/host/
-!/tests/host/*
-!/tests/native/code-capture.c
-
 /reviews
+/analysis
 
 # Measure Lab working dataset.
 /examples/measure/values.dat
@@ -202,15 +195,11 @@
 
 !/docs/unit-types.md
 !/docs/unit-types-evidence.json
-!/tests/host/
-/tests/host/*
-!/tests/host/unit-types.c
 
 !/tools/test-unit-types-host.py
 
 !docs/unit-review-evidence.json
 
-!/tests/native/unit-init-main.c
 !/tools/test-unit-init.py
 !/docs/unit-initialization.md
 !/docs/unit-init-evidence.json
@@ -220,8 +209,6 @@
 !/src/compiler_unsigned.c
 !/src/compiler_unsigned_asset.c
 !/src/compiler_unsigned_intrinsics.c
-!/tests/native/unsigned-main.c
-!/tests/host/unsigned-engine.c
 !/tools/generate-wide.py
 !/tools/test-unsigned-engine.py
 !/tools/test-unsigned.py
@@ -232,7 +219,6 @@
 !/docs/unsigned-integers.md
 !/docs/unsigned-integers-evidence.json
 
-!/tests/native/zvb-main.c
 !/tools/test-zvb.py
 !/tools/zvb-source.py
 
@@ -240,16 +226,12 @@
 !/docs/unit-hardware-evidence.json
 
 # Multi-page Pascal units and resource-boundary qualification.
-!/tests/host/unit-references.c
-!/tests/host/word-counts.c
 !/tools/test-unit-references-host.py
 !/tools/test-unit-storage.py
 !/tools/test-word-counts.py
 
-!/tests/host/unit-reader.c
 !/tools/test-unit-reader-host.py
 
-!/tests/host/unit-loader.c
 
 !/docs/unit-storage-evidence.json
 
@@ -264,7 +246,6 @@
 !/tools/generate-zvb-assets.py
 !/tools/test-zvb-leaves.py
 !/tools/test-crt-readkey.py
-!/tests/host/zvb-leaves.c
 
 # ZVB qualification reports and hash-bound public reference excerpts.
 !/docs/zvb-library-evidence.json
@@ -288,7 +269,6 @@
 
 !/src/compiler_link.c
 !/src/compiler_link.h
-!/tests/host/link-placement.c
 !/tools/test-linked-addresses.py
 !/docs/runtime-placement-evidence.json
 !/src/compiler_table_arena.c
@@ -304,12 +284,10 @@
 
 !/src/compiler_file_link.c
 !/src/file_direct.asm
-!/tests/host/unit-phase.c
 !/tools/test-unit-phase.py
 !/docs/runtime-compaction-evidence.json
 !/tools/check-unit-banks.py
 !/tools/test-compact-hooks.py
-!/tests/native/compact-hooks.pas
 !/docs/runtime-compaction-notes.md
 
 # Original C/Pascal Snake parity milestone.
@@ -320,13 +298,10 @@
 !/tools/capture-snake-reference.py
 !/tools/capture-snake-pixels.py
 !/docs/snake-reference-pixels.json
-!/tests/host/staging-limits.c
 !/tools/test-staging-limits.py
 !/docs/code-staging.md
 !/docs/code-staging-evidence.json
-!/tests/host/staging-emission.c
 
-!/tests/host/staging-groups.c
 !/docs/zvb-optimized-evidence.json
 
 # Bounded decoder startup optimization.
@@ -351,7 +326,6 @@
 # Integrated main examples and reproducible physical acceptance overlay.
 !/tools/package-hardware.py
 !/docs/main-integration-evidence.json
-!/tests/test_hardware_package.py
 
 # Physical acceptance: write-only device-memory fills.
 !/docs/zvb-hardware-fill-evidence.json
@@ -369,16 +343,9 @@
 !/units/zvb/
 !/units/zvb/**
 !/tools/package-zvb.py
-!/tests/test_stock_zvb.py
 !/docs/building.md
 !/docs/release-build-evidence.json
-
-# Compiled SYSFILE payload identity and stamping checks.
-!/tests/test_file_unit.py
 
 # Python build/test caches are not source inputs.
 __pycache__/
 *.py[cod]
-
-# Source-layout checkpoints and review.
-/analysis
