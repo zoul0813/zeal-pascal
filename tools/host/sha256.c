@@ -18,7 +18,7 @@ static const uint32_t k[64] = {
 /* Every SHA rotation has a fixed count. Keep it visible to SDCC so it can
  * select byte moves and fixed shifts instead of a 32-bit variable shift loop. */
 #ifdef __SDCC
-#error SHA evidence is host-only; never build this file for the Z80
+#error SHA helper is host-only; never build this file for the Z80
 #endif
 #define rr(x,n) (((x)>>(n))|((x)<<(32-(n))))
 static void transform(Sha256 *s) {

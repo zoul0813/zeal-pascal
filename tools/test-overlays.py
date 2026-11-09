@@ -189,7 +189,7 @@ def host():
                '-DZP_OVERLAY_HOST', '-D__SDCC_VERSION_MAJOR=4', '-D__SDCC_VERSION_MINOR=2', '-D__sdcccall(x)=',
                '-Isrc', '-Itests/native', '-Itests/host', '-I'+str(sdk), '-I'+str(out)]
     command += ['-D'+name+'=overlay_model_'+name for name in ('open', 'read', 'close', 'dstat', 'palloc', 'pfree')]
-    command += ['src/runtime/process/overlay.c', 'tests/host/sha256.c', 'tests/native/overlay-host.c', '-o', str(out/'model')]
+    command += ['src/runtime/process/overlay.c', 'tools/host/sha256.c', 'tests/native/overlay-host.c', '-o', str(out/'model')]
     subprocess.run(command, cwd=ROOT, check=True)
     subprocess.run([str(out/'model'), str(out)], cwd=ROOT, check=True)
 

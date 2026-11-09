@@ -280,7 +280,6 @@
 !/tools/package-runtime-layout.py
 !/tools/test-compact-programs.py
 
-!/tools/package-file-unit.py
 
 !/src/compiler_file_link.c
 !/src/file_direct.asm
@@ -362,3 +361,8 @@ __pycache__/
 !/tests/native/
 /tests/native/*
 !/tests/native/crt-mmu.pas
+!/tools/sysfile/
+!/tools/sysfile/**
+!/tools/host/
+!/tools/host/**
+!/docs/sysfile-packager-evidence.json
