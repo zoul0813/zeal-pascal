@@ -200,8 +200,10 @@ regression command runs the existing compiler/runtime corpus without repeating
 the separate IDE/platform workflows.
 
 Deploy the matching `build/zpascal.bin` and `build/zpascal.zpl` from one build.
-Keep `SYSFILE.ZPU`, `CRT.ZPU` and `ZVB.ZPU` beside the loaded ZPL for
+Keep `SYSFILE.ZPU`, `CRT.ZPU`, `ZVB.ZPU` and `ZOS.ZPU` beside the loaded ZPL for
 compilation. Saved COM programs contain their selected helpers and units.
+Native syscall built-ins `ZOS`, `ZOSBuffer` and `ZOSRegisters` are documented in
+[the ZOS interface](docs/zos-syscalls.md); `uses ZOS;` imports syscall constants and records.
 Run the BIN from ZShell on the supported video/PS/2 target; its default library
 path is `T:/lib/zpascal.zpl`. Create that installation directory and copy the
 ZPL there with the normal shell utilities. To select another library path:

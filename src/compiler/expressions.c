@@ -373,6 +373,9 @@ static TypeId factor(void) {
             else { cc_emit(0x4d); cc_emit(0x44); cc_emit(0xed); cc_emit(0x68); cc_emit(0x26); cc_emit(0); }
         } else if(id<0&&cc_is("keypressed")) { cc_next(); cc_keypressed(); kind=K_BOOLEAN; }
         else if(id<0&&(fn=cc_file_function())>=0) kind=(uint8_t)fn;
+#if defined(ZP_UNITS_EXPERIMENT) && defined(ZP_PROGRAM_PAGES)
+        else if(id<0&&(fn=cc_zos_function())>=0) kind=(TypeId)fn;
+#endif
         else if(id<0&&(fn=predefined_function())>=0) kind=intrinsic((uint8_t)fn);
         else if(id<0&&(cc_is("true")||cc_is("false"))) {
             cc_op16(0x21,cc_is("true")?1:0); kind=K_BOOLEAN; cc_next();

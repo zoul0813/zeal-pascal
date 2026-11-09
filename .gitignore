@@ -377,3 +377,21 @@ __pycache__/
 !/docs/sysfile-asm-evidence.json
 !/docs/sysfile-asm.md
 !/tests/native/sysfile-mock.asm
+
+# Native syscall built-ins and public ABI qualification.
+!/tools/zos_interface.py
+!/tools/test-syscalls.py
+!/tests/
+/tests/*
+!/tests/host/
+/tests/host/*
+!/tests/host/syscalls.c
+!/tests/native/
+/tests/native/*
+!/tests/native/syscalls-main.c
+!/tests/native/syscalls.pas
+!/docs/zos-syscalls.md
+!/docs/zos-syscall-evidence.json
+!/docs/specification.md
+
+!/tools/package-zos.py

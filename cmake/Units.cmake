@@ -1,4 +1,4 @@
-# Shipped CRT, SYSFILE and ZVB Units.
+# Shipped CRT, SYSFILE, ZVB and ZOS Units.
 # Included in root scope so source properties apply to shared test compilers.
 
 # Shipped Units are disk artifacts, never compiler-bank assets. Stock CRT is
@@ -27,3 +27,13 @@ add_custom_target(zvb_zpu ALL
         ${CMAKE_SOURCE_DIR}/units/zvb/prebuilt/ZVB.json
         ${CMAKE_SOURCE_DIR}/tools/package-zvb.py ${CMAKE_SOURCE_DIR}/tools/zvb-source.py
         ${ZVB_SOURCES} VERBATIM)
+
+# ZOS packages its native C/assembly bridge as relocatable unit fragments.
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/ZOS.ZPU ${CMAKE_BINARY_DIR}/ZOS.PAS ${CMAKE_BINARY_DIR}/zos-unit.h ${CMAKE_BINARY_DIR}/zos-library.json
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-zos.py ${CMAKE_BINARY_DIR}
+        --cc ${CMAKE_C_COMPILER} --assembler ${CMAKE_ASM_COMPILER} --sdk $ENV{ZOS_PATH}/sdk/sdcc
+    DEPENDS runtime_profile ${CMAKE_BINARY_DIR}/pascal_runtime.profile
+        tools/package-zos.py tools/zos_interface.py tools/runtime_objects.py
+        src/runtime/syscalls/operations.c src/runtime/syscalls/entry.asm src/runtime/syscalls/abi.h
+        units/zos/ZOS.PAS ${zp_sdk_headers} VERBATIM)
+add_custom_target(zos_zpu ALL DEPENDS ${CMAKE_BINARY_DIR}/ZOS.ZPU ${CMAKE_BINARY_DIR}/ZOS.PAS ${CMAKE_BINARY_DIR}/zos-unit.h)

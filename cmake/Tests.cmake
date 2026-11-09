@@ -1248,3 +1248,23 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/assets/sysfile-mock.ihx
         ${CMAKE_BINARY_DIR}/assets/sysfile-mock.ihx ${CMAKE_BINARY_DIR}/assets/sysfile-mock.rel
     DEPENDS ${CMAKE_SOURCE_DIR}/tests/native/sysfile-mock.asm VERBATIM)
 add_custom_target(sysfile_mock DEPENDS ${CMAKE_BINARY_DIR}/assets/sysfile-mock.ihx)
+
+# Checked syscall compiler/runtime and shipped public unit acceptance.
+add_executable(zsyscalltest src/app/startup.asm src/app/banks.c tests/native/syscalls-main.c
+    tests/native/machine.asm $<TARGET_OBJECTS:unit_runtime_core>
+    $<TARGET_OBJECTS:unit_fragment_core> $<TARGET_OBJECTS:real_compiler>
+    $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>
+    ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm)
+target_compile_definitions(zsyscalltest PRIVATE ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL ZP_TEST_COMPILER)
+target_include_directories(zsyscalltest PRIVATE src ${CMAKE_BINARY_DIR})
+target_compile_options(zsyscalltest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
+set_source_files_properties(tests/native/syscalls-main.c PROPERTIES COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
+add_dependencies(zsyscalltest transfer_assets zos_zpu)
+target_link_options(zsyscalltest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
+foreach(bank RANGE 1 19)
+    math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
+    target_link_options(zsyscalltest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
+endforeach()
+add_custom_target(zsyscalltest_bin
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zsyscalltest>
+    DEPENDS zsyscalltest tools/package-native.py VERBATIM)

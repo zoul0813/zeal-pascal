@@ -75,7 +75,7 @@ def main():
         'private implementation and remaining scalar ABI execution':stdout.count(b'UNIT-PRIVATE-OK\r\n') == 2,
         'unused private sibling omitted':b'PRIVATE-DEAD-CODE-9B71' in (directory/'PRIVATEOPS.ZPU').read_bytes()
             and b'PRIVATE-DEAD-CODE-9B71' not in (directory/'PRIVATE.COM').read_bytes(),
-        'normal runtime byte identity':sha(ROOT/'build/pascal_runtime.zpl') == '1da9d420f5598640ed57fa37b099faf09c76fa60dbae31a212b1b341aadf53a3',
+        'normal runtime byte identity':sha(ROOT/'build/pascal_runtime.zpl') == '7cfb2a03f49e698109c518a1513f3af2d204d11c532f164da528ce6cf441017f',
         'compiler bytes preserved':all((directory/name).read_bytes() == library[16+2*library[5]:] for name in ('CODE0.BIN','CODE1.BIN')),
         'compiled program independent of unused body':(directory/'SMALL.COM').read_bytes() == (directory/'LARGE.COM').read_bytes(),
         'unused code was actually compiled':unit_payload(directory/'LARGE.ZPU') > unit_payload(directory/'SMALL.ZPU'),

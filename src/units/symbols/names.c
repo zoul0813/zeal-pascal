@@ -64,7 +64,7 @@ int16_t cc_units_lookup(void) ROUTINES {
         if(!(cc_unit_word(cc_units_state(at)+4)&UM_VISIBLE))continue;
         if(cc.sources->unit_qualifier&&cc.sources->unit_qualifier!=cc_unit_word(at+8))continue;
         export=cc_unit_export(at,cc.name);
-        if(export) {
+        if(export&&!(cc_unit_module_byte(at,export+2)&ZPU_INTERNAL)) {
             if(match){cc_fail(UNIT_AMBIGUOUS);return -1;}
             match=at;candidate=export;
         }

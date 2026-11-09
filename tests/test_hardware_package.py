@@ -32,7 +32,7 @@ class Package(unittest.TestCase):
         self.put('build/zpascal.map', b' 00004020 _code_version \n')
         self.put('build/zpascal.banks.json', json.dumps(metadata).encode())
         for name in ('pascal_runtime.zpl', 'pascal_runtime.private', 'pascal_runtime.profile', 'runtime-layout.json',
-                     'SYSFILE.ZPU', 'CRT.ZPU', 'CRT.PAS', 'ZVB.ZPU', 'zzvbtest.bin', 'zzvbtest.zpl'):
+                     'SYSFILE.ZPU', 'CRT.ZPU', 'CRT.PAS', 'ZVB.ZPU', 'ZOS.ZPU', 'ZOS.PAS', 'zzvbtest.bin', 'zzvbtest.zpl'):
             self.put('build/'+name, name.encode())
         for folder in (self.ex_capture, self.z_capture):
             self.put_capture(folder/'SYSFILE.ZPU', (self.root/'build/SYSFILE.ZPU').read_bytes())
@@ -51,7 +51,7 @@ class Package(unittest.TestCase):
         hashes = {str(self.root/name): sha((self.root/name).read_bytes()) for name in shared}
         self.examples = {'passed': True, 'capture_directory': 'analysis/native-slice/general',
                          'input_sha256': dict(hashes)}
-        for name in ('SYSFILE.ZPU', 'CRT.ZPU'):
+        for name in ('SYSFILE.ZPU', 'CRT.ZPU', 'ZOS.ZPU', 'ZOS.PAS'):
             self.examples['input_sha256'][str(self.root/'build'/name)] = sha((self.root/'build'/name).read_bytes())
         self.zvb = {'passed': True, 'capture_directory': 'analysis/native-slice/zvb',
                     'input_sha256': dict(hashes), 'fixture_sha256': {}, 'program_sha256': {},
@@ -96,6 +96,7 @@ class Package(unittest.TestCase):
             self.assertEqual(sha((self.output/name).read_bytes()), entry['sha256'])
         self.assertEqual((self.output/'examples/demo/demo.bin').read_bytes(), b'verified executable')
         self.assertEqual((self.output/'zvb/CRTCHECK.COM').read_bytes(), b'SMOKE binary')
+        self.assertEqual((self.output/'lib/ZOS.ZPU').read_bytes(), b'ZOS.ZPU')
         self.assertFalse(m['physical_hardware_passed'])
 
     def test_incomplete_manifest_refused(self):

@@ -5,6 +5,8 @@
 .globl val_dispatch,_zr_text,_zr_length,_zr_code,_zr_assign
 .globl c_save,c_restore
 .area _REAL_DATA
+.globl syscall_scratch
+syscall_scratch:
 real_left: .ds 2
 real_right: .ds 2
 real_flags: .ds 1

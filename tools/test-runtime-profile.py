@@ -30,6 +30,15 @@ def flip_hex(text, address):
 
 
 def main():
+    # Runtime compaction fixups must describe the current linked instructions.
+    # A source relink must not silently reuse an older custom-target ledger.
+    image = package.read_hex(ROOT/'build/integer_runtime.ihx')
+    ledger = (ROOT/'build/runtime-layout.h').read_text()
+    for site,target,kind in re.findall(r'\{(\d+)u,(\d+)u,(\d+)\}',ledger.split('#endif',1)[0]):
+        site,target,kind=map(int,(site,target,kind))
+        actual=image[site] | (image[site+1]<<8) if kind==0 else image[site]
+        expected=target if kind==0 else (target>>8 if kind==2 else target)&255
+        assert actual==expected, f'Stale runtime relocation at {site:04x}'
     # Independently authored streams pin literal flags, overlapping matches,
     # the maximum12-bit distance, and rejection before compiler publication.
     checks=0

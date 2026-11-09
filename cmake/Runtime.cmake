@@ -192,6 +192,6 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/unit_unpack_asset.asm CONTENT
 
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/runtime-layout.h ${CMAKE_BINARY_DIR}/runtime-layout.json ${CMAKE_BINARY_DIR}/assets/linked_integer_runtime.bin
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-runtime-layout.py ${CMAKE_BINARY_DIR}
-    DEPENDS integer_runtime_bin pascal_runtime_bin ${CMAKE_SOURCE_DIR}/tools/package-runtime-layout.py ${CMAKE_SOURCE_DIR}/tools/runtime_objects.py VERBATIM)
+    DEPENDS integer_runtime_bin pascal_runtime_bin ${CMAKE_BINARY_DIR}/integer_runtime.ihx ${CMAKE_BINARY_DIR}/pascal_runtime.ihx ${CMAKE_SOURCE_DIR}/tools/package-runtime-layout.py ${CMAKE_SOURCE_DIR}/tools/runtime_objects.py VERBATIM)
 
 add_custom_target(runtime_layout DEPENDS ${CMAKE_BINARY_DIR}/runtime-layout.h)

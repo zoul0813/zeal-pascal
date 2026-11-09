@@ -11,7 +11,7 @@ spec = importlib.util.spec_from_file_location('native', ROOT/'tools/test-native.
 n = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(n)
 
-names = ['build/zpascal.bin', 'build/zpascal.zpl', 'build/zpascal.map', 'build/zpascal.banks.json', 'build/SYSFILE.ZPU', 'build/CRT.ZPU', 'build/CRT.PAS', 'build/ZVB.ZPU',
+names = ['build/zpascal.bin', 'build/zpascal.zpl', 'build/zpascal.map', 'build/zpascal.banks.json', 'build/SYSFILE.ZPU', 'build/CRT.ZPU', 'build/CRT.PAS', 'build/ZVB.ZPU', 'build/ZOS.ZPU', 'build/ZOS.PAS',
          'units/zvb/ZVB-LICENSE.txt', 'units/zvb/ZVB-NOTICE.txt']
 snapshots = {name: (ROOT/name).read_bytes() for name in names}
 hashes = {name: hashlib.sha256(data).hexdigest() for name, data in snapshots.items()}
@@ -41,6 +41,8 @@ install = {'/bin/zpascal.bin': resident, '/lib/zpascal.zpl': library,
            '/lib/CRT.ZPU': snapshots['build/CRT.ZPU'],
            '/lib/CRT.PAS': snapshots['build/CRT.PAS'],
            '/lib/ZVB.ZPU': snapshots['build/ZVB.ZPU'],
+           '/lib/ZOS.ZPU': snapshots['build/ZOS.ZPU'],
+           '/lib/ZOS.PAS': snapshots['build/ZOS.PAS'],
            '/lib/ZVB.LIC': snapshots['units/zvb/ZVB-LICENSE.txt'],
            '/lib/ZVB.NTC': snapshots['units/zvb/ZVB-NOTICE.txt']}
 commands = ['run 100000000']

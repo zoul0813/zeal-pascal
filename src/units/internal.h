@@ -50,6 +50,7 @@ uint16_t cc_native_runtime(void) ROUTINES;
 #define ZPU_REAL 1u
 #define ZPU_FULL_MEMORY 2u
 #define ZPU_HARDWARE 4u /* Raw memory/I/O: retain conservative console binding. */
+#define ZPU_INTERNAL 2u /* Compiler-only native entry, omitted from Pascal lookup. */
 #define ZPU_CALLER_IO 1u /* Export flag: pass caller {$I} in A. */
 int8_t cc_units_output(void) ROUTINES;
 uint32_t unit_source_fingerprint(const Source *source) SOURCE_BLOCK_CALL;
