@@ -1,4 +1,4 @@
-#include "editor.h"
+#include "editor/editor.h"
 void check(uint8_t ok);
 static void load(Source *s,const char *text) {
     Diagnostic d;

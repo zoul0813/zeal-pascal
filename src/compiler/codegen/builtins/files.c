@@ -1,7 +1,7 @@
 #include "compiler/link/layout.h"
 #include "compiler/link/link.h"
 #include "compiler/groups/late.h"
-#include "file_runtime.h"
+#include "runtime/files/operations.h"
 #ifdef ZP_STATIC_LAYOUT
 static void backend_call(void) {cc.file_native_operand=cc_link(0xcd,cc.file_native_operand);}
 #endif

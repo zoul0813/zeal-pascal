@@ -1,6 +1,6 @@
 #include "units/internal.h"
-#include "library.h"
-#include "image.h"
+#include "platform/banks/loader.h"
+#include "program/image.h"
 #include <zos_errors.h>
 #include <zos_sys.h>
 #include <zos_vfs.h>

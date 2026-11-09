@@ -1,5 +1,5 @@
 #include "harness.h"
-#include "sources.h"
+#include "source/catalog.h"
 typedef char native_build_handle_size[sizeof(Build)==54?1:-1];
 typedef char native_catalog_handle_size[sizeof(Sources)==13?1:-1];
 volatile uint16_t test_passed,test_failed,test_stage;

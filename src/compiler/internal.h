@@ -1,12 +1,12 @@
 #ifndef ZP_COMPILER_H
 #define ZP_COMPILER_H
-#include "zp.h"
+#include "common/zp.h"
 #if defined(ZP_UNITS_EXPERIMENT) && defined(ZP_OPTIONAL_REAL)
 #define ZP_STATIC_LAYOUT
 #endif
-#include "real.h"
-#include "sources.h"
-#include "chain_abi.h"
+#include "runtime/numbers/real.h"
+#include "source/catalog.h"
+#include "runtime/process/abi.h"
 #include <stddef.h>
 #ifdef __SDCC
 #define FRONTEND __banked

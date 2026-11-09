@@ -1,5 +1,5 @@
 #include "units/internal.h"
-#include "library.h"
+#include "platform/banks/loader.h"
 
 /* The retained namespace owns visibility and cached symbol IDs. A transient
  * metadata decoder handles cache misses; artifacts/state own far pages. */

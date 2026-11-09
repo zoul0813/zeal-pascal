@@ -45,12 +45,44 @@ as “Built target …”; those messages do not identify extra shipped programs
 The old full `file_runtime` module is not part of the production graph or
 runtime fingerprint. Its builders live in `Tests.cmake` for explicit legacy
 probes. Production file support is generated as selectively linked SYSFILE.ZPU
-functions; this still compiles the file operations it needs from `file_runtime.c`.
+functions; this still compiles the file operations it needs from `src/runtime/files/operations.c`.
 `runtime_profile` fingerprints the numeric runtime, handoff assets and compiled
 SYSFILE payload. SYSFILE compiles once into a payload with a neutral fingerprint;
 its final ZPU header is stamped after that payload has been fingerprinted.
 
 The BIN and ZPL are produced together so they remain a matching compiler pair.
+
+## Source ownership
+
+| Directory | Responsibility |
+| --- | --- |
+| `src/app/` | Startup and bank-call dispatch |
+| `src/compiler/` | Parsing, types, code generation, final linking and compiler jobs |
+| `src/units/` | ZPU reading, metadata, symbols and fragment linking |
+| `src/runtime/` | Generated-program runtime, numeric/file operations and process handoff |
+| `src/editor/` | Editor core, IDE commands and display |
+| `src/source/` | Shared source catalog, buffers, editing and validation |
+| `src/platform/` | Zeal memory/I/O, keyboard, bank loader and parent worker services |
+| `src/storage/` | Source/program file publication and transport |
+| `src/program/` | Program image encoding and validation |
+| `src/common/` | Shared declarations and pure path helpers |
+
+Compiler subgroups include `codegen/builtins`, `codegen/unsigned`, `link`,
+`tables`, `groups` and `jobs`. The type parser remains `compiler/types.c`;
+create a types directory when there is a meaningful group to put there.
+Compiler phase policy lives in `compiler/phase.c`, while physical bank loading
+lives in `platform/banks/`. Final compiler linking deliberately consumes the
+ZPU fragment model defined under `src/units/linker/`.
+
+Use includes relative to the `src/` include root, such as
+`compiler/internal.h` and `common/zp.h`. Source directories express ownership;
+CMake still controls bank placement independently. Preserve source/object list
+order when changing paths because that order affects the linked image.
+
+`src/units/` implements the compiler's Unit support. The Pascal Unit sources
+users can compile or use remain in the top-level `units/` tree, including
+`units/zvb/`. Historical review and measurement records retain paths from the
+revision they describe.
 
 ## Opt-in test targets
 

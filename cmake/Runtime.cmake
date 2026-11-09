@@ -1,21 +1,25 @@
 # Runtime templates, execution handoff and generated compiler assets.
 # Included in root scope so source properties apply to shared test compilers.
 
-add_library(real_runtime OBJECT src/real.c src/transcendental.c)
+add_library(real_runtime OBJECT src/runtime/numbers/real.c src/runtime/numbers/transcendental.c)
+
+target_include_directories(real_runtime PRIVATE src)
 
 target_compile_definitions(real_runtime PRIVATE ZP_REAL_RUNTIME)
 
 target_compile_options(real_runtime PRIVATE --std-c99 --opt-code-size "SHELL:--codeseg REAL"
     "SHELL:--constseg REAL" "SHELL:--dataseg REAL_DATA")
 
-add_library(key_runtime OBJECT src/keys.c)
+add_library(key_runtime OBJECT src/platform/keyboard.c)
+
+target_include_directories(key_runtime PRIVATE src)
 
 target_compile_definitions(key_runtime PRIVATE ZP_PASCAL_KEYS)
 
 target_compile_options(key_runtime PRIVATE --std-c99 "SHELL:--codeseg CODE"
     "SHELL:--constseg CODE" "SHELL:--dataseg REAL_DATA")
 
-add_executable(pascal_runtime src/runtime.asm src/real_adapter.asm src/format.asm src/input.asm $<TARGET_OBJECTS:real_runtime> $<TARGET_OBJECTS:key_runtime>)
+add_executable(pascal_runtime src/runtime/core.asm src/runtime/real_adapter.asm src/runtime/format.asm src/runtime/input.asm $<TARGET_OBJECTS:real_runtime> $<TARGET_OBJECTS:key_runtime>)
 
 set_target_properties(pascal_runtime PROPERTIES LINKER_LANGUAGE ASM)
 
@@ -33,7 +37,9 @@ add_custom_command(TARGET pascal_runtime_bin POST_BUILD
         ${CMAKE_BINARY_DIR}/pascal_runtime.ihx VERBATIM)
 
 # Integer conversion code used by the production integer runtime.
-add_library(compact_integer OBJECT src/real.c)
+add_library(compact_integer OBJECT src/runtime/numbers/real.c)
+
+target_include_directories(compact_integer PRIVATE src)
 
 target_compile_definitions(compact_integer PRIVATE ZP_REAL_RUNTIME ZP_INTEGER_RUNTIME)
 
@@ -42,7 +48,7 @@ target_compile_options(compact_integer PRIVATE --std-c99 --opt-code-size
 
 # Integer core at the legacy private gate/data addresses. The optional Real
 # compiler can switch native implementations without changing emitted operands.
-add_executable(integer_runtime src/runtime.asm src/real_adapter.asm src/format.asm src/input.asm
+add_executable(integer_runtime src/runtime/core.asm src/runtime/real_adapter.asm src/runtime/format.asm src/runtime/input.asm
     $<TARGET_OBJECTS:compact_integer> $<TARGET_OBJECTS:key_runtime>)
 
 set_target_properties(integer_runtime PROPERTIES LINKER_LANGUAGE ASM)
@@ -58,7 +64,7 @@ add_custom_command(TARGET integer_runtime_bin POST_BUILD
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --runtime
         ${CMAKE_BINARY_DIR}/integer_runtime.ihx VERBATIM)
 
-add_executable(ram_trampoline src/trampoline.asm)
+add_executable(ram_trampoline src/runtime/trampoline.asm)
 
 zp_add_outputs(ram_trampoline WITH_EXTENSION zpl)
 
@@ -66,7 +72,7 @@ add_custom_command(TARGET ram_trampoline_bin POST_BUILD
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --trampoline
         ${CMAKE_BINARY_DIR}/ram_trampoline.ihx VERBATIM)
 
-add_executable(file_gate src/file_gate.asm)
+add_executable(file_gate src/runtime/files/gate.asm)
 
 zp_add_outputs(file_gate WITH_EXTENSION zpl)
 
@@ -76,14 +82,14 @@ add_custom_command(TARGET file_gate_bin POST_BUILD
 
 # Loader component executes entirely below8000; its synthetic caller window
 # is disposable test memory. Production Pascal handoff is a separate gate.
-add_executable(execute_entry src/execute_entry.asm)
+add_executable(execute_entry src/runtime/process/execute_entry.asm)
 
 zp_add_outputs(execute_entry WITH_EXTENSION zpl)
 
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/execute_entry_asset.asm CONTENT
     ".area _TEXT\n.globl _execute_entry_start,_execute_entry_length\n_execute_entry_start:\n.incbin \"${CMAKE_BINARY_DIR}/execute_entry.zpl\"\n_execute_entry_length:\n.dw _execute_entry_length-_execute_entry_start\n")
 
-add_executable(module_unpack src/module_unpack.asm)
+add_executable(module_unpack src/runtime/unpack.asm)
 
 zp_add_outputs(module_unpack WITH_EXTENSION zpl)
 
@@ -91,7 +97,7 @@ add_custom_command(TARGET module_unpack_bin POST_BUILD
     COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/package-native.py --module-unpack
         ${CMAKE_BINARY_DIR}/module_unpack.ihx VERBATIM)
 
-add_executable(transfer_gate src/transfer_gate.asm)
+add_executable(transfer_gate src/runtime/process/transfer_gate.asm)
 
 zp_add_outputs(transfer_gate WITH_EXTENSION zpl)
 
@@ -102,8 +108,8 @@ add_custom_command(TARGET transfer_gate_bin POST_BUILD
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/transfer_file_gate.asm CONTENT
     ".area _TEXT\n.globl _transfer_file_gate,_transfer_file_gate_bytes\n_transfer_file_gate:\n.incbin \"${CMAKE_BINARY_DIR}/file_gate.zpl\"\n_transfer_file_gate_bytes = .-_transfer_file_gate\n")
 
-add_executable(transfer_runtime src/transfer_module.asm src/transfer.c src/transfer_native.asm
-    src/chain.c src/chain_native.asm src/execute_native.asm src/native_image.c
+add_executable(transfer_runtime src/runtime/process/transfer_module.asm src/runtime/process/transfer.c src/runtime/process/transfer_native.asm
+    src/runtime/process/chain.c src/runtime/process/chain_native.asm src/runtime/process/execute_native.asm src/program/decode.c
     ${CMAKE_BINARY_DIR}/sdk_glue.asm ${CMAKE_BINARY_DIR}/transfer_file_gate.asm
     ${CMAKE_BINARY_DIR}/execute_entry_asset.asm)
 
@@ -142,7 +148,7 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/transfer_call_data.inc
 
 add_custom_target(transfer_call_data DEPENDS ${CMAKE_BINARY_DIR}/transfer_call_data.inc)
 
-add_executable(transfer_call src/transfer_call.asm)
+add_executable(transfer_call src/runtime/process/transfer_call.asm)
 
 add_dependencies(transfer_call transfer_call_data)
 
@@ -170,7 +176,7 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/integer_head.bin
         ${CMAKE_BINARY_DIR}/pascal_runtime.zpl ${CMAKE_BINARY_DIR}/pascal_runtime.private
         ${CMAKE_BINARY_DIR}/pascal_runtime.profile
         ${CMAKE_SOURCE_DIR}/tools/package-optional-runtime.py ${CMAKE_SOURCE_DIR}/tools/package-native.py
-        ${CMAKE_SOURCE_DIR}/src/zp.h ${CMAKE_BINARY_DIR}/pascal_runtime.runtime.json
+        ${CMAKE_SOURCE_DIR}/src/common/zp.h ${CMAKE_BINARY_DIR}/pascal_runtime.runtime.json
         ${CMAKE_BINARY_DIR}/integer_runtime.map
     VERBATIM)
 

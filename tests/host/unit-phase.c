@@ -1,6 +1,6 @@
 /* Exercise the production final-link phase and each native failure boundary. */
 #include "compiler/internal.h"
-#include "library.h"
+#include "platform/banks/loader.h"
 #include <zos_sys.h>
 #include <zos_vfs.h>
 #include <zos_errors.h>

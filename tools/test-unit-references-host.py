@@ -8,7 +8,7 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[1]
 def main():
     files=['src/units/linker/references.c','src/units/internal.h','src/compiler/internal.h',
-           'src/zp.h','tests/host/unit-references.c', 'tools/test-unit-references-host.py']
+           'src/common/zp.h','tests/host/unit-references.c', 'tools/test-unit-references-host.py']
     with tempfile.TemporaryDirectory(prefix='zp-unit-references-') as directory:
         binary=str(Path(directory)/'references')
         subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-g',

@@ -24,7 +24,7 @@ def host():
     cmd=['cc','-std=c99','-Wall','-Wextra','-Werror','-fno-builtin-exit',
          '-fsanitize=address,undefined','-fno-sanitize-recover=all','-g','-DZP_TRANSFER_HOST',
          '-D__SDCC_VERSION_MAJOR=4','-D__SDCC_VERSION_MINOR=2','-D__sdcccall(x)=',
-         '-Isrc','-I'+str(sdk),'src/transfer.c','tests/native/transfer-host.c','-o',str(out/'model')]
+         '-Isrc','-I'+str(sdk),'src/runtime/process/transfer.c','tests/native/transfer-host.c','-o',str(out/'model')]
     for defines in (['-DZP_CHAIN_ONLY'],[]):
         subprocess.run(cmd+defines,cwd=ROOT,check=True);subprocess.run([str(out/'model')],cwd=ROOT,check=True)
 

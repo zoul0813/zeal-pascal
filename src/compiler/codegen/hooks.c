@@ -1,6 +1,6 @@
 #include "compiler/link/layout.h"
 #include "compiler/groups/late.h"
-#include "file_runtime.h"
+#include "runtime/files/operations.h"
 
 /* Hooks belong to each generated program. Defaults are genuine Pascal ABI
  * entries; the fixed prefix is patched only in that program's owned image. */

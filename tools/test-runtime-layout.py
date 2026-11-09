@@ -44,8 +44,8 @@ def main():
             assert patch[0]==0xc3 and origin<=target<code_end
             specialized[at:at+3]=patch;bindings[name]=target
     assert binary[160:len(runtime)] == specialized[160:]
-    inputs = [Path(__file__).resolve(), ROOT/'tools/test-native.py', ROOT/'src/runtime.asm',
-              ROOT/'src/input.asm', ROOT/'src/zp.h', ROOT/'src/compiler/codegen/hooks.c',
+    inputs = [Path(__file__).resolve(), ROOT/'tools/test-native.py', ROOT/'src/runtime/core.asm',
+              ROOT/'src/runtime/input.asm', ROOT/'src/common/zp.h', ROOT/'src/compiler/codegen/hooks.c',
               ROOT/'src/compiler/disk.c',ROOT/'src/compiler/build.c', ROOT/'build/pascal_runtime.zpl',ROOT/'build/pascal_runtime.map',
               args.program.resolve(), n.EMULATOR, n.ROM]
     hashes = {str(path): n.sha(path) for path in inputs}

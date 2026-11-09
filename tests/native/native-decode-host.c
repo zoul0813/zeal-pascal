@@ -1,5 +1,5 @@
 /* Same CHN contract through generic and Chain-only native format owners. */
-#include "native_image.h"
+#include "program/decode.h"
 #include <zos_errors.h>
 #include <assert.h>
 #include <stdio.h>

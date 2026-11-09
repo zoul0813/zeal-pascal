@@ -1124,3 +1124,5 @@ and blank End restores the native default FBFF. Ctrl-U cancellation is retained.
 
 The [runtime compaction notes](docs/runtime-compaction-notes.md) explain final
 global placement, measured RAM use, standalone demos and retained limits.
+
+Source ownership and component directories are described in [the build guide](docs/building.md#source-ownership).

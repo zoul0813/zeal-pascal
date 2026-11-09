@@ -2,7 +2,7 @@
 #include "compiler/link/layout.h"
 #include "compiler/disk.h"
 #include "transfer_asset.h"
-#include "native_image.h"
+#include "program/decode.h"
 
 const char *compile_error_path(void) SOURCE_BLOCK_CALL { return cc.name; }
 static void map8(uint16_t p,uint8_t v) { buffer_set(cc.image->map_page,p,v); }

@@ -28,7 +28,7 @@ def build(directory):
     metadata=json.loads((directory/'pascal_runtime.runtime.json').read_text())
     gates=[metadata['private_input_addresses'][i] for i in (6,14,15,21)]
     # RT_CHAR is the public character gate pinned by zp.h and runtime.asm.
-    text=(Path(__file__).resolve().parents[1]/'src/zp.h').read_text()
+    text=(Path(__file__).resolve().parents[1]/'src/common/zp.h').read_text()
     rtchar=int(re.search(r'#define RT_CHAR\s+(0x[0-9a-fA-F]+)',text).group(1),16)
     at=rtchar-0x4000;gates.append(int.from_bytes(full[at+1:at+3],'little'))
     if any(full[a-0x4000:a-0x4000+3]!=core[a-0x4000:a-0x4000+3] for a in gates):

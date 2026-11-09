@@ -1,6 +1,6 @@
 #include "compiler/link/layout.h"
 #include "compiler/groups/late.h"
-#include "file_runtime.h"
+#include "runtime/files/operations.h"
 
 void cc_keypressed(void) FRONTEND {
     uint16_t done;

@@ -1,6 +1,6 @@
 #ifndef ZP_COMPILER_FRAGMENTS_H
 #define ZP_COMPILER_FRAGMENTS_H
-#include "zp.h"
+#include "common/zp.h"
 #if defined(__SDCC) && defined(ZP_UNITS_EXPERIMENT)
 #define CC_FRAGMENT_CALL __banked
 #else

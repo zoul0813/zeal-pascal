@@ -1,4 +1,4 @@
-#include "chain.h"
+#include "runtime/process/chain.h"
 #include "unpack-fixtures.h"
 #include <zos_sys.h>
 #include <zos_vfs.h>
@@ -6,7 +6,7 @@
 
 uint8_t chain_buffer[128],chain_store;
 volatile uint16_t test_passed,test_failed,test_failures[64],test_index;
-volatile uint8_t test_done;
+volatile uint8_t test_done,test_free_pages;
 volatile uint8_t test_mappings[2];
 static uint8_t held[32];
 static void check_at(uint8_t ok,uint16_t line) {
@@ -33,6 +33,7 @@ static uint32_t available(void) {
         if(held[n]>=32&&held[n]<64)mask|=1UL<<(held[n]-32);
         ++n;
     }
+    test_free_pages=n;
     check(n<32); /* Supported512KiB target: this program owns three pages. */
     for(i=0;i<n;++i)check(!pfree(held[i]));return mask;
 }

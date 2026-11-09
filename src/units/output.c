@@ -1,7 +1,7 @@
 #include "units/output.h"
 #include "units/internal.h"
-#include "output_transport.h"
-#include "path.h"
+#include "storage/transport.h"
+#include "common/path.h"
 #include <zos_vfs.h>
 #include <zos_errors.h>
 

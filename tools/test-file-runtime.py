@@ -24,10 +24,10 @@ def host(compact=False,direct=False):
     if compact:command += ['-DZP_COMPACT_EXPERIMENT']
     if direct:command += ['-DZP_DIRECT_FILE']
     command += ['-D'+name+'=zf_model_'+name for name in ('open', 'close', 'read', 'write', 'seek', 'ioctl', 'exit')]
-    command += ['src/path.c', 'src/file_runtime.c', 'tests/native/file-core.c', 'tests/native/file-model.c',
+    command += ['src/common/path.c', 'src/runtime/files/operations.c', 'tests/native/file-core.c', 'tests/native/file-model.c',
                 '-o', str(out/'file-core')]
-    sources = [ROOT/name for name in ('tools/test-file-runtime.py', 'src/path.c', 'src/path.h',
-               'src/file_runtime.c', 'src/file_runtime.h', 'tests/native/file-core.c', 'tests/native/file-model.c')]
+    sources = [ROOT/name for name in ('tools/test-file-runtime.py', 'src/common/path.c', 'src/common/path.h',
+               'src/runtime/files/operations.c', 'src/runtime/files/operations.h', 'tests/native/file-core.c', 'tests/native/file-model.c')]
     sources += sorted(sdk.rglob('*.h'))
     sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
     hashes = {str(path): sha(path) for path in sources}
@@ -55,8 +55,8 @@ def native():
     target = 'zfilecoretest'
     sym = n.symbols(target)
     inputs = [Path(__file__).resolve(), ROOT/'tools/test-native.py', ROOT/'tools/package-native.py',
-              ROOT/'CMakeLists.txt', ROOT/'src/path.c', ROOT/'src/path.h', ROOT/'src/file_runtime.c', ROOT/'src/file_runtime.h',
-              ROOT/'src/file_native.asm', ROOT/'src/file_module.asm', ROOT/'tests/native/file-core.c',
+              ROOT/'CMakeLists.txt', ROOT/'src/common/path.c', ROOT/'src/common/path.h', ROOT/'src/runtime/files/operations.c', ROOT/'src/runtime/files/operations.h',
+              ROOT/'src/runtime/files/legacy_native.asm', ROOT/'src/runtime/files/legacy_entry.asm', ROOT/'tests/native/file-core.c',
               ROOT/'tests/native/file-start.asm', ROOT/'tests/native/file-probe.asm',
               ROOT/'tests/native/machine.asm', n.EMULATOR, n.ROM,n.TF_TEMPLATE]
     inputs += [ROOT/f'build/{target}.{ext}' for ext in ('bin', 'map')]

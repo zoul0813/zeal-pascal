@@ -368,7 +368,7 @@ def compiler_conversions(full, out):
     """Exercise the compiler-only build against exact integers and full parsing."""
     library=out/'compiler-real.so'
     subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-DZP_REAL_COMPILER',
-        '-fPIC','-shared',str(ROOT/'src/real.c'),'-o',str(library)],check=True)
+        '-fPIC','-shared','-I'+str(ROOT/'src'),str(ROOT/'src/runtime/numbers/real.c'),'-o',str(library)],check=True)
     compiler=ctypes.CDLL(str(library))
     def context(lib):
         return (ctypes.c_ubyte.in_dll(lib,'zr_op'),ctypes.c_ubyte.in_dll(lib,'zr_error'),
@@ -395,7 +395,7 @@ def compiler_conversions(full, out):
 
 def host():
     out=ROOT/'analysis/real-host';out.mkdir(parents=True,exist_ok=True);library=out/'real.so'
-    subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-fPIC','-shared',str(ROOT/'src/real.c'),str(ROOT/'src/transcendental.c'),'-o',str(library)],check=True)
+    subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-fPIC','-shared','-I'+str(ROOT/'src'),str(ROOT/'src/runtime/numbers/real.c'),str(ROOT/'src/runtime/numbers/transcendental.c'),'-o',str(library)],check=True)
     lib=ctypes.CDLL(str(library));a=(ctypes.c_ubyte*6).in_dll(lib,'zr_a');b=(ctypes.c_ubyte*6).in_dll(lib,'zr_b')
     result=(ctypes.c_ubyte*6).in_dll(lib,'zr_result');op=ctypes.c_ubyte.in_dll(lib,'zr_op');error=ctypes.c_ubyte.in_dll(lib,'zr_error');integer=ctypes.c_int16.in_dll(lib,'zr_integer');checks=0
     for command,left,right,n,(wanted,status,value)in vectors()+list(sqrt_host_vectors()):
@@ -430,7 +430,7 @@ def host():
             assert decode(low)<=decode(actual)<=decode(high),(command,bits.hex(),actual.hex(),low.hex(),high.hex())
             if not actual[0]:assert actual==bytes(6)
         checks+=1
-    report={'passed':True,'compiler_conversions':compiler_conversions(lib,out),'host_vectors':checks,'source_sha256':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()for p in(ROOT/'src/real.c',ROOT/'src/transcendental.c',ROOT/'src/real.h',ROOT/'tools/test-real.py')}}
+    report={'passed':True,'compiler_conversions':compiler_conversions(lib,out),'host_vectors':checks,'source_sha256':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()for p in(ROOT/'src/runtime/numbers/real.c',ROOT/'src/runtime/numbers/transcendental.c',ROOT/'src/runtime/numbers/real.h',ROOT/'tools/test-real.py')}}
     (out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print('PASS',checks,'host Real6 vectors')
 
 def sanitize(trig=False):
@@ -439,15 +439,15 @@ def sanitize(trig=False):
     executable=out/'real-core'
     subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror',
                     '-fsanitize=address,undefined','-fno-sanitize-recover=all','-g',
-                    *(['-DZP_TRIG_TEST']if trig else[]),'-I'+str(ROOT/'src'),'-I'+str(out),str(ROOT/'src/real.c'),str(ROOT/'src/transcendental.c'),
+                    *(['-DZP_TRIG_TEST']if trig else[]),'-I'+str(ROOT/'src'),'-I'+str(out),str(ROOT/'src/runtime/numbers/real.c'),str(ROOT/'src/runtime/numbers/transcendental.c'),
                     str(ROOT/'tests/native/real-core.c'),'-o',str(executable)],check=True)
     subprocess.run([str(executable)],check=True)
 
 def native(trig=False):
     spec=importlib.util.spec_from_file_location('n',ROOT/'tools/test-native.py');n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n);target='ztrigtest'if trig else'zrealtest';sym=n.symbols(target)
     inputs=[n.EMULATOR,n.ROM,ROOT/f'build/{target}.bin',ROOT/f'build/{target}.map',
-            ROOT/('build/trig_vectors.h'if trig else'build/real_vectors.h'),ROOT/'CMakeLists.txt',ROOT/'src/real.c',ROOT/'src/real.h',
-            ROOT/'src/zp.h',ROOT/'src/transcendental.c',ROOT/'tests/native/real-core.c',ROOT/'tests/native/machine.asm',
+            ROOT/('build/trig_vectors.h'if trig else'build/real_vectors.h'),ROOT/'CMakeLists.txt',ROOT/'src/runtime/numbers/real.c',ROOT/'src/runtime/numbers/real.h',
+            ROOT/'src/common/zp.h',ROOT/'src/runtime/numbers/transcendental.c',ROOT/'tests/native/real-core.c',ROOT/'tests/native/machine.asm',
             ROOT/'tools/test-real.py',ROOT/'tools/test-native.py']
     hashes={str(p):hashlib.sha256(p.read_bytes()).hexdigest()for p in inputs}
     stop=sym['_test_stop'];assert stop==0xfc00

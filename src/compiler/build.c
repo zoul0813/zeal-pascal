@@ -10,10 +10,10 @@
 #include "compiler/link/link.h"
 #include "compiler/link/layout.h"
 #ifdef ZP_UNITS_EXPERIMENT
-#include "library.h"
+#include "platform/banks/loader.h"
 #endif
 #include "compiler/disk.h"
-#include "image.h"
+#include "program/image.h"
 
 /* Build ownership, sealing and source lookup share a code bank. Compiler
  * emission reaches these through banked helpers or the resident public API. */

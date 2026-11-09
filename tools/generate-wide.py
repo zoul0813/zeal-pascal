@@ -112,7 +112,7 @@ def generate():
 
 def restore(e):e.emit(0xdd,0xf9,0x21,24,0,0x39,0xf9,0xd1,0xd1,0xc1,0xf1,0xfd,0xe1,0xdd,0xe1)
 def main():
-    root=Path(__file__).resolve().parents[1];text=(root/'src/zp.h').read_text()
+    root=Path(__file__).resolve().parents[1];text=(root/'src/common/zp.h').read_text()
     constants={n:int(re.search(r'#define '+n+r'\s+(0x[0-9a-fA-F]+)',text)[1],16)for n in ('RT_REAL_BUFFER','RT_ERROR')}
     def fixed(self,name,delta=0):v=constants[name]+delta;self.emit(v&255,v>>8)
     Engine.emit_fixed=fixed;e=generate()

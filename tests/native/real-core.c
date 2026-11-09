@@ -1,5 +1,5 @@
-#include "zp.h"
-#include "real.h"
+#include "common/zp.h"
+#include "runtime/numbers/real.h"
 #ifndef __SDCC
 #include <stdio.h>
 #endif

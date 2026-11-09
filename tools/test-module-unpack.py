@@ -55,7 +55,7 @@ def native():
     for area in ('DATA','BSS','INITIALIZED'):
         assert symbols['s__'+area]+symbols['l__'+area]<=0x8000
     inputs=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/package-native.py',ROOT/'tools/test-native.py',n.EMULATOR,n.ROM]
-    inputs += [ROOT/'src'/name for name in ('module_unpack.asm','chain.h','chain_native.asm')]
+    inputs += [ROOT/'src'/name for name in ('runtime/unpack.asm','runtime/process/chain.h','runtime/process/chain_native.asm')]
     inputs += [ROOT/'tests/native'/name for name in ('unpack-native.c','unpack-probe.asm')]
     inputs += [ROOT/f'build/{target}.{ext}'for ext in ('bin','map')]
     inputs += [ROOT/'build'/name for name in ('module_unpack.zpl','file_runtime.packed','file_runtime.zpl','transfer_runtime.packed','transfer_runtime.zpl')]
@@ -63,7 +63,7 @@ def native():
     commands=['run 100000000']+n.type_text('H:/'+target+'.bin',ticks=2000000)
     commands+=['bp 0x4000','tap ENTER','run 1000000000','bc 0x4000',f"bp 0x{symbols['_unpack_stop']:x}",'s','run 20000000000','regs','mmu']
     for name in ('_test_done','_test_passed','_test_failed'):commands += [f'rb 0x{symbols[name]:x} 2']
-    commands += [f"rb 0x{symbols['_test_mappings']:x} 2"]
+    commands += [f"rb 0x{symbols['_test_mappings']:x} 2",f"rb 0x{symbols['_test_free_pages']:x} 1"]
     commands += [f"rb 0x{symbols['_test_failures']:x} 128",'quit']
     files={target+'.bin':(ROOT/f'build/{target}.bin').read_bytes()}
     files.update({'raw'+str(i)+'.dat':raw for i,(_,raw) in enumerate(cases())})
@@ -73,8 +73,15 @@ def native():
         return {int(window,16):int(physical,16)//16384 for window,physical in
                 re.findall(r'\[DBG\] (4000|8000|c000) -> ([0-9a-fA-F]{6})',frame)}
     actual=mappings(raw)
+    free_pages=memory.get(symbols['_test_free_pages'],255)
+    # Each availability scan checks every allocation/release and its limit;
+    # each case checks every read/suffix block. Runtime fixture lengths vary.
+    rows=cases()
+    expected_assertions=(len(rows)+1)*(2*free_pages+1)+1
+    expected_assertions+=sum(7+2*((len(data)+127)//128)+(16384-len(data)+127)//128
+                             for _,data in rows)
     checks={'actual independent completion':memory.get(symbols['_test_done'])==255 and f"PC={symbols['_unpack_stop']:04x} "in raw,
-        'all bytes, overlapping/max-distance matches, full16KiB destination, untouched suffix, IX/IY, MMU and pages':word('_test_failed')==0 and word('_test_passed')>=1359,
+        'all bytes, overlapping/max-distance matches, full16KiB destination, untouched suffix, IX/IY, MMU and pages':0<free_pages<32 and word('_test_failed')==0 and word('_test_passed')==expected_assertions,
         'F1 and F2 observers match distinct actual debugger MMU pages':
             actual.get(0x4000)!=actual.get(0x8000) and all(32<=actual.get(at,255)<64 and
                 memory.get(symbols['_test_mappings']+i)==actual[at]for i,at in enumerate((0x4000,0x8000))),
@@ -100,7 +107,7 @@ def native():
                   before.get(0x8000)==changed.get(0x8000))
     checks['skipping prefix restore is detected independently before C return']=detected
     checks['all qualification inputs unchanged']=all(n.sha(Path(path))==value for path,value in hashes.items())
-    report={'passed':all(checks.values()),'scope':__doc__,'checks':checks,'native_assertions':word('_test_passed'),
+    report={'passed':all(checks.values()),'scope':__doc__,'checks':checks,'native_assertions':word('_test_passed'),'expected_assertions':expected_assertions,'free_pages':free_pages,
             'failed':word('_test_failed'),'capture_directory':str(n.RUN.relative_to(ROOT)),'input_sha256':hashes}
     (n.RUN/'module-unpack-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2));assert report['passed']

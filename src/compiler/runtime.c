@@ -1,5 +1,5 @@
 #include "compiler/internal.h"
-#include "library.h"
+#include "platform/banks/loader.h"
 #include "optional_runtime.h"
 #include <zos_errors.h>
 

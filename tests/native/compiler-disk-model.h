@@ -1,6 +1,6 @@
 /* Deterministic SDK disk for saved compiler jobs. Source includes keep their
  * existing independent read_block oracle; only compiler scratch uses this. */
-#include "output_transport.h"
+#include "storage/transport.h"
 #include <zos_vfs.h>
 static struct {
     char name[128];uint8_t bytes[65536],exists,opened;

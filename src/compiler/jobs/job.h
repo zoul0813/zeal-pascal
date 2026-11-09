@@ -1,6 +1,6 @@
 #ifndef ZP_COMPILER_JOB_H
 #define ZP_COMPILER_JOB_H
-#include "sources.h"
+#include "source/catalog.h"
 /* Diagnostic captured before synchronous compiler cleanup. */
 #define COMPILER_UNIT_MODE 3u
 typedef struct {Diagnostic diagnostic;char path[128];uint8_t interrupted;} CompileFailure;

@@ -1,6 +1,6 @@
 /* SDK supervisor observes replacement status, its own borrowed page, inherited
  * stdout and the complete physical-page inventory. It never lends ownership. */
-#include "chain.h"
+#include "runtime/process/chain.h"
 #include <string.h>
 #include <zos_sys.h>
 #include <zos_vfs.h>

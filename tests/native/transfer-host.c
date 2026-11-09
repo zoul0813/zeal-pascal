@@ -1,6 +1,6 @@
 /* Coordinator faults with modeled SDK/file/staging services. The real staged
  * loader and native nonreturning transport are independently exercised. */
-#include "transfer.h"
+#include "runtime/process/transfer.h"
 #include <zos_vfs.h>
 #include <stdio.h>
 #include <stdlib.h>

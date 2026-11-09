@@ -1,6 +1,6 @@
 #include "units/internal.h"
 #include "compiler/link/link.h"
-#include "library.h"
+#include "platform/banks/loader.h"
 
 /* This is an experimental resource limit, not an artifact-field limit. The
  * near arrays live only during final linking on the compiler's retained C

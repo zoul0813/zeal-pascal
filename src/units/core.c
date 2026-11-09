@@ -1,8 +1,8 @@
 #include "units/internal.h"
 #include "compiler/jobs/job.h"
-#include "library.h"
+#include "platform/banks/loader.h"
 #include "compiler/disk.h"
-#include "output_transport.h"
+#include "storage/transport.h"
 #include <zos_errors.h>
 
 /* Only the synchronous invocation writes this compiler-private owner. A

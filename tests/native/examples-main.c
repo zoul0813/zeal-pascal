@@ -1,7 +1,7 @@
 /* Compile the actual example files and run saved native programs with replay
  * keyboard input. Each run gets a fresh capture descriptor; the database survives the two runs. */
 #include "harness.h"
-#include "image.h"
+#include "program/image.h"
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done;
 volatile uint16_t test_failures[64],test_index;

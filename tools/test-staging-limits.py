@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='zp-staging-')as directory:
         'src/compiler/codegen/emit.c','src/compiler/frontend.c','tests/host/staging-emission.c',
         '-Wl,-dead_strip','-o',str(temp/'emission')],cwd=ROOT,check=True)
     subprocess.run([str(temp/'emission')],check=True)
-    sdk=Path(os.environ.get('ZP_ZEAL_ROOT',str(ROOT.parent)))/'Zeal-8-bit-OS/sdk/sdcc/include'
+    sdk=Path(os.environ.get('ZP_ZEAL_ROOT',str(ROOT.parent)))/'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
     if not sdk.exists():raise SystemExit('Set ZP_ZEAL_ROOT to the existing Zeal development root')
     subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-g','-Isrc','-I'+str(sdk),
         '-ffunction-sections','-fdata-sections','-fsanitize=address,undefined',

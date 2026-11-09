@@ -1,8 +1,8 @@
 #include "harness.h"
 #include "compiler/groups/members.h"
 #include "compiler/groups/groups.h"
-#include "output_transport.h"
-#include "file_runtime.h"
+#include "storage/transport.h"
+#include "runtime/files/operations.h"
 
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done,release_original;

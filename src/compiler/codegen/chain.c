@@ -1,6 +1,6 @@
 #include "compiler/groups/late.h"
 #include "compiler/link/layout.h"
-#include "file_runtime.h"
+#include "runtime/files/operations.h"
 #include "transfer_asset.h"
 
 uint16_t cc_transfer_asset_size(uint8_t kind) FRONTEND {

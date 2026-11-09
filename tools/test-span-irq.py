@@ -149,7 +149,7 @@ def main():
     events, timings, proof = {}, [], {}
     started = time.monotonic()
     inputs = [Path(__file__), ROOT/'tools/test-native.py', n.EMULATOR, n.ROM,
-              ROOT/'src/native.asm', ROOT/'src/zp.h', ROOT/'tests/native/job-main.c']
+              ROOT/'src/platform/native.asm', ROOT/'src/common/zp.h', ROOT/'tests/native/job-main.c']
     inputs += [directory/f'zjobtest.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
     hashes = {str(p): n.sha(p) for p in inputs}
 

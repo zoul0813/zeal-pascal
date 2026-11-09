@@ -1,5 +1,5 @@
 #include "units/internal.h"
-#include "library.h"
+#include "platform/banks/loader.h"
 
 /* One invocation owns one canonical module per Pascal name. Dependency IDs
  * belong to each file; a sealed table after its immutable bytes binds those

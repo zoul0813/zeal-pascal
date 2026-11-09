@@ -1,8 +1,8 @@
 #include "compiler/internal.h"
 #include "compiler/disk.h"
 #include "compiler/link/layout.h"
-#include "path.h"
-#include "output_transport.h"
+#include "common/path.h"
+#include "storage/transport.h"
 #include <zos_vfs.h>
 #include <zos_errors.h>
 

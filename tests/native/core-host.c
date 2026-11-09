@@ -5,8 +5,8 @@
 #include "compiler/jobs/job.h"
 #include <zos_vfs.h>
 #include "stream-hash.h"
-#include "source_move.h"
-#include "image.h"
+#include "source/move.h"
+#include "program/image.h"
 #include "transfer_asset.h"
 #include <assert.h>
 #include <stdio.h>

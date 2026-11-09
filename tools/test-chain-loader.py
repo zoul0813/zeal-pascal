@@ -76,12 +76,12 @@ def host():
     sdk=ROOT.parent/'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
     cmd=['cc','-std=c99','-Wall','-Wextra','-Werror','-fno-builtin-exit','-fsanitize=address,undefined','-fno-sanitize-recover=all','-g','-DZP_CHAIN_HOST','-D__SDCC_VERSION_MAJOR=4','-D__SDCC_VERSION_MINOR=2','-D__sdcccall(x)=','-Isrc', '-Itests/native', '-Itests/host','-I'+str(sdk)]
     cmd+=['-D'+name+'=chain_model_'+name for name in ('open','read','close','seek','palloc','pfree')]
-    cmd+=['src/chain.c','src/native_image.c','tests/host/sha256.c','tests/native/chain-host.c',str(asset),'-o',str(OUT/'chain-host')]
+    cmd+=['src/runtime/process/chain.c','src/program/decode.c','tests/host/sha256.c','tests/native/chain-host.c',str(asset),'-o',str(OUT/'chain-host')]
     subprocess.run(cmd,cwd=ROOT,check=True);subprocess.run([str(OUT/'chain-host'),str(OUT)],cwd=ROOT,check=True)
     flags=['cc','-std=c99','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
            '-fno-sanitize-recover=all','-g','-Isrc', '-Itests/native', '-Itests/host','-I'+str(sdk)]
     for name,defines in [('generic',[]),('chain',['-DZP_CHAIN_ONLY'])]:
-        subprocess.run(flags+defines+['-Dnative_decode=decode_'+name,'-c','src/native_image.c','-o',str(OUT/(name+'.o'))],cwd=ROOT,check=True)
+        subprocess.run(flags+defines+['-Dnative_decode=decode_'+name,'-c','src/program/decode.c','-o',str(OUT/(name+'.o'))],cwd=ROOT,check=True)
     subprocess.run(flags+['tests/native/native-decode-host.c',str(OUT/'generic.o'),str(OUT/'chain.o'),'-o',str(OUT/'decode-host')],cwd=ROOT,check=True)
     subprocess.run([str(OUT/'decode-host')],cwd=ROOT,check=True)
 def native():

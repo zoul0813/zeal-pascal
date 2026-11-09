@@ -3,7 +3,7 @@
 #include "optional_runtime.h"
 #endif
 #ifdef __SDCC
-#include "library.h"
+#include "platform/banks/loader.h"
 #endif
 
 /* The immutable template lives at offset zero in verified library bank 8.

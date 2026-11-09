@@ -11,7 +11,7 @@ def host():
     sdk=ROOT.parent/'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
     command=['cc','-std=c99','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-g','-DZP_FILE_HOST','-D__SDCC_VERSION_MAJOR=4','-D__SDCC_VERSION_MINOR=2','-D__sdcccall(x)=','-Isrc','-I'+str(sdk)]
     command+=['-D'+name+'=zf_model_'+name for name in ('open','close','read','write','seek','ioctl','exit')]
-    command+=['src/path.c','src/file_runtime.c','tests/native/chain-files.c','tests/native/file-model.c','-o',str(out/'chain-files')]
+    command+=['src/common/path.c','src/runtime/files/operations.c','tests/native/chain-files.c','tests/native/file-model.c','-o',str(out/'chain-files')]
     subprocess.run(command,cwd=ROOT,check=True);subprocess.run([str(out/'chain-files')],cwd=ROOT,check=True)
 def native():
     spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py')

@@ -3,22 +3,26 @@
 
 # The shared pure path resolver lives beside IDE file operations, and in the
 # disk module's own retained prefix when used by generated Pascal programs.
-add_library(ide_paths OBJECT src/path.c)
+add_library(ide_paths OBJECT src/common/path.c)
 
 target_compile_definitions(ide_paths PRIVATE ZP_IDE_PATHS)
+
+target_include_directories(ide_paths PRIVATE src)
 
 target_compile_options(ide_paths PRIVATE --std-c99 --opt-code-size
     "SHELL:--codeseg BANK3" "SHELL:--constseg BANK3")
 
 # Compiler execution needs only literal/integer conversion. Generated programs
 # use the full arithmetic/format/Val/transcendental runtime template.
-add_library(real_compiler OBJECT src/real.c)
+add_library(real_compiler OBJECT src/runtime/numbers/real.c)
 
 target_compile_definitions(real_compiler PRIVATE ZP_REAL_COMPILER)
 
+target_include_directories(real_compiler PRIVATE src)
+
 target_compile_options(real_compiler PRIVATE --std-c99 --opt-code-size "SHELL:--codeseg BANK9" "SHELL:--constseg BANK9")
 
-add_library(image_compiler OBJECT src/native_image.c src/compiler/link/image.c)
+add_library(image_compiler OBJECT src/program/decode.c src/compiler/link/image.c)
 
 target_include_directories(image_compiler PRIVATE src)
 
@@ -26,9 +30,9 @@ target_include_directories(image_compiler PRIVATE src)
 # parser-bank reload. Keep the entry and near decoder in retained support.
 target_compile_options(image_compiler PRIVATE --std-c99 "SHELL:--codeseg BANK11" "SHELL:--constseg BANK11")
 
-add_executable(zpascal src/startup.asm src/banks.c src/main.c src/editor.c src/source_blocks.c $<TARGET_OBJECTS:unit_runtime_core> $<TARGET_OBJECTS:unit_fragment_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
+add_executable(zpascal src/app/startup.asm src/app/banks.c src/editor/ide.c src/editor/core.c src/source/blocks.c $<TARGET_OBJECTS:unit_runtime_core> $<TARGET_OBJECTS:unit_fragment_core> $<TARGET_OBJECTS:real_compiler> $<TARGET_OBJECTS:image_compiler> $<TARGET_OBJECTS:ide_paths>)
 
-target_sources(zpascal PRIVATE src/main_display.c)
+target_sources(zpascal PRIVATE src/editor/display.c)
 
 target_compile_definitions(zpascal PRIVATE ZP_OPTIONAL_REAL ZP_UNITS_EXPERIMENT)
 

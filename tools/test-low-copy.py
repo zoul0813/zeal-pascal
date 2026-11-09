@@ -14,8 +14,8 @@ def main():
     spec.loader.exec_module(n)
     target = 'zlowcopytest'
     sym = n.symbols(target)
-    paths = [Path(__file__).resolve(), ROOT/'CMakeLists.txt', ROOT/'src/file_low_copy.asm',
-             ROOT/'src/file_runtime.h', ROOT/'tests/native/low-copy.c',
+    paths = [Path(__file__).resolve(), ROOT/'CMakeLists.txt', ROOT/'src/runtime/files/low_copy.asm',
+             ROOT/'src/runtime/files/operations.h', ROOT/'tests/native/low-copy.c',
              ROOT/'tests/native/low-copy.asm', ROOT/'tests/native/file-start.asm',
              ROOT/'tests/native/machine.asm', ROOT/'tools/test-native.py', n.EMULATOR, n.ROM,
              ROOT/f'build/{target}.bin', ROOT/f'build/{target}.map']

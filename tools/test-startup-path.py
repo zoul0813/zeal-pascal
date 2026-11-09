@@ -21,7 +21,7 @@ assert prologue==bytes.fromhex('dde5dd210000dd39')
 message=b'Invalid Pascal library path\n\0'
 assert image.count(message)==1
 message_address=0x4000+image.index(message)
-inputs=[Path(__file__),ROOT/'tools/test-native.py',ROOT/'src/banks.c',ROOT/'src/startup.asm',
+inputs=[Path(__file__),ROOT/'tools/test-native.py',ROOT/'src/app/banks.c',ROOT/'src/app/startup.asm',
         n.EMULATOR,n.ROM]+[ROOT/f'build/zpascal.{ext}'for ext in ('bin','zpl','map','banks.json')]
 hashes={str(p):n.sha(p)for p in inputs}
 results=[]

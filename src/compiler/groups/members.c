@@ -3,7 +3,7 @@
 #pragma codeseg BANK16
 #pragma constseg BANK16
 #endif
-#include "output_transport.h"
+#include "storage/transport.h"
 #include <zos_vfs.h>
 #include <zos_errors.h>
 

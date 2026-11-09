@@ -189,7 +189,7 @@ def host():
                '-DZP_OVERLAY_HOST', '-D__SDCC_VERSION_MAJOR=4', '-D__SDCC_VERSION_MINOR=2', '-D__sdcccall(x)=',
                '-Isrc', '-Itests/native', '-Itests/host', '-I'+str(sdk), '-I'+str(out)]
     command += ['-D'+name+'=overlay_model_'+name for name in ('open', 'read', 'close', 'dstat', 'palloc', 'pfree')]
-    command += ['src/overlay.c', 'tests/host/sha256.c', 'tests/native/overlay-host.c', '-o', str(out/'model')]
+    command += ['src/runtime/process/overlay.c', 'tests/host/sha256.c', 'tests/native/overlay-host.c', '-o', str(out/'model')]
     subprocess.run(command, cwd=ROOT, check=True)
     subprocess.run([str(out/'model'), str(out)], cwd=ROOT, check=True)
 
@@ -205,7 +205,7 @@ def native():
     directory = ROOT/'build/overlay-fixtures'
     cases = fixtures(directory)
     inputs = [Path(__file__), ROOT/'CMakeLists.txt', ROOT/'tools/test-native.py', n.EMULATOR, n.ROM]
-    inputs += [ROOT/'src'/name for name in ('overlay.c', 'overlay.h', 'chain.h', 'chain_native.asm', 'sha256.c', 'sha256.h', 'sha_z80.asm')]
+    inputs += [ROOT/'src'/name for name in ('runtime/process/overlay.c', 'runtime/process/overlay.h', 'runtime/process/chain.h', 'runtime/process/chain_native.asm', 'common/zp.h')]
     inputs += [ROOT/'tests/native/overlay-native.c', ROOT/f'build/{target}.bin', ROOT/f'build/{target}.map', directory/'overlay-fixtures.h']
     hashes = {str(p): n.sha(p) for p in inputs}
     commands = ['run 100000000'] + n.type_text('H:/'+target+'.bin', ticks=2000000)

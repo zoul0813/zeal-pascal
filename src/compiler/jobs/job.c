@@ -4,13 +4,13 @@
 #include "compiler/jobs/job.h"
 #include "compiler/internal.h"
 #include "compiler/disk.h"
-#include "output_transport.h"
+#include "storage/transport.h"
 #include <zos_errors.h>
 #include <zos_vfs.h>
 #ifdef ZP_UNITS_EXPERIMENT
 #include "units/internal.h"
 #include "units/output.h"
-#include "library.h"
+#include "platform/banks/loader.h"
 #endif
 
 /* The IDE is suspended for this synchronous invocation. Only captured source

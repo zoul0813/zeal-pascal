@@ -1,5 +1,5 @@
 #include "harness.h"
-#include "sources.h"
+#include "source/catalog.h"
 #include "compiler/internal.h"
 #include "compiler/disk.h"
 volatile uint16_t test_passed,test_failed,test_stage,test_index,test_pc,test_io_pc;

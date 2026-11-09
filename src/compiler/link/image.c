@@ -1,4 +1,4 @@
-#include "image.h"
+#include "program/image.h"
 
 /* The compiler's banked entry owns the switch; native_decode is a near call
  * shared with standalone loader modules. Keep both in image_compiler's bank. */

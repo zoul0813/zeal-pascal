@@ -1,6 +1,6 @@
 #include "harness.h"
 #include "units/internal.h"
-#include "native_image.h"
+#include "program/decode.h"
 #include <zos_time.h>
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done,screen_final_pages,screen_final_cached;

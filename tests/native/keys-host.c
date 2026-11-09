@@ -1,4 +1,4 @@
-#include "keys.h"
+#include "platform/keyboard.h"
 #include <zos_keyboard.h>
 #include <assert.h>
 #include <stdio.h>

@@ -1,7 +1,7 @@
 /* Actual loader against a deterministic SDK; caller memory is independent of
  * the staged pages and must remain byte-identical until authenticated commit. */
-#include "chain.h"
-#include "execute_handoff.h"
+#include "runtime/process/chain.h"
+#include "runtime/process/execute_handoff.h"
 #include <zos_vfs.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,8 +1,8 @@
 /* Exact production staging code with deterministic SDK failure injection.
  * This is a component proof, not Pascal overlay compiler acceptance. */
-#include "overlay.h"
+#include "runtime/process/overlay.h"
 static uint8_t modified;
-#include "chain.h"
+#include "runtime/process/chain.h"
 #include "overlay-fixtures.h"
 #include <zos_vfs.h>
 #include <stdio.h>

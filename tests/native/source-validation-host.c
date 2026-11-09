@@ -1,6 +1,6 @@
 /* Differential edit oracle and validity-certificate invalidation checks. */
-#include "zp.h"
-#include "source_move.h"
+#include "common/zp.h"
+#include "source/move.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>

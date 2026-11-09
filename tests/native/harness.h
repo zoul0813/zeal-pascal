@@ -1,6 +1,6 @@
 #ifndef ZP_TEST_HARNESS_H
 #define ZP_TEST_HARNESS_H
-#include "library.h"
+#include "platform/banks/loader.h"
 #include <zos_vfs.h>
 #include <zos_sys.h>
 extern volatile uint16_t test_passed,test_failed,test_stage,test_failures[64],test_index;

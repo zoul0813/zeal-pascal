@@ -18,7 +18,7 @@ assert (BUILD/'zpascal.bin').stat().st_size==metadata['resident_bytes']
 for bank,size in enumerate(metadata['bank_bytes'],1):
  assert int(re.search(r'^\s*([0-9A-Fa-f]{8})\s+l__BANK'+str(bank)+r'\s',map_text,re.M)[1],16)==size
  assert size<=16384
-names=re.findall(r'CODE_\w+',re.search(r'enum \{(.*?)\};',(ROOT/'src/library.h').read_text(),re.S)[1])
+names=re.findall(r'CODE_\w+',re.search(r'enum \{(.*?)\};',(ROOT/'src/platform/banks/loader.h').read_text(),re.S)[1])
 lent={names.index(n)+1 for n in ('CODE_STATEMENTS','CODE_EXPRESSIONS','CODE_FILE_COMPILER','CODE_TRANSFER')}
 functions={};inputs={}
 for object_name in re.findall(r'(\S+\.c\.rel)',(BUILD/'CMakeFiles/zpascal.dir/link.txt').read_text()):
@@ -118,7 +118,7 @@ assert set(drops[:4])=={n-1 for n in lent}
 assert bank_of(public['cc_source_byte'])==bank_of(public['cc_reference_position'])==names.index('CODE_FILE_RUNTIME')+1
 flags=BUILD/'CMakeFiles/unit_runtime_core.dir/flags.make'
 assert '-DZP_OPTIONAL_REAL'in flags.read_text()and '-DZP_UNITS_EXPERIMENT'in flags.read_text()
-assert public['cc_source_byte'][0]=='src/compiler/sources.c'and public['code_phase_unit_finish_begin'][0]=='src/library_phase.c'
+assert public['cc_source_byte'][0]=='src/compiler/sources.c'and public['code_phase_unit_finish_begin'][0]=='src/compiler/phase.c'
 # After a failed reload, only guarded compilation may reach parser code.
 # Walk every reverse edge, stopping at the compile-project body whose resident
 # entry points all check code_phase_restore before selecting its bank.

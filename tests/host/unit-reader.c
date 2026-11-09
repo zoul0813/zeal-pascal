@@ -3,7 +3,7 @@
 #include <zos_vfs.h>
 #include <stdio.h>
 #include <assert.h>
-#include "output_transport.h"
+#include "storage/transport.h"
 #include <zos_errors.h>
 Compiler cc;uint8_t platform_error;
 static Diagnostic diagnostic;

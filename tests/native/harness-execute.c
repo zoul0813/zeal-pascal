@@ -1,5 +1,5 @@
 #include "harness.h"
-#include "native_image.h"
+#include "program/decode.h"
 
 /* Publication and saved execution must select the same ordinary corpora. */
 static uint8_t saved_corpus(void) {

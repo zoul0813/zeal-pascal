@@ -134,7 +134,7 @@ def main():
         # 11 author fixtures (6 checks), two clients (9), five lifecycle
         # checks, plus 13 closes checking every configured compiler bank slot.
         bank_limit=int(re.search(r'^#define CODE_BANK_LIMIT (\d+)',
-            (ROOT/'src/library.h').read_text(),re.M)[1])
+            (ROOT/'src/platform/banks/loader.h').read_text(),re.M)[1])
         expected_assertions=11*6+2*9+5+13*(1+bank_limit)
         checks['exact focused assertion count']=word('_test_index')==expected_assertions
         checks['library probe skipped']=byte('_test_unit_attempted')==0

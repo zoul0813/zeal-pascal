@@ -1,5 +1,5 @@
-#include "editor.h"
-#include "library.h"
+#include "editor/editor.h"
+#include "platform/banks/loader.h"
 
 volatile uint16_t test_passed,test_failed,test_stage,test_index,test_failures[64];
 volatile uint8_t test_done;

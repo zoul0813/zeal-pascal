@@ -1,8 +1,8 @@
 #include "compiler/internal.h"
 #include "compiler/disk.h"
-#include "library.h"
+#include "platform/banks/loader.h"
 #include "optional_runtime.h"
-#include "output_transport.h"
+#include "storage/transport.h"
 #include <zos_errors.h>
 #include <zos_sys.h>
 

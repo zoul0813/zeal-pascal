@@ -25,13 +25,13 @@ def split_assembly(text,prefix):
 def build(directory,cc,assembler,sdk,payload_only=False):
  directory=directory.resolve();out=directory/'direct-file';out.mkdir(exist_ok=True)
  paths=[]
- for source,prefix in [('file_runtime.c','F'),('path.c','P')]:
+ for source,prefix in [('runtime/files/operations.c','F'),('common/path.c','P')]:
   asm=out/(prefix+'.asm')
   subprocess.run([cc,'-mz80','--std-c99','--opt-code-size','-DZP_DIRECT_FILE','-I'+str(ROOT/'src'),'-I'+str(sdk/'include'),'-S',str(ROOT/'src'/source),'-o',str(asm)],check=True)
   split=out/(prefix+'-split.asm');split.write_text(split_assembly(asm.read_text(),prefix))
   rel=out/(prefix+'.rel');subprocess.run([assembler,'-g','-o',str(rel),str(split)],check=True);paths.append(rel)
- for source in ('file_direct.asm',):
-  rel=out/(source+'.rel');subprocess.run([assembler,'-g','-o',str(rel),str(ROOT/'src'/source)],check=True);paths.append(rel)
+ for source in ('runtime/files/direct.asm',):
+  rel=out/(Path(source).name+'.rel');subprocess.run([assembler,'-g','-o',str(rel),str(ROOT/'src'/source)],check=True);paths.append(rel)
  # Use the SDK's actual syscall wrappers, each in its own linkable area.
  glue=(sdk/'src/zeal8bitos.asm').read_text()
  public=set(re.findall(r'(?m)^\s*\.globl\s+(\w+)',glue))

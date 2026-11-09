@@ -1,6 +1,6 @@
 /* Retained CHN staging/install, native executable staging and caller-page rollback.
  * OS override/stack switching and Pascal Execute(F) are separate integration tests. */
-#include "chain.h"
+#include "runtime/process/chain.h"
 #include <string.h>
 #include <zos_sys.h>
 #include <zos_vfs.h>

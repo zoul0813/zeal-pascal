@@ -1,7 +1,7 @@
 /* Test-only SDK parent lends a preloaded module to a real saved Pascal child.
  * The child copies it into its own page; the parent releases only its own page.
  * It closes every own transient and measures the complete physical inventory. */
-#include "chain.h"
+#include "runtime/process/chain.h"
 #include <string.h>
 #include <zos_sys.h>
 #include <zos_vfs.h>

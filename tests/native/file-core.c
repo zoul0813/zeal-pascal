@@ -1,5 +1,5 @@
-#include "file_runtime.h"
-#include "path.h"
+#include "runtime/files/operations.h"
+#include "common/path.h"
 #include <string.h>
 #include <zos_vfs.h>
 #ifndef __SDCC

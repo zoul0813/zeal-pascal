@@ -16,8 +16,9 @@ def main():
     providers={'src/compiler/codegen/chain.c.rel','src/units/io/loader.c.rel','optional_runtime_asset.asm.rel','src/compiler/expressions.c.rel','src/compiler/codegen/builtins/interrupt.c.rel','src/compiler/codegen/builtins/files.c.rel','src/compiler/codegen/builtins/io.c.rel'}
     imports={};defined=set();violations=[]
     inputs={ROOT/'build/zpascal.map',ROOT/'build/zpascal.bin',ROOT/'build/zpascal.zpl',Path(__file__).resolve()}
-    # Include fragment objects as well as compiler objects: Unit loading and
-    # transfer compilation also provide startup-cold code.
+    # Include fragment objects as well as compiler objects. Explicit provider
+    # and importer sets also account for pre-existing checker drift: Unit
+    # names loads the cold reader only inside code_phase_unit_io/finish guards.
     # Inspect only linked objects: old paths can remain after source moves.
     link=ROOT/'build/CMakeFiles/zpascal.dir/link.txt'
     inputs.add(link)

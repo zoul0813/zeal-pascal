@@ -58,8 +58,8 @@ def main():
     inputs = [ROOT/name for name in ('CMakeLists.txt','src/compiler/link/link.c','src/compiler/link/link.h',
         'src/compiler/tables/storage.c','src/compiler/tables/arena.c','src/compiler/link/emit.c','src/compiler/tables/arena.h','src/compiler/frontend.c','src/compiler/codegen/inline.c','src/compiler/build.c',
         'src/compiler/compile.c','src/units/linker/object.c','src/units/object.c',
-        'src/units/graph.c','src/compiler/internal.h','src/library.h','src/library_phase.c',
-        'src/startup.asm','src/compiler/groups/members.c','src/compiler/groups/members.h','src/compiler/groups/groups.c',
+        'src/units/graph.c','src/compiler/internal.h','src/platform/banks/loader.h','src/compiler/phase.c',
+        'src/app/startup.asm','src/compiler/groups/members.c','src/compiler/groups/members.h','src/compiler/groups/groups.c',
         'src/compiler/groups/groups.h','tools/test-linked-addresses.py','tests/host/link-placement.c',
         'build/zpascal.bin','build/zpascal.zpl','build/zpascal.map','build/zpascal.banks.json')]
     hashes = {str(path):n.sha(path) for path in inputs}

@@ -1,9 +1,9 @@
 #include "units/internal.h"
 #include "compiler/jobs/job.h"
-#include "library.h"
-#include "image.h"
+#include "platform/banks/loader.h"
+#include "program/image.h"
 #include <zos_errors.h>
-#include "output_transport.h"
+#include "storage/transport.h"
 #include <zos_sys.h>
 #include <zos_vfs.h>
 

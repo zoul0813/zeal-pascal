@@ -1,9 +1,9 @@
 /* Native staging component with independently authored ZOVR fixtures. Calling
  * their tiny Z80 members proves loader bytes; no Pascal compiler support is
  * implied. This retained test caller runs entirely below8000. */
-#include "overlay.h"
+#include "runtime/process/overlay.h"
 static uint8_t modified;
-#include "chain.h"
+#include "runtime/process/chain.h"
 #include "overlay-fixtures.h"
 #include <string.h>
 #include <zos_sys.h>
@@ -53,7 +53,7 @@ static void staged(uint16_t member) {
         n=bytes-at;if(n>128)n=128;
         if(n>16384u-at%16384u)n=16384u-at%16384u;
         chain_store=0;chain_page_io(load.pages[at/16384u],at%16384u,n);
-        for(i=0;i<n;++i)if(chain_buffer[i]!=(at+i<8?prefix[at+i]:(uint8_t)((at+i)*7+member*43)))break;
+        for(i=0;i<n;++i)if(chain_buffer[i]!=(at+i<8?prefix[at+i]:(uint8_t)(((at+i)*7+member*43)^(modified&&member==0&&at+i==100))))break;
         check(i==n);
     }
 }

@@ -1,6 +1,6 @@
 #include "harness.h"
 #include "compiler/jobs/job.h"
-#include "library.h"
+#include "platform/banks/loader.h"
 
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done;

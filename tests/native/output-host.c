@@ -1,12 +1,12 @@
 #include "hash-evidence.h"
 /* Execute product publication against a deterministic VFS. Faults are injected
  * at API boundaries, independently of the implementation's transaction stages. */
-#include "zp.h"
-#include "output_transport.h"
+#include "common/zp.h"
+#include "storage/transport.h"
 #include "compiler/groups/members.h"
 #include "compiler/groups/groups.h"
-#include "library.h"
-#include "file_runtime.h"
+#include "platform/banks/loader.h"
+#include "runtime/files/operations.h"
 #include <zos_vfs.h>
 #include <stdio.h>
 #include <stdlib.h>

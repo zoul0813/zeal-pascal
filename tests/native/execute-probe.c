@@ -2,7 +2,7 @@
  * Preflight uses a valid HostFS COM; the override path is a missing or corrupt
  * disposable-media twin, modelling a file/media change after validation.
  * This is component acceptance, not production Pascal Execute(F). */
-#include "chain.h"
+#include "runtime/process/chain.h"
 #include <string.h>
 #include <zos_sys.h>
 #include <zos_vfs.h>

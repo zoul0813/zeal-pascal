@@ -36,7 +36,7 @@ def main():
     out = ROOT/'analysis/fragments'/f'{stamp}-{os.getpid()}'
     out.mkdir(parents=True)
     paths = [ROOT/name for name in ('CMakeLists.txt', 'src/units/linker/fragments.c', 'src/units/linker/access.c', 'src/units/linker/source.c', 'src/units/linker/fragments.h',
-        'src/native.asm', 'src/zp.h', 'tests/native/fragments.c', 'tests/native/fragments.asm',
+        'src/platform/native.asm', 'src/common/zp.h', 'tests/native/fragments.c', 'tests/native/fragments.asm',
         'tests/native/file-start.asm', 'tests/native/machine.asm', 'tools/test-fragments.py', 'tools/test-native.py')]
     paths += sorted((ROOT/'cmake').glob('*.cmake'))
     hashes = {str(p.relative_to(ROOT)): sha(p) for p in paths}

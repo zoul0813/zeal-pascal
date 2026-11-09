@@ -1,6 +1,6 @@
 /* Inline file blocks across code-only handoff and failed Execute cleanup.
  * Disk handles are operation-scoped; Pascal Close explicitly finalizes. */
-#include "file_runtime.h"
+#include "runtime/files/operations.h"
 #include <string.h>
 #include <zos_vfs.h>
 #ifndef __SDCC

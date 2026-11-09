@@ -27,10 +27,10 @@ def integer_parity(destination):
     engines = []
     for name, flags, extra in (
             ('integer', ['-DZP_INTEGER_RUNTIME'], []),
-            ('full', [], [str(ROOT/'src/transcendental.c')])):
+            ('full', [], [str(ROOT/'src/runtime/numbers/transcendental.c')])):
         library = destination/(name+'.dylib')
         subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror',
-                        '-fPIC', '-shared', *flags, str(ROOT/'src/real.c'),
+                        '-fPIC', '-shared', '-I'+str(ROOT/'src'), *flags, str(ROOT/'src/runtime/numbers/real.c'),
                         *extra, '-o', str(library)], check=True)
         engines.append(ctypes.CDLL(str(library)))
     def result(engine, token, operation=15):
@@ -90,7 +90,7 @@ def file_binding_guards():
     package = module('file_package', ROOT/'tools/package-native.py')
     mutations = module('profile_mutations', ROOT/'tools/test-runtime-profile.py')
     names = ['compact_runtime.'+ext for ext in ('zpl','private','profile','runtime.json')]
-    names += ['compact_file_runtime.zpl','compact_file_runtime.packed',
+    names += ['sysfile.payload','compact_file_runtime.zpl','compact_file_runtime.packed',
               'file_runtime.zpl','file_runtime.packed','file_gate.zpl','transfer_runtime.zpl',
               'transfer_runtime.packed','transfer_gate.zpl','transfer_call.zpl',
               'execute_entry.zpl','module_unpack.zpl']
@@ -118,9 +118,9 @@ def file_binding_guards():
             package.package(image,'compact_runtime','compact_file_runtime')
         for name in ('compact_file_runtime.zpl','compact_file_runtime.packed'):
             blob=bytearray(original[name]);blob[-1]^=1;(directory/name).write_bytes(blob)
-            rejected('metadata or Chain profile')
+            rejected('packed file constant differs from its checked module')
             (directory/name).write_bytes(original[name])
-        rejected('metadata or Chain profile','file_runtime')
+        rejected('embedded file/unpack assets','file_runtime')
         symbols=package.read_symbols(image)
         image.write_text(mutations.flip_hex(original['zcompacttest.ihx'].decode(),symbols['_file_start']))
         rejected('embedded file/unpack assets')
@@ -141,16 +141,17 @@ def main():
     assert len(prefix) <= 0x2000
     # Bind the existing physical-keyboard observer to the alternate template.
     # No emulator internals or debug injection of Pascal results is used.
-    def input_layout():
+    def input_layout(image=None):
+        observed = prefix if image is None else image
         first = runtime['line_remaining']
         buffer, length = first+4, first+134
         word = lambda value: value.to_bytes(2, 'little')
         pattern = (b'\x21'+word(buffer)+b'\x22'+word(runtime['line_next'])+
                    b'\x3a'+word(length))
-        assert prefix.count(pattern) == 1
-        assert b'\xaf\x32'+word(length)+b'\x32'+word(first+2) in prefix
+        assert observed.count(pattern) == 1
+        assert b'\xaf\x32'+word(length)+b'\x32'+word(first+2) in observed
         return {'buffer': buffer, 'length': length,
-                'finished': 0x4000+prefix.index(pattern),
+                'finished': 0x4000+observed.index(pattern),
                 'mode': runtime['memory_mode'], 'cleanup': runtime['input_cleanup'],
                 'pattern': pattern}
     n.input_layout = input_layout

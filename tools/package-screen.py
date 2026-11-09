@@ -15,7 +15,7 @@ NAMES = ('clrscr','clreol','gotoxy','insline','delline','crtinit','crtexit',
 
 def build(directory):
     directory = directory.resolve()
-    text = (ROOT/'src/zp.h').read_text()
+    text = (ROOT/'src/common/zp.h').read_text()
     constants = {name: int(re.search(r'#define '+name+r'\s+(0x[0-9a-fA-F]+)', text)[1],16)
                  for name in ('RT_IOSTATUS','RT_IOFAIL','RT_PC','RT_IOCALL','RT_RANGE','RT_GUARD')}
     private = (directory/'pascal_runtime.private').read_bytes()

@@ -1,6 +1,6 @@
 #ifndef ZP_COMPILER_DISK_H
 #define ZP_COMPILER_DISK_H
-#include "zp.h"
+#include "common/zp.h"
 extern uint8_t compiler_disk_requested,compiler_disk_placed;
 uint8_t cc_disk_begin(Build *b,const Source *root,uint8_t chain);
 uint8_t cc_disk_active(const Build *b);

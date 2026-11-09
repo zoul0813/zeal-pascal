@@ -1,6 +1,6 @@
 #ifndef ZP_TEST_FAR_MOVE_MODEL_H
 #define ZP_TEST_FAR_MOVE_MODEL_H
-#include "../../src/zp.h"
+#include "../../src/common/zp.h"
 /* Host oracle stages the complete span, independently of native LDIR/LDDR
  * direction. Existing far_get/set spies still observe every byte/version. */
 static uint8_t model_far_move(uint8_t page,uint16_t destination,uint16_t source,uint16_t count) {

@@ -5,7 +5,7 @@
 #include "compiler/disk.h"
 #ifdef ZP_UNITS_EXPERIMENT
 #include "units/internal.h"
-#include "library.h"
+#include "platform/banks/loader.h"
 #endif
 #if defined(__SDCC) || defined(ZP_COMPILER_JOBS)
 #include "compiler/jobs/job.h"

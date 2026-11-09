@@ -11,7 +11,7 @@ n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
 def main():
     target='zfilegatetest';sym=n.symbols(target)
     paths=[Path(__file__),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',n.EMULATOR,n.ROM,
-           ROOT/'src/file_gate.asm',ROOT/'build/file_gate.zpl',ROOT/'build/file_gate.map',
+           ROOT/'src/runtime/files/gate.asm',ROOT/'build/file_gate.zpl',ROOT/'build/file_gate.map',
            ROOT/'tests/native/file-gate.c',ROOT/'tests/native/file-gate.asm',
            ROOT/'tests/native/file-start.asm',ROOT/'tests/native/machine.asm',
            ROOT/f'build/{target}.bin',ROOT/f'build/{target}.map']

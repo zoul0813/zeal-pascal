@@ -1,5 +1,5 @@
 /* The same behavioral cases execute on the host and in an actual Zeal bank. */
-#include "editor.h"
+#include "editor/editor.h"
 
 void check(uint8_t ok);
 void editor_search_checks(Source *s);
