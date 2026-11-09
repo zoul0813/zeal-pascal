@@ -381,19 +381,4 @@ __pycache__/
 *.py[cod]
 
 # Source-layout checkpoints and review.
-!/analysis/
-/analysis/*
-!/analysis/source-layout/
-!/analysis/source-layout/*.json
-
-# Read-only dead-code and warning audit; probe builds remain local.
-!/analysis/dead-code-audit/
-/analysis/dead-code-audit/*
-!/analysis/dead-code-audit/report.json
-!/analysis/dead-code-audit/linked-candidates.json
-!/analysis/dead-code-audit/source-inventory.json
-!/analysis/dead-code-audit/warnings.json
-!/analysis/dead-code-audit/warning-probes.json
-!/analysis/dead-code-audit/emitted-evidence.txt
-!/analysis/dead-code-audit/symbol-literal-consumers.json
-!/analysis/dead-code-audit/scan.py
+/analysis
