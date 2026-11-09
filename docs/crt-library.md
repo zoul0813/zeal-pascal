@@ -202,29 +202,9 @@ There is no `Window`, `TextMode`, `TextAttr`, DOS scan-code emulation or CRT
 modes, palettes, sprites and sound; its [named register reference](zvb-registers.md)
 also supports direct `Port[Name]` access.
 
-Current [Pascal CRT evidence](crt-pascal-evidence.json) records 512 native
-assertions, RAM/COM keyboard injection, saved execution without library files,
-Unit ABI checks and size/timing measurements. Earlier emitter checkpoints remain
-in [the implementation history](screen-library.md).
-
-## Measured Pascal overhead
-
-The complete Unit code payload is 6,845 bytes versus 2,086 bytes for the historical
-hand-written emitter. Smart linking includes only the selected routines:
-
-| Client | Historical COM | Pascal COM | Execution pages, both versions |
-| --- | ---: | ---: | ---: |
-| Unused `uses Crt` | 6,655 | 6,655 | 1 |
-| `TextColor(Green)` | 6,785 | 7,137 | 1 |
-| `ClrEol` | 6,893 | 7,694 | 1 |
-
-The common eight-operation benchmark grows from 8,395 to 12,553 bytes. With
-interrupts disabled during the timed calls, `ClrScr` measures 158,394 versus
-636,321 cycles and `InsLine` 167,623 versus 1,032,786 cycles. The probe includes
-caller guards and identical marker padding; these are emulator CPU measurements,
-not physical-board timing guarantees. Pascal frames, checked expressions and row
-loops have measurable cost. The port favors readable Pascal, as requested;
-it does not claim hand-written Z80 speed parity.
+The Pascal implementation favors readability. Screen routines can be larger and
+measurably slower than hand-written Z80; emulator cycle measurements are not
+physical-board timing guarantees.
 
 Physical hardware acceptance of this Pascal-authored CRT and full historical
 Turbo Pascal equivalence remain separate qualification objectives.

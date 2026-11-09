@@ -1,9 +1,6 @@
 # Pascal units and ZPU libraries
 
-This page describes what Pascal units support **now** in this worktree. Earlier
-checkpoint and proposal documents carry a *Historical* banner. They record the
-limits of their own stage; where they disagree with this page, this page is
-current.
+This page describes supported Pascal units, library lookup and program memory.
 
 Units are a native Zeal extension in the style of Turbo Pascal 4–7. They do not
 read TPU files, and they do not complete the recovered Turbo Pascal 3
@@ -201,8 +198,7 @@ I/O operation can retain its platform error.
   nesting capacity. A root call to a defined leaf can use its recorded budget.
   The existing CPU-stack window remains `$C800`–`$FC00`; recursive depth is
   bounded by the actual frames and runtime guards. Importing an uncalled routine
-  adds nothing. The
-  [earlier page measurements](program-pages.md) are historical.
+  adds nothing.
 
 ### Limits
 
@@ -214,33 +210,6 @@ I/O operation can retain its platform error.
 | Dependencies recorded in one ZPU | 31 |
 | Format | `ZPU1`, ABI1, unreleased. No readers for older experimental layouts; rebuild ZPUs after a compiler or runtime change that invalidates them |
 
-### Current measurements
-
-| Artifact | Size |
-| --- | --- |
-| `zpascal.zpl` | 276,597 bytes; resident launcher 16,115 bytes |
-| `ZVB.ZPU` | 60,330 bytes: 30,578 code, 908 globals, 28,844 retained metadata |
-| Snake demo COM | 35,699 bytes from Com-file compilation, with **10,381 bytes** of static address space free |
-
-The following are distinct **program execution pages**, excluding the IDE and
-compiler. RAM Run and cold standalone execution produced the same counts.
-
-| Program | COM bytes | Pages |
-| --- | ---: | ---: |
-| Minimal | 6,655 | 1 |
-| Integer | 6,762 | 1 |
-| Real | 17,291 | 2 |
-| Integer unit | 7,005 | 1 |
-| CRT | 7,462 | 1 |
-| Block file I/O | 19,787 | 2 |
-| Typed file I/O | 19,428 | 2 |
-| Text file I/O | 21,767 | 2 |
-
-The [hash-bound evidence](runtime-compaction-evidence.json) records the native
-checks, compiler bank sizes and known limits. Raw hardware programs such as
-Snake retain three independent windows; their recovered space is available to
-code and globals rather than left empty in the first page.
-
 ## Stock units and distribution
 
 TF packaging installs these files beside `T:/lib/zpascal.zpl`:
@@ -251,6 +220,8 @@ TF packaging installs these files beside `T:/lib/zpascal.zpl`:
 | `CRT.ZPU` | Screen, cursor, color, `Delay` and `ReadKey`; see the [CRT reference](crt-library.md) |
 | `CRT.PAS` | Complete Pascal implementation, including annotated native kernels |
 | `ZVB.ZPU` | Zeal Video Board graphics, sprites, CRC32, sound and DMA; see the [ZVB reference](zvb-library.md) |
+| `ZOS.ZPU` | Constants for the built-in operating-system calls; see [ZOS syscalls](zos-syscalls.md) |
+| `ZOS.PAS` | Pascal source for the ZOS constants Unit |
 | `ZVB.LIC` | Apache-2.0 license for ZVB |
 | `ZVB.NTC` | ZVB SDK attribution and Pascal changes |
 
@@ -276,15 +247,6 @@ Work is left untouched.
 Results come from the native Zeal emulator, plus sanitized host tests of
 components. Display, audio and DMA timing have **not** been qualified on a
 physical board.
-
-Test evidence: [unit storage](unit-storage-evidence.json),
-[unsigned integers](unsigned-integers-evidence.json) and
-[ZVB](zvb-library-evidence.json). Review decisions:
-[hardware/compiler](../reviews/hardware-units-v1.md),
-[unsigned scalars](../reviews/unsigned-scalars-v1.md),
-[ZVB code](../reviews/zvb-pascal-v1.md) and
-[documentation](../reviews/zvb-docs-v1.md). Test results and review records are
-kept separately; an evidence file is not an approval.
 
 ## Not yet supported
 

@@ -13,6 +13,7 @@ OUT = ROOT / 'analysis/native-host'
 OUT.mkdir(parents=True, exist_ok=True)
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--sanitize', action='store_true', help='Enable AddressSanitizer and UndefinedBehaviorSanitizer')
+parser.add_argument('--research-spec', action='store_true', help='Also check the local historical normative specification')
 args = parser.parse_args()
 flags = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-g'] if args.sanitize else []
 sdk = Path(os.environ.get('ZP_ZEAL_ROOT', str(ROOT.parent))) / 'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
@@ -60,13 +61,17 @@ subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests',
                 '-p', 'test_stock_zvb.py'], cwd=ROOT, check=True)
 subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests',
                 '-p', 'test_file_unit.py'], cwd=ROOT, check=True)
-# Progress is mutable; the independently reviewed functional body is not.
-# Together with verify-spec.py's frozen-input hashes, this prevents relocating
-# the historical review from silently exempting later normative changes.
-reviewed_path=ROOT / 'docs/specification-reviewed-v1.md'
-current_path=ROOT / 'docs/specification.md'
-if reviewed_path.exists() or current_path.exists():
+# Optional maintainer research audit, separate from default product acceptance.
+# The frozen normative-body comparison is preserved. The current archived
+# readiness report is a different document and is deliberately rejected by it.
+reviewed_path=ROOT / 'research/docs/specification-reviewed-v1.md'
+current_path=ROOT / 'research/docs/specification.md'
+if args.research_spec:
+    if not reviewed_path.is_file() or not current_path.is_file():
+        raise SystemExit('FAIL: historical specification inputs missing under research/docs/')
     reviewed=reviewed_path.read_text(); current=current_path.read_text()
+    if '## Product and compatibility' not in reviewed or '## Product and compatibility' not in current:
+        raise SystemExit('FAIL: archived specification is not the historical normative contract')
     reviewed_body=reviewed.split('## Product and compatibility',1)[1].rstrip()
     current_body=current.split('## Product and compatibility',1)[1].split('## Native implementation progress',1)[0].rstrip()
     # User-requested TP3 correction, verified against the original executable.

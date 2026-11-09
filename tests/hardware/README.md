@@ -1,4 +1,4 @@
-# ZPU hardware test checkpoint
+# Physical hardware acceptance
 
 The native emulator checks are a prerequisite, not a physical-board pass. Record
 board revision, ZVB firmware version, Zeal OS version, storage device and keyboard
@@ -16,7 +16,7 @@ The integrated acceptance directory is a file overlay, not a bootable disk image
 
 - `bin/zpascal.bin`: compiler launcher.
 - `lib/zpascal.zpl`, `SYSFILE.ZPU`, `CRT.ZPU`, `CRT.PAS`, `ZVB.ZPU`, `ZVB.LIC`
-  and `ZVB.NTC`: matching compiler banks and stock Units.
+  and `ZVB.NTC`, plus `ZOS.ZPU` and `ZOS.PAS`: matching compiler banks and stock Units.
 - `examples/`: all general examples, rebuilt BIN files, sources, includes and
   input transcripts. Programs with relative data/companion paths must run from
   their own example directory, for example `cd T:/examples/measure`.
@@ -25,8 +25,7 @@ The integrated acceptance directory is a file overlay, not a bootable disk image
 - `README.TXT` and `MANIFEST.JSON`: deployment instructions, hashes, compiler
   checkpoint and the two passing native-example report locations.
 
-Keep this checklist and the complete Unit references in the source checkout on
-those host-side paths. Copy the acceptance directory's contents onto your test
+Keep this checklist and the complete Unit references in the source checkout. Copy the acceptance directory's contents onto your test
 card, retaining `bin/`, `lib/`, `examples/` and `zvb/`. On a card mounted as `T:`,
 launch `T:/bin/zpascal.bin T:/lib/zpascal.zpl` from ZShell. Adjust the device or
 test-directory paths if needed. Units are found beside the bank file, after
@@ -108,8 +107,8 @@ end.
 ```
 
 CrtExit restores cursor/settings, not the overwritten screen contents. Call it
-explicitly on normal exit. See [CRT](crt-library.md), [ZVB](zvb-library.md) and
-[register access](zvb-registers.md) for complete contracts and cleanup details.
+explicitly on normal exit. See [CRT](../../docs/crt-library.md), [ZVB](../../docs/zvb-library.md) and
+[register access](../../docs/zvb-registers.md) for complete contracts and cleanup details.
 
 ## Results to retain
 

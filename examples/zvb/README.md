@@ -2,7 +2,7 @@
 
 **Development checkpoint: native Unit authoring and Snake's saved demo pass.
 Interactive pixels and behavior pass; the original wipe is still slower than C
-(2.44 s versus 1.16 s). Two Opus review turns are recorded and Codex verified the follow-up corrections. Physical hardware is unqualified.**
+(2.44 s versus 1.16 s). Physical hardware is unqualified.**
 
 Four small programs for the Pascal ZVB unit. They need a Zeal Video Board; the
 graphics demos also need its display clock running, because their vblank waits
@@ -94,9 +94,7 @@ The library decodes RLE/LZ chunks in a bounded Z80 stream rather than a per-pixe
 Pascal loop. These timings exclude COM disk loading and the title animation.
 The raw-asset experiments still fail compiler error99, so the compressed asset
 build remains the qualified version. This is a compiler resource issue, not a
-ZVB requirement for compressed tiles. See [startup evidence](../../docs/snake-startup-evidence.json). No asset
-file is opened while playing. See [the fidelity contract](../../docs/snake-parity.md)
-for sequencing, verification and deliberate reliability differences.
+ZVB requirement for compressed tiles. No asset file is opened while playing.
 
 See [CREDITS.md](CREDITS.md) for the Clear_code and JROB774 asset credits and
 licenses. **Redistributing the game, including a saved executable, requires the
@@ -148,21 +146,17 @@ See [the ZVB reference](../../docs/zvb-library.md) for units, ranges and buffer
 requirements, and for the distinctions between byte lengths, tile coordinates,
 pixel coordinates and physical addresses.
 
-## Compact runtime checkpoint
+## Snake build size
 
 The current Snake Com-file build is 35,844 bytes: 6,042 runtime, 957 globals
 and 28,845 code. The runtime's omitted Real code leaves no padded reservation.
 The final globals/code addresses are assigned at link time. See the
-[runtime compaction notes](../../docs/runtime-compaction-notes.md).
+[Unit memory guide](../../docs/units.md#program-memory-layout).
 
 Snake remains one self-contained COM and completes its saved 180-frame demo
-without PAS, INC or ZPU files. The current [parity evidence](../../docs/snake-parity-evidence.json)
-records title trajectory/cadence, actual VRAM pixels and palette, raw input,
-growth, score, collisions, replay and OS exit. Its overall result remains failed
-because the wipe is slower than C; the same placement and 4 ms delay sequence
-is retained. Current compiler overhead remains visible rather than changing
-that gameplay sequence to conceal it. Memory-mode compilation is not qualified
-for this larger source.
+without PAS, INC or ZPU files. The collision wipe remains slower than the C
+reference; full timing parity is not established. Memory-mode compilation is
+not qualified for this larger source.
 
 Precompiled demos are in `build/zvb/`; keep the supplied licenses and asset
 credits when redistributing them. Loading speed and physical hardware remain
@@ -171,5 +165,5 @@ separate acceptance questions.
 After rebuilding the compiler, maintainers can check final-link bank residency
 and fault recovery with `python3 tools/check-unit-banks.py` and
 `python3 tools/test-unit-phase.py`. See the
-[runtime compaction notes](../../docs/runtime-compaction-notes.md) for the final
-layout and the distinction between measured addresses and linker contracts.
+[Unit memory guide](../../docs/units.md#program-memory-layout) for the final
+program memory layout.

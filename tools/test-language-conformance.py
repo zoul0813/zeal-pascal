@@ -15,6 +15,8 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 REFERENCE=ROOT/'tests/cpm/language'
 LEXICAL_ORACLES=ROOT/'analysis/language-conformance/lexical-oracles-v2/summary.json'
+REFERENCE_DOCUMENTS=tuple(ROOT/'research/docs'/name for name in (
+    'language-evidence.json','language-specification.md','language-coverage.json'))
 
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -34,7 +36,10 @@ def select_shard(rows,value):
     return [row for row in rows if row['id']in selected]
 
 def cases():
-    ledger=json.loads((ROOT/'docs/language-evidence.json').read_text())
+    for path in REFERENCE_DOCUMENTS:
+        if not path.is_file():
+            raise FileNotFoundError('Required local research input missing: '+str(path))
+    ledger=json.loads((ROOT/'research/docs/language-evidence.json').read_text())
     evidence={row['case']:row for row in ledger['cases']}
     assert ledger['passed'] and ledger['case_count']==91
     rows=[];deferred=[]
@@ -77,8 +82,8 @@ def cases():
             elif name=='literal116':output=b'LITERAL-LENGTH-OK\r\n'
             else:output=original_output(name,report)
             if name=='emptyrecord':
-                output=re.sub(rb'^FILE=\d+\r\n',b'FILE=16\r\n',output,flags=re.M)
-                disposition='Native16-byte file control block; explicitly excluded from ordinary data-layout equivalence'
+                output=re.sub(rb'^FILE=\d+\r\n',b'FILE=176\r\n',output,flags=re.M)
+                disposition='Native176-byte file control block; explicitly excluded from ordinary data-layout equivalence'
         rows.append({'id':name,'root':root,'files':files,'diagnostic':code,'output':output,'disposition':disposition})
         if name=='include-repair':
             fixed=dict(files);repaired=report_path.parent/'disk/BROKEN.INC'
@@ -158,8 +163,7 @@ def main():
     fixtures['CORPUS.DAT']=bytes(manifest)
     paths=[Path(__file__).resolve(),ROOT/'CMakeLists.txt',ROOT/'tools/test-native.py',n.EMULATOR,n.ROM,n.KERNEL_MAP]
     paths+=list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))+list((ROOT/'tests/native').glob('*'))
-    paths+=list(REFERENCE.rglob('*'))+[ROOT/'docs/language-evidence.json']
-    paths += [LEXICAL_ORACLES,ROOT/'docs/language-specification.md',ROOT/'docs/language-coverage.json']
+    paths+=list(REFERENCE.rglob('*'))+list(REFERENCE_DOCUMENTS)+[LEXICAL_ORACLES]
     for row in rows:paths+=row.get('oracle_paths',[])
     paths+=[ROOT/f'build/{target}.{ext}'for ext in ('bin','zpl','map','banks.json')]
     hashes={str(p):sha(p)for p in paths if p.is_file()}

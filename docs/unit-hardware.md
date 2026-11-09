@@ -26,12 +26,12 @@ code. The public source is optional when importing a ZPU.
 
 ## Addresses and buffers
 
-`Mem[Address]` accesses a byte at a16-bit CPU address. `Port[Address]` uses the
-full16-bit Z80 I/O address; writes send its value's low byte. Integer and Word
+`Mem[Address]` accesses a byte at a 16-bit CPU address. `Port[Address]` uses the
+full 16-bit Z80 I/O address; writes send its value's low byte. Integer and Word
 addresses/values are accepted; LongWord raw addresses and port values fail
 compilation rather than being mistaken for pointers to temporary storage.
 
-`Word(PointerValue)` obtains a16-bit CPU address, and `Ptr(WordAddress)` produces
+`Word(PointerValue)` obtains a 16-bit CPU address, and `Ptr(WordAddress)` produces
 an untyped pointer. For a buffer passed by reference, use `Word(Addr(Buffer))`.
 These are CPU addresses, not DMA physical addresses. A ZVB DMA address must
 snapshot the current MMU mapping with `DMAVirtToPhys`.
@@ -48,7 +48,7 @@ correct when a client has its own globals. Typed-constant operands remain code
 storage references. A `var` parameter's workspace slot contains its referent
 pointer, consistent with existing Inline behavior.
 
-A unit can use a complete16-bit storage address, or an address plus a constant
+A unit can use a complete 16-bit storage address, or an address plus a constant
 that remains within its storage fragment. Byte-sized storage-address fixups and
 expressions combining code and data relocation bases are rejected. Plain
 numeric opcodes and relative-branch displacements need no such fixup.
@@ -70,13 +70,7 @@ Use one source file when authoring a unit. The sealed unit's source-map contract
 currently names one source; the stock ZVB build combines its maintainer include
 files into one Pascal source before native Unit-mode compilation.
 
-## Verification and checkpoint status
-
-The focused native test is `tools/test-zvb.py --hardware-only`, after building
-`zzvbtest_bin` through ZDE. It exercises relocated Inline storage, private fixed
-addresses, Word pointer round trips, byte memory access, I/O and Word-sized
-copies. It also checks source-free saved execution, Real omission, selective
-hardware requirements and continued rejection of unrepresented services.
+## Large units and memory
 
 The larger-unit path uses compiler-owned chained buffers for catalogs and
 metadata. ZPU files may contain up to 65,470 bytes, including code and initial
@@ -91,29 +85,6 @@ image and checks the complete page hash before relocations can use that data.
 A failed check rejects and discards the build. No separate file-window page is
 allocated. Re-reading a changed or truncated file fails
 compilation. A saved executable has no dependency on that handle or file.
-For the current 61,539-byte ZVB unit, the resident metadata prefix is 29,338
-bytes: two pages instead of four for the complete file, with no extra file-window
-page. These are compilation allocations, separate from program RAM.
-The compiler startup policy remains 10 cold / 15 warm pages and 18 logical banks.
-
-`tools/test-unit-storage.py` independently generates page-crossing units,
-exports string/Real/LongWord constants, exercises relocated code above `$F400`,
-checks exact limits, deletes libraries before saved execution and injects
-allocation failure and cancellation. Both failure cases require a clean cache
-and a successful fresh compilation. Host reader tests exercise file mutation,
-truncation, partial reads, seek/read errors, cancellation and close failures.
 Zeal VFS removes a descriptor even when close reports an error; the owner
 reports that error and clears the handle, allowing a fresh compilation.
-
-Captured verification (2026-11-07): 336 focused native hardware checks; 286 native storage
-boundary checks; 57 allocation-failure and 54 cancellation checks; 1,188 unsigned,
-1,703 unit/Real and 623 initialization checks. Sanitized host checks include
-80 metadata-decoder, 1,824 reference-merge, 65,980 reader and 45 loader checks.
-The loader host suite isolates transport/allocation; semantic validation is
-covered separately. Runtime Move/FillChar passes 229,402 Word-count checks.
-Observed native stack watermark margins are at least 8,453 bytes for these
-storage and ZVB clients; this is a lower-bound observation, not a proof for all
-possible programs. Review decisions are recorded in [the compiler review](../reviews/hardware-units-v1.md).
-See [storage evidence](unit-storage-evidence.json) for captured checks, and
-[ZVB qualification](zvb-library-evidence.json) for the full unit and demos.
 Physical-board qualification remains separate.

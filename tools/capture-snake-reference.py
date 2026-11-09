@@ -51,4 +51,4 @@ commands=['run 100000000']+n.type_text('H:/SNAKE.COM')+['bp 0x4000','tap ENTER',
 n.execute('snake-c-reference',commands,{'SNAKE.COM':image},timeout=180,console_class=Ref)
 report=dict(binary_bytes=len(image),sha256=hashlib.sha256(image).hexdigest(),title_trace=trace,title_cycles=trace_cycles,observations=obs,capture=str(n.RUN))
 f=n.RUN/'snake-c-reference/input-error.json';report['failure']=json.loads(f.read_text()) if f.exists() else None
-(root/'docs/snake-c-observation.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(dict(failure=report['failure'], title_calls=len(trace), capture=str(n.RUN))))
+(root/'tests/fixtures/snake/c-observation.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(dict(failure=report['failure'], title_calls=len(trace), capture=str(n.RUN))))

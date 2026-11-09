@@ -13,7 +13,6 @@
 !/tools/test-plan.json
 !/docs/
 /docs/*
-!/docs/test-runtime-audit.md
 !/tools/test-native-host.py
 !/tools/test-compiler-job.py
 !/tools/test-compiler-messages.py
@@ -96,41 +95,26 @@
 !/tools/test-crt.py
 
 
-# Library exploration and its hash-bound evidence/review.
-!/docs/library-exploration.md
-!/docs/library-exploration-evidence.json
 
 # Isolated compact-prefix proof and its reconciled review.
 !/tools/test-compact.py
-!/docs/compact-layout-experiment.md
-!/docs/compact-layout-evidence.json
 
 # Follow-on compact low-file transfer proof.
 !/tools/test-low-copy.py
-!/docs/low-file-experiment.md
-!/docs/low-file-evidence.json
 
 !/tools/test-low-file.py
 
 # Isolated symbolic-fragment linking proof.
 !/tools/test-fragments.py
-!/docs/unit-fragment-experiment.md
-!/docs/unit-fragment-evidence.json
 
 # Experimental native Pascal unit compiler and acceptance.
 !/tools/test-units.py
 !/tools/test-unit-corpus.py
-!/docs/pascal-units-experiment.md
-!/docs/pascal-units-evidence.json
 
-# Private implementation and declaration-shadowing acceptance.
-!/docs/private-unit-evidence.json
 
 # In-progress startup RAM optimization and qualification.
 !/tools/test-startup-pages.py
 !/tools/check-startup-banks.py
-!/docs/startup-pages-experiment.md
-!/docs/startup-pages-evidence.json
 
 # Optional native Real component and production qualification.
 !/tools/package-optional-runtime.py
@@ -138,8 +122,6 @@
 !/tools/test-optional-runtime-host.py
 !/tools/test-optional-standalone.py
 !/tools/test-optional-failures.py
-!/docs/optional-real.md
-!/docs/optional-real-evidence.json
 !/tools/test-optional-corpus.py
 !/tools/test-optional-interrupt.py
 !/tools/test-optional-chain.py
@@ -147,26 +129,17 @@
 
 # IDE units and per-fragment runtime demand.
 !/tools/test-unit-real.py
-!/docs/ide-units.md
-!/docs/ide-units-evidence.json
 !/tools/test-ide-units.py
 !/tools/test-ide-unit-failures.py
 
 # Optional-source unit qualification.
 !/tools/test-unit-navigation.py
-!/docs/sourcefree-units-evidence.json
 
 !/tools/test-program-pages.py
 
-!/docs/program-pages.md
 
-!/docs/program-pages-baseline.json
 
-!/docs/program-pages-evidence.json
 
-# Caller argument allocation checkpoint.
-!/docs/allocation-arguments.md
-!/docs/allocation-arguments-evidence.json
 
 # Shipped native Screen unit.
 !/libraries/
@@ -175,34 +148,19 @@
 !/tools/screen-library.c
 !/tools/package-screen.py
 !/tools/test-screen.py
-!/docs/screen-library.md
-!/docs/screen-library-evidence.json
 
-# Historical Crt unit naming correction.
-!/docs/crt-rename-evidence.json
 
-# Final integrated allocation/Crt approval evidence.
-!/docs/crt-final-approval.json
 
 # Unit dependency graph milestone.
 !/src/compiler_units_graph.c
-!/docs/unit-dependencies.md
-!/docs/unit-dependencies-evidence.json
 
 !/src/compiler_units_metadata.c
-!/docs/unit-exports.md
-!/docs/unit-exports-evidence.json
 
-!/docs/unit-types.md
-!/docs/unit-types-evidence.json
 
 !/tools/test-unit-types-host.py
 
-!docs/unit-review-evidence.json
 
 !/tools/test-unit-init.py
-!/docs/unit-initialization.md
-!/docs/unit-init-evidence.json
 
 # Native unsigned integer support and qualification.
 !/src/compiler_frames.c
@@ -217,13 +175,11 @@
 !/src/compiler_unsigned_internal.h
 
 !/docs/unsigned-integers.md
-!/docs/unsigned-integers-evidence.json
 
 !/tools/test-zvb.py
 !/tools/zvb-source.py
 
 !/docs/unit-hardware.md
-!/docs/unit-hardware-evidence.json
 
 # Multi-page Pascal units and resource-boundary qualification.
 !/tools/test-unit-references-host.py
@@ -233,7 +189,6 @@
 !/tools/test-unit-reader-host.py
 
 
-!/docs/unit-storage-evidence.json
 
 # Shipped Pascal ZVB unit, reproducible assets, demos and qualification.
 !/libraries/ZVB.PAS
@@ -247,30 +202,23 @@
 !/tools/test-zvb-leaves.py
 !/tools/test-crt-readkey.py
 
-# ZVB qualification reports and hash-bound public reference excerpts.
-!/docs/zvb-library-evidence.json
 
 # Current consolidated unit contract.
 !/docs/units.md
 
 # Interactive saved-Snake input acceptance.
 !/tools/test-zvb-interactive.py
-!/docs/zvb-interactive-evidence.json
 
 # Compact-runtime implementation and reproducible measurements.
-!/docs/runtime-compaction.md
-!/docs/runtime-baseline-evidence.json
 !/tools/runtime-baseline.py
 !/tools/runtime_objects.py
 !/tools/test-runtime-objects.py
 
-!/docs/runtime-typed-links-evidence.json
 !/tools/test-typed-unit-rejection.py
 
 !/src/compiler_link.c
 !/src/compiler_link.h
 !/tools/test-linked-addresses.py
-!/docs/runtime-placement-evidence.json
 !/src/compiler_table_arena.c
 !/src/compiler_table_arena.h
 
@@ -284,30 +232,20 @@
 !/src/compiler_file_link.c
 !/src/file_direct.asm
 !/tools/test-unit-phase.py
-!/docs/runtime-compaction-evidence.json
 !/tools/check-unit-banks.py
 !/tools/test-compact-hooks.py
-!/docs/runtime-compaction-notes.md
 
 # Original C/Pascal Snake parity milestone.
-!/docs/snake-parity.md
-!/docs/snake-c-observation.json
-!/docs/snake-parity-evidence.json
 !/tools/test-snake-parity.py
 !/tools/capture-snake-reference.py
 !/tools/capture-snake-pixels.py
-!/docs/snake-reference-pixels.json
 !/tools/test-staging-limits.py
-!/docs/code-staging.md
-!/docs/code-staging-evidence.json
 
-!/docs/zvb-optimized-evidence.json
 
 # Bounded decoder startup optimization.
 !/libraries/ZVBDECODE.INC
 !/tools/generate-zvb-decoder.py
 !/tools/profile-snake-startup.py
-!/docs/snake-startup-evidence.json
 
 # Named SDK hardware access, complete Unit references and qualification.
 !/libraries/ZVBHW.INC
@@ -316,24 +254,13 @@
 !/tools/test-unit-docs.py
 !/docs/zvb-registers.md
 !/docs/crt-library.md
-!/docs/unit-reference-evidence.json
 
-# CRT harness fit and hardware-test checkpoint.
-!/docs/hardware-testing.md
-!/docs/crt-harness-evidence.json
 
 # Integrated main examples and reproducible physical acceptance overlay.
 !/tools/package-hardware.py
-!/docs/main-integration-evidence.json
 
-# Physical acceptance: write-only device-memory fills.
-!/docs/zvb-hardware-fill-evidence.json
 
-# User-confirmed physical Snake graphics acceptance.
-!/docs/snake-hardware-acceptance.json
 
-# Final pre-merge test cleanup and regression evidence.
-!/docs/premerge-validation-evidence.json
 
 # Product-only CMake build and stock Pascal Units.
 !/cmake/
@@ -343,7 +270,6 @@
 !/units/zvb/**
 !/tools/package-zvb.py
 !/docs/building.md
-!/docs/release-build-evidence.json
 
 # Python build/test caches are not source inputs.
 __pycache__/
@@ -353,7 +279,6 @@ __pycache__/
 !/tools/test-unit-native.py
 !/tools/package-crt.py
 !/tools/measure-crt.py
-!/docs/crt-pascal-evidence.json
 !/units/crt/
 !/units/crt/**
 !/tests/
@@ -365,21 +290,16 @@ __pycache__/
 !/tools/sysfile/**
 !/tools/host/
 !/tools/host/**
-!/docs/sysfile-packager-evidence.json
 !/tests/test_build_layout.cmake
-!/docs/build-layout-evidence.json
 !/tools/test-build-layout.py
 
 !/tools/measure-sysfile.py
 !/units/sysfile/
 !/units/sysfile/**
 !/tests/native/sysfile-asm.asm
-!/docs/sysfile-asm-evidence.json
-!/docs/sysfile-asm.md
 !/tests/native/sysfile-mock.asm
 
 !/tools/test-build-outputs.py
-!/docs/incremental-build-evidence.json
 # Native syscall built-ins and public ABI qualification.
 !/tools/zos_interface.py
 !/tools/test-syscalls.py
@@ -393,12 +313,26 @@ __pycache__/
 !/tests/native/syscalls-main.c
 !/tests/native/syscalls.pas
 !/docs/zos-syscalls.md
-!/docs/zos-syscall-evidence.json
-!/docs/specification.md
 
 !/tools/package-zos.py
 
 !/tests/native/syscall-boundaries.pas
 !/tools/measure-syscalls.py
-!/docs/zos-syscall-validation.json
 !/tests/native/syscall-kernel.pas
+
+# Published documentation is explicitly allowed; research stays local.
+/research/
+!/docs/README.md
+!/tests/fixtures/
+!/tests/fixtures/snake/
+!/tests/fixtures/snake/*.json
+!/tests/hardware/
+!/tests/hardware/README.md
+!/tests/README.md
+
+# User manual chapters.
+!/docs/language.md
+!/docs/runtime.md
+!/docs/ide.md
+!/docs/compatibility.md
+!/docs/errors.md

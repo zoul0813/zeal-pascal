@@ -165,7 +165,7 @@ SNAKE uses arrows/WASD; Q/Escape exits. Snake is silent; ZVBCHECK tests audio.
 Record board revision, firmware, Zeal OS, storage and keyboard details.
 Check compiler RAM/COM execution, text restoration, graphics, sound, CRC and DMA.
 Physical results are pending: emulator passes do not establish board acceptance.
-The full host-side checklist is docs/hardware-testing.md in the source checkout.
+The full host-side checklist is tests/hardware/README.md in the source checkout.
 '''
     add('README.TXT', readme.encode(), 'hardware acceptance instructions')
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()

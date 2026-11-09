@@ -345,8 +345,7 @@ X is 0..79 and Y 0..39, and a row must fit before column 80. Layer is 0 or 1.
 In 4bpp modes layer 0 stores the low tile index and layer 1 stores its
 attribute byte: bit 0 is the ninth tile-index bit, bits 2/3 flip Y/X, and bits 4..7
 select the palette. Clear layer 1 as well as layer 0 during 4bpp setup, or stale
-attributes can select the wrong palette or upper tile bank. The fields follow
-the [RTL attribute extraction](../reviews/zvb-rtl-reference.md).
+attributes can select the wrong palette or upper tile bank.
 
 In 8bpp, layer 1 draws over layer 0, so an empty tile there shows the background.
 Tile 0 is empty after `GfxInitialize`. If you replace it, keep another empty tile
@@ -733,27 +732,8 @@ The default build validates and stages the native-authored stock `build/ZVB.ZPU`
 statically linked into the program. ZPU files are needed during compilation,
 not execution. Runtime code, globals and program code receive final compact
 addresses at link time; omitted Real code leaves no reserved hole. See the
-[runtime compaction notes](runtime-compaction-notes.md) for placement and RAM
-allocation, and [the demo guide](../examples/zvb/README.md) for current binaries.
-
-The original SDK-path checkpoint passed ten client regressions and is retained
-in [its evidence](zvb-optimized-evidence.json). The bounded RLE/LZ decoder checkpoint
-produced a 53,412-byte ZPU containing 27,470 code bytes and passes 374 native
-authoring assertions. Focused PACK/PAGE clients pass 61 harness assertions,
-including native state-record layout checks and saved execution without Units.
-The actual linked decoder's 36 internal CALL/JP words are checked at its final
-address. CPU-oracle tests pass 1,366,213 sanitized assertions, including explicit
-chunk-straddling literal, repeat and overlapping-history runs. See
-[startup qualification](snake-startup-evidence.json).
-
-The named-register checkpoint adds all 133 public hardware definitions (64 port
-addresses and 69 other constants). Its expanded ZPU is 58,217 bytes with the same
-27,470 code bytes and passes 374 native authoring assertions. The four focused
-register clients pass 117 harness assertions; Snake and FirstBar pass 65,
-including saved execution without source or Units. Named and numeric port access
-produce identical binaries even with reversed `uses` order. Snake's 35,844-byte
-COM remains byte-for-byte unchanged. See the [Unit reference evidence](unit-reference-evidence.json)
-for hashes, compiler residency proofs and the separate CRT checks.
+[Unit memory guide](units.md#program-memory-layout) for placement and RAM
+allocation, and [the demo guide](../examples/zvb/README.md) for binaries.
 
 The private decoder stays in RAM and leaves the OS mapped. It validates each
 token before writing, preserves 256 bytes of circular history across chunks,
@@ -770,14 +750,10 @@ generated file compiled on Zeal. The result is guarded at 32,768 bytes to retain
 page authoring RAM budget. This is a qualification constraint for this stock
 Unit, not the Pascal language's general source limit.
 
-Snake's saved Com-file run completes 180 demo frames with all PAS/INC/ZPU files
-removed. Current interactive behavior and pixels match the captured C reference;
-full timing parity is still open: its 280-cell wipe takes 24,385,215 T-states
-against C's 11,584,421, retaining the same per-cell placement plus 4 ms sleep.
-The [parity evidence](snake-parity-evidence.json) deliberately reports this timing
-failure. It does not certify complete gameplay performance equivalence.
+Snake's saved COM contains its code and assets and needs no PAS, INC or ZPU
+files while running. Its collision wipe remains slower than the C reference;
+full timing parity is not established. Use Com-file mode for the larger Snake
+source: Memory compilation hits an asset-include allocation limit.
 
-The latest Snake source is qualified in Com-file mode. Memory compilation hits
-an asset-include allocation limit and is not qualified. Physical display,
-controller and audio output have not been qualified on a board. This API work
-does not complete the historical Turbo Pascal specification.
+Physical display, controller and audio output have not been qualified on a
+board. This API does not establish complete historical Turbo Pascal equivalence.

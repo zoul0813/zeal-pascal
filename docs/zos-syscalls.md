@@ -94,7 +94,10 @@ both raw and checked calls return 4 (NO_SUCH_ENTRY), while readback proves the
 write occurred. Checked Count is zero because no chunk reported success. Count
 therefore describes confirmed successful chunks, not every possible device side
 effect on error. The bridge preserves the kernel status; it does not hide this
-platform defect.
+platform defect. A checked multi-chunk overwrite stops at the first nonzero
+status: its first 128-byte chunk may change while Count is zero and the rest of
+the request remains unwritten. A single raw call may complete a larger transfer
+before returning the false error.
 
 The pinned emulator HostFS also reports the pre-truncation size when opening an
 existing file with TRUNC (`hw/hostfs.c`, `fs_open`). Transfer fixtures and write
@@ -134,27 +137,9 @@ stack backing cannot be made safe by saving registers. Only free pages actually
 returned by PALLOC and no longer in use. PMAP and kernel_config are SDK helpers,
 not extra syscall numbers.
 
-## Verification and evidence
+## Kernel ABI notes
 
-The syscall matrix follows the assembly SDK and kernel, rather than copying the
-older prose syscall summary. In particular PALLOC/PFREE are 25/26, time counters
-are direct DE values, PALLOC returns B, and EXEC returns the child's status in D.
-Source revisions and hashes are recorded in zos-syscall-evidence.json. Source
-inspection is documented evidence; host mocks and native-emulator runs are
-separate observed evidence. Hardware qualification remains separate.
-
-Build with `zde cmake build --target zpascal_bin zos_zpu zsyscalltest_bin -j4` after
-enabling ZP_BUILD_TESTS. Run `python3 tools/test-syscalls.py` for native acceptance.
-The host transport fixture is tests/host/syscalls.c, compiled with ZS_HOST and the
-SDK include directory. Runtime profile, production unit acceptance and sanitized loader regressions
-must also pass because the private runtime table and ZPU export flags changed.
-
-
-`tools/measure-syscalls.py PATH/TO/ZBENCH.COM` measures the saved benchmark
-produced by native acceptance. It reports 21 CPU-cycle cases, minimal linked
-program sizes/pages, stack writes observed with sentinels, scratch preservation,
-MMU/SP preservation, and IFF2 at window boundaries. The empty window removes
-shared probe overhead. Checked transfers use 128-byte chunks; zero-byte requests
-make no kernel call. HostFS CPU cycles are not board or storage throughput, and
-the observed stack watermark is not an upper bound on reserved stack. Exact
-results and platform hashes belong in `zos-syscall-validation.json`.
+PALLOC/PFREE are syscall numbers 25/26, time counters return direct DE values,
+PALLOC returns B, and EXEC returns the child's status in D. These conventions
+follow the assembly SDK and kernel and take precedence over the older SDK prose
+summary where they disagree. Hardware qualification remains pending.

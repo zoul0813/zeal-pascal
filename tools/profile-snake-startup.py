@@ -10,7 +10,7 @@ def main():
  p=argparse.ArgumentParser(description=__doc__)
  p.add_argument('--snake',type=Path,default=ROOT/'build/zvb/SNAKE.COM')
  p.add_argument('--no-lz',action='store_true',help='Profile the raw-asset Snake variant')
- p.add_argument('--output',type=Path,default=ROOT/'docs/snake-startup-evidence.json')
+ p.add_argument('--output',type=Path,default=ROOT/'analysis/snake-startup/report.json')
  p.add_argument('--emulator',type=Path,default=Path('/opt/homebrew/bin/zeal-native'))
  a=p.parse_args();n.EMULATOR=a.emulator
  image=a.snake.read_bytes();found={};results={}

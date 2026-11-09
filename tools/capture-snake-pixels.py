@@ -51,5 +51,5 @@ if not failure:
  report.update(snake_sha256=sha(pages[68][:4096]),checker_sha256=sha(pages[68][0x2000:0x2300]),numbers_sha256=sha(pages[68][0x3000:0x3b00]),
   font_sha256={letter:sha(pages[69][(ord(letter)-64)*256:(ord(letter)-63)*256])for letter in 'ACEKNORS'},
   font_palette=list(pages[64][0xe40:0xe4c]))
-(ROOT/'docs/snake-reference-pixels.json').write_text(json.dumps(report,indent=2)+'\n')
+(ROOT/'tests/fixtures/snake/reference-pixels.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report,indent=2));raise SystemExit(bool(failure))

@@ -66,21 +66,4 @@ comparisons use existing integer instructions/helpers. They do not include the
 wide arithmetic engine. Unsigned division and LongWord arithmetic include that
 engine only when used. Units store compile-time metadata on disk and contribute
 only reachable code to a saved executable. Saved programs need no ZPU at run
-time. Compiler code still occupies 18 logical banks, allocated as 10 cold and
-15 warm pages; this stage adds no compiler code page.
-
-## Checkpoint verification
-
-[Evidence](unsigned-integers-evidence.json) records1,188 native unsigned checks,
-26,004 generated Z80 arithmetic checks,80 sanitized unit decoder checks,1703
-unit/Real checks,623 initialization checks,404 general unit checks, CRT and
-host regressions. The simple Word fixture retains two execution pages. A
-source-free imported constant-return function and Swap also run with the shared
-stack; ordinary local routine calls still conservatively require full-memory
-mode. The integrated production launcher is16,031 bytes and its ZPL277,338 bytes, in the
-existing18 logical banks.
-
-Review findings and their dispositions are recorded in
-[the unsigned scalar review](../reviews/unsigned-scalars-v1.md). Captured tests
-and review status are separate. ZVB qualification is recorded independently in
-[its reference](zvb-library.md) and evidence.
+time.

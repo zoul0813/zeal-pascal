@@ -23,8 +23,8 @@ def main():
     n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
     n.EMULATOR=args.emulator
     image=args.snake.read_bytes()
-    reference=json.loads((ROOT/'docs/snake-c-observation.json').read_text())
-    pixels=json.loads((ROOT/'docs/snake-reference-pixels.json').read_text())
+    reference=json.loads((ROOT/'tests/fixtures/snake/c-observation.json').read_text())
+    pixels=json.loads((ROOT/'tests/fixtures/snake/reference-pixels.json').read_text())
     assert not reference['failure'] and not pixels['failure']
     declaration=(ROOT/'examples/zvb/SNAKE.PAS').read_text().split(
         'var Context: TGfxContext;',1)[1].split('{ BEGIN GENERATED INCLUDE: VIDEO.INC }',1)[0]
@@ -326,7 +326,7 @@ def main():
         observations=observations,observer_failure=failure,title_calls=len(title),
         saved_bytes=len(image),sha256=sha(image),emulator=str(n.EMULATOR),
         reference_sha256=reference['sha256'],capture=str(n.RUN))
-    (ROOT/'docs/snake-parity-evidence.json').write_text(json.dumps(report,indent=2)+'\n')
+    (n.RUN/'snake-parity-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2))
     return 0 if report['passed']else 1
 

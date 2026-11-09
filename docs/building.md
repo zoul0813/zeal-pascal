@@ -29,6 +29,24 @@ The `ram_trampoline_bin` target is an SDK conversion-helper name: it produces
 `ram_trampoline.zpl`, a 358-byte transition stub embedded in the compiler for
 Memory Run and return to the IDE. It is not another installed program.
 
+## Project TF-card image
+
+After building the matching compiler and stock units, create or refresh the
+project's TF image with:
+
+```sh
+python3 tools/package-tf.py
+```
+
+Use `build/tf.img` as the emulator's TF card, then launch `T:/bin/zpascal.bin`
+from ZShell. The image installs the matching bank file and units under `T:/lib/`.
+Initial creation uses the existing development environment's base image.
+Refresh preserves other card files and checks their contents; it does not alter
+your separate system image. An existing project image is backed up under
+`build/recovery/` before replacement. Close an emulator using the project card
+before refreshing it. Building loose files and refreshing this image are
+separate steps.
+
 ## Build targets
 
 The default build has five product entry points:
@@ -115,8 +133,7 @@ order when changing paths because that order affects the linked image.
 
 `src/units/` implements the compiler's Unit support. The Pascal Unit sources
 users can compile or use remain in the top-level `units/` tree, including
-`units/zvb/`. Historical review and measurement records retain paths from the
-revision they describe.
+`units/zvb/`.
 
 ## Opt-in test targets
 
@@ -156,9 +173,6 @@ directories and symlinks are left alone. Required runtime assets still build;
 turning tests off does not disable the compiler's runtime generators. Use a fresh
 build directory when checking a clean release build. Reconfiguring is through
 `zde exec`; actual target builds use `zde cmake`.
-The [layout-only milestone evidence](build-layout-evidence.json) records that
-cleanup's file list and unchanged binaries. Current SYSFILE products and savings
-are recorded in [the ASM migration evidence](sysfile-asm-evidence.json).
 
 ## Stock ZVB Unit
 
