@@ -147,6 +147,14 @@ static void routine(uint8_t interface_heading) {
     (void)interface_heading;
 #endif
     if(cc_is("forward")) { cc_rput(scope,R_FLAGS,flags|RF_FORWARD); cc_next(); cc_expect(';',1); return; }
+#ifdef ZP_UNITS_EXPERIMENT
+    if(cc_is("native")) {
+        if(!cc.sources->unit_mode||parent){cc_fail(UNIT_UNSUPPORTED);return;}
+        cc.scope=scope;cc_units_owner(scope);
+        cc_native_body(id,scope);
+        cc.scope=parent;cc_units_owner(0);return;
+    }
+#endif
     cc_rput(scope,R_FLAGS,flags|RF_DEFINED); cc.scope=scope;
 #ifdef ZP_UNITS_EXPERIMENT
     if(cc.sources->unit_mode&&!parent)cc_units_owner(scope);

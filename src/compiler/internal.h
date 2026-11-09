@@ -35,7 +35,7 @@ enum { R_PARENT=0,R_FLAGS=2,R_SYMBOL=4,R_ENTRY=6,R_CALLS=8,R_PARAMETERS=10,R_COU
        R_DESCRIPTOR=18,R_THUNK=20,R_LOCAL_GUARD=22,R_LOCAL_ALLOC=24 };
 #define ROUTINE_BYTES 26u
 #define RELOCATION_BYTES 4u
-enum { RF_FORWARD=1,RF_RECURSIVE=2,RF_DEFINED=4,RF_EXTERNAL=8 };
+enum { RF_FORWARD=1,RF_RECURSIVE=2,RF_DEFINED=4,RF_EXTERNAL=8,RF_NATIVE=32,RF_CALLER_IO=64,RF_REFERENCED=128 };
 /* Published saved IX/return/arguments and lexical/lifetime slots stay fixed.
  * The private words are caller cursor[-6] and owned-local lower bound[-8]. */
 #define FRAME_PRIVATE_BYTES 8u

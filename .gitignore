@@ -349,3 +349,16 @@
 # Python build/test caches are not source inputs.
 __pycache__/
 *.py[cod]
+
+!/tools/author-crt.py
+!/tools/test-unit-native.py
+!/tools/package-crt.py
+!/tools/measure-crt.py
+!/docs/crt-pascal-evidence.json
+!/units/crt/
+!/units/crt/**
+!/tests/
+/tests/*
+!/tests/native/
+/tests/native/*
+!/tests/native/crt-mmu.pas

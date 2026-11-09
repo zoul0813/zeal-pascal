@@ -102,7 +102,7 @@ void cc_unit_exports_write(uint8_t page,uint16_t *at) ROUTINES {
         if(role==S_CONSTANT)offset=CCS(symbol,address);
         n=literal_bytes(symbol);
         put_byte(page,at,CCS(symbol,name_length));put_byte(page,at,role==S_FUNCTION?1:role==S_CONSTANT?2:role==S_TYPE?3:0);
-        put_byte(page,at,0);put_byte(page,at,0);put_word(page,at,role==S_PROCEDURE?TYPE_NONE:CCS(symbol,type));
+        put_byte(page,at,scope&&(cc_rget(scope,R_FLAGS)&RF_CALLER_IO)?ZPU_CALLER_IO:0);put_byte(page,at,0);put_word(page,at,role==S_PROCEDURE?TYPE_NONE:CCS(symbol,type));
         put_word(page,at,count);put_word(page,at,fragment);put_word(page,at,n?0:offset);put_word(page,at,n);
         put_name(page,at,symbol);
         for(i=0;i<count;++i) {

@@ -22,6 +22,9 @@ uint8_t cc_unit_files_close(void) SOURCE_BLOCK_CALL;
 uint8_t cc_unit_validate_object(uint16_t module,const char *name,uint32_t stream_hash) ROUTINES;
 uint8_t cc_unit_emit_page(uint16_t module,uint8_t index,const CompilerFragmentLayout *layout) ROUTINES;
 #define RF_UNIT_IMPORT 16u
+void cc_native_body(uint16_t symbol,uint16_t scope) ROUTINES;
+uint8_t cc_native_signature(uint16_t symbol,uint16_t scope) ROUTINES;
+uint16_t cc_native_runtime(void) ROUTINES;
 #define UNIT_RECORD_BYTES 12u
 #define UNIT_RECORD_BASE 256u
 #define UH_USED 0u

@@ -14,10 +14,18 @@ void cc_entry_reference(uint8_t opcode,uint16_t scope) ROUTINES {
 #ifdef ZP_UNITS_EXPERIMENT
     if(cc_rget(scope,R_FLAGS)&RF_UNIT_IMPORT){cc_units_call(opcode,scope);return;}
 #endif
+#ifdef ZP_UNITS_EXPERIMENT
+    if(!(cc_rget(scope,R_FLAGS)&RF_DEFINED))
+        cc_rput(scope,R_FLAGS,cc_rget(scope,R_FLAGS)|RF_REFERENCED);
+    if(cc_rget(scope,R_FLAGS)&RF_CALLER_IO) {
+        if(opcode!=0xcd){cc_fail(UNIT_UNSUPPORTED);return;}
+        cc_emit(0x3e);cc_emit(cc.io_check);
+    }
+#endif
     /* A call made from another Pascal routine can have unbounded aggregate
      * depth. Keep independent windows for nested or unresolved calls; a
      * direct root-to-leaf call uses its checked, recorded stack requirement. */
-    if(cc.scope||!entry)cc_require_full_memory();
+    if((cc.scope&&!(cc_rget(scope,R_FLAGS)&RF_NATIVE))||!entry)cc_require_full_memory();
     /* Pascal frames use checked stack guards and record their own memory
      * requirements. Opaque external code retains independent windows. */
     if(cc_rget(scope,R_FLAGS)&RF_EXTERNAL) {cc_require_full_memory();cc_op16(opcode,entry);}

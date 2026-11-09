@@ -805,7 +805,7 @@ zp_add_outputs(zfragmenttest)
 add_custom_target(fragment_toolchain
     COMMAND ${CMAKE_C_COMPILER} --version VERBATIM)
 
-add_library(unit_core OBJECT src/compiler/codegen/unsigned/core.c src/compiler/codegen/unsigned/asset.c src/compiler/codegen/unsigned/intrinsics.c src/compiler/codegen/unsigned/operations.c ${LEGACY_CORE} src/units/core.c
+add_library(unit_core OBJECT src/compiler/codegen/unsigned/core.c src/compiler/codegen/unsigned/asset.c src/compiler/codegen/unsigned/intrinsics.c src/compiler/codegen/unsigned/operations.c ${LEGACY_CORE} src/units/core.c src/units/native.c src/units/runtime.c
     src/units/linker/references.c src/units/io/files.c src/units/io/paths.c src/units/io/header.c src/units/io/fragments.c src/units/io/loader.c src/units/io/reader.c src/units/io/ranges.c src/units/symbols/import.c src/units/symbols/metadata.c src/units/graph.c src/units/object.c src/units/symbols/names.c src/units/linker/object.c src/units/output.c)
 
 target_compile_definitions(unit_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT)

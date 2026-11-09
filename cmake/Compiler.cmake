@@ -51,7 +51,7 @@ target_compile_options(unit_fragment_core PRIVATE --std-c99 --opt-code-size
     "SHELL:--codeseg BANK19" "SHELL:--constseg BANK19")
 
 add_library(unit_runtime_core OBJECT ${UNIT_CORE} ${CMAKE_BINARY_DIR}/unit_unpack_asset.asm src/compiler/codegen/unsigned/core.c src/compiler/codegen/unsigned/asset.c src/compiler/codegen/unsigned/intrinsics.c src/compiler/codegen/unsigned/operations.c src/compiler/runtime.c
-    src/units/core.c src/units/linker/references.c src/units/io/files.c src/units/io/paths.c src/units/io/header.c src/units/io/fragments.c src/units/io/loader.c src/units/io/reader.c src/units/io/ranges.c src/units/symbols/import.c src/units/symbols/metadata.c src/units/graph.c src/units/object.c src/units/symbols/names.c
+    src/units/core.c src/units/native.c src/units/runtime.c src/units/linker/references.c src/units/io/files.c src/units/io/paths.c src/units/io/header.c src/units/io/fragments.c src/units/io/loader.c src/units/io/reader.c src/units/io/ranges.c src/units/symbols/import.c src/units/symbols/metadata.c src/units/graph.c src/units/object.c src/units/symbols/names.c
     src/units/linker/object.c src/units/output.c ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm)
 
 target_compile_definitions(unit_runtime_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL ZP_PROGRAM_PAGES)
@@ -62,8 +62,6 @@ target_compile_options(unit_runtime_core PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c
 
 add_dependencies(unit_runtime_core optional_runtime_assets ram_trampoline_bin transfer_assets
     runtime_profile file_gate_bin module_unpack_bin)
-
-add_dependencies(zpascal crt_zpu)
 
 add_dependencies(unit_runtime_core runtime_layout)
 

@@ -124,7 +124,9 @@ static void raw_index(void) {
     uint16_t before=cc.temporaries;
     TypeId kind;
 #ifdef ZP_UNITS_EXPERIMENT
-    cc_require_hardware();
+    /* Port I/O alone does not imply a RAM-layout requirement. MMU-remapping
+     * native kernels declare fullmemory; ordinary Mem remains conservative. */
+    if(!cc_is("port"))cc_require_hardware();
 #else
     if(!cc.suppress)cc.console_dynamic=1;
 #endif
