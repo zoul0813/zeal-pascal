@@ -1,0 +1,546 @@
+{
+  "baseline_commit": "ac16467",
+  "scope": "Compiler-private SYSFILE implementation migrated to maintained Z80 ASM; standard assembler/linker author its complete ZPU; host sealing only validates and checksums the assembled bytes.",
+  "measurement_scope": "Unmodified Zeal emulator CPU T-states, including private ABI CALL and one NOP, interrupts enabled; disk operations include kernel work. Not physical-device wall time. Two identical timing captures per version.",
+  "sizes": {
+    "unit_bytes": {
+      "before_bytes": 21960,
+      "after_bytes": 20546,
+      "saved_bytes": 1414,
+      "reduction_percent": 6.44
+    },
+    "code_bytes": {
+      "before_bytes": 13655,
+      "after_bytes": 12787,
+      "saved_bytes": 868,
+      "reduction_percent": 6.36
+    },
+    "workspace_bytes": {
+      "before_bytes": 657,
+      "after_bytes": 492,
+      "saved_bytes": 165,
+      "reduction_percent": 25.11
+    }
+  },
+  "cycles": {
+    "assign_typed": {
+      "before_tstates": 73831,
+      "after_tstates": 68128,
+      "reduction_percent": 7.72
+    },
+    "rewrite_typed": {
+      "before_tstates": 29805,
+      "after_tstates": 25146,
+      "reduction_percent": 15.63
+    },
+    "write_typed_0": {
+      "before_tstates": 27774,
+      "after_tstates": 22296,
+      "reduction_percent": 19.72
+    },
+    "write_typed_1": {
+      "before_tstates": 27796,
+      "after_tstates": 22318,
+      "reduction_percent": 19.71
+    },
+    "write_typed_2": {
+      "before_tstates": 27796,
+      "after_tstates": 22318,
+      "reduction_percent": 19.71
+    },
+    "write_typed_3": {
+      "before_tstates": 27818,
+      "after_tstates": 22340,
+      "reduction_percent": 19.69
+    },
+    "write_typed_4": {
+      "before_tstates": 27796,
+      "after_tstates": 22318,
+      "reduction_percent": 19.71
+    },
+    "write_typed_5": {
+      "before_tstates": 27818,
+      "after_tstates": 22340,
+      "reduction_percent": 19.69
+    },
+    "write_typed_6": {
+      "before_tstates": 27818,
+      "after_tstates": 22340,
+      "reduction_percent": 19.69
+    },
+    "write_typed_7": {
+      "before_tstates": 27840,
+      "after_tstates": 22362,
+      "reduction_percent": 19.68
+    },
+    "position": {
+      "before_tstates": 11839,
+      "after_tstates": 7194,
+      "reduction_percent": 39.23
+    },
+    "size": {
+      "before_tstates": 11906,
+      "after_tstates": 7261,
+      "reduction_percent": 39.01
+    },
+    "seek": {
+      "before_tstates": 11488,
+      "after_tstates": 6843,
+      "reduction_percent": 40.43
+    },
+    "read_typed": {
+      "before_tstates": 27108,
+      "after_tstates": 21630,
+      "reduction_percent": 20.21
+    },
+    "eof_false": {
+      "before_tstates": 12020,
+      "after_tstates": 7375,
+      "reduction_percent": 38.64
+    },
+    "seek_end": {
+      "before_tstates": 11488,
+      "after_tstates": 6843,
+      "reduction_percent": 40.43
+    },
+    "eof_true": {
+      "before_tstates": 12020,
+      "after_tstates": 7375,
+      "reduction_percent": 38.64
+    },
+    "past_end": {
+      "before_tstates": 13303,
+      "after_tstates": 7825,
+      "reduction_percent": 41.18
+    },
+    "flush": {
+      "before_tstates": 24499,
+      "after_tstates": 19840,
+      "reduction_percent": 19.02
+    },
+    "close_typed": {
+      "before_tstates": 11285,
+      "after_tstates": 6619,
+      "reduction_percent": 41.35
+    },
+    "reset_typed": {
+      "before_tstates": 31801,
+      "after_tstates": 27142,
+      "reduction_percent": 14.65
+    },
+    "read_after_reset": {
+      "before_tstates": 27063,
+      "after_tstates": 21571,
+      "reduction_percent": 20.29
+    },
+    "close_reset": {
+      "before_tstates": 11285,
+      "after_tstates": 6619,
+      "reduction_percent": 41.35
+    },
+    "rename": {
+      "before_tstates": 95722,
+      "after_tstates": 85048,
+      "reduction_percent": 11.15
+    },
+    "erase": {
+      "before_tstates": 22062,
+      "after_tstates": 17136,
+      "reduction_percent": 22.33
+    },
+    "assign_block": {
+      "before_tstates": 31627,
+      "after_tstates": 25820,
+      "reduction_percent": 18.36
+    },
+    "rewrite_block": {
+      "before_tstates": 23178,
+      "after_tstates": 18470,
+      "reduction_percent": 20.31
+    },
+    "write_blocks": {
+      "before_tstates": 38757,
+      "after_tstates": 33216,
+      "reduction_percent": 14.3
+    },
+    "block_seek": {
+      "before_tstates": 11566,
+      "after_tstates": 6858,
+      "reduction_percent": 40.71
+    },
+    "read_blocks": {
+      "before_tstates": 37201,
+      "after_tstates": 31660,
+      "reduction_percent": 14.89
+    },
+    "close_block": {
+      "before_tstates": 11349,
+      "after_tstates": 6634,
+      "reduction_percent": 41.55
+    },
+    "assign_text": {
+      "before_tstates": 30667,
+      "after_tstates": 24979,
+      "reduction_percent": 18.55
+    },
+    "rewrite_text": {
+      "before_tstates": 22128,
+      "after_tstates": 17573,
+      "reduction_percent": 20.58
+    },
+    "write_text": {
+      "before_tstates": 28098,
+      "after_tstates": 21877,
+      "reduction_percent": 22.14
+    },
+    "newline": {
+      "before_tstates": 24512,
+      "after_tstates": 19957,
+      "reduction_percent": 18.58
+    },
+    "close_text": {
+      "before_tstates": 23952,
+      "after_tstates": 19392,
+      "reduction_percent": 19.04
+    },
+    "reset_text": {
+      "before_tstates": 24420,
+      "after_tstates": 19862,
+      "reduction_percent": 18.67
+    },
+    "text_read_char": {
+      "before_tstates": 25944,
+      "after_tstates": 20553,
+      "reduction_percent": 20.78
+    },
+    "text_eof": {
+      "before_tstates": 24123,
+      "after_tstates": 19567,
+      "reduction_percent": 18.89
+    },
+    "text_readln": {
+      "before_tstates": 64555,
+      "after_tstates": 59997,
+      "reduction_percent": 7.06
+    },
+    "text_eof_end": {
+      "before_tstates": 24055,
+      "after_tstates": 19499,
+      "reduction_percent": 18.94
+    },
+    "close_text_input": {
+      "before_tstates": 11181,
+      "after_tstates": 6621,
+      "reduction_percent": 40.78
+    },
+    "missing_reset": {
+      "before_tstates": 24420,
+      "after_tstates": 19862,
+      "reduction_percent": 18.67
+    },
+    "final_close": {
+      "before_tstates": 11181,
+      "after_tstates": 6621,
+      "reduction_percent": 40.78
+    }
+  },
+  "programs": {
+    "MIN": {
+      "before": {
+        "com_bytes": 6655,
+        "sha256": "098b2a9248cdb96a06b7857a15352c1d96bb80fc9c503c9a1f3ad28756a5eeec",
+        "code_bytes": 613,
+        "globals_bytes": 0,
+        "runtime_bytes": 6042,
+        "stack_requirement_bytes": 2048,
+        "execution_pages": 1,
+        "cold_execution_pages": 1,
+        "RAM_passed": true,
+        "detached_COM_passed": true,
+        "capture": "analysis/native-slice/20261109T155828.309166Z-40171/sysfile-client-min"
+      },
+      "after": {
+        "com_bytes": 6655,
+        "sha256": "098b2a9248cdb96a06b7857a15352c1d96bb80fc9c503c9a1f3ad28756a5eeec",
+        "code_bytes": 613,
+        "globals_bytes": 0,
+        "runtime_bytes": 6042,
+        "stack_requirement_bytes": 2048,
+        "execution_pages": 1,
+        "cold_execution_pages": 1,
+        "RAM_passed": true,
+        "detached_COM_passed": true,
+        "capture": "analysis/native-slice/20261109T155921.134943Z-40586/sysfile-client-min"
+      },
+      "saved_com_bytes": 0
+    },
+    "ASSIGN": {
+      "before": {
+        "com_bytes": 17036,
+        "sha256": "fc3531d5a1ca2897cebf64a12bf2ac1a86e1dcae9780ba1f6a7a78bbcd723fc5",
+        "code_bytes": 10818,
+        "globals_bytes": 176,
+        "runtime_bytes": 6042,
+        "stack_requirement_bytes": 2342,
+        "execution_pages": 2,
+        "cold_execution_pages": 2,
+        "RAM_passed": true,
+        "detached_COM_passed": true,
+        "capture": "analysis/native-slice/20261109T155828.309166Z-40171/sysfile-client-assign"
+      },
+      "after": {
+        "com_bytes": 16367,
+        "sha256": "78ad90c7b69967bac69cd5d0526a6b316a1b96e5e286114cca72bbef7c929d81",
+        "code_bytes": 10149,
+        "globals_bytes": 176,
+        "runtime_bytes": 6042,
+        "stack_requirement_bytes": 2342,
+        "execution_pages": 2,
+        "cold_execution_pages": 2,
+        "RAM_passed": true,
+        "detached_COM_passed": true,
+        "capture": "analysis/native-slice/20261109T155921.134943Z-40586/sysfile-client-assign"
+      },
+      "saved_com_bytes": 669
+    },
+    "TYPED": {
+      "before": {
+        "com_bytes": 19505,
+        "sha256": "03e8c4d42986a3a6dd16d2ab9d523192f8516de9b46b40d07aea32bc41169d71",
+        "code_bytes": 13281,
+        "globals_bytes": 182,
+        "runtime_bytes": 6042,
+        "stack_requirement_bytes": 2342,
+        "execution_pages": 2,
+        "cold_execution_pages": 2,
+        "RAM_passed": true,
+        "detached_COM_passed": true,
+        "capture": "analysis/native-slice/20261109T160446.123011Z-43371/sysfile-client-typed"
+      },
+      "after": {
+        "com_bytes": 18790,
+        "sha256": "38999c035f9ac0e798d74b6214bc799480076b6405a593f7ff4574859922dd8a",
+        "code_bytes": 12566,
+        "globals_bytes": 182,
+        "runtime_bytes": 6042,
+        "stack_requirement_bytes": 2342,
+        "execution_pages": 2,
+        "cold_execution_pages": 2,
+        "RAM_passed": true,
+        "detached_COM_passed": true,
+        "capture": "analysis/native-slice/20261109T160509.782024Z-43522/sysfile-client-typed"
+      },
+      "saved_com_bytes": 715
+    },
+    "BLOCK": {
+      "before": {
+        "com_bytes": 19991,
+        "sha256": "3a1216d2523196453d3e746fc7aa7ece78e494884a688728385baefb2d9102d8",
+        "code_bytes": 13513,
+        "globals_bytes": 436,
+        "runtime_bytes": 6042,
+        "stack_requirement_bytes": 2342,
+        "execution_pages": 2,
+        "cold_execution_pages": 2,
+        "RAM_passed": true,
+        "detached_COM_passed": true,
+        "capture": "analysis/native-slice/20261109T160446.123011Z-43371/sysfile-client-block"
+      },
+      "after": {
+        "com_bytes": 19322,
+        "sha256": "3c124ff75102912133ee0c0b85c79b98e3ae598123e782d418bb53b61e522c2d",
+        "code_bytes": 12844,
+        "globals_bytes": 436,
+        "runtime_bytes": 6042,
+        "stack_requirement_bytes": 2342,
+        "execution_pages": 2,
+        "cold_execution_pages": 2,
+        "RAM_passed": true,
+        "detached_COM_passed": true,
+        "capture": "analysis/native-slice/20261109T160509.782024Z-43522/sysfile-client-block"
+      },
+      "saved_com_bytes": 669
+    },
+    "TEXT": {
+      "before": {
+        "com_bytes": 21779,
+        "sha256": "e8c28d7e92d3681c92c44c702840a8315df67a0683f4e9d064083046f95b935a",
+        "code_bytes": 15538,
+        "globals_bytes": 199,
+        "runtime_bytes": 6042,
+        "stack_requirement_bytes": 2342,
+        "execution_pages": 2,
+        "cold_execution_pages": 2,
+        "RAM_passed": true,
+        "detached_COM_passed": true,
+        "capture": "analysis/native-slice/20261109T160446.123011Z-43371/sysfile-client-text"
+      },
+      "after": {
+        "com_bytes": 21110,
+        "sha256": "ca7b02bb461386bc93a9159eb7c768dbdc13554e273e93b6546bc4e2e51ab95d",
+        "code_bytes": 14869,
+        "globals_bytes": 199,
+        "runtime_bytes": 6042,
+        "stack_requirement_bytes": 2342,
+        "execution_pages": 2,
+        "cold_execution_pages": 2,
+        "RAM_passed": true,
+        "detached_COM_passed": true,
+        "capture": "analysis/native-slice/20261109T160509.782024Z-43522/sysfile-client-text"
+      },
+      "saved_com_bytes": 669
+    }
+  },
+  "checks": {
+    "identical_disk_benchmark_job_state": true,
+    "repeated_cycle_counts_identical": true,
+    "measured_cycle_regressions": [],
+    "native_ASM_file_assertions": 1712,
+    "native_ASM_failed": 0,
+    "direct_C_host_oracle_assertions": 1538,
+    "sealer_ASan_UBSan_tests": 10,
+    "runner_tests": 27,
+    "relocation_proof": {
+      "passed": true,
+      "relocations_checked": 742,
+      "code_bytes_checked": 12787,
+      "changed_code_bytes": 1480,
+      "workspace_bytes_checked": 492,
+      "input_sha256": {
+        "build/sysfile.payload": "b75b4ab38af11a47835dafe1863af459305da63ed1a7b9224dc4a045ff54a99c",
+        "build/assets/sysfile-reloc-probe.ihx": "57b4f5d38e90c0f55709cfb8f2f0832d1e2a46bf2012aca82827796e386c2227"
+      }
+    },
+    "AUX_mock_transport_passed": true,
+    "all_five_clients_RAM_and_detached_COM": true,
+    "default_release_build_passed": true,
+    "tests_OFF_at_completion": true,
+    "top_level_bin_files": [
+      "zpascal.bin"
+    ],
+    "fresh_tests_OFF_SYSFILE_build_passed": true,
+    "fresh_payload_matches_main": true,
+    "sanitized_host_frontend_checks": 180362,
+    "sanitized_editor_checks": 4010,
+    "sanitized_source_checks": 45809,
+    "private_runtime_packaging_checks": 60
+  },
+  "limitations": [
+    "No measured sample saves a complete 16 KiB execution page; stack reservation is unchanged. COM savings include workspace savings, so do not add them again.",
+    "Complex routines retain private stack-frame conventions from the verified instruction stream; not every routine is fully optimized.",
+    "AUX positive I/O and error restoration use a test-only SER0 transport in the benchmark COM; physical serial hardware is not qualified.",
+    "The complete unrelated project acceptance suite was not rerun for this backend migration."
+  ],
+  "evidence_sha256": {
+    "analysis/sysfile-asm/baseline/measurements.json": "9cec870447b6a0cbfd833cd4805152e7fd3fde77f9f4226cfde47b04a2c898b7",
+    "analysis/sysfile-asm/final-measurements.json": "2dfd6f4dfe439b1bb5305b8ae94532b07e7cccfca4fec9337be93f7a55286a6a",
+    "analysis/sysfile-asm/baseline/measurements-repeat.json": "59358e60d15b5d3bbd92800dab8bd4a2394fc9a8b83f1a92304740e6536d4d28",
+    "analysis/sysfile-asm/final-measurements-repeat.json": "6b36dee1bd947212bb48b658dd4e6ff67b4e185b2e1d33f22641ef406aab058b",
+    "analysis/sysfile-asm/relocations.json": "87a52acd96c6b4a15623f9651fb72cc548ed6442a99a5803144b7778ad60d699",
+    "analysis/sysfile-asm/serial-report.json": "678c499f85a2861949a95103b8736a7b6dc7e9a8095bad1b871ed5b4eb670247",
+    "analysis/sysfile-asm/baseline/file-programs.json": "99f9ba41d9c6c3f7ea6a3ef271bb15f67104dbe206ca57a53af2dcb21b4a5bc7",
+    "analysis/sysfile-asm/file-programs.json": "d9bb16f5d977c437c8b049a36808973b1265611c3b0a5b1acbfa973b6fe887f7"
+  },
+  "release_products_sha256": {
+    "zpascal.bin": "0200d4222353b727f3d36d0ddb5e1c92d9f9d667dd7c0936f86026a665f49a61",
+    "zpascal.zpl": "684593bf588bbcccfbc6c384fdfeca38fcbadf474c7f2583a713ffac646c030d",
+    "SYSFILE.ZPU": "5f3e0aa83e6f6f2dec5284a56da88e0abe02d2a675523326bc5397f4189dc77e",
+    "CRT.ZPU": "d3d89ac1005f049095cc0c4072e86171badcce24a475804faf83824b0a8f5016",
+    "ZVB.ZPU": "908f77968123a9cdb641804302254cf0f5e5103109b4c62c245673904f67576e"
+  },
+  "compiler_product_sizes": {
+    "zpascal.bin": {
+      "before_bytes": 16115,
+      "after_bytes": 16115
+    },
+    "zpascal.zpl": {
+      "before_bytes": 279060,
+      "after_bytes": 279060
+    }
+  },
+  "stock_unit_refresh": {
+    "CRT": {
+      "sha256": "d3d89ac1005f049095cc0c4072e86171badcce24a475804faf83824b0a8f5016",
+      "only_profile_and_checksum_changed": true
+    },
+    "ZVB": {
+      "sha256": "908f77968123a9cdb641804302254cf0f5e5103109b4c62c245673904f67576e",
+      "only_profile_and_checksum_changed": true
+    }
+  },
+  "source_sha256": {
+    "units/sysfile/devices.asm": "3426756448571195e484a32afb3431971af1a219be50fa87b9e32e74000f51b5",
+    "units/sysfile/dispatch.asm": "57913cb7d585021b9919fa49640e4353294203b22c4ce241fb75a79622a24280",
+    "units/sysfile/files.asm": "366f869cfe7f3a47aa70406aefa6ad51232f25a16b66c701c11bf75b954ee662",
+    "units/sysfile/gate.asm": "436480931486ffa1c44b0315a7bc680bbbc38871c151a8490b47243b29a85685",
+    "units/sysfile/helpers.asm": "3247333ec4e486af3137b792ad6755dfd9e801af09bec26076570f7a68c20d15",
+    "units/sysfile/paths.asm": "9d5b57fa7eebfd1c9b30037905e690103bb983922a65b14b57563fd1599eeb57",
+    "units/sysfile/support.asm": "f3ef9d94d751d8e2854912118f0d9ef894573aa69ff862fca29bc1430fe5a113",
+    "units/sysfile/syscalls.asm": "58434b8bb00fe77396add76ba462bd5b23395c4ff4a8ee5f0da8067dbe7201b9",
+    "units/sysfile/sysfile.asm": "a9110b608619f437abb23091e67ec4031fe31dab4d03ffb3f1347b58616fd72a",
+    "units/sysfile/text.asm": "1035e07a56270b8eb9ec7513ecd20a9042f6c66404f9c546dc972a84a73c9bf3",
+    "units/sysfile/transport.asm": "f813fad4fa4dcf1865851efa8563744c19738d77e6a9da8cedc75687d2f5fe3b",
+    "units/sysfile/validation.asm": "20280c945fcdd92a3cc5c086ed1bee7812b78bdf3adb20aba279d84a167dd854",
+    "units/sysfile/workspace.asm": "1412db48f73298fc682f37e1c593e4df3206bc6e1414710df0f56c80475e6ac9",
+    "tools/sysfile/seal.c": "177860dbbb1eeecdc5094a632f9b9d372c059778276635ed8c3db2ffd162f91f",
+    "cmake/SysFile.cmake": "d1f26e74e22c45bd80490a7a3fa9e2454d34ea0dcca479cc7b87b99636502117",
+    "tools/measure-sysfile.py": "81bde534490ab1f23b52c7ad53009cdc490d90efbf003ff7086ac6b30fe3799d",
+    "tools/test-file-runtime.py": "b285c91325e1c48eb261d79068a58af00a9ef91468cb629d0430037a6ec9e9a1",
+    "tests/native/sysfile-mock.asm": "8a3f8361bbded2be65d0068c127581ad98afdcda57b237c55cd5803e09438f08"
+  },
+  "reviewed_source_sha256": {
+    "units/sysfile/devices.asm": "d1892b2cc825395500dcbc5d989719736edff79ee6c08170c31d30fe10ba4166",
+    "units/sysfile/dispatch.asm": "7caecdac7fcf68a0683fde7c484fd125c448328cdfa3c86cabbdb1ed18d3dfe6",
+    "units/sysfile/files.asm": "d18d47cf53d276f6bc9c955f4d3cdb63cb41d6c045d5eeafc1d47e69b417fdc7",
+    "units/sysfile/gate.asm": "db6d441672c98adf5d7523fc8f818144b87d9dc9dfe7b33f48107fcd65549d62",
+    "units/sysfile/helpers.asm": "3247333ec4e486af3137b792ad6755dfd9e801af09bec26076570f7a68c20d15",
+    "units/sysfile/paths.asm": "a66e347f3321239ead5bc75ceb856a90386c8bfff4e21e59688d24b1dbe75b2d",
+    "units/sysfile/support.asm": "36ad0fbe4391c61b8aacb4ce63706c1af5dc9b0072007fd56ebebedd7fdae2a1",
+    "units/sysfile/syscalls.asm": "1f614a5bca5fb5f552729ddd980a833c6aaf7774a89224b6ea376a1024228d94",
+    "units/sysfile/sysfile.asm": "a9110b608619f437abb23091e67ec4031fe31dab4d03ffb3f1347b58616fd72a",
+    "units/sysfile/text.asm": "3a9a8131566ef31924b9216de723044b95068715b2bf1fbf5aa56d5e66d08d4f",
+    "units/sysfile/transport.asm": "6e89b558ff3c1d7f0335d7a47fb9f6d306c44567ccde0e6a04cdf66fac5bc977",
+    "units/sysfile/validation.asm": "0c51ae38e02339cc7b56b33002cff3acb68e1738777edeb8de0a49652bd8385e",
+    "units/sysfile/workspace.asm": "1412db48f73298fc682f37e1c593e4df3206bc6e1414710df0f56c80475e6ac9",
+    "tools/sysfile/seal.c": "177860dbbb1eeecdc5094a632f9b9d372c059778276635ed8c3db2ffd162f91f",
+    "cmake/SysFile.cmake": "d1f26e74e22c45bd80490a7a3fa9e2454d34ea0dcca479cc7b87b99636502117",
+    "tools/measure-sysfile.py": "0d79911a8edb2016bca266c340ebe5a7b548c70b7e88bea8026fab6d20f5ad57",
+    "tools/test-file-runtime.py": "81155a9097af10df79f31e074a03cf6cf3ad50245defe35bcfbc279382a3df2d",
+    "tests/native/sysfile-mock.asm": "8a3f8361bbded2be65d0068c127581ad98afdcda57b237c55cd5803e09438f08"
+  },
+  "post_review_harness_verification": {
+    "scope": "Test-only fixes after two allowed Opus rounds; shipped product bytes unchanged. No extra review or unchanged-input finalization claimed.",
+    "fixes": [
+      "Require sysfile_zpu and reject a stale default Unit against neutral payload before map use.",
+      "Keep routine reports in unique run directories; preserve frozen raw evidence.",
+      "Test accepted/rejected spans for both page-alias branches and inspect buffers before fixture RET."
+    ],
+    "stale_default_Unit_rejection_test_passed": true,
+    "host_test_total": 11,
+    "alias_checks": {
+      "flags_2_accepted": true,
+      "flags_2_rejected": true,
+      "flags_4_accepted": true,
+      "flags_4_rejected": true
+    },
+    "native_ASM_assertions": 1712,
+    "native_failed": 0,
+    "layout_fixture_passed": true,
+    "runner_tests": 27,
+    "original_disk_cycle_counts_unchanged": true,
+    "frozen_raw_evidence_unchanged": true,
+    "evidence_sha256": {
+      "analysis/native-slice/20261109T165341.150753Z-69833/file-runtime-report.json": "214f375a300faee5bfc09ba3ecfbf27846da81ae2d89d5db5e49b2fac0e70e4f",
+      "analysis/native-slice/20261109T165341.150753Z-69833/relocations.json": "87a52acd96c6b4a15623f9651fb72cc548ed6442a99a5803144b7778ad60d699",
+      "analysis/native-slice/20261109T165341.150753Z-69833/sysfile-serial-report.json": "ee71479746cc302fa6b5f18e14df8ea1839d33eff99082f65f5f3b2330d028df"
+    },
+    "cosmetic_ASM_EOF_cleanup_payload_unchanged": true
+  },
+  "review_limit": "Two Opus turns; final small harness-only corrections tested after follow-up. No additional round requested.",
+  "implementation_commit": "4a5a6b1",
+  "runtime_artifact_sha256": {
+    "emulator": "98a17242c9c239fc70f663721367786699af5597dab6148a32192acf79bdd075",
+    "kernel_ROM": "f34d453a1feb17d34c582f64139c5e8a42ac3e0f6642874b1d588695b4036b4a",
+    "TF_template": "e04ac327b0766c53d8a6c771a434aa91915e3eb14126880db066c0d7402def90"
+  }
+}

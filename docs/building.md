@@ -49,12 +49,15 @@ four production modules, and conditionally includes `cmake/Tests.cmake`:
 - `Units.cmake`: CRT, SYSFILE and ZVB generation or staging.
 
 `Units.cmake` includes `SysFile.cmake` for the file backend's build steps.
-ZDE's host C compiler builds `sysfile-tool` from `tools/sysfile/` and the shared
-host SHA-256 helper. CMake then runs SDCC and the assembler; the C tool prepares
-function-sized assembly sections, reads relocatable objects and required SDK
-archive members, and writes the SYSFILE ZPU. SYSFILE packaging and profile
-stamping do not invoke Python. Other compiler/runtime asset builders and stock
-CRT/ZVB validation still use Python.
+The assembler and standard linker build `units/sysfile/` directly into a ZPU
+byte stream, including its exports, fragments and relocation tables. SYSFILE
+has no production C routines, SDK archive extraction, or custom object linker.
+A small host C utility, `build/assets/sysfile-seal`, adds the required content
+checksum and runtime fingerprint; it does not generate, place or relocate code.
+The assembly preserves the existing private calling convention internally and
+uses direct Zeal OS syscall adapters. Several hot helpers are hand-tuned; moving
+code to ASM does not imply every retained stack frame has been optimized away.
+Other compiler/runtime asset builders and stock CRT/ZVB validation use Python.
 
 Internal targets are excluded from `ALL` and run when
 required by a product dependency. CMake still reports those compile/link steps
@@ -63,7 +66,9 @@ as “Built target …”; those messages do not identify extra shipped programs
 The old full `file_runtime` module is not part of the production graph or
 runtime fingerprint. Its builders live in `Tests.cmake` for explicit legacy
 probes. Production file support is generated as selectively linked SYSFILE.ZPU
-functions; this still compiles the file operations it needs from `src/runtime/files/operations.c`.
+functions from `units/sysfile/`. The C implementation in
+`src/runtime/files/operations.c` remains for legacy probes and the host behavior
+oracle. The direct ASM backend also runs the existing native file conformance suite.
 `runtime_profile` fingerprints the numeric runtime, handoff assets and compiled
 SYSFILE payload. SYSFILE compiles once into a payload with a neutral fingerprint;
 its final ZPU header is stamped after that payload has been fingerprinted.
@@ -143,8 +148,9 @@ directories and symlinks are left alone. Required runtime assets still build;
 turning tests off does not disable the compiler's runtime generators. Use a fresh
 build directory when checking a clean release build. Reconfiguring is through
 `zde exec`; actual target builds use `zde cmake`.
-The [layout evidence](build-layout-evidence.json) records the release file list
-and checks that moving build inputs did not change any shipped binary.
+The [layout-only milestone evidence](build-layout-evidence.json) records that
+cleanup's file list and unchanged binaries. Current SYSFILE products and savings
+are recorded in [the ASM migration evidence](sysfile-asm-evidence.json).
 
 ## Stock ZVB Unit
 
@@ -153,8 +159,7 @@ licences and `prebuilt/` native-authored artifact. Normal builds validate that
 artifact against its source and compiler/runtime bindings, then stage `ZVB.ZPU`.
 Validation runs on every default build, including incremental builds.
 They do not run an emulator or compile test executables. CRT uses the same
-validated stock-artifact approach; SYSFILE retains its relocatable runtime
-generator.
+validated stock-artifact approach; SYSFILE is assembled and checksum-sealed from maintained ASM sources.
 
 The stock manifest binds the source components and generator, exact compiler
 BIN/ZPL and private runtime profile. A changed binding fails the build instead
