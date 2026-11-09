@@ -38,3 +38,11 @@ void checked_error(const char *text,uint8_t code,const char *where) {
     uint8_t ok=load(text);
     check(ok); if(ok) execute_loaded(3,code,position);
 }
+#ifdef ZP_SCREEN_LIBRARY
+/* Pascal CRT validates its arguments in the Unit body. Its fault belongs to
+ * that source, unlike the native Delay bridge's caller-attributed faults. */
+void checked_unit_error(const char *text,uint8_t code,uint16_t position) {
+    uint8_t ok=load(text);
+    check(ok);if(ok)execute_loaded(0x83,code,position);
+}
+#endif

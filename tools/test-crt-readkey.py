@@ -2,7 +2,7 @@
 """Exercise Crt ReadKey through native RAM and saved programs with physical key events."""
 from pathlib import Path
 import importlib.util,re,struct,json,argparse
-root=Path(__file__).resolve().parents[1];sp=importlib.util.spec_from_file_location('native',root/'tools/test-native.py');n=importlib.util.module_from_spec(sp);sp.loader.exec_module(n);parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--emulator',type=Path);args=parser.parse_args();n.EMULATOR=args.emulator or n.EMULATOR;sym=n.symbols('zzvbtest')
+root=Path(__file__).resolve().parents[1];sp=importlib.util.spec_from_file_location('native',root/'tools/test-native.py');n=importlib.util.module_from_spec(sp);sp.loader.exec_module(n);parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--emulator',type=Path);parser.add_argument('--pending',action='store_true');args=parser.parse_args();n.EMULATOR=args.emulator or n.EMULATOR;sym=n.symbols('zzvbtest')
 names=re.findall(r'RP_[A-Z_]+',(root/'src/compiler/internal.h').read_text().split('enum { RP_INPUT_READY',1)[1].split('RP_COUNT }',1)[0]);names.insert(0,'RP_INPUT_READY');private=(root/'build/pascal_runtime.private').read_bytes();raw=struct.unpack_from('<H',private,2*names.index('RP_INPUT_RAW_KEY'))[0];runtime=(root/'build/pascal_runtime.zpl').read_bytes();gold=runtime[raw-0x4000:raw-0x4000+16];hits=[]
 # Absolute private-state operands relocate with the compact runtime. Match only
 # the decoder's opcodes and branch displacement, then verify the live image.
@@ -36,4 +36,6 @@ class Keys(n.DebugConsole):
    call('s')
   raise RuntimeError('ReadKey completion missing')
 f={f'zzvbtest.{ext}':(root/f'build/zzvbtest.{ext}').read_bytes()for ext in('bin','zpl')};f.update({'SKIPHW.RUN':b'1','PREBUILT.RUN':b'1','CLIENTS.RUN':b'1','CRT.ZPU':(root/'build/CRT.ZPU').read_bytes(),'SMOKE.PAS':b"uses Crt;var C:Char;Z:Integer;begin Z:=0;C:=ReadKey;if C<>'a'then Z:=1 div Z end."})
-cmd=['run 100000000']+n.program_launch('zzvbtest')+['@read-keys','regs']+[f'rb 0x{sym[k]:x} 2'for k in('_test_done','_test_passed','_test_failed','_test_index')]+['quit'];r=n.execute('crt-readkey',cmd,f,timeout=600,console_class=Keys);assert not (n.RUN/'crt-readkey/input-error.json').exists();assert len(hits)==2;frame=re.split(r'\[DBG\] PC=',r)[-1];mem=n.memory(frame);assert mem.get(sym['_test_failed'],255)==0;print(json.dumps({'keypress_injections':len(hits),'capture':str(n.RUN)}))
+if args.pending:
+ f['SMOKE.PAS']=b"uses Crt;var C:Char;Z,E:Integer;begin Z:=0;\nwhile not KeyPressed do begin end;\n{$I-}Reset(Input);C:=ReadKey;E:=IOResult;{$I+}\nif(C<>#0)or(E<>$22)then Z:=1 div Z;\nif not KeyPressed then Z:=1 div Z;\nC:=ReadKey;if C<>'a'then Z:=1 div Z end."
+cmd=['run 100000000']+n.program_launch('zzvbtest')+['@read-keys','regs']+[f'rb 0x{sym[k]:x} 2'for k in('_test_done','_test_passed','_test_failed','_test_index')]+['quit'];r=n.execute('crt-readkey',cmd,f,timeout=600,console_class=Keys);assert not (n.RUN/'crt-readkey/input-error.json').exists();assert len(hits)==2;frame=re.split(r'\[DBG\] PC=',r)[-1];mem=n.memory(frame);assert mem.get(sym['_test_failed'],255)==0;image=(n.RUN/'crt-readkey/hostfs/SMOKE.COM').read_bytes();assert args.pending or image[18]&4;print(json.dumps({'keypress_injections':len(hits),'pending_error_case':args.pending,'image_flags':image[18],'capture':str(n.RUN)}))

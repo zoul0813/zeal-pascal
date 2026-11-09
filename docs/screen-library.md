@@ -6,6 +6,23 @@ implementation history and its captured verification checkpoints.
 
 See [the current unit guide](units.md) for shared lookup, format and memory rules.
 
+The current stock Unit is authored from `units/crt/CRT.PAS` by the production
+Pascal compiler. Screen logic uses named `Port[]` operations and ordinary Pascal
+row/scroll calculations. Native kernels only cover bounded VRAM spans/row copies,
+pending-wrap reconstruction, session-state access and OS keyboard/sleep bridges.
+The default build validates and stages the precompiled Unit and its full source.
+See [building](building.md#stock-crt-unit) for native authoring and qualification.
+
+Screen calls leave the text controller selected and do not consume or suppress
+pending file-I/O errors. The native OS bridges retain their own error handling.
+The [CRT reference](crt-library.md) defines the current contract.
+
+## Historical hand-written-emitter checkpoint
+
+The remainder records the earlier emitter implementation and its captured tests.
+Its selector restoration, screen I/O suppression, mode errors and generated
+interface-only source describe that checkpoint, not the Pascal-authored Unit.
+
 Production programs use `uses Crt;` before declarations. Crt operations
 are ordinary imported procedures/functions, with qualification and shadowing
 following the normal unit rules. The normal build produces `build/CRT.ZPU`

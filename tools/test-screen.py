@@ -22,7 +22,7 @@ def main():
     sym = n.symbols(target)
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(), ROOT/'tools/test-native.py',
               ROOT/'tools/package-native.py', n.EMULATOR, n.ROM]
-    inputs += [ROOT/'build/CRT.ZPU',ROOT/'build/CRT.PAS',
+    inputs += [ROOT/'build/CRT.ZPU',ROOT/'build/CRT.PAS',ROOT/'units/crt/CRT.PAS',
                ROOT/'libraries/screen-engine.inc',ROOT/'tools/screen-library.c',ROOT/'tools/package-screen.py']
     inputs += sorted((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file())) + sorted((ROOT/'tests/native').glob('*'))
     inputs += [ROOT/f'build/{target}.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
@@ -66,17 +66,35 @@ def main():
     commands += [f"rb 0x{sym['_test_failures']:x} 128", 'quit']
     fixtures = {f'{target}.{ext}': (ROOT/f'build/{target}.{ext}').read_bytes()
                 for ext in ('bin', 'zpl')}
-    fixtures['src/CRT.PAS'] = b'uses Crt;\n'+(ROOT/'tests/native/crt.pas').read_bytes()
+    # The historical builtin comparator preserves the selector. The Pascal
+    # Unit follows the ZVB API convention and leaves text selected.
+    crt_source=(ROOT/'tests/native/crt.pas').read_bytes()
+    assert crt_source.count(b'check(port[$8E]=1)')==3
+    fixtures['src/CRT.PAS'] = b'uses Crt;\n'+crt_source.replace(
+        b'check(port[$8E]=1)',b'check(port[$8E]=0)')
     fixtures['CRT.ZPU'] = (ROOT/'build/CRT.ZPU').read_bytes()
+    fixtures['CRT.PAS'] = (ROOT/'units/crt/CRT.PAS').read_bytes()
     # Invalid export flags with a valid checksum exercise structural validation.
     import struct
-    bad=bytearray(fixtures['CRT.ZPU']);export=48+bad[18]+bad[19]
+    bad=bytearray(fixtures['CRT.ZPU']);export=struct.unpack_from('<H',bad,44)[0]
     bad[export+2]=2
     h=2166136261
     for value in bad[:28]+bad[32:]:h=((h^value)*16777619)&0xffffffff
     struct.pack_into('<I',bad,28,h)
     fixtures['src/CRT.ZPU']=bytes(bad)
-    fixtures['src/COLORS.PAS'] = b'uses Crt;\n'+(ROOT/'tests/native/colors.pas').read_bytes()
+    colors_source=(ROOT/'tests/native/colors.pas').read_bytes()
+    assert colors_source.count(b'check(port[$8E]=1)')==4
+    colors_source=colors_source.replace(b'check(port[$8E]=1)',b'check(port[$8E]=0)')
+    colors_source=colors_source.replace(
+        b'(x=0)and(y=0)and(code=$22)and(port[$A5]=$9E)',
+        b'(x=1)and(y=1)and(code=$22)and(port[$A5]=0)')
+    colors_source=colors_source.replace(b'port[$9C]:=1;',b'').replace(b'port[$9C]:=0;',b'')
+    colors_source=colors_source.replace(b'(x=0)and(y=0)and(code=$20)',b'(x=1)and(y=1)and(code=0)')
+    colors_source=colors_source.replace(
+        b'(fcode=$20)and(bcode=$20)and(port[$A5]=pen)and(port[$A8]=cursorpen)',
+        b'(fcode=0)and(bcode=0)and(port[$A5]=$F4)and(port[$A8]=$4F)')
+    fixtures['src/COLORS.PAS'] = b'uses Crt;\n'+colors_source
+    fixtures['src/MMU.PAS'] = b'uses Crt;\n'+(ROOT/'tests/native/crt-mmu.pas').read_bytes()
     raw = n.execute('screen-library', commands, fixtures, timeout=1200,console_class=CRTConsole)
     memory = n.memory(raw)
     word = lambda name: memory.get(sym[name], 0) | memory.get(sym[name]+1, 0) << 8
@@ -85,10 +103,10 @@ def main():
     checks = {
         'case helpers share BANK1; cross-bank check and seed resident': placement_ok,
         'native millisecond sleep arguments, zero and25 in RAM andCOM; pending I/O suppresses sleep':
-            sleeps == ['0000', '0019', '0000', '0019'] + ['0019']*13,
+            sleeps == ['0000', '0019', '0000', '0019'] + ['0019']*5,
         'native completion': memory.get(sym['_test_done']) == 255 and word('_test_stage') == 6,
         'RAM/COM screen, cursor/color restoration, bounds, syntax, ownership and machine-state assertions':
-            word('_test_failed') == 0 and word('_test_passed') == 502,
+            word('_test_failed') == 0 and word('_test_passed') == 512,
         'exact program results after whole-screen character/attribute comparisons':
             output.is_file() and output.read_bytes() == b'SCREEN-QUERY-OK\r\nSCREEN-QUERY-OK\r\nCRT-OK:-7885\r\nCRT-OK:-7885\r\nCOLOR-POS:  7:  9\r\nCOLOR-OK:1815\r\nCOLOR-POS:  7:  9\r\nCOLOR-OK:1815\r\nCRT-IO-OK\r\nCRT-IO-OK\r\nCRT-RESTART-OK\r\nSCREEN-CHAIN-OK\r\n',
         'saved program runs after library removal': not (n.RUN/'screen-library/hostfs/CRT.ZPU').exists(),

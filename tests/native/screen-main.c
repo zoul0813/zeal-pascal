@@ -1,6 +1,7 @@
 #include "harness.h"
 #include "units/internal.h"
 #include "program/decode.h"
+#include "crt-test-locations.h"
 #include <zos_time.h>
 volatile uint16_t test_passed,test_failed,test_stage;
 volatile uint8_t test_done,screen_final_pages,screen_final_cached;
@@ -46,7 +47,7 @@ int app_main(void) {
         if(b.valid) {one=b.length;check(one>plain);}build_close(&b);
         check(load("begin ClrEol;ClrScr;CrtInit;CrtExit end."));check(compile(&s,&b,&d));
         if(b.valid)check(b.length>one);build_close(&b);
-        rejected("var N:Integer;begin N:=Addr(ClrScr)end.",249);
+        rejected("var N:Integer;begin N:=Addr(ReadKey)end.",249);
     }
     /* Ordinary authored units use the same library-directory fallback. */
     {
@@ -64,31 +65,33 @@ int app_main(void) {
     capture=open("H:/CRT.TXT",O_WRONLY|O_CREAT|O_TRUNC);check(capture>=0);
     if(capture>=0)check(swap(capture,DEV_STDOUT)==0);
     test_stage=53;
-    execution("procedure P;var A,B,C:Integer;begin A:=123;B:=456;{$I-}reset(input);\n"
-              "if WhereX<>0 then halt;if WhereY<>0 then halt;C:=IOResult;{$I+}\n"
+    execution("procedure P;var A,B,C:Integer;begin A:=123;B:=456;GotoXY(7,9);{$I-}reset(input);\n"
+              "if WhereX<>7 then halt;if WhereY<>9 then halt;C:=IOResult;{$I+}\n"
               "if(C<>$22)or(A<>123)or(B<>456)then halt;writeln('SCREEN-QUERY-OK')end;begin P end.",1,0);
     execution_file("H:/src/CRT.PAS",1,0,0);
     execution_file("H:/src/COLORS.PAS",1,0,0);
+    execution_file("H:/src/MMU.PAS",1,0,0);
     execution("var code:integer;begin lowvideo;{$I-}reset(input);normvideo;\n"
-              "delay(25);code:=ioresult;{$I+}if(code=$22)and(port[$A5]=7)"
+              "delay(25);code:=ioresult;{$I+}if(code=$22)and(port[$A5]=15)"
               "then writeln('CRT-IO-OK')else writeln('CRT-IO-FAIL')end.",1,0);
-    execution("var code:integer;begin port[$9C]:=1;delay(25);\n{$I-}"
-              "clrscr;code:=ioresult;port[$9C]:=0;delay(25);{$I+}"
-              "if code<>$20 then halt end.",1,0);
-    checked_error("begin port[$9C]:=1;delay(25);\nclrscr end.",0x20,"clrscr");
-    checked_error("begin port[$9C]:=1;delay(25);\nif WhereX=0 then halt end.",0x20,"if");
+    execution("var code:integer;begin {$I-}reset(input);{$I+}GotoXY(12,13);\n"
+              "TextColor(Green);code:=IOResult;if(code<>$22)or(WhereX<>12)"
+              "or(WhereY<>13)or((port[$A5]and 15)<>2)then halt end.",1,0);
+    execution("begin TextColor(Blue);GotoXY(7,9);if(WhereX<>7)"
+              "or(WhereY<>9)or((port[$A5]and 15)<>1)then halt end.",1,0);
+    execution("begin ClrScr;GotoXY(1,1);if(WhereX<>1)or(WhereY<>1)then halt end.",1,0);
     __asm
         xor a
         out (0x9c),a
     __endasm;
     check(msleep(25)==0);
     checked_error("begin\ndelay(-1)end.",0x91,"delay");
-    checked_error("begin\ngotoxy(0,1)end.",0x91,"gotoxy");
-    checked_error("begin\ngotoxy(1,41)end.",0x91,"gotoxy");
-    checked_error("begin {$R-}\ngotoxy(257,1)end.",0x91,"gotoxy");
-    checked_error("begin\ntextcolor(16)end.",0x91,"textcolor");
-    checked_error("begin\ntextbackground(-1)end.",0x91,"textbackground");
-    checked_error("begin {$R-}\ntextbackground(256)end.",0x91,"textbackground");
+    checked_unit_error("begin\ngotoxy(0,1)end.",0x91,CRT_COLUMN_POSITION);
+    checked_unit_error("begin\ngotoxy(1,41)end.",0x91,CRT_ROW_POSITION);
+    checked_unit_error("begin {$R-}\ngotoxy(257,1)end.",0x91,CRT_COLUMN_POSITION);
+    checked_unit_error("begin\ntextcolor(16)end.",0x91,CRT_COLOR_POSITION);
+    checked_unit_error("begin\ntextbackground(-1)end.",0x91,CRT_BACKGROUND_POSITION);
+    checked_unit_error("begin {$R-}\ntextbackground(256)end.",0x91,CRT_BACKGROUND_POSITION);
     rejected("begin textcolor(1.0)end.",44);
     rejected("begin textbackground('R')end.",44);
     rejected("begin textcolor end.",4);

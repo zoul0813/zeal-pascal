@@ -1040,7 +1040,7 @@ need ZPU files at runtime. See [Pascal units and ZPU libraries](docs/units.md) f
 creation/import instructions, memory limits and remaining language restrictions.
 
 Production CRT programs declare `uses Crt;`. The build ships `CRT.ZPU`
-(and `CRT.PAS` as an interface reference) beside the compiler library; TF
+(and the complete `CRT.PAS` Unit source) beside the compiler library; TF
 packaging installs them in `T:/lib`. Unit lookup tries the source directory,
 then the loaded compiler library's directory. Saved programs contain their
 selected Crt routines and run after the library is removed.

@@ -1125,6 +1125,28 @@ add_custom_target(zzvbtest_bin
 set_property(SOURCE tests/native/units-main.c tests/native/unit-real-main.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/source/catalog.h)
 
+# Match Unit runtime-error locations against the actual Pascal statements.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    ${CMAKE_SOURCE_DIR}/units/crt/CRT.PAS)
+file(READ ${CMAKE_SOURCE_DIR}/units/crt/CRT.PAS crt_test_source)
+string(FIND "${crt_test_source}" "Column := X" crt_column_position)
+string(FIND "${crt_test_source}" "Row := Y" crt_row_position)
+string(FIND "${crt_test_source}" "CheckedColor := Color" crt_color_position)
+string(FIND "${crt_test_source}" "procedure TextBackground(Color: Integer);\nvar" crt_background_start)
+if(crt_background_start LESS 0)
+    message(FATAL_ERROR "CRT background validation statement not found")
+endif()
+string(SUBSTRING "${crt_test_source}" ${crt_background_start} -1 crt_background_source)
+string(FIND "${crt_background_source}" "CheckedColor := Color" crt_background_offset)
+math(EXPR crt_background_position "${crt_background_start}+${crt_background_offset}")
+foreach(position IN ITEMS crt_column_position crt_row_position crt_color_position crt_background_position)
+    if(${${position}} LESS 0)
+        message(FATAL_ERROR "CRT validation statement not found: ${position}")
+    endif()
+endforeach()
+file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/crt-test-locations.h CONTENT
+    "#define CRT_COLUMN_POSITION ${crt_column_position}u\n#define CRT_ROW_POSITION ${crt_row_position}u\n#define CRT_COLOR_POSITION ${crt_color_position}u\n#define CRT_BACKGROUND_POSITION ${crt_background_position}u\n")
+
 add_executable(zscreentest src/app/startup.asm src/app/banks.c tests/native/screen-main.c
     tests/native/harness.c tests/native/harness-cases.c tests/native/machine.asm
     $<TARGET_OBJECTS:unit_runtime_core> $<TARGET_OBJECTS:unit_fragment_core>
@@ -1142,7 +1164,7 @@ set_source_files_properties(tests/native/screen-main.c
     PROPERTIES COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
 
 set_property(SOURCE tests/native/screen-main.c
-    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/program/decode.h ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/common/zp.h ${CMAKE_SOURCE_DIR}/src/platform/banks/loader.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h)
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/program/decode.h ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/common/zp.h ${CMAKE_SOURCE_DIR}/src/platform/banks/loader.h ${CMAKE_SOURCE_DIR}/tests/native/harness.h ${CMAKE_BINARY_DIR}/crt-test-locations.h)
 
 add_dependencies(zscreentest transfer_assets crt_zpu zexparent_bin)
 
@@ -1189,3 +1211,10 @@ add_custom_target(zvb_authoring
         ${CMAKE_BINARY_DIR} --prepare-authoring
     BYPRODUCTS ${CMAKE_BINARY_DIR}/zvb-authoring.json
     DEPENDS zpascal_bin zzvbtest_bin runtime_profile VERBATIM)
+
+# Rebuild the Pascal stock CRT explicitly, outside the default release build.
+add_custom_target(crt_authoring
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/author-crt.py
+    DEPENDS zpascal_bin runtime_profile
+        ${CMAKE_SOURCE_DIR}/units/crt/CRT.PAS
+        ${CMAKE_SOURCE_DIR}/tools/author-crt.py VERBATIM)

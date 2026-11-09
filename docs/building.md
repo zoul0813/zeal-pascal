@@ -12,7 +12,7 @@ Ship these files from `build/`:
 - `zpascal.bin`: native IDE/compiler launcher.
 - `zpascal.zpl`: matching compiler banks.
 - `SYSFILE.ZPU`, `CRT.ZPU`, `ZVB.ZPU`: stock statically linked Units.
-- `CRT.PAS`: the generated CRT interface, when distributing source interfaces.
+- `CRT.PAS`: the complete Pascal CRT source, when distributing Unit sources.
 
 Keep the three ZPU files beside the loaded ZPL. Include the ZVB licence and
 notice from `units/zvb/` when distributing its Unit. Other runtime ZPLs, IHX,
@@ -124,8 +124,9 @@ use `zde cmake`.
 licences and `prebuilt/` native-authored artifact. Normal builds validate that
 artifact against its source and compiler/runtime bindings, then stage `ZVB.ZPU`.
 Validation runs on every default build, including incremental builds.
-They do not run an emulator or compile test executables. CRT and SYSFILE retain
-their existing build-time generators.
+They do not run an emulator or compile test executables. CRT uses the same
+validated stock-artifact approach; SYSFILE retains its relocatable runtime
+generator.
 
 The stock manifest binds the source components and generator, exact compiler
 BIN/ZPL and private runtime profile. A changed binding fails the build instead
@@ -147,3 +148,30 @@ rejects failed runs, prebuilt-client reports, changed compiler/runtime inputs,
 a different Unit payload, or a different flattened Pascal source. Commit the
 updated Unit and manifest together, validate clients, and switch tests off again
 for a normal release build.
+
+## Stock CRT Unit
+
+`units/crt/CRT.PAS` contains ordinary Pascal screen logic, named register constants
+and small annotated native kernels for bounded VRAM access and OS/runtime
+bridges. The default `crt_zpu` target validates the precompiled Unit against that
+source, its authoring tool, the compiler BIN/ZPL and runtime profile, then stages
+`CRT.ZPU` and the complete `CRT.PAS`. It never runs the historical C emitter.
+
+To re-author after a CRT source or compiler change:
+
+```sh
+zde --no-tty exec cmake -S . -B build -DZP_BUILD_TESTS=ON
+zde --no-tty cmake build --target zpascal_bin -j4
+python3 tools/author-crt.py
+python3 tools/package-crt.py build --record-authoring analysis/native-slice/RUN/crt-authoring-report.json
+zde --no-tty cmake build --target zscreentest_bin -j4
+python3 tools/test-screen.py
+python3 tools/test-crt-readkey.py
+```
+
+Use the exact authoring report path printed by the run. Commit the Unit and
+manifest together only after framebuffer, error-policy, keyboard and standalone
+checks pass. `tools/measure-crt.py` compares the Pascal implementation with the
+historical emitter using the same current compiler/runtime. It reports payload
+and COM sizes and standalone instruction-cycle measurements with interrupts
+masked during the timed calls. Restore `ZP_BUILD_TESTS=OFF` for release builds.

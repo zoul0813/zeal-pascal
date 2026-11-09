@@ -31,17 +31,18 @@ Unit lookup first tries the program source directory, then the directory of the
 compiler bank file actually loaded. A corrupt or stale local `CRT.ZPU` is an
 error, not a reason to silently use the installed copy.
 
-`CRT.PAS` beside it is an interface reference. Its empty implementation is not
-the source needed to rebuild the native routines. The build authors `CRT.ZPU`
-from `libraries/screen-engine.inc`, `tools/screen-library.c` and
-`tools/package-screen.py` through the project's normal ZDE build.
+`units/crt/CRT.PAS` is the Pascal implementation. The release build validates and
+stages the checked-in native-authored `CRT.ZPU`; it does not compile the historical
+C emitter or run an emulator. See [building](building.md) to re-author the Unit.
+The distributed `CRT.PAS` contains the same complete implementation.
 
 Import is static. Only reachable CRT fragments enter the output; the saved
 program runs without `CRT.ZPU` or `CRT.PAS`. An unused `uses Crt;` performs no
 initialization or screen change. `Crt.ClrScr` and other qualified calls work;
-normal Pascal shadowing rules apply to unqualified calls. Taking `Addr` of a
-CRT routine is unsupported because these exports carry the caller's I/O-checking
-context; ordinary user-Unit routine addresses are unaffected.
+normal Pascal shadowing rules apply to unqualified calls. Taking `Addr` of
+`ReadKey` or `Delay` is unsupported because those native OS
+bridges carry the caller's I/O-checking context. The screen routines use the
+ordinary Pascal routine ABI.
 
 In the IDE, save the source, then select **O → M → Q** and **R** for RAM execution,
 or **O → C → Q** and **C** to save a COM beside the source. See
@@ -50,9 +51,9 @@ or **O → C → Q** and **C** to save a COM beside the source. See
 ## Display model and session lifecycle
 
 Screen, cursor and color routines require ZVB video mode 0: 640×480 text with
-80 columns and 40 rows. They do not switch modes for the program. The 320×240 text
-mode and graphics modes are unsupported by these screen routines and report
-I/O error `$20`. `Delay` and `ReadKey` do not require text mode.
+80 columns and 40 rows. They do not switch or validate video modes. Callers must select
+640×480 text mode before using the screen routines; 320×240 text and graphics
+modes are outside their contract. `Delay` and `ReadKey` do not require text mode.
 
 Logical cursor coordinates are one-based: X 1..80, Y 1..40. CRT handles the
 hardware text scroll offsets when locating rows and cells. Blank cells use the
@@ -63,7 +64,8 @@ preserve each moved cell's original attribute.
 appearance/blink settings and relevant text-control bits, then selects white on
 black. It does not clear the screen, reset scrolling or select video mode.
 `CrtExit` restores the latest captured session and clears its active flag. Without
-an active session it is a no-op, provided the supported text-mode check succeeds.
+an active session it leaves cursor and rendition unchanged; it still selects
+the text controller.
 
 Sessions are not a stack: a second `CrtInit` replaces the snapshot. One `CrtExit`
 restores that latest snapshot; another leaves it unchanged. CRT reconstructs a
@@ -79,8 +81,8 @@ restore a graphics mode or an overwritten palette for you.
 
 ## Complete routine reference
 
-Names are case-insensitive. Parameter names here describe their purpose; the
-shipped `CRT.PAS` interface may use `P 0`/`P 1` for those same parameters.
+Names are case-insensitive. The complete declarations and implementations are
+in the shipped `CRT.PAS`.
 
 | Declaration | Behavior |
 | --- | --- |
@@ -164,51 +166,65 @@ inferred from emulator checks.
 ## Arguments and errors
 
 CRT validates the complete Integer arguments, even with `{$R-}`. Invalid X/Y,
-color or delay ranges raise a range error; `{$I-}` does not turn invalid arguments
-into valid values. A previously pending I/O error suppresses the hardware/sleep
-operation, though argument evaluation and bounds checking still occur.
+color or delay ranges raise a range error; `{$I-}` does not disable validation.
+Validation inside the Pascal screen routines maps to the corresponding CRT Unit
+source location when that optional source is available. The native Delay bridge retains the caller's source location.
 
-Device failures follow the caller's I/O-checking setting. With `{$I+}`, an I/O
-error follows the normal runtime diagnostic path and retains the Pascal call's
-source location. With `{$I-}`, inspect `IOResult`; reading it clears the pending
-status. `WhereX`/`WhereY` return 0 when the operation is suppressed by an I/O error;
-ReadKey's zero-initialized result likewise remains `#0` on a suppressed failure.
-Zero is not the normal no-key result of blocking `ReadKey`.
+Screen operations access ZVB registers and VRAM directly. These interfaces have
+no I/O error return. Screen routines neither inspect nor modify the runtime's
+pending file-I/O status: a failed file operation does not prevent cursor movement,
+color changes, screen clearing or cursor queries. `WhereX` and `WhereY` return the
+live board coordinates without an `IOResult` check.
 
-```pascal
-{$I-}
-X := WhereX;
-Error := IOResult;
-{$I+}
-if Error = 0 then
-  WriteLn('Column: ', X)
-else
-  WriteLn('CRT I/O error: ', Error);
-```
-
-Declare X as Byte and Error as Integer. The example assumes earlier I/O status
-has been handled. Reading the result alone does not prove success: use IOResult
-under unchecked I/O. Error `$20` includes the unsupported-video-mode case.
+`ReadKey` and `Delay` call Zeal OS services, which can return actual errors. Those
+bridges retain the runtime's existing caller `{$I}` handling. With `{$I+}`, an OS
+I/O failure follows the runtime diagnostic path. With `{$I-}`, inspect `IOResult`;
+reading it clears the pending status. Delay is suppressed while an I/O error is
+pending. ReadKey's result remains `#0` on a suppressed failure; this is not a
+normal no-key result of the blocking operation.
 
 ## Scope, mapping and verification
 
-Screen helpers restore the incoming CPU mapping, peripheral selector and
-interrupt-enable state. VRAM is mapped only within bounded raw instruction
-sequences; no OS call or Pascal guard runs while the OS page is replaced.
+Screen routines select the text controller before accessing its banked ports
+and leave it selected. Code using raw banked `Port[]` accesses must select its
+controller first, just as the ZVB Unit does. An interrupt handler that accesses
+banked ZVB I/O must preserve the interrupted selector. Zeal's stock keyboard and
+vblank handlers do not change it. Ordinary register access uses Pascal
+`Port[]` without disabling interrupts. Bulk VRAM kernels restore the incoming CPU
+mapping and interrupt-enable state. VRAM is mapped only within bounded raw
+instruction sequences; no OS call or Pascal guard runs while the OS page is replaced.
 Long line operations give keyboard interrupts opportunities between rows.
-CRT owns one session snapshot, not multiple concurrent terminal contexts.
+CRT owns one session snapshot and uses nonrecursive Pascal workspaces. Call it
+from normal program code; its routines are not reentrant.
 
 There is no `Window`, `TextMode`, `TextAttr`, DOS scan-code emulation or CRT
 `Sound`/`NoSound` in this interface. Use the [ZVB Unit](zvb-library.md) for video
 modes, palettes, sprites and sound; its [named register reference](zvb-registers.md)
 also supports direct `Port[Name]` access.
 
-The native implementation is covered by historical framebuffer, cursor/color,
-RAM/saved-program, lifecycle, I/O-failure and key-input checks documented in
-[the implementation notes](screen-library.md). A current native fixture exercises all 16 documented routines; ReadKey is tested with
-physical emulator key injection. Saved test programs run independently of source
-and Unit files. See [the current reference evidence](unit-reference-evidence.json) for the Unit
-checkpoint and [CRT harness evidence](crt-harness-evidence.json) for full
-framebuffer verification after the test-harness repair. Physical
-hardware/display/audio timing and full historical Turbo Pascal equivalence
-remain separate qualification objectives.
+Current [Pascal CRT evidence](crt-pascal-evidence.json) records 512 native
+assertions, RAM/COM keyboard injection, saved execution without library files,
+Unit ABI checks and size/timing measurements. Earlier emitter checkpoints remain
+in [the implementation history](screen-library.md).
+
+## Measured Pascal overhead
+
+The complete Unit code payload is 6,845 bytes versus 2,086 bytes for the historical
+hand-written emitter. Smart linking includes only the selected routines:
+
+| Client | Historical COM | Pascal COM | Execution pages, both versions |
+| --- | ---: | ---: | ---: |
+| Unused `uses Crt` | 6,655 | 6,655 | 1 |
+| `TextColor(Green)` | 6,785 | 7,137 | 1 |
+| `ClrEol` | 6,893 | 7,694 | 1 |
+
+The common eight-operation benchmark grows from 8,395 to 12,553 bytes. With
+interrupts disabled during the timed calls, `ClrScr` measures 158,394 versus
+636,321 cycles and `InsLine` 167,623 versus 1,032,786 cycles. The probe includes
+caller guards and identical marker padding; these are emulator CPU measurements,
+not physical-board timing guarantees. Pascal frames, checked expressions and row
+loops have measurable cost. The port favors readable Pascal, as requested;
+it does not claim hand-written Z80 speed parity.
+
+Physical hardware acceptance of this Pascal-authored CRT and full historical
+Turbo Pascal equivalence remain separate qualification objectives.

@@ -1,5 +1,8 @@
 #include "harness.h"
 #include "program/decode.h"
+#ifdef ZP_UNITS_EXPERIMENT
+#include "source/catalog.h"
+#endif
 
 /* Publication and saved execution must select the same ordinary corpora. */
 static uint8_t saved_corpus(void) {
@@ -21,6 +24,9 @@ uint8_t cached_code_pages(void) SOURCE_BLOCK_CALL {
 }
 void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) SOURCE_BLOCK_CALL {
     uint8_t owned,i;
+#ifdef ZP_UNITS_EXPERIMENT
+    uint8_t unit_error=kind&0x80u;kind&=0x7fu;
+#endif
     uint8_t before[7],after[7];
     uint16_t pc,position;zos_stat_t info;
     uint32_t revision;
@@ -52,8 +58,18 @@ void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) SOURCE
     check(s.dirty&&s.revision==revision&&pages_used()==owned);
     if(kind==3||kind==5) {
         pc=ram_result[30]|((uint16_t)ram_result[31]<<8);
+#ifdef ZP_UNITS_EXPERIMENT
+        if(unit_error) {
+            uint8_t file=0;Source unit;
+            check(build_location(&s,&b,pc,&file,&position)&&file!=0);
+            check(file&&sources_get(&b.sources,file,&unit)&&
+                  strcmp(unit.path,s.path)&&position==expected_position&&position<unit.length);
+        } else
+#endif
+        {
         check(build_locate(&s,&b,pc,&position));
         check(position==expected_position);
+        }
     }
     check(build_check(&s,&b)); /* native program mutations remain part of this build */
     if(test_stage==2) {

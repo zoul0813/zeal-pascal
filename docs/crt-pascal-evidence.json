@@ -1,0 +1,171 @@
+{
+  "passed": true,
+  "compiler_sha256": {
+    "zpascal.bin": "ea92735953735004bbe6a1e5b3cefe6f8a54b54ce11af2fe2d38a17d8761150f",
+    "zpascal.zpl": "b940e889d6add33c9324a785c8ef1f3737a6342fc60bc5b9e801e4d69e292c9a"
+  },
+  "crt_source_sha256": "38cb123d3daae7ff834473ba9bc6e3c7dbed90d1069065ac5783fca3e469ae6b",
+  "crt_unit_sha256": "dcc538fca13f39b3c9fb8c7b913526321a99024ba8d0dd4ceb1b81d96a1f50c1",
+  "native_authoring_report_sha256": "c106b16ddb3f2e88c52b4ebf84eff1f00596b3f6ce92f41895e067226a5ea8f4",
+  "native_screen": {
+    "assertions_passed": 512,
+    "assertions_failed": 0,
+    "checks": {
+      "case helpers share BANK1; cross-bank check and seed resident": true,
+      "native millisecond sleep arguments, zero and25 in RAM andCOM; pending I/O suppresses sleep": true,
+      "native completion": true,
+      "RAM/COM screen, cursor/color restoration, bounds, syntax, ownership and machine-state assertions": true,
+      "exact program results after whole-screen character/attribute comparisons": true,
+      "saved program runs after library removal": true,
+      "implementation and artifacts unchanged during validation": true,
+      "standalone Screen Chain without compiler or unit libraries": true
+    },
+    "report_sha256": "c5bffa0b611e619dedb13ddcb128cb1c8fda2ea0645ca44e892967febcd672f8"
+  },
+  "native_unit": {
+    "checks": {
+      "no harness input error": true,
+      "native Unit published": true,
+      "Pascal native scalar/VAR calls, caller flags and live MMU aliases": true,
+      "client compiles to COM": true,
+      "no Unit scratch": true,
+      "native leaves retain one-page clients": true,
+      "fullmemory leaf requests independent windows": true,
+      "reject program": true,
+      "reject nested": true,
+      "reject recursive-native": true,
+      "reject statements": true,
+      "reject runtime-normal": true,
+      "reject runtime-math": true,
+      "reject runtime-byte": true,
+      "reject runtime-name": true,
+      "reject pascal-call": true,
+      "reject callerio-operand": true,
+      "reject late-callerio": true,
+      "reject real-value": true,
+      "reject longword-value": true
+    },
+    "report_sha256": "f821fbc1f34ba427153a5bcaed061091b55db92a89249f29ad6fbfcc3419998a"
+  },
+  "keyboard": {
+    "physical_key_injections": 2,
+    "RAM_and_COM": true,
+    "image_flags": 4,
+    "capture": "analysis/native-slice/20261109T072321.441463Z-51126"
+  },
+  "measurements": {
+    "historical": {
+      "single_routine_sizes": {
+        "unused": {
+          "com_bytes": 6655,
+          "image_flags": 4,
+          "execution_pages": 1
+        },
+        "color": {
+          "com_bytes": 6785,
+          "image_flags": 4,
+          "execution_pages": 1
+        },
+        "clear_eol": {
+          "com_bytes": 6893,
+          "image_flags": 4,
+          "execution_pages": 1
+        }
+      },
+      "unit_bytes": 3899,
+      "unit_code_bytes": 2086,
+      "benchmark_com_bytes": 8395,
+      "image_flags": 0,
+      "cycles": {
+        "NormVideo": 3624,
+        "GotoXY(7,9)": 6261,
+        "TextColor(Green)": 4955,
+        "B := WhereX": 3700,
+        "ClrEol": 14984,
+        "ClrScr": 158394,
+        "InsLine": 167623,
+        "DelLine": 167895
+      }
+    },
+    "pascal": {
+      "single_routine_sizes": {
+        "unused": {
+          "com_bytes": 6655,
+          "image_flags": 4,
+          "execution_pages": 1
+        },
+        "color": {
+          "com_bytes": 7137,
+          "image_flags": 4,
+          "execution_pages": 1
+        },
+        "clear_eol": {
+          "com_bytes": 7694,
+          "image_flags": 4,
+          "execution_pages": 1
+        }
+      },
+      "unit_bytes": 12897,
+      "unit_code_bytes": 6845,
+      "benchmark_com_bytes": 12553,
+      "image_flags": 0,
+      "cycles": {
+        "NormVideo": 8223,
+        "GotoXY(7,9)": 16225,
+        "TextColor(Green)": 20063,
+        "B := WhereX": 8640,
+        "ClrEol": 46067,
+        "ClrScr": 636321,
+        "InsLine": 1032786,
+        "DelLine": 1031137
+      }
+    }
+  },
+  "measurement_scope": "Standalone COM, interrupts disabled during timed calls; includes caller guards and marker padding. Not physical-board timing.",
+  "measurement_report_sha256": "bc9bf21245a51a513353fc13748f7afe495e37c0e4c1467bf0455a56207e4973",
+  "source_note": "Native guard data and instructions are annotated separately; ordinary screen logic is Pascal.",
+  "release_build": {
+    "tests_enabled": false,
+    "default_build_passed": true,
+    "stock_units_validated": [
+      "CRT",
+      "SYSFILE",
+      "ZVB"
+    ]
+  },
+  "keyboard_pending_error": {
+    "physical_key_injections": 2,
+    "RAM_and_COM": true,
+    "preserves_error_and_queued_key": true,
+    "capture": "analysis/native-slice/20261109T072321.396184Z-51122"
+  },
+  "delay_only": {
+    "RAM_and_COM": true,
+    "image_flags": 4,
+    "execution_pages": 1,
+    "com_bytes": 6764,
+    "report_sha256": "098f0846cd2362b0e207b5789f34db588b4d668d7ed0fb3d03b488d9c69d3cc9"
+  },
+  "stock_validation": {
+    "current stock stages": true,
+    "reject stale source": true,
+    "reject stale compiler": true,
+    "reject stale runtime": true,
+    "reject stale payload": true
+  },
+  "host_regression": {
+    "ASan_UBSan": true,
+    "frontend_assertions": 180362,
+    "editor_assertions": 4010,
+    "packaging_and_runner_checks_passed": true
+  },
+  "review": {
+    "opus_turns": 2,
+    "final_corrections_re_reviewed": false,
+    "note": "Both permitted review turns used. Codex corrected and tested the follow-up findings; no third Opus review requested."
+  },
+  "remaining_acceptance": [
+    "Physical hardware acceptance of the Pascal-authored CRT",
+    "Full historical Turbo Pascal equivalence"
+  ]
+}

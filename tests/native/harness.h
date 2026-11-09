@@ -18,5 +18,8 @@ void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) SOURCE
 void execution(const char *text,uint8_t kind,uint8_t code);
 void execution_file(const char *path,uint8_t kind,uint8_t code,uint16_t expected_position);
 void checked_error(const char *text,uint8_t code,const char *where);
+#ifdef ZP_SCREEN_LIBRARY
+void checked_unit_error(const char *text,uint8_t code,uint16_t position);
+#endif
 uint8_t cached_code_pages(void) SOURCE_BLOCK_CALL;
 #endif

@@ -41,7 +41,7 @@ programs include the actual full runtime and its state.
 
 Execution uses one, two or three physical 16 KiB pages according to the image,
 stack and control-space requirements. Small ordinary programs can share one
-physical page across the three CPU windows. Raw memory/I/O, explicit heap
+physical page across the three CPU windows. Raw memory/Inline, explicit heap
 inspection, interrupt handlers and program transfers retain independent windows.
 RAM Run allocates only the distinct pages it needs. For a cold COM launch,
 Zeal’s loader initially supplies three pages; program startup returns the
@@ -147,9 +147,8 @@ being linked to missing runtime code:
 
 Fixed runtime services such as `IOResult`, and the supported memory operations
 `Move` and `FillChar`, remain available. If the compiler rejects something in a
-unit, do that work in the program and pass the data through parameters. The
-stock `Crt` unit is built by a separate host tool, so its screen operations are
-not a model for what a Pascal-authored unit may do.
+unit, do that work in the program and pass the data through parameters. The stock `Crt` Unit is authored from Pascal and demonstrates ordinary `Port[]`
+logic with small native leaves for the remaining low-level bridges.
 
 ## Dependencies and initialization
 
@@ -250,7 +249,7 @@ TF packaging installs these files beside `T:/lib/zpascal.zpl`:
 | --- | --- |
 | `SYSFILE.ZPU` | Private statically linked file helpers, used automatically by the compiler |
 | `CRT.ZPU` | Screen, cursor, color, `Delay` and `ReadKey`; see the [CRT reference](crt-library.md) |
-| `CRT.PAS` | Interface reference only, not the implementation source |
+| `CRT.PAS` | Complete Pascal implementation, including annotated native kernels |
 | `ZVB.ZPU` | Zeal Video Board graphics, sprites, CRC32, sound and DMA; see the [ZVB reference](zvb-library.md) |
 | `ZVB.LIC` | Apache-2.0 license for ZVB |
 | `ZVB.NTC` | ZVB SDK attribution and Pascal changes |
@@ -295,3 +294,46 @@ kept separately; an evidence file is not an approval.
 - finalization, and unit state shared between a program and its CHN.
 
 These are open design questions. None is enabled by this guide.
+
+## Native implementation leaves
+
+Ordinary Unit routines are Pascal. Use `Port[Name]` for register access; reserve
+raw `Inline` kernels for operations that must run without Pascal guards or OS
+calls, such as temporarily mapping VRAM. The stock CRT implementation in
+`units/crt/CRT.PAS` demonstrates this boundary and comments every Z80 instruction.
+
+A top-level implementation routine may place `native;` after its heading. Its
+body accepts only `Inline` statements. The compiler supplies no frame, stack
+guard or return instruction: the kernel owns those operations. Value parameters
+and function results must be scalar values of at most two bytes; `var`
+parameters pass references. Arguments occupy two-byte stack slots, in declaration
+order, with the last argument nearest the return address. The kernel removes its
+arguments, returns scalar results in HL and preserves IX and IY. Native leaves
+support the compiler's shared-window memory layouts by default. A kernel that
+requires independent RAM windows must declare `native; fullmemory;` (or
+`native; callerio; fullmemory;` for an OS bridge); that requirement follows the
+retained fragment into each client. Ordinary `Port[]` accesses alone do not
+require independent RAM windows. Code that remaps program RAM windows must
+request independent windows in its native kernel; an ordinary `Port[]` write
+does not make that resource request automatically. Its author must
+bound stack use and restore any temporary mappings before returning or enabling
+interrupts. Within native Inline, routine operands may name only previously
+defined native leaves without caller-I/O metadata; ordinary Pascal callbacks are
+not permitted inside these kernels. Named self-recursion is rejected as well;
+use operand-relative branches for internal loops that do not grow the stack.
+
+`Runtime(Name)` supplies a symbolic runtime word operand inside native Unit
+Inline. The linker relocates movable runtime addresses for the final program.
+It is a complete word: byte extraction and arithmetic on it are rejected. The
+stock bridge names are `IOStatus`, `IOFail`, `PC`, `IOCall`, `Range`, `Guard`,
+`NativeError`, `CrtActive`, `EchoFD`, `InputModeValue`, `InputMode`, `InputKey`,
+`InputFail` and `IOError`. These are private runtime interfaces, checked by the
+ZPU runtime-profile binding, rather than Zeal OS syscall numbers.
+
+The optional `native; callerio;` form is for native OS/runtime I/O bridges. It
+receives the calling program's `{$I}` policy in A and exports that requirement
+in ZPU metadata. Such routines cannot be address-taken or referenced as raw
+Inline routine operands. A same-Unit call before the native caller-I/O definition
+is rejected, because the first heading has not declared that calling convention.
+This form does not apply to ordinary CRT screen operations, which have no device
+error result and do not consume pending file-I/O status.
