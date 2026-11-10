@@ -24,6 +24,9 @@
 /examples/**/*.[Bb][Aa][Kk]
 /examples/partsbin/parts.dat
 /examples/measure/values.dat
+/examples/zealcalc/*.zvc
+/examples/zealcalc/zc.req
+/examples/zealcalc/zc.view
 
 # Host caches and desktop metadata are never source inputs.
 __pycache__/
