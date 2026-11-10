@@ -107,5 +107,5 @@ end;
 procedure PutCell(text: CellText);
 begin
   request.edit := 1; request.editrow := row; request.editcol := col;
-  request.source := text; painted := False
+  request.source := text
 end;

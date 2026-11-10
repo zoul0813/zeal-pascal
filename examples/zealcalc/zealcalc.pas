@@ -9,6 +9,9 @@ var
   path: string[127]; notice: string[75]; finishkey: char;
   active, quitting, painted, ownrequest, ownview, labelcell: boolean;
   request: SheetRequest; header: SheetView; visible: ViewCell;
+  { Fixed display cache: glyphs only, no extra cell sources or sheet data. }
+  drawn: array[1..ViewRows, 1..ViewCols] of string[9];
+  lines: array[1..6] of LineText;
 {$I include/front.pas}
 {$I include/screen.pas}
 begin

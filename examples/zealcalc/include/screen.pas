@@ -23,9 +23,22 @@ begin
   Say(text)
 end;
 
+{ Six application-owned lines. Leave unchanged text alone, and retain the
+  common prefix when a prompt, status or entry changes. ClrEol removes an old
+  suffix when text gets shorter; it never touches another screen row. }
 procedure Line(y: integer; text: LineText);
+var slot, first: integer; same: boolean;
 begin
-  Pen(False); GotoXY(1, y); ClrEol; Say(text)
+  if y <= 3 then slot := y else slot := y - 33;
+  if lines[slot] = text then Exit;
+  first := 1; same := True;
+  while (first <= Length(text)) and (first <= Length(lines[slot])) and same do
+  begin
+    if text[first] = lines[slot][first] then first := first + 1
+    else same := False
+  end;
+  Pen(False); GotoXY(first, y); ClrEol;
+  Say(Copy(text, first, 79)); lines[slot] := text
 end;
 
 function Reference(r, c: integer): CellText;
@@ -35,18 +48,23 @@ begin
 end;
 
 procedure Paint;
-var rr, cc, x, y: integer; text, raw: CellText; redraw: boolean;
+var rr, cc, x, y: integer; text, raw: CellText; statusline: LineText; redraw, refreshed, moved: boolean;
 begin
   if row < top then top := row;
   if row >= top + ViewRows then top := row - ViewRows + 1;
   if col < left then left := col;
   if col >= left + ViewCols then left := col - ViewCols + 1;
   redraw := not painted or (top <> showntop) or (left <> shownleft);
-  if redraw then RefreshView;
+  refreshed := redraw or (request.edit <> 0);
+  moved := (row <> shownrow) or (col <> showncol);
+  if refreshed then RefreshView;
   raw := Cell(row, col); text := DisplayCell(row, col);
   if labelcell then text := '(L)' else text := '(V)';
-  Line(1, Copy(Reference(row, col) + ' ' + text + ' ' + raw, 1, 63));
-  Pen(False); GotoXY(65, 1); Str(records - 1, text); Pad(text, 4); Say('/4096 edits');
+  text := Copy(Reference(row, col) + ' ' + text + ' ' + raw, 1, 63);
+  while Length(text) < 63 do text := text + ' ';
+  statusline := text + ' '; Str(records - 1, raw);
+  while Length(raw) < 4 do raw := ' ' + raw;
+  Line(1, statusline + raw + '/4096 edits');
   Line(2, notice); Line(3, '');
   if redraw then
   begin
@@ -68,14 +86,19 @@ begin
       for x := 0 to ViewCols - 1 do
       begin
         cc := left + x;
-        if (cc <= MaxCols) and (redraw or
-           ((rr = row) and (cc = col)) or
-           ((rr = shownrow) and (cc = showncol))) then
+        if (cc <= MaxCols) and (refreshed or
+           (moved and (((rr = row) and (cc = col)) or
+            ((rr = shownrow) and (cc = showncol))))) then
         begin
           text := DisplayCell(rr, cc);
-          Pen((rr = row) and (cc = col));
-          GotoXY(5 + x * CellWidth, 5 + y);
-          Pad(text, 9); Say(' ')
+          if redraw or (text <> drawn[y + 1, x + 1]) or moved and
+             (((rr = row) and (cc = col)) or
+              ((rr = shownrow) and (cc = showncol))) then
+          begin
+            Pen((rr = row) and (cc = col));
+            GotoXY(5 + x * CellWidth, 5 + y);
+            Pad(text, 9); Say(' '); drawn[y + 1, x + 1] := text
+          end
         end
       end
     end
@@ -94,7 +117,8 @@ var key: char; done, accepted: boolean;
 begin
   done := False; accepted := False; finishkey := #0;
   repeat
-    Line(2, prompt); Line(3, text);
+    Line(2, prompt); Line(3, text); Pen(False);
+    GotoXY(Length(text) + 1, 3);
     key := ReadKey;
     if IOResult <> 0 then Fatal('Keyboard read failed.');
     case key of

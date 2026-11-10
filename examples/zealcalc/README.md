@@ -1,7 +1,7 @@
 # ZealCalc
 
 A VisiCalc-inspired spreadsheet written entirely in Zeal Pascal. The UI uses
-`Crt` and `ZOS` on the ZVB 80x40 text screen. Two Pascal overlays validate/save
+`Crt` and `ZOS` on the ZVB 80x40 text screen. Two Pascal worker programs validate/save
 the sheet and calculate its viewport. This follows the companion-program pattern of Measure Lab, keeping the UI plus one
 backend resident within the machine's address space.
 It is a new example, not a VisiCalc port or file-format emulator.
@@ -74,14 +74,21 @@ ZealCalc uses an explicit bounded working set instead:
 | Eight formula frames | 560 bytes | Calculator invocation |
 | Shared disk record | 70 bytes | Worker invocation |
 | One selected/rendered cell | 75 bytes | UI |
+| 210 displayed cell strings | 2100 bytes | UI |
+| Six status/prompt/footer strings | 480 bytes | UI |
 
 These are the principal data structures, not executable code, Units, other
 fixed workspaces or stacks. No RAM structure grows with populated cells or edits.
-The UI retains no whole-sheet or whole-viewport cell array. It reads the selected
-source and old/new selection fields from a disk viewport file. Scrolling and edits
-invoke the worker once to rebuild the viewport; movement within it does not
-recalculate the sheet. The UI image remains preserved while the save overlay runs and tail-replaces
-itself with the calculator. The calculator returns to the UI. Before evaluation,
+The UI caches only the displayed cell strings and six application lines, not
+viewport sources, formulas or the whole sheet. It reads source text from the disk
+viewport as needed. After an edit, the workers rebuild the calculated viewport;
+the UI compares the display strings and redraws only changed cells. Moving the
+selection redraws its old/new cells. Headers and the full grid redraw at startup
+or when the viewport scrolls; unchanged footer and prompt lines stay untouched.
+Line updates preserve their unchanged prefix and clear/rewrite the changed tail.
+Movement within the viewport does not recalculate the sheet.
+The UI image remains preserved while the save worker runs and replaces itself
+with the calculator. The calculator returns to the UI. Before evaluation,
 it reserves 2,496 bytes for guarded CPU calls using Pascal's `RecurPtr`; active parser
 workspaces use the separate bounded recursion area.
 
@@ -89,7 +96,7 @@ The Pascal typed `.zvc` file has a four-byte count/component-size header, one
 70-byte signature record and 70-byte edit records. Each
 changed entry stores row, column, previous record in that row's history, source
 string and additive checksum. Blank is a stored empty string, so an older value
-cannot reappear after eviction or reopening. Unchanged entries use no edit
+cannot reappear after reopening. Unchanged entries use no edit
 capacity. Each worker streams and validates the file to reconstruct row heads;
 it does not load the cells. Lookups walk that row's history, newest first.
 Values are recomputed, so edits
@@ -113,6 +120,19 @@ occur after an edit has reached disk; restart and inspect rather than replay it
 blindly. Keep backups, free disk space and a single writer per sheet.
 
 ## Scratch files and worker lifecycle
+
+Keep these three executables together:
+
+| Executable | Responsibility | Handoff |
+| --- | --- | --- |
+| `zealcalc.bin` | Keyboard input and screen updates | Calls the save worker with `ZOS_EXEC_PRESERVE_PROGRAM` |
+| `zcsheet.bin` | Validate the sheet and save an edit | Replaces itself with the calculator using `ZOS_EXEC_OVERRIDE_PROGRAM` |
+| `zccalc.bin` | Evaluate formulas and write the 7x30 viewport | Calls `ZOS_EXIT`, returning to the preserved UI |
+
+Each executable includes its own linked Pascal support. This split fits the
+current compiler's program layout; only one worker runs alongside the preserved
+UI. The disk viewport stores source/display text, not a screen image. The repaint
+cache is a separate, fixed-size set of displayed strings in the UI.
 
 `zc.req` and `zc.view` are private, fixed-size request and viewport files in the
 current directory. Startup refuses pre-existing files with those names. Normal
@@ -154,7 +174,8 @@ The focused acceptance check compiles the exact three programs and their actual
 includes on the unmodified emulator. It tests the real backend pipeline with
 formula and storage fixtures and replays keyboard entry, cancel, navigation,
 Blank, reopening and corrupt-file
-refusal. `--package` refreshes all three binaries, native screen captures and the
+refusal. A read-only trace of native ZVB output instructions checks that an edit
+repaints only changed cells and that navigation leaves headers/footer untouched. `--package` refreshes all three binaries, native screen captures and the
 hash manifest only after those checks pass. Physical hardware qualification and
 historical VisiCalc equivalence are separate from emulator acceptance.
 

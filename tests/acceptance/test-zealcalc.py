@@ -105,7 +105,8 @@ def compile_program(source, name, reuse=None):
         candidate = previous/f'{name}.COM'
         if (candidate.is_file() and (previous/f'{name}.PAS').read_bytes() == text.encode('ascii')
                 and all((previous/item).is_file() and (previous/item).read_bytes() == data
-                        for item,data in include_files.items())):
+                        for item,data in include_files.items()
+                        if item in re.findall(r'\{\$I\s+([^}]+)\}', text, re.I))):
             identities = ['zpascal.bin','zpascal.zpl','CRT.ZPU','ZOS.ZPU','SYSFILE.ZPU']
             assert all((previous/item).read_bytes() == (ROOT/'build'/item).read_bytes() for item in identities)
             print(f'Reusing verified compilation inputs for {name}', flush=True)
@@ -201,7 +202,30 @@ def render_screen(vram, path):
 
 
 class ScreenConsole(n.DebugConsole):
+    def trace_run(self, command, capture):
+        # Observe actual UI OUT instructions without patching code or the MMU.
+        for _ in range(20000):
+            result = super().command(command, capture)
+            frame = super().command('regs')
+            pc = int(re.search(r'PC=([0-9a-fA-F]+)', frame)[1], 16)
+            if pc not in self.paint_sites: return result
+            observed = n.memory(super().command('rb 0x4000 32'))
+            if bytes(observed[0x4000+i] for i in range(32)) == self.paint_identity:
+                value = int(re.search(r'AF=([0-9a-fA-F]+)', frame)[1],16)>>8
+                port = self.paint_sites[pc]
+                if port == -1:
+                    port = int(re.search(r'BC=([0-9a-fA-F]+)', frame)[1],16)&255
+                if port == 0xa1: self.paint_y = value
+                elif port == 0xa2: self.paint_x = value
+                elif port == 0xa0:
+                    self.paint_writes.append([self.paint_y,self.paint_x,value])
+                    self.paint_x += 1
+            super().command('s')
+        raise RuntimeError('Paint trace did not finish')
+
     def command(self, command, capture=False):
+        if getattr(self,'paint_sites',None) and command.startswith('run '):
+            return self.trace_run(command,capture)
         if not command.startswith('screen '):
             return super().command(command, capture)
         name = command.split()[1]
@@ -234,6 +258,25 @@ class ScreenConsole(n.DebugConsole):
 
 
 class UIConsole(ScreenConsole):
+    def trace_start(self):
+        self.ready()
+        image = (self.directory/'hostfs/zealcalc.bin').read_bytes()
+        self.paint_identity = image[:32]
+        first,last = struct.unpack('<H',image[20:22])[0],struct.unpack('<H',image[28:30])[0]
+        self.paint_sites = {0x4000+i:image[i+1] for i in range(first-0x4000,last-0x4000-1)
+                            if image[i] == 0xd3 and image[i+1] in (0xa0,0xa1,0xa2)}
+        self.paint_sites.update({0x4000+i:-1 for i in range(first-0x4000,last-0x4000-1)
+                                 if image[i:i+2] == b'\xed\x79'})
+        assert self.paint_sites
+        self.paint_writes = []; self.paint_x = self.paint_y = -1
+        for site in self.paint_sites: super().command(f'bp 0x{site:x}')
+
+    def trace_stop(self, name):
+        self.ready()
+        for site in self.paint_sites: super().command(f'bc 0x{site:x}')
+        self.paint_sites = {}
+        (self.directory/f'{name}.writes.json').write_text(json.dumps(self.paint_writes)+'\n')
+
     def ready(self):
         key = n.kernel_symbols()['keyboard_next_key']
         fifo = n.kernel_symbols()['kb_fifo_size']
@@ -253,6 +296,10 @@ class UIConsole(ScreenConsole):
             super().command(f'bc 0x{key:x}')
 
     def command(self, command, capture=False):
+        if command == 'paint-start':
+            self.trace_start(); return ''
+        if command.startswith('paint-stop '):
+            self.trace_stop(command.split()[1]); return ''
         if command.startswith('type '):
             for char in json.loads(command[5:]):
                 self.ready()
@@ -418,6 +465,32 @@ def screenshots(binary):
     return directory
 
 
+def check_repaint(binary):
+    commands = ['run 100000000']+n.type_text('cd H:/\n',ticks=4000000)+enter_app('zealcalc')
+    commands += ['paint-start',ui_type('20\n'),'paint-stop edit',
+                 'paint-start',ui_type('20.000\n'),'paint-stop same-display',
+                 'paint-start','key RIGHT','paint-stop move',ui_type('/qy'),
+                 'run 10000000','quit']
+    fixtures = {'zealcalc.bin':binary,'zcsheet.bin':WORKER_BINARY,'zccalc.bin':CALC_BINARY,
+                'sheet.zvc':seed_sheet([(1,1,'12'),(1,2,'3.5'),(1,3,'=A1*B1')])}
+    n.execute('repaint',commands,fixtures,timeout=1800,console_class=UIConsole,
+              base_programs=(),base_units=())
+    folder = n.RUN/'repaint'
+    if (folder/'input-error.json').exists(): raise RuntimeError((folder/'input-error.json').read_text())
+    result = {}
+    for name,expected in [('edit',{(1,1),(1,3)}),('same-display',set()),('move',{(1,1),(1,2)})]:
+        writes = json.loads((folder/f'{name}.writes.json').read_text())
+        grid = [(y,x) for y,x,char in writes if 4 <= y < 34 and 4 <= x < 74]
+        cells = {(y-3,(x-4)//10+1) for y,x in grid}
+        assert cells == expected, (name,cells,expected)
+        assert len(grid) == 10*len(expected), (name,len(grid))
+        assert not any(y in (3,36,37,38,39) for y,x,char in writes), (name,'static frame rewritten')
+        result[name] = {'grid_characters_written':len(grid),'total_characters_written':len(writes)}
+    cells = validate_log((folder/'hostfs/sheet.zvc').read_bytes())
+    assert cells[1,1] == '20.000' and cells[1,3] == '=A1*B1'
+    return result
+
+
 def source_digest():
     digest = hashlib.sha256()
     for path in sorted((ROOT/'src').rglob('*')):
@@ -445,6 +518,7 @@ def main():
         calc = workers.submit(compile_program, ROOT/'examples/zealcalc/zccalc.pas', 'ZCCALC', args.reuse)
         binary = app.result(); WORKER_BINARY = worker.result(); CALC_BINARY = calc.result()
     reports = check_formulas()
+    reports['repaint'] = check_repaint(binary)
     # Actual application: replace, edit-cancel, navigate, formulas, Blank, quit.
     # Shift mappings missing from the older common helper are supplied locally.
     n.SHIFTED.update({'@': '2', '>': 'PERIOD', '?': 'SLASH'})
