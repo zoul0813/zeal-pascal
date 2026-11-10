@@ -142,7 +142,7 @@ uint8_t cc_units_link_object(void) ROUTINES {
 done:
     primary=platform_error;
     if(!cc_fragment_layout_close(&layout)) {
-        clean=0;if(!cleanup_error)cleanup_error=platform_error;if(layout.page!=255)cc_units_hold(layout.page,layout.lifetime,PAGE_COMPILER);
+        clean=0;cleanup_error=platform_error;if(layout.page!=255)cc_units_hold(layout.page,layout.lifetime,PAGE_COMPILER);
     }
     if(!cc_fragment_image_close(&linked)) {
         clean=0;if(!cleanup_error)cleanup_error=platform_error;

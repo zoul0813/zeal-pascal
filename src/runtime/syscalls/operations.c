@@ -59,7 +59,6 @@ static void normal(ZOSJob *j) {
         if(j->sizes[0]!=6||!span(j,a,6))return;
         memcpy(&r,PTR(a),6);zs_invoke(&r,op);memcpy(PTR(a),&r,6);j->result=r.a;return;
     }
-    if(op>=27||op==23)return;
     if(!ready(0,128)||!ready(1,128))return;
     if(j->mode==1) {
         if(op!=7||!byte(a)||!byte(b)||!c||c>128||c>j->sizes[4]||
@@ -129,6 +128,7 @@ static void normal(ZOSJob *j) {
         if(!byte(a)||!span(j,b,2))return;r.h=a;zs_invoke(&r,op);j->result=r.a;if(!r.a)put(b,r.de);return;
     case 25:
         if(!span(j,a,1))return;zs_invoke(&r,op);j->result=r.a;if(!r.a)PTR(a)[0]=r.bc>>8;return;
+    default: return; /* Unsupported calls, including direct page mapping (23). */
     }
     zs_invoke(&r,op);j->result=(op==2||op==11)?(int16_t)(int8_t)r.a:r.a;
 }

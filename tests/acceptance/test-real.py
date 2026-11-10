@@ -458,7 +458,7 @@ def native(trig=False):
     assert sym['s__DATA']+sym['l__DATA']<=0xf000
     commands=['run 100000000']+n.type_text(f'H:/{target}.bin\n')+[f'bp 0x{stop:x}','run 20000000000','s','regs','mmu']
     for name in ('_test_done','_test_passed','_test_failed'):commands.append(f'rb 0x{sym[name]:x} 2')
-    commands+=['quit'];text=n.execute('trig-primitives'if trig else'real-primitives',commands,{f'{target}.bin':(ROOT/f'build/{target}.bin').read_bytes()},timeout=300);m=n.memory(text)
+    commands+=['quit'];text=n.execute('trig-primitives'if trig else'real-primitives',commands,{f'{target}.bin':(ROOT/f'build/{target}.bin').read_bytes()},timeout=300,base_programs=(),base_units=());m=n.memory(text)
     word=lambda name:m.get(sym[name],0)|(m.get(sym[name]+1,0)<<8)
     unchanged=all(hashlib.sha256(p.read_bytes()).hexdigest()==hashes[str(p)]for p in inputs)
     report={'passed':m.get(sym['_test_done'])==255 and word('_test_failed')==0 and unchanged,'native_assertions_passed':word('_test_passed'),'native_assertions_failed':word('_test_failed'),'capture_directory':str(n.RUN.relative_to(ROOT)),'scope':('Shared trigonometric engine'if trig else'Shared Real6 arithmetic/decimal/format and Ln/Exp engine')+' on Zeal; direct component acceptance, not generated Pascal I/O','inputs_unchanged':unchanged,'hashes':hashes}
