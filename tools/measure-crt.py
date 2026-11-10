@@ -12,7 +12,7 @@ ROOT=Path(__file__).resolve().parents[1]
 def module(name,path):
     spec=importlib.util.spec_from_file_location(name,path)
     result=importlib.util.module_from_spec(spec);spec.loader.exec_module(result);return result
-n=module('native',ROOT/'tools/test-native.py')
+n=module('native',ROOT/'tests/acceptance/test-native.py')
 oracle=module('crt_oracle',ROOT/'tools/package-screen.py')
 OPERATIONS=('NormVideo','GotoXY(7,9)','TextColor(Green)','B := WhereX','ClrEol','ClrScr','InsLine','DelLine')
 

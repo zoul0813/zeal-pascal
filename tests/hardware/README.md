@@ -38,9 +38,9 @@ root when running from a separate worktree:
 
 ```sh
 zde --no-tty cmake build --target zpascal_bin zexampletest_bin zzvbtest_bin -j4
-python3 tools/test-zvb.py --skip-hardware --output-library build/ZVB.ZPU
-python3 tools/test-examples.py --package
-python3 tools/test-zvb.py --prebuilt build/ZVB.ZPU --skip-hardware --disk-snake \
+python3 tests/acceptance/test-zvb.py --skip-hardware --output-library build/ZVB.ZPU
+python3 tests/acceptance/test-examples.py --package
+python3 tests/acceptance/test-zvb.py --prebuilt build/ZVB.ZPU --skip-hardware --disk-snake \
   --case SMOKE --source SMOKE tests/native/crt-guide.pas --case ZVBCHECK \
   --case SPRITES --case SNAKE --case FIRSTBAR --case CRC32
 ```

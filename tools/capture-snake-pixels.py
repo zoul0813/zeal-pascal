@@ -6,7 +6,7 @@ import json
 import re
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-spec=importlib.util.spec_from_file_location('native',ROOT/'tools/test-native.py')
+spec=importlib.util.spec_from_file_location('native',ROOT/'tests/acceptance/test-native.py')
 n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
 n.EMULATOR=Path('/opt/homebrew/bin/zeal-native')
 image=(n.ZEAL/'Zeal-VideoBoard-SDK/examples/snake/build/snake.bin').read_bytes()

@@ -81,7 +81,7 @@ Native builds use `zde cmake`. Tests and experimental targets are opt-in with
 `ZP_BUILD_TESTS=ON`; see [building](docs/building.md#opt-in-test-targets).
 The [testing guide](tests/README.md) describes the acceptance runner, fixtures,
 CP/M reference prerequisites and result locations. The scheduled commands and
-native prerequisites are defined in [the test plan](tools/test-plan.json).
+native prerequisites are defined in [the test plan](tests/acceptance/test-plan.json).
 
 User documentation is maintained in `docs/`. Generated test output belongs in
 `analysis/` or `build/`. Research material is maintainer-local and is not

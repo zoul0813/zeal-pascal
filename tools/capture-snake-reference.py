@@ -2,7 +2,7 @@
 """Hash-bound native trace of the unchanged SDK Snake binary using its own VRAM mapping."""
 import importlib.util,json,re,hashlib
 from pathlib import Path
-root=Path(__file__).resolve().parents[1]; spec=importlib.util.spec_from_file_location('n',root/'tools/test-native.py');n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n);n.EMULATOR=Path('/opt/homebrew/bin/zeal-native')
+root=Path(__file__).resolve().parents[1]; spec=importlib.util.spec_from_file_location('n',root/'tests/acceptance/test-native.py');n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n);n.EMULATOR=Path('/opt/homebrew/bin/zeal-native')
 sdk=n.ZEAL/'Zeal-VideoBoard-SDK/examples/snake'; image=(sdk/'build/snake.bin').read_bytes()
 assert hashlib.sha256(image).hexdigest()=='25c7e8c59f6a4b3c7ef804f60b6fbee5bf9f1b30acf6dd7372a595e194950388'
 trace=[]; trace_cycles=[]; obs={}

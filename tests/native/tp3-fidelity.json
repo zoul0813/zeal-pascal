@@ -316,10 +316,10 @@
       "native_adaptation": "16-bit logical source offsets permit 65534 bytes across native banks. Symbols, types, routines, relocations and references share a lazy page arena. Native static/code layout and actual compiler stack/resource checks remain.",
       "tradeoff": "Compiler records use a shared growing far-RAM arena. Whole-record reads, a direct address directory and a monotonic reference bound avoid repeated bank/record walks; no persistent record cache is added. A direct three-include host fixture uses ten free pages; packing removes one compiler code bank.",
       "regressions": [
-        "tools/test-native-host.py --sanitize",
+        "tests/acceptance/test-native-host.py --sanitize",
         "tests/native/compiler-job-cases.h",
         "tests/native/source-validation-host.c",
-        "tools/test-tp3-open-items.py"
+        "tests/acceptance/test-tp3-open-items.py"
       ],
       "native_source_evidence": "analysis/native-slice/20261102T045844.288585Z-43270/tp3-open-items.json",
       "native_accepted": [
@@ -340,7 +340,7 @@
       "observed_original": "Fresh source-only F accepts PC0034 without COM/ZMP; the original algorithm is not established.",
       "native_adaptation": "Recompile selected Main/Work with current saved-mode settings to recover statement position. No executable/map input or disk publication.",
       "regressions": [
-        "tools/test-tp3-open-items.py"
+        "tests/acceptance/test-tp3-open-items.py"
       ],
       "native_evidence": "analysis/native-slice/20261102T045844.288585Z-43270/tp3-open-items.json"
     },
@@ -350,7 +350,7 @@
       "saving_bytes": 49152,
       "scope": "Startup saves 49152 bytes against the original sixteen-bank eager load; total compiler bank count falls from 16 to 15, saving 16384 bytes while compiler phases are loaded. This does not establish an overall speedup.",
       "regressions": [
-        "tools/test-tp3-open-items.py"
+        "tests/acceptance/test-tp3-open-items.py"
       ],
       "native_evidence": "analysis/native-slice/20261102T045844.288585Z-43270/tp3-open-items.json",
       "loaded_compiler_saving_bytes": 16384
@@ -361,7 +361,7 @@
       "native_adaptation": "Saved jobs emit, backpatch and rebase code in an owned .$$$ workspace using a 128-byte sector buffer, with no PAGE_IMAGE allocations. Final COM/CHN output is streamed and scratch removed on build close; sources/maps retain RAM metadata.",
       "regressions": [
         "tests/native/compiler-job-cases.h RAM/diskCOM+CHN byte equivalence, globals/rebase/gap, fault/collision/cleanup tests",
-        "tools/test-native-host.py --sanitize"
+        "tests/acceptance/test-native-host.py --sanitize"
       ],
       "platform_workaround": {
         "observed": "Pinned OS successful interior overwrite can return filesize byte0x40..BF as false error. Accept only an existing full sector whose exact128bytes read back correctly; documentedSDKerrors remain failures.",
@@ -377,9 +377,9 @@
       "documented": "Manual printed263 allows any executableCOM file.",
       "native_adaptation": "Accept opaque native executables with actual extent 0 < size < 49152. A validated Pascal startup opts into private handoff; ordinary native images need no Pascal header. Native rollback and handoff validation remain.",
       "regressions": [
-        "tools/test-chain-loader.py",
-        "tools/test-chain-loader.py --native",
-        "tools/test-chain-call.py --execute",
+        "tests/acceptance/test-chain-loader.py",
+        "tests/acceptance/test-chain-loader.py --native",
+        "tests/acceptance/test-chain-call.py --execute",
         "tests/native/transfer-host.c"
       ],
       "native_evidence": "analysis/native-slice/20261102T050904.009974Z-46955/execute-call-report.json"

@@ -16,7 +16,7 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-PLAN = ROOT / 'tools/test-plan.json'
+PLAN = ROOT / 'tests/acceptance/test-plan.json'
 
 
 def test_id(command):
@@ -33,7 +33,7 @@ def expand_commands(definition, include_redundant=False, monolithic=False):
         missing = {shlex.split(line)[0] for line in selected} - set(definition['build_targets'])
         if missing:
             raise ValueError('Missing build prerequisites for: ' + ', '.join(sorted(missing)))
-    if not selected or shlex.split(selected[0])[0] != 'tools/test-native-host.py':
+    if not selected or shlex.split(selected[0])[0] != 'tests/acceptance/test-native-host.py':
         raise ValueError('Test plan must begin with the host prerequisite')
     expanded = []
     for line in selected:
@@ -76,14 +76,14 @@ def select_commands(plan, patterns):
 def isolated_chunk(command):
     # These modes only read build inputs and write timestamp+PID capture paths.
     # Other runners may compile into fixed host directories: keep them ordered.
-    return ((command[0] in ('tools/test-editor-native.py', 'tools/test-native.py',
-                            'tools/test-math.py', 'tools/test-files.py', 'tools/test-options.py',
-                            'tools/test-text.py', 'tools/test-output-interrupt.py') and '--case' in command) or
-            (command[0] == 'tools/test-language-conformance.py' and '--shard' in command))
+    return ((command[0] in ('tests/acceptance/test-editor-native.py', 'tests/acceptance/test-native.py',
+                            'tests/acceptance/test-math.py', 'tests/acceptance/test-files.py', 'tests/acceptance/test-options.py',
+                            'tests/acceptance/test-text.py', 'tests/acceptance/test-output-interrupt.py') and '--case' in command) or
+            (command[0] == 'tests/acceptance/test-language-conformance.py' and '--shard' in command))
 
 
 def worker_slots(command, budget):
-    return min(3, budget) if command[0] == 'tools/test-output-interrupt.py' and '--case' not in command else 1
+    return min(3, budget) if command[0] == 'tests/acceptance/test-output-interrupt.py' and '--case' not in command else 1
 
 
 def dependencies(plan, index):
@@ -92,7 +92,7 @@ def dependencies(plan, index):
     required = {1} if index != 1 else set()
     if '@params' in command:
         required.update(i for i, cmd in enumerate(plan, 1)
-                        if cmd[0] == 'tools/test-params.py')
+                        if cmd[0] == 'tests/acceptance/test-params.py')
     ordered = {i for i, cmd in enumerate(plan, 1)
                if i < index and cmd[0] == command[0] and
                not (isolated_chunk(command) and isolated_chunk(cmd))}
@@ -292,7 +292,7 @@ def main():
                     # by continually admitting later one-slot commands.
                     break
                 command = resolve(original, host_log, params_reports)
-                if original[0] == 'tools/test-output-interrupt.py':
+                if original[0] == 'tests/acceptance/test-output-interrupt.py':
                     command += ['--jobs', str(slots)]
                 log = directory / f'{index:02}-{Path(original[0]).stem}.log'
                 output = log.open('w')

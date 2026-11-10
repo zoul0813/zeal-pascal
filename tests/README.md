@@ -2,14 +2,20 @@
 
 Enable native harnesses through ZDE as described in the
 [build guide](../docs/building.md#opt-in-test-targets). The executable acceptance
-plan is [tools/test-plan.json](../tools/test-plan.json); run it through
+plan is [tests/acceptance/test-plan.json](acceptance/test-plan.json); run it through
 `python3 tools/run-tests.py`. Runner selectors and chunking are described below.
 [Physical acceptance](hardware/README.md) is a separate procedure.
+
+Acceptance drivers and their test-only helpers live in `tests/acceptance/`.
+`tests/host/`, `tests/native/`, and `tests/fixtures/` hold harnesses and fixtures;
+top-level `test_*.py` files check host utilities. Build, packaging, generation,
+and measurement utilities remain in `tools/`, along with the acceptance runner
+entry point.
 
 ## Syscall checks and measurements
 
 Build with `zde cmake build --target zpascal_bin zos_zpu zsyscalltest_bin -j4`
-after enabling ZP_BUILD_TESTS. Run `python3 tools/test-syscalls.py` for native
+after enabling ZP_BUILD_TESTS. Run `python3 tests/acceptance/test-syscalls.py` for native
 acceptance, or add `--host-only` for sanitized transport checks. Runtime profile,
 production unit acceptance and loader regressions cover the private runtime
 and unit-format integration.
@@ -22,7 +28,7 @@ writes, not an upper bound on reserved stack.
 ## Fixtures and local reference research
 
 `fixtures/snake/` contains the frozen SDK trace and pixel oracles consumed by
-`tools/test-snake-parity.py`. Their source binary hashes are part of the fixture
+`tests/acceptance/test-snake-parity.py`. Their source binary hashes are part of the fixture
 contents. The capture scripts regenerate these fixtures only when deliberately
 refreshing the reference; ordinary runs write results under `analysis/`.
 
@@ -31,7 +37,7 @@ CP/M language conformance additionally requires the preserved local corpus in
 `research/docs/`, plus lexical oracles under `analysis/language-conformance/`.
 Those inputs are intentionally outside Git. A normal checkout alone cannot
 reproduce that reference comparison. Missing or changed oracles fail validation.
-The optional `tools/test-native-host.py --research-spec` comparison uses the
+The optional `tests/acceptance/test-native-host.py --research-spec` comparison uses the
 local archived specifications. It is distinct from ordinary host behavior
 acceptance and currently rejects the archived syscall readiness report because it is not
 the historical normative language contract. A matching preserved normative pair
@@ -77,11 +83,11 @@ are marked passed-focused and do not imply full acceptance.
 media fixtures can be prepared independently with:
 
 ```sh
-python3 tools/test-native.py --prepare-media
+python3 tests/acceptance/test-native.py --prepare-media
 ```
 
 The default plan expands component, editor and language selections into the
 chunks declared in the plan. Use `--list` for current counts rather than relying
 on a historical total. Individual drivers retain their focused modes, such as
-`tools/test-editor-native.py --case find` and
-`tools/test-language-conformance.py --shard 1/4`.
+`tests/acceptance/test-editor-native.py --case find` and
+`tests/acceptance/test-language-conformance.py --shard 1/4`.

@@ -261,7 +261,7 @@ def main():
     for parent in ROOT.parents:
         if (parent/'zeal-dev-environment').is_dir():
             os.environ.setdefault('ZP_ZEAL_ROOT', str(parent)); break
-    spec = importlib.util.spec_from_file_location('native', ROOT/'tools/test-native.py')
+    spec = importlib.util.spec_from_file_location('native', ROOT/'tests/acceptance/test-native.py')
     n = importlib.util.module_from_spec(spec); spec.loader.exec_module(n)
     report = measure(n, args.image.read_bytes())
     report['minimal_programs'] = {}

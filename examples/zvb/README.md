@@ -41,9 +41,9 @@ From the repository root, use the existing Zeal development environment:
 ```sh
 zde --no-tty exec cmake -S . -B build -DZP_BUILD_TESTS=ON
 zde --no-tty cmake build --target zvb_authoring -j4
-python3 tools/test-zvb.py --skip-hardware --output-library build/ZVB.ZPU
+python3 tests/acceptance/test-zvb.py --skip-hardware --output-library build/ZVB.ZPU
 python3 tools/package-zvb.py build --record-authoring analysis/native-slice/RUN/zvb-report.json
-python3 tools/test-zvb.py --skip-hardware --prebuilt build/ZVB.ZPU --clients
+python3 tests/acceptance/test-zvb.py --skip-hardware --prebuilt build/ZVB.ZPU --clients
 python3 tools/package-tf.py
 ```
 
@@ -55,7 +55,7 @@ compiles the current Pascal unit on the emulated Zeal and installs `build/ZVB.ZP
 only after its checks pass. The client command compiles and executes all examples.
 `--skip-hardware` skips the separate compiler hardware-access foundation suite;
 it does not disable the emulated ZVB or certify a physical board. Run that
-foundation suite separately with `python3 tools/test-zvb.py --hardware-only`.
+foundation suite separately with `python3 tests/acceptance/test-zvb.py --hardware-only`.
 
 Packaging installs `CRT.ZPU`, `CRT.PAS`, `ZVB.ZPU`, `ZVB.LIC` and `ZVB.NTC`
 beside `T:/lib/zpascal.zpl`. The last two are the ZVB license and notice, using
@@ -164,6 +164,6 @@ separate acceptance questions.
 
 After rebuilding the compiler, maintainers can check final-link bank residency
 and fault recovery with `python3 tools/check-unit-banks.py` and
-`python3 tools/test-unit-phase.py`. See the
+`python3 tests/acceptance/test-unit-phase.py`. See the
 [Unit memory guide](../../docs/units.md#program-memory-layout) for the final
 program memory layout.

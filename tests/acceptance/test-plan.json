@@ -1,0 +1,654 @@
+{
+  "full": [
+    "tests/acceptance/test-native-host.py --sanitize",
+    "tests/acceptance/test-native.py",
+    "tests/acceptance/test-compile-interrupt.py @observed",
+    "tests/acceptance/test-language-conformance.py",
+    "tests/acceptance/test-editor-native.py",
+    "tests/acceptance/test-input.py",
+    "tests/acceptance/test-io.py",
+    "tests/acceptance/test-files.py",
+    "tests/acceptance/test-text.py",
+    "tests/acceptance/test-standard.py",
+    "tests/acceptance/test-keyboard.py",
+    "tests/acceptance/test-logical.py",
+    "tests/acceptance/test-console.py",
+    "tests/acceptance/test-control.py",
+    "tests/acceptance/test-crt.py",
+    "tests/acceptance/test-devices.py",
+    "tests/acceptance/test-hooks.py",
+    "tests/acceptance/test-language.py",
+    "tests/acceptance/test-sources.py",
+    "tests/acceptance/test-error-location.py",
+    "tests/acceptance/test-ide-sources.py",
+    "tests/acceptance/test-compiler-job.py",
+    "tests/acceptance/test-compiler-messages.py --native",
+    "tests/acceptance/test-ide-execute.py",
+    "tests/acceptance/test-ide-directory.py",
+    "tests/acceptance/test-inline.py",
+    "tests/acceptance/test-ide-sources.py --inline",
+    "tests/acceptance/test-ide-interrupt.py",
+    "tests/acceptance/test-options.py",
+    "tests/acceptance/test-options.py --ide",
+    "tests/acceptance/test-chain.py",
+    "tests/acceptance/test-chain-call.py --ide",
+    "tests/acceptance/test-chain-call.py --execute",
+    "tests/acceptance/test-chain-loader.py",
+    "tests/acceptance/test-chain-loader.py --native",
+    "tests/acceptance/test-execute-override.py",
+    "tests/acceptance/test-execute-handoff.py",
+    "tests/acceptance/test-compiled-startup.py",
+    "tests/acceptance/test-transfer.py",
+    "tests/acceptance/test-transfer.py --native",
+    "tests/acceptance/test-runtime-profile.py",
+    "tests/acceptance/test-chain-files.py",
+    "tests/acceptance/test-chain-files.py --native",
+    "tests/acceptance/test-bridges.py",
+    "tests/acceptance/test-bridges.py --corpus routines",
+    "tests/acceptance/test-bridges.py --corpus real",
+    "tests/acceptance/test-file-runtime.py --host --direct-host --native --asm-native",
+    "tests/acceptance/test-file-gate.py",
+    "tests/acceptance/test-workers.py",
+    "tests/acceptance/test-params.py",
+    "tests/acceptance/test-math.py",
+    "tests/acceptance/test-output.py",
+    "tests/acceptance/test-output-host.py",
+    "tests/acceptance/test-members.py",
+    "tests/acceptance/test-output-interrupt.py",
+    "tests/acceptance/test-startup-path.py",
+    "tests/acceptance/test-real.py --host --sanitize --native",
+    "tests/acceptance/test-real.py --trig --sanitize --native",
+    "tests/acceptance/test-examples.py",
+    "tests/acceptance/test-module-unpack.py",
+    "tests/acceptance/test-overlays.py",
+    "tests/acceptance/test-overlays.py --native",
+    "tests/acceptance/test-ide-interrupt.py --console",
+    "tests/acceptance/test-ide-sources.py --messages",
+    "tests/acceptance/test-options.py --paths",
+    "tests/acceptance/test-runtime-layout.py @params",
+    "tests/acceptance/test-review-ui.py",
+    "tests/acceptance/test-units.py",
+    "tests/acceptance/test-unit-real.py",
+    "tests/acceptance/test-unit-init.py",
+    "tests/acceptance/test-unit-types-host.py",
+    "tests/acceptance/test-unit-references-host.py",
+    "tests/acceptance/test-unit-reader-host.py",
+    "tests/acceptance/test-word-counts.py",
+    "tests/acceptance/test-unit-storage.py",
+    "tests/acceptance/test-unsigned-engine.py",
+    "tests/acceptance/test-unsigned.py",
+    "tests/acceptance/test-zvb.py --hardware-only",
+    "tests/acceptance/test-crt-readkey.py",
+    "tests/acceptance/test-ide-units.py",
+    "tests/acceptance/test-ide-unit-failures.py",
+    "tests/acceptance/test-optional-corpus.py",
+    "tests/acceptance/test-optional-real.py",
+    "tests/acceptance/test-optional-chain.py",
+    "tests/acceptance/test-unit-navigation.py",
+    "tests/acceptance/test-program-pages.py",
+    "tests/acceptance/test-screen.py",
+    "tests/acceptance/test-zvb-leaves.py",
+    "tests/acceptance/test-unit-docs.py",
+    "tests/acceptance/test-unit-phase.py",
+    "tests/acceptance/test-runtime-objects.py",
+    "tests/acceptance/test-linked-addresses.py",
+    "tests/acceptance/test-compact-programs.py",
+    "tests/acceptance/test-zvb.py --skip-hardware --clients --disk-snake",
+    "tests/acceptance/test-build-layout.py",
+    "tests/acceptance/test-build-outputs.py",
+    "tests/acceptance/test-syscalls.py"
+  ],
+  "redundant": [
+    "tests/acceptance/test-native.py --core-only",
+    "tests/acceptance/test-chain-call.py",
+    "tests/acceptance/test-compiler-messages.py --publication-error"
+  ],
+  "chunks": {
+    "tests/acceptance/test-editor-native.py": [
+      "--case component",
+      "--case scroll",
+      "--case horizontal",
+      "--case editing",
+      "--case source-errors",
+      "--case block",
+      "--case block-catalog",
+      "--case block-files",
+      "--case block-cancel",
+      "--case control-block",
+      "--case tf-block",
+      "--case transaction-namespace",
+      "--case find",
+      "--case replace",
+      "--case multiline-search",
+      "--case search-interrupt"
+    ],
+    "tests/acceptance/test-language-conformance.py": [
+      "--shard 1/4",
+      "--shard 2/4",
+      "--shard 3/4",
+      "--shard 4/4"
+    ],
+    "tests/acceptance/test-native.py": [
+      "--case basic",
+      "--case media",
+      "--case control",
+      "--case ordinals",
+      "--case cases",
+      "--case routines",
+      "--case strings",
+      "--case string-operations",
+      "--case arrays",
+      "--case records",
+      "--case sets",
+      "--case pointers",
+      "--case heap",
+      "--case memory",
+      "--case labels",
+      "--case reals",
+      "--case formats",
+      "--case read",
+      "--case library",
+      "--case allocation",
+      "--case lifecycle",
+      "--case interactive",
+      "--case user-break",
+      "--case files",
+      "--case paths",
+      "--case full-media"
+    ],
+    "tests/acceptance/test-math.py": [
+      "--case sqrt-programs",
+      "--case sqrt-checked-errors",
+      "--case logexp-programs",
+      "--case logexp-checked-errors",
+      "--case trig-programs",
+      "--case trig-checked-errors",
+      "--case random-programs",
+      "--case random-checked-errors",
+      "--case ide-sqrt-error",
+      "--case ide-random-error"
+    ],
+    "tests/acceptance/test-files.py": [
+      "--case types",
+      "--case transfers",
+      "--case lifetime",
+      "--case errors",
+      "--case abi",
+      "--case stack",
+      "--case cleanup-scope",
+      "--case cleanup-heap",
+      "--case ide-error"
+    ],
+    "tests/acceptance/test-options.py": [
+      "--case layouts-low",
+      "--case layouts-upper",
+      "--case layouts-boundaries",
+      "--case startup-end",
+      "--case startup-stack",
+      "--case startup-heap"
+    ],
+    "tests/acceptance/test-text.py": [
+      "--case disk-format",
+      "--case numbers-recovery",
+      "--case nesting-arguments",
+      "--case capacity-paths",
+      "--case rename"
+    ],
+    "tests/acceptance/test-output-interrupt.py": [
+      "--case host-source-backup",
+      "--case host-source-store-typing",
+      "--case host-build-executable",
+      "--case host-build-map",
+      "--case tf-source-store",
+      "--case tf-build-map"
+    ]
+  },
+  "groups": {
+    "host": [
+      "native-host",
+      "output-host",
+      "runtime-profile"
+    ],
+    "editor": [
+      "editor-native",
+      "ide-sources",
+      "ide-directory",
+      "error-location",
+      "review-ui"
+    ],
+    "compiler": [
+      "native-host",
+      "compile-interrupt",
+      "language-conformance",
+      "sources",
+      "compiler-job",
+      "options",
+      "inline"
+    ],
+    "publication": [
+      "output",
+      "output-host",
+      "output-interrupt",
+      "members",
+      "file-gate"
+    ],
+    "execution": [
+      "chain",
+      "chain-call",
+      "chain-loader",
+      "chain-files",
+      "execute-override",
+      "execute-handoff",
+      "compiled-startup",
+      "transfer",
+      "workers"
+    ],
+    "runtime": [
+      "input",
+      "io",
+      "files",
+      "text",
+      "standard",
+      "keyboard",
+      "logical",
+      "console",
+      "control",
+      "crt",
+      "devices",
+      "hooks",
+      "params",
+      "math",
+      "real",
+      "runtime-layout"
+    ],
+    "native": [
+      "native"
+    ],
+    "long-native": [
+      "math",
+      "files",
+      "options",
+      "output-interrupt",
+      "text"
+    ]
+  },
+  "build_targets": {
+    "tests/acceptance/test-bridges.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "realabi_bin",
+      "stringabi_bin",
+      "zbridgetest_bin"
+    ],
+    "tests/acceptance/test-chain-call.py": [
+      "execute_entry_bin",
+      "module_unpack_bin",
+      "pascal_runtime_bin",
+      "transfer_call_bin",
+      "transfer_gate_bin",
+      "transfer_runtime_bin",
+      "zchaincallparent_bin",
+      "zchaincalltest_bin",
+      "zexecutecalltest_bin",
+      "zexparent_bin",
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-chain-files.py": [
+      "file_runtime_bin",
+      "zchainfilestest_bin"
+    ],
+    "tests/acceptance/test-chain-loader.py": [
+      "execute_entry_bin",
+      "zchainloadtest_bin"
+    ],
+    "tests/acceptance/test-chain.py": [
+      "execute_entry_bin",
+      "pascal_runtime_bin",
+      "zchainreplay_bin",
+      "zchaintest_bin",
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-compact-programs.py": [
+      "pascal_runtime_bin",
+      "zexparent_bin",
+      "zpascal_bin",
+      "zzvbtest_bin"
+    ],
+    "tests/acceptance/test-compile-interrupt.py": [
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-compiled-startup.py": [
+      "execute_entry_bin",
+      "pascal_runtime_bin",
+      "zchaincalltest_bin",
+      "zexecuteprobe_bin",
+      "zexparent_bin"
+    ],
+    "tests/acceptance/test-compiler-job.py": [
+      "zjobtest_bin"
+    ],
+    "tests/acceptance/test-compiler-messages.py": [
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-console.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "zcontest_bin",
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-control.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "ram_trampoline_bin",
+      "zcontroltest_bin"
+    ],
+    "tests/acceptance/test-crt-readkey.py": [
+      "pascal_runtime_bin",
+      "zzvbtest_bin"
+    ],
+    "tests/acceptance/test-crt.py": [
+      "zcrttest_bin"
+    ],
+    "tests/acceptance/test-devices.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "zdevtest_bin"
+    ],
+    "tests/acceptance/test-editor-native.py": [
+      "zedittest_bin",
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-error-location.py": [
+      "pascal_runtime_bin",
+      "zmaptest_bin"
+    ],
+    "tests/acceptance/test-examples.py": [
+      "pascal_runtime_bin",
+      "zexampletest_bin",
+      "zpascal_bin",
+      "zptest_bin"
+    ],
+    "tests/acceptance/test-execute-handoff.py": [
+      "execute_entry_bin",
+      "pascal_runtime_bin",
+      "zexecuteprobe_bin",
+      "zexparent_bin"
+    ],
+    "tests/acceptance/test-execute-override.py": [
+      "zexecuteprobe_bin"
+    ],
+    "tests/acceptance/test-file-gate.py": [
+      "file_gate_bin",
+      "zfilegatetest_bin"
+    ],
+    "tests/acceptance/test-file-runtime.py": [
+      "file_runtime_bin",
+      "zfilecoretest_bin",
+      "zsysfiletest_bin",
+      "sysfile_relocations",
+      "sysfile_mock",
+      "sysfile_zpu"
+    ],
+    "tests/acceptance/test-files.py": [
+      "diskabi_bin",
+      "file_gate_bin",
+      "file_runtime_bin",
+      "module_unpack_bin",
+      "zfiletest_bin",
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-hooks.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "zhooktest_bin"
+    ],
+    "tests/acceptance/test-ide-directory.py": [
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-ide-execute.py": [
+      "zpascal_bin",
+      "zpexecchild_bin"
+    ],
+    "tests/acceptance/test-ide-interrupt.py": [
+      "pascal_runtime_bin",
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-ide-sources.py": [
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-ide-unit-failures.py": [
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-ide-units.py": [
+      "integer_runtime_bin",
+      "pascal_runtime_bin",
+      "zexparent_bin",
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-inline.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "zinlinetest_bin"
+    ],
+    "tests/acceptance/test-input.py": [
+      "zinputtest_bin",
+      "zpascal_bin",
+      "zptest_bin"
+    ],
+    "tests/acceptance/test-io.py": [
+      "ziotest_bin",
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-keyboard.py": [
+      "pascal_runtime_bin",
+      "zkeytest_bin"
+    ],
+    "tests/acceptance/test-language-conformance.py": [
+      "zcorpus_bin"
+    ],
+    "tests/acceptance/test-language.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "zlangtest_bin"
+    ],
+    "tests/acceptance/test-linked-addresses.py": [
+      "pascal_runtime_bin",
+      "zexparent_bin",
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-logical.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "zkbdtest_bin"
+    ],
+    "tests/acceptance/test-math.py": [
+      "zmathtest_bin",
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-members.py": [
+      "zmemberstest_bin"
+    ],
+    "tests/acceptance/test-module-unpack.py": [
+      "file_runtime_bin",
+      "module_unpack_bin",
+      "transfer_runtime_bin",
+      "zunpacktest_bin"
+    ],
+    "tests/acceptance/test-native-host.py": [
+      "execute_entry_bin",
+      "file_gate_bin",
+      "file_runtime_bin",
+      "module_unpack_bin",
+      "pascal_runtime_bin",
+      "pointerabi_bin",
+      "realabi_bin",
+      "setabi_bin",
+      "stringabi_bin",
+      "transfer_gate_bin",
+      "transfer_runtime_bin",
+      "zmathtest_bin",
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-native.py": [
+      "execute_entry_bin",
+      "pascal_runtime_bin",
+      "pointerabi_bin",
+      "realabi_bin",
+      "setabi_bin",
+      "stringabi_bin",
+      "zpascal_bin",
+      "zpbootfail_bin",
+      "zptest_bin"
+    ],
+    "tests/acceptance/test-optional-chain.py": [
+      "zexparent_bin",
+      "zlegacypascal_bin",
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-optional-corpus.py": [
+      "zoptionalcorpus_bin",
+      "zptest_bin"
+    ],
+    "tests/acceptance/test-optional-real.py": [
+      "zlegacypascal_bin",
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-options.py": [
+      "pascal_runtime_bin",
+      "zoptionstest_bin",
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-output-host.py": [],
+    "tests/acceptance/test-output-interrupt.py": [
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-output.py": [
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-overlays.py": [
+      "zoverlaytest_bin"
+    ],
+    "tests/acceptance/test-params.py": [
+      "zparamtest_bin"
+    ],
+    "tests/acceptance/test-program-pages.py": [
+      "pascal_runtime_bin",
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-real.py": [
+      "zrealtest_bin",
+      "ztrigtest_bin"
+    ],
+    "tests/acceptance/test-review-ui.py": [
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-runtime-layout.py": [
+      "pascal_runtime_bin"
+    ],
+    "tests/acceptance/test-runtime-objects.py": [
+      "compact_runtime_bin",
+      "file_runtime_bin",
+      "integer_runtime_bin",
+      "pascal_runtime_bin",
+      "runtime_object_a_bin",
+      "runtime_object_b_bin"
+    ],
+    "tests/acceptance/test-runtime-profile.py": [
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-screen.py": [
+      "zexparent_bin",
+      "zscreentest_bin"
+    ],
+    "tests/acceptance/test-sources.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "zsrctest_bin"
+    ],
+    "tests/acceptance/test-standard.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "pascal_runtime_bin",
+      "zstdtest_bin"
+    ],
+    "tests/acceptance/test-startup-path.py": [
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-text.py": [
+      "file_gate_bin",
+      "file_runtime_bin",
+      "module_unpack_bin",
+      "ztexttest_bin"
+    ],
+    "tests/acceptance/test-transfer.py": [
+      "pascal_runtime_bin",
+      "transfer_gate_bin",
+      "transfer_runtime_bin",
+      "zchaintest_bin",
+      "ztransferdriver_bin",
+      "ztransferparent_bin"
+    ],
+    "tests/acceptance/test-unit-docs.py": [],
+    "tests/acceptance/test-unit-init.py": [
+      "integer_runtime_bin",
+      "pascal_runtime_bin",
+      "zexparent_bin",
+      "zunitinittest_bin"
+    ],
+    "tests/acceptance/test-unit-navigation.py": [
+      "zpascal_bin"
+    ],
+    "tests/acceptance/test-unit-phase.py": [],
+    "tests/acceptance/test-unit-reader-host.py": [],
+    "tests/acceptance/test-unit-real.py": [
+      "integer_runtime_bin",
+      "pascal_runtime_bin",
+      "zunitrealtest_bin"
+    ],
+    "tests/acceptance/test-unit-references-host.py": [],
+    "tests/acceptance/test-unit-storage.py": [
+      "zzvbtest_bin"
+    ],
+    "tests/acceptance/test-unit-types-host.py": [],
+    "tests/acceptance/test-units.py": [
+      "pascal_runtime_bin",
+      "zunittest_bin"
+    ],
+    "tests/acceptance/test-unsigned-engine.py": [],
+    "tests/acceptance/test-unsigned.py": [
+      "zunsignedtest_bin"
+    ],
+    "tests/acceptance/test-word-counts.py": [
+      "integer_runtime_bin"
+    ],
+    "tests/acceptance/test-workers.py": [
+      "ram_trampoline_bin",
+      "workerabi_bin",
+      "zworkertest_bin"
+    ],
+    "tests/acceptance/test-zvb-leaves.py": [],
+    "tests/acceptance/test-zvb.py": [
+      "pascal_runtime_bin",
+      "zpascal_bin",
+      "zzvbtest_bin"
+    ],
+    "tests/acceptance/test-build-layout.py": [],
+    "tests/acceptance/test-build-outputs.py": [
+      "pascal_runtime_bin"
+    ],
+    "tests/acceptance/test-syscalls.py": [
+      "zsyscalltest_bin",
+      "zpascal_bin",
+      "zos_zpu"
+    ]
+  }
+}

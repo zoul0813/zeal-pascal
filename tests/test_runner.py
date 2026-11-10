@@ -18,12 +18,12 @@ spec.loader.exec_module(runner)
 
 class Selection(unittest.TestCase):
     def setUp(self):
-        self.plan = [['tools/test-native-host.py', '--sanitize'],
-                     ['tools/test-editor-native.py', '--case', 'find'],
-                     ['tools/test-editor-native.py', '--case', 'replace'],
-                     ['tools/test-params.py'],
-                     ['tools/test-runtime-layout.py', '@params'],
-                     ['tools/test-compile-interrupt.py', '@observed']]
+        self.plan = [['tests/acceptance/test-native-host.py', '--sanitize'],
+                     ['tests/acceptance/test-editor-native.py', '--case', 'find'],
+                     ['tests/acceptance/test-editor-native.py', '--case', 'replace'],
+                     ['tests/acceptance/test-params.py'],
+                     ['tests/acceptance/test-runtime-layout.py', '@params'],
+                     ['tests/acceptance/test-compile-interrupt.py', '@observed']]
 
     def test_exact_case_adds_host_but_not_other_cases(self):
         self.assertEqual(runner.select_commands(self.plan, ['editor-native:find']), self.plan[:2])
@@ -46,8 +46,8 @@ class Selection(unittest.TestCase):
 
     def test_only_isolated_chunks_can_overlap(self):
         self.assertEqual(runner.dependencies(self.plan, 3), ({1}, set()))
-        ordinary = [['tools/test-native-host.py'], ['tools/test-real.py', '--host'],
-                    ['tools/test-real.py', '--native']]
+        ordinary = [['tests/acceptance/test-native-host.py'], ['tests/acceptance/test-real.py', '--host'],
+                    ['tests/acceptance/test-real.py', '--native']]
         self.assertEqual(runner.dependencies(ordinary, 3), ({1}, {2}))
 
     def test_expansion_retains_every_current_check(self):
@@ -63,15 +63,15 @@ class Selection(unittest.TestCase):
 
     def test_editor_manifest_covers_all_workflows(self):
         import ast
-        tree = ast.parse((runner.ROOT/'tools/test-editor-native.py').read_text())
+        tree = ast.parse((runner.ROOT/'tests/acceptance/test-editor-native.py').read_text())
         cases = next(node.value for node in tree.body if isinstance(node, ast.Assign)
                      and any(isinstance(t, ast.Name) and t.id == 'CASES' for t in node.targets))
         defined = [ast.literal_eval(k) for k in cases.keys]
-        declared = json.loads(runner.PLAN.read_text())['chunks']['tools/test-editor-native.py']
+        declared = json.loads(runner.PLAN.read_text())['chunks']['tests/acceptance/test-editor-native.py']
         self.assertEqual(declared, ['--case '+name for name in defined])
 
     def native_helper(self):
-        spec = importlib.util.spec_from_file_location('native_chunk_inspection', runner.ROOT/'tools/test-native.py')
+        spec = importlib.util.spec_from_file_location('native_chunk_inspection', runner.ROOT/'tests/acceptance/test-native.py')
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
@@ -104,7 +104,7 @@ class Selection(unittest.TestCase):
         self.assertEqual(list(native.CORE_GROUPS.values()), list(range(1, 19)))
         self.assertIn('test_groups[18]', source)
         self.assertIn('#include "core-groups.h"', source)
-        declared = json.loads(runner.PLAN.read_text())['chunks']['tools/test-native.py']
+        declared = json.loads(runner.PLAN.read_text())['chunks']['tests/acceptance/test-native.py']
         self.assertEqual(declared, ['--case '+name for name in (*native.CORE_GROUPS, *native.WORKFLOW_CASES)])
         self.assertEqual(len(declared), 26)
         counts = native.CORE_COUNTS
@@ -124,8 +124,8 @@ class Selection(unittest.TestCase):
             if name not in ('basic','read'):self.assertEqual(native.input_commands(name), [])
 
     def test_native_chunks_can_overlap_but_legacy_run_remains_ordered(self):
-        plan = [['tools/test-native-host.py'], ['tools/test-native.py','--case','strings'],
-                ['tools/test-native.py','--case','heap'], ['tools/test-native.py','--core-only']]
+        plan = [['tests/acceptance/test-native-host.py'], ['tests/acceptance/test-native.py','--case','strings'],
+                ['tests/acceptance/test-native.py','--case','heap'], ['tests/acceptance/test-native.py','--core-only']]
         self.assertEqual(runner.dependencies(plan, 3), ({1}, set()))
         self.assertEqual(runner.dependencies(plan, 4), ({1}, {2,3}))
 
@@ -185,8 +185,8 @@ class Selection(unittest.TestCase):
         self.assertEqual(native.sha(source), before)
 
     def test_empty_chunks_cannot_silently_drop_coverage(self):
-        definition = {'full': ['tools/test-native-host.py'], 'redundant': [],
-                      'chunks': {'tools/test-native-host.py': []}}
+        definition = {'full': ['tests/acceptance/test-native-host.py'], 'redundant': [],
+                      'chunks': {'tests/acceptance/test-native-host.py': []}}
         with self.assertRaisesRegex(ValueError, 'omit coverage'):
             runner.expand_commands(definition)
 
@@ -196,8 +196,8 @@ class Selection(unittest.TestCase):
                        ['--shard 1/2', '--shard 2/3'], ['--shard no'],
                        ['--shard 1/1 --case restricted']):
             with self.subTest(chunks=chunks):
-                definition = {'full': ['tools/test-native-host.py', 'tools/test-language-conformance.py'],
-                              'redundant': [], 'chunks': {'tools/test-language-conformance.py': chunks}}
+                definition = {'full': ['tests/acceptance/test-native-host.py', 'tests/acceptance/test-language-conformance.py'],
+                              'redundant': [], 'chunks': {'tests/acceptance/test-language-conformance.py': chunks}}
                 with self.assertRaisesRegex(ValueError, 'each shard'):
                     runner.expand_commands(definition)
 
@@ -212,7 +212,7 @@ class Selection(unittest.TestCase):
 
     def test_language_partitions_are_complete_disjoint_and_stable(self):
         spec = importlib.util.spec_from_file_location('language_selection',
-                runner.ROOT/'tools/test-language-conformance.py')
+                runner.ROOT/'tests/acceptance/test-language-conformance.py')
         language = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(language)
         rows = [{'id': f'case-{i:03}'} for i in range(118)]
@@ -236,7 +236,7 @@ class RunnerDependencies(unittest.TestCase):
         self.assertEqual({c[0] for c in commands},set(definition['build_targets']))
         for command in commands:
             self.assertEqual(runner.native_targets([command]), sorted(definition['build_targets'][command[0]]))
-        del definition['build_targets']['tools/test-math.py']
+        del definition['build_targets']['tests/acceptance/test-math.py']
         with self.assertRaisesRegex(ValueError, 'Missing build prerequisites'):
             runner.expand_commands(definition)
         self.assertEqual(runner.native_targets([]), [])
@@ -245,14 +245,14 @@ class RunnerDependencies(unittest.TestCase):
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
-            for name in ('tools', 'build', 'build/assets', 'build/tests', 'tests', 'tests/__pycache__', 'cmake', 'units'):
+            for name in ('tools', 'build', 'build/assets', 'build/tests', 'tests', 'tests/acceptance', 'tests/__pycache__', 'cmake', 'units'):
                 (root/name).mkdir(exist_ok=True)
-            for name in ('CMakeLists.txt', 'tools/test-plan.json', 'tools/run-tests.py',
+            for name in ('CMakeLists.txt', 'tests/acceptance/test-plan.json', 'tools/run-tests.py',
                          'tests/test_hardware_package.py', 'build/CRT.ZPU', 'cmake/Tests.cmake', 'units/ZVB.PAS',
                          'tests/__pycache__/test_hardware_package.pyc',
                          'build/assets/integer_head.bin', 'build/tests/old-test.bin'):
                 (root/name).write_text('test fixture')
-            with patch.object(runner, 'ROOT', root), patch.object(runner, 'PLAN', root/'tools/test-plan.json'), \
+            with patch.object(runner, 'ROOT', root), patch.object(runner, 'PLAN', root/'tests/acceptance/test-plan.json'), \
                     patch.object(runner, '__file__', str(root/'tools/run-tests.py')):
                 frozen = runner.inputs()
             self.assertIn('tests/test_hardware_package.py', frozen)
@@ -266,15 +266,15 @@ class RunnerDependencies(unittest.TestCase):
     def test_native_build_happens_once_before_frozen_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
-            for name in ('tools','build','tests','fakebin'):(root/name).mkdir()
+            for name in ('tools','build','tests','tests/acceptance','fakebin'):(root/name).mkdir()
             for name in ('CMakeLists.txt','tests/test_runner.py','tests/test_native_chunks.py'):(root/name).write_text('')
             shutil.copy(runner.ROOT/'tools/run-tests.py',root/'tools/run-tests.py')
-            (root/'tools/test-native-host.py').write_text('')
+            (root/'tests/acceptance/test-native-host.py').write_text('')
             names={'test-units.py':'zunittest_bin','test-unit-real.py':'zunitrealtest_bin','test-optional-corpus.py':'zoptionalcorpus_bin',
                    'test-error-location.py':'zmaptest_bin','test-params.py':'zparamtest_bin'}
             for name,target in names.items():
-                (root/'tools'/name).write_text(f'from pathlib import Path\nassert Path("build/{target}.bin").read_bytes()==b"built"\n')
-            (root/'tools/test-plan.json').write_text(json.dumps({'full':['tools/test-native-host.py',*('tools/'+name for name in names)],'redundant':[],'build_targets':{'tools/test-native-host.py':[],**{'tools/'+name:[target] for name,target in names.items()}}}))
+                (root/'tests/acceptance'/name).write_text(f'from pathlib import Path\nassert Path("build/{target}.bin").read_bytes()==b"built"\n')
+            (root/'tests/acceptance/test-plan.json').write_text(json.dumps({'full':['tests/acceptance/test-native-host.py',*('tests/acceptance/'+name for name in names)],'redundant':[],'build_targets':{'tests/acceptance/test-native-host.py':[],**{'tests/acceptance/'+name:[target] for name,target in names.items()}}}))
             fake=root/'fakebin/zde'
             fake.write_text(f'#!{sys.executable}\nimport sys\nfrom pathlib import Path\nargs=sys.argv\nif args[1:4]==["--no-tty","exec","cmake"]:\n assert args[4:]==["-S",".","-B","build","-DZP_BUILD_TESTS=ON"],args\n Path("configured.txt").write_text("tests enabled")\n action="configure"\nelse:\n assert args[1:4]==["--no-tty","cmake","build"],args\n assert Path("configured.txt").read_text()=="tests enabled"\n for target in args[args.index("--target")+1:args.index("--parallel")]:Path("build/"+target+".bin").write_bytes(b"built")\n action="build"\nwith Path("build-calls.txt").open("a")as out:out.write(action+"\\n")\n')
             fake.chmod(0o755)
@@ -298,15 +298,15 @@ class RunnerDependencies(unittest.TestCase):
             root = Path(directory)
             (root / 'tools').mkdir()
             (root / 'build').mkdir()
-            (root / 'tests').mkdir()
+            (root / 'tests/acceptance').mkdir(parents=True)
             (root / 'tests/test_runner.py').write_text('')
             (root / 'tests/test_native_chunks.py').write_text('')
             (root / 'CMakeLists.txt').write_text('')
             shutil.copy(Path(__file__).resolve().parents[1] / 'tools/run-tests.py',
                         root / 'tools/run-tests.py')
-            (root / 'tools/test-native-host.py').write_text(
+            (root / 'tests/acceptance/test-native-host.py').write_text(
                 f'raise SystemExit({int(host_fails)})\n')
-            (root / 'tools/test-params.py').write_text('raise SystemExit(1)\n')
+            (root / 'tests/acceptance/test-params.py').write_text('raise SystemExit(1)\n')
             (root / 'tools/modes.py').write_text(
                 'from pathlib import Path\nimport sys,time\n'
                 'lock=Path("mode.lock")\n'
@@ -315,10 +315,10 @@ class RunnerDependencies(unittest.TestCase):
                 'Path(sys.argv[1]+".ran").touch()\n'
                 'raise SystemExit(1 if sys.argv[1]=="fail" else 0)\n')
             (root / 'tools/layout.py').write_text('raise AssertionError("must be skipped")\n')
-            plan = ['tools/test-native-host.py', 'tools/modes.py fail',
-                    'tools/modes.py independent', 'tools/test-params.py',
+            plan = ['tests/acceptance/test-native-host.py', 'tools/modes.py fail',
+                    'tools/modes.py independent', 'tests/acceptance/test-params.py',
                     'tools/layout.py @params']
-            (root / 'tools/test-plan.json').write_text(json.dumps({'full': plan, 'redundant': []}))
+            (root / 'tests/acceptance/test-plan.json').write_text(json.dumps({'full': plan, 'redundant': []}))
             (root / 'fakebin').mkdir()
             fake = root / 'fakebin/zde'
             fake.write_text(f'#!{sys.executable}\nraise SystemExit(0)\n')
@@ -351,7 +351,7 @@ class RunnerDependencies(unittest.TestCase):
         report, ran = self.run_plan(extra=('--only', 'modes:independent'), expected=0)
         self.assertTrue(ran)
         self.assertEqual([r['command'][2:] for r in report['results']],
-                         [['tools/test-native-host.py'], ['tools/modes.py', 'independent']])
+                         [['tests/acceptance/test-native-host.py'], ['tools/modes.py', 'independent']])
         self.assertEqual(report['scope'], 'focused')
         self.assertFalse(report['full_acceptance'])
         self.assertFalse(report['passed'])
@@ -360,12 +360,12 @@ class RunnerDependencies(unittest.TestCase):
         for monolithic in (False, True):
             with self.subTest(monolithic=monolithic), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                (root/'tools').mkdir(); (root/'build').mkdir(); (root/'tests').mkdir()
+                (root/'tools').mkdir(); (root/'build').mkdir(); (root/'tests/acceptance').mkdir(parents=True)
                 (root/'CMakeLists.txt').touch(); (root/'tests/test_runner.py').touch()
                 (root/'tests/test_native_chunks.py').touch()
                 shutil.copy(runner.ROOT/'tools/run-tests.py', root/'tools/run-tests.py')
-                (root/'tools/test-native-host.py').write_text('')
-                (root/'tools/test-editor-native.py').write_text(
+                (root/'tests/acceptance/test-native-host.py').write_text('')
+                (root/'tests/acceptance/test-editor-native.py').write_text(
                     'import argparse,json,time\nfrom pathlib import Path\n'
                     'p=argparse.ArgumentParser();p.add_argument("--case");a=p.parse_args()\n'
                     'for case in ([a.case] if a.case else ["one","two"]):\n'
@@ -377,10 +377,10 @@ class RunnerDependencies(unittest.TestCase):
                     '   time.sleep(.01)\n'
                     ' time.sleep(.1)\n'
                     ' Path(case+".json").write_text(json.dumps([start,time.monotonic()]))\n')
-                definition = {'full': ['tools/test-native-host.py', 'tools/test-editor-native.py'],
-                              'redundant': [], 'chunks': {'tools/test-editor-native.py':
+                definition = {'full': ['tests/acceptance/test-native-host.py', 'tests/acceptance/test-editor-native.py'],
+                              'redundant': [], 'chunks': {'tests/acceptance/test-editor-native.py':
                               ['--case one', '--case two']}}
-                (root/'tools/test-plan.json').write_text(json.dumps(definition))
+                (root/'tests/acceptance/test-plan.json').write_text(json.dumps(definition))
                 (root/'fakebin').mkdir()
                 fake=root/'fakebin/zde'
                 fake.write_text(f'#!{sys.executable}\nraise SystemExit(0)\n');fake.chmod(0o755)

@@ -9,7 +9,7 @@ import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT/'tools'))
+sys.path.insert(0, str(ROOT/'tests/acceptance'))
 from native_chunks import SuiteChunks
 
 runner_spec=importlib.util.spec_from_file_location("chunk_runner",ROOT/"tools/run-tests.py")
@@ -70,26 +70,26 @@ class NativeChunks(unittest.TestCase):
         definition=json.loads(runner.PLAN.read_text())
         for name,spec in self.specs.items():
             expected=['--case '+case for case in list(spec['groups'])+spec['workflows']]
-            self.assertEqual(definition['chunks'][f'tools/test-{name}.py'],expected)
+            self.assertEqual(definition['chunks'][f'tests/acceptance/test-{name}.py'],expected)
         import ast
-        tree=ast.parse((ROOT/'tools/test-output-interrupt.py').read_text())
+        tree=ast.parse((ROOT/'tests/acceptance/test-output-interrupt.py').read_text())
         mapping=next(node.value for node in tree.body if isinstance(node,ast.Assign)
                      and any(isinstance(t,ast.Name)and t.id=='CASES'for t in node.targets))
         keys=[ast.literal_eval(k)for k in mapping.keys]
         self.assertEqual(len(keys),6)
-        self.assertEqual(definition['chunks']['tools/test-output-interrupt.py'],['--case '+k for k in keys])
+        self.assertEqual(definition['chunks']['tests/acceptance/test-output-interrupt.py'],['--case '+k for k in keys])
 
     def test_chunk_slots_overlap_but_legacy_waits(self):
         for suite in (*self.specs,'output-interrupt'):
-            script=f'tools/test-{suite}.py'
-            plan=[['tools/test-native-host.py'],[script,'--case','one'],[script,'--case','two'],[script]]
+            script=f'tests/acceptance/test-{suite}.py'
+            plan=[['tests/acceptance/test-native-host.py'],[script,'--case','one'],[script,'--case','two'],[script]]
             self.assertEqual(runner.dependencies(plan,3),({1},set()))
             self.assertEqual(runner.dependencies(plan,4),({1},{2,3}))
             self.assertEqual(runner.worker_slots(plan[1],8),1)
             self.assertEqual(runner.worker_slots(plan[3],8),3 if suite=='output-interrupt'else 1)
 
     def test_completion_rejects_wrong_image_counts_or_bitmap(self):
-        spec=importlib.util.spec_from_file_location('native_chunk_probes',ROOT/'tools/test-native.py')
+        spec=importlib.util.spec_from_file_location('native_chunk_probes',ROOT/'tests/acceptance/test-native.py')
         n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
         chunks=SuiteChunks('math',n);chunks.case='sqrt-programs'
         names=('_test_done','_test_passed','_test_failed','_test_stage','_test_group','_test_groups')

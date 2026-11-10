@@ -488,8 +488,8 @@ zp_add_outputs(zchainloadtest)
 # Standalone overlay staging proof; compiler/publication/runtime integration
 # remains separate and the production image decoder still rejects overlays.
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/overlay-fixtures/overlay-fixtures.h
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/test-overlays.py --fixtures ${CMAKE_BINARY_DIR}/overlay-fixtures
-    DEPENDS ${CMAKE_SOURCE_DIR}/tools/test-overlays.py VERBATIM)
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tests/acceptance/test-overlays.py --fixtures ${CMAKE_BINARY_DIR}/overlay-fixtures
+    DEPENDS ${CMAKE_SOURCE_DIR}/tests/acceptance/test-overlays.py VERBATIM)
 
 add_custom_target(overlay_fixtures DEPENDS ${CMAKE_BINARY_DIR}/overlay-fixtures/overlay-fixtures.h)
 
@@ -602,10 +602,10 @@ set_source_files_properties(${CMAKE_BINARY_DIR}/compact_file_asset.asm
 add_dependencies(zcompacttest compact_file_runtime_bin)
 
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/unpack-fixtures/unpack-fixtures.h ${CMAKE_BINARY_DIR}/unpack-fixtures/unpack-assets.asm
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/test-module-unpack.py --assets ${CMAKE_BINARY_DIR}/unpack-fixtures
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/tests/acceptance/test-module-unpack.py --assets ${CMAKE_BINARY_DIR}/unpack-fixtures
     DEPENDS module_unpack_bin file_runtime_bin transfer_runtime_bin
         ${CMAKE_BINARY_DIR}/module_unpack.zpl ${CMAKE_BINARY_DIR}/file_runtime.packed
-        ${CMAKE_BINARY_DIR}/transfer_runtime.packed ${CMAKE_SOURCE_DIR}/tools/test-module-unpack.py
+        ${CMAKE_BINARY_DIR}/transfer_runtime.packed ${CMAKE_SOURCE_DIR}/tests/acceptance/test-module-unpack.py
         ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 
 add_custom_target(unpack_fixtures DEPENDS ${CMAKE_BINARY_DIR}/unpack-fixtures/unpack-fixtures.h ${CMAKE_BINARY_DIR}/unpack-fixtures/unpack-assets.asm)
@@ -713,9 +713,9 @@ zp_add_outputs(zchainfilestest)
 
 # The Real6 component is checked independently before compiler integration.
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/real_vectors.h
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/test-real.py
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/acceptance/test-real.py
         --generate-vectors ${CMAKE_BINARY_DIR}/real_vectors.h
-    DEPENDS ${CMAKE_SOURCE_DIR}/tools/test-real.py VERBATIM)
+    DEPENDS ${CMAKE_SOURCE_DIR}/tests/acceptance/test-real.py VERBATIM)
 
 add_executable(zrealtest ${CMAKE_BINARY_DIR}/test_sdk_startup.asm src/runtime/numbers/real.c src/runtime/numbers/transcendental.c
     tests/native/real-core.c tests/native/machine.asm ${CMAKE_BINARY_DIR}/real_vectors.h)
@@ -741,9 +741,9 @@ zp_add_outputs(zrealtest)
 # Separate tables keep all existing component vectors while adding full-range
 # trigonometric cases within an ordinary native executable's memory limit.
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/trig_vectors.h
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/test-real.py
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/acceptance/test-real.py
         --generate-trig-vectors ${CMAKE_BINARY_DIR}/trig_vectors.h
-    DEPENDS ${CMAKE_SOURCE_DIR}/tools/test-real.py VERBATIM)
+    DEPENDS ${CMAKE_SOURCE_DIR}/tests/acceptance/test-real.py VERBATIM)
 
 add_executable(ztrigtest ${CMAKE_BINARY_DIR}/test_sdk_startup.asm src/runtime/numbers/real.c src/runtime/numbers/transcendental.c
     tests/native/real-core.c tests/native/machine.asm ${CMAKE_BINARY_DIR}/trig_vectors.h)

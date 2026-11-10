@@ -3,7 +3,7 @@
   "compiler_sources_sha256": "e0ab30059a1e9f3192d2f5e047d41bce176dfd43826656bb5821fa430a83c2be",
   "format": "Native Zeal executable; unchanged compiler COM image named .bin",
   "build_command": "zde --no-tty cmake build --target zexampletest_bin",
-  "verification": "python3 tools/test-examples.py --package",
+  "verification": "python3 tests/acceptance/test-examples.py --package",
   "runtime_sha256": "187a28b9bd66bbf66fbfc201fb845f2a9e37b15dfead9d4ce855fe59e40c9af7",
   "compiler_harness_sha256": {
     "bin": "2a30c171eecffc4329a196241d0f0db49b8f97051edd53068e79fd9c7d7e7273",

@@ -60,7 +60,7 @@ From the repository, build and run the native acceptance check:
 
 ```sh
 zde --no-tty cmake --target zexampletest_bin
-python3 tools/test-examples.py
+python3 tests/acceptance/test-examples.py
 ```
 
 The check compiles these exact sources on the pinned, unmodified Zeal emulator,

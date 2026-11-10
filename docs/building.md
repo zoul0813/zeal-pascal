@@ -151,7 +151,7 @@ python3 tools/run-tests.py --only native:basic
 ```
 
 The central test runner enables the option itself before building its selected
-native prerequisites declared in `tools/test-plan.json`. Every planned driver
+native prerequisites declared in `tests/acceptance/test-plan.json`. Every planned driver
 has an explicit prerequisite list, including the host suite’s shared ABI fixtures. Direct Python test drivers normally expect those binaries
 to have been built. The fragment, low-file and Unit-corpus drivers that perform
 their own builds also enable the option explicitly.
@@ -193,7 +193,7 @@ To refresh ZVB after an implementation or compiler change:
 ```sh
 zde --no-tty exec cmake -S . -B build -DZP_BUILD_TESTS=ON
 zde --no-tty cmake build --target zvb_authoring -j4
-python3 tools/test-zvb.py --skip-hardware --output-library build/ZVB.ZPU
+python3 tests/acceptance/test-zvb.py --skip-hardware --output-library build/ZVB.ZPU
 python3 tools/package-zvb.py build --record-authoring analysis/native-slice/RUN/zvb-report.json
 ```
 
@@ -220,8 +220,8 @@ zde --no-tty cmake build --target zpascal_bin -j4
 python3 tools/author-crt.py
 python3 tools/package-crt.py build --record-authoring analysis/native-slice/RUN/crt-authoring-report.json
 zde --no-tty cmake build --target zscreentest_bin -j4
-python3 tools/test-screen.py
-python3 tools/test-crt-readkey.py
+python3 tests/acceptance/test-screen.py
+python3 tests/acceptance/test-crt-readkey.py
 ```
 
 Use the exact authoring report path printed by the run. Commit the Unit and

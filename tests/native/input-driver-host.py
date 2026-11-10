@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location('native', ROOT/'tools/test-native.py')
+spec = importlib.util.spec_from_file_location('native', ROOT/'tests/acceptance/test-native.py')
 n = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(n)
 LAYOUT = {'length': 0x7000, 'buffer': 0x7100, 'mode': 0x4505, 'finished': 0x7900, 'cleanup': 0x7910}
