@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "compiler_base_revision": "d72642628c0d45afaf3ff42943026dc17101079d",
+  "sources": {
+    "examples/zealcalc/zccalc.pas": "f19bf45a9161e786f2ee517473a810bcec98473783d5554a04f4f35b3927be96",
+    "examples/zealcalc/zcsheet.pas": "b19c7fc584f62b70b7773a9db2c1d8cd34c5c29682d98e2f3252c624bd1707b1",
+    "examples/zealcalc/zealcalc.pas": "6e495fd20488f77e6f63c2937810c10ffdbc66c53bcfb37e2149f42a0fb6a3cf",
+    "examples/zealcalc/include/backend.pas": "a1dd70febd68dfd4ab711bf4cd126f8719f2f66e9b5379da3c4387142fba2ae8",
+    "examples/zealcalc/include/calc-data.pas": "d84e1807f26fc20aa53f730e35e827a4e0a7dc3eb0c0429a4541eafeb9210e3b",
+    "examples/zealcalc/include/calc-store.pas": "4cfa0b79fdd6e574f9a17e079ebaaf6cd188ca12adcb2d5cc85c2c1d40dd55d1",
+    "examples/zealcalc/include/cells.pas": "a1ef6fea030345fa461229c5d5cb5d48cb0976ff88db7b0ba324b9422fb1cf7d",
+    "examples/zealcalc/include/checksum.pas": "04eb79a905e61d9fa819ab42c0a66c4e9167f9ec4f8e67475428a69581dd99a3",
+    "examples/zealcalc/include/common.pas": "8ea4b34ba552235b36f5b3eaee455ca22536f5faa80cab6275ebea9f44a3456e",
+    "examples/zealcalc/include/data.pas": "8b9ca8816649f1f3a1e00dc13dab32371cf74309fc77e6a0e8b33c8d0ac55f54",
+    "examples/zealcalc/include/formula.pas": "4524e62c08dafd20e58b6ba5f2258a8c29b1b6f689984f7537092824d9001cc9",
+    "examples/zealcalc/include/front.pas": "51172857c901f88f756a24ffe3afc7ca52ffa63fb1027bcaadcf51554914de73",
+    "examples/zealcalc/include/put-cell.pas": "280800dd6eee44f0fd581ba0c287e6f383281dfe1316e4db406b9d2a5e44159c",
+    "examples/zealcalc/include/screen.pas": "6b6bf6aa1ed4092f55a7257a35c5489aa9045a859387402564715fbc761d833e",
+    "examples/zealcalc/include/store.pas": "0984a1f5e5d721f3cf5686157b3add298bc6cde4e28e88821bc7afc03de41394",
+    "examples/zealcalc/include/types.pas": "a6a89f82514557ada1ba385b7b415942f553775b78590005c57d37147fd654ed"
+  },
+  "compiler_sha256": "0f82caa0766d3da4c9c9a8ad2eddc0c5f6df5ba951ef2636ca582e1922070451",
+  "banks_sha256": "3d969c5161e4c0060eea5f2463d6d81df832cac41e6fcd1731422723a5faafde",
+  "rom_sha256": "87de2b8ac3d71514f90984231da02af4f0ad054a730bda18b6617e89b090d38d",
+  "emulator_sha256": "98a17242c9c239fc70f663721367786699af5597dab6148a32192acf79bdd075",
+  "binary_sha256": "97e15dee0a7381ccaaf239e5b938721d6f0e80962167638b82fcd1a95fe6d1fc",
+  "worker_binary_sha256": "12078d207cd6688bf2038f00068de76f296301394f97f9daa3437a6608bbdd25",
+  "calc_binary_sha256": "e4199f1786d03bf94d038bbdb2c683fb3fbc940db3ceb29626f3faac21b5a5b7",
+  "compiler_sources_sha256": "6e5e14284d8eb01ac9599042d4b222015246f318b61be58a70f8ac8f5f4d18eb",
+  "checks": {
+    "formula_assertions": 28,
+    "offscreen_lookup": true,
+    "blank_reopen": true,
+    "no_op": true,
+    "combined_depth": true,
+    "visit_limit": true,
+    "repaint": {
+      "edit": {
+        "grid_characters_written": 20,
+        "total_characters_written": 137
+      },
+      "same-display": {
+        "grid_characters_written": 0,
+        "total_characters_written": 119
+      },
+      "move": {
+        "grid_characters_written": 20,
+        "total_characters_written": 99
+      }
+    }
+  },
+  "test_sources": {
+    "tests/acceptance/test-zealcalc.py": "46bd4263b3c5ec0174d915e83415a458f95064aebb575ba9f3a9b5748c51bced"
+  },
+  "screenshots": {
+    "sheet": "f8cdb697fcb59f21f4334d7a2fd81f147429fb42a855567d8c29a02a954dd805",
+    "scrolled": "7554148d7bb4a3fabf55bfa754adf8d831204ccbdef7d41dfea797a27260dac9"
+  },
+  "units": {
+    "CRT": "97d2972c9a8de3bc085058552146960286208cfc505d4bda26b932b756471eab",
+    "ZOS": "746132330ea5c14589b68d6a9dea6e9b86db6072b3b8e585153a8a8733be1070",
+    "SYSFILE": "0be3c1a19369fb18b32147a8afa10731223bb51318c017cfb5207df0ed658c0e"
+  }
+}

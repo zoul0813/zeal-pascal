@@ -95,7 +95,7 @@ on a historical total. Individual drivers retain their focused modes, such as
 ## Example applications
 
 The entire examples
-tree, including its ten `.bin` files and `binaries.json` provenance, is intended
+tree, including its prebuilt `.bin` files and binary provenance, is intended
 for source control. Generated `.COM`/`.ZMP`/backup files and the working
 `parts.dat` database are ignored.
 
@@ -129,3 +129,10 @@ digest and runtime digest in `binaries.json`.
 After changing the compiler or runtime, rebuild them all with `--package`
 rather than mixing builds. The manifest records the compiler base revision and
 a digest of its source contents alongside the source/binary hashes.
+
+ZealCalc uses a separate focused driver and `examples/zealcalc/binary.json`
+manifest. After `make` builds the native compiler through ZDE and authors its stock
+Pascal Units, run `python3 tests/acceptance/test-zealcalc.py` (or `--package` to refresh
+its binaries). It compiles the three real Pascal programs, checks formulas,
+bounded storage and reopening through the backend pipeline, and replays application
+keyboard entry, cancel, Blank, navigation and corrupt-file rejection.
