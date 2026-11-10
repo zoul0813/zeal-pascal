@@ -132,7 +132,10 @@ Compiled dependencies are searched beside the source, then in repeated
 `--unit-path DIRECTORY` locations, then in `build/`. Build dependencies first;
 the script does not compile them recursively. Each invocation has independent
 HostFS, ROM, TF and EEPROM copies and retains its source and logs beneath
-`analysis/native-slice/`. `--source-output PATH` also publishes the exact prepared
+`build/unit-runs/`. The build script and acceptance tests share the emulator
+automation in `tools/zeal_emulator.py`; unit builds do not load the acceptance
+workflow. Runs are retained for diagnostics and can be removed when no builds
+are using them. `--source-output PATH` also publishes the exact prepared
 source for source/error lookup. Use that source when includes or compaction
 change offsets. `--emulator PATH` selects another installed emulator and
 `--timeout SECONDS` overrides the 1800-second emulator limit.

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Compile a Pascal unit with the production Zeal compiler in an isolated emulator."""
 import argparse
-import importlib.util
 import os
 from pathlib import Path
 import re
@@ -10,6 +9,9 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "tools") not in sys.path:
+    sys.path.insert(0, str(ROOT / "tools"))
+import zeal_emulator as native
 
 
 def prepare_source(path, compact=False, stack=()):
@@ -153,13 +155,8 @@ def compile_unit(source, output, compact=False, source_output=None, unit_paths=(
             raise ValueError('Output must not overwrite the input source')
     if source_output is not None and source_output.resolve() == output.resolve():
         raise ValueError('Unit output and source output must be different files')
-    # Reuse the existing supported emulator transport and process/media isolation.
-    spec = importlib.util.spec_from_file_location('unit_emulator', ROOT / 'tests/acceptance/test-native.py')
-    native = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(native)
-    if emulator is not None:
-        native.EMULATOR = emulator.resolve()
-    for path in (native.EMULATOR, native.ROM, ROOT / 'build/zpascal.bin', ROOT / 'build/zpascal.zpl',
+    executable = emulator.resolve() if emulator is not None else native.EMULATOR
+    for path in (executable, native.ROM, ROOT / 'build/zpascal.bin', ROOT / 'build/zpascal.zpl',
                  ROOT / 'build/zpascal.map', ROOT / 'build/SYSFILE.ZPU'):
         if not path.is_file():
             raise ValueError(f'Missing prerequisite: {path}; build the native targets first')
@@ -180,9 +177,15 @@ def compile_unit(source, output, compact=False, source_output=None, unit_paths=(
     commands += typed(f'wH:/{filename}\n') + typed('ouq')
     commands += ['tap C', native.ImageStop(sym['_key_read'], 'zpascal.bin'),
                  f"rb 0x{sym['_work']:x} 140", 'quit']
-    folder = native.RUN / 'compile-unit'
+    folder = native.new_run(ROOT / 'build/unit-runs') / 'compile-unit'
     print(f'Compiling {source} as {name}; logs: {folder}', flush=True)
-    native.execute('compile-unit', commands, fixtures, timeout=timeout, base_programs=('zpascal',), base_units=())
+    for extension in ('bin', 'zpl'):
+        fixtures[f'zpascal.{extension}'] = ROOT / f'build/zpascal.{extension}'
+    command, _ = native.prepare(
+        folder, emulator=executable, rom=native.ROM, fixtures=fixtures,
+        tf_image=ROOT / 'tests/native/media/tf-unformatted.img',
+        eeprom_image=ROOT / 'tests/native/media/eeprom-unformatted.img')
+    native.execute(command, folder, commands, timeout=timeout)
     failure = folder / 'input-error.json'
     if failure.exists():
         raise ValueError(f'Emulator compilation failed: {failure.read_text().strip()}\nLogs: {folder}')

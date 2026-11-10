@@ -169,17 +169,16 @@ class CompileUnit(unittest.TestCase):
         rom = self.write('rom', 'prerequisite')
         for condition in ('input-error', 'missing', 'scratch', 'invalid'):
             with self.subTest(condition=condition):
-                native = SimpleNamespace(EMULATOR=emulator, ROM=rom, RUN=self.root / condition,
+                native = SimpleNamespace(EMULATOR=emulator, ROM=rom,
+                                         new_run=lambda parent: self.root / condition,
                                          symbols=lambda name: {'_key_read': 1, '_work': 2},
                                          type_text=lambda value, **kw: [], program_launch=lambda: [],
                                          ImageStop=lambda *args: None)
 
-                def execute(name, commands, fixtures, **kwargs):
-                    self.assertEqual(kwargs['base_units'], ())
+                def prepare(folder, *, fixtures, **kwargs):
                     self.assertNotIn('SAMPLE.ZPU', fixtures)
                     self.assertEqual(fixtures['DEP.ZPU'], b'local dependency')
                     self.assertEqual(fixtures['OTHER.ZPU'], b'explicit other')
-                    folder = native.RUN / name
                     hostfs = folder / 'hostfs'
                     hostfs.mkdir(parents=True)
                     if condition == 'input-error':
@@ -188,13 +187,11 @@ class CompileUnit(unittest.TestCase):
                         (hostfs / 'SAMPLE.ZPU').write_bytes(b'invalid candidate')
                         if condition == 'scratch':
                             (hostfs / 'SAMPLE.$PU').write_bytes(b'unfinished')
+                    return [], {}
 
-                native.execute = execute
-                loader = SimpleNamespace(exec_module=lambda module: None)
-                spec = SimpleNamespace(loader=loader)
-                with patch.object(compiler, 'ROOT', self.root), \
-                        patch.object(compiler.importlib.util, 'spec_from_file_location', return_value=spec), \
-                        patch.object(compiler.importlib.util, 'module_from_spec', return_value=native):
+                native.prepare = prepare
+                native.execute = lambda *args, **kwargs: None
+                with patch.object(compiler, 'ROOT', self.root), patch.object(compiler, 'native', native):
                     with self.assertRaises(ValueError):
                         compiler.compile_unit(source, output, unit_paths=[self.root / 'extra'])
                 self.assertEqual(output.read_bytes(), b'previous output')

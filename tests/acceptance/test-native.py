@@ -8,31 +8,29 @@ import argparse
 import hashlib
 import gzip
 import fcntl
-from datetime import datetime, timezone
 import json
 import os
 import re
-import select
 import shutil
 import struct
-import subprocess
 import sys
-import time
 import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT / "tools") not in sys.path:
     sys.path.insert(0, str(ROOT / "tools"))
-ZEAL = Path(os.environ.get("ZP_ZEAL_ROOT", str(ROOT.parent))).resolve()
-EMULATOR = ZEAL / "Zeal-NativeEmulator/build/zeal-native"
-ROM = ZEAL / "zeal-dev-environment/home/Zeal-8-bit-OS/build/os_with_romdisk.img"
+import zeal_emulator as emulator
+from zeal_emulator import (ZEAL, EMULATOR, ROM, LIBRARY_READY_CYCLES,
+                           sha, symbols, copy_media, type_text, program_launch,
+                           ImageStop, memory, KEYS, SHIFTED)
+
 KERNEL_MAP = ROM.with_name('os.map')
 TF_TEMPLATE = ZEAL / 'zeal-dev-environment/home/tf.base.img.gz'
 MEDIA = ROOT / 'tests/native/media'
 COREUTILS = ZEAL / 'zeal-dev-environment/home/zeal-coreutils/bin'
 OUT = ROOT / "analysis/native-slice"
-RUN = OUT / (datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ') + f'-{os.getpid()}')
+RUN = emulator.new_run(OUT)
 # Load the library through its versioned header and checked extents.
 # Stop at the actual breakpoint, with room for the growing native product.
 CORE_GROUPS = {
@@ -42,7 +40,6 @@ CORE_GROUPS = {
 }
 CORE_COUNTS = json.loads((ROOT/'tests/native/core-counts.json').read_text())
 MEDIA_COPIES = {}
-LIBRARY_READY_CYCLES = 8000000000
 # Private SDCC near handles inspected by debugger-based IDE acceptance.
 # Native compile-time guards in sources-main.c pin these observer sizes.
 BUILD_BYTES = 54
@@ -55,16 +52,6 @@ def same_build_after_run(before, after):
             before[3:19] == after[3:19] and before[31:] == after[31:] and
             all(32 <= after[i] < 64 and (before[i] == 255 or before[i] == after[i])
                 for i in range(3)))
-
-
-def sha(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
-def symbols(target):
-    text = (ROOT / f"build/{target}.map").read_text()
-    return {name: int(value, 16) for value, name in
-            re.findall(r"^\s+([0-9A-F]{8})\s+([_\w]+)\s", text, re.M)}
 
 
 def kernel_symbols():
@@ -105,28 +92,6 @@ def prepare_media():
                     temporary.unlink(missing_ok=True)
                     checksum.unlink(missing_ok=True)
     return base
-
-
-def copy_media(source, destination):
-    """Use an APFS clone when available; always give the test its own file."""
-    source, destination = Path(source), Path(destination)
-    if source.resolve() == destination.resolve():raise ValueError('Cannot overwrite a base media image')
-    cloned = (sys.platform == 'darwin' and subprocess.run(
-        ['/bin/cp', '-c', str(source), str(destination)], stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL).returncode == 0)
-    if not cloned:
-        destination.unlink(missing_ok=True)
-        shutil.copyfile(source, destination)
-    destination.chmod(0o600)
-
-
-def install_media(destination, value):
-    if isinstance(value, (str, os.PathLike)):copy_media(value, destination)
-    else:destination.write_bytes(value)
-    MEDIA_COPIES[str(destination.relative_to(RUN))] = {
-        'source':str(value) if isinstance(value,(str,os.PathLike)) else 'explicit custom bytes',
-        'initial_sha256':sha(destination),
-    }
 
 
 def zealfs_volume(data):
@@ -182,12 +147,6 @@ def zealfs_files(data):
     return files
 
 
-KEYS = {' ': 'SPACE', '\n': 'ENTER', '.': 'PERIOD', '/': 'SLASH',
-        ';': 'SEMICOLON', "'": 'APOSTROPHE', '-': 'MINUS', '=': 'EQUAL',
-        ',': 'COMMA', '[': 'LEFT_BRACKET', ']': 'RIGHT_BRACKET', '\b': 'BACKSPACE'}
-SHIFTED = {':': 'SEMICOLON', '(': '9', ')': '0', '+': 'EQUAL', '*': '8', '_': 'MINUS',
-           '{': 'LEFT_BRACKET', '}': 'RIGHT_BRACKET'}
-
 # One guarded READINPUT.PAS execution. Hold the final Enter through the
 # program handoff; release it at the next reader. Transition-time input is
 # a separate acceptance boundary, not established by these ready-reader cases.
@@ -196,31 +155,6 @@ READ_INPUT_LINES = ['legacy', '-32768 1.25 Ztail', '300 99 32767', '.5', '-1.25 
                     '31 88', '32', 'done', '', '0'*30+'1 X',
                     '12 .25', '12 .25', 'abc', '11 22', '33', '44', '55 66']
 END_CHAR_INPUT_LINES = ['', '11', 'tail', '', 'X', '', 'next']
-
-
-def type_text(text, ticks=250000):
-    commands = []
-    for char in text:
-        shifted = char in SHIFTED or char.isupper()
-        key = SHIFTED.get(char, KEYS.get(char, char.upper()))
-        if shifted:
-            commands.append('press SHIFT')
-        commands.append(f'tap {key}')
-        if shifted:
-            commands.append('release SHIFT')
-        commands.append(f'run {ticks}')
-    return commands
-
-
-def program_launch(target='zpascal'):
-    ready = symbols(target)['_code_ready']
-    # The child loader reads its versioned library after the small resident image
-    # has loaded. Stop at its resident transition before sending IDE input.
-    # Arm the ready breakpoint at child entry: direct loading can finish before
-    # the old fixed post-Enter delay, leaving the breakpoint behind execution.
-    return (type_text(f'H:/{target}.bin H:/{target}.zpl') +
-            ['bp 0x4000', 'tap ENTER', 'run 2000000000', 'bc 0x4000',
-             f'bp 0x{ready:x}', 's', f'run {LIBRARY_READY_CYCLES}', f'bc 0x{ready:x}'])
 
 
 def code_banks(target='zpascal'):
@@ -232,12 +166,6 @@ class PhysicalLine:
     def __init__(self, value, program, memory_mode, inspect_mode=False, source=None):
         self.value, self.program, self.memory_mode = value, program, memory_mode
         self.inspect_mode, self.source = inspect_mode, source
-
-
-class ImageStop:
-    """A logical breakpoint qualified by the expected resident image."""
-    def __init__(self, address, program, memory_mode=None):
-        self.address, self.program, self.memory_mode = address, program, memory_mode
 
 
 def input_layout(image=None):
@@ -287,69 +215,28 @@ def compact_prefix_matches(image, executed=False):
     return all(a==b for at,(a,b)in enumerate(zip(image,golden))if at not in skip)
 
 
-class DebugConsole:
-    """Supported console protocol; keep raw and acceptance journals separate."""
+class DebugConsole(emulator.DebugConsole):
+    """Pascal input observers layered on the shared emulator transport."""
     def __init__(self, command, directory, timeout):
-        self.directory, self.deadline = directory, time.monotonic()+timeout
-        self.pending, self.acceptance, self.held_enter, self.lines = b'', [], False, []
-        self.raw = (directory/'console-all.txt').open('wb')
-        self.journal = (directory/'commands.txt').open('w')
-        self.process = subprocess.Popen(command, cwd=directory, stdin=subprocess.PIPE,
-                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
-        try: self.acceptance.append(self.response())
-        except BaseException:
-            self.close()
-            raise
+        self.held_enter, self.lines = False, []
+        super().__init__(command, directory, timeout)
 
-    def response(self, quitting=False):
-        while b'debug> ' not in self.pending:
-            left = self.deadline-time.monotonic()
-            if left <= 0 or not select.select([self.process.stdout], [], [], max(0, left))[0]:
-                raise RuntimeError('emulator console timed out; see console-all.txt')
-            data = self.process.stdout.read(65536)
-            if not data:
-                if not quitting: raise RuntimeError('emulator closed before its prompt; see console-all.txt')
-                result, self.pending = self.pending, b''
-                return result.decode(errors='replace')
-            self.raw.write(data); self.raw.flush(); self.pending += data
-        result, self.pending = self.pending.split(b'debug> ', 1)
-        return (result+b'debug> ').decode(errors='replace')
+    def image_matcher(self, stop, image):
+        # Pascal children need their invocation seal and RAM/saved mode checked
+        # as well as the resident header at the shared logical address.
+        if image[3:8] != b'ZP80\x02':
+            return super().image_matcher(stop, image)
+        seal, offset = self.identity(PhysicalLine('', stop.program, stop.memory_mode))
+        layout = input_layout()
 
-    def command(self, command, capture=False):
-        self.journal.write(command+'\n'); self.journal.flush()
-        self.process.stdin.write((command+'\n').encode()); self.process.stdin.flush()
-        result = self.response(command == 'quit')
-        if capture: self.acceptance.append(result)
-        return result
+        def matches():
+            observed = memory(self.command('rb 0x4000 68'))
+            observed.update(memory(self.command(f'rb 0x{layout["mode"]:x} 1')))
+            return (bytes(observed.get(0x4000+i, 0) for i in range(32)) == image[:32] and
+                    bytes(observed.get(0x4000+offset+i, 0) for i in range(32)) == seal and
+                    (stop.memory_mode is None or observed.get(layout['mode']) == stop.memory_mode))
 
-    def image_stop(self, stop, capture=True):
-        # Logical addresses are reused by Pascal children and service modules.
-        # Never mistake their instructions for an IDE reader at the same PC.
-        image = (self.directory/'hostfs'/stop.program).read_bytes()
-        expected = image[:32]
-        pascal = image[3:8] == b'ZP80\x02'
-        if pascal:
-            seal, offset = self.identity(PhysicalLine('', stop.program, stop.memory_mode))
-            layout = input_layout()
-        self.command(f'bp 0x{stop.address:x}')
-        try:
-            for _ in range(1000):
-                self.command('run 2000000000')
-                frame = self.command('regs')
-                observed = memory(self.command('rb 0x4000 68' if pascal else 'rb 0x4000 32'))
-                if pascal:
-                    observed.update(memory(self.command(f'rb 0x{layout["mode"]:x} 1')))
-                qualified = (not pascal or
-                             (bytes(observed.get(0x4000+offset+i, 0) for i in range(32)) == seal and
-                              (stop.memory_mode is None or observed.get(layout['mode']) == stop.memory_mode)))
-                if (f'PC={stop.address:04x} ' in frame and
-                        bytes(observed.get(0x4000+i, 0) for i in range(32)) == expected and qualified):
-                    if capture: self.acceptance.append(frame)
-                    return
-                self.command('s')
-            raise RuntimeError('resident image breakpoint not reached; see console-all.txt')
-        finally:
-            self.command(f'bc 0x{stop.address:x}')
+        return matches
 
     def line_layout(self, line):
         path = self.directory/'hostfs'/line.program if line.program else None
@@ -489,91 +376,38 @@ class DebugConsole:
             self.command(f'bc 0x{setter:x}')
         else: self.command('run 100000000')
 
-    def close(self):
-        if self.process.poll() is None: self.process.terminate()
-        try: self.process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            self.process.kill(); self.process.wait()
-        self.process.stdin.close(); self.process.stdout.close(); self.raw.close(); self.journal.close()
-        (self.directory/'console.txt').write_text(''.join(self.acceptance))
+
+def dispatch_command(console, command):
+    if isinstance(command, PhysicalLine):
+        console.physical_line(command)
+    else:
+        return emulator.dispatch_command(console, command)
 
 
 def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, timeout=180, after_command=None, console_class=None, base_programs=('zpascal', 'zptest'), base_units=('SYSFILE',)):
     directory = RUN / name
-    directory.mkdir(parents=True, exist_ok=False)
-    hostfs = directory / 'hostfs'
-    hostfs.mkdir(exist_ok=True)
+    files = {}
     for target in base_programs:
         for extension in ('bin', 'zpl'):
-            shutil.copyfile(ROOT / f'build/{target}.{extension}', hostfs / f'{target}.{extension}')
+            files[f'{target}.{extension}'] = ROOT / f'build/{target}.{extension}'
     for unit in base_units:
         if (ROOT / f'build/{unit}.ZPU').exists():
-            shutil.copyfile(ROOT / f'build/{unit}.ZPU', hostfs / f'{unit}.ZPU')
-    for filename, data in (fixtures or {}).items():
-        path = hostfs / filename
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
+            files[f'{unit}.ZPU'] = ROOT / f'build/{unit}.ZPU'
+    files.update(fixtures or {})
     for artifact in ('CONSOLE.TXT', 'SLICE.COM', 'SLICE.ZMP'):
-        (hostfs / artifact).unlink(missing_ok=True)
-    shutil.copyfile(ROM, directory / 'rom.img')
-    install_media(directory/'tf.img', tf_image if tf_image is not None else MEDIA/'tf-unformatted.img')
-    install_media(directory/'eeprom.img', eeprom_image if eeprom_image is not None else MEDIA/'eeprom-unformatted.img')
-    (directory / 'zeal.ini').write_text('')
-    live = console_class is not None or after_command is not None or any(isinstance(command, (PhysicalLine, ImageStop)) for command in commands)
-    if not live: (directory / 'commands.txt').write_text('\n'.join(commands) + '\n')
-    cmd = [str(EMULATOR), '--console', '--debug', '--rom', str(directory / 'rom.img'),
-           '--hostfs', str(hostfs), '-c', str(directory / 'zeal.ini'),
-           '-t', str(directory / 'tf.img'), '-e', str(directory / 'eeprom.img')]
+        files.pop(artifact, None)
+    cmd, media = emulator.prepare(
+        directory, emulator=EMULATOR, rom=ROM, fixtures=files,
+        tf_image=tf_image if tf_image is not None else MEDIA/'tf-unformatted.img',
+        eeprom_image=eeprom_image if eeprom_image is not None else MEDIA/'eeprom-unformatted.img')
+    MEDIA_COPIES.update({str((directory/key).relative_to(RUN)): value for key, value in media.items()})
     if name == 'interactive':
-        for program in hostfs.iterdir():
+        for program in (directory/'hostfs').iterdir():
             program.chmod(0o444)
-    # The emulator requires an R/W HostFS root even when only reading files.
-    # Keep installation files read-only and assert that Memory mode creates
-    # no outputs; do not represent this as a read-only-volume test.
-    if live:
-        console = (console_class or DebugConsole)(cmd, directory, timeout)
-        active_line = None
-        try:
-            for command in commands:
-                if isinstance(command, ImageStop):
-                    console.image_stop(command)
-                elif isinstance(command, PhysicalLine):
-                    active_line = command
-                    console.physical_line(command)
-                    active_line = None
-                else:
-                    response=console.command(command, capture=True)
-                    # Media-fault tests change a disposable backing file only
-                    # after verifying a real stopped native checkpoint.
-                    if after_command is not None:after_command(command,response,directory)
-            code = console.process.wait(timeout=5)
-            if code: raise RuntimeError(f'{name}: emulator exit {code}')
-        except Exception as error:
-            # Leave exact-output and completion checks available even if a
-            # program advanced, halted, or failed before the next input line.
-            failure = {'kind': type(error).__name__, 'message': str(error),
-                       'line': len(console.lines)+1,
-                       'program': active_line.program if active_line else None,
-                       'memory_mode': active_line.memory_mode if active_line else None,
-                       'last_observation': getattr(console, 'last_observation', '')}
-            (directory/'input-error.json').write_text(json.dumps(failure, indent=2)+'\n')
-        finally: console.close()
-        return (directory/'console.txt').read_text()
-    try:
-        # Keep a live journal: a long run or a failed checkpoint must remain
-        # inspectable before the subprocess exits, including on timeout.
-        with (directory/'console.txt').open('wb') as capture:
-            result = subprocess.run(cmd, input='\n'.join(commands) + '\n', text=True,
-                                    stdout=capture, stderr=subprocess.STDOUT,
-                                    cwd=directory, timeout=timeout)
-    except subprocess.TimeoutExpired as error:
-        raise RuntimeError(f'{name}: emulator timed out; see retained capture') from error
-    raw = (directory/'console.txt').read_text()
-    if result.returncode:
-        raise RuntimeError(f'{name}: emulator exit {result.returncode}')
-    if 'debug> ' not in raw:
-        raise RuntimeError(f'{name}: emulator did not enter its console; see retained capture')
-    return raw
+    live = console_class is not None or after_command is not None or any(isinstance(item, (PhysicalLine, ImageStop)) for item in commands)
+    return emulator.execute(cmd, directory, commands, timeout=timeout,
+                            console_class=(console_class or DebugConsole) if live else None,
+                            after_command=after_command, dispatch=dispatch_command)
 
 
 def artifact_checks(directory):
@@ -895,14 +729,6 @@ def default_path_checks():
     return checks
 
 
-def memory(text):
-    result = {}
-    for address, values in re.findall(r'\[DBG\] ([0-9a-fA-F]{4}): ((?:[0-9a-fA-F]{2} )+)', text):
-        start = int(address, 16)
-        result.update({start + i: value for i, value in enumerate(bytes.fromhex(values))})
-    return result
-
-
 def library_failure_checks():
     sym = symbols('zpascal')
     good = (ROOT / 'build/zpascal.zpl').read_bytes()
@@ -1140,7 +966,8 @@ def main():
     if args.core_only and args.case:parser.error('--core-only and --case are alternatives')
     integrated = not args.core_only and not args.case
     OUT.mkdir(parents=True, exist_ok=True)
-    inputs = [ROOT / 'CMakeLists.txt', ROOT / 'tools/package-native.py', Path(__file__).resolve()]
+    inputs = [ROOT / 'CMakeLists.txt', ROOT / 'tools/package-native.py',
+              ROOT / 'tools/zeal_emulator.py', Path(__file__).resolve()]
     inputs += sorted((ROOT / 'cmake').glob('*.cmake'))
     inputs += sorted((source_path for source_path in (ROOT / 'src').rglob('*') if source_path.is_file())) + sorted((ROOT / 'tests/native').glob('*.pas'))
     inputs += [ROOT/'tests/native'/name for name in ('main.c', 'harness.c', 'harness-cases.c', 'harness.h', 'core-groups.h', 'core-counts.json', 'machine.asm', 'startup-fail.c')]
