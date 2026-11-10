@@ -100,15 +100,29 @@ def publish(repository, tag, commit, run_url, archive):
         if stream.read(4) != b'PK\x03\x04':
             raise ValueError('Distribution archive is not a nonempty ZIP file.')
     ensure_unused(repository, tag)
+    asset_name = f'zeal-pascal-{tag}.zip'
+    repository_url = f'https://github.com/{repository}'
+    body = (
+        '## Download and install\n\n'
+        f'Download [{asset_name}]({repository_url}/releases/download/{tag}/{asset_name}) '
+        'for the prebuilt Zeal Pascal distribution.\n\n'
+        'The ZIP contains `bin/` (the IDE/compiler, stock Units, Pascal sources '
+        'and license) and `examples/` (example programs and assets). '
+        "GitHub's **Source code** archives do not contain the built distribution.\n\n"
+        f'Follow the [installation instructions]({repository_url}/blob/{tag}/README.md'
+        '#download-and-install) to copy the files to your Zeal TF card and start the IDE.\n\n'
+        f'Built from commit `{commit}`. [Build and artifact]({run_url}).\n\n'
+        '## Changelog\n'
+    )
     api(f'repos/{repository}/git/refs', 'POST', {'ref': f'refs/tags/{tag}', 'sha': commit})
     try:
         release = api(f'repos/{repository}/releases', 'POST', {
             'tag_name': tag, 'target_commitish': commit, 'name': f'Zeal Pascal {tag}',
             'draft': True, 'prerelease': '-' in tag, 'generate_release_notes': True,
-            'body': f'Built from commit `{commit}`.\n\n[Build and artifact]({run_url}).',
+            'body': body,
         })
         upload_url = release['upload_url'].split('{', 1)[0]
-        upload_url += '?' + urlencode({'name': f'zeal-pascal-{tag}.zip'})
+        upload_url += '?' + urlencode({'name': asset_name})
         api(upload_url, 'POST', upload=archive)
         api(f'repos/{repository}/releases/{release["id"]}', 'PATCH', {'draft': False})
         print(f'Published {tag} from {commit}: {release["html_url"]}')

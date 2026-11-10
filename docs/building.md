@@ -1,18 +1,83 @@
-# Building Zeal Pascal
+# Building and installing Zeal Pascal
 
-Use the existing Zeal development environment (ZDE) and its SDCC toolchain.
-A fresh checkout builds only the product and the runtime assets it needs:
+For normal use, download the prebuilt ZIP from the
+[latest release](https://github.com/zoul0813/zeal-pascal/releases/latest) and
+follow the [README installation steps](../README.md#download-and-install).
+Source builds use the ZDE target toolchain and compile the Pascal stock Units
+in the native Zeal emulator.
 
-```sh
-zde cmake
+## Install the distribution
+
+The release ZIP contains `bin/` and `examples/`. The files in `bin/` are the
+same loose installation bundle produced by a successful local `make`.
+Copy its contents to `T:/` and run `T:/zpascal.bin T:/zpascal.zpl`, or use this
+split layout:
+
+```text
+T:/bin/zpascal.bin
+T:/lib/zpascal.zpl
+T:/lib/SYSFILE.ZPU
+T:/lib/CRT.ZPU
+T:/lib/ZVB.ZPU
+T:/lib/ZOS.ZPU
+T:/lib/CRT.PAS
+T:/lib/ZVB.PAS
+T:/lib/ZOS.PAS
+T:/lib/ZVB.LIC
 ```
 
-For hosted builds and promoting an Actions artifact to a versioned release, see
-[GitHub builds and releases](releasing.md).
+With the split layout, launch `T:/bin/zpascal.bin` from ZShell; the default bank
+path is `T:/lib/zpascal.zpl`. For another drive or directory, supply the bank
+path explicitly, for example `H:/zpascal.bin H:/zpascal.zpl`. Always keep the
+four ZPUs beside the loaded ZPL and install matching files from one release or
+build. Keep the bank file available throughout an IDE session. Saved COM
+programs contain their selected runtime and Unit code and run independently.
+
+The [distributable file reference](#distributable-hardware-files) explains source
+lookup and licensing. See [hardware requirements](../tests/hardware/README.md)
+for physical Zeal use, and [TF-image staging](#stage-a-flat-bundle-with-zde) for
+an emulator card image.
+
+## Source-build prerequisites
+
+Use the existing [Zeal development environment (ZDE)](https://github.com/zoul0813/zeal-dev-environment)
+and its SDCC toolchain, with `zde` available in your shell and its container
+runtime running. The host also needs Python 3 and Make, plus an existing
+[Zeal Native Emulator](https://github.com/Zeal8bit/Zeal-NativeEmulator)
+with debugger/HostFS support and its platform runtime libraries.
+
+The Unit automation expects this development layout by default:
+
+```text
+<zeal-root>/
+  zeal-pascal/                           # this checkout
+  Zeal-NativeEmulator/build/zeal-native
+  zeal-dev-environment/home/
+    Zeal-8-bit-OS/build/os_with_romdisk.img
+    Zeal-8-bit-OS/build/os.map
+    tf.base.img.gz
+    zeal-coreutils/bin/
+```
+
+`<zeal-root>` defaults to this checkout's parent. Set `ZP_ZEAL_ROOT` to your
+existing development root when different; this controls the emulator and media
+paths, independently of ZDE's `ZDE_PATH`. Reuse the installed emulator and ZDE
+assets. To build the emulation-enabled OS ROM and bundled shell through ZDE:
+
+```sh
+zde --no-tty kernel zeal8bit/emu
+```
+
+Run the build commands below from the `zeal-pascal` checkout on the host.
+The native target build runs inside ZDE; the emulator automation runs on the
+host. For the complete hosted setup, emulator dependencies and downloadable
+build artifacts, see [GitHub builds and releases](releasing.md) and the
+[build workflow](../.github/workflows/build.yml).
 
 ## Fresh compiler and Pascal units
 
-For freshly compiled stock Pascal units, run the host Makefile:
+For a full source build, including freshly compiled stock Pascal Units, run the
+host Makefile:
 
 ```sh
 make
@@ -30,7 +95,6 @@ output; never package a build after `make` fails. This command builds the releas
 files and copies the distributable bundle to `bin/`. It does not run the behavior
 acceptance suite or create a distribution archive.
 
-Use the host's Python 3, Make, and existing native Zeal emulator installation.
 `make native` builds only the compiler, SYSFILE and ZOS. Do not run another
 build or the acceptance orchestrator while this workflow is active: compiler
 inputs must remain unchanged until both emulator processes exit.
@@ -88,7 +152,11 @@ compacted file compiled by the build, rather than the repository's include tree.
 remove existing files there; inspect its contents before creating a download
 archive, and never package after a failed build/copy step.
 
-ZDE can stage the complete flat bundle using its supported directory input:
+## Stage a flat bundle with ZDE
+
+From the extracted release directory (containing `bin/`), or from this checkout
+after a successful `make`, ZDE can stage the complete flat bundle using its
+supported directory input:
 
 ```sh
 zde image tf add bin
@@ -98,8 +166,11 @@ This stages files; image creation remains a separate `zde image tf create`
 step. With the files at the card root, launch
 `T:/zpascal.bin T:/zpascal.zpl`. A split card layout can instead put the launcher
 under `/bin/` and the matching bank file, units and sources under `/lib/`.
-The separate `tools/package-tf.py` workflow below still reads `build/` and
-validates the tracked ZVB prebuilt; it does not consume the new `bin/` bundle.
+The separate [`tools/package-tf.py` workflow](#project-tf-card-image) below reads
+`build/` and validates the tracked ZVB prebuilt; it does not consume the release
+or locally generated `bin/` bundle.
+
+## Build-output details
 
 Keep the four ZPU files beside the loaded ZPL. Include `ZVB.LIC` when distributing its Unit. Other runtime ZPLs, IHX,
 REL, map files, headers and JSON files in `build/` are intermediate build assets;
@@ -171,6 +242,20 @@ before refreshing it. Building loose files and refreshing this image are
 separate steps.
 
 ## Build targets
+
+For compiler development using the tracked CRT/ZVB prebuilts, the default
+CMake build is available through ZDE:
+
+```sh
+zde cmake
+```
+
+This builds the compiler, SYSFILE and ZOS, and validates/stages the tracked
+CRT/ZVB artifacts. It does **not** recompile those Pascal Units in the emulator;
+stale tracked artifacts can cause validation to fail. Use the full
+[`make` workflow](#fresh-compiler-and-pascal-units) to rebuild them with the current
+compiler instead. Do not run the default CMake build between `make` and packaging,
+as it stages tracked prebuilts over the fresh CRT/ZVB outputs.
 
 The default build has five product entry points:
 

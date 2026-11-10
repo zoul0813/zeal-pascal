@@ -21,7 +21,8 @@ compilation modes, editor commands, search and error recovery.
 
 ## Install and start
 
-Build using the [ZDE build guide](building.md). Install the matching
+Download the [prebuilt release](../README.md#download-and-install), or follow
+the [source-build guide](building.md). Install the matching
 `zpascal.bin` launcher and `zpascal.zpl` bank file from one build. Keep
 `SYSFILE.ZPU`, `CRT.ZPU`, `ZVB.ZPU` and `ZOS.ZPU` beside the bank file for
 compilation; these are not extra runtime dependencies of an ordinary saved COM.
@@ -77,6 +78,8 @@ unsaved text. Native source/executable saving can create missing parents.
 Keys are case-insensitive and do not require Enter. Empty/unknown input, Space
 or Enter redraws the main menu without changing files.
 
+![Main menu with the Work file and Memory compilation mode](images/ide-menu.png)
+
 | Key | Action |
 | --- | --- |
 | **L** | Logged drive: enter `T`, `T:` or `T:/` to select an available native drive root; empty keeps current. Absolute Work and Main paths are unaffected. |
@@ -126,6 +129,8 @@ It rejects overflow rather than silently reflowing/truncating source.
 
 Press **O**, choose a mode, then **Q** to return to the main menu.
 
+![Compiler options with Memory selected](images/ide-options.png)
+
 | Option | Output and use |
 | --- | --- |
 | **M** Memory | Compile into owned RAM and run through R; no COM is published. |
@@ -160,6 +165,11 @@ Output names follow Main when present, otherwise Work. Source maps remain
 private compiler state; no map sidecar is required for saved runtime lookup.
 A successful Compile/Save/Run returns directly to the menu prompt; Enter redraws
 the full menu. Errors retain an acknowledgment and source-recovery workflow.
+
+![Output from the squares example after running in Memory](images/ide-memory-run.png)
+
+This program compiled and ran in Memory without publishing a COM file. Its
+output remains visible after returning to the IDE prompt.
 
 ## Editor commands
 
@@ -253,6 +263,8 @@ See [Blocks](#blocks) for selection rules.
 The first screen row shows line, column, Insert or Overwrite, the Indent indicator
 when enabled, and the Work filename.
 
+![Editor showing the squares example and its line, column and editing status](images/ide-editor.png)
+
 Word commands treat space, line boundaries and `< > , ; . ( ) [ ] ' * + - / $` as
 delimiters. These are editor words: they do not follow the Pascal lexer, and a
 literal TAB or other control byte is part of a word. Ctrl-Z cannot be quoted into
@@ -335,6 +347,13 @@ Compilation stops at the first error, preserving its source file, line/column
 and position. Acknowledge as prompted, then repair the selected source. A failed
 or canceled compilation leaves nothing to run; the next **R** compiles again.
 Saving can fail independently of compilation.
+
+![Compiler error 54, Illegal assignment, at line 4, column 13](images/ide-error.png)
+
+Here `Number := ;` is missing an expression. Pressing Escape opens the editor at
+the reported source position:
+
+![Editor positioned at the missing expression on line 4, column 13](images/ide-error-location.png)
 
 Memory runtime errors and I/O errors report their category, code and source
 coordinate and return through the IDE's error workflow. Escape opens the source

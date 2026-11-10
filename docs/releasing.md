@@ -52,7 +52,10 @@ The version tag points to the **selected build's commit**, which can differ
 from the release workflow's current commit. The workflow downloads that exact
 artifact, creates the tag and a draft release, uploads the unchanged ZIP as
 `zeal-pascal-vVERSION.zip`, then publishes the release with generated notes
-and a link to the source build. It never rebuilds the package or overwrites an
+and a link to the source build. Release notes start with a direct link to the
+prebuilt ZIP, a description of its `bin/` and `examples/` directories, and a link
+to the README installation instructions at the release tag. GitHub's generated
+change notes follow under **Changelog**. The workflow never rebuilds the package or overwrites an
 existing tag/release. At most one release runs at a time. GitHub keeps only one
 pending dispatch in the concurrency group; a newer pending dispatch replaces
 an older pending one. Check that each requested version completed.

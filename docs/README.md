@@ -10,7 +10,8 @@ and short demonstrations.
 
 | I want to… | Go to |
 | --- | --- |
-| Install and start the IDE | [Install and start](ide.md#install-and-start) |
+| Download and install the IDE | [Release installation](../README.md#download-and-install) |
+| Build the compiler and stock Units | [Full source build](building.md#fresh-compiler-and-pascal-units) |
 | Look up an editor key | [Editor commands](ide.md#editor-commands) |
 | Choose RAM, COM, CHN or Unit output | [Compilation modes](ide.md#compilation-modes) |
 | Trace a crash back to source | [Errors and source lookup](ide.md#errors-and-source-lookup) |
@@ -35,7 +36,7 @@ and short demonstrations.
 | [Runtime](runtime.md) | Built-ins, files, console, heap, hooks and program control |
 | [Errors](errors.md) | Compiler, runtime and I/O diagnostics |
 | [CP/M TP3 compatibility](compatibility.md) | Preserved behavior, Zeal extensions, corrections and omissions |
-| [Building](building.md) | Building with ZDE, shipped files, test options and stock Units |
+| [Building and installing](building.md) | Release layouts, ZDE and emulator prerequisites, full Unit builds and test options |
 | [Pascal units](units.md) | Authoring, importing, linking, memory and limitations |
 | [Word and LongWord](unsigned-integers.md) | Unsigned types, operations and conversions |
 | [Hardware access](unit-hardware.md) | `Port`, `Mem` and `Inline` in Units; ZPU size limits |

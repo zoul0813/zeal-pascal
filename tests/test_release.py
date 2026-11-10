@@ -137,6 +137,25 @@ class Release(unittest.TestCase):
         self.publish('v2.0.0-rc.1')
         self.assertTrue(self.calls[1][2]['prerelease'])
 
+    def test_release_notes_include_download_installation_and_generated_changelog(self):
+        for tag in ('v1.0.0', 'v2.0.0-rc.1'):
+            with self.subTest(tag=tag):
+                self.calls.clear()
+                self.publish(tag)
+                payload = self.calls[1][2]
+                self.assertTrue(payload['generate_release_notes'])
+                body = payload['body']
+                asset_name = f'zeal-pascal-{tag}.zip'
+                self.assertIn(f'https://github.com/{REPO}/releases/download/{tag}/{asset_name}', body)
+                self.assertIn(f'https://github.com/{REPO}/blob/{tag}/README.md#download-and-install', body)
+                self.assertIn('`bin/`', body)
+                self.assertIn('`examples/`', body)
+                self.assertIn('**Source code** archives do not contain the built distribution', body)
+                self.assertIn(f'Built from commit `{COMMIT}`', body)
+                self.assertIn('[Build and artifact](https://build)', body)
+                self.assertTrue(body.endswith('## Changelog\n'))
+                self.assertIn(f'name={asset_name}', self.calls[2][0])
+
     def test_missing_or_invalid_archive_creates_no_tag(self):
         self.archive.write_bytes(b'invalid')
         with self.assertRaisesRegex(ValueError, 'ZIP'):
