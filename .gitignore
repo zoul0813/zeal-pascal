@@ -2,6 +2,7 @@
 # Other root entries (builds, research, originals, reports, and local tools) stay local.
 /*
 !/.gitignore
+!/.github/
 !/CMakeLists.txt
 !/Makefile
 !/README.md

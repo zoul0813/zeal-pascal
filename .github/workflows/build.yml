@@ -1,0 +1,129 @@
+name: Build distribution
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      emulator:
+        description: Emulator from latest release (download binary or build source)
+        type: choice
+        options: [release, source]
+        default: release
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: zeal-pascal
+    env:
+      ZDE_USE: docker
+      ZDE_STRICT_EXIT: '1'
+      ZP_ZEAL_ROOT: ${{ github.workspace }}
+      LD_LIBRARY_PATH: ${{ github.workspace }}/Zeal-NativeEmulator/raylib/linux64/lib
+      EMULATOR_MODE: ${{ inputs.emulator || 'release' }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: zeal-pascal
+          persist-credentials: false
+
+      - name: Test build and release helpers
+        run: |
+          python3 -m unittest discover -s tests -p test_compile_unit.py
+          python3 -m unittest discover -s tests -p test_release.py
+
+      - name: Set up ZDE
+        uses: zoul0813/zeal-dev-environment/github/setup-zde@05757b42aeab4b57ddbbd607f899412c9880cdb5
+        with:
+          path: zeal-dev-environment
+
+      - name: Resolve latest emulator release
+        id: emulator
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view --repo Zeal8bit/Zeal-NativeEmulator --json tagName --jq .tagName)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      # Both modes use raylib from the matching release's source tree.
+      - name: Check out emulator and its runtime library
+        uses: actions/checkout@v6
+        with:
+          repository: Zeal8bit/Zeal-NativeEmulator
+          ref: ${{ steps.emulator.outputs.tag }}
+          path: Zeal-NativeEmulator
+          persist-credentials: false
+
+      - name: Install Linux emulator prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev meson ninja-build gcc pkg-config cmake
+
+      - name: Download emulator binary
+        if: env.EMULATOR_MODE == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EMULATOR_TAG: ${{ steps.emulator.outputs.tag }}
+        run: |
+          gh release download "$EMULATOR_TAG" --repo Zeal8bit/Zeal-NativeEmulator \
+            --pattern zeal-native-linux-x64.tar.gz --dir "$RUNNER_TEMP/emulator"
+          mkdir -p "$GITHUB_WORKSPACE/Zeal-NativeEmulator/build"
+          tar -xzf "$RUNNER_TEMP/emulator/zeal-native-linux-x64.tar.gz" \
+            -C "$GITHUB_WORKSPACE/Zeal-NativeEmulator/build" zeal-native
+          chmod +x "$GITHUB_WORKSPACE/Zeal-NativeEmulator/build/zeal-native"
+
+      - name: Build emulator from release source
+        if: env.EMULATOR_MODE == 'source'
+        run: |
+          meson setup "$GITHUB_WORKSPACE/Zeal-NativeEmulator/build" \
+            "$GITHUB_WORKSPACE/Zeal-NativeEmulator" \
+            -Draylib_path="$GITHUB_WORKSPACE/Zeal-NativeEmulator/raylib/linux64"
+          meson compile -C "$GITHUB_WORKSPACE/Zeal-NativeEmulator/build" -j 6
+
+      - name: Check emulator and build its OS ROM
+        run: |
+          "$GITHUB_WORKSPACE/Zeal-NativeEmulator/build/zeal-native" --help
+          zde --no-tty kernel zeal8bit/emu
+          test -s "$ZDE_PATH/home/Zeal-8-bit-OS/build/os_with_romdisk.img"
+
+      - name: Build hardware distribution
+        run: make JOBS=6
+
+      - name: Package hardware files and examples
+        env:
+          EMULATOR_TAG: ${{ steps.emulator.outputs.tag }}
+        run: |
+          zip -r "$RUNNER_TEMP/zeal-pascal.zip" bin examples
+          {
+            echo "Built commit: $GITHUB_SHA"
+            echo "Emulator: $EMULATOR_MODE ($EMULATOR_TAG)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload distribution
+        uses: actions/upload-artifact@v7
+        with:
+          name: zeal-pascal-dist
+          path: ${{ runner.temp }}/zeal-pascal.zip
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
+
+      - name: Retain failed compiler logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: unit-compiler-logs-${{ github.run_attempt }}
+          path: zeal-pascal/analysis/native-slice/
+          if-no-files-found: ignore
+          retention-days: 7

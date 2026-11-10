@@ -90,6 +90,9 @@ The [testing guide](tests/README.md) describes the acceptance runner, fixtures,
 CP/M reference prerequisites and result locations. The scheduled commands and
 native prerequisites are defined in [the test plan](tests/acceptance/test-plan.json).
 
+[GitHub builds and releases](docs/releasing.md) explains building a downloadable
+distribution and releasing its exact build commit with a chosen version.
+
 User documentation is maintained in `docs/`. Generated test output belongs in
 `analysis/` or `build/`. Research material is maintainer-local and is not
 distributed with the repository.

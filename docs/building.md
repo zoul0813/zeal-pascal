@@ -7,6 +7,9 @@ A fresh checkout builds only the product and the runtime assets it needs:
 zde cmake
 ```
 
+For hosted builds and promoting an Actions artifact to a versioned release, see
+[GitHub builds and releases](releasing.md).
+
 ## Fresh compiler and Pascal units
 
 For freshly compiled stock Pascal units, run the host Makefile:
