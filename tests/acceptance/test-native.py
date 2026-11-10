@@ -498,7 +498,7 @@ class DebugConsole:
         (self.directory/'console.txt').write_text(''.join(self.acceptance))
 
 
-def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, timeout=180, after_command=None, console_class=None, base_programs=('zpascal', 'zptest')):
+def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, timeout=180, after_command=None, console_class=None, base_programs=('zpascal', 'zptest'), base_units=('SYSFILE',)):
     directory = RUN / name
     directory.mkdir(parents=True, exist_ok=False)
     hostfs = directory / 'hostfs'
@@ -506,8 +506,9 @@ def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, tim
     for target in base_programs:
         for extension in ('bin', 'zpl'):
             shutil.copyfile(ROOT / f'build/{target}.{extension}', hostfs / f'{target}.{extension}')
-    if (ROOT/'build/SYSFILE.ZPU').exists():
-        shutil.copyfile(ROOT/'build/SYSFILE.ZPU', hostfs/'SYSFILE.ZPU')
+    for unit in base_units:
+        if (ROOT / f'build/{unit}.ZPU').exists():
+            shutil.copyfile(ROOT / f'build/{unit}.ZPU', hostfs / f'{unit}.ZPU')
     for filename, data in (fixtures or {}).items():
         path = hostfs / filename
         path.parent.mkdir(parents=True, exist_ok=True)

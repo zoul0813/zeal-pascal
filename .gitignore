@@ -3,6 +3,7 @@
 /*
 !/.gitignore
 !/CMakeLists.txt
+!/Makefile
 !/README.md
 !/cmake/
 !/docs/

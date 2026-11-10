@@ -7,15 +7,98 @@ A fresh checkout builds only the product and the runtime assets it needs:
 zde cmake
 ```
 
-Ship these files from `build/`:
+## Fresh compiler and Pascal units
+
+For freshly compiled stock Pascal units, run the host Makefile:
+
+```sh
+make
+# Override the native toolchain worker count (default: 6):
+make JOBS=4
+```
+
+The Makefile configures through ZDE if the build cache is missing, then runs `zde --no-tty cmake build --target zpascal_bin sysfile_zpu zos_zpu --parallel 6`
+(with `JOBS` controlling the last value). It then compiles CRT and ZVB concurrently
+in two isolated emulator processes using that completed production compiler.
+It bypasses the CMake targets that stage tracked Pascal prebuilts. Successful
+outputs are `build/CRT.ZPU` and `build/ZVB.ZPU`, with matching Pascal sources
+beside them. A failed compilation returns nonzero and preserves the previous
+output; never package a build after `make` fails. This command builds the release
+files and copies the distributable bundle to `bin/`. It does not run the behavior
+acceptance suite or create a distribution archive.
+
+Use the host's Python 3, Make, and existing native Zeal emulator installation.
+`make native` builds only the compiler, SYSFILE and ZOS. Do not run another
+build or the acceptance orchestrator while this workflow is active: compiler
+inputs must remain unchanged until both emulator processes exit.
+
+To compile another Pascal unit with the same compiler:
+
+```sh
+python3 tools/compile-unit.py path/to/Example.pas --output build/EXAMPLE.ZPU
+```
+
+The script expands relative `{$I file}` and `(*$I file*)` includes into one
+source file, as required by Unit-file mode. Include expansion is textual;
+compiler directives remain in the flattened source. `--compact` additionally
+removes ordinary comments and empty lines to reduce source RAM use; compiler
+directives, string literals and SPDX comments remain. The Makefile uses this
+option for ZVB. Native source-size, line-length and unit-feature limits still apply.
+
+Compiled dependencies are searched beside the source, then in repeated
+`--unit-path DIRECTORY` locations, then in `build/`. Build dependencies first;
+the script does not compile them recursively. Each invocation has independent
+HostFS, ROM, TF and EEPROM copies and retains its source and logs beneath
+`analysis/native-slice/`. `--source-output PATH` also publishes the exact prepared
+source for source/error lookup. Use that source when includes or compaction
+change offsets. `--emulator PATH` selects another installed emulator and
+`--timeout SECONDS` overrides the 1800-second emulator limit.
+
+The script checks successful emulator completion and the fresh ZPU's header,
+name, size and format checksum before replacing output atomically. It does not
+update tracked prebuilts/manifests or claim behavior acceptance. The explicit
+stock-artifact maintenance workflows below remain available for `zde cmake`
+builds that reuse tracked prebuilts. A subsequent plain `zde cmake` runs those
+staging targets again: it replaces freshly compiled CRT/ZVB with the tracked
+prebuilts when their validation passes, or fails if they are stale. Package after
+a successful `make` without running that default CMake build in between.
+
+## Distributable hardware files
+
+A successful `make` (or `make dist`) finishes by copying these files to `bin/`:
 
 - `zpascal.bin`: native IDE/compiler launcher.
 - `zpascal.zpl`: matching compiler banks.
 - `SYSFILE.ZPU`, `CRT.ZPU`, `ZVB.ZPU`, `ZOS.ZPU`: stock statically linked Units.
-- `CRT.PAS`: the complete Pascal CRT source; `ZOS.PAS`: the generated ZOS interface.
+- `CRT.PAS`, `ZVB.PAS`, `ZOS.PAS`: matching Pascal sources/interfaces for rebuilding and error lookup.
+- `ZVB.LIC`: the ZVB licence with its attribution notice included.
 
-Keep the four ZPU files beside the loaded ZPL. Include the ZVB licence and
-notice from `units/zvb/` when distributing its Unit. Other runtime ZPLs, IHX,
+The six binary files are required for the IDE/compiler installation; the Pascal
+sources support development and source lookup. Retain `ZVB.LIC`
+when distributing ZVB. Source navigation currently requires matching text at the
+source path recorded inside the ZPU. The IDE does not yet search beside the
+installed ZPU, so copying the Pascal sources to a different TF-card path alone
+does not enable navigation. The distributed ZVB.PAS is the exact flattened,
+compacted file compiled by the build, rather than the repository's include tree.
+
+`bin/` is generated and ignored by Git. Copying does not
+remove existing files there; inspect its contents before creating a download
+archive, and never package after a failed build/copy step.
+
+ZDE can stage the complete flat bundle using its supported directory input:
+
+```sh
+zde image tf add bin
+```
+
+This stages files; image creation remains a separate `zde image tf create`
+step. With the files at the card root, launch
+`T:/zpascal.bin T:/zpascal.zpl`. A split card layout can instead put the launcher
+under `/bin/` and the matching bank file, units and sources under `/lib/`.
+The separate `tools/package-tf.py` workflow below still reads `build/` and
+validates the tracked ZVB prebuilt; it does not consume the new `bin/` bundle.
+
+Keep the four ZPU files beside the loaded ZPL. Include `ZVB.LIC` when distributing its Unit. Other runtime ZPLs, IHX,
 REL, map files, headers and JSON files in `build/` are intermediate build assets;
 they are not additional files the user needs to install.
 
@@ -28,6 +111,43 @@ not embedded or installed. None of these raw files is an application.
 The `ram_trampoline_bin` target is an SDK conversion-helper name: it produces
 `ram_trampoline.zpl`, a 358-byte transition stub embedded in the compiler for
 Memory Run and return to the IDE. It is not another installed program.
+
+## Compiling and adding a Pascal unit
+
+1. Add the source under `units/`, for example `units/example/EXAMPLE.PAS`,
+   declaring `unit Example;`. The supported native Unit features are described
+   in [Units](units.md). The output basename must match the declared name,
+   case-insensitively: `EXAMPLE.ZPU` for `unit Example`.
+2. Build the current compiler and native units once with `make native`.
+3. Compile the new unit, retaining the exact prepared source for error lookup:
+
+   ```sh
+   python3 tools/compile-unit.py units/example/EXAMPLE.PAS \
+       --output build/EXAMPLE.ZPU --source-output build/EXAMPLE.PAS
+   ```
+
+   Relative includes are flattened. `{$Idefs}` uses `defs.PAS` by default;
+   `{$I defs.inc}` uses the given extension. Add `--compact` only when needed
+   to reduce source memory. Compile imported units first; additional compiled
+   dependency directories can be supplied with repeated `--unit-path DIR`.
+   A publication failure normally restores prior outputs; if rollback also
+   fails, the command reports any retained original recovery file. Resolve the
+   failure before packaging.
+4. Run the unit's relevant behavior tests and compile a program that uses it.
+5. To include it in future distribution builds, add `_example` to
+   `PASCAL_TARGETS`, add `EXAMPLE.ZPU EXAMPLE.PAS` to `DIST_FILES`, and add this
+   recipe to the Makefile:
+
+```make
+_example:
+	$(PYTHON) tools/compile-unit.py units/example/EXAMPLE.PAS --output build/EXAMPLE.ZPU --source-output build/EXAMPLE.PAS
+```
+
+If the unit imports CRT, declare `_example: _crt` instead; list every unit
+prerequisite the same way. Independent unit targets run concurrently, up
+to `JOBS`; dependency edges ensure imports use the newly compiled outputs.
+Run `make` to rebuild and populate `bin/`. These fresh-build steps do not
+update the legacy tracked prebuilt manifests.
 
 ## Project TF-card image
 

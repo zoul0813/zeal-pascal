@@ -17,7 +17,14 @@ Use the existing Zeal development environment and its target toolchain:
 zde cmake
 ```
 
-The default build creates the product and its required runtime/stock-unit assets.
+For a fresh build that recompiles CRT and ZVB using the newly built compiler,
+run `make` on the host. It builds the native prerequisites with six toolchain
+jobs, then compiles the Pascal units in two isolated emulator processes and
+copies the distributable hardware files into `bin/`. Stage them with
+`zde image tf add bin`. See
+[the fresh-build workflow](docs/building.md#fresh-compiler-and-pascal-units).
+
+The default CMake build creates the product and its required runtime/stock-unit assets.
 Install matching `zpascal.bin` and `zpascal.zpl` from one build, with
 `SYSFILE.ZPU`, `CRT.ZPU`, `ZVB.ZPU` and `ZOS.ZPU` beside the bank file.
 The [build guide](docs/building.md) lists outputs and maintenance procedures.
