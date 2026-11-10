@@ -253,8 +253,8 @@ static void times_ten(const uint8_t *value) {
 }
 static void build_scale(uint8_t magnitude) {
     uint8_t extra;
-    copy(decimal_scale,powers[magnitude/4],6);
-    extra=(uint8_t)(magnitude%4);
+    copy(decimal_scale,powers[magnitude/4u],6);
+    extra=(uint8_t)(magnitude%4u);
     while(extra--) {
         times_ten(decimal_scale);
         copy(decimal_scale,zr_result,6);
@@ -353,7 +353,9 @@ static void formatted_digits(void) {
     clear(format_digits,12);format_exponent=0;
     if(!decimal_value[0]) return;
     estimate=((int16_t)decimal_value[0]-128)*77+5;
-    format_exponent=estimate>=0?estimate/256:-((255-estimate)/256);
+    /* Divide nonnegative magnitudes, preserving floor rounding below zero. */
+    if(estimate>=0) format_exponent=(uint16_t)estimate/256u;
+    else format_exponent=-(int16_t)((uint16_t)(255-estimate)/256u);
     if(format_exponent< -38) format_exponent=-38;
     build_scale((uint8_t)(format_exponent<0?-format_exponent:format_exponent));
     copy(zr_a,decimal_value,6);zr_a[5]&=127;

@@ -101,5 +101,12 @@ int main(void){ZOSJob j;ZOSRegisters r;unsigned i,k;
         j.args[3]=0x8500;j.args[4]=0x8600;j.sizes[4]=256;put(0x8500,999);
         run(&j);assert(j.result==6&&!calls&&get(0x8500)==999);
     }
+    /* Normal/buffer calls reject page mapping and unknown selectors before
+     * reaching the kernel; raw register mode deliberately has a wider API. */
+    for(k=0;k<2;++k)for(i=23;i<256;++i)if(i==23||i>=27){
+        j=fresh(i);j.mode=k;run(&j);assert(j.result==6&&!calls);
+    }
+    j=fresh(0);j.call=256;run(&j);assert(j.result==6&&!calls);
+    j=fresh(0);j.call=65535;run(&j);assert(j.result==6&&!calls);
     puts("syscall transport: passed");return 0;
 }
