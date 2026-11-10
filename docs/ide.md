@@ -28,17 +28,17 @@ the [source-build guide](building.md). Install the matching
 compilation; these are not extra runtime dependencies of an ordinary saved COM.
 Keep ZVB licenses/attribution when redistributing programs containing that code.
 
-From ZShell, the project TF layout starts with:
+Install the launcher in `T:/bin/`, with the bank file and Units in `T:/lib/`.
+From ZShell, launch:
 
 ```text
 T:/bin/zpascal.bin
 ```
 
-An explicit bank path is also accepted:
-
-```text
-H:/zpascal.bin H:/zpascal.zpl
-```
+Without a bank-path argument, the launcher first looks for `lib/zpascal.zpl`
+under the current working directory, then uses `T:/lib/zpascal.zpl` if the local
+file is missing. A corrupt or incompatible local file reports an error. An
+explicit bank-path argument overrides both locations.
 
 The launcher validates the bank container and requires it to remain available
 for later compiler-bank reloads. A missing or incompatible file reports an

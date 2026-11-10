@@ -977,7 +977,7 @@ def default_library_checks():
     commands += ['run 2000000000', 'quit']
     execute('library-install', commands,
             {name: (COREUTILS / name).read_bytes() for name in ('mkdir', 'cp')},
-            tf_image=gzip.decompress(TF_TEMPLATE.read_bytes()))
+            tf_image=gzip.decompress(TF_TEMPLATE.read_bytes()), base_programs=('zpascal',))
     installed = (RUN / 'library-install/tf.img').read_bytes()
     files = zealfs_files(installed)
     if files.get('/lib/zpascal.zpl') != (ROOT / 'build/zpascal.zpl').read_bytes():
@@ -989,14 +989,56 @@ def default_library_checks():
                  'run 10000000', f'bp 0x{key:x}', 'tap N', 'run 100000000', 'regs',
                  f"rb 0x{sym['_code_owned']:x} 1", f'rb 0x{work:x} 140', f'bc 0x{key:x}']
     commands += type_text('q', ticks=2000000) + ['quit']
-    text = execute('library-default', commands, tf_image=installed)
+    text = execute('library-default', commands, tf_image=installed, base_programs=('zpascal',))
     observed = memory(text)
     path = bytes(observed.get(work+12+i,0) for i in range(128)).split(b'\0')[0]
-    return [('default T:/lib/zpascal.zpl loads without arguments and startup leaves media unchanged',
+    checks = [('default T:/lib/zpascal.zpl loads without arguments and startup leaves media unchanged',
              observed.get(sym['_code_owned']) == code_banks() and path == b'T:/src/pascal/UNTITLED.pas'
              and observed.get(work+1) == observed.get(work+2) == observed.get(work+3) == 0
              and (RUN / 'library-default/tf.img').read_bytes() == installed
              and '/src/' not in files)]
+
+    commands = ['run 100000000']
+    for directory in ('portable', 'portable/lib', 'broken', 'broken/lib', 'empty'):
+        commands += type_text(f'H:/mkdir T:/{directory}\n', ticks=2000000) + ['run 100000000']
+    for source, destination in (('zpascal.zpl', 'portable/lib/zpascal.zpl'),
+                                ('BAD.ZPL', 'broken/lib/zpascal.zpl')):
+        commands += type_text(f'H:/cp H:/{source} T:/{destination}\n', ticks=2000000) + ['run 2000000000']
+    execute('library-local-install', commands + ['quit'],
+            {'mkdir': (COREUTILS/'mkdir').read_bytes(), 'cp': (COREUTILS/'cp').read_bytes(),
+             'BAD.ZPL': b'BAD!' + (ROOT/'build/zpascal.zpl').read_bytes()[4:]}, tf_image=installed, base_programs=('zpascal',))
+    local_image = (RUN/'library-local-install/tf.img').read_bytes()
+    local_files = zealfs_files(local_image)
+    if (local_files.get('/portable/lib/zpascal.zpl') != (ROOT/'build/zpascal.zpl').read_bytes()
+            or local_files.get('/broken/lib/zpascal.zpl', b'')[:4] != b'BAD!'):
+        return checks + [('standard utility installation of local library fixtures', False)]
+
+    cases = [
+        ('local-first', 'T:/portable', '', local_image, 'T:/portable/lib/', 0),
+        ('system-fallback', 'T:/empty', '', local_image, 'T:/lib/', 0),
+        ('local-corrupt', 'T:/broken', '', local_image, None, 25),
+        ('explicit-override', 'T:/broken', ' H:/zpascal.zpl', local_image, 'H:/', 0),
+        ('both-missing', 'T:/', '', gzip.decompress(TF_TEMPLATE.read_bytes()), None, 4),
+    ]
+    for label, cwd, argument, image, expected_directory, error in cases:
+        stop = ready if expected_directory else sym['_fflush_stdout']
+        commands = ['run 100000000'] + type_text(f'cd {cwd}\n', ticks=2000000)
+        commands += ['run 100000000'] + type_text('H:/zpascal.bin' + argument)
+        commands += ['bp 0x4000', 'tap ENTER', 'run 2000000000', 'bc 0x4000',
+                     f'bp 0x{stop:x}', 's', f'run {LIBRARY_READY_CYCLES}', 'regs',
+                     f"rb 0x{sym['_boot_error']:x} 1", f"rb 0x{sym['_code_owned']:x} 1",
+                     f"rb 0x{sym['_code_library_directory']:x} 128", 'quit']
+        text = execute('library-' + label, commands, tf_image=image, base_programs=('zpascal',))
+        observed = memory(text)
+        directory = bytes(observed.get(sym['_code_library_directory']+i, 0)
+                          for i in range(128)).split(b'\0')[0].decode('ascii')
+        checks.append(('library search ' + label + ' selects the expected file without modifying media',
+                       f"[DBG] PC={stop:04x} " in text
+                       and observed.get(sym['_boot_error']) == error
+                       and observed.get(sym['_code_owned']) == (code_banks() if expected_directory else 0)
+                       and (expected_directory is None or directory == expected_directory)
+                       and (RUN/('library-' + label)/'tf.img').read_bytes() == image))
+    return checks
 
 
 def layout_checks():

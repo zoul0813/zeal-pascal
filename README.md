@@ -21,23 +21,26 @@ Use the release ZIP asset; GitHub's **Source code** archives do not contain the
 built distribution.
 
 1. Extract the ZIP. It contains `bin/` (the installation files) and `examples/`.
-2. Copy the **contents of `bin/`** to the root of your Zeal TF card (`T:/`):
-   `zpascal.bin`, `zpascal.zpl`, `SYSFILE.ZPU`, `CRT.ZPU`, `ZVB.ZPU`,
-   `ZOS.ZPU`, `CRT.PAS`, `ZVB.PAS`, `ZOS.PAS` and `ZVB.LIC`.
-   Keep the launcher, bank file and Units from the same release together.
-3. From ZShell, launch with the explicit bank-file path:
+2. On your Zeal TF card, create `T:/bin/` and `T:/lib/` if needed. Copy
+   `bin/zpascal.bin` from the ZIP into `T:/bin/`, and the contents of `bin/lib/`
+   into `T:/lib/`. Put `examples/` wherever you keep your Pascal projects.
+3. From ZShell, launch:
 
    ```text
-   T:/zpascal.bin T:/zpascal.zpl
+   T:/bin/zpascal.bin
    ```
+
+Without a bank-path argument, the launcher first looks for `lib/zpascal.zpl`
+under the current working directory, then uses `T:/lib/zpascal.zpl` if the local
+file is missing.
 
 Keep the four ZPU files beside `zpascal.zpl`, and leave the bank file available
 while using the IDE. Saved programs contain their selected runtime and Unit
 code and do not need the IDE or ZPU files to run. Retain `ZVB.LIC` when
 redistributing ZVB programs/assets.
 
-For a `/bin/` and `/lib/` installation, emulator TF-image staging, or a complete
-source build (including emulator compilation of CRT and ZVB), see
+For emulator TF-image setup or a complete source build (including emulator
+compilation of CRT and ZVB), see
 [Building and installing Zeal Pascal](docs/building.md).
 
 ## Write a first program

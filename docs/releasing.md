@@ -19,8 +19,11 @@ the emulator and Pascal-unit automation run on the host runner.
 
 The workflow packages `bin/` and `examples/` into `zeal-pascal.zip` and uploads
 it as the **zeal-pascal-dist** Actions artifact. The ZIP retains those two
-top-level directories. Examples include their tracked sources, documentation,
-assets and prebuilt executables; this workflow does not recompile the example
+top-level directories. The Makefile places the launcher at `bin/zpascal.bin`
+and the bank file, Units, Pascal interfaces and license under `bin/lib/`. Users
+install the launcher in `T:/bin/` and the contents of `bin/lib/` in `T:/lib/`,
+as described in the README. Examples include their tracked sources,
+documentation, assets and prebuilt executables; this workflow does not recompile the example
 applications. Artifacts are retained for 30 days. Failed unit-compilation logs
 are retained separately for seven days when available.
 

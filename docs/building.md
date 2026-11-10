@@ -9,9 +9,11 @@ in the native Zeal emulator.
 ## Install the distribution
 
 The release ZIP contains `bin/` and `examples/`. The files in `bin/` are the
-same loose installation bundle produced by a successful local `make`.
-Copy its contents to `T:/` and run `T:/zpascal.bin T:/zpascal.zpl`, or use this
-split layout:
+same installation bundle produced by a successful local `make`. The bundle
+contains `bin/zpascal.bin` and supporting files under `bin/lib/`. Create
+`T:/bin/` and `T:/lib/` on your Zeal TF card if needed. Copy `bin/zpascal.bin`
+into `T:/bin/`, and the contents of `bin/lib/` into `T:/lib/`. The installed
+layout is:
 
 ```text
 T:/bin/zpascal.bin
@@ -26,16 +28,30 @@ T:/lib/ZOS.PAS
 T:/lib/ZVB.LIC
 ```
 
-With the split layout, launch `T:/bin/zpascal.bin` from ZShell; the default bank
-path is `T:/lib/zpascal.zpl`. For another drive or directory, supply the bank
-path explicitly, for example `H:/zpascal.bin H:/zpascal.zpl`. Always keep the
-four ZPUs beside the loaded ZPL and install matching files from one release or
-build. Keep the bank file available throughout an IDE session. Saved COM
-programs contain their selected runtime and Unit code and run independently.
+Launch from ZShell:
+
+```text
+T:/bin/zpascal.bin
+```
+
+Without a bank-path argument, the launcher first looks for `lib/zpascal.zpl`
+under the current working directory, then uses `T:/lib/zpascal.zpl` if the local
+file is missing. Keep the four ZPUs
+beside that bank file and install matching files from one release or build.
+Keep the bank file available throughout an IDE session. Saved COM programs
+contain their selected runtime and Unit code and run independently.
+
+For a portable installation, keep `zpascal.bin` and `lib/` together and change
+to that directory before launching. Relative lookup uses the working directory,
+not the executable's directory. A corrupt or incompatible local bank file
+reports an error without falling back.
+
+An explicit bank path overrides both search locations, for example
+`H:/bin/zpascal.bin H:/lib/zpascal.zpl`.
 
 The [distributable file reference](#distributable-hardware-files) explains source
 lookup and licensing. See [hardware requirements](../tests/hardware/README.md)
-for physical Zeal use, and [TF-image staging](#stage-a-flat-bundle-with-zde) for
+for physical Zeal use, and [TF-image setup](#emulator-tf-card-image) for
 an emulator card image.
 
 ## Source-build prerequisites
@@ -135,10 +151,10 @@ a successful `make` without running that default CMake build in between.
 A successful `make` (or `make dist`) finishes by copying these files to `bin/`:
 
 - `zpascal.bin`: native IDE/compiler launcher.
-- `zpascal.zpl`: matching compiler banks.
-- `SYSFILE.ZPU`, `CRT.ZPU`, `ZVB.ZPU`, `ZOS.ZPU`: stock statically linked Units.
-- `CRT.PAS`, `ZVB.PAS`, `ZOS.PAS`: matching Pascal sources/interfaces for rebuilding and error lookup.
-- `ZVB.LIC`: the ZVB licence with its attribution notice included.
+- `lib/zpascal.zpl`: matching compiler banks.
+- `lib/SYSFILE.ZPU`, `lib/CRT.ZPU`, `lib/ZVB.ZPU`, `lib/ZOS.ZPU`: stock statically linked Units.
+- `lib/CRT.PAS`, `lib/ZVB.PAS`, `lib/ZOS.PAS`: matching Pascal sources/interfaces for rebuilding and error lookup.
+- `lib/ZVB.LIC`: the ZVB licence with its attribution notice included.
 
 The six binary files are required for the IDE/compiler installation; the Pascal
 sources support development and source lookup. Retain `ZVB.LIC`
@@ -148,27 +164,26 @@ installed ZPU, so copying the Pascal sources to a different TF-card path alone
 does not enable navigation. The distributed ZVB.PAS is the exact flattened,
 compacted file compiled by the build, rather than the repository's include tree.
 
-`bin/` is generated and ignored by Git. Copying does not
-remove existing files there; inspect its contents before creating a download
-archive, and never package after a failed build/copy step.
+`bin/` is generated and ignored by Git. After copying succeeds, `make` removes
+the known library files left at the top of `bin/` by the previous flat layout.
+Other existing files are preserved; inspect the bundle before creating a
+download archive, and never package after a failed build/copy step.
 
-## Stage a flat bundle with ZDE
+## Emulator TF-card image
 
-From the extracted release directory (containing `bin/`), or from this checkout
-after a successful `make`, ZDE can stage the complete flat bundle using its
-supported directory input:
+Install the release or locally built `bin/` files on the emulator's TF image
+using the [same directory layout](#install-the-distribution) as a physical card.
+For ZDE image staging and creation, see the
+[ZDE image reference](https://github.com/zoul0813/zeal-dev-environment/blob/main/docs/image.md).
+The release ZIP is a manual installation bundle, not a ZDE staging package.
+The separate `zde image tf add bin` command copies only top-level files and
+does not install this directory tree. Community image staging is a separate
+workflow.
 
-```sh
-zde image tf add bin
-```
-
-This stages files; image creation remains a separate `zde image tf create`
-step. With the files at the card root, launch
-`T:/zpascal.bin T:/zpascal.zpl`. A split card layout can instead put the launcher
-under `/bin/` and the matching bank file, units and sources under `/lib/`.
 The separate [`tools/package-tf.py` workflow](#project-tf-card-image) below reads
 `build/` and validates the tracked ZVB prebuilt; it does not consume the release
-or locally generated `bin/` bundle.
+or locally generated `bin/` bundle. It installs the launcher in `T:/bin/` and
+the supporting files in `T:/lib/`.
 
 ## Build-output details
 
@@ -209,7 +224,7 @@ Memory Run and return to the IDE. It is not another installed program.
    failure before packaging.
 4. Run the unit's relevant behavior tests and compile a program that uses it.
 5. To include it in future distribution builds, add `_example` to
-   `PASCAL_TARGETS`, add `EXAMPLE.ZPU EXAMPLE.PAS` to `DIST_FILES`, and add this
+   `PASCAL_TARGETS`, add `EXAMPLE.ZPU EXAMPLE.PAS` to `DIST_LIB_FILES`, and add this
    recipe to the Makefile:
 
 ```make
@@ -233,7 +248,8 @@ python3 tools/package-tf.py
 ```
 
 Use `build/tf.img` as the emulator's TF card, then launch `T:/bin/zpascal.bin`
-from ZShell. The image installs the matching bank file and units under `T:/lib/`.
+from ZShell. The image installs the matching bank file and units under
+`T:/lib/`, matching the launcher's default path.
 Initial creation uses the existing development environment's base image.
 Refresh preserves other card files and checks their contents; it does not alter
 your separate system image. An existing project image is backed up under

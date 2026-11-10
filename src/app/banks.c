@@ -37,7 +37,7 @@ int main(int argc,char **argv) {
     uint8_t old;
     int result;
     char path[128];
-    const char *requested=DEFAULT_LIBRARY;
+    const char *requested="lib/zpascal.zpl";
     if(argc) requested=argv[0];
     if(!platform_supported()) {
         output("Zeal Pascal needs the supported MMU machine at 4000.\n"); return 1;
@@ -45,7 +45,14 @@ int main(int argc,char **argv) {
     /* Own the command tail before the first syscall/mapping transition. */
     if(!capture_path(path,requested)) { output("Invalid Pascal library path\n"); return 1; }
     output("Loading Zeal Pascal...\n");
-    if(!code_load(path)) {
+    result=code_load(path);
+    /* Only an absent local library permits falling back to the system copy.
+     * An explicit path or a damaged local installation must fail as requested. */
+    if(!result&&!argc&&boot_error==ERR_NO_SUCH_ENTRY) {
+        capture_path(path,DEFAULT_LIBRARY);
+        result=code_load(path);
+    }
+    if(!result) {
         output("Missing or invalid Pascal library: "); output(path);
         output(" (native error "); output_number(boot_error); output(")\n"); return 1;
     }
