@@ -91,3 +91,41 @@ chunks declared in the plan. Use `--list` for current counts rather than relying
 on a historical total. Individual drivers retain their focused modes, such as
 `tests/acceptance/test-editor-native.py --case find` and
 `tests/acceptance/test-language-conformance.py --shard 1/4`.
+
+## Example applications
+
+The entire examples
+tree, including its ten `.bin` files and `binaries.json` provenance, is intended
+for source control. Generated `.COM`/`.ZMP`/backup files and the working
+`parts.dat` database are ignored.
+
+Enable the opt-in test targets as described above, then run these commands
+from the repository root.
+
+From the repository, build and run the native acceptance check:
+
+```sh
+zde --no-tty cmake --target zexampletest_bin
+python3 tests/acceptance/test-examples.py
+```
+
+The check compiles these exact sources on the pinned, unmodified Zeal emulator,
+runs their standalone `.bin` programs, and checks puzzle completion, database
+persistence, zero-rate and ordinary loan schedules, word counts, Life evolution,
+heap reclamation, recursive expressions and error recovery, every queen count,
+and the Measure Lab handoff/return, EOF finalization and missing-program recovery. Its temporary executables, media, output captures and
+hash-bound report stay under `analysis/native-slice/`. It does not install the
+examples on a user's card or establish physical-hardware/full TP3 conformance.
+
+To refresh the shipped executables after changing sources, run the same native
+check with `--package`. Only after the behavior checks pass does it copy the
+native-tested images into these folders and update `binaries.json`. A normal
+run verifies that the shipped binaries and source hashes match fresh compiler
+output. The `.bin` bytes are unchanged from the compiler's published native
+COM format; the test launches the `.bin` filenames themselves.
+
+The shipped executables record their compiler base revision, compiler-source
+digest and runtime digest in `binaries.json`.
+After changing the compiler or runtime, rebuild them all with `--package`
+rather than mixing builds. The manifest records the compiler base revision and
+a digest of its source contents alongside the source/binary hashes.
