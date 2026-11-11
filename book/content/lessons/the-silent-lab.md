@@ -15,21 +15,21 @@ Use a desktop or laptop with a keyboard, preferably current Chrome or Edge for t
 
 You only need to recognize a variable as a named value, and a loop as something that repeats. We will introduce the Pascal spelling as we go. No assembly or hardware knowledge is needed.
 
-The computer is available from **Open the Zeal** at the top of every page. It does not start until you press **Start the Zeal**. You can read ahead first, open it now, or hide it while reading. Hiding it keeps the computer running.
+The computer is available from **Open Zeal** at the top of every page. Opening the workbench starts the emulator automatically. You can read ahead first, open it now, or hide it while reading. Hiding it keeps the computer running.
 
 {{< workbench >}}
 
 ## 1. Start the computer and launch Pascal
 
-Open the workbench and press **Start the Zeal**. After the startup messages, you should see a ZShell prompt. Click inside the screen before typing.
+Choose **Open Zeal**. The emulator starts automatically. After the startup messages, you should see a ZShell prompt. Click inside the screen before typing.
 
 Enter this command and press **Enter**:
 
 ```text
-H:/bin/zpascal.bin H:/lib/zpascal.zpl
+zpascal
 ```
 
-The first path is the Pascal launcher. The second tells it where its compiler library is. These are already installed on H:, the workbench's browser-backed filesystem. T: contains the community tools; you do not need to install anything.
+The welcome screen comes from ZShell's startup files on B:, the EEPROM. The startup script adds Pascal and the community tools to PATH and starts the shell in H:/. From there, `zpascal` finds its compiler library in `lib/`. T: contains the community tools; you do not need to install anything. If you change directories before launching Pascal, enter `cd H:/` first.
 
 The first launch can take a moment. At the compiler-message prompt, press **Y** for explanatory messages. You should then see the Pascal main menu.
 
@@ -170,13 +170,13 @@ The same source is in `SOLUTION.PAS` in your lesson folder. Opening it is option
 
 Return to the Pascal menu and press **S**. Saving source is separate from compiling or running it. An adventure that runs successfully may still have unsaved edits.
 
-For this pilot, save personal files under `H:/work/`. Files saved on H: persist in this browser. The editor's RAM does not. Changes on the community TF drive T: are session-only.
+For this pilot, save personal files under `H:/work/`. Files saved on H: persist in this browser. Completed writes to the TF card (T:) and EEPROM (B:) persist too, directly in OPFS, without a separate Save Data step. The editor's RAM does not. A workspace download backs up personal H: files; it does not include the TF/EEPROM images.
 
 To make a backup outside the browser:
 
 1. Press **S in Pascal**.
 2. Open **Files, backups & fresh starts** below the emulator.
-3. Choose **Download workspace** and keep the JSON file.
+3. Choose **Download H: files** and keep the JSON file.
 
 To resume after a page reload, start the Zeal, launch Pascal with the same command, press **Y**, and open `H:/work/LAB.PAS` (or your chosen filename) using **W**, then **E**. You are restoring saved source, not a snapshot of the running computer.
 

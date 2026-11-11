@@ -11,13 +11,13 @@ cd book
 hugo server --bind 127.0.0.1 --port 1313 --baseURL http://localhost:1313/
 ```
 
-Open <http://localhost:1313/> in desktop Chrome or Edge. Open the pilot lesson, open the Zeal, and press **Start the Zeal**. At ZShell:
+Open <http://localhost:1313/> in desktop Chrome or Edge. Open the pilot lesson, choose **Open Zeal**; it starts automatically. At ZShell:
 
 ```text
-H:/bin/zpascal.bin H:/lib/zpascal.zpl
+zpascal
 ```
 
-Source lives in `H:/book/lab`. Save personal work under `H:/work`. HostFS uses a browser-private OPFS directory; saving inside Pascal persists files. No third-party emulator sources or generated application code are patched. T: boots the unchanged community TF image; T: edits are session-only in this pilot. There is no account or second localStorage persistence implementation.
+Source lives in `H:/book/lab`. Save personal work under `H:/work`. HostFS uses a browser-private OPFS directory; saving inside Pascal persists files. No third-party emulator sources or generated application code are patched. The unchanged community TF image and book-specific EEPROM seed persistent OPFS disks once. Completed TF sector and EEPROM transaction writes persist automatically. The EEPROM autoexec retains the community PATH entries, adds H:/bin/, starts in H:/, and prints the book welcome; zpascal therefore launches without path or bank arguments. There is no account or second localStorage persistence implementation.
 
 ## Build and check
 
@@ -34,7 +34,7 @@ The manual **Book preview** GitHub Actions workflow builds an artifact and can d
 
 ## Prepared assets
 
-`static/emulator/` contains an unchanged installed native WASM bundle and matching HostFS/library files. `static/media/` contains the original community 2 MiB TF image, a compatible installed ZDE ZShell boot ROM, community licenses/notices, and matching Pascal build outputs. `static/provenance.json` binds staged assets to SHA-256 hashes and origins. These small prepared assets are included in the book source so an ordinary Hugo build works without ZDE or private local directories.
+`static/emulator/` contains an unchanged installed native WASM bundle and matching HostFS/library files. `static/media/` contains the original community 2 MiB TF image, a compatible installed ZDE ZShell boot ROM, community licenses/notices, a book EEPROM generated from `eeprom/autoexec.zs` and `eeprom/welcome.txt`, and matching Pascal build outputs. `static/provenance.json` binds staged assets to SHA-256 hashes and origins. These small prepared assets are included in the book source so an ordinary Hugo build works without ZDE or private local directories.
 
 To refresh assets from installed, verified builds:
 
@@ -44,10 +44,11 @@ python3 scripts/prepare.py \
   --emulator-source /path/to/Zeal-NativeEmulator \
   --community-dir /path/to/Zeal-Software-Collection/dist/community \
   --pascal-build /path/to/zeal-pascal/build \
-  --boot-rom /path/to/zeal-dev-environment/home/Zeal-8-bit-OS/build/os_with_romdisk.img
+  --boot-rom /path/to/zeal-dev-environment/home/Zeal-8-bit-OS/build/os_with_romdisk.img \
+  --eeprom-tool /path/to/existing/zdt
 ```
 
-The WASM directory must contain `zeal.elf.js`, `zeal.elf.wasm`, and matching `libnative/hostfs.js` and `libnative/zeal-native.js`, with the supported HostFS exports. Build Zeal Pascal through `zde cmake`; do not substitute a host compiler. The community TF card remains unchanged. Its bundled ROM did not launch the current compiler in native checks; the staged compatible ZDE ROM did. Supply a matching supported ZShell boot ROM when refreshing. Inspect provenance, licenses, and checks after refresh. Asset refresh is a maintainer operation, never a reader flow.
+The WASM directory must contain `zeal.elf.js`, `zeal.elf.wasm`, and matching `libnative/indexeddb.js`, `libnative/disk-images.js`, `libnative/hostfs.js`, and `libnative/zeal-native.js`. Use NativeEmulator `feature/wasm-opfs` at commit `30cb5b6` or a compatible later build. The files are copied unchanged; the NativeEmulator checkout must be clean. The existing Zeal Disk Tool CLI builds a raw 64 KiB ZealFS v2 EEPROM and its contents are independently verified. Build Zeal Pascal through `zde cmake`; do not substitute a host compiler. The community TF card remains unchanged. Its bundled ROM did not launch the current compiler in native checks; the staged compatible ZDE ROM did. Supply a matching supported ZShell boot ROM when refreshing. Inspect provenance, licenses, and checks after refresh. Asset refresh is a maintainer operation, never a reader flow.
 
 `static/code/lab/*.PAS` is the single source for printed listings, served lesson files, and reproducible `book-code.zip`. Never edit copies of those listings into the chapter.
 
@@ -56,8 +57,22 @@ The WASM directory must contain `zeal.elf.js`, `zeal.elf.wasm`, and matching `li
 - The OPFS directory `zeal-pascal-book` is private to the site's origin. A Web Lock prevents concurrent emulator tabs from modifying it.
 - System files are installed only when absent. User files are never replaced by opening a lesson.
 - Fresh lesson copies receive new directories. Imports receive new directories and validate all paths/data before writing.
-- Workspace downloads include `book/` and `work/`, not the compiler or unsaved editor RAM.
-- Source saved on H: survives reload. A reload boots ZShell again; it does not restore CPU/editor RAM.
+- Workspace downloads include personal H: files at the root and under project folders, excluding system files, the compiler, and unsaved editor RAM. They do not include disk images.
+- H: files and completed TF/EEPROM writes survive reload. A reload boots ZShell again; it does not restore CPU/editor RAM.
+- `imageStorage: opfs` and `storageNamespace: base.pathname` select one disk set per Hugo project path across all chapters, with stable image keys. HostFS keeps its existing directory and origin-wide H: lock to preserve old files safely.
+- Cached images are never replaced automatically. Update notices preserve local data; resetting source examples does not reset disks.
+- Disk metadata and image files are in OPFS under `zeal-native/<namespace hash>/`; no image snapshot timers or localStorage/IndexedDB disk saves are used.
 - Browser clearing/eviction can remove saves. Backups and import support are explicit.
 
 Only the pilot lesson is implemented. The book-level “all code” option currently loads the same single lesson. Creative and code milestone review status and verification limits are recorded in `VERIFICATION.md`.
+
+To refresh only the workbench bundle and EEPROM without changing the pinned Pascal, ROM, or community card assets:
+
+```sh
+python3 scripts/prepare.py --update-workbench \
+  --wasm-dir /path/to/Zeal-NativeEmulator/build-wasm \
+  --emulator-source /path/to/Zeal-NativeEmulator \
+  --eeprom-tool /path/to/existing/zdt
+```
+
+`eeprom/autoexec.zs` follows ZShell's `.deploy/eeprom/autoexec.zs` PATH layout, adding H:/bin/ and selecting H:/ for the book's installed compiler library. Changing authoring files does not overwrite an existing reader EEPROM; later image update checks only notify.

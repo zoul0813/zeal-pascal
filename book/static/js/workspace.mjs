@@ -41,8 +41,9 @@ export function validateBackup(value) {
   let total = 0;
   const paths = new Set();
   const files = value.files.map(file => {
-    if (typeof file.path !== 'string' || file.path.length > 120 || !/^(book|work)\//.test(file.path)) throw new Error('Backup has an invalid path');
+    if (typeof file.path !== 'string' || file.path.length > 120 || !file.path) throw new Error('Backup has an invalid path');
     const parts = file.path.split('/');
+    if (['bin', 'lib', '.state.json'].includes(parts[0])) throw new Error('Backup contains a reserved system path');
     if (parts.some(part => !/^[A-Za-z0-9_.-]{1,16}$/.test(part) || part === '.' || part === '..') || paths.has(file.path)) throw new Error('Backup has an unsafe or duplicate path');
     paths.add(file.path);
     if (typeof file.base64 !== 'string' || file.base64.length > 12_000_000 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(file.base64)) throw new Error('Backup contains invalid file data');

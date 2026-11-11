@@ -10,7 +10,11 @@ The planned core projects are a calculator, a text adventure, a text-file search
 
 The workbench uses the native WASM Zeal emulator's unmodified HostFS backend. H: points to a private browser filesystem (OPFS). Press **S in Pascal** to save there; a page refresh does not save editor RAM. Browser site-data clearing, private browsing, and storage eviction can remove files. Download a workspace backup when you stop.
 
-The existing emulator's disk-image store uses **IndexedDB**, not localStorage. The pilot keeps source on HostFS and boots the original community TF image on each new session. Changes made to T: are session-only; use H: for your own files. There is no account, cloud synchronization, grading, or telemetry.
+The emulator uses **OPFS** for its TF and EEPROM images as well. It seeds the community TF card and book EEPROM only when those disks are missing; later sessions reopen the saved images. Completed TF sectors and EEPROM transactions are flushed to their backing files automatically. No Save Data action or orderly shutdown is required for completed device writes. Guest buffers and unsaved editor RAM are separate.
+
+All chapters share one project namespace. Existing H: files remain in the original `zeal-pascal-book` OPFS directory; disk images are under `zeal-native/<namespace hash>/`. Local image changes are never replaced automatically when the site updates. Workspace downloads back up H: files, not the TF/EEPROM images. There is no account, cloud synchronization, grading, or telemetry.
+
+At startup, `B:/autoexec.zs` sets the community-tool paths plus `H:/bin/`, changes directory to `H:/`, and displays the book welcome. Type `zpascal` to open the IDE. The IDE automatically opens its saved default `T:/src/pascal/UNTITLED.pas` when present; use W to open another saved file.
 
 Use one workbench tab at a time. The site prevents a second workbench from opening the same workspace concurrently where Web Locks is supported. The emulator supports desktop keyboards; mobile/touch programming is outside this pilot's scope.
 

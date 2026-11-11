@@ -6,15 +6,23 @@ const canvas = document.querySelector('#canvas');
 const base = new URL(panel.dataset.base, location.origin);
 const asset = path => new URL(path, base).href;
 const startButton = document.querySelector('#start-emulator');
-let emulator, root, busy = false, active = 'book/lab', releaseLock;
+const storageStatus = document.querySelector('#storage-status');
+const emulatorAsset = path => {
+  const url = new URL(path, base);
+  url.searchParams.set('v', panel.dataset.emulatorVersion);
+  return url.href;
+};
+let emulator, root, running = false, busy = false, active = 'book/lab', releaseLock;
 const setStatus = message => { status.textContent = message; };
 
 function showEmulator(show) {
   panel.hidden = !show;
   document.body.classList.toggle('workbench-open', show);
   document.querySelectorAll('[data-open-emulator]').forEach(button => button.setAttribute('aria-expanded', String(show)));
-  if (show) startButton.focus();
-  else document.querySelector('[data-open-emulator]').focus();
+  if (show) {
+    if (running) canvas.focus();
+    else { panel.focus(); if (!busy) startEmulator(); }
+  } else document.querySelector('[data-open-emulator]').focus();
 }
 document.querySelectorAll('[data-open-emulator]').forEach(button => button.addEventListener('click', () => showEmulator(panel.hidden)));
 document.querySelector('#close-emulator').addEventListener('click', () => showEmulator(false));
@@ -41,7 +49,7 @@ async function fetchBytes(url) {
 function loadScript(path) {
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = asset(path);
+    script.src = emulatorAsset(path);
     script.onload = resolve;
     script.onerror = () => { script.remove(); reject(new Error('Emulator assets could not be loaded. Reload and try again.')); };
     document.head.append(script);
@@ -96,33 +104,58 @@ async function exclusive(operation) {
   const controls = [...panel.querySelectorAll('.workspace-tools button, .workspace-tools input, #start-emulator')];
   controls.forEach(control => { control.disabled = true; });
   try { await operation(); }
-  catch (error) { console.error(error); setStatus(`Could not complete: ${error.message} Your existing files have not been deleted.`); }
-  finally { busy = false; controls.forEach(control => { control.disabled = !emulator?.module; }); if (!emulator?.module) startButton.disabled = false; }
+  catch (error) { console.error(error); setStatus(`Could not complete: ${error.message}`); }
+  finally { busy = false; controls.forEach(control => { control.disabled = !running; }); startButton.disabled = !running && !!emulator?.module; }
 }
-startButton.addEventListener('click', () => exclusive(async () => {
-  if (emulator?.module) { canvas.focus(); return; }
-  if (!await acquireLock()) throw new Error('Another tab has this workspace open. Close that workbench tab and try again.');
-  try {
-    setStatus('Preparing your browser workspace and community tools…');
-    await initializeWorkspace();
-    if (!window.NativeModule) await loadScript('emulator/zeal.elf.js');
-    if (!window.HostFS) await loadScript('emulator/libnative/hostfs.js');
-    if (!window.ZealNative) await loadScript('emulator/libnative/zeal-native.js');
-    const hostfs = new HostFS(root, {onError(operation, error) { setStatus(`File operation failed: ${error.message}. Save again or download a backup before leaving.`); }});
-    emulator = new ZealNative({
-      canvas,
-      moduleFactory: options => NativeModule({...options, locateFile: name => asset(`emulator/${name}`)}),
-      romdisk: asset('media/zshell.img'), tf: asset('media/tf.img'), hostfs,
-      arguments: ['-r', '/roms/default.img', '-t', '/roms/tf.img'],
-      print: text => console.info('[Zeal]', text),
-      printErr: text => { console.error('[Zeal]', text); if (/error|fail/i.test(text)) setStatus(`Emulator: ${text}`); },
-    });
-    await emulator.start();
-    startButton.textContent = 'Focus the Zeal';
-    document.querySelector('#audio').disabled = false;
-    setStatus('Zeal is running. At ZShell, launch Pascal with the command below. Save source on H: with S in Pascal.');
-  } catch (error) { releaseLock?.(); releaseLock = null; throw error; }
-}));
+function startEmulator() {
+  return exclusive(async () => {
+    if (running) { canvas.focus(); return; }
+    if (!await acquireLock()) throw new Error('Another tab has this workspace open. Close that workbench tab and try again.');
+    try {
+      setStatus('Preparing your browser workspace and community tools…');
+      await initializeWorkspace();
+      if (!window.NativeModule) await loadScript('emulator/zeal.elf.js');
+      if (!window.IndexedDBStore) await loadScript('emulator/libnative/indexeddb.js');
+      if (!window.DiskImageStore) await loadScript('emulator/libnative/disk-images.js');
+      if (!window.HostFS) await loadScript('emulator/libnative/hostfs.js');
+      if (!window.ZealNative) await loadScript('emulator/libnative/zeal-native.js');
+      const hostfs = new HostFS(root, {onError(operation, error) {
+        // HostFS returns guest errors through the protocol; this callback reports infrastructure failures.
+        setStatus(`File operation failed: ${error.message}. Save again or download a backup before leaving.`);
+      }});
+      emulator = new ZealNative({
+        canvas,
+        moduleFactory: options => NativeModule({...options, locateFile: name => emulatorAsset(`emulator/${name}`)}),
+        romdisk: asset('media/zshell.img'), tf: asset('media/tf.img'), eeprom: asset('media/eeprom.img'), hostfs,
+        imageStorage: 'opfs',
+        storageNamespace: base.pathname,
+        diskImages: {romdisk: {key: 'book-rom'}, tf: {key: 'book-tf'}, eeprom: {key: 'book-eeprom'}},
+        onImageUpdateAvailable() {
+          storageStatus.textContent = 'New starter images are available. Your saved disks have been kept.';
+        },
+        onStorageError(error) {
+          storageStatus.textContent = `Storage error: ${error.message}. Keep this tab open and back up your work.`;
+        },
+        print: text => console.info('[Zeal]', text),
+        printErr: text => { console.error('[Zeal]', text); if (/error|fail/i.test(text)) setStatus(`Emulator: ${text}`); },
+      });
+      await emulator.start();
+      running = true;
+      storageStatus.textContent = 'H: files and completed TF/EEPROM writes persist automatically in this browser. No Save Data step is required.';
+      document.querySelector('#disk-store-path').textContent = `zeal-native/${emulator.diskImages.namespace}/`;
+      startButton.hidden = true;
+      document.querySelector('#audio').disabled = false;
+      setStatus('Zeal is running. At ZShell, type zpascal to launch Pascal. Use S in Pascal to save source.');
+    } catch (error) {
+      // A failed native teardown can retain a live module and its image handles.
+      // Keep the matching H: ownership until that runtime is gone.
+      if (!emulator?.module) { releaseLock?.(); releaseLock = null; }
+      startButton.hidden = false;
+      throw error;
+    }
+  });
+}
+startButton.addEventListener('click', startEmulator);
 document.querySelector('#audio').addEventListener('click', () => emulator?.resumeAudio().catch(error => setStatus(error.message)));
 document.querySelector('#load-all').addEventListener('click', () => exclusive(async () => {
   await seedFiles(root, lessonFiles('book/lab'), fetchBytes);
@@ -138,8 +171,8 @@ document.querySelector('#fresh-lesson').addEventListener('click', () => exclusiv
 }));
 document.querySelector('#export-work').addEventListener('click', () => exclusive(async () => {
   const files = [];
-  for (const name of ['book', 'work']) {
-    for (const file of await listFiles(await directoryAt(root, name, true), name + '/')) {
+  for (const file of await listFiles(root)) {
+    if (!['bin', 'lib', '.state.json'].includes(file.path.split('/')[0])) {
       const bytes = new Uint8Array(await (await file.handle.getFile()).arrayBuffer());
       files.push({path: file.path, base64: encodeBytes(bytes)});
     }
@@ -149,7 +182,7 @@ document.querySelector('#export-work').addEventListener('click', () => exclusive
   const url = URL.createObjectURL(new Blob([JSON.stringify(value)], {type: 'application/json'}));
   const link = document.createElement('a'); link.href = url; link.download = 'zeal-pascal-workspace.json'; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 30000);
-  setStatus('Downloaded saved files from H:/book and H:/work. Source still in editor RAM is not included; press S in Pascal before making a backup.');
+  setStatus('Downloaded personal H: files, including files saved at the drive root. Source still in editor RAM is not included; press S in Pascal before making a backup.');
 }));
 document.querySelector('#import-work').addEventListener('change', event => exclusive(async () => {
   const file = event.target.files[0];
@@ -165,3 +198,13 @@ document.querySelector('#import-work').addEventListener('change', event => exclu
 window.addEventListener('beforeunload', event => {
   if (emulator?.module) { event.preventDefault(); event.returnValue = ''; }
 });
+
+document.querySelector('#restore-eeprom').addEventListener('click', () => exclusive(async () => {
+  if (!window.confirm('Restore the book startup EEPROM (B:)? This replaces its files and custom startup settings and restarts Zeal. T: and H: are kept. Save your editor work first. Continue?')) return;
+  try {
+    await emulator.applyImageUpdates(['eeprom']);
+    setStatus('Zeal restarted with the book startup settings. T: and H: were kept. Type zpascal to continue.');
+  } finally {
+    running = !!emulator.module && !emulator.startupError;
+  }
+}));

@@ -26,7 +26,7 @@ jobs:
         run: |
           python3 book/scripts/prepare.py --downloads-only
           python3 book/scripts/check.py
-          node --test book/tests/workspace.test.mjs
+          node --test book/tests/*.test.mjs
       - name: Build with project base path
         run: hugo --source book --minify --baseURL "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
       - uses: actions/upload-pages-artifact@v3

@@ -2,24 +2,24 @@
   "format": 1,
   "assets": {
     "emulator/zeal.elf.js": {
-      "sha256": "425d26ef6da6391bee7f33bbf477de16ce148bb4205babce5642121b8c536e37",
-      "bytes": 390323,
-      "origin": "Installed native WASM bundle/zeal.elf.js"
+      "sha256": "746b0ac3d77dfdf9e76fc436586e297ebbd121b4e1139523b16132d320a65e38",
+      "bytes": 339879,
+      "origin": "NativeEmulator ea901bb296071e0b6019741eef1299c85de22826/build-wasm/zeal.elf.js"
     },
     "emulator/zeal.elf.wasm": {
-      "sha256": "d166fb73a084b222142bcb1f42fe255c103295fd26c1a21530bf5b7a6c2b9144",
-      "bytes": 829205,
-      "origin": "Installed native WASM bundle/zeal.elf.wasm"
+      "sha256": "ad1128925f30cd05ae769614e52c91c1459bd3f6df31503d78b51472ad9c9db8",
+      "bytes": 1744981,
+      "origin": "NativeEmulator ea901bb296071e0b6019741eef1299c85de22826/build-wasm/zeal.elf.wasm"
     },
     "emulator/libnative/hostfs.js": {
-      "sha256": "2a45f9371d77909cc3818c2a8077e4f8d54466e97808f1e5af9f7048d352f2c9",
-      "bytes": 12567,
-      "origin": "Installed native WASM bundle/libnative/hostfs.js"
+      "sha256": "4a0e0418bb87694518a7da0aca659d8ced4ce8577eada7cc7a139135fca87eda",
+      "bytes": 15975,
+      "origin": "NativeEmulator ea901bb296071e0b6019741eef1299c85de22826/build-wasm/libnative/hostfs.js"
     },
     "emulator/libnative/zeal-native.js": {
-      "sha256": "282ec1a3756d3cfe314d07cd5d15670514f23968b7b12011089a3aee14ff7742",
-      "bytes": 8729,
-      "origin": "Installed native WASM bundle/libnative/zeal-native.js"
+      "sha256": "74526695749a15f84cc58e81a6e88ba7d3bbd567a33d307325616c79c03a8c88",
+      "bytes": 16808,
+      "origin": "NativeEmulator ea901bb296071e0b6019741eef1299c85de22826/build-wasm/libnative/zeal-native.js"
     },
     "emulator/LICENSE": {
       "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
@@ -300,12 +300,38 @@
       "sha256": "1eb4966834abbaa71461b6330f8f70960bb9096bcaa2e6454f82b0ba7266d6b2",
       "bytes": 455,
       "origin": "Matching compiler bank metadata"
+    },
+    "emulator/libnative/indexeddb.js": {
+      "sha256": "351902c48737e76ebd77f3e413d7f42ab862b9ecf4b636fb2d012862e842d6f9",
+      "bytes": 3355,
+      "origin": "NativeEmulator ea901bb296071e0b6019741eef1299c85de22826/build-wasm/libnative/indexeddb.js"
+    },
+    "emulator/libnative/disk-images.js": {
+      "sha256": "ff2cc4707ee618c14255c9a595a685039806be132d38243e0f1203d4de53ae68",
+      "bytes": 13081,
+      "origin": "NativeEmulator ea901bb296071e0b6019741eef1299c85de22826/build-wasm/libnative/disk-images.js"
+    },
+    "emulator/raylib-LICENSE.txt": {
+      "sha256": "882a5a819cf562aa3583aae3af3f2211dda15c63de9fc8cc4b399a2f9e78d799",
+      "bytes": 877,
+      "origin": "NativeEmulator ea901bb296071e0b6019741eef1299c85de22826/raylib/web/LICENSE.txt"
+    },
+    "media/eeprom.img": {
+      "sha256": "2d110b37d8297b9c1b289aa143248357c336b311dc84137995d3394932be38ce",
+      "bytes": 65536,
+      "origin": "Book eeprom/autoexec.zs and eeprom/welcome.txt; ZealFS v2, zdt CLI"
     }
   },
   "sources": {
     "emulator": "https://github.com/Zeal8bit/Zeal-NativeEmulator",
-    "wasm_distribution": "Existing ZDE zeal-microbe .deploy native WASM bundle; unchanged bytes",
+    "wasm_distribution": "NativeEmulator build-wasm at ea901bb296071e0b6019741eef1299c85de22826; unchanged bytes",
     "community": "https://github.com/Zeal8bit/Zeal-Software-Collection",
-    "pascal": "https://github.com/zoul0813/zeal-pascal"
+    "pascal": "https://github.com/zoul0813/zeal-pascal",
+    "emulator_commit": "ea901bb296071e0b6019741eef1299c85de22826",
+    "eeprom_authoring": {
+      "autoexec.zs": "f5e83571ae47f8b74419faae82cb9553691f0e05e67818ea67bcf5801d7c5c59",
+      "welcome.txt": "7c68d05411de8a1ab142e1f3a767dab4c4e461cdf6f485f62bf0e12d8c7dd4bc"
+    },
+    "eeprom_tool": "v0.3.0-12-g3e4de89"
   }
 }

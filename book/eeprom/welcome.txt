@@ -1,0 +1,13 @@
+# Programming the Zeal with Pascal
+
+Welcome to your book workbench.
+
+Type zpascal to open the Pascal IDE.
+Lesson examples: H:/book/lab/
+Your own programs: H:/work/
+Community apps and tools: T:/apps/ and T:/bin/
+
+Save source with S in Pascal. H: files and completed TF/EEPROM writes persist
+in this browser. Unsaved editor text does not. Keep backups of your work.
+
+Try: zpascal, tree T:/, or cat B:/autoexec.zs

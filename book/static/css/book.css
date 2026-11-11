@@ -1,11 +1,25 @@
+/* With no explicit choice, native color-scheme follows the system, even without JS. */
 :root {
-  --paper:#f7f5ed;
-  --ink:#24352e;
-  --muted:#657369;
-  --line:#d9dfd3;
-  --green:#245b42;
-  --wash:#edf0e5;
-  --orange:#c96137
+  color-scheme:light dark;
+  --paper:light-dark(#f7f5ed, #14201b);
+  --ink:light-dark(#24352e, #e0e8dc);
+  --muted:light-dark(#657369, #a9b8aa);
+  --line:light-dark(#d9dfd3, #38493e);
+  --green:light-dark(#245b42, #9bceac);
+  --wash:light-dark(#edf0e5, #1d2d24);
+  --orange:light-dark(#c96137, #efaa7e);
+  --control-border:light-dark(#b5c3b5, #627a68);
+  --control-hover:light-dark(#e3e9db, #2b4032);
+  --secondary:light-dark(#56665b, #b7c6b8);
+  --code:light-dark(#e9ede3, #202e28);
+  --button-ink:light-dark(#ffffff, #14251d);
+  --button-hover:light-dark(#183e2e, #b4dfc0);
+}
+:root[data-theme="light"] {
+  color-scheme:light
+}
+:root[data-theme="dark"] {
+  color-scheme:dark
 }
 * {
   box-sizing:border-box
@@ -23,14 +37,14 @@ a {
 button,.file-button {
   font:600 13px/1.4 system-ui;
   cursor:pointer;
-  border:1px solid #b5c3b5;
+  border:1px solid var(--control-border);
   border-radius:5px;
   padding:10px 15px;
   background:transparent;
   color:var(--green)
 }
 button:hover,.file-button:hover {
-  background:#e3e9db
+  background:var(--control-hover)
 }
 button:disabled {
   opacity:.45;
@@ -47,7 +61,7 @@ button:disabled {
   position:absolute;
   left:10px;
   top:-100px;
-  background:white;
+  background:var(--paper);
   padding:10px;
   z-index:10
 }
@@ -62,7 +76,8 @@ button:disabled {
   justify-content:space-between;
   align-items:center;
   border-bottom:1px solid var(--line);
-  gap:20px
+  gap:20px;
+  flex-wrap:wrap
 }
 .brand {
   display:flex;
@@ -86,6 +101,7 @@ button:disabled {
 .masthead nav {
   display:flex;
   gap:25px;
+  flex-wrap:wrap;
   align-items:center;
   font-size:13px
 }
@@ -157,12 +173,12 @@ h3 {
 .lede {
   font-size:20px;
   line-height:1.65;
-  color:#56665b;
+  color:var(--secondary);
   max-width:730px
 }
 .primary-link,.primary-button {
   background:var(--green);
-  color:white;
+  color:var(--button-ink);
   text-decoration:none;
   border-color:var(--green)
 }
@@ -176,8 +192,8 @@ h3 {
   font-size:14px
 }
 .primary-button:hover,.primary-link:hover {
-  background:#183e2e;
-  color:white
+  background:var(--button-hover);
+  color:var(--button-ink)
 }
 .meta,.duration {
   font:11px/1.7 ui-monospace,monospace;
@@ -214,6 +230,7 @@ h3 {
   color:#9fb39e
 }
 .terminal-art pre {
+  background:transparent;
   font:clamp(9px,1.05vw,14px)/1.7 ui-monospace,monospace;
   padding:24px 18px;
   margin:0;
@@ -234,10 +251,10 @@ h3 {
 }
 .home-notes p {
   font-size:15px;
-  color:#5d6b60
+  color:var(--secondary)
 }
 .callout {
-  border:1px solid #d2dcc9;
+  border:1px solid var(--line);
   border-left:3px solid var(--green);
   background:var(--wash);
   padding:20px 24px;
@@ -265,7 +282,7 @@ summary {
   font-size:14px
 }
 pre {
-  background:#e9ede3;
+  background:var(--code);
   padding:20px;
   overflow:auto;
   font:13px/1.65 ui-monospace,monospace;
@@ -274,7 +291,7 @@ pre {
 code {
   font-family:ui-monospace,monospace;
   font-size:.86em;
-  background:#e9ede3;
+  background:var(--code);
   padding:2px 5px;
   border-radius:3px
 }
@@ -283,7 +300,7 @@ pre code {
   background:none
 }
 .highlight pre {
-  background:#e9ede3!important
+  background:var(--code)!important
 }
 .prose {
   max-width:760px
@@ -306,11 +323,11 @@ pre code {
   border-left:3px solid var(--orange);
   padding-left:20px;
   margin:25px 0;
-  color:#56665b
+  color:var(--secondary)
 }
 kbd {
   font:12px monospace;
-  border:1px solid #b5c3b5;
+  border:1px solid var(--control-border);
   border-bottom-width:2px;
   border-radius:3px;
   padding:2px 5px
@@ -335,10 +352,12 @@ kbd {
   bottom:20px;
   width:min(720px,calc(100vw - 40px));
   overflow:auto;
+  scrollbar-gutter:stable;
+  overflow-anchor:none;
   z-index:5;
   background:var(--paper);
   box-shadow:0 10px 80px #102d3450;
-  border:1px solid #becbb9;
+  border:1px solid var(--control-border);
   border-radius:10px;
   padding:24px
 }
@@ -367,7 +386,10 @@ kbd {
 }
 .screen-wrap {
   background:#101c17;
-  min-height:240px;
+  aspect-ratio:4 / 3;
+  inline-size:100%;
+  max-inline-size:960px;
+  margin-inline:auto;
   display:grid;
   place-items:center;
   border-radius:5px;
@@ -376,7 +398,8 @@ kbd {
 canvas {
   display:block;
   width:100%;
-  height:auto;
+  height:100%;
+  object-fit:contain;
   image-rendering:pixelated;
   max-width:960px
 }
@@ -438,6 +461,10 @@ body.workbench-open .masthead nav a {
     width:min(720px,calc(100vw - 40px))
   }
 }
+/* Reserve space so normal startup status changes do not move the screen. */
+#emulator-status,#storage-status {
+  min-block-size:3lh
+}
 @media(max-width:800px) {
   .contents {
     display:none
@@ -478,6 +505,7 @@ body.workbench-open .masthead nav a {
     padding:15px
   }
   .terminal-art pre {
+    background:transparent;
     font-size:10px
   }
   h1 {

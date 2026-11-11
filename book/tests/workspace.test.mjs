@@ -46,3 +46,11 @@ test('backup validates binary data and rejects traversal, duplicates, conflicts 
   assert.throws(() => validateBackup({...valid, files: [{path: 'work/a', base64: ''}, {path: 'work/a/b', base64: ''}]}));
   assert.throws(() => validateBackup({...valid, files: [{path: 'work/a', base64: '%bad'}]}));
 });
+
+test('backup accepts personal files saved at the H: root without permitting system paths', () => {
+  const value = {format: 'zeal-pascal-book-v1', files: [{path: 'sl.pas', base64: encodeBytes(new Uint8Array([65]))}]};
+  assert.equal(validateBackup(value)[0].path, 'sl.pas');
+  for (const path of ['lib/zpascal.zpl', 'bin/zpascal.bin', '.state.json']) {
+    assert.throws(() => validateBackup({...value, files: [{path, base64: ''}]}));
+  }
+});
