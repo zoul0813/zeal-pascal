@@ -1,0 +1,311 @@
+{
+  "format": 1,
+  "assets": {
+    "emulator/zeal.elf.js": {
+      "sha256": "425d26ef6da6391bee7f33bbf477de16ce148bb4205babce5642121b8c536e37",
+      "bytes": 390323,
+      "origin": "Installed native WASM bundle/zeal.elf.js"
+    },
+    "emulator/zeal.elf.wasm": {
+      "sha256": "d166fb73a084b222142bcb1f42fe255c103295fd26c1a21530bf5b7a6c2b9144",
+      "bytes": 829205,
+      "origin": "Installed native WASM bundle/zeal.elf.wasm"
+    },
+    "emulator/libnative/hostfs.js": {
+      "sha256": "2a45f9371d77909cc3818c2a8077e4f8d54466e97808f1e5af9f7048d352f2c9",
+      "bytes": 12567,
+      "origin": "Installed native WASM bundle/libnative/hostfs.js"
+    },
+    "emulator/libnative/zeal-native.js": {
+      "sha256": "282ec1a3756d3cfe314d07cd5d15670514f23968b7b12011089a3aee14ff7742",
+      "bytes": 8729,
+      "origin": "Installed native WASM bundle/libnative/zeal-native.js"
+    },
+    "emulator/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Zeal-NativeEmulator/LICENSE"
+    },
+    "media/tf.img": {
+      "sha256": "49c160301ba83aa15bfb73306b5b5d357b7c1d332ad775e8ef222f0242b7a41f",
+      "bytes": 2097152,
+      "origin": "Community tf-2mib.img; unmodified"
+    },
+    "media/zshell.img": {
+      "sha256": "87de2b8ac3d71514f90984231da02af4f0ad054a730bda18b6617e89b090d38d",
+      "bytes": 50148,
+      "origin": "Compatible installed ZDE ZShell ROM; unmodified"
+    },
+    "media/build-report.json": {
+      "sha256": "7f5791afe864c25b0b0090835d51a232f2048758b0eed1e19e58ed6d5afceb30",
+      "bytes": 82052,
+      "origin": "Community build report"
+    },
+    "media/THIRD_PARTY_NOTICES.md": {
+      "sha256": "1da628545c5a7d851760e51a0e354f2a45e1f0a4f207973f0af3de5d90ad35ce",
+      "bytes": 10977,
+      "origin": "Community image distribution/THIRD_PARTY_NOTICES.md"
+    },
+    "media/distribution-manifest.json": {
+      "sha256": "e43c64bec80a3afd51225c9ba5ad3441f8d88e0805df9d2660761cd9d4a24ea7",
+      "bytes": 15157,
+      "origin": "Community image distribution/distribution-manifest.json"
+    },
+    "media/licenses/CaPusto/zeal-tetris/LICENSE": {
+      "sha256": "3aa2e0283b9e5e18569e3d006be0c2ad4b78e66b6d6c06689e2fe759bc18e33a",
+      "bytes": 1063,
+      "origin": "Community image distribution/licenses/CaPusto/zeal-tetris/LICENSE"
+    },
+    "media/licenses/CaPusto/zealmine/LICENSE": {
+      "sha256": "3aa2e0283b9e5e18569e3d006be0c2ad4b78e66b6d6c06689e2fe759bc18e33a",
+      "bytes": 1063,
+      "origin": "Community image distribution/licenses/CaPusto/zealmine/LICENSE"
+    },
+    "media/licenses/Zeal8bit/Zeal-8-bit-OS/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/Zeal8bit/Zeal-8-bit-OS/LICENSE"
+    },
+    "media/licenses/Zeal8bit/Zeal-BBC-Basic/COPYING": {
+      "sha256": "8358ae4c6ca24678d3b64a47ddd68a794c40aa9182dd2b52edfc102304aa1273",
+      "bytes": 898,
+      "origin": "Community image distribution/licenses/Zeal8bit/Zeal-BBC-Basic/COPYING"
+    },
+    "media/licenses/Zeal8bit/Zeal-Bootloader/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/Zeal8bit/Zeal-Bootloader/LICENSE"
+    },
+    "media/licenses/Zeal8bit/Zeal-Chip8/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/Zeal8bit/Zeal-Chip8/LICENSE"
+    },
+    "media/licenses/Zeal8bit/Zeal-VideoBoard-SDK/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/Zeal8bit/Zeal-VideoBoard-SDK/LICENSE"
+    },
+    "media/licenses/Zeal8bit/Zeal-VideoBoard-SDK/examples/snake/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/Zeal8bit/Zeal-VideoBoard-SDK/examples/snake/LICENSE"
+    },
+    "media/licenses/Zeal8bit/Zealasm/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/Zeal8bit/Zealasm/LICENSE"
+    },
+    "media/licenses/Zeal8bit/Zepto/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/Zeal8bit/Zepto/LICENSE"
+    },
+    "media/licenses/chiralos/onomata-src/LICENSE.txt": {
+      "sha256": "6dc08d0f9911150bc1cd3324fd94eb6c503c8b86d975e02a80d5a4ddf212bf3a",
+      "bytes": 1072,
+      "origin": "Community image distribution/licenses/chiralos/onomata-src/LICENSE.txt"
+    },
+    "media/licenses/harlock74/zeal-checkers/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/harlock74/zeal-checkers/LICENSE"
+    },
+    "media/licenses/harlock74/zeal-couples/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/harlock74/zeal-couples/LICENSE"
+    },
+    "media/licenses/harlock74/zeal-minigolf/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/harlock74/zeal-minigolf/LICENSE"
+    },
+    "media/licenses/harlock74/zeal-pongy/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/harlock74/zeal-pongy/LICENSE"
+    },
+    "media/licenses/harlock74/zeal-solitaire/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/harlock74/zeal-solitaire/LICENSE"
+    },
+    "media/licenses/harlock74/zeal-videopoker/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/harlock74/zeal-videopoker/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-archiver/LICENSE": {
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-archiver/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-boing/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-boing/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-bricked/LICENSE": {
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-bricked/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-cc/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-cc/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-closure/LICENSE": {
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-closure/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-commander/LICENSE": {
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-commander/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-coreutils/LICENSE": {
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-coreutils/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-ed/LICENSE": {
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-ed/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-forth/LICENSE": {
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-forth/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-game-dev-kit/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-game-dev-kit/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-game-dev-kit/examples/demo/LICENSE": {
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-game-dev-kit/examples/demo/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-matrix/LICENSE": {
+      "sha256": "aaf135472f81c5b4a0dca9367e5bb5e9750032b5bebe5442b36e4c0a47430df3",
+      "bytes": 17337,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-matrix/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-microbe/LICENSE": {
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-microbe/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-mint/LICENSE": {
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "bytes": 35149,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-mint/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-monitor/LICENSE": {
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-monitor/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-music-tracker/LICENSE": {
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-music-tracker/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-piano/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-piano/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-plasma/LICENSE": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-plasma/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-qr/LICENSE": {
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-qr/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-qr/LICENSES/BSD-2-Clause": {
+      "sha256": "607ec90cb9222de31b1475b5835d433d77c8fa53130ab1a1f738a5709223dc34",
+      "bytes": 1369,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-qr/LICENSES/BSD-2-Clause"
+    },
+    "media/licenses/zoul0813/zeal-qr/NOTICE": {
+      "sha256": "b8839c0f8a23a8067b5295e1ec027810e313483c5c890b7701185201a76a653c",
+      "bytes": 427,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-qr/NOTICE"
+    },
+    "media/licenses/zoul0813/zeal-truchet/LICENSE": {
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-truchet/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-zfighter/LICENSE": {
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-zfighter/LICENSE"
+    },
+    "media/licenses/zoul0813/zeal-zshell/LICENSE": {
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357,
+      "origin": "Community image distribution/licenses/zoul0813/zeal-zshell/LICENSE"
+    },
+    "media/pascal/zpascal.bin": {
+      "sha256": "832ec811b8f368abec59f9273c13ffbb7e18b6cb216928a852049e752fd639a1",
+      "bytes": 16186,
+      "origin": "Matching Zeal Pascal build/zpascal.bin"
+    },
+    "media/pascal/zpascal.zpl": {
+      "sha256": "691d41bf120bcfd1e4a47100eeaca3f08ca39e8f650691e54ff1d7ea9f58c17f",
+      "bytes": 281845,
+      "origin": "Matching Zeal Pascal build/zpascal.zpl"
+    },
+    "media/pascal/SYSFILE.ZPU": {
+      "sha256": "575d22e496c717714b298058ccb46dd53c45aea2620930f9d31998af0fc5e242",
+      "bytes": 20546,
+      "origin": "Matching Zeal Pascal build/SYSFILE.ZPU"
+    },
+    "media/pascal/CRT.ZPU": {
+      "sha256": "eb21857ad9c44b41fcf953f179e0aedf8af9541334d4716dd7fa05e7d5bf3298",
+      "bytes": 12897,
+      "origin": "Matching Zeal Pascal build/CRT.ZPU"
+    },
+    "media/pascal/ZVB.ZPU": {
+      "sha256": "c59d03d49217323ea135793c0ef92b1bf1c49272ef3469b40b64e550d5d5a7da",
+      "bytes": 58215,
+      "origin": "Matching Zeal Pascal build/ZVB.ZPU"
+    },
+    "media/pascal/ZOS.ZPU": {
+      "sha256": "55d5672b49b4f3eb40a53d79b785b5841d2f1f81618e73ce790bf5b375998769",
+      "bytes": 9058,
+      "origin": "Matching Zeal Pascal build/ZOS.ZPU"
+    },
+    "media/pascal/ZVB.LIC": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "origin": "units/zvb/ZVB-LICENSE.txt"
+    },
+    "media/pascal/ZVB.NTC": {
+      "sha256": "f16004a810ed0dcb84ce5d0f4b76b0432a7fefb452d1645ec9a6124dd3bfd4b7",
+      "bytes": 667,
+      "origin": "units/zvb/ZVB-NOTICE.txt"
+    },
+    "media/pascal/build-banks.json": {
+      "sha256": "1eb4966834abbaa71461b6330f8f70960bb9096bcaa2e6454f82b0ba7266d6b2",
+      "bytes": 455,
+      "origin": "Matching compiler bank metadata"
+    }
+  },
+  "sources": {
+    "emulator": "https://github.com/Zeal8bit/Zeal-NativeEmulator",
+    "wasm_distribution": "Existing ZDE zeal-microbe .deploy native WASM bundle; unchanged bytes",
+    "community": "https://github.com/Zeal8bit/Zeal-Software-Collection",
+    "pascal": "https://github.com/zoul0813/zeal-pascal"
+  }
+}

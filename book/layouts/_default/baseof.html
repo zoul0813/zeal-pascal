@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Learn Pascal by making useful programs on a Zeal retro computer, right in your browser.">
+  <title>{{ if not .IsHome }}{{ .Title }} · {{ end }}{{ site.Title }}</title>
+  <link rel="stylesheet" href="{{ "css/book.css" | relURL }}">
+  <script src="{{ "js/book.js" | relURL }}" type="module"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="masthead">
+    <a class="brand" href="{{ site.Home.RelPermalink }}"><span class="brand-mark" aria-hidden="true">Z▰</span><span>Programming the Zeal<small>WITH PASCAL</small></span></a>
+    <nav aria-label="Main"><a href="{{ "lessons/the-silent-lab/" | relURL }}">Pilot lesson</a><a href="{{ "about/" | relURL }}">About the book</a><button type="button" data-open-emulator aria-controls="emulator-panel" aria-expanded="false">Open the Zeal <span aria-hidden="true">↗</span></button></nav>
+  </header>
+  <div class="page-layout">
+    <aside class="contents" aria-label="Book contents"><p class="eyebrow">THE FIELD GUIDE</p><a href="{{ site.Home.RelPermalink }}">Start here</a><p class="part">01 / FIRST CONTACT</p><a class="chapter-link" href="{{ "lessons/the-silent-lab/" | relURL }}">The Silent Lab <span>PILOT</span></a><p class="part">ON THE HORIZON</p><p class="upcoming">Calculator<br>Text-file search<br>Collection catalog</p><div class="sidebar-note">A small machine.<br>A program of your own.</div></aside>
+    <main id="main">{{ block "main" . }}{{ end }}</main>
+  </div>
+  {{ partial "emulator.html" . }}
+  <footer class="site-footer">Made for curious programmers and small computers. <a href="{{ "about/" | relURL }}">Project & credits</a><span>Zeal Pascal · Pilot edition</span></footer>
+</body>
+</html>

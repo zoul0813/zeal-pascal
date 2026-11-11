@@ -1,0 +1,2677 @@
+{
+  "cache_enabled": true,
+  "collection_commit": "f1afca1dd73f84c7db047d11a2e89f9893c491b1",
+  "collection_sha256": "a4ad32f1e29d901cc4ef3ef10ea55945d45a2fc34ce1ec4d308463af82a288c0",
+  "distribution": {
+    "components": [
+      {
+        "files": [
+          "licenses/CaPusto/zeal-tetris/LICENSE"
+        ],
+        "id": "CaPusto/zeal-tetris",
+        "repo": "https://github.com/CaPusto/zeal-tetris.git",
+        "revision": "341cfb0a579534f51f4c00e09cee49ce3449ecf8",
+        "source_url": "https://github.com/CaPusto/zeal-tetris/archive/341cfb0a579534f51f4c00e09cee49ce3449ecf8.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/CaPusto/zealmine/LICENSE"
+        ],
+        "id": "CaPusto/zealmine",
+        "repo": "https://github.com/CaPusto/zealmine.git",
+        "revision": "fc61a117f429a799d27941ade41e1781298329da",
+        "source_url": "https://github.com/CaPusto/zealmine/archive/fc61a117f429a799d27941ade41e1781298329da.tar.gz"
+      },
+      {
+        "files": [],
+        "id": "Candid-Moe/Zorth",
+        "repo": "https://github.com/Candid-Moe/Zorth.git",
+        "revision": "a6ef3148f097ce00d3790785125fdf326f79c7d4",
+        "source_url": "https://github.com/Candid-Moe/Zorth/archive/a6ef3148f097ce00d3790785125fdf326f79c7d4.tar.gz"
+      },
+      {
+        "files": [],
+        "id": "TurBoss/Zeal-8bit_conway",
+        "repo": "https://github.com/TurBoss/Zeal-8bit_conway.git",
+        "revision": "d0921b0df946523ed8c5eb14875207d5e8b8d46f",
+        "source_url": "https://github.com/TurBoss/Zeal-8bit_conway/archive/d0921b0df946523ed8c5eb14875207d5e8b8d46f.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/Zeal8bit/Zeal-8-bit-OS/LICENSE"
+        ],
+        "id": "Zeal8bit/Zeal-8-bit-OS",
+        "repo": "https://github.com/Zeal8bit/Zeal-8-bit-OS.git",
+        "revision": "df2a2759cc7dc6c6debe999a23281cd1656bdf0e",
+        "source_url": "https://github.com/Zeal8bit/Zeal-8-bit-OS/archive/df2a2759cc7dc6c6debe999a23281cd1656bdf0e.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/Zeal8bit/Zeal-BBC-Basic/COPYING"
+        ],
+        "id": "Zeal8bit/Zeal-BBC-Basic",
+        "repo": "https://github.com/Zeal8bit/Zeal-BBC-Basic.git",
+        "revision": "a96fa847b13ca7ec326c78493e5705cbb38c0389",
+        "source_url": "https://github.com/Zeal8bit/Zeal-BBC-Basic/archive/a96fa847b13ca7ec326c78493e5705cbb38c0389.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/Zeal8bit/Zeal-Bootloader/LICENSE"
+        ],
+        "id": "Zeal8bit/Zeal-Bootloader",
+        "repo": "https://github.com/Zeal8bit/Zeal-Bootloader.git",
+        "revision": "4b8bfb8770842e3a0488b2521b19b8e4e9aee8fd",
+        "source_url": "https://github.com/Zeal8bit/Zeal-Bootloader/archive/4b8bfb8770842e3a0488b2521b19b8e4e9aee8fd.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/Zeal8bit/Zeal-Chip8/LICENSE"
+        ],
+        "id": "Zeal8bit/Zeal-Chip8",
+        "repo": "https://github.com/Zeal8bit/Zeal-Chip8.git",
+        "revision": "e004499446b71cc7cceab6c7ddb6bdff4e336638",
+        "source_url": "https://github.com/Zeal8bit/Zeal-Chip8/archive/e004499446b71cc7cceab6c7ddb6bdff4e336638.tar.gz"
+      },
+      {
+        "files": [],
+        "id": "Zeal8bit/Zeal-Flasher",
+        "repo": "https://github.com/Zeal8bit/Zeal-Flasher.git",
+        "revision": "4b1edeeb163d3ba0794f072124828b4930dfddb3",
+        "source_url": "https://github.com/Zeal8bit/Zeal-Flasher/archive/4b1edeeb163d3ba0794f072124828b4930dfddb3.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/Zeal8bit/Zeal-VideoBoard-SDK/LICENSE"
+        ],
+        "id": "Zeal8bit/Zeal-VideoBoard-SDK",
+        "repo": "https://github.com/Zeal8bit/Zeal-VideoBoard-SDK.git",
+        "revision": "4583a669ac24d50c27762debad36dfaf1f097bf5",
+        "source_url": "https://github.com/Zeal8bit/Zeal-VideoBoard-SDK/archive/4583a669ac24d50c27762debad36dfaf1f097bf5.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/Zeal8bit/Zeal-VideoBoard-SDK/examples/snake/LICENSE"
+        ],
+        "id": "Zeal8bit/Zeal-VideoBoard-SDK/examples/snake",
+        "repo": "https://github.com/Zeal8bit/Zeal-VideoBoard-SDK.git",
+        "revision": "4583a669ac24d50c27762debad36dfaf1f097bf5",
+        "source_url": "https://github.com/Zeal8bit/Zeal-VideoBoard-SDK/archive/4583a669ac24d50c27762debad36dfaf1f097bf5.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/Zeal8bit/Zealasm/LICENSE"
+        ],
+        "id": "Zeal8bit/Zealasm",
+        "repo": "https://github.com/Zeal8bit/Zealasm.git",
+        "revision": "ecff5c5d03a599c2e2e090ce5017d0514cf61a46",
+        "source_url": "https://github.com/Zeal8bit/Zealasm/archive/ecff5c5d03a599c2e2e090ce5017d0514cf61a46.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/Zeal8bit/Zepto/LICENSE"
+        ],
+        "id": "Zeal8bit/Zepto",
+        "repo": "https://github.com/Zeal8bit/Zepto.git",
+        "revision": "05d90618d56748944741161298900875e9df2570",
+        "source_url": "https://github.com/Zeal8bit/Zepto/archive/05d90618d56748944741161298900875e9df2570.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/chiralos/onomata-src/LICENSE.txt"
+        ],
+        "id": "chiralos/onomata-src",
+        "repo": "https://github.com/chiralos/onomata-src.git",
+        "revision": "3e9351e10708944cf3aa14de380351a82fb15e47",
+        "source_url": "https://github.com/chiralos/onomata-src/archive/3e9351e10708944cf3aa14de380351a82fb15e47.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/harlock74/zeal-checkers/LICENSE"
+        ],
+        "id": "harlock74/zeal-checkers",
+        "repo": "https://github.com/harlock74/zeal-checkers.git",
+        "revision": "790098274c8a6a177fa45e18b534abf4b6526996",
+        "source_url": "https://github.com/harlock74/zeal-checkers/archive/790098274c8a6a177fa45e18b534abf4b6526996.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/harlock74/zeal-couples/LICENSE"
+        ],
+        "id": "harlock74/zeal-couples",
+        "repo": "https://github.com/harlock74/zeal-couples.git",
+        "revision": "d03838a733ee16b728f1809d298402572e9b4ee2",
+        "source_url": "https://github.com/harlock74/zeal-couples/archive/d03838a733ee16b728f1809d298402572e9b4ee2.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/harlock74/zeal-minigolf/LICENSE"
+        ],
+        "id": "harlock74/zeal-minigolf",
+        "repo": "https://github.com/harlock74/zeal-minigolf.git",
+        "revision": "eea186702b500282df9951130d2d5a7d7be4204e",
+        "source_url": "https://github.com/harlock74/zeal-minigolf/archive/eea186702b500282df9951130d2d5a7d7be4204e.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/harlock74/zeal-pongy/LICENSE"
+        ],
+        "id": "harlock74/zeal-pongy",
+        "repo": "https://github.com/harlock74/zeal-pongy.git",
+        "revision": "fc0a4a14ee4119889afed3c1698c0f2f14ea2978",
+        "source_url": "https://github.com/harlock74/zeal-pongy/archive/fc0a4a14ee4119889afed3c1698c0f2f14ea2978.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/harlock74/zeal-solitaire/LICENSE"
+        ],
+        "id": "harlock74/zeal-solitaire",
+        "repo": "https://github.com/harlock74/zeal-solitaire.git",
+        "revision": "362a198795167b1bd1037b3442e3adba68897374",
+        "source_url": "https://github.com/harlock74/zeal-solitaire/archive/362a198795167b1bd1037b3442e3adba68897374.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/harlock74/zeal-videopoker/LICENSE"
+        ],
+        "id": "harlock74/zeal-videopoker",
+        "repo": "https://github.com/harlock74/zeal-videopoker.git",
+        "revision": "e5aab7aee0773ed22431ed1d970be341768fa646",
+        "source_url": "https://github.com/harlock74/zeal-videopoker/archive/e5aab7aee0773ed22431ed1d970be341768fa646.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-archiver/LICENSE"
+        ],
+        "id": "zoul0813/zeal-archiver",
+        "repo": "https://github.com/zoul0813/zeal-archiver.git",
+        "revision": "4c5bec2191597e147f55413e08d3f367dc231c3c",
+        "source_url": "https://github.com/zoul0813/zeal-archiver/archive/4c5bec2191597e147f55413e08d3f367dc231c3c.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-boing/LICENSE"
+        ],
+        "id": "zoul0813/zeal-boing",
+        "repo": "https://github.com/zoul0813/zeal-boing.git",
+        "revision": "f2cc5353506dd690d60aa6969f1531c4402bbc4f",
+        "source_url": "https://github.com/zoul0813/zeal-boing/archive/f2cc5353506dd690d60aa6969f1531c4402bbc4f.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-bricked/LICENSE"
+        ],
+        "id": "zoul0813/zeal-bricked",
+        "repo": "https://github.com/zoul0813/zeal-bricked.git",
+        "revision": "9d0409d4be3df80fe47dd135b257ad33cc4bf2c6",
+        "source_url": "https://github.com/zoul0813/zeal-bricked/archive/9d0409d4be3df80fe47dd135b257ad33cc4bf2c6.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-cc/LICENSE"
+        ],
+        "id": "zoul0813/zeal-cc",
+        "repo": "https://github.com/zoul0813/zeal-cc.git",
+        "revision": "d090fc4491f33b65e1d1e66aeb7c5f0109aa83a0",
+        "source_url": "https://github.com/zoul0813/zeal-cc/archive/d090fc4491f33b65e1d1e66aeb7c5f0109aa83a0.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-closure/LICENSE"
+        ],
+        "id": "zoul0813/zeal-closure",
+        "repo": "https://github.com/zoul0813/zeal-closure.git",
+        "revision": "4ea39d325e1b4c0afdce81a8635490330197ef3e",
+        "source_url": "https://github.com/zoul0813/zeal-closure/archive/4ea39d325e1b4c0afdce81a8635490330197ef3e.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-commander/LICENSE"
+        ],
+        "id": "zoul0813/zeal-commander",
+        "repo": "https://github.com/zoul0813/zeal-commander.git",
+        "revision": "e0e6197e4231f9abaa0c21dd0ebf8969fae67e43",
+        "source_url": "https://github.com/zoul0813/zeal-commander/archive/e0e6197e4231f9abaa0c21dd0ebf8969fae67e43.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-coreutils/LICENSE"
+        ],
+        "id": "zoul0813/zeal-coreutils",
+        "repo": "https://github.com/zoul0813/zeal-coreutils.git",
+        "revision": "559bf85eed69a42fdb2895f25c4ca0ee908ba962",
+        "source_url": "https://github.com/zoul0813/zeal-coreutils/archive/559bf85eed69a42fdb2895f25c4ca0ee908ba962.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-ed/LICENSE"
+        ],
+        "id": "zoul0813/zeal-ed",
+        "repo": "https://github.com/zoul0813/zeal-ed.git",
+        "revision": "0ad7171f9ae4b739c9155a1bc9a46bbae83a709a",
+        "source_url": "https://github.com/zoul0813/zeal-ed/archive/0ad7171f9ae4b739c9155a1bc9a46bbae83a709a.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-forth/LICENSE"
+        ],
+        "id": "zoul0813/zeal-forth",
+        "repo": "https://github.com/zoul0813/zeal-forth.git",
+        "revision": "3871f9b1356aaaceac7a78d38a8e12e71ef869eb",
+        "source_url": "https://github.com/zoul0813/zeal-forth/archive/3871f9b1356aaaceac7a78d38a8e12e71ef869eb.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-game-dev-kit/LICENSE",
+          "licenses/zoul0813/zeal-game-dev-kit/examples/demo/LICENSE"
+        ],
+        "id": "zoul0813/zeal-game-dev-kit",
+        "repo": "https://github.com/zoul0813/zeal-game-dev-kit.git",
+        "revision": "f4a730c17e4e768ad379f4ac883853aa8be45e49",
+        "source_url": "https://github.com/zoul0813/zeal-game-dev-kit/archive/f4a730c17e4e768ad379f4ac883853aa8be45e49.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-matrix/LICENSE"
+        ],
+        "id": "zoul0813/zeal-matrix",
+        "repo": "https://github.com/zoul0813/zeal-matrix.git",
+        "revision": "7065626319ed824cac0c4b0a9208c80e561115de",
+        "source_url": "https://github.com/zoul0813/zeal-matrix/archive/7065626319ed824cac0c4b0a9208c80e561115de.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-microbe/LICENSE"
+        ],
+        "id": "zoul0813/zeal-microbe",
+        "repo": "https://github.com/zoul0813/zeal-microbe.git",
+        "revision": "01217be155899d67945e964a1fc5c4b3d8932b2c",
+        "source_url": "https://github.com/zoul0813/zeal-microbe/archive/01217be155899d67945e964a1fc5c4b3d8932b2c.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-mint/LICENSE"
+        ],
+        "id": "zoul0813/zeal-mint",
+        "repo": "https://github.com/zoul0813/zeal-mint.git",
+        "revision": "916ddf89c97611780226e92dd2b1017b00da3d68",
+        "source_url": "https://github.com/zoul0813/zeal-mint/archive/916ddf89c97611780226e92dd2b1017b00da3d68.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-monitor/LICENSE"
+        ],
+        "id": "zoul0813/zeal-monitor",
+        "repo": "https://github.com/zoul0813/zeal-monitor.git",
+        "revision": "43bcbdd18d62b95162af582a55066d343153b9c7",
+        "source_url": "https://github.com/zoul0813/zeal-monitor/archive/43bcbdd18d62b95162af582a55066d343153b9c7.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-music-tracker/LICENSE"
+        ],
+        "id": "zoul0813/zeal-music-tracker",
+        "repo": "https://github.com/zoul0813/zeal-music-tracker.git",
+        "revision": "164f44731076b0664defd4afc10d0f422442642d",
+        "source_url": "https://github.com/zoul0813/zeal-music-tracker/archive/164f44731076b0664defd4afc10d0f422442642d.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-piano/LICENSE"
+        ],
+        "id": "zoul0813/zeal-piano",
+        "repo": "https://github.com/zoul0813/zeal-piano.git",
+        "revision": "4af499e5a030cc4da3b29010ea60b35140010453",
+        "source_url": "https://github.com/zoul0813/zeal-piano/archive/4af499e5a030cc4da3b29010ea60b35140010453.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-plasma/LICENSE"
+        ],
+        "id": "zoul0813/zeal-plasma",
+        "repo": "https://github.com/zoul0813/zeal-plasma.git",
+        "revision": "6165f5a43323895d0526e60a2feac36a9c4c9b04",
+        "source_url": "https://github.com/zoul0813/zeal-plasma/archive/6165f5a43323895d0526e60a2feac36a9c4c9b04.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-qr/LICENSE",
+          "licenses/zoul0813/zeal-qr/LICENSES/BSD-2-Clause",
+          "licenses/zoul0813/zeal-qr/NOTICE"
+        ],
+        "id": "zoul0813/zeal-qr",
+        "repo": "https://github.com/zoul0813/zeal-qr.git",
+        "revision": "1396f24d867c3a16686d2cf5ddcf0769eeb10b58",
+        "source_url": "https://github.com/zoul0813/zeal-qr/archive/1396f24d867c3a16686d2cf5ddcf0769eeb10b58.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-truchet/LICENSE"
+        ],
+        "id": "zoul0813/zeal-truchet",
+        "repo": "https://github.com/zoul0813/zeal-truchet.git",
+        "revision": "3cc82bd15fa1ba169998760d0bd67c1a4aa7a87e",
+        "source_url": "https://github.com/zoul0813/zeal-truchet/archive/3cc82bd15fa1ba169998760d0bd67c1a4aa7a87e.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-zfighter/LICENSE"
+        ],
+        "id": "zoul0813/zeal-zfighter",
+        "repo": "https://github.com/zoul0813/zeal-zfighter.git",
+        "revision": "4e080dc31d6feca8e0e5d34cfd15da0725a62324",
+        "source_url": "https://github.com/zoul0813/zeal-zfighter/archive/4e080dc31d6feca8e0e5d34cfd15da0725a62324.tar.gz"
+      },
+      {
+        "files": [
+          "licenses/zoul0813/zeal-zshell/LICENSE"
+        ],
+        "id": "zoul0813/zeal-zshell",
+        "repo": "https://github.com/zoul0813/zeal-zshell.git",
+        "revision": "0675c2ef3b9d4cd8edabdf86f0ef68ae68da490e",
+        "source_url": "https://github.com/zoul0813/zeal-zshell/archive/0675c2ef3b9d4cd8edabdf86f0ef68ae68da490e.tar.gz"
+      }
+    ],
+    "version": 2
+  },
+  "excluded_names": [],
+  "image_sizes_mib": [
+    2,
+    16,
+    64,
+    128
+  ],
+  "items": [
+    {
+      "cache": "miss",
+      "files": [
+        "sys/zeal8bit.img"
+      ],
+      "id": "Zeal8bit/Zeal-8-bit-OS",
+      "source": {
+        "current_commit": "df2a2759cc7dc6c6debe999a23281cd1656bdf0e",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "core"
+          ],
+          "description": "Operating system for Z80 computers written in assembly",
+          "name": "Zeal 8-bit OS",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/zos.png"
+        },
+        "path": "/home/zeal8bit/Zeal-8-bit-OS",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Zeal8bit/Zeal-8-bit-OS.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:23:28.082959+00:00"
+      },
+      "stage": "kernel",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "id": "Zeal8bit/Zeal-VideoBoard-SDK",
+      "reason": "Staging disabled by ZDE catalog",
+      "source": {
+        "current_commit": "4583a669ac24d50c27762debad36dfaf1f097bf5",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "core",
+            "library"
+          ],
+          "description": "SDK for the Zeal 8-bit Video Board",
+          "name": "Zeal VideoBoard SDK"
+        },
+        "path": "/home/zeal8bit/Zeal-VideoBoard-SDK",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Zeal8bit/Zeal-VideoBoard-SDK.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:23:32.633769+00:00"
+      },
+      "stage": "stage",
+      "status": "skipped"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "bin/acat",
+        "bin/cat",
+        "bin/cp",
+        "bin/crc32",
+        "bin/du",
+        "bin/echo",
+        "bin/hexdump",
+        "bin/less",
+        "bin/ls",
+        "bin/mkdir",
+        "bin/mv",
+        "bin/return",
+        "bin/rm",
+        "bin/setfont",
+        "bin/stat",
+        "bin/touch",
+        "bin/tree",
+        "bin/xfer"
+      ],
+      "id": "zoul0813/zeal-coreutils",
+      "source": {
+        "current_commit": "559bf85eed69a42fdb2895f25c4ca0ee908ba962",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "core",
+            "software",
+            "library"
+          ],
+          "description": "Alternative shell core commands and extra utilities",
+          "name": "Zeal Coreutils"
+        },
+        "path": "/home/zeal8bit/zeal-coreutils",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-coreutils.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:24:53.049830+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "id": "zoul0813/zeal-game-dev-kit",
+      "reason": "Staging disabled by ZDE catalog",
+      "source": {
+        "current_commit": "f4a730c17e4e768ad379f4ac883853aa8be45e49",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-coreutils"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "core",
+            "library"
+          ],
+          "description": "Game development kit for Zeal 8-bit Computer",
+          "name": "Zeal Game Dev Kit"
+        },
+        "path": "/home/zeal8bit/zeal-game-dev-kit",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-game-dev-kit.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:24:59.495963+00:00"
+      },
+      "stage": "stage",
+      "status": "skipped"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "games/zfighter"
+      ],
+      "id": "zoul0813/zeal-zfighter",
+      "source": {
+        "current_commit": "4e080dc31d6feca8e0e5d34cfd15da0725a62324",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-coreutils",
+          "zoul0813/zeal-game-dev-kit"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "game"
+          ],
+          "description": "2D side-scrolling space shooter for Zeal 8-bit Computer",
+          "name": "Z Fighter",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/zfighter.png"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-zfighter",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-zfighter.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:25:55.102264+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/zar"
+      ],
+      "id": "zoul0813/zeal-archiver",
+      "source": {
+        "current_commit": "4c5bec2191597e147f55413e08d3f367dc231c3c",
+        "depends_on": [
+          "zoul0813/zeal-coreutils"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "library",
+            "software"
+          ],
+          "description": "Archive utility for Zeal 8-bit software",
+          "name": "Zeal Archiver"
+        },
+        "path": "/home/zeal8bit/zeal-archiver",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-archiver.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:26:40.726707+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "games/microbe"
+      ],
+      "id": "zoul0813/zeal-microbe",
+      "source": {
+        "current_commit": "01217be155899d67945e964a1fc5c4b3d8932b2c",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-archiver",
+          "zoul0813/zeal-game-dev-kit"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "game"
+          ],
+          "description": "Space Invaders-inspired game for Zeal 8-bit Computer",
+          "name": "Microbe",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/microbe.png"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-microbe",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-microbe.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:27:32.992577+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "games/bricked"
+      ],
+      "id": "zoul0813/zeal-bricked",
+      "source": {
+        "current_commit": "9d0409d4be3df80fe47dd135b257ad33cc4bf2c6",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-coreutils",
+          "zoul0813/zeal-game-dev-kit"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "game"
+          ],
+          "description": "Arkanoid and Breakout-inspired game for Zeal 8-bit Computer",
+          "name": "Bricked",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/bricked.png"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-bricked",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-bricked.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:28:15.959021+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "games/snake"
+      ],
+      "id": "Zeal8bit/Zeal-VideoBoard-SDK/examples/snake",
+      "source": {
+        "current_commit": "4583a669ac24d50c27762debad36dfaf1f097bf5",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "game"
+          ],
+          "description": "Snake example currently hosted inside the Zeal VideoBoard SDK",
+          "name": "Snake",
+          "note": "This is not a standalone repository in the source README",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/snake.png",
+          "source_subpath": "examples/snake"
+        },
+        "path": "/home/zeal8bit/extras/Zeal8bit/Zeal-VideoBoard-SDK/examples/snake",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Zeal8bit/Zeal-VideoBoard-SDK.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:28:43.760582+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "id": "JasonMo1/2048-zos",
+      "reason": "Install/build failed; see build.log",
+      "source": {
+        "current_commit": "a82ee6f492c8a122892ee1900522a8d1ca4ee0e6",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/JasonMo1",
+            "name": "JasonMo1"
+          },
+          "category": [
+            "game"
+          ],
+          "description": "2048 for Zeal 8-bit Computer",
+          "name": "2048",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/2048.png"
+        },
+        "path": "/home/zeal8bit/extras/JasonMo1/2048-zos",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/JasonMo1/2048-zos.git",
+        "status": "build_failed",
+        "updated_at": "2026-11-08T14:28:49.329560+00:00"
+      },
+      "stage": "install",
+      "status": "failed"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "games/conway"
+      ],
+      "id": "TurBoss/Zeal-8bit_conway",
+      "source": {
+        "current_commit": "d0921b0df946523ed8c5eb14875207d5e8b8d46f",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/TurBoss",
+            "name": "TurBoss"
+          },
+          "category": [
+            "game"
+          ],
+          "description": "Conway's Game of Life for Zeal 8-bit OS",
+          "name": "Game of Life",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/conway.png"
+        },
+        "path": "/home/zeal8bit/extras/TurBoss/Zeal-8bit_conway",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/TurBoss/Zeal-8bit_conway.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:29:00.961461+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "games/closure"
+      ],
+      "id": "zoul0813/zeal-closure",
+      "source": {
+        "current_commit": "4ea39d325e1b4c0afdce81a8635490330197ef3e",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-game-dev-kit"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "game"
+          ],
+          "description": "Blockade-inspired game for Zeal 8-bit Computer",
+          "name": "Closure",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/closure.png"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-closure",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-closure.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:29:18.997736+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "games/chip8"
+      ],
+      "id": "Zeal8bit/Zeal-Chip8",
+      "source": {
+        "current_commit": "e004499446b71cc7cceab6c7ddb6bdff4e336638",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "game"
+          ],
+          "description": "CHIP-8 emulator for Zeal 8-bit Computer",
+          "flags": [
+            "work_in_progress"
+          ],
+          "name": "CHIP-8",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/chip8.png"
+        },
+        "path": "/home/zeal8bit/extras/Zeal8bit/Zeal-Chip8",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Zeal8bit/Zeal-Chip8.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:29:30.923922+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "games/zpong"
+      ],
+      "id": "harlock74/zeal-pongy",
+      "source": {
+        "current_commit": "fc0a4a14ee4119889afed3c1698c0f2f14ea2978",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-coreutils",
+          "zoul0813/zeal-game-dev-kit"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/harlock74",
+            "name": "arcadia6502"
+          },
+          "category": [
+            "game"
+          ],
+          "description": "Pong-inspired game for Zeal 8-bit Computer",
+          "name": "Pongy"
+        },
+        "path": "/home/zeal8bit/extras/harlock74/zeal-pongy",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/harlock74/zeal-pongy.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:30:24.775241+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "games/poker/assets/cards.ztp",
+        "games/poker/assets/cards.zts",
+        "games/poker/assets/rewards.ztp",
+        "games/poker/assets/rewards.zts",
+        "games/poker/zpoker"
+      ],
+      "id": "harlock74/zeal-videopoker",
+      "source": {
+        "current_commit": "e5aab7aee0773ed22431ed1d970be341768fa646",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-coreutils",
+          "zoul0813/zeal-game-dev-kit"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/harlock74",
+            "name": "arcadia6502"
+          },
+          "category": [
+            "game"
+          ],
+          "description": "Video poker-inspired game for Zeal 8-bit Computer",
+          "name": "Video Poker",
+          "screenshot": "https://raw.githubusercontent.com/harlock74/zeal-videopoker/main/docs/screenshots/2.png"
+        },
+        "path": "/home/zeal8bit/extras/harlock74/zeal-videopoker",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/harlock74/zeal-videopoker.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:31:22.280227+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "games/couples/assets/cards.ztp",
+        "games/couples/assets/cards.zts",
+        "games/couples/zcouples"
+      ],
+      "id": "harlock74/zeal-couples",
+      "source": {
+        "current_commit": "d03838a733ee16b728f1809d298402572e9b4ee2",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-coreutils",
+          "zoul0813/zeal-game-dev-kit"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/harlock74",
+            "name": "arcadia6502"
+          },
+          "category": [
+            "game"
+          ],
+          "description": "Poker cards memory-inspired game for Zeal 8-bit Computer",
+          "name": "Couples",
+          "screenshot": "https://raw.githubusercontent.com/harlock74/zeal-couples/main/docs/screenshots/2.png"
+        },
+        "path": "/home/zeal8bit/extras/harlock74/zeal-couples",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/harlock74/zeal-couples.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:32:06.682728+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "games/solitaire/assets/cards.ztp",
+        "games/solitaire/assets/cards.zts",
+        "games/solitaire/zsol"
+      ],
+      "id": "harlock74/zeal-solitaire",
+      "source": {
+        "current_commit": "362a198795167b1bd1037b3442e3adba68897374",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-coreutils",
+          "zoul0813/zeal-game-dev-kit"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/harlock74",
+            "name": "arcadia6502"
+          },
+          "category": [
+            "game"
+          ],
+          "description": "Solitaire-inspired game for Zeal 8-bit Computer",
+          "name": "Solitaire",
+          "screenshot": "https://raw.githubusercontent.com/harlock74/zeal-solitaire/main/docs/screenshots/2.png"
+        },
+        "path": "/home/zeal8bit/extras/harlock74/zeal-solitaire",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/harlock74/zeal-solitaire.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:32:51.111524+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "games/zealmine"
+      ],
+      "id": "CaPusto/zealmine",
+      "source": {
+        "current_commit": "fc61a117f429a799d27941ade41e1781298329da",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-coreutils",
+          "zoul0813/zeal-game-dev-kit"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/CaPusto",
+            "name": "CaPusto"
+          },
+          "category": [
+            "game"
+          ],
+          "description": "Minesweeper for Zeal 8-bit Computer",
+          "name": "zealmine",
+          "screenshot": "https://raw.githubusercontent.com/CaPusto/zealmine/main/docs/screenshot_title.png"
+        },
+        "path": "/home/zeal8bit/extras/CaPusto/zealmine",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/CaPusto/zealmine.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:33:55.629672+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "games/tetris"
+      ],
+      "id": "CaPusto/zeal-tetris",
+      "source": {
+        "current_commit": "341cfb0a579534f51f4c00e09cee49ce3449ecf8",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/CaPusto",
+            "name": "CaPusto"
+          },
+          "category": [
+            "game"
+          ],
+          "description": "TETRIS for the Zeal 8-bit Computer",
+          "name": "zeal-tetris",
+          "screenshot": "https://raw.githubusercontent.com/CaPusto/zeal-tetris/main/docs/screenshot.png"
+        },
+        "path": "/home/zeal8bit/extras/CaPusto/zeal-tetris",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/CaPusto/zeal-tetris.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:34:17.759444+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "games/checkers/assets/checkers.ztp",
+        "games/checkers/assets/checkers.zts",
+        "games/checkers/zcheckers"
+      ],
+      "id": "harlock74/zeal-checkers",
+      "source": {
+        "current_commit": "790098274c8a6a177fa45e18b534abf4b6526996",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-coreutils",
+          "zoul0813/zeal-game-dev-kit"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/harlock74",
+            "name": "arcadia6502"
+          },
+          "category": [
+            "game"
+          ],
+          "description": "Checkers for Zeal 8-bit Computer",
+          "name": "Checkers"
+        },
+        "path": "/home/zeal8bit/extras/harlock74/zeal-checkers",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/harlock74/zeal-checkers.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:35:09.969831+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "games/zgolf"
+      ],
+      "id": "harlock74/zeal-minigolf",
+      "source": {
+        "current_commit": "eea186702b500282df9951130d2d5a7d7be4204e",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-coreutils",
+          "zoul0813/zeal-game-dev-kit"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/harlock74",
+            "name": "arcadia6502"
+          },
+          "category": [
+            "game"
+          ],
+          "description": "Mini-golf for Zeal 8-bit Computer",
+          "name": "Minigolf"
+        },
+        "path": "/home/zeal8bit/extras/harlock74/zeal-minigolf",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/harlock74/zeal-minigolf.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:36:19.952534+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "demos/boing"
+      ],
+      "id": "zoul0813/zeal-boing",
+      "source": {
+        "current_commit": "f2cc5353506dd690d60aa6969f1531c4402bbc4f",
+        "depends_on": [
+          "zoul0813/zeal-game-dev-kit"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "demo"
+          ],
+          "description": "Boing Ball-inspired demo for Zeal 8-bit Computer",
+          "name": "Zeal Boing",
+          "video": "https://zeal8bit.com/data/sc-shots/boing.webm"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-boing",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-boing.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:36:39.291850+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "demos/plasma",
+        "demos/plasmac"
+      ],
+      "id": "zoul0813/zeal-plasma",
+      "source": {
+        "current_commit": "6165f5a43323895d0526e60a2feac36a9c4c9b04",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "demo"
+          ],
+          "description": "Text-mode plasma demo for Zeal",
+          "name": "Zeal Plasma",
+          "video": "https://zeal8bit.com/data/sc-shots/plasma.webm"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-plasma",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-plasma.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:36:59.780889+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "demos/matrix"
+      ],
+      "id": "zoul0813/zeal-matrix",
+      "source": {
+        "current_commit": "7065626319ed824cac0c4b0a9208c80e561115de",
+        "depends_on": [
+          "zoul0813/zeal-game-dev-kit"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "demo"
+          ],
+          "description": "Matrix demo for Zeal 8-bit Computer",
+          "name": "Zeal Matrix",
+          "video": "https://zeal8bit.com/data/sc-shots/matrix.webm"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-matrix",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-matrix.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:37:13.432515+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "demos/truchet"
+      ],
+      "id": "zoul0813/zeal-truchet",
+      "source": {
+        "current_commit": "3cc82bd15fa1ba169998760d0bd67c1a4aa7a87e",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "demo"
+          ],
+          "description": "Truchet pattern demo using the Zeal video board DMA controller",
+          "name": "Zeal Truchet",
+          "video": "https://zeal8bit.com/data/sc-shots/truchet.webm"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-truchet",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-truchet.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:37:27.694234+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/zshell",
+        "sys/zshell.img"
+      ],
+      "id": "zoul0813/zeal-zshell",
+      "source": {
+        "current_commit": "0675c2ef3b9d4cd8edabdf86f0ef68ae68da490e",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-coreutils"
+        ],
+        "kernel_config": {
+          "aliases": [
+            "zshell"
+          ],
+          "path": "os.conf"
+        },
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "software"
+          ],
+          "description": "Shell for Zeal 8-bit OS with history and batch processing",
+          "name": "ZShell",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/zshell.png"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-zshell",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-zshell.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:38:20.748332+00:00"
+      },
+      "stage": "kernel",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/zepto"
+      ],
+      "id": "Zeal8bit/Zepto",
+      "source": {
+        "current_commit": "05d90618d56748944741161298900875e9df2570",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "software"
+          ],
+          "description": "Nano-inspired text editor written in Z80 assembly",
+          "name": "Zepto",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/zepto.png"
+        },
+        "path": "/home/zeal8bit/extras/Zeal8bit/Zepto",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Zeal8bit/Zepto.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:38:35.199298+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/ed"
+      ],
+      "id": "zoul0813/zeal-ed",
+      "source": {
+        "current_commit": "0ad7171f9ae4b739c9155a1bc9a46bbae83a709a",
+        "depends_on": [
+          "zoul0813/zeal-coreutils"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "software"
+          ],
+          "description": "Line-oriented ed text editor for Zeal 8-bit OS",
+          "flags": [
+            "work_in_progress"
+          ],
+          "name": "Zeal Ed"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-ed",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-ed.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:42:12.456550+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/piano"
+      ],
+      "id": "zoul0813/zeal-piano",
+      "source": {
+        "current_commit": "4af499e5a030cc4da3b29010ea60b35140010453",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-game-dev-kit"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "software"
+          ],
+          "description": "Playable piano for Zeal 8-bit Computer",
+          "name": "Zeal Piano",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/piano.png"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-piano",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-piano.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:42:46.850326+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/qr"
+      ],
+      "id": "zoul0813/zeal-qr",
+      "source": {
+        "current_commit": "1396f24d867c3a16686d2cf5ddcf0769eeb10b58",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "software"
+          ],
+          "description": "QR Code generator for Zeal 8-bit Computer",
+          "name": "Zeal QR",
+          "screenshot": "https://raw.githubusercontent.com/zoul0813/zeal-qr/main/imgs/screenshot000.png"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-qr",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-qr.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:43:10.342216+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/zmt"
+      ],
+      "id": "zoul0813/zeal-music-tracker",
+      "source": {
+        "current_commit": "164f44731076b0664defd4afc10d0f422442642d",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-game-dev-kit"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "software"
+          ],
+          "description": "Music tracker for Zeal 8-bit Computer",
+          "name": "Zeal Music Tracker",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/zmt.png"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-music-tracker",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-music-tracker.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:44:13.227866+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/zc"
+      ],
+      "id": "zoul0813/zeal-commander",
+      "source": {
+        "current_commit": "e0e6197e4231f9abaa0c21dd0ebf8969fae67e43",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-coreutils"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "software"
+          ],
+          "description": "Midnight Commander-inspired file manager for Zeal 8-bit Computer",
+          "name": "Zeal Commander",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/commander.png"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-commander",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-commander.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:45:15.637720+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/mon"
+      ],
+      "id": "zoul0813/zeal-monitor",
+      "source": {
+        "current_commit": "43bcbdd18d62b95162af582a55066d343153b9c7",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "software"
+          ],
+          "description": "Monitor program for Zeal 8-bit OS",
+          "flags": [
+            "work_in_progress"
+          ],
+          "name": "Zeal Monitor"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-monitor",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-monitor.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:45:34.952520+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/bbcbasic"
+      ],
+      "id": "Zeal8bit/Zeal-BBC-Basic",
+      "source": {
+        "current_commit": "a96fa847b13ca7ec326c78493e5705cbb38c0389",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "language"
+          ],
+          "description": "BBC Basic port running natively on Zeal 8-bit OS",
+          "name": "BBC Basic"
+        },
+        "path": "/home/zeal8bit/extras/Zeal8bit/Zeal-BBC-Basic",
+        "ref_type": "branch",
+        "ref_value": "master",
+        "repo": "https://github.com/Zeal8bit/Zeal-BBC-Basic.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:46:08.478708+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/zealasm"
+      ],
+      "id": "Zeal8bit/Zealasm",
+      "source": {
+        "current_commit": "ecff5c5d03a599c2e2e090ce5017d0514cf61a46",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "language"
+          ],
+          "description": "Z80 assembler written in Z80 assembly",
+          "name": "Zealasm"
+        },
+        "path": "/home/zeal8bit/extras/Zeal8bit/Zealasm",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Zeal8bit/Zealasm.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:46:26.711470+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/ast_dump",
+        "apps/cc",
+        "apps/cc_codegen",
+        "apps/cc_parse",
+        "apps/cc_semantic"
+      ],
+      "id": "zoul0813/zeal-cc",
+      "source": {
+        "current_commit": "d090fc4491f33b65e1d1e66aeb7c5f0109aa83a0",
+        "depends_on": [
+          "Zeal8bit/Zeal-VideoBoard-SDK",
+          "zoul0813/zeal-coreutils"
+        ],
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "language"
+          ],
+          "description": "C compiler for Zeal 8-bit OS",
+          "flags": [
+            "work_in_progress"
+          ],
+          "name": "Zeal CC"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-cc",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-cc.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:51:20.265553+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/forth",
+        "apps/forth.fs"
+      ],
+      "id": "zoul0813/zeal-forth",
+      "source": {
+        "current_commit": "3871f9b1356aaaceac7a78d38a8e12e71ef869eb",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "language"
+          ],
+          "description": "Forth Interpreter for Zeal 8-bit OS",
+          "flags": [
+            "work_in_progress"
+          ],
+          "name": "Zeal Forth"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-forth",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/zoul0813/zeal-forth.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:51:47.193143+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/zorth"
+      ],
+      "id": "Candid-Moe/Zorth",
+      "source": {
+        "current_commit": "a6ef3148f097ce00d3790785125fdf326f79c7d4",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Candid-Moe",
+            "name": "Candid-Moe"
+          },
+          "category": [
+            "language"
+          ],
+          "description": "Forth interpreter for Zeal 8-bit OS",
+          "name": "Zorth"
+        },
+        "path": "/home/zeal8bit/extras/Candid-Moe/Zorth",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Candid-Moe/Zorth.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:52:40.264869+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/onoi"
+      ],
+      "id": "chiralos/onomata-src",
+      "source": {
+        "current_commit": "3e9351e10708944cf3aa14de380351a82fb15e47",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/chiralos",
+            "name": "chiralos"
+          },
+          "category": [
+            "language"
+          ],
+          "description": "Custom stack-based language for Zeal 8-bit OS",
+          "name": "Onomata"
+        },
+        "path": "/home/zeal8bit/extras/chiralos/onomata-src",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/chiralos/onomata-src.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:52:49.208628+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/mint"
+      ],
+      "id": "zoul0813/zeal-mint",
+      "source": {
+        "current_commit": "916ddf89c97611780226e92dd2b1017b00da3d68",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/zoul0813",
+            "name": "zoul0813"
+          },
+          "category": [
+            "language"
+          ],
+          "description": "MINT language port for Zeal 8-bit Computer",
+          "flags": [
+            "work_in_progress"
+          ],
+          "name": "Zeal Mint"
+        },
+        "path": "/home/zeal8bit/extras/zoul0813/zeal-mint",
+        "ref_type": "branch",
+        "ref_value": "zeal8bit",
+        "repo": "https://github.com/zoul0813/zeal-mint.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:53:03.809142+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "id": "Zeal8bit/Zeal-NativeEmulator",
+      "reason": "Staging disabled by ZDE catalog",
+      "source": {
+        "current_commit": "e4963eeef0107644cadf7cba3604d678b2aaaced",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "development-tool"
+          ],
+          "description": "Native desktop emulator for Zeal 8-bit Computer",
+          "name": "Zeal Native Emulator"
+        },
+        "path": "/home/zeal8bit/extras/Zeal8bit/Zeal-NativeEmulator",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Zeal8bit/Zeal-NativeEmulator.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:53:14.214976+00:00"
+      },
+      "stage": "stage",
+      "status": "skipped"
+    },
+    {
+      "cache": "miss",
+      "id": "Zeal8bit/Zeal-Playground",
+      "reason": "Staging disabled by ZDE catalog",
+      "source": {
+        "current_commit": "4289cbead6434cff26f1cbb30fd636f9ad900db8",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "development-tool",
+            "service"
+          ],
+          "description": "Online platform to compile and emulate Zeal 8-bit programs",
+          "name": "Zeal Playground",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/playground.png"
+        },
+        "path": "/home/zeal8bit/Zeal-Playground",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Zeal8bit/Zeal-Playground.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:53:24.151845+00:00"
+      },
+      "stage": "stage",
+      "status": "skipped"
+    },
+    {
+      "cache": "miss",
+      "id": "Zeal8bit/Zeal-WebEmulator",
+      "reason": "Staging disabled by ZDE catalog",
+      "source": {
+        "current_commit": "32425133d66dbfbe10e3ebac7063a85e13e5121f",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "development-tool",
+            "service"
+          ],
+          "description": "Deprecated browser-based emulator for Zeal 8-bit Computer",
+          "flags": [
+            "deprecated"
+          ],
+          "name": "Zeal WebEmulator"
+        },
+        "path": "/home/zeal8bit/Zeal-WebEmulator",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Zeal8bit/Zeal-WebEmulator.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:53:33.481104+00:00"
+      },
+      "stage": "stage",
+      "status": "skipped"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "sys/flasher"
+      ],
+      "id": "Zeal8bit/Zeal-Flasher",
+      "source": {
+        "current_commit": "4b1edeeb163d3ba0794f072124828b4930dfddb3",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "software"
+          ],
+          "description": "NOR flash programming utility for Zeal 8-bit Computer",
+          "name": "Zeal Flasher"
+        },
+        "path": "/home/zeal8bit/extras/Zeal8bit/Zeal-Flasher",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Zeal8bit/Zeal-Flasher.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:53:50.134310+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "excluded_names": [],
+      "files": [
+        "apps/bootloader"
+      ],
+      "id": "Zeal8bit/Zeal-Bootloader",
+      "source": {
+        "current_commit": "4b8bfb8770842e3a0488b2521b19b8e4e9aee8fd",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "core"
+          ],
+          "description": "Bootloader for Zeal 8-bit Computer",
+          "name": "Zeal Bootloader",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/bootloader.png"
+        },
+        "path": "/home/zeal8bit/Zeal-Bootloader",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Zeal8bit/Zeal-Bootloader.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:54:11.810316+00:00"
+      },
+      "stage": "stage",
+      "status": "included"
+    },
+    {
+      "cache": "miss",
+      "id": "Zeal8bit/ZealFS",
+      "reason": "Staging disabled by ZDE catalog",
+      "source": {
+        "current_commit": "7da903754b75458458f773f545224098f626837a",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "core",
+            "development-tool",
+            "library"
+          ],
+          "description": "File system for small storage devices used by Zeal 8-bit OS",
+          "name": "ZealFS"
+        },
+        "path": "/home/zeal8bit/ZealFS",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Zeal8bit/ZealFS.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:54:30.420801+00:00"
+      },
+      "stage": "stage",
+      "status": "skipped"
+    },
+    {
+      "cache": "miss",
+      "id": "Zeal8bit/Zeal-Disk-Tool",
+      "reason": "Staging disabled by ZDE catalog",
+      "source": {
+        "current_commit": "b62f73f611fb25b82bf0a1698badbac9c55710af",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "development-tool"
+          ],
+          "description": "GUI utility to create and manage ZealFS v2 partitions",
+          "name": "Zeal-Disk-Tool",
+          "screenshot": "https://zeal8bit.com/data/sc-shots/zdt.png"
+        },
+        "path": "/home/zeal8bit/extras/Zeal8bit/Zeal-Disk-Tool",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Zeal8bit/Zeal-Disk-Tool.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:54:39.942667+00:00"
+      },
+      "stage": "stage",
+      "status": "skipped"
+    },
+    {
+      "cache": "miss",
+      "id": "Zeal8bit/Zeal-GBC-Adapter",
+      "reason": "Staging disabled by ZDE catalog",
+      "source": {
+        "current_commit": "3df2f09891969e5c35ed3183ab88ac31138e7085",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "hardware"
+          ],
+          "description": "Game Boy and Game Boy Color cartridge adapter project",
+          "flags": [
+            "hardware_extension"
+          ],
+          "name": "Zeal GBC Adapter",
+          "screenshot": "https://github.com/Zeal8bit/Zeal-GBC-Adapter/raw/main/pcb.jpg"
+        },
+        "path": "/home/zeal8bit/extras/Zeal8bit/Zeal-GBC-Adapter",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Zeal8bit/Zeal-GBC-Adapter.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:54:49.606170+00:00"
+      },
+      "stage": "stage",
+      "status": "skipped"
+    },
+    {
+      "cache": "miss",
+      "id": "Zeal8bit/Zeal-SNES-Adapter",
+      "reason": "Staging disabled by ZDE catalog",
+      "source": {
+        "current_commit": "80d650cdd0ae56e5c480f49d8acc59bdd34820ab",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "hardware"
+          ],
+          "description": "SNES controller adapter for Zeal 8-bit Computer",
+          "flags": [
+            "hardware_extension"
+          ],
+          "name": "Zeal SNES Adapter"
+        },
+        "path": "/home/zeal8bit/extras/Zeal8bit/Zeal-SNES-Adapter",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Zeal8bit/Zeal-SNES-Adapter.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:54:59.409149+00:00"
+      },
+      "stage": "stage",
+      "status": "skipped"
+    },
+    {
+      "cache": "miss",
+      "id": "Zeal8bit/Zeal-CompactFlash",
+      "reason": "Staging disabled by ZDE catalog",
+      "source": {
+        "current_commit": "058d3c4e9aae23685ecc7a6b0d7f7045d10f9b35",
+        "metadata": {
+          "author": {
+            "link": "https://github.com/Zeal8bit",
+            "name": "Zeal8bit"
+          },
+          "category": [
+            "hardware"
+          ],
+          "description": "CompactFlash interface project for Zeal 8-bit Computer",
+          "flags": [
+            "hardware_extension"
+          ],
+          "name": "Zeal CompactFlash",
+          "screenshot": "https://github.com/Zeal8bit/Zeal-CompactFlash/raw/main/img/compactflash.jpg"
+        },
+        "path": "/home/zeal8bit/extras/Zeal8bit/Zeal-CompactFlash",
+        "ref_type": "branch",
+        "ref_value": "main",
+        "repo": "https://github.com/Zeal8bit/Zeal-CompactFlash.git",
+        "status": "synced",
+        "updated_at": "2026-11-08T14:55:09.265025+00:00"
+      },
+      "stage": "stage",
+      "status": "skipped"
+    }
+  ],
+  "kernels": [
+    {
+      "config": "zshell",
+      "output": "zshell.img",
+      "owner": "zoul0813/zeal-zshell",
+      "path": "sys/zshell.img",
+      "romdisk": [
+        "zoul0813/zeal-zshell",
+        "zoul0813/zeal-coreutils"
+      ],
+      "romdisk_manifest": {
+        "entries": [
+          {
+            "path": "acat",
+            "sha256": "6daa8c614468dc48fbe873bfe697c316ea7b253679250ed9b447bce2e82556bb",
+            "size": 2936,
+            "type": "file"
+          },
+          {
+            "path": "apps",
+            "type": "directory"
+          },
+          {
+            "path": "bin",
+            "type": "directory"
+          },
+          {
+            "path": "cat",
+            "sha256": "a58260dbcfe2810252c3315569c1e3ff302abfc934588e0f79c73a2a473d7e4a",
+            "size": 851,
+            "type": "file"
+          },
+          {
+            "path": "cp",
+            "sha256": "f1091d60041fe978fc6f0f72f08e9adf7f6f8c61b6d41c01ab28c0c651e57bfd",
+            "size": 1007,
+            "type": "file"
+          },
+          {
+            "path": "crc32",
+            "sha256": "fb7d220fa8f29192c00b1721cf7e7092f8a9871ab875e153c98b62b197986e38",
+            "size": 1371,
+            "type": "file"
+          },
+          {
+            "path": "du",
+            "sha256": "17ac2cbbe48939620cf14d46efc88676d605224b57530df1f525068e6421dc05",
+            "size": 1495,
+            "type": "file"
+          },
+          {
+            "path": "echo",
+            "sha256": "ade309a95c29c2ece875e4d5bdeb8c2d9afebaa6c1a54ea85c8c00b31f11c302",
+            "size": 642,
+            "type": "file"
+          },
+          {
+            "path": "hexdump",
+            "sha256": "af8fd1a2cec27343ef915cf9ab879833600d73a4b26479a4cc5f81822f811743",
+            "size": 1315,
+            "type": "file"
+          },
+          {
+            "path": "less",
+            "sha256": "373652d094e123f95155b64343a9021960cb4976e97070636043c4468e7fcad7",
+            "size": 956,
+            "type": "file"
+          },
+          {
+            "path": "ls",
+            "sha256": "138b92c881095f0a9a95129bfd49ebf2d081b12ad86e0083dded9e2ba9059adb",
+            "size": 2466,
+            "type": "file"
+          },
+          {
+            "path": "mkdir",
+            "sha256": "bce7c7695d097e575dde9bc4920aeb35132f10486377768c7bb53ce1b1cc7d52",
+            "size": 1030,
+            "type": "file"
+          },
+          {
+            "path": "mv",
+            "sha256": "849188e5192001d0945e766ed767b8a54cbff52e06be0c56819855b85f902fa5",
+            "size": 883,
+            "type": "file"
+          },
+          {
+            "path": "return",
+            "sha256": "8be890c4e96496e94f5327958f86804c120442a4a6a318f930a1a7fa24c81da3",
+            "size": 1119,
+            "type": "file"
+          },
+          {
+            "path": "rm",
+            "sha256": "12f6468fdc1c27575ffda5ff85314c399911b16fd77c04e5bdf346a2f0daf2f2",
+            "size": 1206,
+            "type": "file"
+          },
+          {
+            "path": "setfont",
+            "sha256": "f7874ebe9038eaa35b1a90276c70b6e53ae46994dbf47e2889be411e8c2e8919",
+            "size": 822,
+            "type": "file"
+          },
+          {
+            "path": "stat",
+            "sha256": "22a9a2a10f96dbd2e336b30c4f6187d6e029b6493108cac1c9c53eaaf0e0a3cc",
+            "size": 1490,
+            "type": "file"
+          },
+          {
+            "path": "touch",
+            "sha256": "d2fedb324bed5d381d6f82f27978f5c6f5affd040d203841cf4de442ff348ff2",
+            "size": 618,
+            "type": "file"
+          },
+          {
+            "path": "tree",
+            "sha256": "3072cfbafb7f8d38526b2a3e709d83bc2616d230a1476e54ec379d210c7575d4",
+            "size": 1450,
+            "type": "file"
+          },
+          {
+            "path": "xfer",
+            "sha256": "2ef101d7d9af7962ba53824bcc9fc0475d10f9b4d1e3fd883ddcba12c7610781",
+            "size": 1018,
+            "type": "file"
+          },
+          {
+            "path": "zshell",
+            "sha256": "6555ab3e54776800e9e38a864993f639a4b1573fbafc4967da2b4c6553f6ed31",
+            "size": 10480,
+            "type": "file"
+          }
+        ],
+        "sha256": "615fa6894c451b2bc78aa75ad32c6b2b41bcc8b942edce530669c38f38a6308f",
+        "version": 1
+      },
+      "sha256": "a28d7715a50c0ff77a167ae43fecf812d792de3b6be9268386ae72b7be062664",
+      "size": 50149,
+      "sources": {
+        "Zeal8bit/Zeal-8-bit-OS": {
+          "current_commit": "df2a2759cc7dc6c6debe999a23281cd1656bdf0e",
+          "metadata": {
+            "author": {
+              "link": "https://github.com/Zeal8bit",
+              "name": "Zeal8bit"
+            },
+            "category": [
+              "core"
+            ],
+            "description": "Operating system for Z80 computers written in assembly",
+            "name": "Zeal 8-bit OS",
+            "screenshot": "https://zeal8bit.com/data/sc-shots/zos.png"
+          },
+          "path": "/home/zeal8bit/Zeal-8-bit-OS",
+          "ref_type": "branch",
+          "ref_value": "main",
+          "repo": "https://github.com/Zeal8bit/Zeal-8-bit-OS.git",
+          "status": "synced",
+          "updated_at": "2026-11-08T14:23:28.082959+00:00"
+        },
+        "zoul0813/zeal-coreutils": {
+          "current_commit": "559bf85eed69a42fdb2895f25c4ca0ee908ba962",
+          "depends_on": [
+            "Zeal8bit/Zeal-VideoBoard-SDK"
+          ],
+          "metadata": {
+            "author": {
+              "link": "https://github.com/zoul0813",
+              "name": "zoul0813"
+            },
+            "category": [
+              "core",
+              "software",
+              "library"
+            ],
+            "description": "Alternative shell core commands and extra utilities",
+            "name": "Zeal Coreutils"
+          },
+          "path": "/home/zeal8bit/zeal-coreutils",
+          "ref_type": "branch",
+          "ref_value": "main",
+          "repo": "https://github.com/zoul0813/zeal-coreutils.git",
+          "status": "synced",
+          "updated_at": "2026-11-08T14:24:53.049830+00:00"
+        },
+        "zoul0813/zeal-zshell": {
+          "current_commit": "0675c2ef3b9d4cd8edabdf86f0ef68ae68da490e",
+          "depends_on": [
+            "Zeal8bit/Zeal-VideoBoard-SDK",
+            "zoul0813/zeal-coreutils"
+          ],
+          "kernel_config": {
+            "aliases": [
+              "zshell"
+            ],
+            "path": "os.conf"
+          },
+          "metadata": {
+            "author": {
+              "link": "https://github.com/zoul0813",
+              "name": "zoul0813"
+            },
+            "category": [
+              "software"
+            ],
+            "description": "Shell for Zeal 8-bit OS with history and batch processing",
+            "name": "ZShell",
+            "screenshot": "https://zeal8bit.com/data/sc-shots/zshell.png"
+          },
+          "path": "/home/zeal8bit/extras/zoul0813/zeal-zshell",
+          "ref_type": "branch",
+          "ref_value": "main",
+          "repo": "https://github.com/zoul0813/zeal-zshell.git",
+          "status": "synced",
+          "updated_at": "2026-11-08T14:38:20.748332+00:00"
+        }
+      },
+      "stage": "kernel",
+      "status": "included"
+    },
+    {
+      "config": "zeal8bit",
+      "output": "zeal8bit.img",
+      "owner": "Zeal8bit/Zeal-8-bit-OS",
+      "path": "sys/zeal8bit.img",
+      "romdisk": [],
+      "romdisk_manifest": {
+        "entries": [],
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "version": 1
+      },
+      "sha256": "fa7cf89ab00e918b4864fe9f6f807263a904a8f8c0b2cbf60d2d23e9111dc0fd",
+      "size": 22118,
+      "sources": {
+        "Zeal8bit/Zeal-8-bit-OS": {
+          "current_commit": "df2a2759cc7dc6c6debe999a23281cd1656bdf0e",
+          "metadata": {
+            "author": {
+              "link": "https://github.com/Zeal8bit",
+              "name": "Zeal8bit"
+            },
+            "category": [
+              "core"
+            ],
+            "description": "Operating system for Z80 computers written in assembly",
+            "name": "Zeal 8-bit OS",
+            "screenshot": "https://zeal8bit.com/data/sc-shots/zos.png"
+          },
+          "path": "/home/zeal8bit/Zeal-8-bit-OS",
+          "ref_type": "branch",
+          "ref_value": "main",
+          "repo": "https://github.com/Zeal8bit/Zeal-8-bit-OS.git",
+          "status": "synced",
+          "updated_at": "2026-11-08T14:23:28.082959+00:00"
+        }
+      },
+      "stage": "kernel",
+      "status": "included"
+    }
+  ],
+  "started_at": "2026-11-08T14:23:09.909762+00:00",
+  "status": "complete",
+  "success": true,
+  "tf_contents": [
+    {
+      "path": "apps",
+      "type": "directory"
+    },
+    {
+      "path": "apps/ast_dump",
+      "type": "file"
+    },
+    {
+      "path": "apps/bbcbasic",
+      "type": "file"
+    },
+    {
+      "path": "apps/bootloader",
+      "type": "file"
+    },
+    {
+      "path": "apps/cc",
+      "type": "file"
+    },
+    {
+      "path": "apps/cc_codegen",
+      "type": "file"
+    },
+    {
+      "path": "apps/cc_parse",
+      "type": "file"
+    },
+    {
+      "path": "apps/cc_semantic",
+      "type": "file"
+    },
+    {
+      "path": "apps/ed",
+      "type": "file"
+    },
+    {
+      "path": "apps/forth",
+      "type": "file"
+    },
+    {
+      "path": "apps/forth.fs",
+      "type": "file"
+    },
+    {
+      "path": "apps/mint",
+      "type": "file"
+    },
+    {
+      "path": "apps/mon",
+      "type": "file"
+    },
+    {
+      "path": "apps/onoi",
+      "type": "file"
+    },
+    {
+      "path": "apps/piano",
+      "type": "file"
+    },
+    {
+      "path": "apps/qr",
+      "type": "file"
+    },
+    {
+      "path": "apps/zar",
+      "type": "file"
+    },
+    {
+      "path": "apps/zc",
+      "type": "file"
+    },
+    {
+      "path": "apps/zealasm",
+      "type": "file"
+    },
+    {
+      "path": "apps/zepto",
+      "type": "file"
+    },
+    {
+      "path": "apps/zmt",
+      "type": "file"
+    },
+    {
+      "path": "apps/zorth",
+      "type": "file"
+    },
+    {
+      "path": "apps/zshell",
+      "type": "file"
+    },
+    {
+      "path": "bin",
+      "type": "directory"
+    },
+    {
+      "path": "bin/acat",
+      "type": "file"
+    },
+    {
+      "path": "bin/cat",
+      "type": "file"
+    },
+    {
+      "path": "bin/cp",
+      "type": "file"
+    },
+    {
+      "path": "bin/crc32",
+      "type": "file"
+    },
+    {
+      "path": "bin/du",
+      "type": "file"
+    },
+    {
+      "path": "bin/echo",
+      "type": "file"
+    },
+    {
+      "path": "bin/hexdump",
+      "type": "file"
+    },
+    {
+      "path": "bin/less",
+      "type": "file"
+    },
+    {
+      "path": "bin/ls",
+      "type": "file"
+    },
+    {
+      "path": "bin/mkdir",
+      "type": "file"
+    },
+    {
+      "path": "bin/mv",
+      "type": "file"
+    },
+    {
+      "path": "bin/return",
+      "type": "file"
+    },
+    {
+      "path": "bin/rm",
+      "type": "file"
+    },
+    {
+      "path": "bin/setfont",
+      "type": "file"
+    },
+    {
+      "path": "bin/stat",
+      "type": "file"
+    },
+    {
+      "path": "bin/touch",
+      "type": "file"
+    },
+    {
+      "path": "bin/tree",
+      "type": "file"
+    },
+    {
+      "path": "bin/xfer",
+      "type": "file"
+    },
+    {
+      "path": "demos",
+      "type": "directory"
+    },
+    {
+      "path": "demos/boing",
+      "type": "file"
+    },
+    {
+      "path": "demos/matrix",
+      "type": "file"
+    },
+    {
+      "path": "demos/plasma",
+      "type": "file"
+    },
+    {
+      "path": "demos/plasmac",
+      "type": "file"
+    },
+    {
+      "path": "demos/truchet",
+      "type": "file"
+    },
+    {
+      "path": "games",
+      "type": "directory"
+    },
+    {
+      "path": "games/bricked",
+      "type": "file"
+    },
+    {
+      "path": "games/checkers",
+      "type": "directory"
+    },
+    {
+      "path": "games/checkers/assets",
+      "type": "directory"
+    },
+    {
+      "path": "games/checkers/assets/checkers.ztp",
+      "type": "file"
+    },
+    {
+      "path": "games/checkers/assets/checkers.zts",
+      "type": "file"
+    },
+    {
+      "path": "games/checkers/zcheckers",
+      "type": "file"
+    },
+    {
+      "path": "games/chip8",
+      "type": "file"
+    },
+    {
+      "path": "games/closure",
+      "type": "file"
+    },
+    {
+      "path": "games/conway",
+      "type": "file"
+    },
+    {
+      "path": "games/couples",
+      "type": "directory"
+    },
+    {
+      "path": "games/couples/assets",
+      "type": "directory"
+    },
+    {
+      "path": "games/couples/assets/cards.ztp",
+      "type": "file"
+    },
+    {
+      "path": "games/couples/assets/cards.zts",
+      "type": "file"
+    },
+    {
+      "path": "games/couples/zcouples",
+      "type": "file"
+    },
+    {
+      "path": "games/microbe",
+      "type": "file"
+    },
+    {
+      "path": "games/poker",
+      "type": "directory"
+    },
+    {
+      "path": "games/poker/assets",
+      "type": "directory"
+    },
+    {
+      "path": "games/poker/assets/cards.ztp",
+      "type": "file"
+    },
+    {
+      "path": "games/poker/assets/cards.zts",
+      "type": "file"
+    },
+    {
+      "path": "games/poker/assets/rewards.ztp",
+      "type": "file"
+    },
+    {
+      "path": "games/poker/assets/rewards.zts",
+      "type": "file"
+    },
+    {
+      "path": "games/poker/zpoker",
+      "type": "file"
+    },
+    {
+      "path": "games/snake",
+      "type": "file"
+    },
+    {
+      "path": "games/solitaire",
+      "type": "directory"
+    },
+    {
+      "path": "games/solitaire/assets",
+      "type": "directory"
+    },
+    {
+      "path": "games/solitaire/assets/cards.ztp",
+      "type": "file"
+    },
+    {
+      "path": "games/solitaire/assets/cards.zts",
+      "type": "file"
+    },
+    {
+      "path": "games/solitaire/zsol",
+      "type": "file"
+    },
+    {
+      "path": "games/tetris",
+      "type": "file"
+    },
+    {
+      "path": "games/zealmine",
+      "type": "file"
+    },
+    {
+      "path": "games/zfighter",
+      "type": "file"
+    },
+    {
+      "path": "games/zgolf",
+      "type": "file"
+    },
+    {
+      "path": "games/zpong",
+      "type": "file"
+    },
+    {
+      "path": "sys",
+      "type": "directory"
+    },
+    {
+      "path": "sys/flasher",
+      "type": "file"
+    },
+    {
+      "path": "sys/zeal8bit.img",
+      "type": "file"
+    },
+    {
+      "path": "sys/zshell.img",
+      "type": "file"
+    }
+  ],
+  "version": 1,
+  "workspace": "/Users/higginsd/Projects/zeal/Zeal-Software-Collection/tmp/community-image/20261108-142309-dge2ho6g",
+  "zde_commit": "05757b42aeab4b57ddbbd607f899412c9880cdb5",
+  "zde_image": "docker.io/zoul0813/zeal-dev-environment@sha256:f91ef16340bdecbd759b363016667cb6451ce09cc5080dc26c1f9ea6bb6c3a29"
+}

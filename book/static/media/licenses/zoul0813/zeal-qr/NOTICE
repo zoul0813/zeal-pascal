@@ -1,0 +1,15 @@
+# NOTICE
+
+This project includes third-party code under the BSD 2-Clause License:
+
+- src/qrtiny.c, src/qrtiny.h (c) 2020 Dan Jackson
+  See LICENSES/BSD-2-Clause for details.
+
+
+Modified files from Dan Jackson's qrtiny library:
+
+- src/qrtiny.c: reformatted
+- src/qrtiny.h: removed stdlib.h
+- src/qrtiny.h: removed pragma warn
+- src/qrtiny.h: inlined abs() from stdlib.h
+- src/qrtiny.c: optimized QrTinyCalculateMask() for Z80/SDCC

@@ -1,0 +1,9 @@
+{{ define "main" }}
+<article>
+  <div class="article-top"><span class="eyebrow">{{ .Params.kicker | default "THE BOOK" }}</span>{{ with .Params.duration }}<span class="duration">{{ . }} · at your pace</span>{{ end }}</div>
+  <h1>{{ .Title }}</h1>
+  {{ with .Params.description }}<p class="lede">{{ . }}</p>{{ end }}
+  {{ if .Params.toc }}<details class="lesson-map"><summary>In this lesson</summary>{{ .TableOfContents }}</details>{{ end }}
+  <div class="prose">{{ .Content }}</div>
+</article>
+{{ end }}

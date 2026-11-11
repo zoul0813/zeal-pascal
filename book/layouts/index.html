@@ -1,0 +1,21 @@
+{{ define "main" }}
+<article class="home">
+  <p class="eyebrow">AN INTERACTIVE FIELD GUIDE</p>
+  <h1>Small computer.<br>Big possibilities.</h1>
+  <p class="lede">Learn Pascal by building things you can keep. Your workbench is a real Zeal computer, emulated right here in the browser.</p>
+  <a class="primary-link" href="{{ "lessons/the-silent-lab/" | relURL }}">Enter the Silent Lab <span aria-hidden="true">→</span></a><p class="meta">First lesson · 30–60 minutes · desktop + keyboard</p>
+  <div class="terminal-art" aria-label="A map of the pilot adventure"><div class="terminal-title"><span></span><span></span><span></span><b>THE SILENT LAB / FLOOR 01</b></div><pre>         ┌─────────────────┐    ┌─────────────────┐
+         │  TERMINAL ROOM  ├────┤    WORKSHOP     │
+         └────────┬────────┘    └─────────────────┘
+                  │
+         ┌────────┴────────┐
+         │    ENTRANCE    │  ← you are here
+         └─────────────────┘
+
+ &gt; A locked-up lab. Three rooms. Your first Pascal program.
+ <span class="cursor">▰</span></pre></div>
+  <div class="home-notes"><section><span class="eyebrow">READ. RUN. CHANGE.</span><h2>Learn with your hands.</h2><p>Short explanations lead to working programs. Start from a blank file, pick up a starter, or explore a finished example.</p></section><section><span class="eyebrow">A USEFUL LITTLE LIBRARY</span><h2>Keep what you build.</h2><p>An adventure, a calculator, a file tool, a collection catalog. Graphics and sound wait in optional side trips.</p></section></div>
+  <div class="callout"><strong>This is the pilot edition.</strong> One complete lesson is ready to try. The rest of the book will grow from what we learn here.</div>
+  <div class="prose">{{ .Content }}</div>
+</article>
+{{ end }}

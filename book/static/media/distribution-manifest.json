@@ -1,0 +1,371 @@
+{
+  "components": [
+    {
+      "files": [
+        "licenses/CaPusto/zeal-tetris/LICENSE"
+      ],
+      "id": "CaPusto/zeal-tetris",
+      "repo": "https://github.com/CaPusto/zeal-tetris.git",
+      "revision": "341cfb0a579534f51f4c00e09cee49ce3449ecf8",
+      "source_url": "https://github.com/CaPusto/zeal-tetris/archive/341cfb0a579534f51f4c00e09cee49ce3449ecf8.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/CaPusto/zealmine/LICENSE"
+      ],
+      "id": "CaPusto/zealmine",
+      "repo": "https://github.com/CaPusto/zealmine.git",
+      "revision": "fc61a117f429a799d27941ade41e1781298329da",
+      "source_url": "https://github.com/CaPusto/zealmine/archive/fc61a117f429a799d27941ade41e1781298329da.tar.gz"
+    },
+    {
+      "files": [],
+      "id": "Candid-Moe/Zorth",
+      "repo": "https://github.com/Candid-Moe/Zorth.git",
+      "revision": "a6ef3148f097ce00d3790785125fdf326f79c7d4",
+      "source_url": "https://github.com/Candid-Moe/Zorth/archive/a6ef3148f097ce00d3790785125fdf326f79c7d4.tar.gz"
+    },
+    {
+      "files": [],
+      "id": "TurBoss/Zeal-8bit_conway",
+      "repo": "https://github.com/TurBoss/Zeal-8bit_conway.git",
+      "revision": "d0921b0df946523ed8c5eb14875207d5e8b8d46f",
+      "source_url": "https://github.com/TurBoss/Zeal-8bit_conway/archive/d0921b0df946523ed8c5eb14875207d5e8b8d46f.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/Zeal8bit/Zeal-8-bit-OS/LICENSE"
+      ],
+      "id": "Zeal8bit/Zeal-8-bit-OS",
+      "repo": "https://github.com/Zeal8bit/Zeal-8-bit-OS.git",
+      "revision": "df2a2759cc7dc6c6debe999a23281cd1656bdf0e",
+      "source_url": "https://github.com/Zeal8bit/Zeal-8-bit-OS/archive/df2a2759cc7dc6c6debe999a23281cd1656bdf0e.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/Zeal8bit/Zeal-BBC-Basic/COPYING"
+      ],
+      "id": "Zeal8bit/Zeal-BBC-Basic",
+      "repo": "https://github.com/Zeal8bit/Zeal-BBC-Basic.git",
+      "revision": "a96fa847b13ca7ec326c78493e5705cbb38c0389",
+      "source_url": "https://github.com/Zeal8bit/Zeal-BBC-Basic/archive/a96fa847b13ca7ec326c78493e5705cbb38c0389.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/Zeal8bit/Zeal-Bootloader/LICENSE"
+      ],
+      "id": "Zeal8bit/Zeal-Bootloader",
+      "repo": "https://github.com/Zeal8bit/Zeal-Bootloader.git",
+      "revision": "4b8bfb8770842e3a0488b2521b19b8e4e9aee8fd",
+      "source_url": "https://github.com/Zeal8bit/Zeal-Bootloader/archive/4b8bfb8770842e3a0488b2521b19b8e4e9aee8fd.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/Zeal8bit/Zeal-Chip8/LICENSE"
+      ],
+      "id": "Zeal8bit/Zeal-Chip8",
+      "repo": "https://github.com/Zeal8bit/Zeal-Chip8.git",
+      "revision": "e004499446b71cc7cceab6c7ddb6bdff4e336638",
+      "source_url": "https://github.com/Zeal8bit/Zeal-Chip8/archive/e004499446b71cc7cceab6c7ddb6bdff4e336638.tar.gz"
+    },
+    {
+      "files": [],
+      "id": "Zeal8bit/Zeal-Flasher",
+      "repo": "https://github.com/Zeal8bit/Zeal-Flasher.git",
+      "revision": "4b1edeeb163d3ba0794f072124828b4930dfddb3",
+      "source_url": "https://github.com/Zeal8bit/Zeal-Flasher/archive/4b1edeeb163d3ba0794f072124828b4930dfddb3.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/Zeal8bit/Zeal-VideoBoard-SDK/LICENSE"
+      ],
+      "id": "Zeal8bit/Zeal-VideoBoard-SDK",
+      "repo": "https://github.com/Zeal8bit/Zeal-VideoBoard-SDK.git",
+      "revision": "4583a669ac24d50c27762debad36dfaf1f097bf5",
+      "source_url": "https://github.com/Zeal8bit/Zeal-VideoBoard-SDK/archive/4583a669ac24d50c27762debad36dfaf1f097bf5.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/Zeal8bit/Zeal-VideoBoard-SDK/examples/snake/LICENSE"
+      ],
+      "id": "Zeal8bit/Zeal-VideoBoard-SDK/examples/snake",
+      "repo": "https://github.com/Zeal8bit/Zeal-VideoBoard-SDK.git",
+      "revision": "4583a669ac24d50c27762debad36dfaf1f097bf5",
+      "source_url": "https://github.com/Zeal8bit/Zeal-VideoBoard-SDK/archive/4583a669ac24d50c27762debad36dfaf1f097bf5.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/Zeal8bit/Zealasm/LICENSE"
+      ],
+      "id": "Zeal8bit/Zealasm",
+      "repo": "https://github.com/Zeal8bit/Zealasm.git",
+      "revision": "ecff5c5d03a599c2e2e090ce5017d0514cf61a46",
+      "source_url": "https://github.com/Zeal8bit/Zealasm/archive/ecff5c5d03a599c2e2e090ce5017d0514cf61a46.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/Zeal8bit/Zepto/LICENSE"
+      ],
+      "id": "Zeal8bit/Zepto",
+      "repo": "https://github.com/Zeal8bit/Zepto.git",
+      "revision": "05d90618d56748944741161298900875e9df2570",
+      "source_url": "https://github.com/Zeal8bit/Zepto/archive/05d90618d56748944741161298900875e9df2570.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/chiralos/onomata-src/LICENSE.txt"
+      ],
+      "id": "chiralos/onomata-src",
+      "repo": "https://github.com/chiralos/onomata-src.git",
+      "revision": "3e9351e10708944cf3aa14de380351a82fb15e47",
+      "source_url": "https://github.com/chiralos/onomata-src/archive/3e9351e10708944cf3aa14de380351a82fb15e47.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/harlock74/zeal-checkers/LICENSE"
+      ],
+      "id": "harlock74/zeal-checkers",
+      "repo": "https://github.com/harlock74/zeal-checkers.git",
+      "revision": "790098274c8a6a177fa45e18b534abf4b6526996",
+      "source_url": "https://github.com/harlock74/zeal-checkers/archive/790098274c8a6a177fa45e18b534abf4b6526996.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/harlock74/zeal-couples/LICENSE"
+      ],
+      "id": "harlock74/zeal-couples",
+      "repo": "https://github.com/harlock74/zeal-couples.git",
+      "revision": "d03838a733ee16b728f1809d298402572e9b4ee2",
+      "source_url": "https://github.com/harlock74/zeal-couples/archive/d03838a733ee16b728f1809d298402572e9b4ee2.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/harlock74/zeal-minigolf/LICENSE"
+      ],
+      "id": "harlock74/zeal-minigolf",
+      "repo": "https://github.com/harlock74/zeal-minigolf.git",
+      "revision": "eea186702b500282df9951130d2d5a7d7be4204e",
+      "source_url": "https://github.com/harlock74/zeal-minigolf/archive/eea186702b500282df9951130d2d5a7d7be4204e.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/harlock74/zeal-pongy/LICENSE"
+      ],
+      "id": "harlock74/zeal-pongy",
+      "repo": "https://github.com/harlock74/zeal-pongy.git",
+      "revision": "fc0a4a14ee4119889afed3c1698c0f2f14ea2978",
+      "source_url": "https://github.com/harlock74/zeal-pongy/archive/fc0a4a14ee4119889afed3c1698c0f2f14ea2978.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/harlock74/zeal-solitaire/LICENSE"
+      ],
+      "id": "harlock74/zeal-solitaire",
+      "repo": "https://github.com/harlock74/zeal-solitaire.git",
+      "revision": "362a198795167b1bd1037b3442e3adba68897374",
+      "source_url": "https://github.com/harlock74/zeal-solitaire/archive/362a198795167b1bd1037b3442e3adba68897374.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/harlock74/zeal-videopoker/LICENSE"
+      ],
+      "id": "harlock74/zeal-videopoker",
+      "repo": "https://github.com/harlock74/zeal-videopoker.git",
+      "revision": "e5aab7aee0773ed22431ed1d970be341768fa646",
+      "source_url": "https://github.com/harlock74/zeal-videopoker/archive/e5aab7aee0773ed22431ed1d970be341768fa646.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-archiver/LICENSE"
+      ],
+      "id": "zoul0813/zeal-archiver",
+      "repo": "https://github.com/zoul0813/zeal-archiver.git",
+      "revision": "4c5bec2191597e147f55413e08d3f367dc231c3c",
+      "source_url": "https://github.com/zoul0813/zeal-archiver/archive/4c5bec2191597e147f55413e08d3f367dc231c3c.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-boing/LICENSE"
+      ],
+      "id": "zoul0813/zeal-boing",
+      "repo": "https://github.com/zoul0813/zeal-boing.git",
+      "revision": "f2cc5353506dd690d60aa6969f1531c4402bbc4f",
+      "source_url": "https://github.com/zoul0813/zeal-boing/archive/f2cc5353506dd690d60aa6969f1531c4402bbc4f.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-bricked/LICENSE"
+      ],
+      "id": "zoul0813/zeal-bricked",
+      "repo": "https://github.com/zoul0813/zeal-bricked.git",
+      "revision": "9d0409d4be3df80fe47dd135b257ad33cc4bf2c6",
+      "source_url": "https://github.com/zoul0813/zeal-bricked/archive/9d0409d4be3df80fe47dd135b257ad33cc4bf2c6.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-cc/LICENSE"
+      ],
+      "id": "zoul0813/zeal-cc",
+      "repo": "https://github.com/zoul0813/zeal-cc.git",
+      "revision": "d090fc4491f33b65e1d1e66aeb7c5f0109aa83a0",
+      "source_url": "https://github.com/zoul0813/zeal-cc/archive/d090fc4491f33b65e1d1e66aeb7c5f0109aa83a0.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-closure/LICENSE"
+      ],
+      "id": "zoul0813/zeal-closure",
+      "repo": "https://github.com/zoul0813/zeal-closure.git",
+      "revision": "4ea39d325e1b4c0afdce81a8635490330197ef3e",
+      "source_url": "https://github.com/zoul0813/zeal-closure/archive/4ea39d325e1b4c0afdce81a8635490330197ef3e.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-commander/LICENSE"
+      ],
+      "id": "zoul0813/zeal-commander",
+      "repo": "https://github.com/zoul0813/zeal-commander.git",
+      "revision": "e0e6197e4231f9abaa0c21dd0ebf8969fae67e43",
+      "source_url": "https://github.com/zoul0813/zeal-commander/archive/e0e6197e4231f9abaa0c21dd0ebf8969fae67e43.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-coreutils/LICENSE"
+      ],
+      "id": "zoul0813/zeal-coreutils",
+      "repo": "https://github.com/zoul0813/zeal-coreutils.git",
+      "revision": "559bf85eed69a42fdb2895f25c4ca0ee908ba962",
+      "source_url": "https://github.com/zoul0813/zeal-coreutils/archive/559bf85eed69a42fdb2895f25c4ca0ee908ba962.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-ed/LICENSE"
+      ],
+      "id": "zoul0813/zeal-ed",
+      "repo": "https://github.com/zoul0813/zeal-ed.git",
+      "revision": "0ad7171f9ae4b739c9155a1bc9a46bbae83a709a",
+      "source_url": "https://github.com/zoul0813/zeal-ed/archive/0ad7171f9ae4b739c9155a1bc9a46bbae83a709a.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-forth/LICENSE"
+      ],
+      "id": "zoul0813/zeal-forth",
+      "repo": "https://github.com/zoul0813/zeal-forth.git",
+      "revision": "3871f9b1356aaaceac7a78d38a8e12e71ef869eb",
+      "source_url": "https://github.com/zoul0813/zeal-forth/archive/3871f9b1356aaaceac7a78d38a8e12e71ef869eb.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-game-dev-kit/LICENSE",
+        "licenses/zoul0813/zeal-game-dev-kit/examples/demo/LICENSE"
+      ],
+      "id": "zoul0813/zeal-game-dev-kit",
+      "repo": "https://github.com/zoul0813/zeal-game-dev-kit.git",
+      "revision": "f4a730c17e4e768ad379f4ac883853aa8be45e49",
+      "source_url": "https://github.com/zoul0813/zeal-game-dev-kit/archive/f4a730c17e4e768ad379f4ac883853aa8be45e49.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-matrix/LICENSE"
+      ],
+      "id": "zoul0813/zeal-matrix",
+      "repo": "https://github.com/zoul0813/zeal-matrix.git",
+      "revision": "7065626319ed824cac0c4b0a9208c80e561115de",
+      "source_url": "https://github.com/zoul0813/zeal-matrix/archive/7065626319ed824cac0c4b0a9208c80e561115de.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-microbe/LICENSE"
+      ],
+      "id": "zoul0813/zeal-microbe",
+      "repo": "https://github.com/zoul0813/zeal-microbe.git",
+      "revision": "01217be155899d67945e964a1fc5c4b3d8932b2c",
+      "source_url": "https://github.com/zoul0813/zeal-microbe/archive/01217be155899d67945e964a1fc5c4b3d8932b2c.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-mint/LICENSE"
+      ],
+      "id": "zoul0813/zeal-mint",
+      "repo": "https://github.com/zoul0813/zeal-mint.git",
+      "revision": "916ddf89c97611780226e92dd2b1017b00da3d68",
+      "source_url": "https://github.com/zoul0813/zeal-mint/archive/916ddf89c97611780226e92dd2b1017b00da3d68.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-monitor/LICENSE"
+      ],
+      "id": "zoul0813/zeal-monitor",
+      "repo": "https://github.com/zoul0813/zeal-monitor.git",
+      "revision": "43bcbdd18d62b95162af582a55066d343153b9c7",
+      "source_url": "https://github.com/zoul0813/zeal-monitor/archive/43bcbdd18d62b95162af582a55066d343153b9c7.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-music-tracker/LICENSE"
+      ],
+      "id": "zoul0813/zeal-music-tracker",
+      "repo": "https://github.com/zoul0813/zeal-music-tracker.git",
+      "revision": "164f44731076b0664defd4afc10d0f422442642d",
+      "source_url": "https://github.com/zoul0813/zeal-music-tracker/archive/164f44731076b0664defd4afc10d0f422442642d.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-piano/LICENSE"
+      ],
+      "id": "zoul0813/zeal-piano",
+      "repo": "https://github.com/zoul0813/zeal-piano.git",
+      "revision": "4af499e5a030cc4da3b29010ea60b35140010453",
+      "source_url": "https://github.com/zoul0813/zeal-piano/archive/4af499e5a030cc4da3b29010ea60b35140010453.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-plasma/LICENSE"
+      ],
+      "id": "zoul0813/zeal-plasma",
+      "repo": "https://github.com/zoul0813/zeal-plasma.git",
+      "revision": "6165f5a43323895d0526e60a2feac36a9c4c9b04",
+      "source_url": "https://github.com/zoul0813/zeal-plasma/archive/6165f5a43323895d0526e60a2feac36a9c4c9b04.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-qr/LICENSE",
+        "licenses/zoul0813/zeal-qr/LICENSES/BSD-2-Clause",
+        "licenses/zoul0813/zeal-qr/NOTICE"
+      ],
+      "id": "zoul0813/zeal-qr",
+      "repo": "https://github.com/zoul0813/zeal-qr.git",
+      "revision": "1396f24d867c3a16686d2cf5ddcf0769eeb10b58",
+      "source_url": "https://github.com/zoul0813/zeal-qr/archive/1396f24d867c3a16686d2cf5ddcf0769eeb10b58.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-truchet/LICENSE"
+      ],
+      "id": "zoul0813/zeal-truchet",
+      "repo": "https://github.com/zoul0813/zeal-truchet.git",
+      "revision": "3cc82bd15fa1ba169998760d0bd67c1a4aa7a87e",
+      "source_url": "https://github.com/zoul0813/zeal-truchet/archive/3cc82bd15fa1ba169998760d0bd67c1a4aa7a87e.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-zfighter/LICENSE"
+      ],
+      "id": "zoul0813/zeal-zfighter",
+      "repo": "https://github.com/zoul0813/zeal-zfighter.git",
+      "revision": "4e080dc31d6feca8e0e5d34cfd15da0725a62324",
+      "source_url": "https://github.com/zoul0813/zeal-zfighter/archive/4e080dc31d6feca8e0e5d34cfd15da0725a62324.tar.gz"
+    },
+    {
+      "files": [
+        "licenses/zoul0813/zeal-zshell/LICENSE"
+      ],
+      "id": "zoul0813/zeal-zshell",
+      "repo": "https://github.com/zoul0813/zeal-zshell.git",
+      "revision": "0675c2ef3b9d4cd8edabdf86f0ef68ae68da490e",
+      "source_url": "https://github.com/zoul0813/zeal-zshell/archive/0675c2ef3b9d4cd8edabdf86f0ef68ae68da490e.tar.gz"
+    }
+  ],
+  "version": 2
+}
