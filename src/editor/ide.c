@@ -79,7 +79,7 @@ static uint8_t select_error_source(const char *path) {
     if(!reload_source(&work,path,&d))return 0;
     editor_forget();return 1;
 }
-static uint16_t draw_line(uint16_t p,uint8_t row,uint8_t selected) {
+static uint16_t draw_line(uint16_t p,uint8_t row,uint8_t selected,uint8_t clear_tail) {
     char text[129];
     uint8_t n=0,col=0,shown=0,c,style=0,mark;
     screen_at(0,row);
@@ -101,26 +101,41 @@ static uint16_t draw_line(uint16_t p,uint8_t row,uint8_t selected) {
         ++col;
     }
     text[n]=0; output(text); if(style) screen_mark(0);
+    if(clear_tail) {
+        /* Erase removed text and its attributes without clearing other rows.
+         * Keep scanning the logical line above even when horizontally clipped. */
+        while(shown<screen_width) {
+            n=screen_width-shown; if(n>128)n=128;
+            memset(text,' ',n); text[n]=0; output(text); shown+=n;
+        }
+    }
     return p;
 }
 /* The edit-loop full predicate is the source-row render dependency list.
  * Keep it in sync with draw_line/redraw when adding render state. */
 static void redraw(uint8_t full) {
-    uint16_t line,col,p=editor.top,top_line;
+    uint16_t line,col,p=editor.top,top_line,paint_line;
     uint8_t row,selected;
     source_location(&work,work.cursor,&line,&col);
+    source_location(&work,editor.top,&top_line,&col);
     screen_mark(0);
     if(full)screen_clear();else screen_at(0,0);
     main_draw_status(line,!full);
-    if(full) {
+    if(full||editor.repaint!=REPAINT_NONE) {
         selected=editor.block_visible&&editor.block_marks==3&&editor.block_begin<editor.block_end;
-        for(row=1;row<screen_height;++row) {
-            p=draw_line(p,row,selected);
-            if(p==work.length) break;
-            ++p;
+        row=1;
+        if(!full) {
+            p=editor.repaint_from;
+            source_location(&work,p,&paint_line,&col);
+            row=(uint8_t)(paint_line-top_line+1);
+        }
+        for(;row<screen_height;++row) {
+            p=draw_line(p,row,selected,!full);
+            if(full&&p==work.length) break;
+            if(!full&&editor.repaint==REPAINT_LINE) break;
+            if(p<work.length) ++p;
         }
     }
-    source_location(&work,editor.top,&top_line,&col);
     screen_at((uint8_t)(editor.column-1-editor.left),(uint8_t)(line-top_line+1));
 }
 static uint8_t suffix(uint8_t c) { return c>=1&&c<=26?c+'a'-1:c>='A'&&c<='Z'?c+32:c; }
@@ -143,10 +158,12 @@ static void edit(uint8_t at_error) {
         marks=editor.block_marks; visible=editor.block_visible;
         plain=!editor.prefix&&!editor.quote;
         result=editor_key(key);
-        /* Prefixes, dialogs and uncertain results keep the full redraw. Only
-         * unchanged text, viewport and selection can reuse the source rows. */
+        /* Prefixes, dialogs and uncertain results keep the full redraw. The
+         * core certifies line/tail damage only for local replace transactions;
+         * viewport, selection and page identity remain render dependencies. */
         full=!(plain&&!editor.prefix&&!editor.quote&&result==EDITOR_OK&&
-            work.revision==revision&&page_lifetime(work.page)==lifetime&&
+            (work.revision==revision||(editor.repaint!=REPAINT_NONE&&editor.repaint_from>=editor.top))&&
+            page_lifetime(work.page)==lifetime&&
             editor.top==top&&editor.left==left&&editor.block_begin==begin&&
             editor.block_end==end&&editor.block_marks==marks&&editor.block_visible==visible);
         if(result==EDITOR_READ_BLOCK||result==EDITOR_WRITE_BLOCK) block_io(result);

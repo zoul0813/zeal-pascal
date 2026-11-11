@@ -47,6 +47,7 @@ void editor_forget(void) EDITOR_CALL {
     editor.source=0; editor.undo_valid=0; editor.prefix=editor.quote=0;
     editor.top=editor.left=0; editor.column=1;
     editor.block_begin=editor.block_end=editor.block_marks=0; editor.block_visible=1;
+    editor.repaint=REPAINT_NONE;
 }
 void editor_begin(Source *source,uint8_t at_error,uint8_t width,uint8_t height) EDITOR_CALL {
     if(!editor.initialized) { editor.insert=editor.indent=editor.initialized=1; }
@@ -54,7 +55,7 @@ void editor_begin(Source *source,uint8_t at_error,uint8_t width,uint8_t height) 
         editor_forget(); editor.source=source; editor.page=source->page;
     }
     editor.width=width?width:1; editor.height=height>=3?height:3;
-    editor.prefix=editor.quote=0;
+    editor.prefix=editor.quote=0; editor.repaint=REPAINT_NONE;
     if(source->cursor>source->length) source->cursor=source->length;
     if(!at_error) { source->previous=source->cursor; source->cursor=0; }
     sync();
@@ -68,12 +69,14 @@ static void rebase(uint16_t a,uint16_t z,uint16_t n) {
 }
 static uint8_t replace(uint16_t a,uint16_t z,const uint8_t *text,uint16_t n,uint8_t remember) {
     uint8_t before[128],length=0,save,structural=0;
-    uint16_t line=start(editor.source->cursor),p,zline=end(line);
+    uint16_t line=start(editor.source->cursor),p,zline=end(line),from=start(a);
     for(p=a;p<z&&!structural;++p) structural=byte(p)=='\n';
     for(p=0;p<n&&!structural;++p) structural=text[p]=='\n';
     save=remember&&!editor.undo_valid&&!structural;
     if(save) for(p=line;p<zline;++p) before[length++]=byte(p);
     if(!source_replace(editor.source,a,z,text,n)) return EDITOR_REJECT;
+    editor.repaint_from=from;
+    editor.repaint=structural?REPAINT_TAIL:REPAINT_LINE;
     if(structural) editor.undo_valid=0;
     if(save) {
         memcpy(editor.undo,before,length); editor.undo_length=length;
@@ -295,6 +298,7 @@ static uint8_t quick(uint8_t c) {
 uint8_t editor_key(uint8_t c) EDITOR_CALL {
     uint16_t old_line=start(editor.source->cursor);
     uint8_t prefix=editor.prefix,result=EDITOR_OK;
+    editor.repaint=REPAINT_NONE;
     if(editor.quote) {
         editor.quote=0;
         if(c==26||c>127) result=EDITOR_REJECT;

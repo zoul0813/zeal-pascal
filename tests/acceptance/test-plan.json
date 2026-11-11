@@ -5,6 +5,7 @@
     "tests/acceptance/test-compile-interrupt.py @observed",
     "tests/acceptance/test-language-conformance.py",
     "tests/acceptance/test-editor-native.py",
+    "tests/acceptance/test-editor-repaint.py",
     "tests/acceptance/test-input.py",
     "tests/acceptance/test-io.py",
     "tests/acceptance/test-files.py",
@@ -211,6 +212,7 @@
     ],
     "editor": [
       "editor-native",
+      "editor-repaint",
       "ide-sources",
       "ide-directory",
       "error-location",
@@ -361,6 +363,10 @@
     "tests/acceptance/test-editor-native.py": [
       "zedittest_bin",
       "zpascal_bin"
+    ],
+    "tests/acceptance/test-editor-repaint.py": [
+      "zpascal_bin",
+      "zptest_bin"
     ],
     "tests/acceptance/test-error-location.py": [
       "pascal_runtime_bin",
