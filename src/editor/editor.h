@@ -12,6 +12,7 @@ enum { EDITOR_OK,EDITOR_DONE,EDITOR_REJECT,EDITOR_ABORT,EDITOR_READ_BLOCK,EDITOR
 enum { SEARCH_BACK=1,SEARCH_GLOBAL=2,SEARCH_UPPER=4,SEARCH_WORD=8,SEARCH_NO_CONFIRM=16 };
 enum { SEARCH_MORE,SEARCH_MATCH,SEARCH_DONE,SEARCH_MISSING,SEARCH_REJECT };
 enum { FIELD_MORE,FIELD_DONE,FIELD_ABORT,FIELD_CANCEL,FIELD_REJECT };
+enum { REPAINT_NONE,REPAINT_LINE,REPAINT_TAIL };
 typedef struct {
     uint8_t pattern[30],replacement[30];
     uint8_t length,replacement_length,flags,replacing,valid;
@@ -37,6 +38,10 @@ typedef struct {
     uint16_t block_begin,block_end;
     uint8_t block_marks,block_visible;
     EditorSearch search;
+    /* Damage from the last editor_key transaction. Only replace() certifies
+     * local damage; other mutations require the IDE's full repaint fallback. */
+    uint16_t repaint_from;
+    uint8_t repaint;
 } Editor;
 extern Editor editor;
 
