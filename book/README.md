@@ -23,14 +23,18 @@ Source lives in `H:/book/lab`. Save personal work under `H:/work`. HostFS uses a
 
 ```sh
 python3 scripts/prepare.py --downloads-only
-node --test tests/workspace.test.mjs
+node --test tests/*.test.mjs
 python3 scripts/check.py
 # Requires existing ZDE-built native compiler maps:
 python3 scripts/verify-native.py --compiler-build ../build
-hugo --minify --baseURL https://zoul0813.github.io/zeal-pascal/
+hugo --minify --baseURL https://zoul0813.github.io/zeal-pascal/book/
 ```
 
-The manual **Book preview** GitHub Actions workflow builds an artifact and can deploy to GitHub Pages when explicitly selected. Configure Pages to use GitHub Actions before deployment. The workflow derives the standard project URL from the repository owner/name; local previews use an explicit localhost base URL. No commit, push, or deployment is part of the local pilot implementation.
+The **Publish site** GitHub Actions workflow checks and publishes every push to `main` (including merges) and `codex/next-work` (for testing). Both branches publish to the same site URL. Pull requests affecting the book or workflow build and check without deploying. A manual run publishes by default; clear its `deploy` input for an artifact-only build. Configure the repository's **Settings → Pages → Source** to **GitHub Actions** before the first deployment. If the `github-pages` environment restricts deployment branches, allow both branches there as well.
+
+The public book URL is <https://zoul0813.github.io/zeal-pascal/book/>. The workflow assembles one complete Pages artifact in `build/pages`, with Hugo output in `build/pages/book`. The site root is reserved for future content; it currently has no landing page. Add future root content to the same staging directory and workflow, keeping `book/` reserved for Hugo. Pages deployments replace the whole site: a separate root deployment would remove the book, and a separate book-only deployment would remove root content. Extend the pull-request path filters when adding new site sources.
+
+The book's disk namespace follows its base URL path. Moving from `/zeal-pascal/` to `/zeal-pascal/book/` selects a new TF/EEPROM workspace; old disk images are retained in OPFS but are not migrated automatically. H: keeps its existing workspace. Local previews use an explicit localhost base URL.
 
 ## Prepared assets
 

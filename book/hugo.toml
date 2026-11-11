@@ -1,4 +1,4 @@
-baseURL = 'https://zoul0813.github.io/zeal-pascal/'
+baseURL = 'https://zoul0813.github.io/zeal-pascal/book/'
 locale = 'en-US'
 title = 'Programming the Zeal with Pascal'
 disableKinds = ['taxonomy', 'term', 'RSS']

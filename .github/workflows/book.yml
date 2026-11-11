@@ -1,39 +1,58 @@
-name: Book preview
+name: Publish site
 on:
+  push:
+    branches: [main, codex/next-work]
+  pull_request:
+    paths:
+      - 'book/**'
+      - '.github/workflows/book.yml'
   workflow_dispatch:
     inputs:
       deploy:
-        description: Deploy the pilot to GitHub Pages
+        description: Publish the assembled site to GitHub Pages
         type: boolean
-        default: false
+        default: true
 permissions:
   contents: read
 concurrency:
-  group: book-pages
+  group: pages-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
   cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - uses: peaceiris/actions-hugo@v3
         with:
           hugo-version: '0.167.0'
+      - name: Configure GitHub Pages
+        if: github.event_name != 'pull_request' && (github.event_name == 'push' || inputs.deploy)
+        uses: actions/configure-pages@v5
       - name: Check sources and workspace behavior
         run: |
           python3 book/scripts/prepare.py --downloads-only
           python3 book/scripts/check.py
           node --test book/tests/*.test.mjs
-      - name: Build with project base path
-        run: hugo --source book --minify --baseURL "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+      # One artifact owns the entire Pages site. Future root content belongs
+      # alongside book/ in this staging directory, in this same workflow.
+      - name: Assemble site with book under book/
+        run: |
+          mkdir -p build/pages
+          hugo --source book --minify --destination ../build/pages/book --baseURL https://zoul0813.github.io/zeal-pascal/book/
+          touch build/pages/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: book/public
+          path: build/pages
   deploy:
-    if: inputs.deploy
+    if: github.event_name != 'pull_request' && (github.event_name == 'push' || inputs.deploy)
     needs: build
     runs-on: ubuntu-latest
     permissions:
