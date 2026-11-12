@@ -83,3 +83,11 @@ Reader behavior now differs from the original pilot:
 The browser automation host remains unavailable; this integration has not been visually or interactively verified through Chrome by Codex. In particular, actual browser save/refresh behavior, sound, and the new startup-EEPROM restore control need a browser pass. The upstream completed-device-write and abrupt-browser-termination tests were inspected during review, not independently rerun here. The ScriptProcessorNode deprecation warning originates in the unchanged upstream audio implementation.
 
 To check the current flow: choose Open Zeal, wait for the book welcome, enter `zpascal`, open an example, save to H: or the default T: path, refresh, reopen Zeal, and verify the saved source. Use W for arbitrary H: files; the IDE automatically selects only its default T: source. Do not clear origin storage as a troubleshooting step without backing up personal files.
+
+## Midnight mockup alignment and syntax highlighting (November 12)
+
+The header now uses a pill-style theme switch with an accessible stable `Dark theme` switch name, checked state, and visible next-action label. The switch retains system-default behavior, remembered choices, and cross-tab updates. Styling follows the approved Midnight direction: sans-serif headings, filled current-chapter navigation, Zeal-purple primary buttons, compact horizontal workbench callout, bordered code panels, and theme-aware terminal artwork. The supplied official SVG is used unchanged for branding and the favicon.
+
+Hugo's Pascal lexer is named `objectpascal`, not `pascal`. The code-block hook and source shortcode now select that lexer; token CSS supports strings, keywords, numbers, names and comments across Pascal, Makefile, CMake, Bash and Zsh. Eight tests pass, including actual Hugo rendering for all requested languages and filename aliases, escaping, and theme switch state. Production Hugo build, 64 asset hashes, generated template checks and diff whitespace checks pass.
+
+Browser visual verification remains unavailable because the browser access host is unavailable. Required creative and code review attempts (`book-midnight-style-v1`, `book-midnight-code-v1`) both failed before producing feedback with `usage_limit_reached`. No completed independent review is claimed.

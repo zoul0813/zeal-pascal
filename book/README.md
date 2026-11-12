@@ -80,3 +80,9 @@ python3 scripts/prepare.py --update-workbench \
 ```
 
 `eeprom/autoexec.zs` follows ZShell's `.deploy/eeprom/autoexec.zs` PATH layout, adding H:/bin/ and selecting H:/ for the book's installed compiler library. Changing authoring files does not overwrite an existing reader EEPROM; later image update checks only notify.
+
+## Appearance and code blocks
+
+The book uses the Midnight light/dark palettes and Zeal purple (`#6B5176`), with the supplied official SVG logo. The header switch follows the system until a reader chooses a theme, then remembers that choice.
+
+Hugo highlights code at build time with Chroma; no client library is needed. Label fenced blocks `pascal`, `makefile`, `cmake`, `bash`, or `zsh`. `Makefile`, `CMakeLists.txt`, and `cli` are also accepted. The code-block hook maps `pascal` to Chroma's `objectpascal` lexer. Text/output blocks stay plain. Token colors follow the light/dark theme.

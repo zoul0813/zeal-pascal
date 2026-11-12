@@ -13,7 +13,8 @@
   let button;
   function updateButton() {
     if (!button) return;
-    button.setAttribute('aria-pressed', String(isDark()));
+    button.setAttribute('aria-checked', String(isDark()));
+    document.querySelector('#theme-label').textContent = isDark() ? 'Light theme' : 'Dark theme';
     button.title = isDark() ? 'Switch to light theme' : 'Switch to dark theme';
   }
   system.addEventListener('change', updateButton);
