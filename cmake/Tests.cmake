@@ -838,7 +838,7 @@ add_dependencies(zunittest transfer_assets)
 
 target_link_options(zunittest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 19)
+foreach(bank RANGE 1 21)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunittest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -864,7 +864,7 @@ add_dependencies(zunitcorpus transfer_assets)
 
 target_link_options(zunitcorpus PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 19)
+foreach(bank RANGE 1 21)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunitcorpus PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -977,7 +977,7 @@ add_dependencies(zoptionalcorpus transfer_assets)
 
 target_link_options(zoptionalcorpus PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 19)
+foreach(bank RANGE 1 21)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zoptionalcorpus PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1008,7 +1008,7 @@ add_dependencies(zunitrealtest transfer_assets)
 
 target_link_options(zunitrealtest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 19)
+foreach(bank RANGE 1 21)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunitrealtest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1040,7 +1040,7 @@ add_dependencies(zunitinittest transfer_assets)
 
 target_link_options(zunitinittest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 19)
+foreach(bank RANGE 1 21)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunitinittest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1071,7 +1071,7 @@ add_dependencies(zunsignedtest transfer_assets)
 
 target_link_options(zunsignedtest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 19)
+foreach(bank RANGE 1 21)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunsignedtest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1103,7 +1103,7 @@ add_dependencies(zzvbtest transfer_assets)
 
 target_link_options(zzvbtest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 19)
+foreach(bank RANGE 1 21)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zzvbtest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1161,7 +1161,7 @@ add_dependencies(zscreentest transfer_assets crt_zpu zexparent_bin)
 
 target_link_options(zscreentest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 19)
+foreach(bank RANGE 1 21)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zscreentest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1252,10 +1252,39 @@ target_compile_options(zsyscalltest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 set_source_files_properties(tests/native/syscalls-main.c PROPERTIES COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
 add_dependencies(zsyscalltest transfer_assets zos_zpu)
 target_link_options(zsyscalltest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 19)
+foreach(bank RANGE 1 21)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zsyscalltest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
 add_custom_target(zsyscalltest_bin
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zsyscalltest>
     DEPENDS zsyscalltest tools/package-native.py VERBATIM)
+
+# On-demand overlay drive/cache and physical bank execution component. The generated
+# Pascal call ABI and production parser remain separate integration work.
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/bank-fixtures/banks-fixtures.h
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/acceptance/test-overlay-banks.py --fixtures ${CMAKE_BINARY_DIR}/bank-fixtures
+    DEPENDS tests/acceptance/test-overlay-banks.py VERBATIM)
+add_custom_target(bank_fixtures DEPENDS ${CMAKE_BINARY_DIR}/bank-fixtures/banks-fixtures.h)
+add_library(bank_test_runtime OBJECT src/runtime/process/banks.c)
+target_include_directories(bank_test_runtime PRIVATE src)
+target_compile_options(bank_test_runtime PRIVATE --std-c99 --opt-code-size)
+# Observe the actual SDK boundary; transport/MMU operations remain unmodified.
+foreach(operation open read close dstat seek opendir curdir palloc pfree)
+    target_compile_definitions(bank_test_runtime PRIVATE ${operation}=bank_test_${operation})
+endforeach()
+add_executable(zbankstest ${CMAKE_BINARY_DIR}/test_sdk_startup.asm
+    $<TARGET_OBJECTS:bank_test_runtime> src/runtime/process/chain_native.asm
+    tests/native/banks-native.c tests/native/banks-call.asm)
+target_include_directories(zbankstest PRIVATE src ${CMAKE_BINARY_DIR}/bank-fixtures)
+target_compile_options(zbankstest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+target_link_options(zbankstest PRIVATE "SHELL:-b _BANK_CALLBACK=0x7000")
+set_property(SOURCE tests/native/banks-native.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_BINARY_DIR}/bank-fixtures/banks-fixtures.h
+    ${CMAKE_SOURCE_DIR}/src/runtime/process/banks.h
+    ${CMAKE_SOURCE_DIR}/src/runtime/process/chain.h)
+set_property(SOURCE src/runtime/process/banks.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/runtime/process/banks.h
+    ${CMAKE_SOURCE_DIR}/src/runtime/process/chain.h)
+add_dependencies(zbankstest bank_fixtures)
+zp_add_outputs(zbankstest)

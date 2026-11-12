@@ -371,8 +371,9 @@ For a cold saved-program error:
 F reconstructs mapping by compiling source; it works in a new session without
 the original COM/map file. Changed source or build settings can change code
 positions, so an arbitrary PC is not authenticated by its digits alone. CHN
-source lookup uses its correct owning program settings. Pascal overlay lookup
-is unavailable. See [diagnostics](errors.md) for code meanings.
+source lookup uses its correct owning program settings. For [Pascal overlays](overlays.md),
+F selects the first member containing an overlapping PC. See [diagnostics](errors.md)
+for code meanings.
 
 ## Saved programs and transfers
 

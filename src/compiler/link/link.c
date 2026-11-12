@@ -1,5 +1,6 @@
 #include "compiler/link/link.h"
 #include "compiler/link/layout.h"
+#include "compiler/groups/native.h"
 #ifdef ZP_UNITS_EXPERIMENT
 static uint16_t word(const uint8_t *record,uint8_t at) {
     return record[at]|((uint16_t)record[at+1]<<8);
@@ -10,19 +11,30 @@ uint8_t cc_link_apply(uint16_t code_origin,uint16_t data_origin) ROUTINES {
     for(i=0;i<cc.links;++i) {
         if(!cc_poll()||!cc_link_read(i,record))return 0;
         site=word(record,0);offset=word(record,4);space=record[6];kind=record[7];
-        if(kind>CF_HIGH8||space>CL_RUNTIME||
-           (space!=CL_DATA_ADJUST&&word(record,2))||site<CC_CODE_BASE||
+        if(kind>CF_HIGH8||space>CL_LIMIT||
+           (space!=CL_DATA_ADJUST&&space!=CL_ROOT_ADJUST&&word(record,2))||site<CC_CODE_BASE||
            site>=cc.emitted||(kind==CF_WORD16&&site==cc.emitted-1))goto invalid;
-        if(space==CL_DATA_ADJUST) {
+        if(space==CL_DATA_ADJUST||space==CL_ROOT_ADJUST) {
             if(!word(record,2)||offset||kind==CF_HIGH8)goto invalid;
             value=cc_code_get(site);
             if(kind==CF_WORD16)value|=(uint16_t)cc_code_get(site+1)<<8;
-            value=(uint16_t)(value+(uint32_t)word(record,2)*(uint16_t)(data_origin-GLOBAL_BASE));
+            value=(uint16_t)(value+(uint32_t)word(record,2)*(uint16_t)(
+#ifdef ZP_OVERLAYS
+                space==CL_ROOT_ADJUST?cc_overlay_origin()-CC_CODE_BASE:
+#endif
+                data_origin-GLOBAL_BASE));
             if(kind==CF_WORD16)cc_word(site,value);else cc_put(site,(uint8_t)value);
             if(cc.error->code)return 0;
             continue;
         }
-        if(space==CL_RUNTIME) {
+        if(space==CL_ROOT) {
+#ifdef ZP_OVERLAYS
+            if(offset<CC_CODE_BASE)goto invalid;
+            address=(uint32_t)cc_overlay_origin()+offset-CC_CODE_BASE;
+#else
+            goto invalid;
+#endif
+        } else if(space==CL_RUNTIME) {
             if(offset<0x4000u||offset>=GLOBAL_BASE)goto invalid;
             address=cc_runtime_address(offset);
         } else if(space==CL_CODE) {

@@ -1,4 +1,6 @@
 #include "compiler/groups/groups.h"
+#include "compiler/groups/native.h"
+#include "platform/banks/loader.h"
 #ifdef ZP_UNITS_EXPERIMENT
 #include "units/internal.h"
 #endif
@@ -11,6 +13,10 @@ static uint16_t new_scope(uint16_t symbol) {
     cc_routine_clear(scope);
     cc_rput(scope,R_PARENT,cc.scope); cc_rput(scope,R_SYMBOL,symbol);
     cc_rput(scope,R_FLAGS,cc.absolute_mode?0:RF_RECURSIVE);
+    #ifdef ZP_OVERLAYS
+    if(cc.sources->overlays)cc_rput(scope,R_BANK,cc.sources->bank);
+    else
+    #endif
     if(cc.sources->groups&&(scope>255u||!cc_groups_scope(cc.sources->groups,(uint8_t)scope))) {cc_fail(99);return 0;}
     return scope;
 }
@@ -79,8 +85,11 @@ static void repeated_heading(uint16_t id,uint16_t scope) {
     }
 }
 #endif
-static void routine(uint8_t interface_heading) {
+static void routine(uint8_t interface_heading,uint8_t overlay) {
     uint8_t role=cc_is("function")?S_FUNCTION:S_PROCEDURE;uint16_t parent=cc.scope;uint16_t scope;uint8_t flags;
+#ifdef ZP_OVERLAYS
+    uint16_t bank=0,parent_bank=0;
+#endif
     uint16_t id,global_start=cc.image->globals_bytes,value;
     SourcePosition position;
     int16_t old,type;TypeId actual;
@@ -124,6 +133,10 @@ static void routine(uint8_t interface_heading) {
         cc_expect(';',1);
         return;
     }
+    #ifdef ZP_OVERLAYS
+    if(cc.sources->overlays&&!cc_rget(scope,R_ENTRY))cc_overlay_alias(scope);
+    else
+    #endif
     if(!cc_rget(scope,R_ENTRY)) {
         /* An entry exists before nested bodies and forward definitions. Raw
          * Inline expressions can therefore use it without embedding fixup
@@ -140,12 +153,13 @@ static void routine(uint8_t interface_heading) {
 #endif
     }
 #ifdef ZP_UNITS_EXPERIMENT
-    if(interface_heading) {
+    if(interface_heading&&!overlay) {
         cc_rput(scope,R_FLAGS,flags|RF_FORWARD);cc_units_export(id,scope);return;
     }
 #else
     (void)interface_heading;
 #endif
+    if(overlay&&cc_is("forward")){cc_fail(12);return;}
     if(cc_is("forward")) { cc_rput(scope,R_FLAGS,flags|RF_FORWARD); cc_next(); cc_expect(';',1); return; }
 #ifdef ZP_UNITS_EXPERIMENT
     if(cc_is("native")) {
@@ -155,6 +169,9 @@ static void routine(uint8_t interface_heading) {
         cc.scope=parent;cc_units_owner(0);return;
     }
 #endif
+    #ifdef ZP_OVERLAYS
+    if(overlay){parent_bank=cc.sources->bank;bank=cc_overlay_member(interface_heading,scope);}
+    #endif
     cc_rput(scope,R_FLAGS,flags|RF_DEFINED); cc.scope=scope;
 #ifdef ZP_UNITS_EXPERIMENT
     if(cc.sources->unit_mode&&!parent)cc_units_owner(scope);
@@ -164,9 +181,12 @@ static void routine(uint8_t interface_heading) {
     if(cc.sources->unit_mode&&!parent)cc_units_owner(0);
 #endif
     cc_expect(';',1);
+#ifdef ZP_OVERLAYS
+    if(overlay&&!cc.error->code){cc_overlay_finish_member(bank);cc_overlay_switch(parent_bank);cc_overlay_wrappers(bank);}
+#endif
 }
 SourcePosition cc_block(void) ROUTINES {
-    uint16_t first,jump=0,i,entry,code;
+    uint16_t first,jump=0,i,entry,code;uint8_t group=255;
     SourcePosition start;
     uint16_t scope=cc.scope;uint8_t saved_bound=cc.with_bound;
 #ifdef ZP_UNITS_EXPERIMENT
@@ -185,12 +205,24 @@ SourcePosition cc_block(void) ROUTINES {
         (cc.sources->parent_flags>>6)&1:cc.console_control);
 #endif
     while(!cc.error->code) {
-        if(cc_is("label")) cc_labels();
+        if(cc_is("overlay")) {
+#ifdef ZP_OVERLAYS
+            if(cc.sources->memory){cc_fail(77);break;}
+            if(!cc.sources->overlays){cc_fail(COMPILE_OVERLAY_RETRY);break;}
+            if(cc.sources->unit_mode){cc_fail(UNIT_UNSUPPORTED);break;}
+            if(!jump)jump=cc_forward(0xc3);
+            if(group==255)group=cc_overlay_group();
+            cc_next();if(!cc_is("procedure")&&!cc_is("function")){cc_fail(12);break;}
+            routine(group,1);
+#else
+            cc_fail(cc.sources->memory?77:12);
+#endif
+        } else if(cc_is("label")) {group=255;cc_labels();}
         else if(cc_is("var")||cc_is("const")||cc_is("type")) {
-            first=cc.symbol_count; cc_declarations(); cc_typed_storage(first);
+            group=255;first=cc.symbol_count; cc_declarations(); cc_typed_storage(first);
         } else if(cc_is("procedure")||cc_is("function")) {
             if(!jump) jump=cc_forward(0xc3);
-            routine(0);
+            group=255;routine(0,0);
         } else break;
     }
     for(i=1;i<=cc.routine_count&&!cc.error->code;++i)
@@ -223,8 +255,15 @@ SourcePosition cc_block(void) ROUTINES {
 #endif
     if(scope) {
         entry=cc.emitted;
-        cc_patch_chain(cc_rget(scope,R_CALLS),entry); cc_rput(scope,R_CALLS,0);
+#ifdef ZP_OVERLAYS
+        if(cc_rget(scope,R_BANK))cc_rput(scope,R_BODY,entry);
+        else
+#endif
+        {cc_patch_chain(cc_rget(scope,R_CALLS),entry); cc_rput(scope,R_CALLS,0);}
         code=cc.emitted-CC_CODE_BASE; start=cc_reference_position(CCS(cc_rget(scope,R_SYMBOL),name_start));
+#ifdef ZP_OVERLAYS
+        if(!cc_rget(scope,R_BANK))
+#endif
         cc_frame_begin(); cc_mapping(code,cc.emitted-CC_CODE_BASE,start,cc.token_start);
     }
     cc.with_bound=cc.with_limit;
@@ -243,15 +282,25 @@ SourcePosition cc_block(void) ROUTINES {
     if(!cc.error->code&&(cc.temporaries||cc.arguments)) cc_fail(99); /* no temporary escapes a statement/block */
     if(scope) {
         code=cc.emitted-CC_CODE_BASE;
+#ifdef ZP_OVERLAYS
+        if(cc_rget(scope,R_BANK)){cc_guard();cc_emit(0xc9);}else
+#endif
         cc_frame_end(); cc_mapping(code,cc.emitted-CC_CODE_BASE,start,start);
         /* Addr may discover a declaring activation's private thunk slot after
          * its prologue was emitted. Existing local offsets remain unchanged. */
+#ifdef ZP_OVERLAYS
+        if(!cc_rget(scope,R_BANK)) {
+#endif
         cc_word(cc_rget(scope,R_LOCAL_GUARD),cc_rget(scope,R_LOCALS)+FRAME_PRIVATE_BYTES+2);
         cc_word(cc_rget(scope,R_LOCAL_ALLOC),(uint16_t)(0u-FRAME_PRIVATE_BYTES-cc_rget(scope,R_LOCALS)));
+#ifdef ZP_OVERLAYS
+        }
+#endif
     }
 #ifdef ZP_UNITS_EXPERIMENT
     if(initializer==1){cc.scope=0;cc_units_owner(0);}
 #endif
+    (void)group;
     --cc.nesting;
     return start;
 }
@@ -259,69 +308,14 @@ void cc_exit(void) ROUTINES {
     cc_with_unwind();
     if(!cc.scope) cc_finish(RT_DONE);
     else {
+#ifdef ZP_OVERLAYS
+        if(cc_rget(cc.scope,R_BANK)) {
+            cc_guard();cc_frame_unwind();cc_emit(0x3b);cc_emit(0x3b);cc_emit(0x3b);cc_emit(0x3b);cc_emit(0xc9);return;
+        }
+#endif
         cc_frame_unwind(); cc_guard();
         cc_rput(cc.scope,R_EXITS,cc_link(0xc3,cc_rget(cc.scope,R_EXITS)));
     }
-}
-TypeId cc_invoke(uint16_t id) ROUTINES {
-    uint32_t arguments=cc.arguments;
-    uint16_t scope=CCS(id,role)==S_RESULT?CCS(id,owner):CCS(id,initial_type);
-    uint16_t i,param,before,first=cc_rget(scope,R_PARAMETERS),count=cc_rget(scope,R_COUNT);
-    uint16_t routine_id=cc_rget(scope,R_SYMBOL);
-    TypeId type;TypeId kind;uint8_t role=CCS(routine_id,role);
-    cc_next();
-    if(role==S_FUNCTION&&cc_family(CCS(routine_id,type))==K_STRING)
-        cc_temporary(CCT(CCS(routine_id,type),width));
-    if(cc_rget(scope,R_PARENT)) { cc_frame(cc_rget(scope,R_PARENT)); cc_guard(); cc_emit(0xe5);cc.arguments+=2; }
-    if(count||cc.token=='(') {
-        cc_expect('(',4);
-        for(i=0;i<count&&!cc.error->code;++i) {
-            if(i) cc_expect(',',3);
-            param=first+i; type=CCS(param,type);
-            if(CCS(param,role)==S_REFERENCE) {
-                kind=cc_reference(44);
-                if(type!=TYPE_NONE&&type!=kind&&!((cc_family(type)==K_POINTER||cc_family(type)==K_FILE)&&cc_compatible(type,kind))&&!(cc_family(type)==K_STRING&&cc_family(kind)==K_STRING&&
-                   (!cc.var_strict||CCT(type,capacity)==CCT(kind,capacity)))) { cc_fail(44); break; }
-                cc_guard(); cc_emit(0xe5);cc.arguments+=2;
-            } else {
-                before=cc.temporaries;
-                kind=cc_aggregate(type)?cc_aggregate_actual(type):cc_expression(); cc_convert(type,kind);
-                if(cc_family(type)==K_REAL||cc_family(type)==K_LONGWORD) {
-                    if(cc.temporaries-before!=CCT(type,width)) cc_fail(99);
-                    cc.temporaries=before; /* six bytes in public native storage order */
-                    cc.arguments+=CCT(type,width);
-                } else if(cc_family(type)==K_SET) {
-                    if(cc.temporaries-before!=32) cc_fail(99);
-                    cc.temporaries=before; /* callee owns the full 32-byte value slot */
-                    cc.arguments+=32;
-                } else if(cc_family(type)==K_STRING) {
-                    if(cc_family(kind)==K_CHAR) { cc_guard(); cc_emit(0x65); cc_emit(0x2e); cc_emit(1); cc_emit(0xe5); }
-                    else if(cc.temporaries!=before) {
-                        cc_op16(0x01,cc.temporaries-before); cc_call(RT_ARGSTRING);
-                        cc.temporaries=before;
-                    }
-                    else cc_call(RT_PUSHSTRING);
-                    /* Dynamic strings, including imported arguments, use at most
-                     * 256 bytes in the caller-owned value slot. */
-                    cc.arguments+=cc_family(kind)==K_CHAR?2:256;
-                } else {
-                    cc_release(before);
-                    if(CCT(type,width)==1&&!cc_aggregate(type)) { cc_emit(0x26); cc_emit(0); }
-                    cc_guard(); cc_emit(0xe5);cc.arguments+=2;
-                }
-            }
-        }
-        cc_expect(')',5);
-    }
-    cc_guard(); cc_entry_reference(0xcd,scope);
-    cc.arguments=arguments; /* Callee cleanup retires this call's arguments. */
-    if(role==S_FUNCTION&&cc_family(CCS(routine_id,type))==K_STRING) {
-        cc_op16(0x21,0); cc_emit(0x39); /* ABI result slot, independent of callee HL */
-    } else if(role==S_FUNCTION&&cc_family(CCS(routine_id,type))==K_REAL) {
-        cc_reserve(6); cc_emit(0xc5); cc_emit(0xd5); cc_emit(0xe5);
-        cc.temporaries+=6; cc_op16(0x21,0); cc_emit(0x39);
-    }
-    return role==S_FUNCTION?CCS(routine_id,type):TYPE_NONE;
 }
 
 #ifdef ZP_UNITS_EXPERIMENT
@@ -329,7 +323,7 @@ void cc_units_interface(void) ROUTINES {
     uint16_t first,i;
     if(cc_is("uses"))cc_units_imports();
     while(!cc.error->code) {
-        if(cc_is("procedure")||cc_is("function"))routine(1);
+        if(cc_is("procedure")||cc_is("function"))routine(1,0);
         else if(cc_is("const")||cc_is("type")) {
             first=cc.symbol_count;cc_declarations();
             for(i=first;i<cc.symbol_count&&!cc.error->code;++i)if(CCS(i,owner)==0&&CCS(i,name_length)) {

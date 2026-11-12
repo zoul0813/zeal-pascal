@@ -1,0 +1,57 @@
+{
+  "format": 1,
+  "description": "Native Pascal overlay COM image named .bin; retain generated MMU companion paths.",
+  "compiler_base_revision": "29ad439ba7a1fce86af6e72ce2d9cdc4d796f423",
+  "source_sha256": "fc425d4a091d5d120fcd305c8330791e63e6899d0ad7545aa1ad3443134ce305",
+  "compiler_sha256": "23725f31c909d7603b15e0a91d915b79eced52bf71df026e9a0602ecbceaff82",
+  "compiler_library_sha256": "dceed67e8b5fb49278bfc9213ef30a51c721e4bea2da70305b10ca39b294eb29",
+  "compiler_sources_sha256": "ce13a2c4578862d51323dff301c5fb311915114af5890c77c3dd68cd92d9addd",
+  "artifacts": {
+    "sheetovr.bin": "40b972da6b75c80701c48c8aaf900a9f4a035ac41b625e881438b9b610f76540",
+    "ZP0006/P.000": "ed84d9b0c068cf6fa29315393580b7d2a5454238ad50c33e72f077139068c879",
+    "ZP0006/P.001": "8561212ca32b0e75562dcbc0a69f2a498b45c0df57fe181a338c52b1076bedf1"
+  },
+  "native_capture": "analysis/native-slice/20261112T030244.771677Z-50390",
+  "validation": {
+    "file_bytes": 36428,
+    "resident_code_bytes": 3611,
+    "resident_global_bytes": 49,
+    "resident_total_bytes": 3660,
+    "member_code_bytes": 399,
+    "aggregate_code_bytes": 4010
+  },
+  "larger_pascal_program": {
+    "file_bytes": 34921,
+    "resident_code_bytes": 2125,
+    "resident_global_bytes": 28,
+    "resident_total_bytes": 2153,
+    "member_code_bytes": 68448,
+    "aggregate_code_bytes": 70573
+  },
+  "source_lookup": {
+    "pc": 49123,
+    "line": 15,
+    "without_saved_COM": true
+  },
+  "replacement_preserves_old_groups": true,
+  "review": "Required Opus review unavailable: account weekly limit; zero review turns.",
+  "shared_data_capacity": {
+    "file_bytes": 42088,
+    "resident_code_bytes": 1292,
+    "resident_global_bytes": 8028,
+    "resident_total_bytes": 9320,
+    "member_code_bytes": 80,
+    "aggregate_code_bytes": 1372
+  },
+  "resident_footprint_change": {
+    "before_bytes": 10851,
+    "after_bytes": 3660,
+    "recovered_bytes": 7191,
+    "fixed_manager_data_before": 1740,
+    "fixed_manager_data_after": 24,
+    "packed_copy_in_resident_before": 5488,
+    "packed_copy_in_resident_after": 0,
+    "manager_bank_count_before": 1,
+    "manager_bank_count_after": 1
+  }
+}

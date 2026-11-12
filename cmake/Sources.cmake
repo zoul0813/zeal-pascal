@@ -11,7 +11,7 @@ set(PASCAL_CORE src/compiler/codegen/frames.c src/source/core.c src/source/catal
 
 list(APPEND PASCAL_CORE src/compiler/codegen/chain.c src/compiler/codegen/transfer_asset.c src/compiler/codegen/module.c src/compiler/codegen/bridges.c src/compiler/phase.c src/compiler/groups/members.c src/compiler/groups/groups.c src/compiler/groups/late.c src/compiler/codegen/builtins/keyboard_engine.c src/compiler/compile.c src/compiler/jobs/job.c src/compiler/jobs/result.c src/compiler/jobs/pages.c)
 
-list(APPEND PASCAL_CORE src/compiler/codegen/builtins/file_link.c src/compiler/link/layout.c src/compiler/link/emit.c src/compiler/link/link.c src/compiler/tables/arena.c src/compiler/tables/storage.c src/compiler/disk.c src/compiler/messages.c src/source/move.c src/source/validation.c src/source/location.c src/source/buffer/access.c src/source/buffer/memory.c)
+list(APPEND PASCAL_CORE src/compiler/codegen/builtins/file_link.c src/compiler/link/layout.c src/compiler/link/emit.c src/compiler/link/link.c src/compiler/tables/arena.c src/compiler/tables/storage.c src/compiler/disk.c src/compiler/disk_publish.c src/compiler/messages.c src/source/move.c src/source/validation.c src/source/location.c src/source/buffer/access.c src/source/buffer/memory.c)
 
 set_property(SOURCE src/editor/ide.c src/compiler/messages.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/compiler/messages.h)
@@ -430,3 +430,9 @@ set_source_files_properties(src/compiler/codegen/builtins/syscalls.c
 set_property(SOURCE src/compiler/codegen/builtins/syscalls.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_SOURCE_DIR}/src/compiler/internal.h ${CMAKE_SOURCE_DIR}/src/units/internal.h
     ${CMAKE_SOURCE_DIR}/src/runtime/syscalls/abi.h ${CMAKE_SOURCE_DIR}/src/compiler/link/layout.h ${CMAKE_BINARY_DIR}/zos-unit.h)
+
+list(APPEND PASCAL_CORE src/compiler/codegen/call.c)
+list(APPEND UNIT_CORE src/compiler/codegen/call.c)
+set_source_files_properties(src/compiler/codegen/call.c PROPERTIES COMPILE_OPTIONS "--std-c99;--opt-code-size")
+
+set_source_files_properties(src/compiler/disk_publish.c PROPERTIES COMPILE_OPTIONS "--std-c99;--opt-code-size")

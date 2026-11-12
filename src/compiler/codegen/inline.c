@@ -10,6 +10,9 @@
  * while Addr's captured nested thunk remains a Pascal-callable pointer value. */
 typedef struct {
     uint16_t code,global;
+#ifdef ZP_OVERLAYS
+    uint16_t root;
+#endif
 #ifdef ZP_UNITS_EXPERIMENT
     uint16_t runtime;
 #endif
@@ -31,10 +34,18 @@ static uint16_t address(uint16_t id,InlineDelta *delta) {
             cc_rput(scope,R_FLAGS,cc_rget(scope,R_FLAGS)|RF_REFERENCED);
 #endif
         delta->code=(cc_rget(scope,R_FLAGS)&RF_EXTERNAL)?0:1;
+#ifdef ZP_OVERLAYS
+        if(cc.sources->overlays&&cc.sources->bank){delta->root=delta->code;delta->code=0;}
+#endif
         return cc_rget(scope,R_ENTRY);
     }
-    if(CCS(id,role)==S_TYPED) {delta->code=1;return CCS(id,address);}
-    if(CCS(id,role)==S_VARIABLE||CCS(id,role)==S_VALUE||CCS(id,role)==S_REFERENCE||
+    if(CCS(id,role)==S_TYPED) {
+#ifdef ZP_OVERLAYS
+        if(cc.sources->overlays&&cc.sources->bank)delta->root=1;else
+#endif
+        delta->code=1;return CCS(id,address);
+    }
+    if(CCS(id,role)==S_VARIABLE||CCS(id,role)==S_OVERLAY_TYPED||CCS(id,role)==S_VALUE||CCS(id,role)==S_REFERENCE||
        CCS(id,role)==S_SYSTEM||CCS(id,role)==S_ADDRESS||CCS(id,role)==S_STANDARD||CCS(id,role)==S_HOOK) {
 #ifdef ZP_UNITS_EXPERIMENT
         if(cc.sources->unit_mode&&(CCS(id,role)==S_SYSTEM||CCS(id,role)==S_STANDARD||CCS(id,role)==S_HOOK)) {
@@ -57,6 +68,9 @@ static uint16_t data(InlineDelta *delta,uint8_t *word) {
     delta->code=delta->global=delta->runtime=0;
 #else
     delta->code=delta->global=0;
+#endif
+#ifdef ZP_OVERLAYS
+    delta->root=0;
 #endif
     if(cc.token=='+'||cc.token=='-') {sign=cc.token=='-'?2:1;cc_next();}
     if(cc.token==T_NUMBER) {
@@ -126,9 +140,15 @@ void cc_inline(void) FRONTEND {
 #else
         force=0;word=0;delta.code=delta.global=0;value=0;subtract=0;
 #endif
+#ifdef ZP_OVERLAYS
+        delta.root=0;
+#endif
         if(cc.token=='<'||cc.token=='>') {force=cc.token;cc_next();}
         for(;;) {
             term=data(&part,&word);
+#ifdef ZP_OVERLAYS
+            if(subtract)delta.root-=part.root;else delta.root+=part.root;
+#endif
 #ifdef ZP_UNITS_EXPERIMENT
             ++terms;
             /* A runtime symbol is a complete word operand. Differences across
@@ -159,6 +179,9 @@ void cc_inline(void) FRONTEND {
 #endif
         {
             cc_relocate_value(cc.emitted,delta.code,!word);
+#ifdef ZP_OVERLAYS
+            if(delta.root)cc_link_reference(cc.emitted,CL_ROOT_ADJUST,delta.root,0,word?CF_WORD16:CF_LOW8);
+#endif
 #ifdef ZP_STATIC_LAYOUT
             if(!cc.sources->unit_mode&&delta.global)
                 cc_link_reference(cc.emitted,CL_DATA_ADJUST,delta.global,0,word?CF_WORD16:CF_LOW8);

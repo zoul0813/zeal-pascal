@@ -173,3 +173,23 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/runtime-layout.h ${CMAKE_BINARY_DI
         ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 
 add_custom_target(runtime_layout DEPENDS ${CMAKE_BINARY_DIR}/runtime-layout.h)
+
+# Overlay I/O runs with its own page1 code while the Pascal prefix is retained
+# in its original physical page. The caller and stack remain in page3.
+add_executable(overlay_runtime src/runtime/process/bank_module.asm
+    src/runtime/process/bank_module.c src/runtime/process/banks.c
+    src/runtime/process/chain_native.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm)
+target_include_directories(overlay_runtime PRIVATE src)
+target_compile_options(overlay_runtime PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+set_target_properties(overlay_runtime PROPERTIES LINKER_LANGUAGE ASM)
+zp_add_outputs(overlay_runtime WITH_EXTENSION zpl)
+add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/overlay_runtime.packed
+    ${CMAKE_BINARY_DIR}/overlay_asset.h ${CMAKE_BINARY_DIR}/overlay_asset.asm
+    ${CMAKE_BINARY_DIR}/overlay_runtime.json
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-overlay.py ${CMAKE_BINARY_DIR}
+    DEPENDS overlay_runtime_bin ${CMAKE_BINARY_DIR}/overlay_runtime.zpl
+        ${CMAKE_SOURCE_DIR}/tools/package-overlay.py ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
+add_custom_target(overlay_assets DEPENDS ${CMAKE_BINARY_DIR}/overlay_runtime.packed
+    ${CMAKE_BINARY_DIR}/overlay_asset.h ${CMAKE_BINARY_DIR}/overlay_asset.asm)
+set_property(SOURCE src/runtime/process/bank_module.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/runtime/process/bank_module.h ${CMAKE_SOURCE_DIR}/src/runtime/process/banks.h)

@@ -5,9 +5,12 @@
 
 int8_t code_phase_fd=-1;
 uint8_t code_phase_pending[CODE_BANK_LIMIT]={
-    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255
 };
 static uint32_t valid,resume_mask;
+#ifdef ZP_OVERLAYS
+extern uint8_t overlay_build_owned;
+#endif
 
 /* Statement parsing is eagerly loaded at startup, but may lend its bank after
  * all parser frames return. Reloadability does not change cold-start policy. */
@@ -50,7 +53,11 @@ uint8_t code_phase_park(void) SOURCE_BLOCK_CALL {
     uint8_t bank;
     resume_mask=valid;
     for(bank=0;bank<code_owned;++bank)
-        if(CODE_DEFERRED(bank)&&!drop_bank(bank))return 0;
+        if(CODE_DEFERRED(bank)
+#ifdef ZP_OVERLAYS
+           &&!(overlay_build_owned&&bank>=CODE_OVERLAYS)
+#endif
+           &&!drop_bank(bank))return 0;
     return 1;
 }
 /* The immutable size directory already owns these extents; avoid retaining
@@ -96,7 +103,7 @@ uint8_t code_phase_restore(void) SOURCE_BLOCK_CALL {
     wanted&=~(1UL<<CODE_RUNTIME);
 #endif
 #ifdef ZP_UNITS_EXPERIMENT
-    wanted&=~((1UL<<CODE_UNIT_IO)|(1UL<<CODE_UNIT_META)|(1UL<<CODE_LINKER));
+    wanted&=~((1UL<<CODE_UNIT_IO)|(1UL<<CODE_UNIT_META)|(1UL<<CODE_LINKER)|(1UL<<CODE_OVERLAYS)|(1UL<<CODE_OVERLAY_ASSETS));
 #endif
     return restore(wanted);
 }
@@ -174,3 +181,5 @@ uint8_t execute_native(const char *path,uint8_t *status) SOURCE_BLOCK_CALL {
     error=exec(EXEC_PRESERVE_PROGRAM,owned,0,status);
     code_phase_return();return error;
 }
+
+uint8_t code_phase_overlays(void) SOURCE_BLOCK_CALL {return restore((1UL<<CODE_OVERLAYS)|(1UL<<CODE_OVERLAY_ASSETS));}

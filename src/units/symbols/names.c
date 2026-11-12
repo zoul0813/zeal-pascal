@@ -1,3 +1,4 @@
+#include "compiler/groups/native.h"
 #include "units/internal.h"
 #include "platform/banks/loader.h"
 
@@ -73,13 +74,20 @@ int16_t cc_units_lookup(void) ROUTINES {
     return materialize(match,candidate);
 }
 void cc_units_call(uint8_t opcode,uint16_t scope) ROUTINES {
+#ifdef ZP_OVERLAYS
+    if(cc.sources->overlays&&cc.sources->bank){cc_overlay_unit_call(opcode,scope);return;}
+#endif
     uint16_t at,end=cc_unit_word(UH_USED),site;
     if(cc.suppress||cc.error->code)return;
     /* Only known leaf-unit calls qualify for the shared-page stack model. */
     if(cc.sources->unit_mode)cc_require_full_memory();
     for(at=UNIT_RECORD_BASE;at<end;at+=UNIT_RECORD_BYTES)if(cc_unit_word(at)==UR_IMPORT&&cc_unit_word(at+2)==scope) {
         if(cc_unit_module_byte(cc_unit_word(at+4),cc_unit_word(at+6)+2)&ZPU_CALLER_IO) {
-            if(opcode!=0xcd){cc_fail(UNIT_UNSUPPORTED);return;}
+            if(opcode!=0xcd
+#ifdef ZP_OVERLAYS
+               &&!(opcode==0xc3&&cc.sources->overlays)
+#endif
+            ){cc_fail(UNIT_UNSUPPORTED);return;}
             cc_emit(0x3e);cc_emit(cc.io_check);
         }
         site=cc_link(opcode,cc_unit_word(at+8));cc_unit_put(at+8,site);return;

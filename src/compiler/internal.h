@@ -29,11 +29,17 @@ enum { FILE_TEXT,FILE_TYPED,FILE_UNTYPED };
  * descriptor for every constructor. The empty kind has no fixed base family. */
 enum { K_SET_EXPR=0x8000u,K_EMPTY_SET=0xfffcu,K_ANY_POINTER,K_NIL,TYPE_NONE };
 typedef uint16_t TypeId;
-enum { S_VARIABLE,S_CONSTANT,S_TYPE,S_TYPED,S_PENDING,S_VALUE,S_REFERENCE,S_RESULT,S_PROCEDURE,S_FUNCTION,S_SYSTEM,S_ADDRESS,S_ALIAS,S_LABEL,S_STANDARD,S_HOOK,S_FIELD,S_VARIANT,S_VLABEL };
+enum { S_VARIABLE,S_CONSTANT,S_TYPE,S_TYPED,S_PENDING,S_VALUE,S_REFERENCE,S_RESULT,S_PROCEDURE,S_FUNCTION,S_SYSTEM,S_ADDRESS,S_ALIAS,S_LABEL,S_STANDARD,S_HOOK,S_FIELD,S_VARIANT,S_VLABEL,S_OVERLAY_TYPED };
 enum { HOOK_STATUS,HOOK_CON_OUT,HOOK_LST_OUT,HOOK_AUX_OUT,HOOK_USR_OUT,HOOK_COUNT };
 enum { R_PARENT=0,R_FLAGS=2,R_SYMBOL=4,R_ENTRY=6,R_CALLS=8,R_PARAMETERS=10,R_COUNT=12,R_LOCALS=14,R_EXITS=16,
        R_DESCRIPTOR=18,R_THUNK=20,R_LOCAL_GUARD=22,R_LOCAL_ALLOC=24 };
+#ifdef ZP_OVERLAYS
+#define R_BANK 26u
+#define R_BODY 28u
+#define ROUTINE_BYTES 30u
+#else
 #define ROUTINE_BYTES 26u
+#endif
 #define RELOCATION_BYTES 4u
 enum { RF_FORWARD=1,RF_RECURSIVE=2,RF_DEFINED=4,RF_EXTERNAL=8,RF_NATIVE=32,RF_CALLER_IO=64,RF_REFERENCED=128 };
 /* Published saved IX/return/arguments and lexical/lifetime slots stay fixed.
@@ -55,6 +61,7 @@ enum { SYMBOL_LIMIT=32767u,TYPE_LIMIT=0x7ffcu };
 #define CC_STATIC_LIMIT 0xf400u
 typedef uint32_t SourcePosition; /* file ID in high word, source offset in low */
 struct CompilerGroups;
+struct CompilerOverlays;
 typedef struct {
     const Source *root;
     uint8_t file,error_file,external_error,memory;
@@ -63,6 +70,10 @@ typedef struct {
     uint8_t parent_flags;uint8_t parent_limit;
     const CompileOptions *options;
     struct CompilerGroups *groups; /* Invocation-owned; NULL without overlays. */
+#ifdef ZP_OVERLAYS
+    struct CompilerOverlays *overlays;
+    uint16_t bank;
+#endif
 #ifdef ZP_UNITS_EXPERIMENT
     uint8_t unit_page,unit_mode,unit_cbreak,unit_real;uint16_t unit_qualifier;
     uint16_t unit_owner,unit_start;

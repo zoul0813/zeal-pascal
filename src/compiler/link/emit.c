@@ -20,6 +20,9 @@ uint8_t cc_layout_active(void) FRONTEND {
 #endif
 }
 uint16_t cc_data_base(void) FRONTEND {
+#ifdef ZP_OVERLAYS
+    if(cc.sources->overlays)return 0xc000u;
+#endif
 #ifdef ZP_STATIC_LAYOUT
     if(cc_layout_active())return cc.real_needed?RUNTIME_FULL_END:RUNTIME_COMPACT_END;
 #endif

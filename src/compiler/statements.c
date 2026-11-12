@@ -2,6 +2,7 @@
 #define compile_project compiler_compile_project
 #endif
 #include "compiler/link/layout.h"
+#include "compiler/groups/native.h"
 
 
 static uint16_t pc(void) { return cc.emitted-CC_CODE_BASE; }
@@ -311,6 +312,11 @@ static SourcePosition statement(void) {
         cc_string_statement(cc_is("insert"));
     } else if(cc_is("randomize")&&cc_lookup()<0) {
         cc_next(); cc_randomize();
+#ifdef ZP_OVERLAYS
+    } else if(cc_is("ovrdrive")&&cc_lookup()<0) {
+        if(!cc.sources->overlays)cc_fail(COMPILE_OVERLAY_RETRY);
+        else cc_overlay_ovrdrive();
+#endif
     } else if(cc_file_statement()) {
 #ifndef ZP_UNITS_EXPERIMENT
     } else if(cc_crt_statement()) {

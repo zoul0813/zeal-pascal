@@ -1,4 +1,6 @@
 #include "compiler/groups/groups.h"
+#include "compiler/groups/native.h"
+#include "compiler/link/link.h"
 #include <zos_errors.h>
 
 /* Eight-byte symbols grow up; eight-byte references grow down. Only written
@@ -162,7 +164,12 @@ static uint16_t root_symbol(CompilerGroups *g,uint8_t kind,uint8_t id) {
     return LATE_NONE;
 }
 static void compiler_failure(void) {cc_fail(99);}
-uint8_t cc_root_member(void) ROUTINES {return cc.sources->groups&&cc.sources->groups->active;}
+uint8_t cc_root_member(void) ROUTINES {
+#ifdef ZP_OVERLAYS
+    if(cc.sources->overlays)return cc.sources->bank!=0;
+#endif
+    return cc.sources->groups&&cc.sources->groups->active;
+}
 void cc_root_request(uint8_t kind,uint8_t id) ROUTINES {
     CompilerGroups *g=cc.sources->groups;
     if(!g||cc.error->code||cc.suppress)return;
@@ -187,10 +194,13 @@ void cc_root_operand(uint8_t kind,uint8_t id,uint16_t value,uint16_t addend) ROU
     CompilerGroups *g=cc.sources->groups;uint16_t symbol=LATE_NONE,at=cc.emitted;
     if(cc.error->code||cc.suppress)return;
     if(!value) {
-        if(!g||!g->active) {cc_fail(99);return;}
+        if(!g||!cc_root_member()) {cc_fail(99);return;}
         symbol=cc_late_symbol(&g->late,kind,id,0);
         if(symbol==LATE_NONE) {compiler_failure();return;}
     }
+    #ifdef ZP_OVERLAYS
+    if(cc.sources->overlays&&cc.sources->bank)cc_link_reference(at,CL_ROOT_ADJUST,1,0,CF_WORD16);
+    #endif
     value+=addend;cc_relocate(at);cc_emit((uint8_t)value);cc_emit((uint8_t)(value>>8));
     if(symbol!=LATE_NONE&&!cc.error->code&&!cc_late_reference(&g->late,at,symbol,1,0))compiler_failure();
 }

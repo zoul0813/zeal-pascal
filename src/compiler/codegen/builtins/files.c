@@ -1,3 +1,6 @@
+#ifdef ZP_OVERLAYS
+#include "units/internal.h"
+#endif
 #include "compiler/link/layout.h"
 #include "compiler/link/link.h"
 #include "compiler/groups/late.h"
@@ -310,6 +313,11 @@ uint8_t cc_file_statement(void) FRONTEND {
         cc_is("chain")?ZF_TRANSFER_PATH:cc_is("execute")?ZF_TRANSFER_EXECUTE:
         cc_is("blockread")?ZF_BLOCKREAD:cc_is("blockwrite")?ZF_BLOCKWRITE:255;
     if(operation==255) return 0;
+#ifdef ZP_OVERLAYS
+    if(cc.sources->overlays&&(operation==ZF_TRANSFER_PATH||operation==ZF_TRANSFER_EXECUTE)) {
+        cc_fail(UNIT_UNSUPPORTED);return 1;
+    }
+#endif
     cc_next(); cc_expect('(',4); base=job_start(operation); file_argument(base);
     if(operation==ZF_ASSIGN||operation==ZF_RENAME) {
         cc_expect(',',3); cc_string_value(); store(6,cc.temporaries-base-ZF_JOB_BYTES);

@@ -97,7 +97,10 @@
     "tests/acceptance/test-zvb.py --skip-hardware --clients --disk-snake",
     "tests/acceptance/test-build-layout.py",
     "tests/acceptance/test-build-outputs.py",
-    "tests/acceptance/test-syscalls.py"
+    "tests/acceptance/test-syscalls.py",
+    "tests/acceptance/test-overlay-banks.py",
+    "tests/acceptance/test-overlay-banks.py --native",
+    "tests/acceptance/test-native-overlays.py"
   ],
   "redundant": [
     "tests/acceptance/test-native.py --core-only",
@@ -655,6 +658,12 @@
       "zsyscalltest_bin",
       "zpascal_bin",
       "zos_zpu"
+    ],
+    "tests/acceptance/test-overlay-banks.py": [
+      "zbankstest_bin"
+    ],
+    "tests/acceptance/test-native-overlays.py": [
+      "zpascal_bin"
     ]
   }
 }

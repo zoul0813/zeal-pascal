@@ -1,3 +1,5 @@
+#include "compiler/groups/native.h"
+#include "compiler/link/layout.h"
 #include "compiler/internal.h"
 #ifdef ZP_UNITS_EXPERIMENT
 #include "compiler/codegen/unsigned/internal.h"
@@ -378,6 +380,9 @@ void cc_declarations(void) FRONTEND {
 }
 void cc_typed_storage(uint16_t first) FRONTEND {
     uint16_t i,j,value,jump=0;
+#ifdef ZP_OVERLAYS
+    uint16_t literal,slot,reset,previous;
+#endif
     SourceCursor cursor;
     for(i=first;i<cc.symbol_count&&!cc.error->code;++i) if(CCS(i,role)==S_TYPED) {
         if(!jump) jump=cc_forward(0xc3);
@@ -399,6 +404,16 @@ void cc_typed_storage(uint16_t first) FRONTEND {
         } else {
             cc_emit((uint8_t)value); if(CCT(CCS(i,type),width)==2) cc_emit((uint8_t)(value>>8));
         }
+#ifdef ZP_OVERLAYS
+        if(cc.sources->bank) {
+            literal=CCS(i,address);slot=GLOBAL_BASE+cc.image->globals_bytes;
+            cc_storage(i,CCT(CCS(i,type),width));CCS_SET(i,role,S_OVERLAY_TYPED);
+            reset=cc.emitted;previous=cc_overlay_reset(reset);
+            if(previous)cc_op16(0xcd,previous);
+            cc_op16(0x21,literal);cc_data_op(0x11,slot);
+            cc_op16(0x01,CCT(CCS(i,type),width));cc_emit(0xed);cc_emit(0xb0);cc_emit(0xc9);
+        }
+#endif
     }
     if(jump) cc_patch(jump);
 }

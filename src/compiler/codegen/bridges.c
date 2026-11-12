@@ -1,4 +1,5 @@
 #include "compiler/groups/late.h"
+#include "compiler/groups/native.h"
 #ifdef ZP_UNITS_EXPERIMENT
 #include "units/internal.h"
 #endif
@@ -12,7 +13,9 @@ static void cursor_load(void) { indexed(0x6e,250); indexed(0x66,251); }
 void cc_entry_reference(uint8_t opcode,uint16_t scope) ROUTINES {
     uint16_t entry=cc_rget(scope,R_ENTRY);
 #ifdef ZP_UNITS_EXPERIMENT
-    if(cc_rget(scope,R_FLAGS)&RF_UNIT_IMPORT){cc_units_call(opcode,scope);return;}
+    if(cc_rget(scope,R_FLAGS)&RF_UNIT_IMPORT){
+        cc_units_call(opcode,scope);return;
+    }
 #endif
 #ifdef ZP_UNITS_EXPERIMENT
     if(!(cc_rget(scope,R_FLAGS)&RF_DEFINED))
@@ -29,7 +32,12 @@ void cc_entry_reference(uint8_t opcode,uint16_t scope) ROUTINES {
     /* Pascal frames use checked stack guards and record their own memory
      * requirements. Opaque external code retains independent windows. */
     if(cc_rget(scope,R_FLAGS)&RF_EXTERNAL) {cc_require_full_memory();cc_op16(opcode,entry);}
-    else if(entry) cc_address(opcode,entry);
+    else if(entry) {
+#ifdef ZP_OVERLAYS
+        if(cc.sources->overlays){cc_overlay_address(opcode,entry);return;}
+#endif
+        cc_address(opcode,entry);
+    }
     else cc_rput(scope,R_CALLS,cc_link(opcode,cc_rget(scope,R_CALLS)));
 }
 /* A bridge is a real dynamic frame for file-owner traversal. The published
@@ -142,10 +150,15 @@ void cc_routine_address(uint16_t id) ROUTINES {
     uint16_t descriptor,slot,locals;
     if(!parent) { cc_entry_reference(0x21,scope); return; }
     if(cc.suppress||cc.error->code) return;
-    /* Overlay parsing remains disabled. Until resident bridge deferral is
-     * connected, never cache a nested callback descriptor in an evictable
-     * member. Fail internally before allocating thunks or emitting bytes. */
-    if(cc_root_member()) {cc_fail(99);return;}
+    /* Captured callbacks need resident descriptors and a live owner. */
+    if(cc_root_member()) {
+#ifdef ZP_OVERLAYS
+        cc_fail(UNIT_UNSUPPORTED);
+#else
+        cc_fail(99);
+#endif
+        return;
+    }
     dynamic=cc_frame_required(parent);
     descriptor=cc_rget(scope,R_DESCRIPTOR);
     if(!descriptor) {

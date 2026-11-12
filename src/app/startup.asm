@@ -159,8 +159,8 @@ set_bank::
 map_bank:
     out (0xf2),a
     ret
-_code_sizes:: .ds 38
-_code_pages:: .ds 19
+_code_sizes:: .ds 42
+_code_pages:: .ds 21
 _code_owned:: .ds 1
 _boot_error:: .ds 1
 _code_required:: .ds 1

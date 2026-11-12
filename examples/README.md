@@ -59,3 +59,6 @@ experimenting with disk updates.
 
 For repository build, verification and executable-refresh instructions, see
 [example maintenance](../tests/README.md#example-applications).
+
+[The overlay sheet example](overlays/README.md) shares cells between demand-loaded
+Pascal routines using MMU RAM banks.
