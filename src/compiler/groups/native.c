@@ -69,10 +69,113 @@ static void read_record(uint16_t id,uint8_t *r) {
 static void write_record(uint16_t id,const uint8_t *r) {
     uint8_t i;for(i=0;i<RECORD_BYTES;++i)cc_overlay_record_put((uint32_t)id*RECORD_BYTES+i,r[i]);
 }
-static uint16_t word(const uint8_t *r,uint8_t at) {return r[at]|((uint16_t)r[at+1]<<8);}
-static uint32_t dword(const uint8_t *r,uint8_t at) {return word(r,at)|((uint32_t)word(r,at+2)<<16);}
-static void put16(uint8_t *r,uint8_t at,uint16_t n) {r[at]=(uint8_t)n;r[at+1]=(uint8_t)(n>>8);}
-static void put32(uint8_t *r,uint8_t at,uint32_t n) {put16(r,at,(uint16_t)n);put16(r,at+2,(uint16_t)(n>>16));}
+#ifdef __SDCC
+#pragma save
+#pragma disable_warning 85 /* Parameters are consumed by the assembly ABI. */
+/* SDCC call1: record pointer in HL, byte offset on the stack. Word/void
+ * results pop stack arguments;32-bit results leave their byte for the caller.
+ * IX/IY are untouched. These helpers only visit their checked local record. */
+static uint16_t word(const uint8_t *r,uint8_t at) NATIVE __naked {
+    __asm
+        ld c,l
+        ld b,h
+        ld hl,#2
+        add hl,sp
+        ld a,(hl)
+        ld l,a
+        ld h,#0
+        add hl,bc
+        ld e,(hl)
+        inc hl
+        ld d,(hl)
+        pop hl
+        inc sp
+        jp (hl)
+    __endasm;
+}
+static uint32_t dword(const uint8_t *r,uint8_t at) NATIVE __naked {
+    __asm
+        ld c,l
+        ld b,h
+        ld hl,#2
+        add hl,sp
+        ld a,(hl)
+        ld l,a
+        ld h,#0
+        add hl,bc
+        ld e,(hl)
+        inc hl
+        ld d,(hl)
+        inc hl
+        ld a,(hl)
+        inc hl
+        ld h,(hl)
+        ld l,a
+        ret
+    __endasm;
+}
+static void put16(uint8_t *r,uint8_t at,uint16_t n) NATIVE __naked {
+    __asm
+        ld c,l
+        ld b,h
+        ld hl,#2
+        add hl,sp
+        ld e,(hl)
+        ld d,#0
+        inc hl
+        ex de,hl
+        add hl,bc
+        ld a,(de)
+        ld (hl),a
+        inc de
+        inc hl
+        ld a,(de)
+        ld (hl),a
+        pop hl
+        pop af
+        inc sp
+        jp (hl)
+    __endasm;
+}
+static void put32(uint8_t *r,uint8_t at,uint32_t n) NATIVE __naked {
+    __asm
+        ld c,l
+        ld b,h
+        ld hl,#2
+        add hl,sp
+        ld e,(hl)
+        ld d,#0
+        inc hl
+        ex de,hl
+        add hl,bc
+        ld a,(de)
+        ld (hl),a
+        inc de
+        inc hl
+        ld a,(de)
+        ld (hl),a
+        inc de
+        inc hl
+        ld a,(de)
+        ld (hl),a
+        inc de
+        inc hl
+        ld a,(de)
+        ld (hl),a
+        pop hl
+        pop af
+        pop af
+        inc sp
+        jp (hl)
+    __endasm;
+}
+#pragma restore
+#else
+static uint16_t word(const uint8_t *r,uint8_t at) {r+=at;return r[0]|((uint16_t)r[1]<<8);}
+static uint32_t dword(const uint8_t *r,uint8_t at) {r+=at;return (uint32_t)r[0]|((uint32_t)r[1]<<8)|((uint32_t)r[2]<<16)|((uint32_t)r[3]<<24);}
+static void put16(uint8_t *r,uint8_t at,uint16_t n) {r+=at;r[0]=(uint8_t)n;r[1]=(uint8_t)(n>>8);}
+static void put32(uint8_t *r,uint8_t at,uint32_t n) {r+=at;r[0]=(uint8_t)n;r[1]=(uint8_t)(n>>8);r[2]=(uint8_t)(n>>16);r[3]=(uint8_t)(n>>24);}
+#endif
 void cc_overlay_put(uint16_t at,uint8_t value) FRONTEND {
     if(at<CC_CODE_BASE||at>=0xc000u||overlays.page==255){cc_fail(99);return;}
     far_set(overlays.page,at-CC_CODE_BASE,value);
@@ -101,41 +204,45 @@ static uint8_t save_domain(void) {
         (uint32_t)cc.links*8u+(uint32_t)overlays.late.late.references*8u;
     if(!seek_to(overlays.length))return 0;
     put32(r,M_AT,overlays.length);put32(r,M_LENGTH,total);
-    for(at=0;at<total;at+=n) {
+    for(at=0;at<total;) {
         n=total-at>128?128:(uint16_t)(total-at);
-        for(i=0;i<n;++i){bytes[i]=snapshot_byte(bank,at+i);hash=(hash^bytes[i])*16777619UL;}
+        for(i=0;i<n;++i,++at){bytes[i]=snapshot_byte(bank,at);hash=(hash^bytes[i])*16777619UL;}
         if(cc.error->code||!output_write_buffer(overlays.fd,bytes,n))return error();
     }
     put32(r,M_HASH,hash);write_record(bank,r);overlays.length+=total;
     return !cc.error->code;
 }
 static uint8_t load_domain(uint16_t bank) {
-    uint8_t r[RECORD_BYTES],bytes[128],link[8],late[8];uint16_t i,n;
+    uint8_t r[RECORD_BYTES],bytes[128],item[8],used=0;uint16_t i,n;
     uint32_t at,total,code,maps,relocs,links,hash=2166136261UL;
+    overlays.late.late.sealed=0;
     if(bank&&overlays.page==255) {
         overlays.page=page_new(PAGE_COMPILER);if(overlays.page==255)return error();
     }
-    overlays.late.late.sealed=0;read_record(bank,r);total=dword(r,M_LENGTH);code=bank?word(r,M_END)-CC_CODE_BASE:0;
+    read_record(bank,r);total=dword(r,M_LENGTH);code=bank?word(r,M_END)-CC_CODE_BASE:0;
     maps=code+(uint32_t)word(r,M_MAPS)*8u;relocs=maps+(uint32_t)word(r,M_RELOCS)*4u;
     links=relocs+(uint32_t)word(r,M_LINKS)*8u;
     if(total!=links+(uint32_t)word(r,M_LATES)*8u||!cc_late_retire(&overlays.late.late,0)||!seek_to(dword(r,M_AT)))return error();
     cc.unsigned_entry=word(r,M_UNSIGNED);
     cc.sources->bank=bank;cc.emitted=word(r,M_END);cc.entries=word(r,M_MAPS);cc.relocations=word(r,M_RELOCS);cc.links=0;
     if(!buffer_reserve(cc.image->map_page,cc.entries*8u))return error();
-    for(at=0;at<total;at+=n) {
+    for(at=0;at<total;) {
         n=total-at>128?128:(uint16_t)(total-at);
         if(!output_read_buffer(overlays.fd,bytes,n))return error();
-        for(i=0;i<n;++i) {
-            uint32_t p=at+i;uint8_t b=bytes[i];hash=(hash^b)*16777619UL;
-            if(p<code)cc_overlay_put(CC_CODE_BASE+(uint16_t)p,b);
-            else if(p<maps)buffer_set(cc.image->map_page,(uint16_t)(p-code),b);
-            else if(p<relocs)cc_reloc_put((uint16_t)(p-maps),b);
-            else if(p<links) {
-                link[(uint8_t)((p-relocs)%8)]=b;
-                if((p-relocs)%8==7)cc_link_reference(word(link,0),link[6],word(link,2),word(link,4),link[7]);
-            } else {
-                late[(uint8_t)((p-links)%8)]=b;
-                if((p-links)%8==7&&!cc_late_reference(&overlays.late.late,word(late,0),word(late,2),word(late,4),late[6]))return error();
+        for(i=0;i<n;++i,++at) {
+            uint8_t b=bytes[i];hash=(hash^b)*16777619UL;
+            if(at<code)cc_overlay_put(CC_CODE_BASE+(uint16_t)at,b);
+            else if(at<maps)buffer_set(cc.image->map_page,(uint16_t)(at-code),b);
+            else if(at<relocs)cc_reloc_put((uint16_t)(at-maps),b);
+            else {
+                /* Both journals contain complete eight-byte records, so one
+                 * assembly cursor spans block and journal boundaries. */
+                item[used++]=b;
+                if(used==8) {
+                    used=0;
+                    if(at<links)cc_link_reference(word(item,0),item[6],word(item,2),word(item,4),item[7]);
+                    else if(!cc_late_reference(&overlays.late.late,word(item,0),word(item,2),word(item,4),item[6]))return error();
+                }
             }
         }
     }
@@ -154,7 +261,7 @@ uint8_t cc_overlay_switch(uint16_t bank) ROUTINES {
     return 1;
 }
 uint8_t cc_overlays_begin(void) ROUTINES {
-    char parent[128];uint16_t n,i;uint8_t e,r[RECORD_BYTES];
+    char parent[128];zos_stat_t info;uint16_t n,i;uint8_t e,r[RECORD_BYTES];
     if(overlays.owner)return error();
     memset(&overlays,0,sizeof(overlays));overlays.page=255;overlays.fd=-1;source_cached=0;
     cc_groups_init(&overlays.late);overlays.owner=cc.image;overlay_build_owned=1;
@@ -163,11 +270,18 @@ uint8_t cc_overlays_begin(void) ROUTINES {
     if(n+7u>127u)return error();parent[n]=0;
     for(i=0;i<65535u;++i) {
         static const char hex[]="0123456789ABCDEF";
-        strcpy(overlays.folder,parent);overlays.base[0]='Z';overlays.base[1]='P';
+        overlays.base[0]='Z';overlays.base[1]='P';
         overlays.base[2]=hex[generation>>12];overlays.base[3]=hex[(generation>>8)&15];
         overlays.base[4]=hex[(generation>>4)&15];overlays.base[5]=hex[generation&15];overlays.base[6]=0;++generation;
-        strcat(overlays.folder,overlays.base);e=mkdir(overlays.folder);
-        if(!e)break;if(e!=ERR_ALREADY_EXIST){platform_error=e;return error();}
+        strcpy(parent+n,overlays.base);
+        /* Existing generations are immutable. HostFS can report a generic
+         * mkdir failure for EEXIST, so identify occupied names with stat.
+         * Do not give cleanup ownership until creation actually succeeds. */
+        e=stat(parent,&info);if(!e)continue;
+        if(e!=ERR_NO_SUCH_ENTRY){platform_error=e;return error();}
+        e=mkdir(parent);if(!e){strcpy(overlays.folder,parent);break;}
+        if(e==ERR_ALREADY_EXIST||!stat(parent,&info))continue;
+        platform_error=e;return error();
     }
     if(i==65535u)return error();
     strcpy(overlays.spool,overlays.folder);strcat(overlays.spool,"/TEMP");strcat(overlays.base,"/P");
@@ -200,7 +314,9 @@ void cc_overlay_alias(uint16_t scope) ROUTINES {
     cc_mapping(entry-CC_CODE_BASE,cc.emitted-CC_CODE_BASE,position,position);
     cc_overlay_switch(bank);
 }
-static void indexed(uint8_t op,uint8_t offset) {cc_emit(0xdd);cc_emit(op);cc_emit(offset);}
+/* Batch fixed opcodes; relocation-bearing operands still use cc_address. */
+static void emit_bytes(const char *bytes,uint8_t count) {while(count--)cc_emit((uint8_t)*bytes++);}
+#define EMIT_FIXED(code) emit_bytes(code,(uint8_t)(sizeof(code)-1u))
 static void dispatch(uint8_t op,uint16_t value) {
     cc_op16(0x21,value);cc_emit(0x3e);cc_emit(op);cc_address(0xcd,overlays.dispatch);
 }
@@ -225,11 +341,11 @@ void cc_overlay_wrappers(uint16_t bank) ROUTINES {
         cc_rget(scope,R_ENTRY)&&!(cc_rget(scope,R_FLAGS)&RF_EXTERNAL)) {
         cc.scope=scope;entry=cc.emitted;cc_patch_chain(cc_rget(scope,R_CALLS),entry);cc_rput(scope,R_CALLS,0);
         cc_frame_begin();cc_reserve(512);
-        cc_emit(0x3e);cc_emit(0x80);cc_emit(0xdb);cc_emit(0xf2);cc_emit(0xf5);
+        EMIT_FIXED("\x3e\x80\xdb\xf2\xf5");
         dispatch(0,bank-1);cc_emit(0xd3);cc_emit(0xf2);
         if(reset) {cc_emit(0x79);cc_emit(0xb7);skip=cc_forward(0xca);cc_op16(0xcd,reset);cc_patch(skip);}
         body=cc_rget(scope,R_BODY);cc_op16(0xcd,body);
-        cc_emit(0xf1);cc_emit(0xd3);cc_emit(0xf2);
+        EMIT_FIXED("\xf1\xd3\xf2");
         dispatch(1,bank-1);cc_frame_end();
     }
     cc.scope=saved;cc_overlay_switch(old);
@@ -267,75 +383,61 @@ void cc_overlay_ovrdrive(void) FRONTEND {
 #ifdef ZP_OVERLAYS
 /* Runtime dispatch is resident with Pascal data/wrappers. It lends only page1
  * to the self-contained C module and always restores the original prefix. */
-extern uint8_t cc_overlay_asset_get(uint16_t at) FRONTEND;
+extern const uint8_t overlay_asset_start[];
 /* The saved image's otherwise unused page2 carries the cold bootstrap.
  * Code/global staging remains independent; publication and image reads share
  * this mapping so the bytes that are checked are the bytes that are saved. */
 uint8_t cc_overlay_image_byte(const Build *build,uint16_t offset) FRONTEND {
     if(overlays.owner!=build||offset>=OVERLAY_PACKED_BYTES)return 0;
-    if(code_pages[CODE_OVERLAY_ASSETS]==255&&!code_phase_overlay_asset())return 0;
-    return cc_overlay_asset_get(offset);
+    return overlay_asset_start[offset];
 }
 static void op_store(uint16_t address,uint16_t value) {cc_op16(0x21,value);cc_op16(0x22,address);}
-static uint16_t control(void) {return 0xc000u;}
+#define OVERLAY_CONTROL 0xc000u
+#define OVERLAY_JOB (OVERLAY_CONTROL+8u)
+/* Control bytes: page, saved page1, saved page2, unpacked flag, cleanup B.
+ * The fixed byte runs below encode this generated-program control ABI. */
+_Static_assert(OVERLAY_CONTROL==0xc000u&&OVERLAY_JOB==0xc008u&&
+    OVERLAY_JOB_BYTES==16u&&OVERLAY_RESIDENT_BYTES==24u&&OVERLAY_BOOT_ADDRESS==0x8000u,
+    "overlay bootstrap ABI changed");
 static void module_call(uint8_t operation) {
-    uint16_t c=control(),j=c+8;
-    cc_emit(0x3e);cc_emit(operation);cc_op16(0x32,j+8);cc_emit(0xaf);cc_op16(0x32,j+9);
-    cc_op16(0x21,j);cc_op16(0xcd,0x4000);
+    cc_emit(0x3e);cc_emit(operation);EMIT_FIXED("\x32\x10\xc0\xaf\x32\x11\xc0\x21\x08\xc0\xcd\x00\x40");
 }
 static void runtime_emit(void) {
-    uint16_t c=control(),j=c+8,entry,loaded,skip,oldcleanup;
+    uint16_t entry,loaded,skip,oldcleanup;
     uint16_t dir_operand,name_operand,cleanup_failed,cleanup_done,cleanup_keep;
     uint16_t directory_bytes=16u+overlays.members*16u;uint8_t i;
     entry=cc.emitted;cc_word(overlays.dispatch+1,entry);
-    cc_op16(0x32,j+8);cc_op16(0x22,j+10);cc_emit(0xaf);cc_op16(0x32,j+9);
-    cc_emit(0xdd);cc_emit(0xe5);cc_emit(0xfd);cc_emit(0xe5);
-    cc_op16(0x3a,c);cc_emit(0xb7);loaded=cc_forward(0xc2);
-    cc_emit(0x2e);cc_emit(25);cc_emit(0xcf);cc_emit(0xb7);skip=cc_forward(0xca);
-    cc_emit(0x3e);cc_emit(0xf0);cc_emit(0x06);cc_emit(1);cc_op16(0xc3,RT_ERROR);cc_patch(skip);
-    cc_emit(0x78);cc_op16(0x32,c);
-    cc_emit(0x3e);cc_emit(0x80);cc_emit(0xdb);cc_emit(0xf2);cc_op16(0x32,c+2);
+    EMIT_FIXED("\x32\x10\xc0\x22\x12\xc0\xaf\x32\x11\xc0\xdd\xe5\xfd\xe5\x3a\x00\xc0\xb7");loaded=cc_forward(0xc2);
+    EMIT_FIXED("\x2e\x19\xcf\xb7");skip=cc_forward(0xca);
+    EMIT_FIXED("\x3e\xf0\x06\x01");cc_op16(0xc3,RT_ERROR);cc_patch(skip);
+    EMIT_FIXED("\x78\x32\x00\xc0\x3e\x80\xdb\xf2\x32\x02\xc0");
     cc_patch(loaded);
-    cc_emit(0x3e);cc_emit(0x40);cc_emit(0xdb);cc_emit(0xf1);cc_op16(0x32,c+1);
-    cc_op16(0x3a,c);cc_emit(0xd3);cc_emit(0xf1);
-    cc_op16(0x3a,c+3);cc_emit(0xb7);loaded=cc_forward(0xc2);
-    cc_op16(0x21,0x4000);cc_op16(0x11,0x4001);cc_op16(0x01,0x3fff);cc_emit(0x36);cc_emit(0);cc_emit(0xed);cc_emit(0xb0);
-    cc_op16(0x21,OVERLAY_BOOT_ADDRESS);cc_op16(0x11,0x4000);
+    EMIT_FIXED("\x3e\x40\xdb\xf1\x32\x01\xc0\x3a\x00\xc0\xd3\xf1\x3a\x03\xc0\xb7");loaded=cc_forward(0xc2);
+    EMIT_FIXED("\x21\x00\x40\x11\x01\x40\x01\xff\x3f\x36\x00\xed\xb0\x21\x00\x80\x11\x00\x40");
     cc_address(0xcd,cc.unpack_entry);
     /* The cold source occupies the replaceable overlay window, never page3.
      * Once unpacked, no packed copy is needed for later calls or cleanup. */
-    cc_op16(0x21,OVERLAY_BOOT_ADDRESS);cc_op16(0x11,OVERLAY_BOOT_ADDRESS+1);
-    cc_op16(0x01,0x3fff);cc_emit(0x36);cc_emit(0);cc_emit(0xed);cc_emit(0xb0);
-    cc_emit(0x3e);cc_emit(1);cc_op16(0x32,c+3);cc_patch(loaded);
-    op_store(j,0);dir_operand=cc.emitted+1;cc_address(0x21,0);cc_op16(0x22,j+2);
-    name_operand=cc.emitted+1;cc_address(0x21,0);cc_op16(0x22,j+4);op_store(j+6,directory_bytes);
-    cc_op16(0x21,j);cc_op16(0xcd,0x4000);
-    cc_op16(0x3a,c+1);cc_emit(0xd3);cc_emit(0xf1);
-    cc_emit(0xfd);cc_emit(0xe1);cc_emit(0xdd);cc_emit(0xe1);
-    cc_op16(0x3a,j+14);cc_emit(0xb7);loaded=cc_forward(0xca);
-    cc_emit(0x3e);cc_emit(0xf0);cc_emit(0x06);cc_emit(1);cc_op16(0xc3,RT_ERROR);cc_patch(loaded);
-    cc_op16(0x3a,j+13);cc_emit(0x4f);cc_op16(0x3a,j+12);cc_emit(0xc9);
+    EMIT_FIXED("\x21\x00\x80\x11\x01\x80\x01\xff\x3f\x36\x00\xed\xb0\x3e\x01\x32\x03\xc0");cc_patch(loaded);
+    op_store(OVERLAY_JOB,0);dir_operand=cc.emitted+1;cc_address(0x21,0);cc_op16(0x22,OVERLAY_JOB+2);
+    name_operand=cc.emitted+1;cc_address(0x21,0);cc_op16(0x22,OVERLAY_JOB+4);op_store(OVERLAY_JOB+6,directory_bytes);
+    EMIT_FIXED("\x21\x08\xc0\xcd\x00\x40\x3a\x01\xc0\xd3\xf1\xfd\xe1\xdd\xe1\x3a\x16\xc0\xb7");loaded=cc_forward(0xca);
+    EMIT_FIXED("\x3e\xf0\x06\x01");cc_op16(0xc3,RT_ERROR);cc_patch(loaded);
+    EMIT_FIXED("\x3a\x15\xc0\x4f\x3a\x14\xc0\xc9");
     /* Terminal cleanup runs after the runtime has reset SP. Restore page2
      * before releasing execution banks, then release the support module too. */
     entry=cc.emitted;cc_word(overlays.cleanup+1,entry);
-    cc_emit(0x78);cc_op16(0x32,c+4);
-    cc_emit(0xf5);cc_emit(0xc5);cc_emit(0xd5);cc_emit(0xe5);cc_emit(0xdd);cc_emit(0xe5);cc_emit(0xfd);cc_emit(0xe5);
-    cc_op16(0x3a,c);cc_emit(0xb7);skip=cc_forward(0xca);
-    cc_op16(0x3a,c+2);cc_emit(0xd3);cc_emit(0xf2);
-    cc_emit(0x3e);cc_emit(0x40);cc_emit(0xdb);cc_emit(0xf1);cc_op16(0x32,c+1);
-    cc_op16(0x3a,c);cc_emit(0xd3);cc_emit(0xf1);module_call(3);
-    cc_op16(0x3a,c+1);cc_emit(0xd3);cc_emit(0xf1);
-    cc_op16(0x3a,j+14);cc_emit(0xb7);cleanup_failed=cc_forward(0xc2);
-    cc_op16(0x3a,c);cc_emit(0x47);cc_emit(0x2e);cc_emit(26);cc_emit(0xcf);
-    cc_emit(0xb7);cleanup_keep=cc_forward(0xc2);
-    cc_emit(0xaf);cc_op16(0x32,c);cc_op16(0x32,c+3);cleanup_done=cc_forward(0xc3);
+    EMIT_FIXED("\x78\x32\x04\xc0\xf5\xc5\xd5\xe5\xdd\xe5\xfd\xe5\x3a\x00\xc0\xb7");skip=cc_forward(0xca);
+    EMIT_FIXED("\x3a\x02\xc0\xd3\xf2\x3e\x40\xdb\xf1\x32\x01\xc0\x3a\x00\xc0\xd3\xf1");module_call(3);
+    EMIT_FIXED("\x3a\x01\xc0\xd3\xf1\x3a\x16\xc0\xb7");cleanup_failed=cc_forward(0xc2);
+    EMIT_FIXED("\x3a\x00\xc0\x47\x2e\x1a\xcf\xb7");cleanup_keep=cc_forward(0xc2);
+    EMIT_FIXED("\xaf\x32\x00\xc0\x32\x03\xc0");cleanup_done=cc_forward(0xc3);
     cc_patch(cleanup_failed);cc_patch(cleanup_keep);
     cc_op16(0x32,0xfe73); /* secondary native detail survives a primary fault */
-    cc_op16(0x3a,c+4);cc_emit(0xfe);cc_emit(2);cleanup_keep=cc_forward(0xca);
+    EMIT_FIXED("\x3a\x04\xc0\xfe\x02");cleanup_keep=cc_forward(0xca);
     cc_emit(0x3e);cc_emit(0xf0);cc_runtime_op(0x32,cc_runtime_private(RP_ERROR_CODE));
     cc_emit(0x3e);cc_emit(1);cc_runtime_op(0x32,cc_runtime_private(RP_ERROR_NAMESPACE));
     cc_patch(cleanup_keep);cc_patch(cleanup_done);cc_patch(skip);
-    cc_emit(0xfd);cc_emit(0xe1);cc_emit(0xdd);cc_emit(0xe1);cc_emit(0xe1);cc_emit(0xd1);cc_emit(0xc1);cc_emit(0xf1);
+    EMIT_FIXED("\xfd\xe1\xdd\xe1\xe1\xd1\xc1\xf1");
     oldcleanup=cc_runtime_get(RT_FILECLEANUP-0x4000u+1)|((uint16_t)cc_runtime_get(RT_FILECLEANUP-0x4000u+2)<<8);
     cc_runtime_op(0xc3,oldcleanup);
     entry=cc.emitted;cc_word(name_operand,entry);
@@ -347,15 +449,14 @@ static uint8_t apply_lates(void) {
     if(!cc_late_finish(&overlays.late.late))return error();
     overlays.late.late.sealed=0;overlays.late.late.references=0;return 1;
 }
-static uint8_t read_snapshot(uint16_t bank) {
-    overlays.late.late.sealed=0;return load_domain(bank);
-}
 uint8_t cc_overlay_finish(void) ROUTINES {
     if(!cc.sources->overlays)return 1;
     runtime_emit();return !cc.error->code;
 }
 static uint8_t write_group(uint8_t group,const uint8_t *header) {
-    char path[128];uint8_t r[RECORD_BYTES],buf[128];uint16_t id,i,n;int8_t fd;uint32_t at;
+    /* One member is bounded by the16KiB execution window; only its file
+     * location needs32bits, not this in-member copy cursor. */
+    char path[128];uint8_t r[RECORD_BYTES],buf[128];uint16_t id,i,n,at;int8_t fd;
     strcpy(path,overlays.folder);strcat(path,"/P.000");i=(uint16_t)strlen(path);
     path[i-2]='0'+group/10;path[i-1]='0'+group%10;
     fd=open(path,O_WRONLY|O_CREAT);if(fd<0){platform_error=(uint8_t)-fd;return error();}
@@ -369,7 +470,7 @@ static uint8_t write_group(uint8_t group,const uint8_t *header) {
     }
     for(id=1;id<=overlays.members;++id) {
         read_record(id,r);if(word(r,M_GROUP)!=group)continue;
-        if(!read_snapshot(id))return output_finish(fd,0);
+        if(!load_domain(id))return output_finish(fd,0);
         for(at=0;at<cc.emitted-CC_CODE_BASE;at+=n) {
             n=cc.emitted-CC_CODE_BASE-(uint16_t)at;if(n>128)n=128;
             for(i=0;i<n;++i)buf[i]=cc_overlay_get(CC_CODE_BASE+(uint16_t)at+i);
@@ -384,12 +485,12 @@ static uint8_t place(uint16_t origin,uint16_t data) {
     overlays.root_origin=origin;
     if(!apply_lates()||!save_domain())return 0;
     for(bank=1;bank<=overlays.members;++bank) {
-        if(!read_snapshot(bank)||!apply_lates()||!cc_link_apply(CC_CODE_BASE,data))return error();
+        if(!load_domain(bank)||!apply_lates()||!cc_link_apply(CC_CODE_BASE,data))return error();
         if(!save_domain())return 0;
     }
     /* Root late references must be applied before ordinary root relocation.
      * This entry is called before the normal placement loop. */
-    if(!read_snapshot(0))return 0;
+    if(!load_domain(0))return 0;
     memset(h,0,16);memcpy(h,"ZBD1",4);put16(h,4,1);put16(h,6,overlays.members);put16(h,8,overlays.groups);put16(h,10,16);
     at=overlays.directory;for(i=0;i<16;++i)cc_put(at+i,h[i]);
     for(g=0;g<overlays.groups;++g)offsets[g]=16u+overlays.members*16u;
@@ -406,7 +507,7 @@ static uint8_t place(uint16_t origin,uint16_t data) {
     }
     if(!save_domain())return 0;
     for(g=0;g<overlays.groups;++g)if(!write_group(g,h))return error();
-    if(!read_snapshot(0))return 0;
+    if(!load_domain(0))return 0;
     /* Keep source maps/catalog in the private spool after the compiler arena
      * is reclaimed by the IDE job. Published group generations are immutable. */
     overlays.catalog=overlays.length;

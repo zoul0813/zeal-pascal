@@ -6,7 +6,7 @@ are consecutive overlays in one group. `Scale(2)` changes the cells directly;
 needed. An uncalled overlay in another group demonstrates demand loading.
 
 Copy this entire folder to H: and run `sheetovr.bin` from that directory. The
-included `ZP0006` folder contains its companion groups. The shipped bytes and
+included `ZP000B` folder contains its companion groups. The shipped bytes and
 native validation provenance are recorded in [binary.json](binary.json).
 
 To rebuild, compile `sheetovr.pas` using the native IDE's Com-file mode. Run the generated
@@ -22,13 +22,12 @@ OVERLAYS OK
 ```
 
 The program also checks that a repeated Sum preserves its local typed counter
-and switching away and back resets it. A failed check raises division by zero.
+and switching away and back preserves it (the third call observes8). A failed check raises division by zero.
 The native acceptance test runs it with the unused group's file absent, and
 checks the final cells, total and process cleanup.
 
-This is a small spreadsheet example. The existing ZealCalc application retains
-its current worker programs: its UI, Units and Real/file helpers need a separate
-resident-capacity assessment before conversion.
+The full [ZealCalc example](../zealcalc/README.md) also uses code overlays,
+with a shared runtime/stack and one separate data-cache bank.
 
 See [overlay behavior and limits](../../docs/overlays.md).
 

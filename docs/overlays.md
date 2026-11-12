@@ -24,13 +24,20 @@ is T. Selection uses the current directory path on that drive. Executing an
 absolute executable pathname does not change this selection. A group retains
 its original opened file and drive after subsequent OvrDrive calls.
 
-The first call loads only the requested member. Repeated calls reuse RAM.
-Switching group members copies an immutable cached template into that group's
-execution page and resets its typed constants; repeated calls to the same
-selected member preserve their values. Changing a parent invalidates child
-selections. Immutable templates may be recycled when RAM is exhausted; later
-misses reread the group's original opened handle. Mutable execution pages stay
-owned until termination. Uncalled groups need not have their files present.
+The first call loads and checks only the requested member, directly into one
+owned 16 KiB executable RAM page. That page remains allocated until program
+exit. Every later call maps the same page at `8000..BFFF`; it performs no code
+reads from disk, page copying, allocation or eviction. There is no separate
+original/template bank or execution bank per group. Group files package members
+and record their lexical relationships; each loaded member owns its own page.
+
+This deliberately changes TP3's overwrite/reset behavior, as agreed for Zeal:
+typed constants are initialized once, and member data and self-modified code
+persist across calls, including calls after a sibling or parent member ran.
+Group/parent activation checks and the Pascal calling convention are retained.
+A parent selection change invalidates descendant selections, not their loaded
+pages or contents. Uncalled members consume no code page. Exhausting RAM is a
+fatal overlay error; the runtime never discards loaded code to make room.
 
 A missing, corrupt or unavailable demanded member is a fatal F0 overlay error,
 including under `{$I-}`. Active group members cannot be replaced. Ordinary nested
@@ -72,4 +79,12 @@ generations are retained so an existing executable keeps its companions. Remove
 an old directory only after no saved or running program needs it.
 
 See [the sheet example](../examples/overlays/README.md) for shared cells,
-parameters/results, typed-constant reset and an unused overlay.
+parameters/results, persistent typed constants and an unused overlay.
+
+The compiler's overlay implementation and packed runtime template share one
+16KiB code bank (BANK20), loaded only for overlay work. With the qualified SDCC
+4.4 build they use16359bytes, leaving25bytes. The previous two-bank payload was
+18856bytes. No code was moved into other compiler banks and no resident workspace
+was added. The compiler library has20banks; normal IDE startup still allocates
+10code pages. The generated program's separate manager bank remains unchanged
+in purpose: one page for dispatch, loading, validation and owned-member state.

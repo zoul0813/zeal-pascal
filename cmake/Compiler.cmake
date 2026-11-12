@@ -69,14 +69,14 @@ add_dependencies(unit_runtime_core sysfile_zpu)
 
 add_dependencies(zpascal sysfile_zpu)
 
-# Compiler launcher plus its nineteen code banks.
+# Compiler launcher plus its twenty code banks.
 target_sources(zpascal PRIVATE ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm)
 
 add_dependencies(zpascal transfer_assets)
 
 target_link_options(zpascal PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 21)
+foreach(bank RANGE 1 20)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zpascal PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -108,10 +108,11 @@ set_property(TARGET zpascal_bin PROPERTY RAW_BINARY ${CMAKE_BINARY_DIR}/zpascal.
 add_dependencies(unit_runtime_core zos_zpu)
 
 target_sources(unit_runtime_core PRIVATE src/source/spool.c src/compiler/groups/native.c
-    src/compiler/groups/native_asset.c ${CMAKE_BINARY_DIR}/overlay_asset.asm)
+    ${CMAKE_BINARY_DIR}/overlay_asset.asm)
 add_dependencies(unit_runtime_core overlay_assets)
-set_source_files_properties(src/compiler/groups/native.c PROPERTIES COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK20;--constseg;BANK20")
-set_source_files_properties(src/compiler/groups/native_asset.c PROPERTIES COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK21;--constseg;BANK21")
+# Spend more host register-allocation search here to keep code and template
+# together in one16KiB bank, without adding resident spill workspace.
+set_source_files_properties(src/compiler/groups/native.c PROPERTIES COMPILE_OPTIONS "--std-c99;--opt-code-size;--max-allocs-per-node;100000;--codeseg;BANK20;--constseg;BANK20")
 set_property(SOURCE src/compiler/groups/native.c APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_BINARY_DIR}/overlay_asset.h ${CMAKE_SOURCE_DIR}/src/compiler/groups/native.h)
 set_source_files_properties(${CMAKE_BINARY_DIR}/overlay_asset.asm PROPERTIES OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/overlay_runtime.packed)

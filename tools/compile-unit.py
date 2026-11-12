@@ -156,7 +156,9 @@ def compile_unit(source, output, compact=False, source_output=None, unit_paths=(
     if source_output is not None and source_output.resolve() == output.resolve():
         raise ValueError('Unit output and source output must be different files')
     executable = emulator.resolve() if emulator is not None else native.EMULATOR
-    for path in (executable, native.ROM, ROOT / 'build/zpascal.bin', ROOT / 'build/zpascal.zpl',
+    if not executable.is_file():
+        raise ValueError(f'Emulator not found: {executable}; put zeal-native on PATH or use --emulator')
+    for path in (native.ROM, ROOT / 'build/zpascal.bin', ROOT / 'build/zpascal.zpl',
                  ROOT / 'build/zpascal.map', ROOT / 'build/SYSFILE.ZPU'):
         if not path.is_file():
             raise ValueError(f'Missing prerequisite: {path}; build the native targets first')

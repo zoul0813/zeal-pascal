@@ -1,6 +1,7 @@
 {$R-}
 { Private indices follow the viewport, frame and string bounds checked at entry. }
 overlay procedure Paint;
+const BlankBand = '                                                               ';
 var rr, cc, x, y: integer; statusline: LineText; redraw, refreshed, moved: boolean;
 { The renderer already owns the ZVB ports and validated 80x40 coordinates. }
 procedure Position(x, y: integer);
@@ -45,8 +46,9 @@ begin
   View(1, row, col); request.source := job.reply.visible.source; entry.text := job.reply.visible.shown;
   if job.reply.visible.labelcell then entry.text := '(L)' else entry.text := '(V)';
   Str(row, statusline);
-  entry.text := Copy(Chr(Ord('A') + col - 1) + statusline + ' ' + entry.text + ' ' + request.source, 1, 63);
-  while Length(entry.text) < 63 do entry.text := entry.text + ' ';
+  { Pad once using the runtime's bounded string operations. }
+  entry.text := Copy(Chr(Ord('A') + col - 1) + statusline + ' ' + entry.text + ' ' +
+                     request.source + BlankBand, 1, 63);
   statusline := entry.text + ' '; Str(records - 1, request.source);
   while Length(request.source) < 4 do request.source := ' ' + request.source;
   Line(1, statusline + request.source + '/4096 edits');
@@ -75,7 +77,7 @@ begin
            (moved and (((rr = row) and (cc = col)) or
             ((rr = shownrow) and (cc = showncol))))) then
         begin
-          View(1, rr, cc); entry.text := job.reply.visible.shown;
+          CacheCopy(GlyphCacheBase + (y * ViewCols + x) * 10, entry.text, 10, True);
           CacheCopy((y * ViewCols + x) * 10, job.reply.visible.source, 10, True);
           fetchedrow := 0; { Source staging now holds the prior display string. }
           if redraw or (entry.text <> job.reply.visible.source) or moved and

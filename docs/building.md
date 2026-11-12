@@ -60,14 +60,14 @@ Use the existing [Zeal development environment (ZDE)](https://github.com/zoul081
 and its SDCC toolchain, with `zde` available in your shell and its container
 runtime running. The host also needs Python 3 and Make, plus an existing
 [Zeal Native Emulator](https://github.com/Zeal8bit/Zeal-NativeEmulator)
-with debugger/HostFS support and its platform runtime libraries.
+with debugger/HostFS support and its platform runtime libraries. The build resolves
+`zeal-native` from your shell's `PATH`.
 
 The Unit automation expects this development layout by default:
 
 ```text
 <zeal-root>/
   zeal-pascal/                           # this checkout
-  Zeal-NativeEmulator/build/zeal-native
   zeal-dev-environment/home/
     Zeal-8-bit-OS/build/os_with_romdisk.img
     Zeal-8-bit-OS/build/os.map
@@ -75,9 +75,11 @@ The Unit automation expects this development layout by default:
     zeal-coreutils/bin/
 ```
 
-`<zeal-root>` defaults to this checkout's parent. Set `ZP_ZEAL_ROOT` to your
-existing development root when different; this controls the emulator and media
-paths, independently of ZDE's `ZDE_PATH`. Reuse the installed emulator and ZDE
+`<zeal-root>` is the nearest ancestor containing `zeal-dev-environment`, so
+nested worktrees reuse the existing development assets. It falls back to this
+checkout's parent if none is found. Set `ZP_ZEAL_ROOT` to your existing development
+root when different; this controls ROM and media paths, independently of the
+emulator on `PATH` and ZDE's `ZDE_PATH`. Reuse the installed emulator and ZDE
 assets. To build the emulation-enabled OS ROM and bundled shell through ZDE:
 
 ```sh
@@ -114,6 +116,17 @@ acceptance suite or create a distribution archive.
 `make native` builds only the compiler, SYSFILE and ZOS. Do not run another
 build or the acceptance orchestrator while this workflow is active: compiler
 inputs must remain unchanged until both emulator processes exit.
+
+To rebuild and test the general examples after `make` finishes:
+
+```sh
+zde --no-tty cmake build --target zexampletest_bin -j6
+python3 tests/acceptance/test-examples.py --package
+```
+
+The harness uses the freshly compiled `build/CRT.ZPU`; it does not stage the
+tracked stock prebuilt. ZealCalc has a separate build and acceptance command:
+`python3 tests/acceptance/test-zealcalc.py --package`.
 
 To compile another Pascal unit with the same compiler:
 

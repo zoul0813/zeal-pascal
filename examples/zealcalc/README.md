@@ -78,26 +78,38 @@ ZealCalc uses an explicit bounded working set instead:
 | Eight formula frame coordinates/positions/lengths | 32 bytes | Shared resident data |
 | Shared disk record | 70 bytes | Shared resident data |
 | Shared header/cell/path staging | 128 bytes | Shared resident data |
-| 210 displayed cell strings | 2100 bytes | Owned RAM data bank |
+| 210 previous display strings | 2100 bytes | Owned RAM data bank |
+| 210 newly calculated display strings | 2100 bytes | Owned RAM data bank |
 | Six status/prompt/footer strings | 480 bytes | Owned RAM data bank |
 | Eight saved formula sources | 512 bytes | Owned RAM data bank |
 
-These are the principal structures, not the entire resident image. The last
-three share one 16 KiB MMU RAM page and use 3092 bytes. Copies briefly map that
+These are the principal structures, not the entire resident image. The display strings, status lines and saved formula sources
+share one 16 KiB MMU RAM page and use 5192 bytes. Copies briefly map that
 page into window0 with interrupts disabled, then restore both the mapping and
 the caller's interrupt state. No Pascal code or syscall runs while it is mapped.
 The page is released on normal exit; Zeal OS also reclaims process-owned pages
 when the program terminates.
 
 Code members each fit in 16 KiB. First calls load the demanded member from its
-companion file; warm calls reuse RAM. The overlay manager owns its own bank.
+companion file directly into its executable RAM bank. Later calls only map
+that same bank; loaded code is never copied, reset, evicted or reread from disk.
+The nine members use at most nine code banks, allocated on demand. The six
+companion files are packaging groups, not six additional execution banks.
+The overlay manager owns one separate bank. RAM exhaustion is reported as a
+fatal overlay error rather than evicting previously loaded code.
 The compiler keeps private-call prologues and returns inside each member;
 CPU frames remain in shared memory. Resident wrappers handle cross-bank calls. See [overlay support](../../docs/overlays.md)
-for placement, cache recycling and error behavior. `binary.json` records the
+for placement, persistent member state and error behavior. `binary.json` records the
 verified resident code/data size, checked CPU stack reserve and member sizes.
 The header reserve describes the largest compiler-checked call. During calculation,
 `RecurPtr := StackPtr - 3200` reserves CPU space for nested evaluation plus checked
 file I/O; recursive expression workspaces grow below that boundary.
+
+Calculation publishes display strings directly into that shared bank. Paint
+reads them there; the disk viewport supplies only the selected cell’s full source.
+Status-line comparisons read one80-byte cache block per call. The parser keeps
+the current formula frame in the edit-source staging buffer after SaveSheet has
+consumed the edit, reloading that64-byte block only when the frame changes.
 
 No working structure grows with populated cells or edits. The UI caches only
 screen strings, not the whole sheet. It reads sources from the disk viewport
@@ -109,7 +121,7 @@ an unchanged prefix and replace the changed tail. Row40 remains untouched by
 painting.
 
 Ordinary overlay calls pass shared state directly; there is no Execute/Chain
-handoff or request file. Before evaluation, Pascal's `RecurPtr` reserves 2496
+handoff or request file. Before evaluation, Pascal's `RecurPtr` reserves 3200
 bytes for guarded CPU calls; recursive expression workspaces use the separately
 checked recursion area.
 

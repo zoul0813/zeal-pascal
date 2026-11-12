@@ -16,8 +16,10 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-ZEAL = Path(os.environ.get("ZP_ZEAL_ROOT", str(ROOT.parent))).resolve()
-EMULATOR = ZEAL / "Zeal-NativeEmulator/build/zeal-native"
+ZEAL = Path(os.environ.get("ZP_ZEAL_ROOT", next(
+    (parent for parent in ROOT.parents if (parent / "zeal-dev-environment").is_dir()),
+    ROOT.parent))).resolve()
+EMULATOR = Path(shutil.which("zeal-native") or "zeal-native")
 ROM = ZEAL / "zeal-dev-environment/home/Zeal-8-bit-OS/build/os_with_romdisk.img"
 LIBRARY_READY_CYCLES = 8000000000
 

@@ -436,6 +436,7 @@ foreach(target zcompacttest zcorpus zjobtest zmemberstest zexecutecalltest zptes
         set(package_mode --compact-experiment)
     elseif(target STREQUAL "zpascal" OR target STREQUAL "zexampletest")
         target_link_options(${target} PRIVATE "SHELL:-b _BANK16=0x108000" "SHELL:-b _BANK17=0x118000" "SHELL:-b _BANK18=0x128000" "SHELL:-b _BANK19=0x138000")
+        target_link_options(${target} PRIVATE "SHELL:-b _BANK20=0x148000")
         set(package_mode --optional-real)
     endif()
     add_custom_target(${target}_bin ALL
@@ -450,6 +451,7 @@ file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/test_sdk_startup.asm CONTENT
     ".include \"$ENV{ZOS_PATH}/sdk/sdcc/src/zos_crt0.asm\"\n.include \"$ENV{ZOS_PATH}/sdk/sdcc/src/zeal8bitos.asm\"\n")
 
 add_executable(zpbootfail ${CMAKE_BINARY_DIR}/test_sdk_startup.asm tests/native/startup-fail.c)
+target_include_directories(zpbootfail PRIVATE src)
 
 target_compile_options(zpbootfail PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 
@@ -838,7 +840,7 @@ add_dependencies(zunittest transfer_assets)
 
 target_link_options(zunittest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 21)
+foreach(bank RANGE 1 20)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunittest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -864,7 +866,7 @@ add_dependencies(zunitcorpus transfer_assets)
 
 target_link_options(zunitcorpus PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 21)
+foreach(bank RANGE 1 20)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunitcorpus PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -977,7 +979,7 @@ add_dependencies(zoptionalcorpus transfer_assets)
 
 target_link_options(zoptionalcorpus PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 21)
+foreach(bank RANGE 1 20)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zoptionalcorpus PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1008,7 +1010,7 @@ add_dependencies(zunitrealtest transfer_assets)
 
 target_link_options(zunitrealtest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 21)
+foreach(bank RANGE 1 20)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunitrealtest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1040,7 +1042,7 @@ add_dependencies(zunitinittest transfer_assets)
 
 target_link_options(zunitinittest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 21)
+foreach(bank RANGE 1 20)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunitinittest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1071,7 +1073,7 @@ add_dependencies(zunsignedtest transfer_assets)
 
 target_link_options(zunsignedtest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 21)
+foreach(bank RANGE 1 20)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zunsignedtest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1103,7 +1105,7 @@ add_dependencies(zzvbtest transfer_assets)
 
 target_link_options(zzvbtest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 21)
+foreach(bank RANGE 1 20)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zzvbtest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1161,7 +1163,7 @@ add_dependencies(zscreentest transfer_assets crt_zpu zexparent_bin)
 
 target_link_options(zscreentest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 21)
+foreach(bank RANGE 1 20)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zscreentest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1170,7 +1172,8 @@ add_custom_target(zscreentest_bin ALL
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zscreentest>
     DEPENDS zscreentest ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 
-add_dependencies(zexampletest crt_zpu)
+# Example runs consume the freshly compiled build/CRT.ZPU from `make`.
+# Building their harness must not restage the tracked stock prebuilt.
 
 add_dependencies(zunitrealtest crt_zpu)
 
@@ -1252,7 +1255,7 @@ target_compile_options(zsyscalltest PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99>)
 set_source_files_properties(tests/native/syscalls-main.c PROPERTIES COMPILE_OPTIONS "--std-c99;--codeseg;BANK1;--constseg;BANK1")
 add_dependencies(zsyscalltest transfer_assets zos_zpu)
 target_link_options(zsyscalltest PRIVATE "SHELL:-b _INITIALIZED=0xc000")
-foreach(bank RANGE 1 21)
+foreach(bank RANGE 1 20)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zsyscalltest PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
@@ -1269,7 +1272,8 @@ add_custom_target(bank_fixtures DEPENDS ${CMAKE_BINARY_DIR}/bank-fixtures/banks-
 add_library(bank_test_runtime OBJECT src/runtime/process/banks.c)
 target_include_directories(bank_test_runtime PRIVATE src)
 target_compile_options(bank_test_runtime PRIVATE --std-c99 --opt-code-size)
-# Observe the actual SDK boundary; transport/MMU operations remain unmodified.
+# Observe SDK calls and forward real MMU transfers without changing them.
+target_compile_definitions(bank_test_runtime PRIVATE chain_page_io=bank_test_page_io)
 foreach(operation open read close dstat seek opendir curdir palloc pfree)
     target_compile_definitions(bank_test_runtime PRIVATE ${operation}=bank_test_${operation})
 endforeach()

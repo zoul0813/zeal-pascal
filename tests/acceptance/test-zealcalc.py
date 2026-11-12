@@ -77,6 +77,23 @@ def compile_program(source, name, reuse=None):
     assert all(len(data) <= 65534 and max(map(len, data.splitlines()), default=0) <= 127
                for data in include_files.values()), 'Include exceeds native source limits'
     assert len(text) <= 65534 and max(map(len, text.splitlines())) <= 127
+    reserved = set(); changed = False; target = None
+    if name == 'ZEALCALC':
+        # Published group generations are immutable, including for a running
+        # older program that has not yet called one of its members.
+        published = ROOT/'examples/zealcalc'
+        metadata = json.loads((published/'binary.json').read_text())
+        previous = (published/'zealcalc.bin').read_bytes()
+        match = re.search(rb'ZP([0-9A-F]{4})/P\0', previous)
+        target = int(match[1],16) if match else 0
+        changed = (metadata.get('compiler_sha256') != n.sha(ROOT/'build/zpascal.bin') or
+                   metadata.get('banks_sha256') != n.sha(ROOT/'build/zpascal.zpl') or
+                   any(n.sha(ROOT/'build'/(unit+'.ZPU')) != digest
+                       for unit,digest in metadata.get('units',{}).items()) or
+                   any(not (ROOT/path).is_file() or n.sha(ROOT/path) != digest
+                       for path,digest in metadata.get('sources',{}).items()))
+        reserved = {f'ZP{i:04X}' for i in range(target)}
+        if changed: reserved.update(p.name for p in published.glob('ZP[0-9A-F][0-9A-F][0-9A-F][0-9A-F]') if p.is_dir())
     for directory in (reuse or []):
         previous = directory/('compile-'+name.lower())/'hostfs'
         candidate = previous/f'{name}.COM'
@@ -85,7 +102,13 @@ def compile_program(source, name, reuse=None):
                         for item,data in include_files.items()
                         if item in re.findall(r'\{\$I\s+([^}]+)\}', text, re.I))):
             identities = ['zpascal.bin','zpascal.zpl','CRT.ZPU','ZOS.ZPU','SYSFILE.ZPU']
-            assert all((previous/item).read_bytes() == (ROOT/'build'/item).read_bytes() for item in identities)
+            if not all((previous/item).read_bytes() == (ROOT/'build'/item).read_bytes() for item in identities):
+                continue
+            bound = re.search(rb'ZP([0-9A-F]{4})/P\0', candidate.read_bytes())
+            if name == 'ZEALCALC' and (not bound or
+                    'ZP'+bound[1].decode() in reserved or
+                    (not changed and int(bound[1],16) != target)):
+                continue
             print(f'Reusing verified compilation inputs for {name}', flush=True)
             collect_overlays(previous, name)
             return candidate.read_bytes()
@@ -98,6 +121,7 @@ def compile_program(source, name, reuse=None):
                  'regs', 'rb 0xfd00 256', 'tap ESC', n.ImageStop(sym['_key_read'], 'zpascal.bin'),
                  f"rb 0x{sym['_work']:x} 140", 'regs', 'quit']
     fixtures = {f'{name}.PAS': text.encode('ascii'), **include_files}
+    fixtures.update({folder+'/_KEEP':b'reserved published generation' for folder in reserved})
     fixtures.update({f'{unit}.ZPU': (ROOT/f'build/{unit}.ZPU').read_bytes()
                      for unit in ('CRT', 'ZOS', 'SYSFILE')})
     case = 'compile-' + name.lower()
@@ -128,6 +152,13 @@ def collect_overlays(host, name):
     folder = match[0][:-3].decode()
     OVERLAYS[name] = {str(p.relative_to(host)):p.read_bytes() for p in (host/folder).glob('P.*')}
     assert OVERLAYS[name]
+
+
+def verify_companion_files(destination, files):
+    for name,data in files.items():
+        target = destination/name
+        if target.exists() and (not target.is_file() or target.read_bytes() != data):
+            raise RuntimeError(f'Refusing to overwrite immutable overlay companion: {target}')
 
 
 def app_files(binary):
@@ -310,6 +341,33 @@ class UIConsole(ScreenConsole):
             super().command(f'bc 0x{key:x}')
 
     def command(self, command, capture=False):
+        if command.startswith('timed-key '):
+            # Measure guest CPU work through actual key delivery and the next
+            # input wait, without fixed post-key padding or wall-clock timing.
+            self.ready()
+            binary = (self.directory/'hostfs/zealcalc.bin').read_bytes()
+            origin = struct.unpack_from('<H',binary,20)[0]
+            end = struct.unpack_from('<H',binary,28)[0]
+            pattern = bytes.fromhex('dd77fec9')
+            sites = [i for i in range(origin-0x4000,end-0x4000) if binary.startswith(pattern,i)]
+            assert len(sites) == 1, ('Ambiguous CRT ReadKey result store',sites)
+            success = sites[0]+0x4000
+            start = int(re.search(r'cyc=(\d+)',super().command('s'))[1])
+            super().command(f'bp 0x{success:x}')
+            try:
+                super().command('tap '+command[10:])
+                super().command('run 2000000000')
+                frame = super().command('regs')
+                assert int(re.search(r'PC=([0-9a-fA-F]+)',frame)[1],16) == success, frame
+                super().command(f'bc 0x{success:x}'); super().command('s')
+                self.ready()
+                end = int(re.search(r'cyc=(\d+)',super().command('s'))[1])
+                rows = getattr(self,'timings',[])
+                rows.append({'key':command[10:],'cycles':end-start}); self.timings = rows
+                (self.directory/'timing.json').write_text(json.dumps(rows,indent=2)+'\n')
+                return ''
+            finally:
+                super().command(f'bc 0x{success:x}')
         if command == 'paint-start':
             self.trace_start(); return ''
         if command.startswith('paint-stop '):
@@ -482,6 +540,29 @@ def screenshots(binary):
     return directory
 
 
+def check_performance(binary):
+    commands = ['run 100000000']+n.type_text('cd H:/\n',ticks=4000000)+enter_app('zealcalc')
+    keys = ['RIGHT','LEFT','RIGHT','7','8','ENTER','LEFT','RIGHT']
+    commands += ['timed-key '+key for key in keys]+['quit']
+    n.execute('performance',commands,{**app_files(binary),
+              'sheet.zvc':seed_sheet([(1,1,'12'),(1,2,'3.5'),(1,3,'=A1*B1')])},
+              timeout=600,console_class=UIConsole,base_programs=(),base_units=())
+    folder = n.RUN/'performance'
+    if (folder/'input-error.json').exists(): raise RuntimeError((folder/'input-error.json').read_text())
+    rows = json.loads((folder/'timing.json').read_text())
+    assert len(rows) == len(keys)
+    # Compare each navigation action against the measured original3-program
+    # fixture on this same emulator/ROM (analysis/zealcalc-timing-original-workers.json).
+    # The copying overlay implementation took18.6M cycles per arrow.
+    original_navigation = [6112499,5904770,5898287,6002011,5907949]
+    navigation = [row['cycles'] for row in rows if row['key'] in ('LEFT','RIGHT')]
+    assert len(navigation) == len(original_navigation)
+    assert all(current < original for current,original in zip(navigation,original_navigation)), rows
+    assert rows[5]['cycles'] < 75000000, rows
+    assert validate_log((folder/'hostfs/sheet.zvc').read_bytes())[1,2] == '78'
+    return rows
+
+
 def check_repaint(binary):
     commands = ['run 100000000']+n.type_text('cd H:/\n',ticks=4000000)+enter_app('zealcalc')
     commands += ['paint-start',ui_type('20\n'),'paint-stop edit',
@@ -546,8 +627,9 @@ def main():
             members.append({'member':i,'group':group,'code_bytes':size})
     reports['memory'] = {'resident_code_bytes':word(22),'resident_global_bytes':word(26),
                          'resident_total_bytes':word(22)+word(26),'checked_stack_bytes':word(32),
-                         'data_bank_bytes':16384,'data_bank_used_bytes':3092,'members':sorted(members,key=lambda row:row['member'])}
+                         'data_bank_bytes':16384,'data_bank_used_bytes':5192,'members':sorted(members,key=lambda row:row['member'])}
 
+    reports['performance'] = check_performance(binary)
     reports['repaint'] = check_repaint(binary)
     # Actual application: replace, edit-cancel, navigate, formulas, Blank, quit.
     # Shift mappings missing from the older common helper are supplied locally.
@@ -615,19 +697,22 @@ def main():
     (n.RUN/'zealcalc-results.json').write_text(json.dumps(manifest, indent=2)+'\n')
     destination = ROOT/'examples/zealcalc'
     if args.package:
+        verify_companion_files(destination, OVERLAYS['ZEALCALC'])
+        for name,data in OVERLAYS['ZEALCALC'].items():
+            target = destination/name; target.parent.mkdir(exist_ok=True)
+            if not target.exists(): target.write_bytes(data)
         for name in ('sheet', 'scrolled'):
             target = destination/'screenshots'; target.mkdir(exist_ok=True)
             (target/f'{name}.png').write_bytes((captures/f'{name}.png').read_bytes())
         (destination/'zealcalc.bin').write_bytes(binary)
-        for name, data in OVERLAYS['ZEALCALC'].items():
-            target = destination/name; target.parent.mkdir(exist_ok=True); target.write_bytes(data)
         for obsolete in ('zcsheet.bin','zccalc.bin'):
             (destination/obsolete).unlink(missing_ok=True)
         (destination/'binary.json').write_text(json.dumps(manifest, indent=2)+'\n')
     else:
         assert (destination/'zealcalc.bin').exists(), 'Run with --package to create the verified executable'
         assert (destination/'zealcalc.bin').read_bytes() == binary, 'Run with --package to refresh executable'
-        assert all((destination/name).read_bytes() == data for name,data in OVERLAYS['ZEALCALC'].items())
+        assert all((destination/name).is_file() and (destination/name).read_bytes() == data
+                   for name,data in OVERLAYS['ZEALCALC'].items()), 'Run with --package to refresh companions'
         previous = json.loads((destination/'binary.json').read_text())
         previous.pop('compiler_base_revision', None)
         comparison = dict(manifest); comparison.pop('compiler_base_revision')

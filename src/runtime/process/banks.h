@@ -18,9 +18,8 @@ typedef struct {
     uint16_t selected[OVERLAY_GROUPS],active[OVERLAY_GROUPS],parent[OVERLAY_GROUPS];
     uint32_t extent[OVERLAY_GROUPS];
     int8_t files[OVERLAY_GROUPS];
-    uint8_t drives[OVERLAY_GROUPS],execution[OVERLAY_GROUPS];
-    uint16_t cached_member[OVERLAY_RAM_PAGES];
-    uint8_t cached_page[OVERLAY_RAM_PAGES],victim;
+    uint8_t drives[OVERLAY_GROUPS];
+    uint16_t loaded_member[OVERLAY_RAM_PAGES];
     uint8_t owned[OVERLAY_RAM_PAGES],owned_count;
     uint8_t buffer[128];
 } OverlayBanks;
@@ -46,13 +45,13 @@ uint8_t overlay_banks_bind(OverlayBanks *banks,const char *basename,
  * handle/drive. Paths use the current directory on the selected drive; no
  * chdir, executable-path inference or fallback lookup is performed. */
 uint8_t overlay_banks_set_drive(OverlayBanks *banks,uint16_t drive);
-/* First use opens the group on the selected drive and loads only this member.
- * Subsequent cache hits perform no file I/O/allocation. Immutable templates
- * may be recycled on physical RAM exhaustion; misses reread the ORIGINAL
- * opened group handle. Mutable group pages remain live until close.
- * Changing members resets code/constants from the immutable template and
- * invalidates descendant selections; active code may never be replaced.
- * Enter returns an owned physical execution page or255, never maps it. */
+/* First use loads and validates a member directly into one owned execution
+ * page. That page and its mutable contents remain until close. Later calls,
+ * including sibling/parent reselection, perform no I/O, allocation or copying.
+ * RAM exhaustion is fatal; loaded members are never evicted. Group/parent
+ * activation rules remain TP3-compatible, but replacement/reset is deliberately
+ * replaced by persistent RAM state. Enter returns a physical page or255 and
+ * never changes the caller's MMU mapping. */
 uint8_t overlay_banks_enter(OverlayBanks *banks,uint16_t member);
 uint8_t overlay_banks_leave(OverlayBanks *banks,uint16_t member);
 uint16_t overlay_banks_entry(const OverlayBanks *banks,uint16_t member);

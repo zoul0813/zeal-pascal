@@ -40,7 +40,7 @@ begin
   Total:=Sum;Check((Total=60) and (Seen=6));
   Total:=Sum;Check((Total=60) and (Seen=7));
   Scale(2);
-  Total:=Sum;Check((Total=120) and (Seen=6));
+  Total:=Sum;Check((Total=120) and (Seen=8));
   WriteLn('Sheet total: ',Total);
   WriteLn('OVERLAYS OK')
 end.

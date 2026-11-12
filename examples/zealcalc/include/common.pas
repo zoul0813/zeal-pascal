@@ -2,7 +2,7 @@ const
   MaxRows = 254; MaxCols = 26; MaxEdits = 4096;
   ViewRows = 30; ViewCols = 7; CellWidth = 10;
   RequestName = 'zc.req'; ViewName = 'zc.view';
-  WireTag = 17242;
+  WireTag = 17242; GlyphCacheBase = 3092;
 type
   CellText = string[63]; LineText = string[79];
   PathText = string[127];

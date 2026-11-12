@@ -3,7 +3,7 @@
 procedure CacheCopy;
 begin
   if (cachepage < 32) or (cachepage > 63) or (size < 1) or
-     (size > 4096) or (offset > 4096 - size) then BackendFailure(37);
+     (size > 16384) or (offset > 16384 - size) then BackendFailure(37);
   Inline(
     $ED/$57/$F5/$F3/                 { ld a,i; push af; di }
     $AF/$DB/$F0/$F5/                 { select/read page0; push af }

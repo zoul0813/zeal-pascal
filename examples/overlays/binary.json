@@ -1,17 +1,17 @@
 {
   "format": 1,
   "description": "Native Pascal overlay COM image named .bin; retain generated MMU companion paths.",
-  "compiler_base_revision": "29ad439ba7a1fce86af6e72ce2d9cdc4d796f423",
-  "source_sha256": "fc425d4a091d5d120fcd305c8330791e63e6899d0ad7545aa1ad3443134ce305",
-  "compiler_sha256": "23725f31c909d7603b15e0a91d915b79eced52bf71df026e9a0602ecbceaff82",
-  "compiler_library_sha256": "dceed67e8b5fb49278bfc9213ef30a51c721e4bea2da70305b10ca39b294eb29",
-  "compiler_sources_sha256": "ce13a2c4578862d51323dff301c5fb311915114af5890c77c3dd68cd92d9addd",
+  "compiler_base_revision": "eabf4eef9b7279d9ff2f11c34e9780cccbca25c5",
+  "source_sha256": "c76e5bb5ba3f60fcda499aaaacbd4db4f2a3b7df10681c4bffb411b8fe3b7b43",
+  "compiler_sha256": "f1ab17a4efe7f0d129a740b04c207fdcf5248593476ff759c1556792e0cc98ef",
+  "compiler_library_sha256": "fc03a998076c69e8d1e6f0607c1d6d8c6d332105be6770d1d4eb0647578cf7aa",
+  "compiler_sources_sha256": "962c0a8d5abc72d7680e5bce6e4081030e3dcf6a1af5bd55e1ee484ea5247526",
   "artifacts": {
-    "sheetovr.bin": "40b972da6b75c80701c48c8aaf900a9f4a035ac41b625e881438b9b610f76540",
-    "ZP0006/P.000": "ed84d9b0c068cf6fa29315393580b7d2a5454238ad50c33e72f077139068c879",
-    "ZP0006/P.001": "8561212ca32b0e75562dcbc0a69f2a498b45c0df57fe181a338c52b1076bedf1"
+    "sheetovr.bin": "6a1829d853d4460ba15a3e4cbd858fa1329bfe0ec0e5ee551b66e9d0dd2a5768",
+    "ZP000B/P.000": "ed84d9b0c068cf6fa29315393580b7d2a5454238ad50c33e72f077139068c879",
+    "ZP000B/P.001": "8561212ca32b0e75562dcbc0a69f2a498b45c0df57fe181a338c52b1076bedf1"
   },
-  "native_capture": "analysis/native-slice/20261112T030244.771677Z-50390",
+  "native_capture": "analysis/native-slice/20261112T141245.067363Z-98092",
   "validation": {
     "file_bytes": 36428,
     "resident_code_bytes": 3611,
@@ -34,7 +34,7 @@
     "without_saved_COM": true
   },
   "replacement_preserves_old_groups": true,
-  "review": "Required Opus review unavailable: account weekly limit; zero review turns.",
+  "review": "Restricted Opus initial review and follow-up completed; findings reconciled in reviews/overlay-load-once-v1.md. No code blocker; host and native acceptance pass.",
   "shared_data_capacity": {
     "file_bytes": 42088,
     "resident_code_bytes": 1292,
@@ -53,5 +53,6 @@
     "packed_copy_in_resident_after": 0,
     "manager_bank_count_before": 1,
     "manager_bank_count_after": 1
-  }
+  },
+  "overlay_policy": "Load each member once into a retained executable RAM bank; preserve state; no templates, copies or eviction."
 }

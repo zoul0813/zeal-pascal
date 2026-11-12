@@ -5,7 +5,7 @@
 
 int8_t code_phase_fd=-1;
 uint8_t code_phase_pending[CODE_BANK_LIMIT]={
-    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255
 };
 static uint32_t valid,resume_mask;
 #ifdef ZP_OVERLAYS
@@ -103,7 +103,7 @@ uint8_t code_phase_restore(void) SOURCE_BLOCK_CALL {
     wanted&=~(1UL<<CODE_RUNTIME);
 #endif
 #ifdef ZP_UNITS_EXPERIMENT
-    wanted&=~((1UL<<CODE_UNIT_IO)|(1UL<<CODE_UNIT_META)|(1UL<<CODE_LINKER)|(1UL<<CODE_OVERLAYS)|(1UL<<CODE_OVERLAY_ASSETS));
+    wanted&=~((1UL<<CODE_UNIT_IO)|(1UL<<CODE_UNIT_META)|(1UL<<CODE_LINKER)|(1UL<<CODE_OVERLAYS));
 #endif
     return restore(wanted);
 }
@@ -183,6 +183,3 @@ uint8_t execute_native(const char *path,uint8_t *status) SOURCE_BLOCK_CALL {
 }
 
 uint8_t code_phase_overlays(void) SOURCE_BLOCK_CALL {return restore(1UL<<CODE_OVERLAYS);}
-/* The cold runtime bytes are needed only when reading the final saved image.
- * Leave their bank free during parsing, alongside imported Unit metadata. */
-uint8_t code_phase_overlay_asset(void) SOURCE_BLOCK_CALL {return restore(1UL<<CODE_OVERLAY_ASSETS);}

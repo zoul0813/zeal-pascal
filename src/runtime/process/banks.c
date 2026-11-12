@@ -27,9 +27,9 @@ static uint8_t position(OverlayBanks *b,int8_t fd,uint32_t offset) {
 }
 void overlay_banks_init(OverlayBanks *b) {
     memset(b,0,sizeof(*b));memset(b->files,255,sizeof(b->files));
-    memset(b->owned,255,sizeof(b->owned));memset(b->execution,255,sizeof(b->execution));
+    memset(b->owned,255,sizeof(b->owned));
     memset(b->selected,255,sizeof(b->selected));memset(b->parent,255,sizeof(b->parent));
-    memset(b->cached_member,255,sizeof(b->cached_member));memset(b->cached_page,255,sizeof(b->cached_page));
+    memset(b->loaded_member,255,sizeof(b->loaded_member));
 }
 uint8_t overlay_banks_bind(OverlayBanks *b,const char *name,const uint8_t *directory,uint16_t bytes) {
     uint16_t i,count,parent,size;uint8_t g,n=0,component=0,seen[OVERLAY_GROUPS];const uint8_t *r;
@@ -113,34 +113,20 @@ static uint8_t group_open(OverlayBanks *b,uint8_t group) {
     return !n?1:fail(b,ERR_ENTRY_CORRUPTED);
 }
 static uint8_t page(OverlayBanks *b,uint8_t *out) {
-    uint8_t p=255,error,i,j;uint16_t at;
-    error=b->owned_count==OVERLAY_RAM_PAGES?ERR_NO_MORE_MEMORY:palloc(&p);
-    if(!error) {
-        if(p<32||p>=64)return fail(b,ERR_FAILURE);
-        for(i=0;i<b->owned_count;++i)if(b->owned[i]==p)return fail(b,ERR_FAILURE);
-        b->owned[b->owned_count++]=p;
-    } else {
-        if(error!=ERR_NO_MORE_MEMORY)return fail(b,error);
-        p=255; /* Failed allocation leaves its output byte unspecified. */
-        /* Only immutable templates are evictable. Mutable group state and
-         * every live execution mapping remain owned and byte-for-byte intact. */
-        for(i=0;i<OVERLAY_RAM_PAGES;++i) {
-            j=(b->victim+i)%OVERLAY_RAM_PAGES;
-            if(b->cached_page[j]!=255) {
-                p=b->cached_page[j];b->cached_page[j]=255;b->cached_member[j]=OVERLAY_NO_MEMBER;
-                b->victim=(j+1u)%OVERLAY_RAM_PAGES;break;
-            }
-        }
-        if(p==255)return fail(b,ERR_NO_MORE_MEMORY);
-    }
+    uint8_t p=255,error,i;uint16_t at;
+    if(b->owned_count==OVERLAY_RAM_PAGES)return fail(b,ERR_NO_MORE_MEMORY);
+    error=palloc(&p);if(error)return fail(b,error);
+    if(p<32||p>=64)return fail(b,ERR_FAILURE);
+    for(i=0;i<b->owned_count;++i)if(b->owned[i]==p)return fail(b,ERR_FAILURE);
+    b->owned[b->owned_count++]=p;
     *out=p;memset(chain_buffer,0,sizeof(chain_buffer));chain_store=1;
     for(at=0;at<BANK_BYTES;at+=sizeof(chain_buffer))chain_page_io(p,at,sizeof(chain_buffer));
     return 1;
 }
-static uint8_t template_page(OverlayBanks *b,uint16_t member) {
+static uint8_t member_page(OverlayBanks *b,uint16_t member) {
     const uint8_t *r=record(b,member);uint8_t i,p,group=(uint8_t)word(r);
     uint16_t at,n,j,a=0,z=0,size=word(r+4);
-    for(i=0;i<OVERLAY_RAM_PAGES;++i)if(b->cached_member[i]==member)return b->cached_page[i];
+    for(i=0;i<b->owned_count;++i)if(b->loaded_member[i]==member)return b->owned[i];
     if(!group_open(b,group)||!page(b,&p)||!position(b,b->files[group],dword(r+8)))return 255;
     for(at=0;at<size;at+=n) {
         n=size-at;if(n>sizeof(b->buffer))n=sizeof(b->buffer);
@@ -149,10 +135,9 @@ static uint8_t template_page(OverlayBanks *b,uint16_t member) {
         memcpy(chain_buffer,b->buffer,n);chain_store=1;chain_page_io(p,at,n);
     }
     if(((uint16_t)(z<<8)|a)!=word(r+12)){fail(b,ERR_ENTRY_CORRUPTED);return 255;}
-    for(i=0;i<OVERLAY_RAM_PAGES;++i)if(b->cached_page[i]==255) {
-        b->cached_member[i]=member;b->cached_page[i]=p;return p;
-    }
-    fail(b,ERR_NO_MORE_MEMORY);return 255;
+    /* Publish only complete, checksum-verified code. Failed loads remain owned
+     * for terminal cleanup, and can never become a warm execution target. */
+    b->loaded_member[b->owned_count-1]=member;return p;
 }
 static uint8_t descendant(OverlayBanks *b,uint8_t group,uint16_t member) {
     uint16_t parent=b->parent[group];
@@ -165,7 +150,7 @@ uint16_t overlay_banks_entry(const OverlayBanks *b,uint16_t member) {
     return b->ready&&member<b->count?word(record(b,member)+6):0;
 }
 uint8_t overlay_banks_enter(OverlayBanks *b,uint16_t member) {
-    const uint8_t *r;uint16_t at,old,parent;uint8_t group,i,p;
+    const uint8_t *r;uint16_t old,parent;uint8_t group,i,p;
     if(!b->ready||b->error||member>=b->count){fail(b,ERR_INVALID_PARAMETER);return 255;}
     r=record(b,member);group=(uint8_t)word(r);parent=word(r+2);old=b->selected[group];
     if(parent!=OVERLAY_NO_MEMBER&&b->selected[word(record(b,parent))]!=parent) {
@@ -177,19 +162,13 @@ uint8_t overlay_banks_enter(OverlayBanks *b,uint16_t member) {
         for(i=0;i<b->groups;++i)if(old!=OVERLAY_NO_MEMBER&&descendant(b,i,old)&&b->active[i]) {
             fail(b,ERR_INVALID_PARAMETER);return 255;
         }
-        if(!group_open(b,group))return 255;
-        /* Allocate the work page first: recycling a template to obtain it
-         * must not invalidate the template chosen for this same switch. */
-        if(b->execution[group]==255&&!page(b,b->execution+group))return 255;
-        p=template_page(b,member);if(p==255)return 255;
-        for(at=0;at<BANK_BYTES;at+=sizeof(chain_buffer)) {
-            chain_store=0;chain_page_io(p,at,sizeof(chain_buffer));
-            chain_store=1;chain_page_io(b->execution[group],at,sizeof(chain_buffer));
-        }
+    }
+    p=member_page(b,member);if(p==255)return 255;
+    if(old!=member) {
         for(i=0;i<b->groups;++i)if(old!=OVERLAY_NO_MEMBER&&descendant(b,i,old))b->selected[i]=OVERLAY_NO_MEMBER;
         b->selected[group]=member;
     }
-    ++b->active[group];return b->execution[group];
+    ++b->active[group];return p;
 }
 uint8_t overlay_banks_leave(OverlayBanks *b,uint16_t member) {
     uint16_t group;

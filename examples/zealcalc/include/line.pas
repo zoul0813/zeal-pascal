@@ -1,7 +1,7 @@
 {$R-}
 { Private indices follow the viewport, frame and string bounds checked at entry. }
 overlay procedure Line(y: integer; text: LineText);
-var slot, first, offset: integer; oldlength: byte; oldchar: char; same: boolean;
+var slot, first, offset: integer; old: LineText; same: boolean;
 { The renderer already owns the ZVB ports and validated 80x40 coordinates. }
 procedure Position(x, y: integer);
 begin
@@ -42,15 +42,17 @@ end;
 begin
   if y <= 3 then slot := y else slot := y - 33;
   offset := 2100 + (slot - 1) * 80;
-  CacheCopy(offset, oldlength, 1, True);
+  CacheCopy(offset, old, 80, True);
+  { Most lines are unchanged. Use the runtime's block string comparison
+    before searching a changed line's prefix character by character. }
+  if text = old then Exit;
   first := 1; same := True;
-  while (first <= Length(text)) and (first <= oldlength) and same do
+  while (first <= Length(text)) and (first <= Length(old)) and same do
   begin
-    CacheCopy(offset + first, oldchar, 1, True);
-    if text[first] = oldchar then first := first + 1
+    if text[first] = old[first] then first := first + 1
     else same := False
   end;
-  if same and (first > Length(text)) and (Length(text) = oldlength) then Exit;
+  if same and (first > Length(text)) and (Length(text) = Length(old)) then Exit;
   Pen(False); Position(first, y); ClearTail;
   Say(Copy(text, first, 79)); CacheCopy(offset, text, 80, False)
 end;

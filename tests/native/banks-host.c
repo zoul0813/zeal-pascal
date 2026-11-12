@@ -12,7 +12,7 @@ static const char *folder,*override;
 static char cwd[128]="H:/app",opened[16][128];
 static uint16_t directory_bytes;
 uint8_t chain_buffer[128],chain_store;
-static unsigned checks,opens,reads,seeks,allocations,closes,stats,read_bytes;
+static unsigned checks,opens,reads,seeks,allocations,closes,stats,read_bytes,page_ios;
 static unsigned bad_read,zero_read,large_read,bad_alloc,bad_close,bad_seek,bad_stat,short_read,quota=32;
 static unsigned returned[256];
 static int bad_free=-1;
@@ -69,6 +69,7 @@ zos_err_t close(zos_dev_t fd) {
 }
 void chain_page_io(uint8_t page,uint16_t at,uint16_t bytes) {
     check(page>=32&&page<64&&owned[page]&&bytes&&bytes<=128&&(uint32_t)at+bytes<=16384);
+    ++page_ios;
     if(chain_store)memcpy(pages[page]+at,chain_buffer,bytes);else memcpy(chain_buffer,pages[page]+at,bytes);
 }
 static void clean(void) {
@@ -76,7 +77,7 @@ static void clean(void) {
     for(i=2;i<16;++i)check(!kinds[i]);
 }
 static void reset(void) {
-    clean();opens=reads=seeks=allocations=closes=stats=read_bytes=0;
+    clean();opens=reads=seeks=allocations=closes=stats=read_bytes=page_ios=0;
     bad_read=zero_read=large_read=bad_alloc=bad_close=bad_seek=bad_stat=short_read=0;
     bad_free=-1;quota=32;override=0;strcpy(cwd,"H:/app");
 }
@@ -89,30 +90,30 @@ static uint8_t bind(void) {return overlay_banks_bind(&banks,"BANK",directory,dir
 static uint8_t enter(uint16_t member) {return overlay_banks_enter(&banks,member);}
 static void inactive(uint16_t member) {check(overlay_banks_leave(&banks,member));}
 int main(int argc,char **argv) {
-    uint8_t a,c,p;unsigned i,total_reads,total_seeks,events[256],io;char path[1400];
+    uint8_t a,c,p,d;unsigned i,total_reads,total_seeks,events[256],io;char path[1400];
     check(argc>=2);folder=argv[1];overlay_banks_init(&banks);metadata("directory.bin");
     check(overlay_banks_bind(&banks,"ZP0000/P",directory,directory_bytes));check(!opens&&!allocations);check(overlay_banks_close(&banks));
     {const char *bad[]={"/P","../P","A/../P","A/./P","P/","P//Q","H:/P","A\\P"};
      for(i=0;i<sizeof(bad)/sizeof(*bad);++i){check(!overlay_banks_bind(&banks,bad[i],directory,directory_bytes));check(banks.error==ERR_INVALID_PATH);check(overlay_banks_close(&banks));}}
     check(bind()&&!opens&&!allocations&&!used());check(banks.count==4&&banks.groups==2);
-    a=enter(0);check(a!=255&&used()==2&&pages[a][0]==0x31&&read_bytes==80+16384);
+    a=enter(0);check(a!=255&&used()==1&&pages[a][0]==0x31&&read_bytes==80+16384);
     total_reads=reads;total_seeks=seeks;memcpy(events,returned,sizeof(events));
-    check(total_reads<256);check(banks.files[1]<0&&banks.execution[1]==255);
-    check(banks.drives[0]=='H');inactive(0);io=reads+opens+allocations+seeks+closes;
+    check(total_reads<256);check(banks.files[1]<0&&banks.owned_count==1);
+    check(banks.drives[0]=='H');inactive(0);io=reads+opens+allocations+seeks+closes+stats+page_ios;
     pages[a][0]=0x91;check(enter(0)==a&&pages[a][0]==0x91);inactive(0);
-    check(io==reads+opens+allocations+seeks+closes);
+    check(io==reads+opens+allocations+seeks+closes+stats+page_ios);
     check(overlay_banks_set_drive(&banks,20));
-    p=enter(1);check(p==a&&pages[p][0]==0x32&&banks.drives[0]=='H');
+    p=enter(1);d=p;check(p!=255&&p!=a&&pages[p][0]==0x32&&banks.drives[0]=='H');
     check(!strcmp(opened[banks.files[0]],"H:/app/BANK.000"));
-    c=enter(2);check(c!=255&&c!=a&&pages[c][0]==0x33&&banks.drives[1]=='T');
+    c=enter(2);check(c!=255&&c!=a&&c!=d&&pages[c][0]==0x33&&banks.drives[1]=='T');
     check(!strcmp(opened[banks.files[1]],"T:/app/BANK.001"));
     pages[c][0]=0x93;inactive(2);inactive(1);
-    io=reads+opens+allocations+seeks+closes;
-    check(enter(1)==a);check(enter(2)==c&&pages[c][0]==0x93);inactive(2);inactive(1);
-    check(enter(0)==a&&pages[a][0]==0x31);inactive(0);
-    check(enter(1)==a&&banks.selected[1]==65535u);
-    check(enter(2)==c&&pages[c][0]==0x33);inactive(2);inactive(1);
-    check(io==reads+opens+allocations+seeks+closes);reset();
+    io=reads+opens+allocations+seeks+closes+stats+page_ios;
+    check(enter(1)==d);check(enter(2)==c&&pages[c][0]==0x93);inactive(2);inactive(1);
+    check(enter(0)==a&&pages[a][0]==0x91);inactive(0);
+    check(enter(1)==d&&banks.selected[1]==65535u);
+    check(enter(2)==c&&pages[c][0]==0x93);inactive(2);inactive(1);
+    check(io==reads+opens+allocations+seeks+closes+stats+page_ios);reset();
     /* Drive0 follows the logged drive at FIRST USE, not at OvrDrive(0).
      * A later explicit selection cannot rebind the already opened group. */
     check(bind()&&overlay_banks_set_drive(&banks,0));strcpy(cwd,"T:/app");
@@ -122,16 +123,16 @@ int main(int argc,char **argv) {
     /* Merely binding a valid program must not touch even a missing group. */
     check(overlay_banks_bind(&banks,"MISSING",directory,directory_bytes));
     check(!opens&&!allocations&&enter(0)==255&&!allocations&&banks.selected[0]==65535u);reset();
-    check(bind()&&enter(0)!=255);check(enter(1)==255&&banks.selected[0]==0&&pages[banks.execution[0]][0]==0x31);reset();
-    check(bind()&&enter(0)!=255);inactive(0);pages[banks.execution[0]][0]=0x91;
-    bad_read=reads+1;check(enter(1)==255&&banks.selected[0]==0&&pages[banks.execution[0]][0]==0x91);reset();
+    check(bind());a=enter(0);check(a!=255);check(enter(1)==255&&banks.selected[0]==0&&pages[a][0]==0x31);reset();
+    check(bind());a=enter(0);check(a!=255);inactive(0);pages[a][0]=0x91;
+    bad_read=reads+1;check(enter(1)==255&&banks.selected[0]==0&&pages[a][0]==0x91&&banks.loaded_member[1]==65535u);reset();
     for(i=1;i<=total_reads;++i) {
         bad_read=i;check(bind()&&enter(0)==255&&banks.error);reset();
         if(events[i]){zero_read=i;check(bind()&&enter(0)==255);reset();}
         large_read=i;check(bind()&&enter(0)==255);reset();
     }
     for(i=1;i<=total_seeks;++i){bad_seek=i;check(bind()&&enter(0)==255);reset();}
-    for(i=1;i<=2;++i){bad_alloc=i;check(bind()&&enter(0)==255);reset();}
+    for(i=1;i<=1;++i){bad_alloc=i;check(bind()&&enter(0)==255);reset();}
     bad_stat=1;check(bind()&&enter(0)==255&&!allocations);reset();
     short_read=3;check(bind()&&enter(0)!=255);inactive(0);reset();
     check(bind()&&enter(0)!=255);inactive(0);bad_close=1;
@@ -141,14 +142,19 @@ int main(int argc,char **argv) {
     check(bind());check(!overlay_banks_set_drive(&banks,27)&&!banks.drive&&!allocations);reset();
     check(bind());check(!overlay_banks_set_drive(&banks,26)&&!banks.drive&&!allocations);reset();
     check(bind());bad_close=1;check(!overlay_banks_set_drive(&banks,20)&&!banks.drive);reset();
-    /* More logical members than physical pages; only immutable cache entries
-     * are recycled. Every miss retains its first-use drive, even after chdir. */
+    /* Exhaustion fails instead of recycling any loaded executable. Warm
+     * reselection before exhaustion changes neither bytes nor I/O/MMU traffic. */
     metadata("big-directory.bin");quota=3;snprintf(path,sizeof(path),"%s/big.000",folder);override=path;
     check(bind()&&banks.count==40&&!allocations&&!opens);
-    for(i=0;i<40;++i){p=enter((uint16_t)i);check(p!=255&&pages[p][0]==(uint8_t)(0x31+i));inactive((uint16_t)i);}
-    check(used()==3&&opens==1);check(overlay_banks_set_drive(&banks,20));strcpy(cwd,"T:/elsewhere");
-    i=opens;check(enter(0)!=255&&banks.drives[0]=='H'&&!strcmp(opened[banks.files[0]],"H:/app/BANK.000"));inactive(0);
-    check(opens==i&&used()==3);reset();metadata("directory.bin");
+    for(i=0;i<3;++i){p=enter((uint16_t)i);check(p!=255&&pages[p][0]==(uint8_t)(0x31+i));
+        pages[p][0]=(uint8_t)(0x91+i);inactive((uint16_t)i);}
+    check(used()==3&&opens==1);strcpy(cwd,"T:/elsewhere");
+    io=reads+opens+allocations+seeks+closes+stats+page_ios;
+    for(i=0;i<3;++i){p=enter((uint16_t)i);check(p==banks.owned[i]&&pages[p][0]==(uint8_t)(0x91+i));inactive((uint16_t)i);}
+    check(io==reads+opens+allocations+seeks+closes+stats+page_ios);
+    check(enter(3)==255&&banks.error==ERR_NO_MORE_MEMORY&&used()==3&&banks.owned_count==3);
+    for(i=0;i<3;++i)check(banks.loaded_member[i]==i&&pages[banks.owned[i]][0]==(uint8_t)(0x91+i));
+    reset();metadata("directory.bin");
     for(i=2;i<(unsigned)argc;++i) {
         const char *suffix=strrchr(argv[i],'.');
         if(suffix&&!strcmp(suffix,".dir")) {
@@ -157,6 +163,6 @@ int main(int argc,char **argv) {
             check(!bind()&&!opens&&!allocations);reset();metadata("directory.bin");
         } else {override=argv[i];check(bind()&&enter(0)==255&&banks.error);reset();}
     }
-    printf("PASS: %u on-demand overlay/cache/drive checks; %u read and %u seek fault positions\n",checks,total_reads,total_seeks);
+    printf("PASS: %u load-once overlay/persistence/drive checks; %u read and %u seek fault positions\n",checks,total_reads,total_seeks);
     return 0;
 }

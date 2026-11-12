@@ -8,6 +8,6 @@ typedef struct {
     const uint8_t *directory;
     const char *basename;
     uint16_t directory_bytes,operation,value;
-    uint8_t page,changed,error,reserved;
+    uint8_t page,first_load,error,reserved;
 } OverlayJob;
 #endif

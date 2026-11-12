@@ -188,7 +188,7 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     if(!cc_file_native_prepare())goto failed;
 #endif
 #ifdef ZP_OVERLAYS
-    if(sources.overlays&&(!code_phase_overlay_asset()||!cc_overlay_finish()))goto failed;
+    if(sources.overlays&&!cc_overlay_finish())goto failed;
 #endif
     if(!options||options->kind!=COMPILE_CHAIN)cc_startup_finish();
     if(d->code||!cc_place_code())goto failed;

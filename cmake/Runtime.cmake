@@ -180,7 +180,8 @@ add_executable(overlay_runtime src/runtime/process/bank_module.asm
     src/runtime/process/bank_module.c src/runtime/process/banks.c
     src/runtime/process/chain_native.asm ${CMAKE_BINARY_DIR}/sdk_glue.asm)
 target_include_directories(overlay_runtime PRIVATE src)
-target_compile_options(overlay_runtime PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size>)
+# The smaller packed template is required by the shared compiler BANK20 budget.
+target_compile_options(overlay_runtime PRIVATE $<$<COMPILE_LANGUAGE:C>:--std-c99;--opt-code-size;--max-allocs-per-node;1000000>)
 set_target_properties(overlay_runtime PROPERTIES LINKER_LANGUAGE ASM)
 zp_add_outputs(overlay_runtime WITH_EXTENSION zpl)
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/overlay_runtime.packed

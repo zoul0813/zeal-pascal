@@ -2,7 +2,7 @@ overlay procedure Calculate;
 var frames: array[1..MaxFrames] of ParseFrame;
   level, nesting, visits, issue, numberstart, numbercode: integer;
   wire: array[0..3] of byte; complete: word;
-  r, c, i: integer; offset: longword;
+  r, c, i: integer; offset: longword; sourcelevel: byte;
 {$R-}
 function Checksum: word;
 var i: integer; total: word;
@@ -95,14 +95,19 @@ begin
 end;
 
 function Current: char;
-var key: char;
 begin
   with frames[level] do
     if pos > chars then Current := #0
     else
     begin
-      CacheCopy(2580 + (level - 1) * 64 + pos, key, 1, True);
-      Current := UpCase(key)
+      { SaveSheet has already consumed the edit. Reuse its source staging
+        for the current frame; reload only when recursion changes frames. }
+      if sourcelevel <> level then
+      begin
+        CacheCopy(2580 + (level - 1) * 64, request.source, 64, True);
+        sourcelevel := level
+      end;
+      Current := UpCase(request.source[pos])
     end
 end;
 
@@ -245,6 +250,7 @@ begin
     begin
       row := r; col := c; LoadCell(r, c); chars := Length(entry.text);
       CacheCopy(2580 + (level - 1) * 64, entry.text, 64, False);
+      sourcelevel := 0; { This depth can now hold a different cell. }
       if chars <> 0 then
         if entry.text[1] = '=' then
         begin
@@ -301,7 +307,7 @@ end;
 begin
   { Keep checked ZOS calls below the CPU stack even at the combined parser/
     dependency limit. Expression workspaces grow down below this boundary. }
-  RecurPtr := StackPtr - 3200;
+  RecurPtr := StackPtr - 3200; sourcelevel := 0;
   records := job.records;
   for i := 1 to MaxRows do
     if job.heads[i] >= records then Fatal(34);
@@ -318,7 +324,12 @@ begin
   for r := job.top to job.top + ViewRows - 1 do
     for c := job.left to job.left + ViewCols - 1 do
     begin
-      RenderCell; Transfer(outputdevice, job.reply.visible, SizeOf(job.reply.visible), True)
+      RenderCell;
+      { Publish display strings directly to the shared data bank. Paint needs
+        the disk viewport only for the selected cell's full source text. }
+      CacheCopy(GlyphCacheBase + ((r - job.top) * ViewCols + c - job.left) * 10,
+                job.reply.visible.shown, 10, False);
+      Transfer(outputdevice, job.reply.visible, SizeOf(job.reply.visible), True)
     end;
   CloseDevice(device);
   offset := 0; SeekDevice(outputdevice, offset);

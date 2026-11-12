@@ -93,6 +93,7 @@ jobs:
 
       - name: Check emulator and build its OS ROM
         run: |
+          echo "$GITHUB_WORKSPACE/Zeal-NativeEmulator/build" >> "$GITHUB_PATH"
           "$GITHUB_WORKSPACE/Zeal-NativeEmulator/build/zeal-native" --help
           zde --no-tty kernel zeal8bit/emu
           test -s "$ZDE_PATH/home/Zeal-8-bit-OS/build/os_with_romdisk.img"

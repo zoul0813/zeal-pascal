@@ -221,15 +221,15 @@
         480
       ],
       "programs": {
-        "examples/zealcalc/zealcalc.bin": "ac658fc3e4638d3c517503426b56aee957d72cc73048070b2789821e25a2068a",
-        "examples/zealcalc/ZP0000/P.004": "e8a2d842cbbe87db1b0004d81f39c8252618e0feed8cec66b8acc96342622116",
-        "examples/zealcalc/ZP0000/P.003": "82c6c443d48d41ce47d0eeaf7315cbe92c3c07167d01fd6916c1634295b2ed9b",
-        "examples/zealcalc/ZP0000/P.002": "1d89f16d37d85f3f56c1815be5d770ebaafb937d9fa1ed0b946c4b413741c646",
-        "examples/zealcalc/ZP0000/P.005": "bf0500d9afa0015e36ed25fa723240b4aa98d2d52b0eaa578175bb51fd792dd0",
-        "examples/zealcalc/ZP0000/P.000": "fedcd8fc5fe2cbaba741e1fd2e0b7d41c6ee99b57a506fb7de2d2f7dcb35f6c1",
-        "examples/zealcalc/ZP0000/P.001": "6445369debf13101c22997efcfd74ffc4af510db4c03a11725c6bb4681acb0f7"
+        "examples/zealcalc/zealcalc.bin": "88bc1860a6a1a90c16858c4803607fe17b66cda79c21e0943374f570992841cb",
+        "examples/zealcalc/ZP0001/P.004": "96bbb59e3d427f263f410a0dcd9b36cba258112d2c9bde49147fe97dc533d863",
+        "examples/zealcalc/ZP0001/P.003": "ce5860af52e12289351d4a0a30d3f95dc356c469e3f766d07135b8cef053a1f3",
+        "examples/zealcalc/ZP0001/P.002": "39601105b69f7a08df9dd3958d3f0194199739c3e77805ec4fc3bb3d24eb1641",
+        "examples/zealcalc/ZP0001/P.005": "08ee79b59c4449bd7e4480610f1882e5685322f3f1418d575fc784f705e895a7",
+        "examples/zealcalc/ZP0001/P.000": "7f013165104d474835edc3d0d488c8d6fb88c1bab71ad7da148f7ff4b885c45e",
+        "examples/zealcalc/ZP0001/P.001": "c81fdc0dfcfb06e1709e32df68168def302703bbc9c89a1738a65839691391ef"
       },
-      "display_vram_sha256": "943fdcc453323c5fe3219d5ea765159dee31cf451882bdc2e4f696d3cc194467",
+      "display_vram_sha256": "b094433c75b0e61c8e0c082872d32977bdf28723f016cb38f6491f6ac1548819",
       "captured_on": "2026-11-12"
     },
     "calc.png": {

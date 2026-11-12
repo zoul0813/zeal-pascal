@@ -1,10 +1,10 @@
 #ifndef ZP_LIBRARY_H
 #define ZP_LIBRARY_H
 #include "common/zp.h"
-#define CODE_BANK_LIMIT 21
+#define CODE_BANK_LIMIT 20
 enum { CODE_IDE=0,CODE_STATEMENTS,CODE_SHARED,CODE_FRONTEND,CODE_ROUTINES,
        CODE_EXPRESSIONS,CODE_BUILD,CODE_RUNTIME,CODE_METADATA,CODE_FILE_COMPILER,
-       CODE_FILE_RUNTIME,CODE_DEVICES,CODE_EDITOR,CODE_COMPILE,CODE_TRANSFER,CODE_UNITS,CODE_UNIT_IO,CODE_UNIT_META,CODE_LINKER,CODE_OVERLAYS,CODE_OVERLAY_ASSETS };
+       CODE_FILE_RUNTIME,CODE_DEVICES,CODE_EDITOR,CODE_COMPILE,CODE_TRANSFER,CODE_UNITS,CODE_UNIT_IO,CODE_UNIT_META,CODE_LINKER,CODE_OVERLAYS };
 /* BANK5 contains the phase loader itself and must remain loaded. The parser
  * expression/interrupt and file/I/O generators have no editor entry points. */
 #ifdef ZP_OPTIONAL_REAL
@@ -27,7 +27,6 @@ uint8_t code_phase_unit_io_release(void) SOURCE_BLOCK_CALL;
 extern char code_library_directory[128];
 #define DEFAULT_LIBRARY "T:/lib/zpascal.zpl"
 uint8_t code_phase_overlays(void) SOURCE_BLOCK_CALL;
-uint8_t code_phase_overlay_asset(void) SOURCE_BLOCK_CALL;
 extern uint8_t code_pages[CODE_BANK_LIMIT],code_owned,boot_error;
 extern uint16_t code_sizes[CODE_BANK_LIMIT];
 extern const uint8_t code_required,code_version[4];
