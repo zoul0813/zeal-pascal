@@ -1,6 +1,87 @@
+overlay procedure Calculate;
+var frames: array[1..MaxFrames] of ParseFrame;
+  level, nesting, visits, issue, numberstart, numbercode: integer;
+  wire: array[0..3] of byte; complete: word;
+  r, c, i: integer; offset: longword;
+{$R-}
+function Checksum: word;
+var i: integer; total: word;
+begin
+  total := entry.row + entry.col + entry.previous + Length(entry.text);
+  for i := 1 to Length(entry.text) do total := total + Ord(entry.text[i]);
+  Checksum := total
+end;
+
+{$R+}
+{$R-}
+{ Read-only typed-sheet payload through checked ZOS I/O. The save overlay has
+  already validated every record; the calculator still checks each fetched record. }
+procedure Fatal(code: integer);
+begin BackendFailure(code) end;
+
+{ Centralize descriptor lifecycle and syscall staging in this overlay. }
+procedure CloseDevice(var fd: integer);
+var status: integer;
+begin
+  status := ZOS(ZOS_CLOSE, fd); fd := -1;
+  if status <> 0 then Fatal(36)
+end;
+procedure SeekDevice(fd: integer; offset: longword);
+var status: integer;
+begin
+  status := ZOS(ZOS_SEEK, fd, offset, ZOS_SEEK_SET);
+  if status <> 0 then Fatal(3)
+end;
+function OpenRead: integer;
+begin
+  OpenRead := ZOS(ZOS_OPEN, job.path, ZOS_O_RDONLY)
+end;
+
+procedure Transfer(fd: integer; var buffer; size: word; writing: boolean);
+var amount: word; status: integer;
+begin
+  amount := size;
+  if writing then status := ZOS(ZOS_WRITE, fd, buffer, amount)
+  else status := ZOS(ZOS_READ, fd, buffer, amount);
+  if (status <> 0) or (amount <> size) then Fatal(31)
+end;
+
+procedure ReadRecord(index: integer);
+var offset: longword; i: integer;
+begin
+  if (index < 0) or (index >= records) then Fatal(19);
+  offset := index; offset := offset * 70 + 4;
+  SeekDevice(device, offset);
+  Transfer(device, entry, SizeOf(entry), False);
+  if Length(entry.text) > 63 then Fatal(5);
+  if entry.check <> Checksum then Fatal(6);
+  for i := 1 to Length(entry.text) do
+    if (entry.text[i] < ' ') or (entry.text[i] > '~') then Fatal(7)
+end;
+
+{$R+}
+{$R-}
+{ Walk one row's validated disk history, retaining just the requested source. }
+procedure LoadCell(r, c: integer);
+var at: integer;
+begin
+  if (r < 1) or (r > MaxRows) or (c < 1) or (c > MaxCols) then Fatal(19);
+  at := job.heads[r];
+  while at <> 0 do
+  begin
+    ReadRecord(at);
+    if (entry.row <> r) or (entry.previous >= at) then Fatal(20);
+    if entry.col = c then Exit;
+    at := entry.previous
+  end;
+  entry.text := ''
+end;
+{$R+}
 {$R-}
 { Frame and string indices are checked at entry and bounded by the parser.
   Precedence climbing shares one recursive parser across every operator. }
+overlay function Evaluate(r, c: integer): real;
+var value: real; code, i: integer;
 procedure Error(code: integer);
 begin
   if issue = 0 then issue := code
@@ -14,10 +95,15 @@ begin
 end;
 
 function Current: char;
+var key: char;
 begin
   with frames[level] do
-    if pos > Length(text) then Current := #0
-    else Current := UpCase(text[pos])
+    if pos > chars then Current := #0
+    else
+    begin
+      CacheCopy(2580 + (level - 1) * 64 + pos, key, 1, True);
+      Current := UpCase(key)
+    end
 end;
 
 procedure Advance;
@@ -46,7 +132,6 @@ begin
   if (r < 1) or (r > MaxRows) or (c = 0) then Error(ErrRef)
 end;
 
-function Evaluate(r, c: integer): real; forward;
 {$A-}
 function Expression(minimum: integer): real;
 var value, right: real; op: char; precedence: integer;
@@ -101,7 +186,8 @@ begin
       while ((Current >= '0') and (Current <= '9')) or (Current = '.') do Advance;
       { Numeric conversion finishes before any recursive call. Reuse the disk
         buffer; active sources already live in frames, not entry. }
-      entry.text := Copy(frames[level].text, numberstart, frames[level].pos - numberstart);
+      CacheCopy(2580 + (level - 1) * 64, entry.text, 64, True);
+      entry.text := Copy(entry.text, numberstart, frames[level].pos - numberstart);
       if entry.text = '.' then Error(ErrSyntax)
       else
       begin
@@ -144,8 +230,6 @@ end;
   already belong to frames[level], and value is assigned only after it returns.
   Keep recursion storage in Expression, whose left operand and SUM loop do live
   across those calls. }
-function Evaluate;
-var value: real; code, i: integer;
 begin
   value := 0.0;
   if level = 0 then visits := 0;
@@ -159,16 +243,17 @@ begin
     level := level + 1;
     with frames[level] do
     begin
-      row := r; col := c; LoadCell(r, c); text := entry.text;
-      if text <> '' then
-        if text[1] = '=' then
+      row := r; col := c; LoadCell(r, c); chars := Length(entry.text);
+      CacheCopy(2580 + (level - 1) * 64, entry.text, 64, False);
+      if chars <> 0 then
+        if entry.text[1] = '=' then
         begin
           pos := 2; value := Expression(1); Spaces;
           if Current <> #0 then Error(ErrSyntax)
         end
         else
         begin
-          Val(text, value, code);
+          Val(entry.text, value, code);
           if code <> 0 then value := 0.0 else value := Bounded(value)
         end
     end;
@@ -192,7 +277,7 @@ begin
       if (entry.text[1] = '=') or (code = 0) then
       begin
         labelcell := False; issue := 0; level := 0; nesting := 0;
-        if entry.text[1] = '=' then value := Evaluate(r, c) else value := Bounded(value);
+        value := Evaluate(r, c);
         if issue <> 0 then entry.text := ErrorNames[issue]
         else Str(value:0:2, entry.text);
         if Length(entry.text) > 9 then job.reply.visible.shown := '>>>>>>>>>'
@@ -213,3 +298,31 @@ begin
   job.reply.visible.labelcell := labelcell
 end;
 {$R+}
+begin
+  { Keep checked ZOS calls below the CPU stack even at the combined parser/
+    dependency limit. Expression workspaces grow down below this boundary. }
+  RecurPtr := StackPtr - 3200;
+  records := job.records;
+  for i := 1 to MaxRows do
+    if job.heads[i] >= records then Fatal(34);
+  device := OpenRead;
+  if device < 0 then Fatal(2);
+  Transfer(device, wire, 4, False);
+  if (wire[0] + wire[1] * 256 <> records) or (wire[2] <> 70) or (wire[3] <> 0) then Fatal(34);
+  outputdevice := ZOS(ZOS_OPEN, ViewName, ZOS_O_WRONLY);
+  if outputdevice < 0 then Fatal(35);
+  job.reply.header.tag := 0; job.reply.header.generation := job.generation;
+  job.reply.header.top := job.top; job.reply.header.left := job.left;
+  job.reply.header.records := records; job.reply.header.notice := notice;
+  Transfer(outputdevice, job.reply.header, SizeOf(job.reply.header), True);
+  for r := job.top to job.top + ViewRows - 1 do
+    for c := job.left to job.left + ViewCols - 1 do
+    begin
+      RenderCell; Transfer(outputdevice, job.reply.visible, SizeOf(job.reply.visible), True)
+    end;
+  CloseDevice(device);
+  offset := 0; SeekDevice(outputdevice, offset);
+  complete := WireTag; Transfer(outputdevice, complete, SizeOf(complete), True);
+  CloseDevice(outputdevice);
+end;
+

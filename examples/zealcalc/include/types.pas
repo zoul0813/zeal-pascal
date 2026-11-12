@@ -11,8 +11,7 @@ type
     check: word
   end;
   ParseFrame = record
-    row, col, pos: integer;
-    text: CellText
+    row, col, pos, chars: byte
   end;
 type ErrorTable = array[0..7] of IssueText;
 const ErrorNames: ErrorTable =

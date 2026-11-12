@@ -46,6 +46,7 @@ void cc_system_init(void) FRONTEND {
 
 static uint8_t get(uint16_t p) {
     if(!++cc.scan_poll)cc_poll();
+    if(cc.input->page==255)return p<cc.input->length?cc_source_byte(((SourcePosition)cc.sources->file<<16)|p):0;
     return p<cc.input->length ? buffer_view_get(cc.input->page,cc.sources->input_base,p) : 0;
 }
 static uint8_t lower(uint8_t c) { return c>='A'&&c<='Z' ? c+32 : c; }
@@ -72,7 +73,8 @@ static uint8_t name_matches_view(uint16_t reference,uint8_t length,Source *view,
         *loaded=file;*base=sources_offset(&cc.image->sources,file);
     }
     if((uint32_t)at+length>view->length)return 0;
-    for(i=0;i<length;++i)if(cc.name[i]!=lower(buffer_view_get(view->page,*base,at+i)))return 0;
+    for(i=0;i<length;++i)if(cc.name[i]!=lower(view->page==255?
+        cc_source_byte(position+i):buffer_view_get(view->page,*base,at+i)))return 0;
     return 1;
 }
 static uint8_t letter(uint8_t c) { c=lower(c); return (c>='a'&&c<='z')||c=='_'; }

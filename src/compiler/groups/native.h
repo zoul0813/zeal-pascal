@@ -8,6 +8,8 @@ void cc_overlays_close(const Build *build) SOURCE_BLOCK_CALL;
 extern uint8_t overlay_build_owned;
 void cc_overlays_adopt(const Build *from,Build *to) SOURCE_BLOCK_CALL;
 uint8_t cc_overlay_image_byte(const Build *build,uint16_t offset) FRONTEND;
+uint8_t cc_overlay_source_store(const Source *source,uint16_t base,uint32_t *offset) FRONTEND;
+uint8_t cc_overlay_source_byte(uint32_t offset) FRONTEND;
 uint16_t cc_overlay_origin(void) FRONTEND;
 uint8_t cc_overlay_group(void) ROUTINES;
 uint16_t cc_overlay_member(uint8_t group,uint16_t scope) ROUTINES;

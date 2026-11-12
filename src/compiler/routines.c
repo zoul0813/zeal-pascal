@@ -134,7 +134,9 @@ static void routine(uint8_t interface_heading,uint8_t overlay) {
         return;
     }
     #ifdef ZP_OVERLAYS
-    if(cc.sources->overlays&&!cc_rget(scope,R_ENTRY))cc_overlay_alias(scope);
+    if(cc.sources->overlays) {
+        if(!cc_rget(scope,R_BANK)&&!cc_rget(scope,R_ENTRY))cc_overlay_alias(scope);
+    }
     else
     #endif
     if(!cc_rget(scope,R_ENTRY)) {

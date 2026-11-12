@@ -29,7 +29,11 @@ def main():
     images, companions, observations = {}, {}, {}
     cases = {'SHEETOVR': (ROOT/'examples/overlays/sheetovr.pas').read_bytes(),
              'BIGOVR': large_program()}
-    cases['EDGEOVR']=b'{$A-}\nprogram EdgeOvr;\nvar N,Z:Integer;\noverlay procedure Outer(X:Integer);\nvar Local:Integer;\nfunction Twice(var Y:Integer):Integer;\nbegin Y:=Y+1;Twice:=Y*2;Exit;Twice:=0 end;\noverlay procedure Child;\nconst C:Integer=5;\nbegin C:=C+1;N:=N+X+C end;\nbegin Local:=X;N:=N+Twice(Local);Child;Child end;\noverlay procedure Other;\nbegin N:=N+100 end;\nbegin OvrDrive(8);N:=0;Z:=0;Outer(3);Other;Outer(3);\nif N<>154 then N:=1 div Z end.\n'
+    cases['EDGEOVR']=b'{$A-}\nprogram EdgeOvr;\nvar N,Z:Integer;\noverlay procedure Outer(X:Integer);\nvar Local:Integer;\nfunction Twice(var Y:Integer):Integer;\nbegin Y:=Y+1;Twice:=Y*2;Exit;Twice:=0 end;\noverlay procedure Child;\nconst C:Integer=5;\nbegin C:=C+1;N:=N+X+C;N:=N+Twice(Local) end;\nbegin Local:=X;N:=N+Twice(Local);Child;Child end;\noverlay procedure Other;\nbegin N:=N+100 end;\nbegin OvrDrive(8);N:=0;Z:=0;Outer(3);Other;Outer(3);\nif N<>198 then N:=1 div Z end.\n'
+    cases['WIDEOVR']=b'program WideOvr;\nvar N,Z:Integer; W:LongWord;\noverlay procedure One; var X:LongWord;\nbegin X:=70000;W:=X*3+1 end;\noverlay procedure Two; var X:LongWord;\nbegin X:=W div 7;W:=X+70000 end;\nbegin OvrDrive(8);N:=0;Z:=0;One;Two;One;Two;if W<>100000 then N:=1 div Z end.\n'
+    cases['SPOOLOVR']=b'program SpoolOvr;\n{$I DATA.INC}\nvar N,Z:Integer;\n{$I FIRST.INC}\n{$I SECOND.INC}\nbegin OvrDrive(8);N:=0;Z:=0;One;Two;if N<>42 then N:=1 div Z end.\n'
+    cases['INCOVR']=b'program IncOvr;\n{$I DATA.INC}\nvar N,Z:Integer;\noverlay procedure One;\n{$I BODY.INC}\noverlay procedure Two;\n{$I BODY.INC}\nbegin OvrDrive(8);N:=0;Z:=0;One;Two;if N<>42 then N:=1 div Z end.\n'
+    cases['ADDROVR']=b'program AddrOvr;var P,Q,N,Z:Integer;\noverlay procedure Work;begin Q:=Addr(Work) end;\nbegin OvrDrive(8);Z:=0;P:=Addr(Work);Work;if P<>Q then N:=1 div Z end.\n'
     cases['UNITOVR']=b'program UnitOvr;\nuses Arithmetic;\nvar N,Z:Integer;\noverlay function F(X:Integer):Integer;\nbegin F:=Twice(X) end;\nbegin OvrDrive(8);Z:=0;N:=F(21);if N<>42 then N:=1 div Z end.\n'
     unit=b'unit Arithmetic;\ninterface function Twice(X:Integer):Integer;\nimplementation function Twice(X:Integer):Integer;\nbegin Twice:=X*2 end;\nend.\n'
     cases['PLAIN']=b'program Plain;\nvar N,Z:Integer;\nprocedure P;begin N:=21*2 end;\nprocedure Q;begin P end;\nbegin Z:=0;Q;if N<>42 then N:=1 div Z end.\n'
@@ -117,8 +121,8 @@ def main():
             if name!='PLAIN':assert self.read_bytes(0x8000,boot_bytes)==bytes(boot_bytes), 'cold bootstrap was not cleared after unpacking'
             if name == 'SHEETOVR':assert struct.unpack('<6H', state) == (20,40,60,6,120,0), state
             if name == 'BIGOVR':assert word(state,0)==3600, state
-            if name == 'EDGEOVR':assert word(state,0)==154, state
-            if name == 'UNITOVR':assert word(state,0)==42, state
+            if name == 'EDGEOVR':assert word(state,0)==198, state
+            if name in ('UNITOVR','INCOVR','SPOOLOVR'):assert word(state,0)==42, state
             if name == 'CAPOVR':
                 assert self.read_bytes(0xc018,1)==b'\x0b'
                 assert self.read_bytes(0xc018+7999,1)==b'\x1f'
@@ -142,7 +146,7 @@ def main():
     for name in cases:
         commands += typed('wH:/'+name+'.PAS\n')+['run 500000000']+typed('ocq')+['tap C',n.ImageStop(sym['_key_read'],'zpascal.bin'),'@compiled-'+name]
     commands += typed('wH:/SHEETOVR.PAS\n')+['run 100000000']+['tap C',n.ImageStop(sym['_key_read'],'zpascal.bin'),'@compiled-SHEETOVR','@find','quit']
-    n.execute('pascal-overlays-compile', commands, {'ARITH.PAS':unit,**{name+'.PAS':source for name,source in cases.items()}},
+    n.execute('pascal-overlays-compile', commands, {'ARITH.PAS':unit,'DATA.INC':b'const Seed=21;\n','FIRST.INC':b'overlay procedure One;begin N:=N+Seed end;\n','SECOND.INC':b'overlay procedure Two;begin N:=N+Seed end;\n','BODY.INC':b'var Local:Integer;procedure Add;begin N:=N+Local end;begin Local:=Seed;Add end;\n',**{name+'.PAS':source for name,source in cases.items()}},
               base_programs=('zpascal',), timeout=600, console_class=Console)
     failure=n.RUN/'pascal-overlays-compile/input-error.json'
     assert not failure.exists(),failure.read_text() if failure.exists() else ''

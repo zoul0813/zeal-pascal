@@ -10,8 +10,7 @@ type
     tag, generation: word;
     path: string[127];
     top, left, editrow, editcol, edit: byte;
-    source: CellText;
-    padding: array[0..54] of byte
+    source: CellText
   end;
   SheetView = record
     tag, generation: word;

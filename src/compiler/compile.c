@@ -4,6 +4,7 @@
 #include "compiler/internal.h"
 #include "compiler/disk.h"
 #include "compiler/groups/native.h"
+#include "compiler/groups/late.h"
 #ifdef ZP_UNITS_EXPERIMENT
 #include "units/internal.h"
 #include "platform/banks/loader.h"
@@ -177,12 +178,17 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     cc_params_finish();cc_random_finish();
     cc_file_engine_finish();cc_keyboard_finish();cc_interrupt_finish();
     cc_transfer_finish();cc_file_stream_finish();cc_hooks_finish();cc_console_finish();cc_file_finish();cc_error_finish();
+#ifdef ZP_OVERLAYS
+    /* Dispatch needs the decoder, but no late journal is needed merely to
+     * parse resident declarations. Imported Unit metadata is gone here. */
+    if(sources.overlays)cc_root_request(LATE_ROOT,LATE_UNPACK);
+#endif
     cc_unpack_finish();
 #ifdef ZP_STATIC_LAYOUT
     if(!cc_file_native_prepare())goto failed;
 #endif
 #ifdef ZP_OVERLAYS
-    if(sources.overlays&&!cc_overlay_finish())goto failed;
+    if(sources.overlays&&(!code_phase_overlay_asset()||!cc_overlay_finish()))goto failed;
 #endif
     if(!options||options->kind!=COMPILE_CHAIN)cc_startup_finish();
     if(d->code||!cc_place_code())goto failed;

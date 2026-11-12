@@ -1,7 +1,13 @@
 {$R-}
-{ Internal indices follow explicit address, frame, length and loop bounds. }
-{ Monochrome status/prompt/entry band, inverse borders and active cell.
-  Row 40 stays untouched; painting never writes the bottom-right corner. }
+{ Private indices follow the viewport, frame and string bounds checked at entry. }
+overlay procedure Paint;
+var rr, cc, x, y: integer; statusline: LineText; redraw, refreshed, moved: boolean;
+{ The renderer already owns the ZVB ports and validated 80x40 coordinates. }
+procedure Position(x, y: integer);
+begin
+  Port[$8E] := 0; Port[$A1] := y - 1; Port[$A2] := x - 1
+end;
+
 procedure Pen(inverse: boolean);
 begin
   Port[$8E] := 0;
@@ -10,11 +16,12 @@ end;
 
 { The documented ZVB text-print port advances the hardware cursor. Rendering
   printable fields directly avoids importing the general file-output engine. }
-procedure Say(text: LineText);
+procedure Say(text: CellText);
 var i: integer;
 begin
   for i := 1 to Length(text) do Port[$A0] := Ord(text[i])
 end;
+
 
 procedure Pad(text: CellText; width: integer);
 var i: integer;
@@ -23,32 +30,9 @@ begin
   Say(text)
 end;
 
-{ Six application-owned lines. Leave unchanged text alone, and retain the
-  common prefix when a prompt, status or entry changes. ClrEol removes an old
-  suffix when text gets shorter; it never touches another screen row. }
-procedure Line(y: integer; text: LineText);
-var slot, first: integer; same: boolean;
-begin
-  if y <= 3 then slot := y else slot := y - 33;
-  if lines[slot] = text then Exit;
-  first := 1; same := True;
-  while (first <= Length(text)) and (first <= Length(lines[slot])) and same do
-  begin
-    if text[first] = lines[slot][first] then first := first + 1
-    else same := False
-  end;
-  Pen(False); GotoXY(first, y); ClrEol;
-  Say(Copy(text, first, 79)); lines[slot] := text
-end;
 
-function Reference(r, c: integer): CellText;
-var text: CellText;
-begin
-  Str(r, text); Reference := Chr(Ord('A') + c - 1) + text
-end;
 
-procedure Paint;
-var rr, cc, x, y: integer; text, raw: CellText; statusline: LineText; redraw, refreshed, moved: boolean;
+
 begin
   if row < top then top := row;
   if row >= top + ViewRows then top := row - ViewRows + 1;
@@ -57,21 +41,22 @@ begin
   redraw := not painted or (top <> showntop) or (left <> shownleft);
   refreshed := redraw or (request.edit <> 0);
   moved := (row <> shownrow) or (col <> showncol);
-  if refreshed then RefreshView;
-  raw := Cell(row, col); text := DisplayCell(row, col);
-  if labelcell then text := '(L)' else text := '(V)';
-  text := Copy(Reference(row, col) + ' ' + text + ' ' + raw, 1, 63);
-  while Length(text) < 63 do text := text + ' ';
-  statusline := text + ' '; Str(records - 1, raw);
-  while Length(raw) < 4 do raw := ' ' + raw;
-  Line(1, statusline + raw + '/4096 edits');
+  if refreshed then View(0, 0, 0);
+  View(1, row, col); request.source := job.reply.visible.source; entry.text := job.reply.visible.shown;
+  if job.reply.visible.labelcell then entry.text := '(L)' else entry.text := '(V)';
+  Str(row, statusline);
+  entry.text := Copy(Chr(Ord('A') + col - 1) + statusline + ' ' + entry.text + ' ' + request.source, 1, 63);
+  while Length(entry.text) < 63 do entry.text := entry.text + ' ';
+  statusline := entry.text + ' '; Str(records - 1, request.source);
+  while Length(request.source) < 4 do request.source := ' ' + request.source;
+  Line(1, statusline + request.source + '/4096 edits');
   Line(2, notice); Line(3, '');
   if redraw then
   begin
-    Pen(True); GotoXY(1, 4); Say('    ');
+    Pen(True); Position(1, 4); Say('    ');
     for x := 0 to ViewCols - 1 do
     begin
-      text := Chr(Ord('A') + left + x - 1); Pad(text, 5); Say('     ')
+      entry.text := Chr(Ord('A') + left + x - 1); Pad(entry.text, 5); Say('     ')
     end
   end;
   for y := 0 to ViewRows - 1 do
@@ -81,7 +66,7 @@ begin
     begin
       if redraw then
       begin
-        Pen(True); GotoXY(1, 5 + y); Str(rr, text); Pad(text, 3); Say(' ')
+        Pen(True); Position(1, 5 + y); Str(rr, entry.text); Pad(entry.text, 3); Say(' ')
       end;
       for x := 0 to ViewCols - 1 do
       begin
@@ -90,35 +75,53 @@ begin
            (moved and (((rr = row) and (cc = col)) or
             ((rr = shownrow) and (cc = showncol))))) then
         begin
-          text := DisplayCell(rr, cc);
-          if redraw or (text <> drawn[y + 1, x + 1]) or moved and
+          View(1, rr, cc); entry.text := job.reply.visible.shown;
+          CacheCopy((y * ViewCols + x) * 10, job.reply.visible.source, 10, True);
+          fetchedrow := 0; { Source staging now holds the prior display string. }
+          if redraw or (entry.text <> job.reply.visible.source) or moved and
              (((rr = row) and (cc = col)) or
               ((rr = shownrow) and (cc = showncol))) then
           begin
             Pen((rr = row) and (cc = col));
-            GotoXY(5 + x * CellWidth, 5 + y);
-            Pad(text, 9); Say(' '); drawn[y + 1, x + 1] := text
+            Position(5 + x * CellWidth, 5 + y);
+            Pad(entry.text, 9); Say(' '); CacheCopy((y * ViewCols + x) * 10, entry.text, 10, False)
           end
         end
       end
     end
   end;
   Line(37, 'Arrows/TAB move  Type: replace  ENTER: edit  ESC: cancel  /: commands');
-  Line(38, 'Labels ''text   Formulas =A1+B1*2  =@SUM(A1:B10)   > go to   /? help');
-  Line(39, 'File: ' + Copy(path, 1, 42) + '   Saved after each edit');
+  Line(38, 'Labels ''entry.text   Formulas =A1+B1*2  =@SUM(A1:B10)   > go to   /? help');
+  Line(39, 'File: ' + Copy(request.path, 1, 42) + '   Saved after each edit');
   painted := True; shownrow := row; showncol := col;
   showntop := top; shownleft := left;
-  Pen(False); GotoXY(5 + (col - left) * CellWidth, 5 + row - top)
+  Pen(False); Position(5 + (col - left) * CellWidth, 5 + row - top)
 end;
 
-{ Cell entry accepts arrows as commit-and-move; path/address entry does not. }
+overlay procedure Command;
+var key: char;
+{ The renderer already owns the ZVB ports and validated 80x40 coordinates. }
+procedure Position(x, y: integer);
+begin
+  Port[$8E] := 0; Port[$A1] := y - 1; Port[$A2] := x - 1
+end;
+
+procedure Pen(inverse: boolean);
+begin
+  Port[$8E] := 0;
+  if inverse then Port[$A5] := $F0 else Port[$A5] := $0F
+end;
+
+{ The documented ZVB text-print port advances the hardware cursor. Rendering
+  printable fields directly avoids importing the general file-output engine. }
+{ Cell entry accepts arrows as commit-and-move; request.path/address entry does not. }
 function EditLine(prompt: CellText; var text: CellText; moving: boolean): boolean;
 var key: char; done, accepted: boolean;
 begin
   done := False; accepted := False; finishkey := #0;
   repeat
     Line(2, prompt); Line(3, text); Pen(False);
-    GotoXY(Length(text) + 1, 3);
+    Position(Length(text) + 1, 3);
     key := ReadKey;
     if IOResult <> 0 then Fatal('Keyboard read failed.');
     case key of
@@ -140,16 +143,16 @@ begin
 end;
 
 procedure GoToCell;
-var text: CellText; r, c, error: integer;
+var r, c, error: integer;
 begin
-  text := '';
-  if EditLine('Go to (A1..Z254): ', text, False) then
+  request.source := '';
+  if EditLine('Go to (A1..Z254): ', request.source, False) then
   begin
     r := 0; c := 0; error := 1;
-    if Length(text) >= 2 then
+    if Length(request.source) >= 2 then
     begin
-      c := Ord(UpCase(text[1])) - Ord('A') + 1;
-      Val(Copy(text, 2, 62), r, error)
+      c := Ord(UpCase(request.source[1])) - Ord('A') + 1;
+      Val(Copy(request.source, 2, 62), r, error)
     end;
     if (error = 0) and (r >= 1) and (r <= MaxRows) and (c >= 1) and (c <= MaxCols) then
     begin row := r; col := c; notice := '' end
@@ -168,17 +171,16 @@ begin
 end;
 
 procedure EditCell(replace: boolean; first: char);
-var text: CellText;
 begin
-  if replace then text := first else text := Cell(row, col);
-  if EditLine('Entry: ENTER/arrows save, ESC cancels', text, True) then
+  if replace then request.source := first
+  else begin View(1, row, col); request.source := job.reply.visible.source end;
+  if EditLine('Entry: ENTER/arrows save, ESC cancels', request.source, True) then
   begin
-    PutCell(text); MoveCell(finishkey)
+    QueueEdit; MoveCell(finishkey)
   end
 end;
 
-procedure Command;
-var key: char;
+
 begin
   key := ReadKey;
   if IOResult <> 0 then Fatal('Keyboard read failed.');
@@ -194,7 +196,7 @@ begin
         if IOResult <> 0 then Fatal('Keyboard read failed.');
         case key of
           'G': GoToCell;
-          'B': PutCell('');
+          'B': begin request.source := ''; QueueEdit end;
           'E': EditCell(False, #0);
           'Q':
             begin

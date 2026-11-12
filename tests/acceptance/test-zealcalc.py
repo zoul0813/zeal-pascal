@@ -13,8 +13,8 @@ import struct
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
-WORKER_BINARY = None
-CALC_BINARY = None
+BACKEND_BINARY = None
+OVERLAYS = {}
 
 def module(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
@@ -36,69 +36,46 @@ def typed_sheet(data):
     return struct.pack('<HH', len(data)//70, 70)+data
 
 
-def hex_image(path):
-    data = {}; base = 0
-    for line in path.read_text().splitlines():
-        raw=bytes.fromhex(line[1:]); size=raw[0]; at=int.from_bytes(raw[1:3],'big'); kind=raw[3]
-        if kind == 4: base=int.from_bytes(raw[4:6],'big')<<16
-        elif kind == 2: base=int.from_bytes(raw[4:6],'big')<<4
-        elif kind == 0: data.update({base+at+i:raw[4+i] for i in range(size)})
-    return data
-
 
 class CompileConsole(n.DebugConsole):
     def command(self, command, capture=False):
-        if command == 'watch-budget':
-            symbols=n.symbols('zpascal'); absolute=symbols['_cc_place_code']
-            self.budget_pc=absolute&65535; self.cc_address=symbols['_cc']
-            source=next((self.directory/'hostfs').glob('*.PAS'))
-            self.source_length=len(source.read_bytes()); self.budget_armed=False; self.budget_done=False
-            program=hex_image(ROOT/'build/zpascal.ihx')
-            self.place_signature=bytes(program[absolute+i] for i in range(16))
-            return ''
-        if not (hasattr(self,'budget_pc') and command.startswith('run ') and not self.budget_done):
-            return super().command(command,capture)
-        remaining=int(command.split()[1]); result=''
-        while remaining>0:
-            ticks=min(remaining,100000000); remaining-=ticks
-            result=super().command(f'run {ticks}',capture)
-            frame=super().command('regs'); pc=int(re.search(r'PC=([0-9a-fA-F]+)',frame)[1],16)
-            if self.budget_armed and pc == self.budget_pc:
-                found=n.memory(super().command(f'rb 0x{pc:x} 16'))
-                if bytes(found[pc+i] for i in range(16)) == self.place_signature:
-                    memory={}
-                    for offset,size in ((0,256),(256,256),(512,56)):
-                        memory.update(n.memory(super().command(f'rb 0x{self.cc_address+offset:x} {size}')))
-                    word=lambda at:memory[at]+256*memory[at+1]
-                    build=word(self.cc_address+11)
-                    builddata=n.memory(super().command(f'rb 0x{build:x} 54'))
-                    globals=builddata[build+11]+256*builddata[build+12]
-                    code=word(self.cc_address+420)-32768
-                    stack=max(2048,word(self.cc_address+566)); data=32767 if memory[self.cc_address+565] else 22426
-                    budget={'code_bytes':code,'globals_bytes':globals,'stack_bytes':stack,
-                            'static_end':data+globals+code,'spare_bytes':64512-((data+globals+code+1)&~1)-stack}
-                    (self.directory/'image-budget.json').write_text(json.dumps(budget,indent=2)+'\n')
-                    print(self.directory.name+': '+json.dumps(budget),flush=True)
-                    self.budget_done=True
-                    super().command(f'bc 0x{self.budget_pc:x}')
-                super().command('s')
-            if not self.budget_armed:
-                observed=n.memory(super().command(f'rb 0x{self.cc_address+26:x} 4'))
-                token=sum(observed[self.cc_address+26+i]<<(8*i) for i in range(4))
-                if self.source_length*0.9 <= token <= self.source_length:
-                    super().command(f'bp 0x{self.budget_pc:x}'); self.budget_armed=True
-            # Preserve all other breakpoint semantics, especially IDE reader stops.
-            if pc == n.symbols('zpascal')['_key_read']: return result
-        return result
+        if command != 'compile': return super().command(command, capture)
+        call = super().command
+        sym = n.symbols('zpascal')
+        out, key = (sym[name] for name in ('_output','_key_read'))
+        transcript = []
+        for at in (out,key): call(f'bp 0x{at:x}')
+        call('tap C')
+        try:
+            for _ in range(1000):
+                call('run 2000000000')
+                frame = call('regs'); pc = int(re.search(r'PC=([0-9a-fA-F]+)',frame)[1],16)
+                if pc not in (out,key): continue
+                observed = n.memory(call('rb 0x4000 32'))
+                if bytes(observed[0x4000+i] for i in range(32)) != (ROOT/'build/zpascal.bin').read_bytes()[:32]:
+                    call('s'); continue
+                hl = int(re.search(r'HL=([0-9a-fA-F]+)',frame)[1],16)
+                if pc == key: break
+                data = n.memory(call(f'rb 0x{hl:x} 128'))
+                transcript.append(bytes(data[hl+i] for i in range(128)).split(b'\0')[0].decode('ascii','replace'))
+                call('s')
+            else: raise RuntimeError('Native compiler did not finish')
+        finally:
+            for at in (out,key): call(f'bc 0x{at:x}')
+        (self.directory/'compile-output.txt').write_text(''.join(transcript))
+        print(''.join(transcript),flush=True)
+        return ''
 
 
 def compile_program(source, name, reuse=None):
     # Compile the real directory layout, exercising native include resolution
     # and its switch scoping rather than silently flattening unsupported nesting.
     text = source.read_text(encoding='ascii')
-    include_files = {str(p.relative_to(source.parent)): p.read_bytes()
-                     for p in sorted((source.parent/'include').glob('*.pas'))}
+    include_files = {'include/'+p.name: p.read_bytes()
+                     for p in sorted((ROOT/'examples/zealcalc/include').glob('*.pas'))}
     assert all(not re.search(rb'\{\$I(?![+-])', data, re.I) for data in include_files.values())
+    assert all(len(data) <= 65534 and max(map(len, data.splitlines()), default=0) <= 127
+               for data in include_files.values()), 'Include exceeds native source limits'
     assert len(text) <= 65534 and max(map(len, text.splitlines())) <= 127
     for directory in (reuse or []):
         previous = directory/('compile-'+name.lower())/'hostfs'
@@ -110,12 +87,13 @@ def compile_program(source, name, reuse=None):
             identities = ['zpascal.bin','zpascal.zpl','CRT.ZPU','ZOS.ZPU','SYSFILE.ZPU']
             assert all((previous/item).read_bytes() == (ROOT/'build'/item).read_bytes() for item in identities)
             print(f'Reusing verified compilation inputs for {name}', flush=True)
+            collect_overlays(previous, name)
             return candidate.read_bytes()
     sym = n.symbols('zpascal')
     typed = lambda text: n.type_text(text, ticks=100000000)
     commands = ['run 100000000'] + n.program_launch() + ['run 100000000'] + typed('n')
-    commands += typed(f'wH:/{name}.PAS\n') + typed('ocq')
-    commands += ['watch-budget','tap C', n.ImageStop(sym['_key_read'], 'zpascal.bin'),
+    commands += typed(f'wH:/{name}.PAS\n') + ['run 500000000'] + typed('ocq')
+    commands += ['compile',
                  f"rb 0x{sym['_work']:x} 140", f"rb 0x{sym['_cc']:x} 24", f"rb 0x{sym['_cc']+420:x} 32",
                  'regs', 'rb 0xfd00 256', 'tap ESC', n.ImageStop(sym['_key_read'], 'zpascal.bin'),
                  f"rb 0x{sym['_work']:x} 140", 'regs', 'quit']
@@ -139,14 +117,28 @@ def compile_program(source, name, reuse=None):
             print('Compiler diagnostic:', memory.get(ix-3,0)+256*memory.get(ix-2,0), flush=True)
         print('Compiler source position:', position, repr(text[max(0,position-100):position+160]), flush=True)
         raise RuntimeError(f'Native compilation failed; inspect {directory}/console-all.txt')
+    collect_overlays(directory/'hostfs', name)
     return candidate.read_bytes()
+
+
+def collect_overlays(host, name):
+    image = (host/(name+'.COM')).read_bytes()
+    match = re.search(rb'ZP[0-9A-F]{4}/P\0', image)
+    assert match, 'Missing overlay directory'
+    folder = match[0][:-3].decode()
+    OVERLAYS[name] = {str(p.relative_to(host)):p.read_bytes() for p in (host/folder).glob('P.*')}
+    assert OVERLAYS[name]
+
+
+def app_files(binary):
+    return {'zealcalc.bin':binary, **OVERLAYS['ZEALCALC']}
 
 
 def launch(name, binary, args='', fixtures=None, keys='', case=None):
     assert name == 'zealcalc' and not args
     commands = ['run 100000000']+n.type_text('cd H:/\n',ticks=4000000)+enter_app(name)
     commands += [ui_type(keys),'run 10000000','quit']
-    data = {name+'.bin':binary,'zcsheet.bin':WORKER_BINARY,'zccalc.bin':CALC_BINARY,**(fixtures or {})}
+    data = {**app_files(binary), **(fixtures or {})}
     case = case or name
     n.execute(case,commands,data,timeout=1800,console_class=UIConsole,base_programs=(),base_units=())
     folder = n.RUN/case
@@ -212,9 +204,11 @@ class ScreenConsole(n.DebugConsole):
             observed = n.memory(super().command('rb 0x4000 32'))
             if bytes(observed[0x4000+i] for i in range(32)) == self.paint_identity:
                 value = int(re.search(r'AF=([0-9a-fA-F]+)', frame)[1],16)>>8
-                port = self.paint_sites[pc]
-                if port == -1:
+                op = n.memory(super().command(f'rb 0x{pc:x} 2'))
+                if op[pc] == 0xd3: port = op[pc+1]
+                elif (op[pc],op[pc+1]) == (0xed,0x79):
                     port = int(re.search(r'BC=([0-9a-fA-F]+)', frame)[1],16)&255
+                else: port = -1
                 if port == 0xa1: self.paint_y = value
                 elif port == 0xa2: self.paint_x = value
                 elif port == 0xa0:
@@ -231,18 +225,30 @@ class ScreenConsole(n.DebugConsole):
         name = command.split()[1]
         image = (self.directory/'hostfs/zealcalc.bin').read_bytes()
         signatures = [bytes.fromhex('afdbf0f53e40d3f0'), bytes.fromhex('3e00dbf0f53e40d3f0')]
-        sites = {0x4000+i+len(signature) for signature in signatures
-                 for i in range(len(image)) if image.startswith(signature, i)}
-        assert sites, 'No CRT VRAM observation sites'
+        domains = [(0x4000, image)]
+        for payload in OVERLAYS['ZEALCALC'].values():
+            count, group = struct.unpack_from('<H',payload,6)[0], struct.unpack_from('<H',payload,12)[0]
+            for i in range(count):
+                at = 16+16*i
+                if struct.unpack_from('<H',payload,at)[0] != group: continue
+                size = struct.unpack_from('<H',payload,at+4)[0]
+                offset = struct.unpack_from('<I',payload,at+8)[0]
+                domains.append((0x8000,payload[offset:offset+size]))
+        sites = {base+i+len(signature) for base,body in domains for signature in signatures
+                 for i in range(len(body)) if body.startswith(signature, i)}
+        assert sites, 'No UI VRAM observation sites'
         for site in sites: super().command(f'bp 0x{site:x}')
         try:
-            # Slash opens a command prompt, which calls ClrEol after the prior
-            # Paint has finished. Stop while CRT legitimately maps VRAM.
+            # Slash opens a command prompt, which clears its line after the prior
+            # Paint has finished. Stop while the renderer legitimately maps VRAM.
             super().command('tap SLASH')
-            super().command('run 1000000000')
-            frame = super().command('regs')+super().command('mmu')
-            pc = int(re.search(r'PC=([0-9a-fA-F]+)', frame)[1], 16)
-            assert pc in sites and '0000 -> 100000' in frame, frame
+            for _ in range(1000):
+                super().command('run 1000000000')
+                frame = super().command('regs')+super().command('mmu')
+                pc = int(re.search(r'PC=([0-9a-fA-F]+)', frame)[1], 16)
+                if pc in sites and '0000 -> 100000' in frame: break
+                super().command('s')
+            else: raise RuntimeError('Renderer did not map VRAM for capture')
             data = {}
             for offset in range(0, 0x4000, 256):
                 data.update(n.memory(super().command(f'rb 0x{offset:x} 256')))
@@ -263,10 +269,18 @@ class UIConsole(ScreenConsole):
         image = (self.directory/'hostfs/zealcalc.bin').read_bytes()
         self.paint_identity = image[:32]
         first,last = struct.unpack('<H',image[20:22])[0],struct.unpack('<H',image[28:30])[0]
-        self.paint_sites = {0x4000+i:image[i+1] for i in range(first-0x4000,last-0x4000-1)
-                            if image[i] == 0xd3 and image[i+1] in (0xa0,0xa1,0xa2)}
-        self.paint_sites.update({0x4000+i:-1 for i in range(first-0x4000,last-0x4000-1)
-                                 if image[i:i+2] == b'\xed\x79'})
+        domains = [(first,image[first-0x4000:last-0x4000])]
+        for payload in OVERLAYS['ZEALCALC'].values():
+            count, group = struct.unpack_from('<H',payload,6)[0], struct.unpack_from('<H',payload,12)[0]
+            for i in range(count):
+                at = 16+16*i
+                if struct.unpack_from('<H',payload,at)[0] != group: continue
+                size = struct.unpack_from('<H',payload,at+4)[0]
+                offset = struct.unpack_from('<I',payload,at+8)[0]
+                domains.append((0x8000,payload[offset:offset+size]))
+        self.paint_sites = {base+i for base,body in domains for i in range(len(body)-1)
+                            if body[i:i+2] == b'\xed\x79' or
+                            body[i] == 0xd3 and body[i+1] in (0xa0,0xa1,0xa2)}
         assert self.paint_sites
         self.paint_writes = []; self.paint_x = self.paint_y = -1
         for site in self.paint_sites: super().command(f'bp 0x{site:x}')
@@ -316,20 +330,23 @@ class UIConsole(ScreenConsole):
 class BackendConsole(n.DebugConsole):
     def command(self, command, capture=False):
         if command not in ('wait-view','wait-exit'): return super().command(command,capture)
-        key = n.kernel_symbols()['keyboard_next_key']
-        super().command(f'bp 0x{key:x}')
+        exit_at = n.kernel_symbols()['zos_loader_exit']
+        expected = (self.directory/'hostfs/zctest.bin').read_bytes()[:32]
+        super().command(f'bp 0x{exit_at:x}')
         try:
             for _ in range(100):
                 super().command('s'); super().command('run 1000000000')
                 frame = super().command('regs')
-                if int(re.search(r'PC=([0-9a-fA-F]+)',frame)[1],16) == key:
-                    observed = n.memory(super().command('rb 0x4000 16'))
-                    assert bytes(observed[0x4003+i] for i in range(5)) != b'ZP80\x02', 'Backend stopped in a runtime input/error handler'
-                    if command == 'wait-view': parse_view((self.directory/'hostfs/zc.view').read_bytes())
-                    return frame
-            raise RuntimeError('Backend did not return to the shell')
+                if int(re.search(r'PC=([0-9a-fA-F]+)',frame)[1],16) != exit_at: continue
+                observed = n.memory(super().command('rb 0x4000 32'))
+                assert bytes(observed[0x4000+i] for i in range(32)) == expected, 'Backend reset or exited through another image'
+                status = int(re.search(r'HL=([0-9a-fA-F]+)',frame)[1],16)>>8
+                assert (status == 0) == (command == 'wait-view'), ('Unexpected backend exit',status)
+                if command == 'wait-view': parse_view((self.directory/'hostfs/zc.view').read_bytes())
+                return frame
+            raise RuntimeError('Backend did not reach an explicit process exit')
         finally:
-            super().command(f'bc 0x{key:x}')
+            super().command(f'bc 0x{exit_at:x}')
 
 
 def enter_app(name):
@@ -369,9 +386,9 @@ def parse_view(data):
 
 
 def pipeline(case, data, edit=None, top=1, left=1, fail=False, request=None):
-    fixtures = {'zcsheet.bin':WORKER_BINARY,'zccalc.bin':CALC_BINARY,'engine.zvc':data,
+    fixtures = {'zctest.bin':BACKEND_BINARY, **OVERLAYS['ZCTEST'], 'engine.zvc':data,
                 'zc.req':request if request is not None else request_bytes(top=top,left=left,edit=edit),'zc.view':b''}
-    commands = ['run 100000000']+n.type_text('cd H:/\n',ticks=4000000)+enter_app('zcsheet')
+    commands = ['run 100000000']+n.type_text('cd H:/\n',ticks=4000000)+enter_app('zctest')
     commands += ['wait-exit' if fail else 'wait-view','run 1000000','quit']
     n.execute(case,commands,fixtures,timeout=1800,console_class=BackendConsole,base_programs=(),base_units=())
     folder = n.RUN/case
@@ -447,7 +464,7 @@ def screenshots(binary):
     commands = ['run 100000000']+n.type_text('cd H:/\n',ticks=4000000)+enter_app('zealcalc')
     commands += [ui_type('/gD4\n'),'screen sheet',ui_type('gZ254\n'),'screen scrolled',ui_type('qy')]
     commands += ['run 10000000','quit']
-    n.execute('screens',commands,{'zealcalc.bin':binary,'zcsheet.bin':WORKER_BINARY,'zccalc.bin':CALC_BINARY,
+    n.execute('screens',commands,{**app_files(binary),
                                  'sheet.zvc':typed_sheet(bytes(sheet))},
               timeout=1800,console_class=UIConsole,base_programs=(),base_units=())
     directory = n.RUN/'screens'
@@ -471,7 +488,7 @@ def check_repaint(binary):
                  'paint-start',ui_type('20.000\n'),'paint-stop same-display',
                  'paint-start','key RIGHT','paint-stop move',ui_type('/qy'),
                  'run 10000000','quit']
-    fixtures = {'zealcalc.bin':binary,'zcsheet.bin':WORKER_BINARY,'zccalc.bin':CALC_BINARY,
+    fixtures = {**app_files(binary),
                 'sheet.zvc':seed_sheet([(1,1,'12'),(1,2,'3.5'),(1,3,'=A1*B1')])}
     n.execute('repaint',commands,fixtures,timeout=1800,console_class=UIConsole,
               base_programs=(),base_units=())
@@ -500,24 +517,37 @@ def source_digest():
 
 
 def main():
-    global WORKER_BINARY, CALC_BINARY
+    global BACKEND_BINARY
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--package', action='store_true')
     parser.add_argument('--reuse', type=Path, action='append', help='Reuse matching compilation inputs from a retained run; behavior checks still run')
     parser.add_argument('--compile-only', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
     sources = [*sorted((ROOT/'examples/zealcalc').glob('*.pas')), *sorted((ROOT/'examples/zealcalc/include').glob('*.pas'))]
-    sources += [Path(__file__)]
+    sources += [Path(__file__), ROOT/'tests/native/zealcalc-backend.pas']
     frozen = {str(p.relative_to(ROOT)): n.sha(p) for p in sources}
     if args.compile_only:
         compile_program(ROOT/'examples/zealcalc/zealcalc.pas', 'ZEALCALC', args.reuse)
         return
-    with ThreadPoolExecutor(max_workers=3) as workers:
+    with ThreadPoolExecutor(max_workers=2) as workers:
         app = workers.submit(compile_program, ROOT/'examples/zealcalc/zealcalc.pas', 'ZEALCALC', args.reuse)
-        worker = workers.submit(compile_program, ROOT/'examples/zealcalc/zcsheet.pas', 'ZCSHEET', args.reuse)
-        calc = workers.submit(compile_program, ROOT/'examples/zealcalc/zccalc.pas', 'ZCCALC', args.reuse)
-        binary = app.result(); WORKER_BINARY = worker.result(); CALC_BINARY = calc.result()
+        backend = workers.submit(compile_program, ROOT/'tests/native/zealcalc-backend.pas', 'ZCTEST', args.reuse)
+        binary = app.result(); BACKEND_BINARY = backend.result()
     reports = check_formulas()
+    word = lambda at:struct.unpack_from('<H',binary,at)[0]
+    members = []
+    for payload in OVERLAYS['ZEALCALC'].values():
+        count,group = struct.unpack_from('<H',payload,6)[0],struct.unpack_from('<H',payload,12)[0]
+        for i in range(count):
+            at = 16+16*i
+            if struct.unpack_from('<H',payload,at)[0] != group: continue
+            size = struct.unpack_from('<H',payload,at+4)[0]
+            assert 0 < size <= 16384
+            members.append({'member':i,'group':group,'code_bytes':size})
+    reports['memory'] = {'resident_code_bytes':word(22),'resident_global_bytes':word(26),
+                         'resident_total_bytes':word(22)+word(26),'checked_stack_bytes':word(32),
+                         'data_bank_bytes':16384,'data_bank_used_bytes':3092,'members':sorted(members,key=lambda row:row['member'])}
+
     reports['repaint'] = check_repaint(binary)
     # Actual application: replace, edit-cancel, navigate, formulas, Blank, quit.
     # Shift mappings missing from the older common helper are supplied locally.
@@ -530,7 +560,7 @@ def main():
     commands += [ui_type('=A2+B2\n'),'key DOWN',ui_type('=A2*B2'),'key LEFT']
     commands += [ui_type('label\n/gZ254\n'),'key RIGHT','key DOWN',ui_type('123.25\n/gB1\n/b/qy')]
     commands += ['run 10000000','quit']
-    fixtures = {'zealcalc.bin':binary,'zcsheet.bin':WORKER_BINARY,'zccalc.bin':CALC_BINARY}
+    fixtures = app_files(binary)
     n.execute('ui',commands,fixtures,timeout=1800,console_class=UIConsole,base_programs=(),base_units=())
     if (n.RUN/'ui/input-error.json').exists(): raise RuntimeError((n.RUN/'ui/input-error.json').read_text())
     hostfs = n.RUN/'ui/hostfs'
@@ -576,8 +606,7 @@ def main():
                 'banks_sha256': n.sha(ROOT/'build/zpascal.zpl'),
                 'rom_sha256': n.sha(n.ROM), 'emulator_sha256': n.sha(n.EMULATOR),
                 'binary_sha256': hashlib.sha256(binary).hexdigest(),
-                'worker_binary_sha256': hashlib.sha256(WORKER_BINARY).hexdigest(),
-                'calc_binary_sha256': hashlib.sha256(CALC_BINARY).hexdigest(),
+                'overlays': {name:hashlib.sha256(data).hexdigest() for name,data in OVERLAYS['ZEALCALC'].items()},
                 'compiler_sources_sha256': source_digest(),
                 'checks': reports, 'test_sources': {str(p.relative_to(ROOT)): n.sha(p) for p in sources if p.is_relative_to(ROOT/'tests')},
                 'screenshots': {name: n.sha(captures/f'{name}.vram') for name in ('sheet','scrolled')},
@@ -590,14 +619,15 @@ def main():
             target = destination/'screenshots'; target.mkdir(exist_ok=True)
             (target/f'{name}.png').write_bytes((captures/f'{name}.png').read_bytes())
         (destination/'zealcalc.bin').write_bytes(binary)
-        (destination/'zcsheet.bin').write_bytes(WORKER_BINARY)
-        (destination/'zccalc.bin').write_bytes(CALC_BINARY)
+        for name, data in OVERLAYS['ZEALCALC'].items():
+            target = destination/name; target.parent.mkdir(exist_ok=True); target.write_bytes(data)
+        for obsolete in ('zcsheet.bin','zccalc.bin'):
+            (destination/obsolete).unlink(missing_ok=True)
         (destination/'binary.json').write_text(json.dumps(manifest, indent=2)+'\n')
     else:
         assert (destination/'zealcalc.bin').exists(), 'Run with --package to create the verified executable'
         assert (destination/'zealcalc.bin').read_bytes() == binary, 'Run with --package to refresh executable'
-        assert (destination/'zcsheet.bin').read_bytes() == WORKER_BINARY
-        assert (destination/'zccalc.bin').read_bytes() == CALC_BINARY
+        assert all((destination/name).read_bytes() == data for name,data in OVERLAYS['ZEALCALC'].items())
         previous = json.loads((destination/'binary.json').read_text())
         previous.pop('compiler_base_revision', None)
         comparison = dict(manifest); comparison.pop('compiler_base_revision')

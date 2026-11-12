@@ -27,6 +27,7 @@ uint8_t code_phase_unit_io_release(void) SOURCE_BLOCK_CALL;
 extern char code_library_directory[128];
 #define DEFAULT_LIBRARY "T:/lib/zpascal.zpl"
 uint8_t code_phase_overlays(void) SOURCE_BLOCK_CALL;
+uint8_t code_phase_overlay_asset(void) SOURCE_BLOCK_CALL;
 extern uint8_t code_pages[CODE_BANK_LIMIT],code_owned,boot_error;
 extern uint16_t code_sizes[CODE_BANK_LIMIT];
 extern const uint8_t code_required,code_version[4];

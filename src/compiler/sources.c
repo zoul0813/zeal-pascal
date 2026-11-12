@@ -1,5 +1,6 @@
 #include "compiler/link/layout.h"
 #include "compiler/disk.h"
+#include "compiler/groups/native.h"
 #ifdef ZP_UNITS_EXPERIMENT
 #include "units/internal.h"
 #endif
@@ -30,8 +31,15 @@ SourcePosition cc_source_position(void) ROUTINES {
     return ((SourcePosition)cc.sources->file<<16)|cc.scan;
 }
 uint8_t cc_source_byte(SourcePosition position) ROUTINES {
+#ifdef ZP_OVERLAYS
+    uint32_t offset;uint16_t length;
+#endif
 #ifdef ZP_UNITS_EXPERIMENT
     if(position&0x80000000UL)return cc_unit_module_byte((uint16_t)(position>>16)&0x7fffu,(uint16_t)position);
+#endif
+#ifdef ZP_OVERLAYS
+    if(cc.sources->overlays&&sources_spool_offset(&cc.image->sources,(uint8_t)(position>>16),&length,&offset))
+        return (uint16_t)position<length?cc_overlay_source_byte(offset+(uint16_t)position):0;
 #endif
     return sources_byte(&cc.image->sources,(uint8_t)(position>>16),(uint16_t)position);
 }
@@ -116,6 +124,23 @@ uint8_t cc_sources_prepare(const Source *root) ROUTINES {
     if(!sources_new(&cc.image->sources)||sources_borrow(&cc.image->sources,root)<0){cc_fail(99);return 0;}
     cc.sources->input_base=0;return 1;
 }
+#ifdef ZP_OVERLAYS
+/* Scanning USES/the first declaration can already have entered an include
+ * before overlay mode starts. Capture those views too, then release their
+ * shared arena only after every descriptor points into the private spool. */
+uint8_t cc_sources_spool(void) ROUTINES {
+    Sources *set=&cc.image->sources;Source view;uint8_t id;uint32_t offset;
+    SourcePosition position=cc_source_position();
+    for(id=1;id<set->count;++id) {
+        if(!sources_get(set,id,&view)){cc_fail(99);return 0;}
+        if(view.page!=255&&(!cc_overlay_source_store(&view,sources_offset(set,id),&offset)||
+            sources_spooled(set,&view,offset)!=id)){cc_fail(99);return 0;}
+    }
+    if(!buffer_drop(set->text_page)){cc_fail(99);return 0;}
+    set->text_page=set->text_tail=255;set->text_used=0;
+    cc_source_seek(position);return !cc.error->code;
+}
+#endif
 /* Source references are dead after parsing. Only compact file identities and
  * statement positions survive with the build; no include text is retained. */
 uint8_t cc_sources_finish(void) ROUTINES {
@@ -130,12 +155,16 @@ uint8_t cc_source_resume(void) ROUTINES {
     cc_source_seek(cc.sources->parent_scan);return 1;
 }
 static uint8_t current(uint16_t at) {
+    if(cc.input->page==255)return at<cc.input->length?cc_source_byte(((SourcePosition)cc.sources->file<<16)|at):0;
     return at<cc.input->length?buffer_view_get(cc.input->page,cc.sources->input_base,at):0;
 }
 void cc_source_include(uint8_t comment) ROUTINES {
     char name[128],directory[128],path[128];
     Source loaded;Diagnostic diagnostic;
     uint16_t n=0,trim,after,base,opening;int16_t id;
+#ifdef ZP_OVERLAYS
+    uint32_t offset;uint16_t spool_length,bank;
+#endif
     if(cc.sources->file){cc_fail(93);return;}
     ++cc.scan;
     while(current(cc.scan)==' '||current(cc.scan)=='\t')++cc.scan;
@@ -162,20 +191,40 @@ void cc_source_include(uint8_t comment) ROUTINES {
 #endif
     if(id==0){cc_fail(93);return;}
 #ifdef ZP_UNITS_EXPERIMENT
-    if(id>0&&(!sources_get(&cc.image->sources,(uint8_t)id,&loaded)||loaded.page==255)){cc_fail(93);return;}
+    if(id>0&&(!sources_get(&cc.image->sources,(uint8_t)id,&loaded)||
+        (loaded.page==255
+#ifdef ZP_OVERLAYS
+         &&!sources_spool_offset(&cc.image->sources,(uint8_t)id,&spool_length,&offset)
+#endif
+        ))){cc_fail(93);return;}
 #endif
     if(id<0) {
+#ifdef ZP_OVERLAYS
+        /* Includes are scanned while consuming the prior declaration's last
+         * token. Its immutable snapshot can lend the member page to the
+         * canonicalizing loader, rather than requiring a second scratch bank. */
+        bank=cc.sources->bank;
+        if(bank&&!cc_overlay_switch(0))return;
+#endif
         if(!read_block(&loaded,path,&diagnostic)) {
             cc.error->code=diagnostic.code==98?99:diagnostic.code?diagnostic.code:90;
             cc.error->start=diagnostic.start;cc.error->end=diagnostic.end;
             cc.sources->external_error=1;strcpy(cc.input->path,path);return;
         }
+#ifdef ZP_OVERLAYS
+        if(cc.sources->overlays)id=cc_overlay_source_store(&loaded,0,&offset)?
+            sources_spooled(&cc.image->sources,&loaded,offset):-1;
+        else
+#endif
         id=sources_include(&cc.image->sources,&loaded,cc.polling);
         source_close(&loaded);
         if(loaded.page!=255){cc.image->sources.pending=loaded.page;cc_fail(99);return;}
         if(id<-1){cc.interrupted=(uint8_t)(-id-1);cc_fail(255);return;}
         if(id<0){cc_fail(99);return;}
         if(cc.error->code)return;
+#ifdef ZP_OVERLAYS
+        if(bank&&!cc_overlay_switch(bank))return;
+#endif
     }
     opening=(uint16_t)cc.token_start-(comment=='{'?1:2);
     while(opening&&current(opening-1)!='\n') {

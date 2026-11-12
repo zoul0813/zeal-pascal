@@ -36,7 +36,9 @@ enum { R_PARENT=0,R_FLAGS=2,R_SYMBOL=4,R_ENTRY=6,R_CALLS=8,R_PARAMETERS=10,R_COU
 #ifdef ZP_OVERLAYS
 #define R_BANK 26u
 #define R_BODY 28u
-#define ROUTINE_BYTES 30u
+#define R_LOCAL_ENTRY 30u
+#define R_LOCAL_CALLS 32u
+#define ROUTINE_BYTES 34u
 #else
 #define ROUTINE_BYTES 26u
 #endif
@@ -211,6 +213,7 @@ void cc_source_restore(const SourceCursor *cursor) ROUTINES;
 uint8_t cc_source_resume(void) ROUTINES;
 void cc_source_include(uint8_t comment) ROUTINES;
 uint8_t cc_sources_prepare(const Source *root) ROUTINES;
+uint8_t cc_sources_spool(void) ROUTINES;
 uint8_t cc_sources_finish(void) ROUTINES;
 void cc_sources_error(void) ROUTINES;
 uint8_t cc_sources_ready(const Source *root,const Build *build) ROUTINES;

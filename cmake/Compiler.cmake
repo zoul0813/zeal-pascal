@@ -107,7 +107,7 @@ set_property(TARGET zpascal_bin PROPERTY RAW_BINARY ${CMAKE_BINARY_DIR}/zpascal.
 
 add_dependencies(unit_runtime_core zos_zpu)
 
-target_sources(unit_runtime_core PRIVATE src/compiler/groups/native.c
+target_sources(unit_runtime_core PRIVATE src/source/spool.c src/compiler/groups/native.c
     src/compiler/groups/native_asset.c ${CMAKE_BINARY_DIR}/overlay_asset.asm)
 add_dependencies(unit_runtime_core overlay_assets)
 set_source_files_properties(src/compiler/groups/native.c PROPERTIES COMPILE_OPTIONS "--std-c99;--opt-code-size;--codeseg;BANK20;--constseg;BANK20")

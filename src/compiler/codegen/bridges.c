@@ -17,6 +17,21 @@ void cc_entry_reference(uint8_t opcode,uint16_t scope) ROUTINES {
         cc_units_call(opcode,scope);return;
     }
 #endif
+#ifdef ZP_OVERLAYS
+    if(cc.sources->overlays&&cc_rget(scope,R_BANK)&&!(cc_rget(scope,R_FLAGS)&RF_EXTERNAL)) {
+        if(opcode==0xcd&&cc.sources->bank==cc_rget(scope,R_BANK)) {
+            /* The enclosing overlay already owns its bank. Its ordinary
+             * lexical calls need frames, but no resident dispatch wrapper. */
+            if(!(cc_rget(scope,R_FLAGS)&RF_DEFINED))
+                cc_rput(scope,R_FLAGS,cc_rget(scope,R_FLAGS)|RF_REFERENCED);
+            cc_require_full_memory();entry=cc_rget(scope,R_LOCAL_ENTRY);
+            if(entry)cc_address(opcode,entry);
+            else cc_rput(scope,R_LOCAL_CALLS,cc_link(opcode,cc_rget(scope,R_LOCAL_CALLS)));
+            return;
+        }
+        if(!entry){cc_overlay_alias(scope);entry=cc_rget(scope,R_ENTRY);}
+    }
+#endif
 #ifdef ZP_UNITS_EXPERIMENT
     if(!(cc_rget(scope,R_FLAGS)&RF_DEFINED))
         cc_rput(scope,R_FLAGS,cc_rget(scope,R_FLAGS)|RF_REFERENCED);

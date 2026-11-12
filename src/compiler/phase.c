@@ -182,4 +182,7 @@ uint8_t execute_native(const char *path,uint8_t *status) SOURCE_BLOCK_CALL {
     code_phase_return();return error;
 }
 
-uint8_t code_phase_overlays(void) SOURCE_BLOCK_CALL {return restore((1UL<<CODE_OVERLAYS)|(1UL<<CODE_OVERLAY_ASSETS));}
+uint8_t code_phase_overlays(void) SOURCE_BLOCK_CALL {return restore(1UL<<CODE_OVERLAYS);}
+/* The cold runtime bytes are needed only when reading the final saved image.
+ * Leave their bank free during parsing, alongside imported Unit metadata. */
+uint8_t code_phase_overlay_asset(void) SOURCE_BLOCK_CALL {return restore(1UL<<CODE_OVERLAY_ASSETS);}

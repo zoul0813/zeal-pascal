@@ -1,7 +1,7 @@
 # Documentation screen captures
 
-Captured on 2026-11-10 from native programs running on the unmodified Zeal Native
-Emulator and the development environment's Zeal OS ROM. These are emulator
+Captured on 2026-11-10, with ZealCalc refreshed on 2026-11-12, from native
+programs running on the unmodified Zeal Native Emulator and the development environment's Zeal OS ROM. These are emulator
 captures; they do not establish physical-hardware behavior.
 
 Captures come from the native 640×480 display. Text-only images keep the full

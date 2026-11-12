@@ -1,10 +1,9 @@
 # ZealCalc
 
-A VisiCalc-inspired spreadsheet written entirely in Zeal Pascal. The UI uses
-`Crt` and `ZOS` on the ZVB 80x40 text screen. Two Pascal worker programs validate/save
-the sheet and calculate its viewport. This follows the companion-program pattern of Measure Lab, keeping the UI plus one
-backend resident within the machine's address space.
-It is a new example, not a VisiCalc port or file-format emulator.
+A VisiCalc-inspired spreadsheet written entirely in Zeal Pascal. One saved
+program uses demand-loaded MMU code overlays for storage, formulas, viewport
+access, painting and keyboard input. The UI uses CRT keyboard input, checked `ZOS` file access and the ZVB
+80x40 text ports. Screen setup, restoration and line clearing live in UI overlays. It is a new example, not a VisiCalc port or file-format emulator.
 
 Copy this entire folder to Zeal. Change into it, then run:
 
@@ -12,11 +11,16 @@ Copy this entire folder to Zeal. Change into it, then run:
 ./zealcalc.bin
 ```
 
-Keep **zealcalc.bin, zcsheet.bin and zccalc.bin together** and run from that directory.
+Keep **zealcalc.bin and its generated ZPxxxx directory together**. The exact
+companion filenames and hashes are recorded in `binary.json`. Run from that
+directory: `OvrDrive(0)` finds companions on the current drive and directory.
+There are no worker executables to install. Linked Units are not needed at run
+time. Use native 80x40 text mode. Quit with `/Q`, then Y.
+
 The default sheet is `sheet.zvc`; pass another path for another sheet:
 `./zealcalc.bin budget.zvc`. Missing sheets are created automatically; existing
-files are validated without truncation. The linked executables need no Units at
-run time. Use native 80x40 text mode. Quit with `/Q`, then Y.
+files are validated without truncation. The `.zvc` format is unchanged from
+the previous three-program example.
 
 ## Working with cells
 
@@ -68,36 +72,53 @@ There is no file-backed `mmap` in the current Pascal/Zeal OS interface. ZOS MAP
 maps physical hardware/RAM pages, not disk files; it provides no demand paging.
 ZealCalc uses an explicit bounded working set instead:
 
-| Structure | Size | Lifetime |
+| Structure | Size | Location |
 | --- | ---: | --- |
-| 254 row-head record indices | 508 bytes | Worker invocation |
-| Eight formula frames | 560 bytes | Calculator invocation |
-| Shared disk record | 70 bytes | Worker invocation |
-| One selected/rendered cell | 75 bytes | UI |
-| 210 displayed cell strings | 2100 bytes | UI |
-| Six status/prompt/footer strings | 480 bytes | UI |
+| 254 row-head record indices | 508 bytes | Shared resident data |
+| Eight formula frame coordinates/positions/lengths | 32 bytes | Shared resident data |
+| Shared disk record | 70 bytes | Shared resident data |
+| Shared header/cell/path staging | 128 bytes | Shared resident data |
+| 210 displayed cell strings | 2100 bytes | Owned RAM data bank |
+| Six status/prompt/footer strings | 480 bytes | Owned RAM data bank |
+| Eight saved formula sources | 512 bytes | Owned RAM data bank |
 
-These are the principal data structures, not executable code, Units, other
-fixed workspaces or stacks. No RAM structure grows with populated cells or edits.
-The UI caches only the displayed cell strings and six application lines, not
-viewport sources, formulas or the whole sheet. It reads source text from the disk
-viewport as needed. After an edit, the workers rebuild the calculated viewport;
-the UI compares the display strings and redraws only changed cells. Moving the
-selection redraws its old/new cells. Headers and the full grid redraw at startup
-or when the viewport scrolls; unchanged footer and prompt lines stay untouched.
-Line updates preserve their unchanged prefix and clear/rewrite the changed tail.
-Movement within the viewport does not recalculate the sheet.
-The UI image remains preserved while the save worker runs and replaces itself
-with the calculator. The calculator returns to the UI. Before evaluation,
-it reserves 2,496 bytes for guarded CPU calls using Pascal's `RecurPtr`; active parser
-workspaces use the separate bounded recursion area.
+These are the principal structures, not the entire resident image. The last
+three share one 16 KiB MMU RAM page and use 3092 bytes. Copies briefly map that
+page into window0 with interrupts disabled, then restore both the mapping and
+the caller's interrupt state. No Pascal code or syscall runs while it is mapped.
+The page is released on normal exit; Zeal OS also reclaims process-owned pages
+when the program terminates.
+
+Code members each fit in 16 KiB. First calls load the demanded member from its
+companion file; warm calls reuse RAM. The overlay manager owns its own bank.
+The compiler keeps private-call prologues and returns inside each member;
+CPU frames remain in shared memory. Resident wrappers handle cross-bank calls. See [overlay support](../../docs/overlays.md)
+for placement, cache recycling and error behavior. `binary.json` records the
+verified resident code/data size, checked CPU stack reserve and member sizes.
+The header reserve describes the largest compiler-checked call. During calculation,
+`RecurPtr := StackPtr - 3200` reserves CPU space for nested evaluation plus checked
+file I/O; recursive expression workspaces grow below that boundary.
+
+No working structure grows with populated cells or edits. The UI caches only
+screen strings, not the whole sheet. It reads sources from the disk viewport
+as needed. After an edit, storage and calculation overlays rebuild that
+viewport; the UI compares display strings and redraws only changed cells.
+Moving within the viewport redraws the old/new selection without recalculating.
+Headers and the grid redraw at startup or on scrolling. Line updates retain
+an unchanged prefix and replace the changed tail. Row40 remains untouched by
+painting.
+
+Ordinary overlay calls pass shared state directly; there is no Execute/Chain
+handoff or request file. Before evaluation, Pascal's `RecurPtr` reserves 2496
+bytes for guarded CPU calls; recursive expression workspaces use the separately
+checked recursion area.
 
 The Pascal typed `.zvc` file has a four-byte count/component-size header, one
 70-byte signature record and 70-byte edit records. Each
 changed entry stores row, column, previous record in that row's history, source
 string and additive checksum. Blank is a stored empty string, so an older value
 cannot reappear after reopening. Unchanged entries use no edit
-capacity. Each worker streams and validates the file to reconstruct row heads;
+capacity. The storage overlay streams and validates the file to reconstruct row heads;
 it does not load the cells. Lookups walk that row's history, newest first.
 Values are recomputed, so edits
 cannot leave stale dependency totals. Long histories can make refresh slower.
@@ -115,69 +136,55 @@ API here. An incomplete committed record, invalid address/chain, nonprintable so
 checksum failure stops opening the sheet without discarding bytes. The typed
 file header determines the committed record count; extra uncommitted bytes are
 not sheet entries. The additive checksum
-detects simple corruption, not deliberate tampering. A worker/close failure may
+detects simple corruption, not deliberate tampering. A storage/calculation/close failure may
 occur after an edit has reached disk; restart and inspect rather than replay it
 blindly. Keep backups, free disk space and a single writer per sheet.
 
-## Scratch files and worker lifecycle
+## Scratch file and overlay lifecycle
 
-Keep these three executables together:
+`zc.view` is the private, bounded 7x30 viewport in the current directory. Startup
+refuses an existing file with that name. Normal exit removes only the viewport
+reserved by this session. After a forced interruption, inspect and remove a
+stale `zc.view` before restarting; keep the `.zvc` sheet. `zc.req` is no longer
+created or used. Keep a single writer per sheet and application directory;
+there is no filesystem locking or exclusive-create API in this interface.
 
-| Executable | Responsibility | Handoff |
-| --- | --- | --- |
-| `zealcalc.bin` | Keyboard input and screen updates | Calls the save worker with `ZOS_EXEC_PRESERVE_PROGRAM` |
-| `zcsheet.bin` | Validate the sheet and save an edit | Replaces itself with the calculator using `ZOS_EXEC_OVERRIDE_PROGRAM` |
-| `zccalc.bin` | Evaluate formulas and write the 7x30 viewport | Calls `ZOS_EXIT`, returning to the preserved UI |
-
-Each executable includes its own linked Pascal support. This split fits the
-current compiler's program layout; only one worker runs alongside the preserved
-UI. The disk viewport stores source/display text, not a screen image. The repaint
-cache is a separate, fixed-size set of displayed strings in the UI.
-
-`zc.req` and `zc.view` are private, fixed-size request and viewport files in the
-current directory. Startup refuses pre-existing files with those names. Normal
-exit removes only the files reserved by this session. After a forced interruption,
-inspect and remove stale scratch files before restarting; keep the `.zvc` sheet.
-Do not run two ZealCalc sessions in the same directory. No filesystem locking or
-exclusive-create API is available in the current ZOS interface.
-
-The worker validates request coordinates, lengths and source characters before
-editing. It marks its response complete only after writing the entire viewport;
-the UI checks native execution status and the response header. Failed requests
-stop the UI, preventing blind retries of an edit that may already have committed.
-Worker exit codes identify disk/format errors or request failures; code 6 means
-checksum failure, and 31–37 a backend-protocol I/O or
-validation failure. The sheet remains on disk for inspection/restoration.
+Storage validates coordinates, source lengths/characters, record checksums and
+history chains before editing. Calculation marks its viewport complete only
+after writing all cells. A failure stops the program instead of retrying an
+edit that might already have committed. Error6 means a checksum failure;
+31–37 identify checked I/O, request or resource failures. Overlay loading errors
+use the runtime's fatal F0 behavior.
 
 ## Building and verification
 
-In the native IDE, compile **all three** programs: `zealcalc.pas`, `zcsheet.pas`, and
-`zccalc.pas`, using **O → C → Q**, then **C**. Keep `include` beside them. Install matching CRT.ZPU,
-ZOS.ZPU and SYSFILE.ZPU beside the compiler bank file. The resulting COM files use
-the same native image format as the distributed `.bin` files; use the filenames
-`zealcalc.bin`, `zcsheet.bin`, and `zccalc.bin` together. See the [Unit guide](../../docs/units.md).
-Run the UI from ZShell: its worker requires another native execution level, which
-may not be available when the UI is already running inside the IDE's RAM worker.
+In the native IDE, compile **zealcalc.pas** using **O → C → Q**, then **C**.
+Keep `include` beside it, with matching CRT.ZPU and ZOS.ZPU available to the
+compiler. Keep the generated COM and its `ZPxxxx` directory together; the
+shipped COM is named `zealcalc.bin`. See the [Unit guide](../../docs/units.md).
+Compile to a saved COM; direct Memory compilation does not support overlays.
 
-From the repository root:
+From the repository root, using the installed Zeal development environment:
 
 ```sh
-make
+zde --no-tty cmake --target zpascal_bin -j8
+python3 tools/author-crt.py
 python3 tests/acceptance/test-zealcalc.py --package
 ```
 
-In a worktree outside the usual Zeal directory layout, set `ZP_ZEAL_ROOT` to the
-existing `/Users/higginsd/Projects/zeal` directory for Make and the test command.
-This locates the installed native emulator and local ZDE ROM.
+In a worktree outside the usual Zeal layout, set `ZP_ZEAL_ROOT` to the existing
+`/Users/higginsd/Projects/zeal` directory for the Python commands. No additional
+emulator or target toolchain installation is needed.
 
-The focused acceptance check compiles the exact three programs and their actual
-includes on the unmodified emulator. It tests the real backend pipeline with
-formula and storage fixtures and replays keyboard entry, cancel, navigation,
-Blank, reopening and corrupt-file
-refusal. A read-only trace of native ZVB output instructions checks that an edit
-repaints only changed cells and that navigation leaves headers/footer untouched. `--package` refreshes all three binaries, native screen captures and the
-hash manifest only after those checks pass. Physical hardware qualification and
-historical VisiCalc equivalence are separate from emulator acceptance.
+Acceptance compiles the real program and includes on the unmodified emulator.
+A test-only backend harness calls the same storage/calculation overlays for
+formula and corruption fixtures. Keyboard tests exercise entry, cancel,
+navigation, Blank, reopening and edit limits with the single application COM
+and its companions. Read-only native output traces check incremental repainting;
+screen captures use the actual ZVB character/attribute planes, font and palette.
+`--package` refreshes the executable, companions, captures and provenance only
+after all checks pass. This is emulator acceptance; physical-board qualification
+and historical VisiCalc equivalence are separate.
 
 ## Emulator screenshots
 

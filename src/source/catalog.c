@@ -47,7 +47,11 @@ static int16_t find_source(const Sources *s,const char *path,uint8_t text_only) 
     for(id=0;id<s->count;++id){
         at=record(s,id);
 #ifdef ZP_UNITS_EXPERIMENT
-        if(text_only&&buffer_get(s->page,at+9))continue;
+        if(text_only&&buffer_get(s->page,at+9)
+#ifdef ZP_OVERLAYS
+           &&buffer_get(s->page,at+9)!=2
+#endif
+        )continue;
 #endif
         at+=RECORD_PATH;
         for(i=0;i<128;++i){c=buffer_get(s->page,at+i);if(c!=(uint8_t)path[i])break;if(!c)return id;}}
@@ -81,6 +85,7 @@ static int16_t descriptor(Sources *s,const Source *source,uint16_t base,uint8_t 
 }
 int16_t sources_borrow(Sources *s,const Source *source) SOURCE_BLOCK_CALL {return descriptor(s,source,0,0);}
 int16_t sources_reference(Sources *s,const Source *source) SOURCE_BLOCK_CALL {return descriptor(s,source,0,0);}
+
 int16_t sources_include(Sources *s,const Source *source,uint8_t interruptible) SOURCE_BLOCK_CALL {
     Source view;uint16_t i,base;
     view=*source;
@@ -100,7 +105,12 @@ uint8_t sources_finish(Sources *s) SOURCE_BLOCK_CALL {
     uint8_t i;
     if(!buffer_drop(s->pending))return 0;s->pending=255;
     if(!sources_valid(s))return 0;
-    for(i=1;i<s->count;++i)buffer_set(s->page,record(s,i),255);
+    for(i=1;i<s->count;++i) {
+        buffer_set(s->page,record(s,i),255);
+#ifdef ZP_OVERLAYS
+        if(buffer_get(s->page,record(s,i)+9)==2)buffer_set(s->page,record(s,i)+9,0);
+#endif
+    }
     if(!buffer_drop(s->text_page))return 0;s->text_page=s->text_tail=255;s->text_used=0;return 1;
 }
 uint8_t sources_close(Sources *s) SOURCE_BLOCK_CALL {
@@ -141,7 +151,12 @@ int16_t sources_unit(Sources *s,const Source *source,uint32_t checksum) SOURCE_B
 uint8_t sources_ready(const Sources *s,uint8_t id) SOURCE_BLOCK_CALL {
     if(!sources_valid(s)||id>=s->count)return 0;
 #ifdef ZP_UNITS_EXPERIMENT
-    return buffer_get(s->page,record(s,id)+9)<=1;
+    return buffer_get(s->page,record(s,id)+9)<=
+#ifdef ZP_OVERLAYS
+        2;
+#else
+        1;
+#endif
 #else
     return 1;
 #endif
@@ -151,7 +166,7 @@ uint8_t sources_matches(const Sources *s,uint8_t id,const Source *source) SOURCE
     uint16_t at;uint32_t expected=0;uint8_t i;
     if(!sources_ready(s,id))return 0;
     at=record(s,id);
-    if(!buffer_get(s->page,at+9))return 1;
+    if(buffer_get(s->page,at+9)!=1)return 1;
     if(source->page==255||source->length!=word(s,at+1))return 0;
     for(i=0;i<4;++i)expected|=(uint32_t)buffer_get(s->page,at+10+i)<<(8*i);
     return unit_source_fingerprint(source)==expected;

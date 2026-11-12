@@ -1,5 +1,6 @@
 #include "compiler/internal.h"
 #include "compiler/link/link.h"
+#include "compiler/groups/native.h"
 #ifdef ZP_UNITS_EXPERIMENT
 #include "units/internal.h"
 #endif
@@ -35,6 +36,8 @@ static uint16_t address(uint16_t id,InlineDelta *delta) {
 #endif
         delta->code=(cc_rget(scope,R_FLAGS)&RF_EXTERNAL)?0:1;
 #ifdef ZP_OVERLAYS
+        if(cc.sources->overlays&&cc_rget(scope,R_BANK)&&delta->code&&!cc_rget(scope,R_ENTRY))
+            cc_overlay_alias(scope);
         if(cc.sources->overlays&&cc.sources->bank){delta->root=delta->code;delta->code=0;}
 #endif
         return cc_rget(scope,R_ENTRY);

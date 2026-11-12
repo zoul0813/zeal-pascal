@@ -2,8 +2,9 @@
 
 Saved COM programs accept `overlay procedure` and `overlay function`. Overlay
 bodies execute in the MMU window at `8000..BFFF`; shared Pascal variables, the
-resident program and call wrappers remain in page3. Parameters, function results
-and lexical links use the ordinary Pascal calling convention.
+resident program and cross-bank call wrappers remain in page3. Private-call
+prologues and returns stay in the member; CPU frames remain in page3. Parameters,
+function results and lexical links use the ordinary Pascal calling convention.
 
 ```pascal
 var Total:Integer;
@@ -36,7 +37,7 @@ including under `{$I-}`. Active group members cannot be replaced. Ordinary neste
 routines within the current member can call through resident wrappers.
 
 The manager's code and state live together in one owned 16 KiB bank, temporarily
-mapped into page1 during dispatch. Fixed resident control/job data is24 bytes;
+mapped into page1 during dispatch. Fixed resident control/job data is 24 bytes;
 the gateway, routine wrappers and program-sized directory also remain resident.
 The packed bootstrap starts in the initial overlay window and is cleared after
 unpacking, so it occupies no permanent page3 code/data space. The overlay
@@ -51,8 +52,12 @@ capacity; they do not enlarge the shared Pascal data or heap address space.
 Memory compilation, overlay declarations inside compiled Units, captured nested
 callback addresses from members, and combining overlays with Chain/Execute are
 currently rejected. Units used by a program still link into its resident code.
-Large UI/Unit combinations may require further placement work. This is a native
-Zeal format, with no CP/M overlay-file compatibility claim.
+Large UI/Unit combinations must budget for that resident Unit code.
+The generated `LongWord` arithmetic helper belongs to each code member that
+uses it; its cached address never crosses a member boundary.
+[ZealCalc](../examples/zealcalc/README.md) demonstrates code overlays with a
+separate bounded RAM data bank for its display cache and formula sources.
+This is a native Zeal format, with no CP/M overlay-file compatibility claim.
 
 Source-based F lookup recompiles the same source and selects the first matching
 member for an overlapping overlay PC, following TP3's source lookup convention.

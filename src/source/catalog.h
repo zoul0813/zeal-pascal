@@ -9,6 +9,10 @@ uint8_t sources_get(const Sources *set,uint8_t id,Source *source) SOURCE_BLOCK_C
 /* Descriptors borrow source pages; only metadata and include text are owned. */
 int16_t sources_borrow(Sources *set,const Source *source) SOURCE_BLOCK_CALL;
 int16_t sources_include(Sources *set,const Source *source,uint8_t interruptible) SOURCE_BLOCK_CALL;
+#ifdef ZP_OVERLAYS
+int16_t sources_spooled(Sources *set,const Source *source,uint32_t offset) SOURCE_BLOCK_CALL;
+uint8_t sources_spool_offset(const Sources *set,uint8_t id,uint16_t *length,uint32_t *offset) SOURCE_BLOCK_CALL;
+#endif
 int16_t sources_reference(Sources *set,const Source *source) SOURCE_BLOCK_CALL;
 uint16_t sources_offset(const Sources *set,uint8_t id) SOURCE_BLOCK_CALL;
 uint8_t sources_finish(Sources *set) SOURCE_BLOCK_CALL;
