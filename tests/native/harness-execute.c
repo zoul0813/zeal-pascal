@@ -20,6 +20,9 @@ uint8_t cached_code_pages(void) SOURCE_BLOCK_CALL {
 #ifdef ZP_UNITS_EXPERIMENT
     count-=3; /* Artifact I/O, dependency/type metadata and linker are transient. */
 #endif
+#ifdef ZP_OVERLAYS
+    --count; /* Ordinary corpus programs do not demand the overlay compiler. */
+#endif
     return count;
 }
 void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) SOURCE_BLOCK_CALL {

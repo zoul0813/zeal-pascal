@@ -247,6 +247,13 @@ class DebugConsole(emulator.DebugConsole):
             if (len(image) >= 160 and image[3:8] == b'ZP80\x02'
                     and len(image) == int.from_bytes(image[10:12], 'little')):
                 return input_layout(image)
+        if line.source is not None:
+            observed=memory(self.command('rb 0x4000 160'))
+            header=bytes(observed.get(0x4000+i,255) for i in range(160))
+            if header[3:8]==b'ZP80\x02':
+                compact=int.from_bytes(header[132:134],'little')<16383
+                prefix=(ROOT/('build/assets/linked_integer_runtime.bin' if compact else 'build/pascal_runtime.zpl')).read_bytes()
+                return input_layout(prefix)
         return getattr(self, 'active_input_layout', None) or input_layout()
 
     def observe(self):
@@ -384,7 +391,7 @@ def dispatch_command(console, command):
         return emulator.dispatch_command(console, command)
 
 
-def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, timeout=180, after_command=None, console_class=None, base_programs=('zpascal', 'zptest'), base_units=('SYSFILE',)):
+def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, timeout=180, after_command=None, console_class=None, base_programs=('zpascal',), base_units=('SYSFILE',)):
     directory = RUN / name
     files = {}
     for target in base_programs:
@@ -410,6 +417,15 @@ def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, tim
                             after_command=after_command, dispatch=dispatch_command)
 
 
+def native_probe_bytes(image, code):
+    """The first typed constant follows a three-byte jump and length byte."""
+    origin, size = struct.unpack_from('<HH',image,20)
+    at = origin-0x4000+4
+    return (image[origin-0x4000]==0xc3 and image[at-1]==len(code)
+            and image[at:at+len(code)]==code and 4+len(code)<=size
+            and 0x4000+len(image)<0xb800)
+
+
 def artifact_checks(directory):
     binary=(directory/'SLICE.COM').read_bytes()
     from artifact_format import validate_image
@@ -417,8 +433,8 @@ def artifact_checks(directory):
     word=lambda at:struct.unpack_from('<H',binary,at)[0]
     entry=(ROOT/'build/execute_entry.zpl').read_bytes()
     assert word(12)==0x4000+len(binary)-len(entry) and binary[-len(entry):]==entry
-    assert word(1)==word(12) and word(14)==0x40a3 and word(16)==1 and word(18)==0
-    assert word(24)==0x8000 and word(26)==2 and word(28)==0x4000+len(binary)
+    assert word(1)==word(12) and word(14)==0x40a3 and word(16)==1 and word(18)==4
+    assert word(24)==json.loads((ROOT/'build/runtime-layout.json').read_text())['compact_end'] and word(26)==2 and word(28)==0x4000+len(binary)
     assert not (directory/'SLICE.ZMP').exists()
     second=b'begin\n{second}\nend.\n';third=b'begin\n{third}\n{second}\nend.\n'
     assert (directory/'EDIT.PAS').read_bytes()==third
@@ -500,7 +516,7 @@ def interactive_checks():
          and all(first.get(user_pages + i) == last.get(user_pages + i) for i in range(3))),
         ('ZShell raw nonblocking keyboard convention restored', first.get(mode) == last.get(mode) == 4),
         ('read-only installation files; Memory workflow creates no source/output files',
-         sorted(p.name for p in (RUN / 'interactive/hostfs').iterdir()) == ['SYSFILE.ZPU', 'zpascal.bin', 'zpascal.zpl', 'zptest.bin', 'zptest.zpl']),
+         sorted(p.name for p in (RUN / 'interactive/hostfs').iterdir()) == ['SYSFILE.ZPU', 'zpascal.bin', 'zpascal.zpl']),
         ('kernel page unchanged at every interactive checkpoint',
          all(mappings(part) and mappings(part)[0] == ('0000', '000000') for part in parts)),
     ]
@@ -729,6 +745,15 @@ def default_path_checks():
     return checks
 
 
+def short_deferred_library(target):
+    """Retain a valid directory, truncate the last ordinary deferred code bank."""
+    data = (ROOT/f'build/{target}.zpl').read_bytes()
+    sizes = json.loads((ROOT/f'build/{target}.banks.json').read_text())['bank_bytes']
+    # Unit compiler index15 is the last bank required by ordinary restore.
+    # All startup banks end earlier; the cold loader must succeed first.
+    return data[:16+2*len(sizes)+sum(sizes[:16])-1]
+
+
 def library_failure_checks():
     sym = symbols('zpascal')
     good = (ROOT / 'build/zpascal.zpl').read_bytes()
@@ -782,13 +807,23 @@ def library_failure_checks():
     phase = symbols('zptest')
     commands = ['run 100000000'] + type_text('H:/zptest.bin H:/BAD.ZPL')
     commands += ['bp 0x4000', 'tap ENTER', 'run 2000000000', 'bc 0x4000',
+                 f"bp 0x{phase['_code_phase_restore']&0xffff:x}", 's', f'run {LIBRARY_READY_CYCLES}',
+                 'regs', 'mmu', 'rb 0x4000 32', f"rb 0x{phase['_code_owned']:x} 2",
+                 f"bc 0x{phase['_code_phase_restore']&0xffff:x}",
                  f"bp 0x{phase['_fflush_stdout']:x}", 's', f'run {LIBRARY_READY_CYCLES}',
                  'regs', f"rb 0x{phase['_code_owned']:x} 2", 'quit']
     text = execute('library-deferred-read-failure', commands,
-                   {'BAD.ZPL': (ROOT/'build/zptest.zpl').read_bytes()[:-1]})
-    observed = memory(text)
+                   {'BAD.ZPL': short_deferred_library('zptest')},
+                   base_programs=('zpascal','zptest'))
+    frames = re.split(r'\[DBG\] PC=',text)[1:]
+    entered = [frame for frame in frames if frame.startswith(f"{phase['_code_phase_restore']&0xffff:04x} ")]
+    startup = memory(entered[-1]) if entered else {}
+    startup_ok = (startup.get(phase['_code_owned'])==code_banks('zptest')
+                  and startup.get(phase['_boot_error'])==0
+                  and bytes(startup.get(0x4000+i,0)for i in range(32))==(ROOT/'build/zptest.bin').read_bytes()[:32])
+    observed = memory(frames[-1]) if frames else {}
     checks.append(('short deferred bank read fails and releases all code pages',
-                   observed.get(phase['_code_owned']) == 0
+                   startup_ok and observed.get(phase['_code_owned']) == 0
                    and observed.get(phase['_boot_error']) == 25
                    and f"[DBG] PC={phase['_fflush_stdout']:04x} " in text))
     return checks
@@ -929,7 +964,7 @@ def write_report(report, case=None):
     RUN.mkdir(parents=True, exist_ok=True)
     text = json.dumps(report, indent=2)+'\n'
     (RUN/'report.json').write_text(text)
-    # Standalone legacy runs retain their public summary; isolated chunks only
+    # Standalone integrated runs retain their public summary; isolated chunks only
     # publish inside their own timestamp+PID capture directory.
     if case is None:(OUT/'report.json').write_text(text)
     print(text)
@@ -967,10 +1002,10 @@ def main():
     integrated = not args.core_only and not args.case
     OUT.mkdir(parents=True, exist_ok=True)
     inputs = [ROOT / 'CMakeLists.txt', ROOT / 'tools/package-native.py',
-              ROOT / 'tools/zeal_emulator.py', Path(__file__).resolve()]
+              ROOT / 'tools/zeal_emulator.py', ROOT/'tools/artifact_format.py', Path(__file__).resolve()]
     inputs += sorted((ROOT / 'cmake').glob('*.cmake'))
     inputs += sorted((source_path for source_path in (ROOT / 'src').rglob('*') if source_path.is_file())) + sorted((ROOT / 'tests/native').glob('*.pas'))
-    inputs += [ROOT/'tests/native'/name for name in ('main.c', 'harness.c', 'harness-cases.c', 'harness.h', 'core-groups.h', 'core-counts.json', 'machine.asm', 'startup-fail.c')]
+    inputs += [ROOT/'tests/native'/name for name in ('main.c', 'corpus-control.c', 'corpus-path.c', 'harness.c', 'harness-cases.c', 'harness-execute.c', 'code-capture.c', 'harness.h', 'core-groups.h', 'core-counts.json', 'machine.asm', 'startup-fail.c')]
     inputs += sorted(MEDIA.iterdir())
     input_hashes = {str(p.relative_to(ROOT)): sha(p) for p in inputs if p.is_file()}
     artifacts = artifact_hashes()
@@ -1045,6 +1080,7 @@ def main():
                     print(f'Native core stage {stage}: {passed} passed, {failed} failed',flush=True)
             return frame
     text = execute('core', commands, fixtures, eeprom_image=MEDIA/'eeprom-empty.img',
+                   base_programs=('zpascal','zptest'),
                    tf_image=prepare_media() if args.case in (None,'media') else None, timeout=5400,
                    console_class=CoreConsole)
     frames = re.split(r'\[DBG\] PC=', text)[1:]
@@ -1062,7 +1098,7 @@ def main():
     supervisor=supervisor and startup_valid and bool(first_mapping and final_mapping and first_mapping[1]==final_mapping[1])
     checks.append(('native test completion marker', supervisor and mem.get(sym['_test_done']) == 255 and word('_test_stage')==6))
     expected_assertions = (CORE_COUNTS['families'][args.case] if args.case else
-                           CORE_COUNTS['legacy_all_assertions']+CORE_COUNTS['selector_assertions'])
+                           CORE_COUNTS.get('production_all_assertions',CORE_COUNTS['legacy_all_assertions'])+CORE_COUNTS['selector_assertions'])
     checks.append(('native assertions', supervisor and word('_test_failed') == 0
                    and word('_test_passed') == expected_assertions))
     selected=CORE_GROUPS.get(args.case,0)
@@ -1282,7 +1318,7 @@ def main():
         real_image = RUN / 'core/hostfs/REALABI.COM'
         real_code = (ROOT/'build/realabi.zpl').read_bytes()
         checks.append(('native external six-byte Real arguments and BCDEHL result match independent assembly',
-                       real_image.is_file() and real_image.read_bytes()[0x400a:0x400a+len(real_code)]==real_code))
+                       real_image.is_file() and native_probe_bytes(real_image.read_bytes(),real_code)))
     if args.case in (None, 'formats'):
         formats_output = RUN / 'core/hostfs/FORMATS.TXT'
         formats_expected = (
@@ -1312,17 +1348,17 @@ def main():
         pointer_image = RUN / 'core/hostfs/POINTERABI.COM'
         pointer_code = (ROOT / 'build/pointerabi.zpl').read_bytes()
         checks.append(('native external pointer payload matches independently assembled two-word probe',
-                       pointer_image.is_file() and pointer_image.read_bytes()[0x4004:0x4004+len(pointer_code)] == pointer_code))
+                       pointer_image.is_file() and native_probe_bytes(pointer_image.read_bytes(),pointer_code)))
     if args.case in (None, 'sets'):
         set_image = RUN / 'core/hostfs/SETABI.COM'
         set_code = (ROOT / 'build/setabi.zpl').read_bytes()
         checks.append(('native external set payload matches independently assembled 32-byte argument probe',
-                       set_image.is_file() and set_image.read_bytes()[0x4004:0x4004+len(set_code)] == set_code))
+                       set_image.is_file() and native_probe_bytes(set_image.read_bytes(),set_code)))
     if args.case in (None, 'strings'):
         abi_image = RUN / 'core/hostfs/STRINGABI.COM'
         abi_code = (ROOT / 'build/stringabi.zpl').read_bytes()
         checks.append(('native external string payload matches independently assembled ABI probe',
-                       abi_image.is_file() and abi_image.read_bytes()[0x4004:0x4004+len(abi_code)] == abi_code))
+                       abi_image.is_file() and native_probe_bytes(abi_image.read_bytes(),abi_code)))
     if args.case in (None, 'media'):
         media_output = RUN / 'core/hostfs/MEDIA.TXT'
         disk = (RUN / 'core/tf.img').read_bytes()

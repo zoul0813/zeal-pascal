@@ -1,5 +1,5 @@
 program NativeMemoryIO;
-var n:integer;fixed:integer absolute $8000;page:byte;
+var n:integer absolute $B800;fixed:integer absolute $B800;page:byte;
 procedure shadow;
 var port:array[1..2]of byte;mem:byte;
 begin port[1]:=31;mem:=47;

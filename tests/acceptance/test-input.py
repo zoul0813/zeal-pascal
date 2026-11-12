@@ -20,7 +20,7 @@ def main():
     inputs += sorted((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file())) + sorted((ROOT/'tests/native').glob('*.pas'))
     inputs += [ROOT/'tests/native'/name for name in ('input-main.c', 'harness.c', 'harness.h', 'machine.asm')]
     inputs += [ROOT/f'build/{target}.{ext}' for ext in ('bin', 'zpl', 'map', 'banks.json')]
-    inputs += [ROOT/f'build/{name}.{ext}' for name in ('zpascal', 'zptest')
+    inputs += [ROOT/f'build/{name}.{ext}' for name in ('zpascal',)
                for ext in ('bin', 'zpl', 'map', 'banks.json')]
     inputs += [ROOT/'build/assets/linked_integer_runtime.bin']
     hashes = {str(p): n.sha(p) for p in inputs if p.is_file()}

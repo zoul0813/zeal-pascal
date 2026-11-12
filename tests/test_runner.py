@@ -54,8 +54,8 @@ class Selection(unittest.TestCase):
         definition = json.loads(runner.PLAN.read_text())
         expanded = runner.expand_commands(definition)
         original = runner.expand_commands(definition, monolithic=True)
-        self.assertEqual(len(original), 101)
-        self.assertEqual(len(expanded), 175)
+        self.assertEqual(len(original), 100)
+        self.assertEqual(len(expanded), 174)
         expected = [command + shlex.split(suffix) for command in original
                     for suffix in definition.get('chunks', {}).get(' '.join(command), [''])]
         self.assertEqual(expanded, expected)
@@ -94,13 +94,48 @@ class Selection(unittest.TestCase):
                 self.assertEqual(console.line_layout(line), {'finished': 0x5000})
                 parser.assert_called_once_with(bytes(image))
 
+    def test_inline_source_observer_uses_live_runtime_layout(self):
+        from unittest.mock import patch
+        module = self.native_helper()
+        console = object.__new__(module.DebugConsole)
+        console.directory = Path('/unused')
+        console.active_input_layout = {'finished': 0x7900}
+        header = bytearray(160); header[3:8] = b'ZP80\x02'
+        header[132:134] = (6042).to_bytes(2, 'little')
+        console.command = lambda command: ''.join(
+            f'[DBG] {0x4000+i:04x}: {value:02x} \n' for i,value in enumerate(header))
+        line = module.PhysicalLine('', 'inline', 1, source=('H:/X.PAS', b'begin end.'))
+        with patch.object(module, 'input_layout', return_value={'finished': 0x5200}) as parser:
+            self.assertEqual(console.line_layout(line), {'finished': 0x5200})
+            parser.assert_called_once_with((module.ROOT/'build/assets/linked_integer_runtime.bin').read_bytes())
+        header[3:8] = bytes(5)
+        with patch.object(module, 'input_layout') as parser:
+            self.assertIs(console.line_layout(line), console.active_input_layout)
+            parser.assert_not_called()
+
+    def test_native_single_page_image_bounds(self):
+        import sys, struct
+        sys.path.insert(0,str(runner.ROOT/'tools'))
+        from artifact_format import validate_image
+        image=bytearray(512);image[0]=0xc3;image[3:8]=b'ZP80\x02'
+        for at,value in ((8,160),(10,len(image)),(18,4),(20,0x40b0),
+                         (22,32),(24,0x40a0),(26,16),(28,0x4200),
+                         (30,0xfbff),(32,2048)):
+            struct.pack_into('<H',image,at,value)
+        self.assertEqual(validate_image(image)['origin'],0x40b0)
+        for at,value in ((18,8),(18,6),(26,17),(28,0x7600)):
+            with self.subTest(at=at,value=value):
+                broken=bytearray(image);struct.pack_into('<H',broken,at,value)
+                with self.assertRaises(AssertionError):validate_image(broken)
+
     def test_native_manifest_covers_every_c_family_and_workflow(self):
         import re
         native = self.native_helper()
         header = (runner.ROOT/'tests/native/core-groups.h').read_text()
         functions = re.findall(r'NATIVE_GROUP\(\d+, "[^"]+", (\w+)\)', header)
         source = (runner.ROOT/'tests/native/main.c').read_text()
-        self.assertCountEqual(functions, re.findall(r'static void (\w+_tests)\(void\)', source))
+        families = source + (runner.ROOT/'tests/native/corpus-control.c').read_text()
+        self.assertCountEqual(functions, re.findall(r'(?:static )?void (\w+_tests)\(void\)(?: SOURCE_BLOCK_CALL)?\s*\{', families))
         self.assertEqual(list(native.CORE_GROUPS.values()), list(range(1, 19)))
         self.assertIn('test_groups[18]', source)
         self.assertIn('#include "core-groups.h"', source)
@@ -112,7 +147,7 @@ class Selection(unittest.TestCase):
         self.assertEqual(counts['legacy_all_assertions'], 2106)
         self.assertEqual(sum(counts['families'].values()) -
                          (len(native.CORE_GROUPS)-1)*counts['common_assertions_per_chunk'],
-                         counts['legacy_all_assertions']+counts['selector_assertions'])
+                         counts['production_all_assertions']+counts['selector_assertions'])
 
     def test_native_input_lines_are_partitioned_without_loss(self):
         native = self.native_helper()
@@ -270,7 +305,7 @@ class RunnerDependencies(unittest.TestCase):
             for name in ('CMakeLists.txt','tests/test_runner.py','tests/test_native_chunks.py'):(root/name).write_text('')
             shutil.copy(runner.ROOT/'tools/run-tests.py',root/'tools/run-tests.py')
             (root/'tests/acceptance/test-native-host.py').write_text('')
-            names={'test-units.py':'zunittest_bin','test-unit-real.py':'zunitrealtest_bin','test-optional-corpus.py':'zoptionalcorpus_bin',
+            names={'test-units.py':'zunittest_bin','test-unit-real.py':'zunitrealtest_bin','test-native.py':'zptest_bin',
                    'test-error-location.py':'zmaptest_bin','test-params.py':'zparamtest_bin'}
             for name,target in names.items():
                 (root/'tests/acceptance'/name).write_text(f'from pathlib import Path\nassert Path("build/{target}.bin").read_bytes()==b"built"\n')
@@ -279,7 +314,7 @@ class RunnerDependencies(unittest.TestCase):
             fake.write_text(f'#!{sys.executable}\nimport sys\nfrom pathlib import Path\nargs=sys.argv\nif args[1:4]==["--no-tty","exec","cmake"]:\n assert args[4:]==["-S",".","-B","build","-DZP_BUILD_TESTS=ON"],args\n Path("configured.txt").write_text("tests enabled")\n action="configure"\nelse:\n assert args[1:4]==["--no-tty","cmake","build"],args\n assert Path("configured.txt").read_text()=="tests enabled"\n for target in args[args.index("--target")+1:args.index("--parallel")]:Path("build/"+target+".bin").write_bytes(b"built")\n action="build"\nwith Path("build-calls.txt").open("a")as out:out.write(action+"\\n")\n')
             fake.chmod(0o755)
             env={**os.environ,'PATH':str(fake.parent)+os.pathsep+os.environ.get('PATH','')}
-            result=subprocess.run([sys.executable,'tools/run-tests.py','--only','units','--only','unit-real','--only','optional-corpus','--only','error-location','--only','params'],cwd=root,env=env,capture_output=True,text=True)
+            result=subprocess.run([sys.executable,'tools/run-tests.py','--only','units','--only','unit-real','--only','native','--only','error-location','--only','params'],cwd=root,env=env,capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stdout+result.stderr)
             self.assertEqual((root/'build-calls.txt').read_text(),'configure\nbuild\n')
             report=json.loads(next((root/'analysis/test-runs').glob('*/suite.json')).read_text())

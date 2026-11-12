@@ -16,5 +16,5 @@ begin
  for i:=1 to 100 do begin getmem(a,1);freemem(a,1)end;
  after:=memavail;if before=after then writeln('HEAP-ODD-SIZE-CLEANUP-OK');
  before:=memavail;after:=maxavail;
- if(before=after)and(before>0)then writeln('HEAP-MAXAVAIL-OK');
+ if(before=after)and((before xor $8000)>($8000))then writeln('HEAP-MAXAVAIL-OK');
 end.

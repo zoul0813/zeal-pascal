@@ -7,7 +7,7 @@
     "control": 64,
     "cases": 64,
     "routines": 75,
-    "basic": 135,
+    "basic": 139,
     "ordinals": 144,
     "strings": 106,
     "arrays": 131,
@@ -22,5 +22,7 @@
     "read": 78,
     "formats": 135
   },
-  "reference_run": "analysis/test-runs/20261031T002807.535644Z/suite.json"
+  "reference_run": "analysis/test-runs/20261031T002807.535644Z/suite.json",
+  "production_all_assertions": 2110,
+  "production_added_assertions": 4
 }
