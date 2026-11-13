@@ -83,6 +83,6 @@ python3 scripts/prepare.py --update-workbench \
 
 ## Appearance and code blocks
 
-The book uses the Midnight light/dark palettes and Zeal purple (`#6B5176`), with the supplied official SVG logo. The header switch follows the system until a reader chooses a theme, then remembers that choice.
+The book uses the Midnight light/dark palettes and Zeal purple (`#6B5176`), with the supplied official SVG logo. The sticky header keeps Open Zeal available while reading on desktop and mobile. Its sun/moon switch follows the system until a reader chooses a theme, then remembers that choice. CSS and the theme script use content-hashed URLs so deployments do not reuse stale styles.
 
 Hugo highlights code at build time with Chroma; no client library is needed. Label fenced blocks `pascal`, `makefile`, `cmake`, `bash`, or `zsh`. `Makefile`, `CMakeLists.txt`, and `cli` are also accepted. The code-block hook maps `pascal` to Chroma's `objectpascal` lexer. Text/output blocks stay plain. Token colors follow the light/dark theme.

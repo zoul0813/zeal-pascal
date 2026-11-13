@@ -26,6 +26,9 @@
 :root[data-theme="dark"] {
   color-scheme:dark
 }
+html {
+  scroll-padding-top:160px
+}
 * {
   box-sizing:border-box
 }
@@ -73,14 +76,20 @@ button:disabled {
 .skip:focus {
   top:10px
 }
+.site-header {
+  position:sticky;
+  top:0;
+  z-index:4;
+  background:var(--paper);
+  border-bottom:1px solid var(--line)
+}
 .masthead {
   max-width:1440px;
   margin:auto;
-  padding:24px 35px;
+  padding:14px 35px;
   display:flex;
   justify-content:space-between;
   align-items:center;
-  border-bottom:1px solid var(--line);
   gap:20px;
   flex-wrap:wrap
 }
@@ -307,6 +316,7 @@ code {
   border-radius:6px
 }
 pre code {
+  font-size:inherit;
   padding:0;
   background:none
 }
@@ -546,7 +556,7 @@ body.workbench-open .masthead nav a {
 .theme-toggle {
   display:inline-flex;
   align-items:center;
-  gap:9px;
+  min-width:56px;
   min-height:44px;
   padding:6px 0;
   border:0;
@@ -559,27 +569,53 @@ body.workbench-open .masthead nav a {
 .theme-track {
   display:inline-flex;
   align-items:center;
-  width:36px;
-  height:22px;
+  width:56px;
+  height:30px;
   padding:3px;
   border-radius:20px;
   background:var(--control-border)
 }
 .theme-thumb {
-  width:16px;
-  height:16px;
+  display:grid;
+  place-items:center;
+  width:24px;
+  height:24px;
   border-radius:50%;
-  background:#ffffff
+  background:#ffffff;
+  color:var(--brand)
 }
 .theme-toggle[aria-checked="true"] .theme-track {
   background:var(--brand)
 }
 .theme-toggle[aria-checked="true"] .theme-thumb {
-  transform:translateX(14px)
+  transform:translateX(26px)
 }
-#theme-label {
-  min-width:78px;
-  text-align:left
+.theme-thumb svg {
+  width:16px;
+  height:16px
+}
+.theme-moon,.theme-toggle[aria-checked="true"] .theme-sun {
+  display:none
+}
+.theme-toggle[aria-checked="true"] .theme-moon {
+  display:block
+}
+.masthead [data-open-emulator] {
+  min-height:44px
+}
+@media(max-width:520px) {
+  .masthead {
+    padding:10px 16px;
+    gap:12px;
+    flex-wrap:nowrap
+  }
+  .masthead .brand > span {
+    display:none
+  }
+  .masthead nav {
+    flex-wrap:nowrap;
+    gap:12px
+  }
 }
 .workbench-callout {
   display:flex;
