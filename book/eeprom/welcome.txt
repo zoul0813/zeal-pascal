@@ -2,12 +2,14 @@
 
 Welcome to your book workbench.
 
-Type zpascal to open the Pascal IDE.
-Lesson examples: H:/book/lab/
-Your own programs: H:/work/
-Community apps and tools: T:/apps/ and T:/bin/
+Type zpascal to open the Pascal IDE (T:/apps/zpascal.bin).
+Pascal libraries and units: T:/lib/
+Book-owned starters: H:/book/lab/ (may be replaced by starter updates)
+Save YOUR programs as new files in H:/work/, never over the starters.
 
-Save source with S in Pascal. H: files and completed TF/EEPROM writes persist
-in this browser. Unsaved editor text does not. Keep backups of your work.
+Use W for a new H:/work/ file, or A (Save As) before editing a starter.
+Use S to save. Unsaved editor text is lost on restart.
+Updating disk images replaces T:/ or B:/, but keeps your H:/ files.
+Download H: backups regularly.
 
 Try: zpascal, tree T:/, or cat B:/autoexec.zs

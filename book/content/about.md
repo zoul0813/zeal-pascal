@@ -14,7 +14,7 @@ The emulator uses **OPFS** for its TF and EEPROM images as well. It seeds the co
 
 All chapters share one project namespace. Existing H: files remain in the original `zeal-pascal-book` OPFS directory; disk images are under `zeal-native/<namespace hash>/`. Local image changes are never replaced automatically when the site updates. Workspace downloads back up H: files, not the TF/EEPROM images. There is no account, cloud synchronization, grading, or telemetry.
 
-At startup, `B:/autoexec.zs` sets the community-tool paths plus `H:/bin/`, changes directory to `H:/`, and displays the book welcome. Type `zpascal` to open the IDE. The IDE automatically opens its saved default `T:/src/pascal/UNTITLED.pas` when present; use W to open another saved file.
+At startup, `B:/autoexec.zs` sets the community-tool paths, changes directory to `T:/`, and displays the book welcome. Pascal is installed in T:/apps/ and its associated files in T:/lib/. Type `zpascal`, then use **W** for your own H:/work/ file. Always use **A (Save As)** before editing a book starter. The three published files in H:/book/lab/ may be replaced by **Update lesson starters**; your other H: files are kept. **Retrieve selected images** replaces only the selected TF, EEPROM or boot ROM and restarts Zeal after confirmation; save personal work to H:/work/ first.
 
 Use one workbench tab at a time. The site prevents a second workbench from opening the same workspace concurrently where Web Locks is supported. The emulator supports desktop keyboards; mobile/touch programming is outside this pilot's scope.
 
@@ -25,4 +25,4 @@ Use one workbench tab at a time. The site prevents a second workbench from openi
 - [Zeal Software Collection](https://github.com/Zeal8bit/Zeal-Software-Collection): the community TF image and its tools.
 - [ZShell](https://github.com/zoul0813/zeal-zshell): the shell used to start your session.
 
-Bundled programs retain their existing licenses. The workbench's **Files, backups & fresh starts** section links to the included third-party notices. Build provenance and asset hashes are shipped with the site. No new license for the book text is asserted by this pilot.
+Bundled programs retain their existing licenses. The workbench's **Files, backups & starters** section links to the included third-party notices. Build provenance and asset hashes are shipped with the site. No new license for the book text is asserted by this pilot.

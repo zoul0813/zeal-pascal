@@ -483,10 +483,6 @@ body.workbench-open .masthead nav a {
     width:min(720px,calc(100vw - 40px))
   }
 }
-/* Reserve space so normal startup status changes do not move the screen. */
-#emulator-status,#storage-status {
-  min-block-size:3lh
-}
 @media(max-width:800px) {
   .contents {
     display:none
@@ -650,4 +646,19 @@ body.workbench-open .masthead nav a {
     border:0;
     padding:0
   }
+}
+
+.image-options {
+  border:1px solid var(--line);
+  border-radius:5px;
+  margin:14px 0;
+  padding:12px
+}
+.image-options label {
+  display:block;
+  font-size:13px;
+  padding:6px 0
+}
+.image-options input {
+  accent-color:var(--brand)
 }

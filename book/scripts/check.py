@@ -4,7 +4,7 @@ from pathlib import Path
 import hashlib
 import json
 import zipfile
-from prepare import files_in_image
+from prepare import files_in_image, PASCAL_FILES
 
 book = Path(__file__).resolve().parents[1]
 manifest = json.loads((book / 'static/provenance.json').read_text())
@@ -15,6 +15,17 @@ expected_eeprom = {'/' + name: (book / 'eeprom' / name).read_bytes() for name in
 assert files_in_image((book / 'static/media/eeprom.img').read_bytes()) == expected_eeprom
 for name, digest in manifest['sources']['eeprom_authoring'].items():
     assert hashlib.sha256((book / 'eeprom' / name).read_bytes()).hexdigest() == digest, name
+base_bytes = (book / 'static/media/community-tf.img').read_bytes()
+assert hashlib.sha256(base_bytes).hexdigest() == manifest['sources']['tf_overlay']['base_sha256']
+base, base_directories = files_in_image(base_bytes, include_directories=True)
+installed = {'/apps/zpascal.bin': (book / 'static/media/pascal/zpascal.bin').read_bytes()}
+installed.update({'/lib/' + name: (book / 'static/media/pascal' / name).read_bytes() for name in PASCAL_FILES[1:]})
+actual, directories = files_in_image((book / 'static/media/tf.img').read_bytes(), include_directories=True)
+assert not set(base) & set(installed)
+assert actual == {**base, **installed}
+assert directories == base_directories | {'/apps', '/lib'}
+for name, digest in manifest['sources']['tf_overlay']['files'].items():
+    assert hashlib.sha256(installed[name]).hexdigest() == digest, name
 with zipfile.ZipFile(book / 'static/code/book-code.zip') as archive:
     for source in (book / 'static/code/lab').glob('*.PAS'):
         text = source.read_text(encoding='ascii')

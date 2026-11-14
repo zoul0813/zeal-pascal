@@ -11,7 +11,7 @@ class Directory {
     return value;
   }
   async getFileHandle(name, {create = false} = {}) {
-    if (!this.entries.has(name) && create) this.entries.set(name, {bytes: new Uint8Array(), async createWritable() { return {write: async bytes => { this.bytes = bytes; }, close: async () => {}, abort: async () => {}}; }});
+    if (!this.entries.has(name) && create) this.entries.set(name, {bytes: new Uint8Array(), async getFile() { return new Blob([this.bytes]); }, async createWritable() { return {write: async bytes => { this.bytes = bytes; }, close: async () => {}, abort: async () => {}}; }});
     const value = this.entries.get(name);
     if (!value) throw new DOMException('Missing', 'NotFoundError');
     if (value instanceof Directory) throw new DOMException('Directory', 'TypeMismatchError');
@@ -53,4 +53,26 @@ test('backup accepts personal files saved at the H: root without permitting syst
   for (const path of ['lib/zpascal.zpl', 'bin/zpascal.bin', '.state.json']) {
     assert.throws(() => validateBackup({...value, files: [{path, base64: ''}]}));
   }
+});
+
+test('explicit starter refresh replaces only supplied files and leaves personal files intact', async () => {
+  const root = new Directory();
+  await writeFile(root, 'book/lab/START.PAS', new Uint8Array([9]));
+  await writeFile(root, 'book/lab/MINE.PAS', new Uint8Array([7]));
+  await writeFile(root, 'work/LAB.PAS', new Uint8Array([8]));
+  const files = [{path: 'book/lab/START.PAS', url: 'starter'}];
+  assert.deepEqual(await seedFiles(root, files, async () => new Uint8Array([1])), ['book/lab/START.PAS']);
+  assert.deepEqual(await seedFiles(root, files, async () => new Uint8Array([1]), {overwrite: true}), []);
+  assert.deepEqual((await (await directoryAt(root, 'book/lab')).getFileHandle('START.PAS')).bytes, new Uint8Array([1]));
+  assert.deepEqual((await (await directoryAt(root, 'book/lab')).getFileHandle('MINE.PAS')).bytes, new Uint8Array([7]));
+  assert.deepEqual((await (await directoryAt(root, 'work')).getFileHandle('LAB.PAS')).bytes, new Uint8Array([8]));
+});
+
+test('failed refresh download keeps the existing starter bytes', async () => {
+  const root = new Directory();
+  await writeFile(root, 'book/lab/START.PAS', new Uint8Array([9]));
+  await assert.rejects(seedFiles(root, [{path: 'book/lab/START.PAS', url: 'good'}, {path: 'book/lab/HELLO.PAS', url: 'bad'}], async url => {
+    if (url === 'bad') throw new Error('Network'); return new Uint8Array([1]);
+  }, {overwrite: true}));
+  assert.deepEqual((await (await directoryAt(root, 'book/lab')).getFileHandle('START.PAS')).bytes, new Uint8Array([9]));
 });

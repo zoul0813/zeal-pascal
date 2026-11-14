@@ -29,7 +29,7 @@ Enter this command and press **Enter**:
 zpascal
 ```
 
-The welcome screen comes from ZShell's startup files on B:, the EEPROM. The startup script adds Pascal and the community tools to PATH and starts the shell in H:/. From there, `zpascal` finds its compiler library in `lib/`. T: contains the community tools; you do not need to install anything. If you change directories before launching Pascal, enter `cd H:/` first.
+The welcome screen comes from ZShell's startup files on B:, the EEPROM. Pascal is installed at `T:/apps/zpascal.bin`, with its library and units in `T:/lib/`. The startup script sets the community PATH and starts the shell in `T:/`, so typing `zpascal` is enough. If you change directories before launching Pascal, enter `cd T:/` first. If you used an older book workbench, first open `T:/src/pascal/UNTITLED.pas` (if present) and any other personal T: sources with **W**, then use **A (Save As)** to copy them to new H:/work/ files. TF replacement discards all T: contents, and H: backups do not include them. Then retrieve the TF and EEPROM together under **Disk images & updates** to install this setup; H: files are kept.
 
 The first launch can take a moment. At the compiler-message prompt, press **Y** for explanatory messages. You should then see the Pascal main menu.
 
@@ -39,7 +39,7 @@ The first launch can take a moment. At the compiler-message prompt, press **Y** 
 
 In the Pascal menu, press **W** for Work file. Type `H:/work/LAB.PAS` and press **Enter**. A missing file gives you an empty work buffer. Then press **E** to enter the editor.
 
-Type this program. If you prefer to start from supplied code, open `H:/book/lab/HELLO.PAS` with **W** instead, then press **E**.
+Type this program. If you prefer supplied code, open `H:/book/lab/HELLO.PAS` with **W**, then use **A (Save As)** to save a new `H:/work/HELLO.PAS` before pressing **E**. The files in `H:/book/lab/` are book-owned starters and may be replaced by starter updates. Always edit your own H:/work/ copy.
 
 {{< source "HELLO.PAS" >}}
 
@@ -79,9 +79,9 @@ Here is our map:
           ENTRANCE
 ```
 
-Start with the prepared adventure: from the Pascal menu, press **W**, enter `H:/book/lab/START.PAS`, then **E**. If your workbench shows a newer lesson folder after a fresh start, use that folder instead.
+Start with the prepared adventure: from the Pascal menu, press **W** and enter `H:/book/lab/START.PAS`. Before entering the editor, save a personal copy as described next.
 
-Before changing it, make your own copy. Return to the menu with **Ctrl-K**, then **D**. Press **A** for Save As, enter `H:/work/LAB.PAS`, and confirm any overwrite only if you want to replace your earlier greeting. To keep both, choose `H:/work/ADVENT.PAS` instead. Press **E** to inspect your copy.
+Before changing it, make your own copy. Press **A** for Save As, enter `H:/work/LAB.PAS`, and confirm any overwrite only if you want to replace your earlier greeting. To keep both, choose `H:/work/ADVENT.PAS` instead. Press **E** to inspect your copy.
 
 Readers who prefer a blank start can type the following listing into a new Work file instead. It is the same program as `START.PAS`.
 
@@ -163,24 +163,24 @@ This version adds the light, the command, and both help-message changes. Compare
 
 {{< source "SOLUTION.PAS" >}}
 
-The same source is in `SOLUTION.PAS` in your lesson folder. Opening it is optional; save your own work first.
+The same source is in `SOLUTION.PAS` in your lesson folder. Opening it is optional; save your own work first. Before editing the solution, use **A (Save As)** to create a new file such as `H:/work/SOLVED.PAS`.
 {{< /reveal >}}
 
 ## 6. Save it for tomorrow
 
 Return to the Pascal menu and press **S**. Saving source is separate from compiling or running it. An adventure that runs successfully may still have unsaved edits.
 
-For this pilot, save personal files under `H:/work/`. Files saved on H: persist in this browser. Completed writes to the TF card (T:) and EEPROM (B:) persist too, directly in OPFS, without a separate Save Data step. The editor's RAM does not. A workspace download backs up personal H: files; it does not include the TF/EEPROM images.
+Always save personal files under `H:/work/`, using **W** for a new file or **A (Save As)** for a starter copy. Do not use the IDE's default T: source path for personal work. Disk updates can replace T:; starter refreshes can replace the published files in H:/book/lab/. Files saved on H: persist in this browser. Completed writes to the TF card (T:) and EEPROM (B:) persist too, directly in OPFS, without a separate Save Data step. The editor's RAM does not. A workspace download backs up personal H: files; it does not include the TF/EEPROM images.
 
 To make a backup outside the browser:
 
 1. Press **S in Pascal**.
-2. Open **Files, backups & fresh starts** below the emulator.
+2. Open **Files, backups & starters** below the emulator.
 3. Choose **Download H: files** and keep the JSON file.
 
 To resume after a page reload, start the Zeal, launch Pascal with the same command, press **Y**, and open `H:/work/LAB.PAS` (or your chosen filename) using **W**, then **E**. You are restoring saved source, not a snapshot of the running computer.
 
-**Fresh lesson copy** prepares a new folder of original examples and shows its path. It preserves previous lesson files and your editor buffer. **Load all book code** adds the complete pilot collection without overwriting existing files; there is currently one lesson. **Import backup** restores into a new directory under `H:/work/`, leaving existing files alone. Use its displayed path when opening imported source.
+**Update lesson starters** downloads the latest published HELLO.PAS, START.PAS and SOLUTION.PAS into H:/book/lab/, replacing those three files after confirmation. Save any personal versions as new H:/work/ files first. Your other H: files and editor buffer are kept; reopen a starter to read its new contents. **Load all book code** supplies missing starter files without replacing existing ones; there is currently one lesson. **Import backup** restores into a new directory under `H:/work/`, leaving existing files alone. Use its displayed path when opening imported source.
 
 Browser storage belongs to this browser and site address. It does not follow you to another device or between a localhost preview and GitHub Pages. Clearing site data can remove it, so keep downloaded backups. Use one workbench tab at a time.
 
@@ -191,3 +191,6 @@ You have a working little adventure and a place to extend it. You have used Pasc
 For another experiment, add a fourth room or a command to read a notice in the terminal room. Draw the new connection on the map before changing the program. Keep a working copy before you begin.
 
 This is the end of the pilot. The full book will begin with short foundations and grow through a calculator, a larger adventure, a text-file utility, and a collection database, with optional graphics and sound side trips.
+
+
+When **Disk images & updates** reports a new image, choose the images you want and use **Retrieve selected images**. TF contains Pascal and community tools; EEPROM contains startup paths and the welcome; the boot ROM contains the OS and shell. Retrieval replaces the selected disks and restarts Zeal, discarding unsaved RAM. Save to H:/work/ first. Your saved H: programs are kept. Use W after restarting to open your personal file again.

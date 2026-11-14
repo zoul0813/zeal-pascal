@@ -12,7 +12,7 @@ const emulatorAsset = path => {
   url.searchParams.set('v', panel.dataset.emulatorVersion);
   return url.href;
 };
-let emulator, root, running = false, busy = false, active = 'book/lab', releaseLock;
+let emulator, root, running = false, busy = false, releaseLock;
 const setStatus = message => { status.textContent = message; };
 
 function showEmulator(show) {
@@ -42,7 +42,7 @@ canvas.addEventListener('keydown', event => {
 canvas.addEventListener('contextmenu', event => event.preventDefault());
 
 async function fetchBytes(url) {
-  const response = await fetch(url);
+  const response = await fetch(url, {cache: 'no-cache'});
   if (!response.ok) throw new Error(`Cannot load ${new URL(url).pathname} (${response.status}).`);
   return new Uint8Array(await response.arrayBuffer());
 }
@@ -56,6 +56,7 @@ function loadScript(path) {
   });
 }
 async function acquireLock() {
+  if (releaseLock) return true;
   if (!navigator.locks) throw new Error('This pilot needs a desktop browser with Web Locks and private filesystem support. Try current Chrome or Edge.');
   return new Promise((resolve, reject) => {
     navigator.locks.request('zeal-pascal-book-workspace', {ifAvailable: true}, async lock => {
@@ -65,11 +66,23 @@ async function acquireLock() {
   });
 }
 const lessonFiles = folder => ['HELLO.PAS', 'START.PAS', 'SOLUTION.PAS'].map(name => ({path: `${folder}/${name}`, url: asset(`code/lab/${name}`)}));
-async function saveState() {
-  await writeFile(root, '.state.json', new TextEncoder().encode(JSON.stringify({active})), {overwrite: true});
+const imageNames = {tf: 'TF tools (T:)', eeprom: 'startup EEPROM (B:)', romdisk: 'boot ROM (A:)'};
+const pendingImages = new Set();
+let storageFailure = null;
+function showImageUpdates() {
+  if (storageFailure) { storageStatus.textContent = `Storage error: ${storageFailure.message}. Keep this tab open and back up your work.`; return; }
+  storageStatus.textContent = pendingImages.size
+    ? `New disk images available: ${[...pendingImages].map(name => imageNames[name]).join(', ')}. Use Disk images & updates below to retrieve them. Your saved disks have been kept.`
+    : 'Completed disk writes persist automatically. Save personal programs to H:/work/ so disk updates cannot replace them.';
+}
+async function prepareStarters(overwrite = false) {
+  const outdated = await seedFiles(root, lessonFiles('book/lab'), fetchBytes, {overwrite});
+  document.querySelector('#starter-status').textContent = outdated.length
+    ? 'Updated or modified starter files detected. Update lesson starters to retrieve the published versions. Save personal copies to H:/work/ first.'
+    : 'Lesson starters are current. Save your own versions as new files in H:/work/.';
 }
 async function updateFolders() {
-  document.querySelector('#lesson-path').textContent = `H:/${active}`;
+  document.querySelector('#lesson-path').textContent = 'H:/book/lab';
   const list = document.querySelector('#workspace-folders');
   list.replaceChildren();
   for (const parentName of ['book', 'work']) {
@@ -85,17 +98,10 @@ async function initializeWorkspace() {
   if (!navigator.storage?.getDirectory) throw new Error('Private browser filesystem is unavailable. Use a current desktop browser over HTTPS or localhost.');
   const originRoot = await navigator.storage.getDirectory();
   root = await originRoot.getDirectoryHandle('zeal-pascal-book', {create: true});
-  try {
-    const state = JSON.parse(await (await (await root.getFileHandle('.state.json')).getFile()).text());
-    if (typeof state.active === 'string' && /^book\/lab(?:-[a-z0-9]+)?$/.test(state.active)) active = state.active;
-  } catch (error) { if (error.name !== 'NotFoundError') throw new Error('Workspace state could not be read. Your files were kept; export them before clearing browser data.'); }
-  const systemFiles = ['zpascal.bin', 'zpascal.zpl', 'SYSFILE.ZPU', 'CRT.ZPU', 'ZVB.ZPU', 'ZOS.ZPU', 'ZVB.LIC', 'ZVB.NTC'].map(name => ({
-    path: `${name === 'zpascal.bin' ? 'bin' : 'lib'}/${name}`, url: asset(`media/pascal/${name}`),
-  }));
-  await seedFiles(root, systemFiles, fetchBytes);
+  // H: contains starters and reader files only. Keep all legacy files intact;
+  // the startup PATH no longer uses old H:/bin installations.
   await directoryAt(root, 'work', true);
-  await seedFiles(root, lessonFiles(active), fetchBytes);
-  await saveState();
+  await prepareStarters();
   await updateFolders();
 }
 async function exclusive(operation) {
@@ -123,29 +129,35 @@ function startEmulator() {
         // HostFS returns guest errors through the protocol; this callback reports infrastructure failures.
         setStatus(`File operation failed: ${error.message}. Save again or download a backup before leaving.`);
       }});
-      emulator = new ZealNative({
+      if (!emulator) emulator = new ZealNative({
         canvas,
         moduleFactory: options => NativeModule({...options, locateFile: name => emulatorAsset(`emulator/${name}`)}),
         romdisk: asset('media/zshell.img'), tf: asset('media/tf.img'), eeprom: asset('media/eeprom.img'), hostfs,
         imageStorage: 'opfs',
         storageNamespace: base.pathname,
         diskImages: {romdisk: {key: 'book-rom'}, tf: {key: 'book-tf'}, eeprom: {key: 'book-eeprom'}},
-        onImageUpdateAvailable() {
-          storageStatus.textContent = 'New starter images are available. Your saved disks have been kept.';
+        onImageUpdateAvailable(update) {
+          if (!Object.hasOwn(imageNames, update.name)) return;
+          pendingImages.add(update.name);
+          showImageUpdates();
+          document.querySelector('#image-updates').open = true;
         },
         onStorageError(error) {
-          storageStatus.textContent = `Storage error: ${error.message}. Keep this tab open and back up your work.`;
+          storageFailure = error;
+          showImageUpdates();
         },
         print: text => console.info('[Zeal]', text),
         printErr: text => { console.error('[Zeal]', text); if (/error|fail/i.test(text)) setStatus(`Emulator: ${text}`); },
       });
+      else emulator.setHostFS(hostfs);
+      storageFailure = null;
       await emulator.start();
       running = true;
-      storageStatus.textContent = 'H: files and completed TF/EEPROM writes persist automatically in this browser. No Save Data step is required.';
+      showImageUpdates();
       document.querySelector('#disk-store-path').textContent = `zeal-native/${emulator.diskImages.namespace}/`;
       startButton.hidden = true;
       document.querySelector('#audio').disabled = false;
-      setStatus('Zeal is running. At ZShell, type zpascal to launch Pascal. Use S in Pascal to save source.');
+      setStatus('Zeal is running. At ZShell, type zpascal to launch Pascal. Use W or Save As to choose a new H:/work/ file before editing starters.');
     } catch (error) {
       // A failed native teardown can retain a live module and its image handles.
       // Keep the matching H: ownership until that runtime is gone.
@@ -158,16 +170,15 @@ function startEmulator() {
 startButton.addEventListener('click', startEmulator);
 document.querySelector('#audio').addEventListener('click', () => emulator?.resumeAudio().catch(error => setStatus(error.message)));
 document.querySelector('#load-all').addEventListener('click', () => exclusive(async () => {
-  await seedFiles(root, lessonFiles('book/lab'), fetchBytes);
+  await prepareStarters();
   await updateFolders();
-  setStatus('All pilot book code is available in H:/book/lab. Existing files were kept. The pilot currently contains one lesson.');
+  setStatus('All pilot starters are in H:/book/lab. Use Save As to put your version in H:/work/ before editing.');
 }));
-document.querySelector('#fresh-lesson').addEventListener('click', () => exclusive(async () => {
-  const next = `book/lab-${Date.now().toString(36)}`;
-  await seedFiles(root, lessonFiles(next), fetchBytes);
-  active = next;
-  await saveState(); await updateFolders();
-  setStatus(`Fresh files are in H:/${active}. Earlier files and editor RAM are unchanged. Save your current editor buffer before opening another file.`);
+document.querySelector('#update-starters').addEventListener('click', () => exclusive(async () => {
+  if (!window.confirm('Replace HELLO.PAS, START.PAS and SOLUTION.PAS in H:/book/lab with the latest published starters? Any edits to these three files will be replaced. Save personal versions as new H:/work/ files first. All other H: files are kept.')) return;
+  await prepareStarters(true);
+  await updateFolders();
+  setStatus('Latest starters retrieved in H:/book/lab. Your other H: files were kept. Reopen a starter in Pascal to load its updated text; editor RAM is unchanged.');
 }));
 document.querySelector('#export-work').addEventListener('click', () => exclusive(async () => {
   const files = [];
@@ -199,12 +210,25 @@ window.addEventListener('beforeunload', event => {
   if (emulator?.module) { event.preventDefault(); event.returnValue = ''; }
 });
 
-document.querySelector('#restore-eeprom').addEventListener('click', () => exclusive(async () => {
-  if (!window.confirm('Restore the book startup EEPROM (B:)? This replaces its files and custom startup settings and restarts Zeal. T: and H: are kept. Save your editor work first. Continue?')) return;
+document.querySelector('#check-images').addEventListener('click', () => exclusive(async () => {
+  pendingImages.clear();
+  try { await emulator.checkImageUpdates(); }
+  finally { showImageUpdates(); }
+}));
+document.querySelector('#update-images').addEventListener('click', () => exclusive(async () => {
+  const selected = Object.keys(imageNames).filter(name => document.querySelector(`#image-${name}`).checked);
+  if (!selected.length) { setStatus('Select at least one disk image to update.'); return; }
+  const migrationWarning = selected.includes('tf') ? ' Before updating T:, open T:/src/pascal/UNTITLED.pas (if present), and any other personal T: files, with W in Pascal and use A (Save As) to copy them to H:/work/. ' : selected.includes('eeprom') ? ' If your saved TF is from an older book setup, select TF too so Pascal is installed on T:. ' : '';
+  if (!window.confirm(`Retrieve the latest ${selected.map(name => imageNames[name]).join(', ')}? This replaces ALL contents and custom settings on the selected images and restarts Zeal, discarding unsaved editor RAM. H: files are kept. Save personal work to H:/work/ first. H: backups do not contain disk-image changes.${migrationWarning}Continue?`)) return;
   try {
-    await emulator.applyImageUpdates(['eeprom']);
-    setStatus('Zeal restarted with the book startup settings. T: and H: were kept. Type zpascal to continue.');
+    storageFailure = null;
+    await emulator.applyImageUpdates(selected);
+    for (const name of selected) pendingImages.delete(name);
+    showImageUpdates();
+    setStatus('Selected disk images updated and Zeal restarted. Your H: files were kept. Type zpascal, then use W to open your H:/work/ file.');
   } finally {
     running = !!emulator.module && !emulator.startupError;
+    startButton.hidden = running;
+    document.querySelector('#audio').disabled = !running;
   }
 }));

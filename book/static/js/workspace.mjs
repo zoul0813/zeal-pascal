@@ -22,10 +22,18 @@ export async function writeFile(root, path, bytes, {overwrite = false} = {}) {
   catch (error) { await writer.abort().catch(() => {}); throw error; }
   return true;
 }
-export async function seedFiles(root, files, fetchBytes) {
+export async function seedFiles(root, files, fetchBytes, {overwrite = false} = {}) {
   // Fetch every input first: a failed request must not leave an apparently complete starter.
   const inputs = await Promise.all(files.map(async file => ({...file, bytes: await fetchBytes(file.url)})));
-  for (const file of inputs) await writeFile(root, file.path, file.bytes);
+  const outdated = [];
+  for (const file of inputs) {
+    if (await writeFile(root, file.path, file.bytes, {overwrite})) continue;
+    const parts = file.path.split('/'), name = parts.pop();
+    const parent = await directoryAt(root, parts.join('/'));
+    const saved = new Uint8Array(await (await (await parent.getFileHandle(name)).getFile()).arrayBuffer());
+    if (saved.length !== file.bytes.length || saved.some((byte, index) => byte !== file.bytes[index])) outdated.push(file.path);
+  }
+  return outdated;
 }
 export async function listFiles(root, prefix = '') {
   const files = [];

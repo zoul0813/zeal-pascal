@@ -10,7 +10,10 @@
   <link rel="icon" type="image/svg+xml" href="{{ "logo.svg" | relURL }}">
   {{ $styles := resources.FromString "css/book.css" (readFile "static/css/book.css") | minify | fingerprint }}
   <link rel="stylesheet" href="{{ $styles.RelPermalink }}" integrity="{{ $styles.Data.Integrity }}">
-  <script src="{{ "js/book.js" | relURL }}" type="module"></script>
+  {{ $workspace := resources.FromString "js/workspace.mjs" (readFile "static/js/workspace.mjs") | fingerprint }}
+  {{ $bookSource := replace (readFile "static/js/book.js") "'./workspace.mjs'" (printf "'%s'" $workspace.RelPermalink) }}
+  {{ $book := resources.FromString "js/book.js" $bookSource | minify | fingerprint }}
+  <script src="{{ $book.RelPermalink }}" integrity="{{ $book.Data.Integrity }}" type="module"></script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>

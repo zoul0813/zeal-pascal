@@ -27,9 +27,9 @@
       "origin": "Zeal-NativeEmulator/LICENSE"
     },
     "media/tf.img": {
-      "sha256": "49c160301ba83aa15bfb73306b5b5d357b7c1d332ad775e8ef222f0242b7a41f",
+      "sha256": "899b15ef65f76ad058564c107bc9e7bd502e77d0ba9f493173f840aaedb02398",
       "bytes": 2097152,
-      "origin": "Community tf-2mib.img; unmodified"
+      "origin": "Community TF plus book Pascal in /apps/ and /lib/; zdt CLI"
     },
     "media/zshell.img": {
       "sha256": "87de2b8ac3d71514f90984231da02af4f0ad054a730bda18b6617e89b090d38d",
@@ -317,9 +317,14 @@
       "origin": "NativeEmulator ea901bb296071e0b6019741eef1299c85de22826/raylib/web/LICENSE.txt"
     },
     "media/eeprom.img": {
-      "sha256": "2d110b37d8297b9c1b289aa143248357c336b311dc84137995d3394932be38ce",
+      "sha256": "75bda6d673bd96315b092b886f836e6a1aaeb5569a59a271c474d21f76c4cd97",
       "bytes": 65536,
       "origin": "Book eeprom/autoexec.zs and eeprom/welcome.txt; ZealFS v2, zdt CLI"
+    },
+    "media/community-tf.img": {
+      "sha256": "49c160301ba83aa15bfb73306b5b5d357b7c1d332ad775e8ef222f0242b7a41f",
+      "bytes": 2097152,
+      "origin": "Community tf-2mib.img; unmodified"
     }
   },
   "sources": {
@@ -329,9 +334,23 @@
     "pascal": "https://github.com/zoul0813/zeal-pascal",
     "emulator_commit": "ea901bb296071e0b6019741eef1299c85de22826",
     "eeprom_authoring": {
-      "autoexec.zs": "f5e83571ae47f8b74419faae82cb9553691f0e05e67818ea67bcf5801d7c5c59",
-      "welcome.txt": "7c68d05411de8a1ab142e1f3a767dab4c4e461cdf6f485f62bf0e12d8c7dd4bc"
+      "autoexec.zs": "b24eee4e6c4095dd4aa1a47caf37a45b456519dc3545217eb091f30c03785cf1",
+      "welcome.txt": "188b4efe11111c09a6386eda12d45be6d1b1f30f137def7c8d780ad13542615a"
     },
-    "eeprom_tool": "v0.3.0-12-g3e4de89"
+    "eeprom_tool": "v0.3.0-17-g44b5863",
+    "tf_overlay": {
+      "base_sha256": "49c160301ba83aa15bfb73306b5b5d357b7c1d332ad775e8ef222f0242b7a41f",
+      "files": {
+        "/apps/zpascal.bin": "832ec811b8f368abec59f9273c13ffbb7e18b6cb216928a852049e752fd639a1",
+        "/lib/zpascal.zpl": "691d41bf120bcfd1e4a47100eeaca3f08ca39e8f650691e54ff1d7ea9f58c17f",
+        "/lib/SYSFILE.ZPU": "575d22e496c717714b298058ccb46dd53c45aea2620930f9d31998af0fc5e242",
+        "/lib/CRT.ZPU": "eb21857ad9c44b41fcf953f179e0aedf8af9541334d4716dd7fa05e7d5bf3298",
+        "/lib/ZVB.ZPU": "c59d03d49217323ea135793c0ef92b1bf1c49272ef3469b40b64e550d5d5a7da",
+        "/lib/ZOS.ZPU": "55d5672b49b4f3eb40a53d79b785b5841d2f1f81618e73ce790bf5b375998769",
+        "/lib/ZVB.LIC": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "/lib/ZVB.NTC": "f16004a810ed0dcb84ce5d0f4b76b0432a7fefb452d1645ec9a6124dd3bfd4b7"
+      },
+      "tool": "v0.3.0-17-g44b5863"
+    }
   }
 }

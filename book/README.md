@@ -17,7 +17,11 @@ Open <http://localhost:1313/> in desktop Chrome or Edge. Open the pilot lesson, 
 zpascal
 ```
 
-Source lives in `H:/book/lab`. Save personal work under `H:/work`. HostFS uses a browser-private OPFS directory; saving inside Pascal persists files. No third-party emulator sources or generated application code are patched. The unchanged community TF image and book-specific EEPROM seed persistent OPFS disks once. Completed TF sector and EEPROM transaction writes persist automatically. The EEPROM autoexec retains the community PATH entries, adds H:/bin/, starts in H:/, and prints the book welcome; zpascal therefore launches without path or bank arguments. There is no account or second localStorage persistence implementation.
+Book-owned starter source lives in `H:/book/lab`. Save personal versions as new files under `H:/work` before editing; the starter-update button can replace only the published starter files. H: points to OPFS and is not replaced by disk-image updates. Existing legacy H:/bin, H:/lib and old lesson folders are left intact, but a new workspace installs no system files on H:.
+
+Pascal is installed at `T:/apps/zpascal.bin`; its library, units and notices are in `T:/lib/`. The book TF image retains every community file byte-for-byte and adds the Pascal installation. EEPROM sets the community PATH and starts in T:/ so bare `zpascal` resolves its library correctly. Existing saved disks are never automatically replaced. To migrate an older workbench, first use W and A (Save As) to copy T:/src/pascal/UNTITLED.pas (if present) and other personal T: sources to new H:/work/ files, then retrieve TF and EEPROM together using **Disk images & updates**. Replacing selected disk images restarts the guest and discards unsaved RAM; H: is kept. The IDE's default T: source filename still exists as application behavior; the book always instructs readers to select H:/work/ for personal work.
+
+Status messages follow the fixed-aspect screen, with natural height. Image notifications link readers to the selection controls. Separate starter refreshes fetch current source files with cache revalidation and update H:/book/lab after confirmation. Personal files are preserved; this does not replace a downloaded backup.
 
 ## Build and check
 
@@ -38,7 +42,7 @@ The book's disk namespace follows its base URL path. Moving from `/zeal-pascal/`
 
 ## Prepared assets
 
-`static/emulator/` contains an unchanged installed native WASM bundle and matching HostFS/library files. `static/media/` contains the original community 2 MiB TF image, a compatible installed ZDE ZShell boot ROM, community licenses/notices, a book EEPROM generated from `eeprom/autoexec.zs` and `eeprom/welcome.txt`, and matching Pascal build outputs. `static/provenance.json` binds staged assets to SHA-256 hashes and origins. These small prepared assets are included in the book source so an ordinary Hugo build works without ZDE or private local directories.
+`static/emulator/` contains an unchanged installed native WASM bundle and matching HostFS/library files. `static/media/` contains an unmodified community 2 MiB TF base plus a repacked book TF image with Pascal installed, a compatible installed ZDE ZShell boot ROM, community licenses/notices, a book EEPROM generated from `eeprom/autoexec.zs` and `eeprom/welcome.txt`, and matching Pascal build outputs. `static/provenance.json` binds staged assets to SHA-256 hashes and origins. These small prepared assets are included in the book source so an ordinary Hugo build works without ZDE or private local directories.
 
 To refresh assets from installed, verified builds:
 
@@ -52,7 +56,7 @@ python3 scripts/prepare.py \
   --eeprom-tool /path/to/existing/zdt
 ```
 
-The WASM directory must contain `zeal.elf.js`, `zeal.elf.wasm`, and matching `libnative/indexeddb.js`, `libnative/disk-images.js`, `libnative/hostfs.js`, and `libnative/zeal-native.js`. Use NativeEmulator `feature/wasm-opfs` at commit `30cb5b6` or a compatible later build. The files are copied unchanged; the NativeEmulator checkout must be clean. The existing Zeal Disk Tool CLI builds a raw 64 KiB ZealFS v2 EEPROM and its contents are independently verified. Build Zeal Pascal through `zde cmake`; do not substitute a host compiler. The community TF card remains unchanged. Its bundled ROM did not launch the current compiler in native checks; the staged compatible ZDE ROM did. Supply a matching supported ZShell boot ROM when refreshing. Inspect provenance, licenses, and checks after refresh. Asset refresh is a maintainer operation, never a reader flow.
+The WASM directory must contain `zeal.elf.js`, `zeal.elf.wasm`, and matching `libnative/indexeddb.js`, `libnative/disk-images.js`, `libnative/hostfs.js`, and `libnative/zeal-native.js`. Use NativeEmulator `feature/wasm-opfs` at commit `30cb5b6` or a compatible later build. The files are copied unchanged; the NativeEmulator checkout must be clean. The existing Zeal Disk Tool CLI builds a raw 64 KiB ZealFS v2 EEPROM and its contents are independently verified. Build Zeal Pascal through `zde cmake`; do not substitute a host compiler. The original community TF is retained as the overlay input; the book TF is repacked with Pascal installed in /apps/ and /lib/. Its bundled ROM did not launch the current compiler in native checks; the staged compatible ZDE ROM did. Supply a matching supported ZShell boot ROM when refreshing. Inspect provenance, licenses, and checks after refresh. Asset refresh is a maintainer operation, never a reader flow.
 
 `static/code/lab/*.PAS` is the single source for printed listings, served lesson files, and reproducible `book-code.zip`. Never edit copies of those listings into the chapter.
 
@@ -79,10 +83,19 @@ python3 scripts/prepare.py --update-workbench \
   --eeprom-tool /path/to/existing/zdt
 ```
 
-`eeprom/autoexec.zs` follows ZShell's `.deploy/eeprom/autoexec.zs` PATH layout, adding H:/bin/ and selecting H:/ for the book's installed compiler library. Changing authoring files does not overwrite an existing reader EEPROM; later image update checks only notify.
+`eeprom/autoexec.zs` preserves ZShell's community PATH layout and selects T:/ for the book's installed compiler library. Changing authoring files does not overwrite a reader EEPROM: update checks notify, and the reader explicitly retrieves selected images.
 
 ## Appearance and code blocks
 
 The book uses the Midnight light/dark palettes and Zeal purple (`#6B5176`), with the supplied official SVG logo. The sticky header keeps Open Zeal available while reading on desktop and mobile. Its sun/moon switch follows the system until a reader chooses a theme, then remembers that choice. CSS and the theme script use content-hashed URLs so deployments do not reuse stale styles.
 
 Hugo highlights code at build time with Chroma; no client library is needed. Label fenced blocks `pascal`, `makefile`, `cmake`, `bash`, or `zsh`. `Makefile`, `CMakeLists.txt`, and `cli` are also accepted. The code-block hook maps `pascal` to Chroma's `objectpascal` lexer. Text/output blocks stay plain. Token colors follow the light/dark theme.
+
+
+To rebuild the book TF/EEPROM from already staged assets with the installed Zeal Disk Tool:
+
+```sh
+python3 scripts/prepare.py --refresh-media --eeprom-tool /path/to/zdt
+```
+
+This operates on the book's distributable images, never a reader's saved OPFS files. The TF is repacked from `community-tf.img` plus staged Pascal files through supported CLI commands and independently checked for exact file contents. Asset checks cover both the retained community base and book installation. Ordinary CI/Hugo builds use these prepared images and need no ZDE or disk tool installation.

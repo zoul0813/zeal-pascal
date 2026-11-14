@@ -41,8 +41,8 @@ class Directory {
 
 test('Open Zeal starts once with project OPFS disks, preserving existing H: files', async () => {
   const ids = ['emulator-panel', 'emulator-status', 'canvas', 'start-emulator', 'storage-status',
-    'close-emulator', 'expand-emulator', 'audio', 'load-all', 'fresh-lesson', 'export-work',
-    'import-work', 'restore-eeprom', 'lesson-path', 'workspace-folders', 'disk-store-path'];
+    'close-emulator', 'expand-emulator', 'audio', 'load-all', 'update-starters', 'starter-status', 'export-work',
+    'import-work', 'image-updates', 'check-images', 'update-images', 'image-tf', 'image-eeprom', 'image-romdisk', 'lesson-path', 'workspace-folders', 'disk-store-path'];
   const elements = Object.fromEntries(ids.map(id => [id, new Element()]));
   const open = new Element();
   elements['emulator-panel'].querySelectorAll = () => [elements['start-emulator']];
@@ -52,12 +52,27 @@ test('Open Zeal starts once with project OPFS disks, preserving existing H: file
   const h = await origin.getDirectoryHandle('zeal-pascal-book', {create: true});
   const personal = await h.getFileHandle('sl.pas', {create: true});
   personal.bytes = new TextEncoder().encode('existing reader program');
-  const stores = [], modules = [];
+  const stores = [], modules = [], updates = [];
+  let accepted = false, failUpdate = false, failCommit = false, failStart = false, failCheck = false;
+  const confirmations = [];
+  elements["image-tf"].checked = true;
+  elements["image-eeprom"].checked = true;
+  elements["image-romdisk"].checked = false;
   class Store {
     namespace = 'project-hash';
-    constructor(options) { stores.push(options); this.images = options.images.filter(image => image.source != null); }
+    constructor(options) { this.options = options; stores.push(options); this.images = options.images.filter(image => image.source != null); }
     async loadAll() { return {}; }
-    async checkUpdates() { return []; }
+    async checkUpdates() {
+      if (failCheck) throw new Error('Check failed');
+      this.options.onUpdateAvailable({name: 'tf'});
+      return [{name: 'tf'}];
+    }
+    async open() {}
+    async close() {}
+    async stageUpdates(names) { if (failUpdate) throw new Error('Download failed'); return {files: [], names}; }
+    async commit(staged) { if (failCommit) throw new Error('Commit failed'); updates.push(Array.from(staged.names)); }
+    async persist() {}
+    async removeFiles() {}
   }
   const context = vm.createContext({window: {}, DiskImageStore: Store, console, URL, Uint8Array, ArrayBuffer});
   vm.runInContext(readFileSync(new URL('../static/emulator/libnative/zeal-native.js', import.meta.url), 'utf8'), context);
@@ -73,8 +88,12 @@ test('Open Zeal starts once with project OPFS disks, preserving existing H: file
       locks: {request: (name, options, action) => action({name})},
     },
     NativeModule: async options => {
+      if (failStart) throw new Error('Restart failed');
       modules.push(options);
-      const module = {FS: {mkdirTree() {}}};
+      const module = {FS: {mkdirTree() {}},
+        _zeal_flush_storage_web: () => options.onStorageComplete(),
+        _zeal_exit_web: () => { options.onStorageComplete(); queueMicrotask(() => options.onExit.call(module, 0)); },
+      };
       options.onRuntimeInitialized.call(module);
       options.onEmulatorReady();
       return module;
@@ -86,7 +105,7 @@ test('Open Zeal starts once with project OPFS disks, preserving existing H: file
       return new Response(readFileSync(new URL('../static/' + relative, import.meta.url)));
     },
   };
-  globals.window = {...globals, addEventListener() {}};
+  globals.window = {...globals, addEventListener() {}, confirm: message => { confirmations.push(message); return accepted; }};
   const previous = Object.fromEntries(Object.keys(globals).map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
   try {
     for (const [name, value] of Object.entries(globals)) Object.defineProperty(globalThis, name, {value, configurable: true});
@@ -105,13 +124,66 @@ test('Open Zeal starts once with project OPFS disks, preserving existing H: file
     assert.equal(elements['disk-store-path'].textContent, 'zeal-native/project-hash/');
     assert.match(elements['emulator-status'].textContent, /type zpascal/);
     assert.equal(elements['start-emulator'].hidden, true);
+    assert.equal(h.entries.has('bin'), false, 'no compiler installed on H:');
+    assert.equal(h.entries.has('lib'), false, 'no library installed on H:');
+    assert.match(elements['storage-status'].textContent, /New disk images available/);
+    assert.equal(elements['image-updates'].open, true);
+    await elements['update-images'].listeners.click();
+    assert.deepEqual(updates, [], 'cancel keeps disks and runtime');
+    assert.equal(modules.length, 1);
+    assert.match(confirmations.at(-1), /T:\/src\/pascal\/UNTITLED.pas/);
+    accepted = true;
+    await elements['update-images'].listeners.click();
+    assert.deepEqual(updates, [['tf', 'eeprom']], 'only selected images replaced');
+    assert.equal(modules.length, 2, 'successful update restarts runtime');
+    failUpdate = true;
+    await elements['update-images'].listeners.click();
+    assert.equal(modules.length, 2, 'failed staging does not stop runtime');
+    assert.match(elements['emulator-status'].textContent, /Download failed/);
+    assert.equal(await (await personal.getFile()).text(), 'existing reader program');
+    failUpdate = false;
+    const lab = await (await h.getDirectoryHandle('book')).getDirectoryHandle('lab');
+    const starter = await lab.getFileHandle('START.PAS');
+    starter.bytes = new TextEncoder().encode('old modified starter');
+    const myFile = await lab.getFileHandle('MINE.PAS', {create: true});
+    myFile.bytes = new TextEncoder().encode('personal file');
+    accepted = false;
+    await elements['update-starters'].listeners.click();
+    assert.equal(await (await starter.getFile()).text(), 'old modified starter');
+    accepted = true;
+    await elements['update-starters'].listeners.click();
+    assert.equal(await (await starter.getFile()).text(), readFileSync(new URL('../static/code/lab/START.PAS', import.meta.url), 'utf8'));
+    assert.equal(await (await myFile.getFile()).text(), 'personal file');
+    assert.equal(await (await personal.getFile()).text(), 'existing reader program');
+    const oldBin = await (await h.getDirectoryHandle('bin', {create: true})).getFileHandle('zpascal.bin', {create: true});
+    oldBin.bytes = new Uint8Array([8]);
+    const oldLib = await (await h.getDirectoryHandle('lib', {create: true})).getFileHandle('zpascal.zpl', {create: true});
+    oldLib.bytes = new Uint8Array([9]);
+    failCommit = true; failStart = true;
+    await elements['update-images'].listeners.click();
+    assert.equal(elements['start-emulator'].hidden, false);
+    assert.equal(elements['start-emulator'].disabled, false);
+    assert.match(elements['emulator-status'].textContent, /Restart failed/);
+    failCommit = false; failStart = false;
+    await elements['start-emulator'].listeners.click();
+    assert.equal(stores.length, 1, 'retry reuses the image owner instead of taking another lock');
+    assert.equal(modules.length, 3);
+    assert.deepEqual(oldBin.bytes, new Uint8Array([8]));
+    assert.deepEqual(oldLib.bytes, new Uint8Array([9]));
+    assert.equal(await (await personal.getFile()).text(), 'existing reader program');
+    await elements['check-images'].listeners.click();
+    assert.match(elements['storage-status'].textContent, /New disk images available/);
+    failCheck = true;
+    await elements['check-images'].listeners.click();
+    assert.match(elements['emulator-status'].textContent, /Check failed/);
+    assert.doesNotMatch(elements['storage-status'].textContent, /New disk images available/);
     modules[0].hostfsBackend.onError('operation 1', new DOMException('Workspace deleted', 'NotFoundError'));
     assert.match(elements['emulator-status'].textContent, /File operation failed: Workspace deleted/);
     modules[0].hostfsBackend.onError('operation 4', new DOMException('Disk full', 'QuotaExceededError'));
     assert.match(elements['emulator-status'].textContent, /File operation failed: Disk full/);
     open.listeners.click(); // Hide, then reopen without restarting the guest.
     open.listeners.click();
-    assert.equal(modules.length, 1);
+    assert.equal(modules.length, 3);
   } finally {
     for (const [name, descriptor] of Object.entries(previous)) {
       if (descriptor) Object.defineProperty(globalThis, name, descriptor);
