@@ -1,4 +1,4 @@
 set PATH=T:/apps/,T:/bin/,A:/,B:/
-cd T:/
+cd H:/
 
 cat B:/welcome.txt

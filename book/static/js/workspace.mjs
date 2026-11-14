@@ -76,3 +76,26 @@ export function encodeBytes(bytes) {
   for (let at = 0; at < bytes.length; at += 8192) binary += String.fromCharCode(...bytes.subarray(at, at + 8192));
   return btoa(binary);
 }
+
+// Caller owns the book workspace lock and has stopped/closed the native runtime.
+// Hold the native image lock too: never remove disks another runtime is using.
+export async function clearBookStorage(origin, namespace, locks) {
+  if (!/^[a-f0-9]{64}$/.test(namespace)) throw new Error('Invalid book disk namespace');
+  return locks.request(`zeal-images:opfs:${namespace}`, {mode: 'exclusive', ifAvailable: true}, async lock => {
+    if (!lock) throw new Error('Disk images are in use by another tab. Close it before resetting.');
+    const remove = async (parent, name) => {
+      try { await parent.removeEntry(name, {recursive: true}); }
+      catch (error) { if (error.name !== 'NotFoundError') throw error; }
+    };
+    // Resolve the parent before changing anything, but permit already-missing disks.
+    let images;
+    try { images = await origin.getDirectoryHandle('zeal-native'); }
+    catch (error) { if (error.name !== 'NotFoundError') throw error; }
+    try {
+      if (images) await remove(images, namespace);
+      await remove(origin, 'zeal-pascal-book');
+    } catch (error) {
+      throw new Error(`Some book data may already have been removed. ${error.message}`, {cause: error});
+    }
+  });
+}

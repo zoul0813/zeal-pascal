@@ -317,7 +317,7 @@
       "origin": "NativeEmulator ea901bb296071e0b6019741eef1299c85de22826/raylib/web/LICENSE.txt"
     },
     "media/eeprom.img": {
-      "sha256": "75bda6d673bd96315b092b886f836e6a1aaeb5569a59a271c474d21f76c4cd97",
+      "sha256": "5aaf4efeccfa2ba1fef978ca44c6540245c92215f8ec1e400e49a559d4e358c9",
       "bytes": 65536,
       "origin": "Book eeprom/autoexec.zs and eeprom/welcome.txt; ZealFS v2, zdt CLI"
     },
@@ -334,7 +334,7 @@
     "pascal": "https://github.com/zoul0813/zeal-pascal",
     "emulator_commit": "ea901bb296071e0b6019741eef1299c85de22826",
     "eeprom_authoring": {
-      "autoexec.zs": "b24eee4e6c4095dd4aa1a47caf37a45b456519dc3545217eb091f30c03785cf1",
+      "autoexec.zs": "a414ea21b696d33b36369b8a9f7eeb34ecda5b20c3205554a5ed3dd540351079",
       "welcome.txt": "188b4efe11111c09a6386eda12d45be6d1b1f30f137def7c8d780ad13542615a"
     },
     "eeprom_tool": "v0.3.0-17-g44b5863",

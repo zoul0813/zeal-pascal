@@ -7,7 +7,7 @@ toc: true
 ---
 The lab has been closed for years. Behind its entrance is a room of silent terminals, and beyond that, a workshop. You are going to make a little world you can walk through by typing commands.
 
-By the end, you will have launched Pascal, run a three-room adventure, changed it, and saved your own copy. This is a first encounter, not an exam. Stop whenever you like; the final section explains how to pick up where you left off.
+By the end, you will have launched Pascal, run a three-room adventure, changed it, and saved your own copy. This is a first encounter, not an exam. There are two marked places to pause along the way, and [Save and resume](#6-save-and-resume) explains how to pick up where you left off.
 
 ## Before you enter
 
@@ -19,9 +19,19 @@ The computer is available from **Open Zeal** at the top of every page. Opening t
 
 {{< workbench >}}
 
+### Where your work lives
+
+Save your own programs under **`H:/work/`**. H: is persistent storage: saved files remain after you reload the page and restart Zeal in this browser. Text you have typed but not saved does not.
+
+The supplied files in `H:/book/lab/` belong to the book, and **Refresh lesson examples** can replace them. Copy an example to `H:/work/` before you change it.
+
+**Save As replaces an existing file without asking.** If you have done this lesson before, pick new names for this visit, such as `HELLO2.PAS` and `LAB2.PAS`, and use them wherever the lesson says `HELLO.PAS` or `LAB.PAS`.
+
+H: lives in this browser’s storage, which is not a backup: clearing site data can remove it. Section 6 shows how to download a copy you can keep elsewhere.
+
 ## 1. Start the computer and launch Pascal
 
-Choose **Open Zeal**. The emulator starts automatically. After the startup messages, you should see a ZShell prompt. Click inside the screen before typing.
+Choose **Open Zeal**. The emulator starts automatically. After the startup messages, you should see a ZShell prompt on **H:**, your persistent drive. Click inside the screen before typing.
 
 Enter this command and press **Enter**:
 
@@ -29,47 +39,56 @@ Enter this command and press **Enter**:
 zpascal
 ```
 
-The welcome screen comes from ZShell's startup files on B:, the EEPROM. Pascal is installed at `T:/apps/zpascal.bin`, with its library and units in `T:/lib/`. The startup script sets the community PATH and starts the shell in `T:/`, so typing `zpascal` is enough. If you change directories before launching Pascal, enter `cd T:/` first. If you used an older book workbench, first open `T:/src/pascal/UNTITLED.pas` (if present) and any other personal T: sources with **W**, then use **A (Save As)** to copy them to new H:/work/ files. TF replacement discards all T: contents, and H: backups do not include them. Then retrieve the TF and EEPROM together under **Disk images & updates** to install this setup; H: files are kept.
-
 The first launch can take a moment. At the compiler-message prompt, press **Y** for explanatory messages. You should then see the Pascal main menu.
 
-> Keys go to the Zeal while the screen has focus. Press **F8** to return focus to the book. Click the screen to type again. **Expand** gives the computer more room.
+> Keys go to Zeal while the screen has focus. Press **Ctrl+Shift+Space** to switch focus to the book; press it again to return to Zeal. The screen overlay shows when Zeal is not receiving keyboard input. **Expand** gives the computer more room.
 
 ## 2. Make a tiny program first
 
-In the Pascal menu, press **W** for Work file. Type `H:/work/LAB.PAS` and press **Enter**. A missing file gives you an empty work buffer. Then press **E** to enter the editor.
-
-Type this program. If you prefer supplied code, open `H:/book/lab/HELLO.PAS` with **W**, then use **A (Save As)** to save a new `H:/work/HELLO.PAS` before pressing **E**. The files in `H:/book/lab/` are book-owned starters and may be replaced by starter updates. Always edit your own H:/work/ copy.
+Before entering the lab, make something small that works. Here is the whole program:
 
 {{< source "HELLO.PAS" >}}
 
-A few landmarks:
+Choose how you want to start. Either way, you end up with your own greeting saved as `H:/work/HELLO.PAS` (or your new name for this visit):
+
+- **Type it yourself:** in the Pascal menu, press **W** for Work file, enter `H:/work/HELLO.PAS`, and press **Enter**. If the file does not exist yet, you get an empty editor buffer; nothing is saved until you press **S** later. Press **E** for the editor and type the listing.
+- **Open the supplied copy:** press **W**, enter `H:/book/lab/HELLO.PAS`, and press **Enter**. Press **A (Save As)** and enter `H:/work/HELLO.PAS`, and press **Enter**. You are now working on your own copy. Press **E** to look at it in the editor.
+
+While it is on screen, a few landmarks:
 
 - `program SilentLab;` names the program.
 - `begin` and `end.` enclose its main instructions. The final period ends the program.
-- `WriteLn` writes a line of text. Strings use single quotes.
-- Semicolons separate statements. There is no need for one immediately before the final `end`.
+- `WriteLn` writes a line of text. Text inside single quotes is a string, printed exactly as written.
+- Semicolons separate statements. The second `WriteLn` is followed directly by `end`, so it needs no semicolon.
 
-Press **Ctrl-K**, release both keys, then press **D** to return to the menu. This is a two-step editor command, not three keys held together. The text remains in RAM.
+To leave the editor, press **Ctrl-K**, release both keys, then press **D**. This is a two-step command, not three keys held together. You return to the Pascal menu with your text still in memory, but not yet saved.
 
-Press **S** to save the source. Then press **R** to compile and run in Memory mode. The screen should display:
+Now save, choose how to run, and run:
+
+1. In the Pascal menu, press **S** to save the source.
+2. Select Memory mode: press **O** for Options, **M** for Memory, then **Q** to return to the main menu.
+3. Press **R** to compile and run.
+
+The screen should display:
 
 ```text
 THE SILENT LAB
 You stand outside an abandoned computer lab.
 ```
 
-Follow the on-screen return prompt to get back to the menu. You have just written and run a native Zeal program.
+When the program finishes, Pascal shows a short return prompt. Press **Enter** to redraw the main menu. You have just written and run a native Zeal program.
 
 ### If it does not compile
 
-Read the diagnostic, then return to the editor as prompted. Check quotes, parentheses, the semicolon between the two `WriteLn` calls, and the period after `end`. Correct the source, save, and try **R** again.
+Read the message, then press **Escape** to return to the editor at the place the compiler stopped. Check the quotes, the parentheses, the semicolon between the two `WriteLn` lines, and the period after `end`. Correct the source, leave the editor with **Ctrl-K** then **D**, press **S** to save, and try **R** again.
 
 Making a mistake and finding its location is part of programming. No files are harmed by a syntax error.
 
-## 3. Give the lab three rooms
+**A good place to pause:** your greeting is saved as `H:/work/HELLO.PAS` (or the name you chose). You can close the page now and use [Save and resume](#6-save-and-resume) when you return.
 
-A greeting always does the same thing. An adventure needs to remember where you are and react to input.
+## 3. Walk through the lab
+
+A greeting says the same thing forever, which is reassuring in a lab and dull in a game. An adventure needs to remember where you are and react to input.
 
 Here is our map:
 
@@ -79,51 +98,16 @@ Here is our map:
           ENTRANCE
 ```
 
-Start with the prepared adventure: from the Pascal menu, press **W** and enter `H:/book/lab/START.PAS`. Before entering the editor, save a personal copy as described next.
+First, take a walk through the lab. Then we’ll look at how the program remembers where you are.
 
-Before changing it, make your own copy. Press **A** for Save As, enter `H:/work/LAB.PAS`, and confirm any overwrite only if you want to replace your earlier greeting. To keep both, choose `H:/work/ADVENT.PAS` instead. Press **E** to inspect your copy.
+Choose your route again. This time your personal file is **`H:/work/LAB.PAS`** (or your new name for this visit), so your greeting stays as it is. The adventure is about forty lines, so opening the starter is the quicker route; typing it is a fine choice if you like to feel each line go in. Both produce the same program.
 
-Readers who prefer a blank start can type the following listing into a new Work file instead. It is the same program as `START.PAS`.
+- **Open the starter:** press **W**, enter `H:/book/lab/START.PAS`, and press **Enter**. Press **A (Save As)** and enter `H:/work/LAB.PAS`, and press **Enter** before changing anything.
+- **Type it yourself:** press **W**, enter `H:/work/LAB.PAS`, press **Enter**, then **E**. Type the complete listing shown at the start of [How the program works](#4-how-the-program-works), then come back here. Leave the editor with **Ctrl-K**, release, then **D**.
 
-{{< reveal "Show the complete starting program" >}}
-{{< source "START.PAS" >}}
-{{< /reveal >}}
+In the Pascal menu, press **S** to save your adventure, then **R** to run it. (If you have reloaded the page since the greeting, select Memory mode again with **O**, **M**, **Q** first.)
 
-### Two values carry the world
-
-```pascal
-var
-  Room: Integer;
-  Command: string[20];
-```
-
-`var` introduces variables. `Room` is an integer: a whole number. We use 1 for the entrance, 2 for the terminal room, and 3 for the workshop. A future lesson can give these values more descriptive names.
-
-`Command` holds up to 20 characters. Zeal Pascal strings have an explicit capacity: `string[20]`. `ReadLn(Command)` reads a line of input into it.
-
-```pascal
-Room := 1;
-```
-
-`:=` assigns a value. `=` compares values. That distinction matters: `Room := 1` changes the room; `Room = 1` asks whether we are at the entrance.
-
-### Repeat a turn
-
-The `repeat ... until` loop displays the room, asks for a command, and handles it. It runs at least once. Its final line is:
-
-```pascal
-until Command = 'quit';
-```
-
-The loop stops when the reader types `quit`. Commands in this first version are lowercase. Use `n`, `s`, `e`, `w`, `look`, or `quit`, followed by Enter.
-
-The `case Room of` statement selects the appropriate description. An `if ... then ... else` decides whether a direction leads somewhere. `begin ... end` groups several instructions into one branch.
-
-The `{$R+}` directive near the top enables range checks. Leave it in place as you experiment.
-
-## 4. Explore and check the rules
-
-Return to the menu, save, and press **R**. Try this sequence:
+The program prints its title and the list of commands, then describes the entrance and waits at a `>` prompt. Commands are lowercase; type each one and press **Enter**. Try this sequence:
 
 | Type | What should happen |
 | --- | --- |
@@ -134,25 +118,132 @@ Return to the menu, save, and press **R**. Try this sequence:
 | `w` | Return to the terminal room. |
 | `s` | Return to the entrance. |
 | `xyz` | See a reminder of the available commands. |
-| `quit` | Leave the adventure. |
+| `quit` | See “You leave the lab. For now.” and end the program. |
 
-The program displays the current room at the start of each turn. That is why `look` needs no special action: leaving `Room` unchanged makes the next turn describe the same room.
+Notice that every turn begins by describing the room you are in. Keep that in mind; it explains why `look` turns out to be the easiest command in the program.
 
-Check both successful and unsuccessful moves. A room number should change only when there is a door in that direction. There is no automatic grader; use the map and the table to decide whether your version behaves correctly.
+Check the refusals as carefully as the moves: you should change rooms only where the map shows a door. There is no automatic grader. The map and the table are your test plan.
+
+When the program ends, press **Enter** at the return prompt to redraw the menu.
+
+**Another good place to pause:** your adventure is saved as `H:/work/LAB.PAS` (or your chosen name). You have walked through it; next you will take it apart. Use [Save and resume](#6-save-and-resume) if you stop here.
+
+## 4. How the program works
+
+Here is the complete starting program. It is the same as `H:/book/lab/START.PAS` and your `LAB.PAS`. Press **E** if you would like your own copy on the Zeal screen while you read; the tour below follows it from top to bottom.
+
+{{< source "START.PAS" >}}
+
+### The top: a name, a safety switch and two variables
+
+```pascal
+program SilentLab;
+{$R+}
+var
+  Room: Integer;
+  Command: string[20];
+```
+
+The first line names the program, as in the greeting. `{$R+}` is an instruction to the compiler rather than to the player: it turns on range checking, so certain out-of-range mistakes are reported instead of passing silently. Leave it in place as you experiment.
+
+`var` introduces variables. `Room` is an `Integer`, a whole number. We use 1 for the entrance, 2 for the terminal room, and 3 for the workshop. A later lesson can give these values more descriptive names.
+
+`Command` will hold what the player types. Zeal Pascal strings have an explicit capacity, and `string[20]` holds up to 20 characters. Commands here are much shorter than that.
+
+Each declaration is a name, a colon, a type and a semicolon.
+
+### Setting the scene
+
+```pascal
+begin
+  Room := 1;
+  WriteLn('THE SILENT LAB');
+  WriteLn('Commands: n, s, e, w, look, quit');
+```
+
+`:=` assigns a value: `Room := 1` puts the player at the entrance. A plain `=` compares two values instead, so `Room = 1` asks whether the player is at the entrance. Mixing the two up is one of the most common Pascal slips, so it is worth a second glance whenever you write either.
+
+The two `WriteLn` lines run once, before the game begins.
+
+### One turn, repeated
+
+Everything between `repeat` and `until` is one turn of the game:
+
+```pascal
+repeat
+  WriteLn;
+  case Room of
+    1: WriteLn('Entrance. A door leads north.');
+    2: WriteLn('Terminal room. Doors lead south and east.');
+    3: WriteLn('Workshop. The terminal room is west.')
+  end;
+  Write('> ');
+  ReadLn(Command);
+```
+
+`WriteLn;` on its own prints an empty line, which gives each turn a little breathing room.
+
+`case Room of` picks one line according to the value of `Room`. Each choice starts with a value and a colon. The `case` has its own closing `end;`. As in the greeting, the last choice needs no semicolon before that `end`.
+
+`Write('> ')` prints the prompt *without* moving to a new line, so the player types beside it. `WriteLn` would move to the next line first. `ReadLn(Command)` waits for the player to type a line and press Enter, then stores it in `Command`.
+
+### Choosing what to do
+
+Next comes a chain of tests:
+
+```pascal
+if Command = 'n' then
+begin
+  if Room = 1 then Room := 2
+  else WriteLn('There is no door north.')
+end
+else if Command = 's' then
+```
+
+Pascal checks `if Command = 'n'` first. If it is false, it moves to the `else if` for `'s'`, then `'e'`, and so on, and takes the first branch that matches. The rest are skipped.
+
+`begin ... end` groups the instructions for one branch. Inside, a second `if` asks whether this room has a door north. If it does, `Room` changes. If not, the program prints a refusal and `Room` stays as it was. The comparison is exact, so `N` in capitals is not the same as `n` and is treated as an unknown command.
+
+The last test catches everything else:
+
+```pascal
+else if (Command <> 'look') and (Command <> 'quit') then
+  WriteLn('Try n, s, e, w, look, or quit.')
+```
+
+`<>` means “not equal.” Each comparison in parentheses is either true or false, and `and` is true only when both are. So the help message appears only for a command that is neither `look` nor `quit`. Keep the parentheses: in Pascal, `and` is applied before comparisons such as `<>`, so each comparison needs its own pair.
+
+Here is the payoff for noticing that each turn begins with a description: `look` needs no code of its own. It changes nothing, so the next turn describes the same room again.
+
+### The end of the loop
+
+```pascal
+until Command = 'quit';
+WriteLn('You leave the lab. For now.')
+end.
+```
+
+After each turn, `until` checks its condition. If the player typed `quit`, the loop stops; otherwise another turn begins. A `repeat` loop always runs at least once, which suits a game that should describe the first room before asking anything. The final `WriteLn` says goodbye, and `end.` closes the program.
 
 ## 5. Leave something running
 
 The workshop is quiet. Give it one small mystery.
 
-First, change its description to mention an amber light. Compile and run again to check that you changed the right room.
+Make sure you are editing your own `H:/work/LAB.PAS`, not the book’s starter. If you are at the Pascal menu, press **E** to open the editor.
 
-Then add a command named `inspect`:
+**First, a small change.** Find the workshop’s line in the `case` statement and change its description to mention an amber light. Change only the words inside the quotes, and avoid apostrophes for now so the surrounding quotes stay balanced. Leave the editor, press **S** to save, then **R** to run, and walk to the workshop to check that you changed the right room.
+
+**Then, a new command.** Add a command named `inspect`:
 
 - In the workshop, it should print `A label reads: DO NOT SWITCH OFF.`
 - In either other room, it should print `Nothing here needs a closer look.`
 - It should leave the player in the same room.
 
-Add `inspect` to both command-help messages so a player can discover it. Test it in all three rooms, and make sure movement and `quit` still work.
+Add `inspect` to both command lists, the one printed at the start and the help message for unknown commands, so a player can discover it.
+
+**One rule to watch while you add it:** do not put a semicolon immediately before `else`. In the chain of tests, each branch’s `end` is followed directly by the next `else`. A semicolon there ends the `if` statement early, leaving the `else` with nothing to belong to, and the compiler will stop.
+
+Save and run again. Test `inspect` in all three rooms, then make sure the moves, `look`, an unknown command and `quit` still behave as they did in your walkthrough.
 
 {{< reveal "Hint: where does the new command go?" >}}
 Add another `else if Command = 'inspect' then` branch after the movement branches and before the unknown-command check. Use `begin ... end` for the branch, with an `if Room = 3 then ... else ...` inside it. Do not put a semicolon between the branch's closing `end` and the next `else`.
@@ -163,34 +254,49 @@ This version adds the light, the command, and both help-message changes. Compare
 
 {{< source "SOLUTION.PAS" >}}
 
-The same source is in `SOLUTION.PAS` in your lesson folder. Opening it is optional; save your own work first. Before editing the solution, use **A (Save As)** to create a new file such as `H:/work/SOLVED.PAS`.
+The same source is in `H:/book/lab/SOLUTION.PAS`. Opening it is optional. If you do, save your own work with **S** first, so nothing unsaved is lost when you switch files. Before changing the solution, use **A (Save As)** to give it an unused personal name such as `H:/work/SOLVED.PAS`.
 {{< /reveal >}}
 
-## 6. Save it for tomorrow
+## 6. Save and resume
 
-Return to the Pascal menu and press **S**. Saving source is separate from compiling or running it. An adventure that runs successfully may still have unsaved edits.
+Whenever you stop, return to the Pascal menu and press **S**. Saving is separate from compiling or running: a program that runs perfectly can still have unsaved edits, and reloading the page discards them.
 
-Always save personal files under `H:/work/`, using **W** for a new file or **A (Save As)** for a starter copy. Do not use the IDE's default T: source path for personal work. Disk updates can replace T:; starter refreshes can replace the published files in H:/book/lab/. Files saved on H: persist in this browser. Completed writes to the TF card (T:) and EEPROM (B:) persist too, directly in OPFS, without a separate Save Data step. The editor's RAM does not. A workspace download backs up personal H: files; it does not include the TF/EEPROM images.
+Your files:
 
-To make a backup outside the browser:
+| File | What it holds |
+| --- | --- |
+| `H:/work/HELLO.PAS` | Your greeting |
+| `H:/work/LAB.PAS` | Your adventure |
+| `H:/work/SOLVED.PAS` | Your copy of the solution, if you made one |
 
-1. Press **S in Pascal**.
-2. Open **Files, backups & starters** below the emulator.
-3. Choose **Download H: files** and keep the JSON file.
+If you chose new names for this visit, use those instead. If you still have a book starter open, use **A (Save As)** with an unused `H:/work/` name; Save As replaces an existing file without asking. Avoid the IDE’s default T: source path for personal work, because **Update Zeal** replaces T:.
 
-To resume after a page reload, start the Zeal, launch Pascal with the same command, press **Y**, and open `H:/work/LAB.PAS` (or your chosen filename) using **W**, then **E**. You are restoring saved source, not a snapshot of the running computer.
+**To keep a backup outside the browser:**
 
-**Update lesson starters** downloads the latest published HELLO.PAS, START.PAS and SOLUTION.PAS into H:/book/lab/, replacing those three files after confirmation. Save any personal versions as new H:/work/ files first. Your other H: files and editor buffer are kept; reopen a starter to read its new contents. **Load all book code** supplies missing starter files without replacing existing ones; there is currently one lesson. **Import backup** restores into a new directory under `H:/work/`, leaving existing files alone. Use its displayed path when opening imported source.
+1. In the Pascal menu, press **S**.
+2. Find **Your files** below the emulator.
+3. Choose **Download backup** and keep the JSON file somewhere safe.
 
-Browser storage belongs to this browser and site address. It does not follow you to another device or between a localhost preview and GitHub Pages. Clearing site data can remove it, so keep downloaded backups. Use one workbench tab at a time.
+H: is stored by this browser for this site address. It does not follow you to another device or browser, and clearing site data can remove it. The downloaded file is your backup. Use one workbench tab at a time.
+
+**To resume after a reload:**
+
+1. Open Zeal and wait for the ZShell prompt.
+2. Enter `zpascal`, then press **Y** at the message prompt.
+3. Press **W**, enter `H:/work/LAB.PAS` (or the file you were working on), and press **Enter**.
+4. Press **E** to carry on editing.
+5. When ready to run, leave the editor with **Ctrl-K**, release, then **D**, and press **S** to save. Select Memory mode with **O**, **M**, **Q**, then press **R**.
+
+You are reopening saved source, not a snapshot of the running computer.
+
+For **Restore backup**, **Update Zeal**, **Refresh lesson examples**, or moving from an older workbench, see [Help with files and updates]({{< relref "/about" >}}#your-files). Save personal work in `H:/work/` before updating Zeal.
 
 ## What you have now
 
-You have a working little adventure and a place to extend it. You have used Pascal variables, bounded strings, input/output, assignment, conditions, and a repeat loop. You have also followed the real edit–compile–run cycle on the Zeal.
+You have a small adventure that remembers where you are, refuses doors that do not exist, and keeps one secret in the workshop. Along the way you used Pascal variables, a bounded string, input and output, assignment, comparisons, an `if ... else if` chain, a `case` statement and a `repeat` loop. You also went round the real edit–save–compile–run cycle on Zeal, and probably met the compiler at least once.
 
-For another experiment, add a fourth room or a command to read a notice in the terminal room. Draw the new connection on the map before changing the program. Keep a working copy before you begin.
+If you want one more experiment, add a fourth room or a command that reads a notice in the terminal room. Draw the new door on the map before you change the program, and Save As an unused `H:/work/` name first so your working version stays intact.
 
-This is the end of the pilot. The full book will begin with short foundations and grow through a calculator, a larger adventure, a text-file utility, and a collection database, with optional graphics and sound side trips.
+The amber light is still blinking. What it is keeping running can wait for another day.
 
-
-When **Disk images & updates** reports a new image, choose the images you want and use **Retrieve selected images**. TF contains Pascal and community tools; EEPROM contains startup paths and the welcome; the boot ROM contains the OS and shell. Retrieval replaces the selected disks and restarts Zeal, discarding unsaved RAM. Save to H:/work/ first. Your saved H: programs are kept. Use W after restarting to open your personal file again.
+This is the end of the pilot lesson. For reference as you experiment: [IDE commands](https://github.com/zoul0813/zeal-pascal/blob/main/docs/ide.md), [Pascal language guide](https://github.com/zoul0813/zeal-pascal/blob/main/docs/language.md), and [compiler errors](https://github.com/zoul0813/zeal-pascal/blob/main/docs/errors.md).

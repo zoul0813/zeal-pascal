@@ -28,7 +28,7 @@
   </div></header>
   <div class="page-layout">
     <aside class="contents" aria-label="Book contents"><p class="eyebrow">THE FIELD GUIDE</p><a href="{{ site.Home.RelPermalink }}">Start here</a><p class="part">01 / FIRST CONTACT</p><a class="chapter-link" {{ if eq .RelPermalink ("lessons/the-silent-lab/" | relURL) }}aria-current="page"{{ end }} href="{{ "lessons/the-silent-lab/" | relURL }}">The Silent Lab <span>PILOT</span></a><p class="part">ON THE HORIZON</p><p class="upcoming">Calculator<br>Text-file search<br>Collection catalog</p><div class="sidebar-note">A small machine.<br>A program of your own.</div></aside>
-    <main id="main">{{ block "main" . }}{{ end }}</main>
+    <main id="main" tabindex="-1">{{ block "main" . }}{{ end }}</main>
   </div>
   {{ partial "emulator.html" . }}
   <footer class="site-footer">Made for curious programmers and small computers. <a href="{{ "about/" | relURL }}">Project & credits</a><span>Zeal Pascal · Pilot edition</span></footer>

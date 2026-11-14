@@ -1,27 +1,36 @@
 {{ $provenance := readFile "static/provenance.json" | transform.Unmarshal }}
 <section id="emulator-panel" class="emulator-panel" tabindex="-1" hidden aria-labelledby="emulator-title" data-base="{{ "" | relURL }}" data-emulator-version="{{ $provenance.sources.emulator_commit }}">
   <div class="emulator-heading"><div><span class="eyebrow">YOUR WORKBENCH</span><h2 id="emulator-title">Zeal</h2></div><button type="button" id="close-emulator">Hide emulator</button></div>
-  <p>Desktop keyboard required. Click the screen to type; press <kbd>F8</kbd> to return focus to the book.</p>
-  <div class="emulator-toolbar"><button id="start-emulator" class="primary-button" type="button" hidden>Start Zeal</button><button id="expand-emulator" type="button" aria-pressed="false">Expand</button><button id="audio" type="button" disabled>Enable sound</button></div>
-  <div class="screen-wrap"><canvas id="canvas" width="640" height="480" tabindex="0" aria-label="Zeal emulator screen. Click to type. F8 returns to the book."></canvas></div>
+  <p>Desktop keyboard required. Click the screen to type; press <kbd>Ctrl+Shift+Space</kbd> to switch between Zeal and the book.</p>
+  <div class="emulator-toolbar"><button id="start-emulator" class="primary-button" type="button" hidden>Start Zeal</button><button id="expand-emulator" type="button" aria-pressed="false">Expand</button><button id="audio" type="button" disabled>Enable sound</button><label class="mouse-option"><input id="enable-mouse" type="checkbox"> Enable mouse input</label></div>
+  <div class="screen-wrap"><canvas id="canvas" data-mouse-enabled="false" width="640" height="480" tabindex="0" aria-label="Zeal emulator screen. Click to type. Ctrl+Shift+Space switches between Zeal and the book."></canvas><button id="focus-emulator" class="canvas-focus-overlay" type="button" aria-keyshortcuts="Control+Shift+Space" hidden><span><strong>Click or press Ctrl+Shift+Space to type in Zeal</strong><small>Zeal is not receiving keyboard input.<br>Ctrl+Shift+Space switches between Zeal and the book.</small></span></button></div>
+  <p id="keyboard-status" class="keyboard-status" role="status" aria-live="polite">Keyboard inactive</p>
   <p id="emulator-status" role="status" aria-live="polite">Ready when you are. Starting loads the community tools and this lesson's files.</p>
-  <p id="storage-status" role="status" aria-live="polite">Starting uses this book's persistent OPFS disks. Existing saved images are never replaced automatically.</p>
-  <div class="workbench-help"><p>At the book ZShell prompt, launch Pascal:</p><code>zpascal</code><p>Save your program as a new <code>H:/work/</code> file. Starters belong to the book.</p><p>Your lesson folder: <code id="lesson-path">H:/book/lab</code></p></div>
-  <details id="image-updates" class="workspace-tools"><summary>Disk images & updates</summary>
-    <p>Pascal is installed at T:/apps/zpascal.bin with its libraries in T:/lib/. Updating an image replaces all of its contents and restarts Zeal. Save personal programs as new H:/work/ files first. H: files are kept; unsaved editor RAM is lost. H: backups do not include disk images.</p>
-    <p>Moving from an older book setup? Before replacing T:, open <code>T:/src/pascal/UNTITLED.pas</code> (if present) and any other personal T: sources with W in Pascal, then use A (Save As) to copy each to a new H:/work/ file. H: downloads do not back up T:. Update TF and EEPROM together to install Pascal on T: and refresh the startup paths. Older H:/bin and H:/lib files are left intact.</p>
-    <fieldset class="image-options"><legend>Images to retrieve</legend>
-      <label><input id="image-tf" type="checkbox" checked disabled> TF tools (T:) — community tools and Pascal</label>
-      <label><input id="image-eeprom" type="checkbox" checked disabled> Startup EEPROM (B:) — paths and book welcome</label>
-      <label><input id="image-romdisk" type="checkbox" disabled> Boot ROM (A:) — operating system and shell</label>
-    </fieldset>
-    <div class="emulator-toolbar"><button id="check-images" type="button" disabled>Check disk updates</button><button id="update-images" type="button" disabled>Retrieve selected images</button></div>
+  <p id="storage-status" role="status" aria-live="polite"></p>
+  <div class="workbench-help"><p>Type <code>zpascal</code> to start Pascal. Lesson examples: <code>H:/book/lab/</code> · Save your own programs in <code>H:/work/</code>.</p></div>
+  <section class="workspace-tools your-files" aria-labelledby="your-files-title">
+    <h3 id="your-files-title">Your files</h3>
+    <p>Press <strong>S</strong> in Pascal to save. Saved files stay in this browser until you clear site data.</p>
+    <div class="emulator-toolbar"><button id="export-work" type="button" disabled>Download backup</button><label class="file-button">Restore backup<input id="import-work" type="file" accept=".json,application/json" disabled></label></div>
+    <p class="workbench-note">A backup contains your saved H: files only, not unsaved editor text or Zeal’s tool disks.</p>
+  </section>
+  <details id="workspace-options" class="workspace-tools"><summary>More options</summary>
+    <div class="workbench-option">
+      <h3>Update Zeal</h3>
+      <p>Install the latest Pascal, startup and system files, then restart Zeal. Your H: files stay. An update notice appears below the screen when a new version is available.</p>
+      <button id="update-images" type="button" disabled>Update Zeal</button>
+    </div>
+    <div class="workbench-option">
+      <h3>Refresh lesson examples</h3>
+      <p>Replace the three examples in <code>H:/book/lab/</code> with the book’s versions. Your <code>H:/work/</code> files stay.</p>
+      <p id="starter-status"></p>
+      <button id="update-starters" type="button" disabled>Refresh lesson examples</button>
+    </div>
+    <div class="workbench-option start-over">
+      <h3>Start over</h3>
+      <p>Permanently erase this book’s saved programs and disks, and start with a fresh Zeal.</p>
+      <button id="reset-workspace" class="danger-button" type="button">Erase and start over…</button>
+    </div>
+    <p><a href="{{ "about/" | relURL }}#your-files">Help with files and updates</a></p>
   </details>
-  <details class="workspace-tools"><summary>Files, backups & starters</summary>
-    <p>Always save your own programs as new files under <code>H:/work/</code>. Use <strong>W</strong> for a new file, or <strong>A (Save As)</strong> before editing a starter. <code>H:/book/lab/HELLO.PAS</code>, <code>START.PAS</code> and <code>SOLUTION.PAS</code> belong to the book and may be replaced by a starter refresh. Other H: files are never overwritten by book updates. Source still in editor RAM is not saved.</p>
-    <p id="starter-status" role="status" aria-live="polite">Lesson starters are loaded when Zeal starts.</p>
-    <div class="emulator-toolbar"><button id="update-starters" type="button" disabled>Update lesson starters</button><button id="load-all" type="button" disabled>Load all book code</button><button id="export-work" type="button" disabled>Download H: files</button><label class="file-button">Import backup<input id="import-work" type="file" accept=".json,application/json" disabled></label></div>
-    <p>Starter updates fetch the latest published code into H:/book/lab in OPFS. Imports create new folders under H:/work/. Neither action changes your other H: files. Keep downloaded backups: clearing site data removes browser saves.</p>
-    <details><summary>Where are my saved files and disks?</summary><p>H: uses the browser's Origin Private File System (OPFS), in the <code>zeal-pascal-book</code> folder. It is separate from Local Storage and IndexedDB. In Chrome's DevTools Console, list its contents with:</p><pre><code>const h = await (await navigator.storage.getDirectory()).getDirectoryHandle('zeal-pascal-book');
-for await (const [name, handle] of h.entries()) console.log(name, handle);</code></pre><p>Saved files survive reloads at the same site address, but the IDE does not automatically reopen an arbitrary H: file: use W and enter its path. The TF/EEPROM images are stored separately under <code id="disk-store-path">zeal-native/&lt;book namespace hash&gt;/</code> in OPFS. Its manifest maps TF and EEPROM to their image files. This project shares the same disks across chapters; another project uses its own namespace. These images do not appear in Local Storage or IndexedDB.</p></details><ul id="workspace-folders"></ul><p><a href="{{ "code/book-code.zip" | relURL }}" download>Download all book source</a> · <a href="{{ "media/THIRD_PARTY_NOTICES.md" | relURL }}">Bundled software notices</a></p></details>
 </section>

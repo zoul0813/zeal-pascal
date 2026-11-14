@@ -19,9 +19,9 @@ zpascal
 
 Book-owned starter source lives in `H:/book/lab`. Save personal versions as new files under `H:/work` before editing; the starter-update button can replace only the published starter files. H: points to OPFS and is not replaced by disk-image updates. Existing legacy H:/bin, H:/lib and old lesson folders are left intact, but a new workspace installs no system files on H:.
 
-Pascal is installed at `T:/apps/zpascal.bin`; its library, units and notices are in `T:/lib/`. The book TF image retains every community file byte-for-byte and adds the Pascal installation. EEPROM sets the community PATH and starts in T:/ so bare `zpascal` resolves its library correctly. Existing saved disks are never automatically replaced. To migrate an older workbench, first use W and A (Save As) to copy T:/src/pascal/UNTITLED.pas (if present) and other personal T: sources to new H:/work/ files, then retrieve TF and EEPROM together using **Disk images & updates**. Replacing selected disk images restarts the guest and discards unsaved RAM; H: is kept. The IDE's default T: source filename still exists as application behavior; the book always instructs readers to select H:/work/ for personal work.
+Pascal is installed at `T:/apps/zpascal.bin`; its library, units and notices are in `T:/lib/`. The book TF image retains every community file byte-for-byte and adds the Pascal installation. EEPROM sets the community PATH and starts in H:/ for lesson work. Bare `zpascal` finds the compiler through PATH and falls back to its library in T:/lib/. An older H:/lib/zpascal.zpl can shadow that fallback; `zpascal T:/lib/zpascal.zpl` explicitly selects the book library without changing drives. Existing saved disks are never automatically replaced. To migrate an older workbench, first use W and A (Save As) to copy T:/src/pascal/UNTITLED.pas (if present) and other personal T: sources to new H:/work/ files, then choose **More options → Update Zeal** to replace all tool/system images together. Update Zeal replaces all three tool/system images and restarts the guest and discards unsaved RAM; H: is kept. The IDE's default T: source filename still exists as application behavior; the book always instructs readers to select H:/work/ for personal work.
 
-Status messages follow the fixed-aspect screen, with natural height. Image notifications link readers to the selection controls. Separate starter refreshes fetch current source files with cache revalidation and update H:/book/lab after confirmation. Personal files are preserved; this does not replace a downloaded backup.
+Status messages follow the fixed-aspect screen, with natural height. Update notices point readers to More options. Separate starter refreshes fetch current source files with cache revalidation and update H:/book/lab after confirmation. Personal files are preserved; this does not replace a downloaded backup.
 
 ## Build and check
 
@@ -64,7 +64,7 @@ The WASM directory must contain `zeal.elf.js`, `zeal.elf.wasm`, and matching `li
 
 - The OPFS directory `zeal-pascal-book` is private to the site's origin. A Web Lock prevents concurrent emulator tabs from modifying it.
 - System files are installed only when absent. User files are never replaced by opening a lesson.
-- Fresh lesson copies receive new directories. Imports receive new directories and validate all paths/data before writing.
+- Backup restores receive new directories and validate all paths/data before writing. Refreshing lesson examples replaces only the three managed H:/book/lab/ files after confirmation.
 - Workspace downloads include personal H: files at the root and under project folders, excluding system files, the compiler, and unsaved editor RAM. They do not include disk images.
 - H: files and completed TF/EEPROM writes survive reload. A reload boots ZShell again; it does not restore CPU/editor RAM.
 - `imageStorage: opfs` and `storageNamespace: base.pathname` select one disk set per Hugo project path across all chapters, with stable image keys. HostFS keeps its existing directory and origin-wide H: lock to preserve old files safely.
@@ -72,7 +72,7 @@ The WASM directory must contain `zeal.elf.js`, `zeal.elf.wasm`, and matching `li
 - Disk metadata and image files are in OPFS under `zeal-native/<namespace hash>/`; no image snapshot timers or localStorage/IndexedDB disk saves are used.
 - Browser clearing/eviction can remove saves. Backups and import support are explicit.
 
-Only the pilot lesson is implemented. The book-level “all code” option currently loads the same single lesson. Creative and code milestone review status and verification limits are recorded in `VERIFICATION.md`.
+Only the pilot lesson is implemented. Startup supplies its three examples; About links to a ZIP containing all currently published lesson code. Creative and code milestone review status and verification limits are recorded in `VERIFICATION.md`.
 
 To refresh only the workbench bundle and EEPROM without changing the pinned Pascal, ROM, or community card assets:
 
@@ -83,7 +83,7 @@ python3 scripts/prepare.py --update-workbench \
   --eeprom-tool /path/to/existing/zdt
 ```
 
-`eeprom/autoexec.zs` preserves ZShell's community PATH layout and selects T:/ for the book's installed compiler library. Changing authoring files does not overwrite a reader EEPROM: update checks notify, and the reader explicitly retrieves selected images.
+`eeprom/autoexec.zs` preserves ZShell's community PATH layout and selects H:/ for the reader’s lesson workspace; Pascal remains installed on T:. Changing authoring files does not overwrite a reader EEPROM: update checks notify, and the reader chooses Update Zeal to retrieve the current tool/system set.
 
 ## Appearance and code blocks
 
