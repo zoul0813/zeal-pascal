@@ -92,7 +92,6 @@ Hugo's Pascal lexer is named `objectpascal`, not `pascal`. The code-block hook a
 
 Browser visual verification remains unavailable because the browser access host is unavailable. Required creative and code review attempts (`book-midnight-style-v1`, `book-midnight-code-v1`) both failed before producing feedback with `usage_limit_reached`. No completed independent review is claimed.
 
-
 ## Disk/starter update flow and T: installation (November 14)
 
 The screen now precedes status messages, and their fixed minimum height is removed. Readers can check and retrieve selected TF, EEPROM and boot-ROM images through the unchanged vendor API, with replacement/restart and old T:/src/pascal/UNTITLED.pas migration warnings. TF+EEPROM are selected by default for migration. H: files are kept. Published starter refreshes fetch all inputs first and replace only HELLO.PAS, START.PAS and SOLUTION.PAS under H:/book/lab after confirmation. Other H: files, legacy system folders and older lesson folders are not deleted or overwritten. Lesson instructions require personal H:/work/ copies before editing.
@@ -105,7 +104,6 @@ The isolated native run at build/book-native/20261114T050556.162860Z-83467/repor
 
 Restricted Opus code review book-storage-updates-v1 completed two turns with all initial findings resolved and no blocking/high/medium findings remaining. Non-blocking omissions: no independent browser OPFS/layout test, no commit-failure-only integration test separate from combined restart failure, and unchanged legacy export filtering lacks a new integration test. A deliberate TF-only update with an old custom EEPROM can retain the old compiler selection; migration instructions and default selections specify updating both.
 
-
 ## Pilot manuscript revision and H: startup (November 14)
 
 The pilot now separates HELLO.PAS and LAB.PAS, offers scratch/starter routes before actions, puts the playable walkthrough before the visible START listing and code tour, explains the missing Pascal constructs, and supplies explicit pause/resume and backup steps. Personal work always goes under H:/work/; starter files remain under H:/book/lab/. Save As replacement is explicitly warned about. The Pascal examples are unchanged.
@@ -113,7 +111,6 @@ The pilot now separates HELLO.PAS and LAB.PAS, offers scratch/starter routes bef
 The user changed autoexec.zs to cd H:/. The EEPROM was rebuilt using the existing zdt CLI; only its image and authoring provenance hashes changed. The TF remains byte-identical. The native check at build/book-pilot-ide/20261114T150841.389267Z-32213/report.json passed bare zpascal launch with this EEPROM, Memory execution, Enter menu redraw, Ctrl-K D editor return, and byte-identical H:/work/ saves, including replacement of an existing file without confirmation. Earlier room-state walkthrough evidence is in build/book-state-playthrough-report.json; it checks movement and inspect state, not rendered text or full quit completion.
 
 Ten Node tests, 65 asset hashes and EEPROM content checks, project-path Hugo generation, local anchor checks, and visible START listing placement pass. Native filesystem checks use isolated host directories, not browser OPFS. Actual browser persistence and visual layout remain for a browser pass. Existing readers must retrieve the updated EEPROM through Disk images & updates; save personal work first, because retrieval restarts the emulator. H: files are retained.
-
 
 ## Focus, mouse opt-in and full book reset (November 14)
 
@@ -127,7 +124,6 @@ Automated checks cover shortcut focus transitions and repeat handling, modifier 
 
 A native Chrome UI pass on a separate preview origin confirmed real WASM boot on H:, the overlay appearing on blur, Ctrl+Shift+Space toggling out and back, and mouse input initially unchecked and explicitly togglable. The initial modifier-keyup-delayed shortcut did not reliably transition through the UI input tool; immediate toggling with held-key release fixed that observed failure. Native UI scrolling could not be independently assessed (the scroll tool reported windowNotFoundAtPosition). The destructive reset/reload was not executed on browser data: automatic approval review rejected a reload after Chrome's unsaved-state warning, so subsequent checks used a separate origin. OPFS reset correctness is covered by mock filesystem/native-wrapper tests and real store-lock/manifest logic, not an end-to-end destructive browser test. Windows/Linux OS shortcut interactions and native guest mouse movement remain untested.
 
-
 ## Workbench management simplification (November 14)
 
 The default panel now has a compact launcher/save-path reminder and Your files with Download backup / Restore backup. One collapsed More options disclosure contains Update Zeal, Refresh lesson examples, and a separated Erase and start over action. Removed the per-image checkboxes, separate manual check, redundant full-code seeding button (this pilot already seeds the complete single-lesson set), folder list, namespace path and DevTools snippet. Source ZIP, notices, migration steps and OPFS details remain in About help. The pilot and help use the same action names.
@@ -140,6 +136,10 @@ Thirteen Node tests pass, including the real native-wrapper all-image update pat
 
 Native Chrome UI verification on a separate preview origin observed real WASM startup, only backup controls outside More options, and the three maintenance actions after explicit expansion. A screenshot confirmed the visual hierarchy. No browser backup import, disk update, example replacement, erase, or reload was executed. Data-changing paths were tested in isolated mocks/real-store logic; real screen-reader announcement behavior has not been independently exercised. Two creative consultation turns were reconciled and their final copy corrections applied; no immutable-input creative finalization is claimed after those corrections. The final implementation is supplied to the separate technical code review.
 
-## NativeEmulator upstream source — November 16
+## Emulator built by the site workflow — November 16
 
-NativeEmulator PR #21 merged the OPFS work into `main` at `7109f8fa8eb6dd1fb4c02e55959ad91b4a5bc088`. Asset refreshes use `main` at that commit or a compatible later build. The preparation script accepts a clean checkout and records its source commit in `static/provenance.json`. The bundled emulator's recorded source is `ea901bb296071e0b6019741eef1299c85de22826`, as documented in the November 11 verification above.
+The site workflow follows `zoul0813/zeal-zshell`: checkout NativeEmulator `main`, set up Emscripten 7.0.0, build upstream Raylib with its supported helper, and compile the minimal WASM template with Meson. `prepare.py --emulator-only` stages the build and generates `static/emulator/provenance.json` with its source commit, compiler metadata, artifact hashes and license origins. The generated emulator directory is ignored by Git. Disk and Pascal asset provenance is stored in `static/provenance.json`.
+
+An isolated NativeEmulator clone at `6a0c61032a6f778a231193434d8547efad182ef7` built successfully with the installed Emscripten 7.0.0 toolchain. A fresh source copy containing no emulator bundle passed staging, three Python tests, thirteen Node tests using the generated upstream helpers, sixty-four asset checks, and the Hugo project-path build. Output checks confirmed the runtime files and source-commit version in the assembled site. The workflow YAML parses. Build logs are in `analysis/book-wasm-ci/`.
+
+A real-browser startup check encountered an unavailable computer-use connection. GitHub-hosted execution awaits a workflow run after these changes are published.

@@ -1,31 +1,6 @@
 {
   "format": 1,
   "assets": {
-    "emulator/zeal.elf.js": {
-      "sha256": "746b0ac3d77dfdf9e76fc436586e297ebbd121b4e1139523b16132d320a65e38",
-      "bytes": 339879,
-      "origin": "NativeEmulator ea901bb296071e0b6019741eef1299c85de22826/build-wasm/zeal.elf.js"
-    },
-    "emulator/zeal.elf.wasm": {
-      "sha256": "ad1128925f30cd05ae769614e52c91c1459bd3f6df31503d78b51472ad9c9db8",
-      "bytes": 1744981,
-      "origin": "NativeEmulator ea901bb296071e0b6019741eef1299c85de22826/build-wasm/zeal.elf.wasm"
-    },
-    "emulator/libnative/hostfs.js": {
-      "sha256": "4a0e0418bb87694518a7da0aca659d8ced4ce8577eada7cc7a139135fca87eda",
-      "bytes": 15975,
-      "origin": "NativeEmulator ea901bb296071e0b6019741eef1299c85de22826/build-wasm/libnative/hostfs.js"
-    },
-    "emulator/libnative/zeal-native.js": {
-      "sha256": "74526695749a15f84cc58e81a6e88ba7d3bbd567a33d307325616c79c03a8c88",
-      "bytes": 16808,
-      "origin": "NativeEmulator ea901bb296071e0b6019741eef1299c85de22826/build-wasm/libnative/zeal-native.js"
-    },
-    "emulator/LICENSE": {
-      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
-      "bytes": 11357,
-      "origin": "Zeal-NativeEmulator/LICENSE"
-    },
     "media/tf.img": {
       "sha256": "899b15ef65f76ad058564c107bc9e7bd502e77d0ba9f493173f840aaedb02398",
       "bytes": 2097152,
@@ -301,21 +276,6 @@
       "bytes": 455,
       "origin": "Matching compiler bank metadata"
     },
-    "emulator/libnative/indexeddb.js": {
-      "sha256": "351902c48737e76ebd77f3e413d7f42ab862b9ecf4b636fb2d012862e842d6f9",
-      "bytes": 3355,
-      "origin": "NativeEmulator ea901bb296071e0b6019741eef1299c85de22826/build-wasm/libnative/indexeddb.js"
-    },
-    "emulator/libnative/disk-images.js": {
-      "sha256": "ff2cc4707ee618c14255c9a595a685039806be132d38243e0f1203d4de53ae68",
-      "bytes": 13081,
-      "origin": "NativeEmulator ea901bb296071e0b6019741eef1299c85de22826/build-wasm/libnative/disk-images.js"
-    },
-    "emulator/raylib-LICENSE.txt": {
-      "sha256": "882a5a819cf562aa3583aae3af3f2211dda15c63de9fc8cc4b399a2f9e78d799",
-      "bytes": 877,
-      "origin": "NativeEmulator ea901bb296071e0b6019741eef1299c85de22826/raylib/web/LICENSE.txt"
-    },
     "media/eeprom.img": {
       "sha256": "5aaf4efeccfa2ba1fef978ca44c6540245c92215f8ec1e400e49a559d4e358c9",
       "bytes": 65536,
@@ -328,11 +288,8 @@
     }
   },
   "sources": {
-    "emulator": "https://github.com/Zeal8bit/Zeal-NativeEmulator",
-    "wasm_distribution": "NativeEmulator build-wasm at ea901bb296071e0b6019741eef1299c85de22826; unchanged bytes",
     "community": "https://github.com/Zeal8bit/Zeal-Software-Collection",
     "pascal": "https://github.com/zoul0813/zeal-pascal",
-    "emulator_commit": "ea901bb296071e0b6019741eef1299c85de22826",
     "eeprom_authoring": {
       "autoexec.zs": "a414ea21b696d33b36369b8a9f7eeb34ecda5b20c3205554a5ed3dd540351079",
       "welcome.txt": "188b4efe11111c09a6386eda12d45be6d1b1f30f137def7c8d780ad13542615a"

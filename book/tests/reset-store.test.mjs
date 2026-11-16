@@ -33,16 +33,13 @@ test('real native image store namespace and locks match reset, including corrupt
   const origin = new Directory(), lockManager = locks();
   const context = vm.createContext({window: {}, console, URL, Uint8Array, ArrayBuffer, TextEncoder,
     crypto: webcrypto, navigator: {storage: {getDirectory: async () => origin}, locks: lockManager}});
-  for (const name of ['indexeddb', 'disk-images']) {
-    vm.runInContext(readFileSync(new URL(`../static/emulator/libnative/${name}.js`, import.meta.url), 'utf8'), context);
-    if (name === 'indexeddb') context.IndexedDBStore = context.window.IndexedDBStore;
-  }
+  vm.runInContext(readFileSync(new URL('../static/emulator/libnative/disk-images.js', import.meta.url), 'utf8'), context);
   const Store = context.window.DiskImageStore;
   const store = new Store({storage: 'opfs', storageNamespace: '/zeal-pascal/book/'});
   const namespace = await store.hash(`storageNamespace:${JSON.stringify('/zeal-pascal/book/')}`);
   await store.open();
   assert.equal(store.namespace, namespace);
-  assert.equal(store.database.databasePromise, null, 'constructing an OPFS store never opens IndexedDB');
+  assert.equal('database' in store, false, 'the upstream OPFS store has no IndexedDB dependency');
   const h = await origin.getDirectoryHandle('zeal-pascal-book', {create: true});
   const parent = await origin.getDirectoryHandle('zeal-native');
   await assert.rejects(clearBookStorage(origin, namespace, lockManager), /in use/);

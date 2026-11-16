@@ -30,6 +30,30 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Checkout native emulator
+        uses: actions/checkout@v6
+        with:
+          repository: Zeal8bit/Zeal-NativeEmulator
+          ref: main
+          path: build/native-emulator
+          persist-credentials: false
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v16
+        with:
+          version: 7.0.0
+      - name: Build native emulator WASM
+        working-directory: build/native-emulator
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y meson ninja-build make unzip
+          python3 tools/build_raylib_web.py
+          meson setup build --cross-file wasm-cross.build -Dwasm_template=minimal
+          meson compile -C build
+      - name: Stage native emulator
+        run: |
+          python3 book/scripts/prepare.py --emulator-only \
+            --wasm-dir build/native-emulator/build \
+            --emulator-source build/native-emulator
       - uses: peaceiris/actions-hugo@v3
         with:
           hugo-version: '0.167.0'
@@ -39,6 +63,7 @@ jobs:
       - name: Check sources and workspace behavior
         run: |
           python3 book/scripts/prepare.py --downloads-only
+          python3 book/tests/prepare.test.py
           python3 book/scripts/check.py
           node --test book/tests/*.test.mjs
       # One artifact owns the entire Pages site. Future root content belongs

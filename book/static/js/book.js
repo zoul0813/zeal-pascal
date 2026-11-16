@@ -160,7 +160,6 @@ function startEmulator() {
       setStatus('Preparing your browser workspace and community tools…');
       await initializeWorkspace();
       if (!window.NativeModule) await loadScript('emulator/zeal.elf.js');
-      if (!window.IndexedDBStore) await loadScript('emulator/libnative/indexeddb.js');
       if (!window.DiskImageStore) await loadScript('emulator/libnative/disk-images.js');
       if (!window.HostFS) await loadScript('emulator/libnative/hostfs.js');
       if (!window.ZealNative) await loadScript('emulator/libnative/zeal-native.js');
@@ -270,7 +269,6 @@ resetButton.addEventListener('click', () => exclusive(async () => {
   startButton.hidden = false;
   document.querySelector('#audio').disabled = true;
   updateKeyboardFocus();
-  if (!window.IndexedDBStore) await loadScript('emulator/libnative/indexeddb.js');
   if (!window.DiskImageStore) await loadScript('emulator/libnative/disk-images.js');
   const store = new DiskImageStore({storage: 'opfs', storageNamespace: base.pathname});
   // Reuse the native store’s namespace hashing, including its explicit-name domain.

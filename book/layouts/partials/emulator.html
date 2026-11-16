@@ -1,4 +1,4 @@
-{{ $provenance := readFile "static/provenance.json" | transform.Unmarshal }}
+{{ $provenance := readFile "static/emulator/provenance.json" | transform.Unmarshal }}
 <section id="emulator-panel" class="emulator-panel" tabindex="-1" hidden aria-labelledby="emulator-title" data-base="{{ "" | relURL }}" data-emulator-version="{{ $provenance.sources.emulator_commit }}">
   <div class="emulator-heading"><div><span class="eyebrow">YOUR WORKBENCH</span><h2 id="emulator-title">Zeal</h2></div><button type="button" id="close-emulator">Hide emulator</button></div>
   <p>Desktop keyboard required. Click the screen to type; press <kbd>Ctrl+Shift+Space</kbd> to switch between Zeal and the book.</p>

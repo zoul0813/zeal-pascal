@@ -122,7 +122,7 @@ test('Open Zeal starts once with project OPFS disks, preserving existing H: file
     },
     setTimeout: callback => { timers.push(callback); return timers.length; },
     KeyboardEvent: class { constructor(type, fields) { this.type = type; Object.assign(this, fields); releasedKeys.push(fields.code); } },
-    IndexedDBStore: class {}, DiskImageStore: Store, ZealNative: context.window.ZealNative,
+    DiskImageStore: Store, ZealNative: context.window.ZealNative,
     HostFS: class { constructor(directory, options) { this.directory = directory; this.onError = options.onError; } bindModule() {} },
     fetch: async url => {
       const relative = new URL(url).pathname.replace('/zeal-pascal/', '');

@@ -146,6 +146,52 @@ def prepare_tf(static, manifest, write, tool):
     }
 
 
+def prepare_emulator(wasm_dir, source):
+    """Stage a native build and its source identity as generated site assets."""
+    commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=source, text=True).strip()
+    if subprocess.check_output(['git', 'status', '--porcelain'], cwd=source, text=True).strip():
+        raise ValueError('Use a clean NativeEmulator checkout to bind the bundle to its source commit')
+    names = ('zeal.elf.js', 'zeal.elf.wasm', 'libnative/disk-images.js',
+             'libnative/hostfs.js', 'libnative/zeal-native.js')
+    files = {name: (wasm_dir / name).read_bytes() for name in names}
+    if not files['zeal.elf.wasm'].startswith(b'\0asm') or not all(
+            marker in files['zeal.elf.wasm'] for marker in
+            (b'Could not flush completed sector', b'Could not flush completed page')):
+        raise ValueError('WASM build does not contain the completed-write flush implementation')
+    for name in names:
+        if name.startswith('libnative/') and files[name] != (source / 'assets/wasm' / name).read_bytes():
+            raise ValueError('Build library differs from its source checkout: ' + name)
+    files['LICENSE'] = (source / 'LICENSE').read_bytes()
+    files['raylib-LICENSE.txt'] = (source / 'raylib/web/LICENSE.txt').read_bytes()
+    manifest = {'format': 1, 'sources': {
+        'emulator': 'https://github.com/Zeal8bit/Zeal-NativeEmulator',
+        'emulator_commit': commit,
+    }, 'assets': {}}
+    compiler_info = wasm_dir / 'meson-info/intro-compilers.json'
+    if compiler_info.is_file():
+        compiler = json.loads(compiler_info.read_text())['host']['c']
+        manifest['sources']['emscripten'] = compiler['full_version']
+    manifest['sources']['raylib_build'] = 'NativeEmulator ' + commit + '/raylib/web/README.md'
+    origins = {name: 'NativeEmulator ' + commit + ' build output ' + name for name in names}
+    origins['LICENSE'] = 'NativeEmulator ' + commit + '/LICENSE'
+    origins['raylib-LICENSE.txt'] = 'NativeEmulator ' + commit + '/raylib/web/LICENSE.txt'
+    output = BOOK / 'static/emulator'
+    for name, data in files.items():
+        target = output / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        manifest['assets']['emulator/' + name] = {
+            'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data),
+            'origin': origins[name],
+        }
+    for previous in output.rglob('*'):
+        name = previous.relative_to(output).as_posix()
+        if previous.is_file() and name not in files and name != 'provenance.json':
+            previous.unlink()
+    (output / 'provenance.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    print('Staged NativeEmulator WASM from ' + commit)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--wasm-dir', type=Path)
@@ -154,10 +200,16 @@ def main():
     parser.add_argument('--pascal-build', type=Path)
     parser.add_argument('--boot-rom', type=Path, help='Compatible existing ZShell ROM; community ROM is used when omitted')
     parser.add_argument('--downloads-only', action='store_true')
+    parser.add_argument('--emulator-only', action='store_true', help='Stage the built WASM bundle and its generated provenance')
     parser.add_argument('--refresh-media', action='store_true', help='Rebuild book TF/EEPROM from staged community and Pascal assets')
     parser.add_argument('--update-workbench', action='store_true', help='Refresh only the native WASM bundle and book EEPROM, preserving other prepared assets')
     parser.add_argument('--eeprom-tool', type=Path, help='Existing Zeal Disk Tool zdt executable')
     args = parser.parse_args()
+    if args.emulator_only:
+        if not args.wasm_dir or not args.emulator_source:
+            parser.error('--emulator-only requires --wasm-dir and --emulator-source')
+        prepare_emulator(args.wasm_dir, args.emulator_source)
+        return
     downloads()
     if args.downloads_only:
         return
@@ -167,8 +219,6 @@ def main():
         parser.error('Full refresh also requires --community-dir and --pascal-build')
     static = BOOK / 'static'
     manifest = {'format': 1, 'assets': {}, 'sources': {
-        'emulator': 'https://github.com/Zeal8bit/Zeal-NativeEmulator',
-        'wasm_distribution': 'Existing ZDE zeal-microbe .deploy native WASM bundle; unchanged bytes',
         'community': 'https://github.com/Zeal8bit/Zeal-Software-Collection',
         'pascal': 'https://github.com/zoul0813/zeal-pascal',
     }}
@@ -194,23 +244,7 @@ def main():
         print('Prepared book TF Pascal installation and startup EEPROM')
         return
 
-    commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=args.emulator_source, text=True).strip()
-    if subprocess.check_output(['git', 'status', '--porcelain'], cwd=args.emulator_source, text=True).strip():
-        raise ValueError('Use a clean NativeEmulator checkout to bind the bundle to its source commit')
-    manifest['sources']['emulator_commit'] = commit
-    manifest['sources']['wasm_distribution'] = 'NativeEmulator build-wasm at ' + commit + '; unchanged bytes'
-    if not all(marker in (args.wasm_dir / 'zeal.elf.wasm').read_bytes() for marker in
-               (b'Could not flush completed sector', b'Could not flush completed page')):
-        raise ValueError('WASM build does not contain the completed-write flush implementation')
-    for name in ('zeal.elf.js', 'zeal.elf.wasm', 'libnative/indexeddb.js', 'libnative/disk-images.js',
-                 'libnative/hostfs.js', 'libnative/zeal-native.js'):
-        data = (args.wasm_dir / name).read_bytes()
-        if name.startswith('libnative/') and data != (args.emulator_source / 'assets/wasm' / name).read_bytes():
-            raise ValueError('Build library differs from its source checkout: ' + name)
-        write('emulator/' + name, data, 'NativeEmulator ' + commit + '/build-wasm/' + name)
-    write('emulator/LICENSE', (args.emulator_source / 'LICENSE').read_bytes(), 'Zeal-NativeEmulator/LICENSE')
-    write('emulator/raylib-LICENSE.txt', (args.emulator_source / 'raylib/web/LICENSE.txt').read_bytes(),
-          'NativeEmulator ' + commit + '/raylib/web/LICENSE.txt')
+    prepare_emulator(args.wasm_dir, args.emulator_source)
 
     prepare_eeprom(static, manifest, write, args.eeprom_tool)
     if args.update_workbench:
