@@ -45,14 +45,13 @@ jobs:
         working-directory: build/native-emulator
         run: |
           sudo apt-get update
-          sudo apt-get install -y meson ninja-build make unzip
-          python3 tools/build_raylib_web.py
-          meson setup build --cross-file wasm-cross.build -Dwasm_template=minimal
-          meson compile -C build
+          sudo apt-get install -y meson ninja-build
+          meson setup build-wasm -Dfrontend=wasm --cross-file frontend/wasm/wasm-cross.build -Dwasm_template=minimal
+          meson compile -C build-wasm
       - name: Stage native emulator
         run: |
           python3 book/scripts/prepare.py --emulator-only \
-            --wasm-dir build/native-emulator/build \
+            --wasm-dir build/native-emulator/build-wasm \
             --emulator-source build/native-emulator
       - uses: peaceiris/actions-hugo@v3
         with:

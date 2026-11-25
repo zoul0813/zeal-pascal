@@ -195,8 +195,10 @@ test('Open Zeal starts once with project OPFS disks, preserving existing H: file
     assert.equal(stores[0].storageNamespace, '/zeal-pascal/');
     assert.deepEqual(Array.from(stores[0].images, image => image.key), ['book-rom', 'book-eeprom', 'book-tf']);
     assert.equal(modules[0].hostfsBackend.directory, h);
-    assert.equal(modules[0].arguments.filter(arg => arg === '-e').length, 1);
-    assert.equal(modules[0].arguments.filter(arg => arg === '-t').length, 1);
+    assert.equal(modules[0].imageStorage, 'opfs');
+    assert.deepEqual({...modules[0].imagePaths}, {
+      romdisk: '/roms/default.img', eeprom: '/roms/eeprom.img', tf: '/roms/tf.img',
+    });
     assert.equal(modules[0].locateFile('zeal.elf.wasm'), 'https://example.test/zeal-pascal/emulator/zeal.elf.wasm?v=test-version');
     assert.equal(await (await personal.getFile()).text(), 'existing reader program');
     assert.match(elements['emulator-status'].textContent, /Zeal is ready/);

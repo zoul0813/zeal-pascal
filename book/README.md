@@ -25,18 +25,17 @@ Status messages follow the fixed-aspect screen, with natural height. Update noti
 
 ## Build and check
 
-Activate Emscripten 7.0.0 and install Meson, Ninja, Make and unzip. From `book/`, build NativeEmulator `main` through its supported web build, matching the ZShell workflow.
+Activate Emscripten 7.0.0 and install Meson and Ninja. From `book/`, build NativeEmulator `main` with its SDL3 web frontend. Emscripten downloads the SDL3 port on the first build.
 
 ```sh
 git clone --branch main https://github.com/Zeal8bit/Zeal-NativeEmulator ../build/native-emulator
 (
   cd ../build/native-emulator
-  python3 tools/build_raylib_web.py
-  meson setup build --cross-file wasm-cross.build -Dwasm_template=minimal
-  meson compile -C build
+  meson setup build-wasm -Dfrontend=wasm --cross-file frontend/wasm/wasm-cross.build -Dwasm_template=minimal
+  meson compile -C build-wasm
 )
 python3 scripts/prepare.py --emulator-only \
-  --wasm-dir ../build/native-emulator/build \
+  --wasm-dir ../build/native-emulator/build-wasm \
   --emulator-source ../build/native-emulator
 ```
 
@@ -50,7 +49,7 @@ python3 scripts/verify-native.py --compiler-build ../build
 hugo --minify --baseURL https://zoul0813.github.io/zeal-pascal/book/
 ```
 
-The **Publish site** GitHub Actions workflow checks out NativeEmulator `main`, builds Raylib and the minimal WASM template with Emscripten 7.0.0, and stages the resulting bundle before checking and assembling the book. It checks and publishes every push to `main` (including merges) and `codex/next-work` (for testing). Both branches publish to the same site URL. Pull requests affecting the book or workflow build and check without deploying. A manual run publishes by default; clear its `deploy` input for an artifact-only build. Configure the repository's **Settings → Pages → Source** to **GitHub Actions** before the first deployment. If the `github-pages` environment restricts deployment branches, allow both branches there as well.
+The **Publish site** GitHub Actions workflow checks out NativeEmulator `main`, builds the SDL3 WASM frontend with Emscripten 7.0.0, and stages the resulting bundle and licenses before checking and assembling the book. It checks and publishes every push to `main` (including merges) and `codex/next-work` (for testing). Both branches publish to the same site URL. Pull requests affecting the book or workflow build and check without deploying. For an artifact-only manual run, clear the `deploy` input. Configure the repository's **Settings → Pages → Source** to **GitHub Actions** before the first deployment. If the `github-pages` environment restricts deployment branches, allow both branches there as well.
 
 The public book URL is <https://zoul0813.github.io/zeal-pascal/book/>. The workflow assembles one complete Pages artifact in `build/pages`, with Hugo output in `build/pages/book`. The site root is reserved for future content; it currently has no landing page. Add future root content to the same staging directory and workflow, keeping `book/` reserved for Hugo. Pages deployments replace the whole site: a separate root deployment would remove the book, and a separate book-only deployment would remove root content. Extend the pull-request path filters when adding new site sources.
 
@@ -94,7 +93,7 @@ To rebuild the local workbench bundle and the prepared EEPROM:
 
 ```sh
 python3 scripts/prepare.py --update-workbench \
-  --wasm-dir /path/to/Zeal-NativeEmulator/build \
+  --wasm-dir /path/to/Zeal-NativeEmulator/build-wasm \
   --emulator-source /path/to/Zeal-NativeEmulator \
   --eeprom-tool /path/to/existing/zdt
 ```

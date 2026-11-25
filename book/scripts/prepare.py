@@ -159,10 +159,15 @@ def prepare_emulator(wasm_dir, source):
             (b'Could not flush completed sector', b'Could not flush completed page')):
         raise ValueError('WASM build does not contain the completed-write flush implementation')
     for name in names:
-        if name.startswith('libnative/') and files[name] != (source / 'assets/wasm' / name).read_bytes():
+        if name.startswith('libnative/') and files[name] != (source / 'frontend/wasm' / name).read_bytes():
             raise ValueError('Build library differs from its source checkout: ' + name)
     files['LICENSE'] = (source / 'LICENSE').read_bytes()
-    files['raylib-LICENSE.txt'] = (source / 'raylib/web/LICENSE.txt').read_bytes()
+    ports = Path(subprocess.check_output(['em-config', 'PORTS'], text=True).strip())
+    sdl_licenses = list(ports.glob('sdl3/SDL-*/LICENSE.txt'))
+    if len(sdl_licenses) != 1:
+        raise ValueError('Expected one SDL3 license in the active Emscripten ports cache')
+    sdl_license = sdl_licenses[0]
+    files['SDL3-LICENSE.txt'] = sdl_license.read_bytes()
     manifest = {'format': 1, 'sources': {
         'emulator': 'https://github.com/Zeal8bit/Zeal-NativeEmulator',
         'emulator_commit': commit,
@@ -171,10 +176,9 @@ def prepare_emulator(wasm_dir, source):
     if compiler_info.is_file():
         compiler = json.loads(compiler_info.read_text())['host']['c']
         manifest['sources']['emscripten'] = compiler['full_version']
-    manifest['sources']['raylib_build'] = 'NativeEmulator ' + commit + '/raylib/web/README.md'
     origins = {name: 'NativeEmulator ' + commit + ' build output ' + name for name in names}
     origins['LICENSE'] = 'NativeEmulator ' + commit + '/LICENSE'
-    origins['raylib-LICENSE.txt'] = 'NativeEmulator ' + commit + '/raylib/web/LICENSE.txt'
+    origins['SDL3-LICENSE.txt'] = 'Emscripten SDL3 port/' + sdl_license.relative_to(ports).as_posix()
     output = BOOK / 'static/emulator'
     for name, data in files.items():
         target = output / name

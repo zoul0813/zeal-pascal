@@ -31,7 +31,7 @@ function locks() {
 }
 test('real native image store namespace and locks match reset, including corrupt-manifest recovery', async () => {
   const origin = new Directory(), lockManager = locks();
-  const context = vm.createContext({window: {}, console, URL, Uint8Array, ArrayBuffer, TextEncoder,
+  const context = vm.createContext({window: {isSecureContext: true}, console, URL, Uint8Array, ArrayBuffer, TextEncoder,
     crypto: webcrypto, navigator: {storage: {getDirectory: async () => origin}, locks: lockManager}});
   vm.runInContext(readFileSync(new URL('../static/emulator/libnative/disk-images.js', import.meta.url), 'utf8'), context);
   const Store = context.window.DiskImageStore;

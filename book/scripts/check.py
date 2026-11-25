@@ -12,7 +12,7 @@ emulator = json.loads((book / 'static/emulator/provenance.json').read_text())
 assert emulator['sources']['emulator_commit']
 expected_emulator = {'emulator/' + name for name in (
     'zeal.elf.js', 'zeal.elf.wasm', 'libnative/disk-images.js', 'libnative/hostfs.js',
-    'libnative/zeal-native.js', 'LICENSE', 'raylib-LICENSE.txt')}
+    'libnative/zeal-native.js', 'LICENSE', 'SDL3-LICENSE.txt')}
 assert set(emulator['assets']) == expected_emulator
 actual_emulator = {'emulator/' + path.relative_to(book / 'static/emulator').as_posix()
                    for path in (book / 'static/emulator').rglob('*') if path.is_file()}
