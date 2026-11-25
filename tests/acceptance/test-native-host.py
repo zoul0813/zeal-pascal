@@ -60,7 +60,9 @@ subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests',
 subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests',
                 '-p', 'test_hardware_package.py'], cwd=ROOT, check=True)
 subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests',
-                '-p', 'test_stock_zvb.py'], cwd=ROOT, check=True)
+                '-p', 'test_compile_unit.py'], cwd=ROOT, check=True)
+subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests',
+                '-p', 'test_stage_distribution.py'], cwd=ROOT, check=True)
 subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests',
                 '-p', 'test_file_unit.py'], cwd=ROOT, check=True)
 # Optional maintainer research audit, separate from default product acceptance.

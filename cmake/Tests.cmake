@@ -1155,9 +1155,6 @@ add_custom_target(zscreentest_bin ALL
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zscreentest>
     DEPENDS zscreentest ${CMAKE_SOURCE_DIR}/tools/package-native.py VERBATIM)
 
-# Example runs consume the freshly compiled build/CRT.ZPU from `make`.
-# Building their harness must not restage the tracked stock prebuilt.
-
 add_dependencies(zunitrealtest crt_zpu)
 
 add_dependencies(zunitinittest crt_zpu zexparent_bin)
@@ -1181,20 +1178,6 @@ foreach(variant IN ITEMS a b)
     endif()
     zp_add_outputs(runtime_object_${variant} WITH_EXTENSION zpl)
 endforeach()
-
-# Record provenance only after both native compilers are current.
-add_custom_target(zvb_authoring
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-zvb.py
-        ${CMAKE_BINARY_DIR} --prepare-authoring
-    BYPRODUCTS ${CMAKE_BINARY_DIR}/zvb-authoring.json
-    DEPENDS zpascal_bin zzvbtest_bin runtime_profile VERBATIM)
-
-# Rebuild the Pascal stock CRT explicitly, outside the default release build.
-add_custom_target(crt_authoring
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/author-crt.py
-    DEPENDS zpascal_bin runtime_profile
-        ${CMAKE_SOURCE_DIR}/units/crt/CRT.PAS
-        ${CMAKE_SOURCE_DIR}/tools/author-crt.py VERBATIM)
 
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_SOURCE_DIR}/units/sysfile/workspace.asm)

@@ -1,25 +1,71 @@
-# Native toolchain jobs; CRT and ZVB each use one isolated emulator afterwards.
 JOBS ?= 6
+UNIT_JOBS ?= $(JOBS)
+UNIT_RUNNER ?= zde
 PYTHON ?= python3
+ZDE_PYTHON ?= python3
 ZDE ?= zde
+export ZDE_STRICT_EXIT := 1
 
-PASCAL_TARGETS := _crt _zvb
-.PHONY: all native units dist $(PASCAL_TARGETS)
+.PHONY: all native units dist
 all: dist
 
+ifeq ($(ZDE),true)
+
+ifneq ($(UNIT_RUNNER),zde)
+$(error UNIT_RUNNER=host must be selected from the host)
+endif
+
+UNIT_PYTHON = $(ZDE_PYTHON)
+ZDE_CMAKE = $(ZDE_PYTHON) "$(ZDE_HOME)/zde/zde.py" cmake build
+
 native:
-	@if [ ! -f build/CMakeCache.txt ]; then $(ZDE) --no-tty exec cmake -S . -B build; fi
-	$(ZDE) --no-tty cmake build --target zpascal_bin sysfile_zpu zos_zpu --parallel $(JOBS)
+	@if [ -d build ] && [ ! -f build/CMakeCache.txt ]; then cmake -S . -B build; fi
+	$(ZDE_CMAKE) --target zpascal_bin sysfile_zpu zos_zpu --parallel $(JOBS)
 
 units: native
-	+$(MAKE) --no-print-directory --jobs=$(JOBS) $(PASCAL_TARGETS)
+	$(ZDE_CMAKE) --target pascal_units --parallel $(UNIT_JOBS)
+
+_unit-rom:
+	$(ZDE_CMAKE) --target unit_rom
+.PHONY: _unit-rom
+
+else
+
+ZDE_MAKE = $(ZDE) --no-tty make UNIT_RUNNER=zde JOBS=$(JOBS) UNIT_JOBS=$(UNIT_JOBS) ZDE_PYTHON="$(ZDE_PYTHON)"
+
+ifeq ($(UNIT_RUNNER),host)
+UNIT_PYTHON = $(PYTHON)
+
+native _unit-rom:
+	$(ZDE_MAKE) $@
+
+PASCAL_TARGETS := _crt _zvb
+.PHONY: _unit-rom _units $(PASCAL_TARGETS)
+
+units: native
+	+$(MAKE) --no-print-directory --jobs=$(UNIT_JOBS) _units
+
+_units: $(PASCAL_TARGETS)
+$(PASCAL_TARGETS): | _unit-rom
 
 _crt:
-	$(PYTHON) tools/compile-unit.py units/crt/CRT.PAS --output build/CRT.ZPU --source-output build/CRT.PAS
+	$(UNIT_PYTHON) tools/compile-unit.py units/crt/CRT.PAS --rom build/unit-rom.img --output build/CRT.ZPU --source-output build/CRT.PAS --record build/CRT.unit.json
 
 _zvb:
-	$(PYTHON) tools/compile-unit.py units/zvb/ZVB.PAS --compact --output build/ZVB.ZPU --source-output build/ZVB.PAS
+	$(UNIT_PYTHON) tools/compile-unit.py units/zvb/ZVB.PAS --rom build/unit-rom.img --compact --output build/ZVB.ZPU --source-output build/ZVB.PAS --record build/ZVB.unit.json
 
-# Share the production build's installation layout after native authoring.
+else ifeq ($(UNIT_RUNNER),zde)
+.PHONY: _zde-build
+native units dist: _zde-build
+_zde-build:
+	$(ZDE_MAKE) $(or $(filter all native units dist,$(MAKECMDGOALS)),dist)
+else
+$(error UNIT_RUNNER must be zde or host)
+endif
+
+endif
+
+ifdef UNIT_PYTHON
 dist: units
-	$(PYTHON) tools/stage-distribution.py build
+	$(UNIT_PYTHON) tools/stage-distribution.py build
+endif

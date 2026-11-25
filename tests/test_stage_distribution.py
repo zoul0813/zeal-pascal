@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import runpy
 import tempfile
 import unittest
 from unittest import mock
@@ -10,13 +11,11 @@ from unittest import mock
 spec = importlib.util.spec_from_file_location('stage_distribution', Path(__file__).resolve().parents[1] / 'tools/stage-distribution.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
+unit_inputs = runpy.run_path(str(module.ROOT / 'tools/compile-unit.py'))['unit_inputs']
 
 
 class StageDistributionTests(unittest.TestCase):
     def setUp(self):
-        patch = mock.patch.object(module, 'zvb_source', return_value='unit ZVB;\n')
-        patch.start()
-        self.addCleanup(patch.stop)
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
@@ -33,6 +32,24 @@ class StageDistributionTests(unittest.TestCase):
         (self.build / 'zpascal.map').write_text('     00004000  _code_version\n')
         (self.build / 'zpascal.banks.json').write_text(json.dumps({
             'resident_bytes': len(b'VERSresident'), 'library_sha256': hashlib.sha256(library).hexdigest()}))
+        (self.build / 'pascal_runtime.profile').write_bytes(b'profile')
+        for name in ('CRT', 'ZVB'):
+            source = f'unit {name};\n'.encode()
+            folder = self.source / 'units' / name.lower()
+            folder.mkdir(exist_ok=True)
+            (folder / f'{name}.PAS').write_bytes(source)
+            (self.build / f'{name}.PAS').write_bytes(source)
+            payload = bytearray(51)
+            payload[:8] = b'ZPU1\x01\x00\x33\x00'
+            payload[18] = 3
+            payload[48:] = name.lower().encode()
+            checksum = 2166136261
+            for byte in payload[:28] + payload[32:]:
+                checksum = ((checksum ^ byte) * 16777619) & 0xffffffff
+            payload[28:32] = checksum.to_bytes(4, 'little')
+            (self.build / f'{name}.ZPU').write_bytes(payload)
+            record = dict(unit_inputs(self.build, source), unit_sha256=hashlib.sha256(payload).hexdigest())
+            (self.build / f'{name}.unit.json').write_text(json.dumps(record))
 
     def stage(self):
         return module.stage(self.build, self.source, self.output)
@@ -47,6 +64,7 @@ class StageDistributionTests(unittest.TestCase):
         self.assertEqual(actual['apps/zpascal.bin'], (self.build / 'zpascal.bin').read_bytes())
         self.assertIn('lib/ZVB.LIC', actual)
         self.assertIn('lib/ZVB.NTC', actual)
+        self.assertEqual(actual['lib/ZVB.PAS'], (self.build / 'ZVB.PAS').read_bytes())
         self.assertFalse(any(p.startswith('build/') for p in actual))
 
     def test_missing_or_mismatched_inputs_preserve_previous_stage(self):
@@ -87,6 +105,29 @@ class StageDistributionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'directory'):
             self.stage()
         self.assertEqual(self.output.read_bytes(), b'user file')
+
+    def test_stale_unit_source_preserves_previous_stage(self):
+        self.stage()
+        previous = (self.output / 'lib/CRT.ZPU').read_bytes()
+        (self.source / 'units/crt/CRT.PAS').write_text('unit CRT;\ninterface\n')
+        with self.assertRaisesRegex(ValueError, 'does not match its source build'):
+            self.stage()
+        self.assertEqual((self.output / 'lib/CRT.ZPU').read_bytes(), previous)
+
+    def test_missing_record_and_mismatched_prepared_source_preserve_previous_stage(self):
+        self.stage()
+        (self.output / 'previous.marker').write_bytes(b'keep')
+        record = self.build / 'ZVB.unit.json'
+        original = record.read_bytes()
+        record.unlink()
+        with self.assertRaises(FileNotFoundError):
+            self.stage()
+        self.assertEqual((self.output / 'previous.marker').read_bytes(), b'keep')
+        record.write_bytes(original)
+        (self.build / 'ZVB.PAS').write_text('unit ZVB;\ninterface\n')
+        with self.assertRaisesRegex(ValueError, 'ZVB.PAS differs from the compiled source'):
+            self.stage()
+        self.assertEqual((self.output / 'previous.marker').read_bytes(), b'keep')
 
     def test_failed_publication_restores_previous_tree(self):
         self.stage()

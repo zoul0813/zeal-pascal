@@ -5,32 +5,25 @@
 The **Build distribution** workflow runs on pushes to `main`. It can also be
 started from the repository's **Actions** tab with **Run workflow**.
 
-For a manual build, choose the emulator mode:
-
-- **release** (default): download the latest stable Linux emulator release.
-- **source**: build that same release's source with Meson.
-
-Both modes use the matching raylib library from the emulator's source tree.
-The Ubuntu runner uses ZDE's setup action, then builds the emulation-enabled
-Zeal OS ROM with its bundled command shell through `zde kernel zeal8bit/emu`.
-It runs `make JOBS=6` to build the compiler and native units, compile CRT and
-ZVB concurrently, and populate `bin/`. This uses ZDE's container toolchain;
-the emulator and Pascal-unit automation run on the host runner.
+The Ubuntu runner uses the ZDE setup action from `main` and its default
+`latest` runtime image.
+ZDE builds `zeal-headless` through its `Zeal8bit/Zeal-NativeEmulator` dependency.
+The runner calls `zde --no-tty make dist JOBS=6` to build the compiler, native
+units and a private emulator ROM, compile CRT and ZVB concurrently, and
+populate `bin/` inside ZDE.
 
 The workflow packages `bin/` and `examples/` into `zeal-pascal.zip` and uploads
 it as the **zeal-pascal-dist** Actions artifact. The ZIP retains those two
-top-level directories. The Makefile places the launcher at `bin/zpascal.bin`
+top-level directories. The Makefile places the launcher at `bin/apps/zpascal.bin`
 and the bank file, Units, Pascal interfaces and license under `bin/lib/`. Users
-install the launcher in `T:/bin/` and the contents of `bin/lib/` in `T:/lib/`,
+install the launcher in `T:/apps/` and the contents of `bin/lib/` in `T:/lib/`,
 as described in the README. Examples include their tracked sources,
 documentation, assets and prebuilt executables; this workflow does not recompile the example
 applications. Artifacts are retained for 30 days. Failed unit-compilation logs
 are retained separately for seven days when available.
 
-The ZDE setup action is pinned in the workflow. Its container image and
-catalog dependencies use ZDE's defaults, and the emulator uses its latest
-stable release at build time. Build logs record the selected emulator release.
-The packaged result is reused unchanged when creating a release.
+The emulator revision follows ZDE's dependency catalog. The packaged result
+is reused unchanged when creating a release.
 
 ## Create a versioned release
 

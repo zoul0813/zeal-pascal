@@ -78,7 +78,6 @@ def main():
     inputs += sorted(p for p in (ROOT/'units/zvb').iterdir() if p.is_file())
     inputs += [ROOT/'tools/zvb-source.py', ROOT/'tests/acceptance/test-zvb.py']
     inputs += [ROOT/f'build/{target}.{ext}' for ext in ('bin','zpl')]
-    if (ROOT/'build/zvb-authoring.json').exists():inputs.append(ROOT/'build/zvb-authoring.json')
     input_hashes={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
     standalone=[]
     class SavedClients(n.DebugConsole):

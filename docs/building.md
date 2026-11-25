@@ -59,15 +59,15 @@ an emulator card image.
 
 The normal `zde cmake` build and `make` both produce one generated `bin/`
 installation root, containing `apps/zpascal.bin`, `lib/zpascal.zpl`, stock units,
-Pascal interfaces and ZVB license/attribution files. No emulator is required for
-the normal CMake build; `make` explicitly re-authors the stock Pascal units.
+Pascal interfaces and ZVB license/attribution files. Both builds generate
+CRT and ZVB from Pascal source using `zeal-headless`.
 
 For HostFS, run `zeal-native -H bin/`. From `H:/`, launch
 `H:/apps/zpascal.bin`; its relative `lib/zpascal.zpl` lookup finds `H:/lib/`.
 From another working directory, pass `H:/lib/zpascal.zpl` explicitly.
 
-Software Collection declares `build.tool: cmake`, `build.root: /`, and the
-single directory artifact `bin/`. Its contents are merged into the TF root,
+For Software Collection staging, use `build.root: /` and the single directory
+artifact `bin/`. Its contents are merged into the TF root,
 giving `T:/apps/zpascal.bin` and `T:/lib/`. Directory staging preserves the
 `.bin` suffix even with `deps.rename-bins` enabled. With the community PATH,
 type `zpascal`; otherwise use the full path.
@@ -79,82 +79,70 @@ previous tree. Publish these Pascal build changes before merging the SC entry.
 
 ## Source-build prerequisites
 
-Use the existing [Zeal development environment (ZDE)](https://github.com/zoul0813/zeal-dev-environment)
-and its SDCC toolchain, with `zde` available in your shell and its container
-runtime running. The host also needs Python 3 and Make, plus an existing
-[Zeal Native Emulator](https://github.com/Zeal8bit/Zeal-NativeEmulator)
-with debugger/HostFS support and its platform runtime libraries. The build resolves
-`zeal-native` from your shell's `PATH`.
-
-The Unit automation expects this development layout by default:
-
-```text
-<zeal-root>/
-  zeal-pascal/                           # this checkout
-  zeal-dev-environment/home/
-    Zeal-8-bit-OS/build/os_with_romdisk.img
-    Zeal-8-bit-OS/build/os.map
-    tf.base.img.gz
-    zeal-coreutils/bin/
-```
-
-`<zeal-root>` is the nearest ancestor containing `zeal-dev-environment`, so
-nested worktrees reuse the existing development assets. It falls back to this
-checkout's parent if none is found. Set `ZP_ZEAL_ROOT` to your existing development
-root when different; this controls ROM and media paths, independently of the
-emulator on `PATH` and ZDE's `ZDE_PATH`. Reuse the installed emulator and ZDE
-assets. To build the emulation-enabled OS ROM and bundled shell through ZDE:
+Use [ZDE](https://github.com/zoul0813/zeal-dev-environment) with its container
+runtime running and Zeal OS installed. The
+[build workflow](../.github/workflows/build.yml) uses ZDE's `main` branch and
+its default `latest` runtime image. For builds that run unit compilers inside
+ZDE, install its headless dependency once:
 
 ```sh
-zde --no-tty kernel zeal8bit/emu
+zde --no-tty deps install Zeal8bit/Zeal-NativeEmulator
 ```
-
-Run the build commands below from the `zeal-pascal` checkout on the host.
-The native target build runs inside ZDE; the emulator automation runs on the
-host. For the complete hosted setup, emulator dependencies and downloadable
-build artifacts, see [GitHub builds and releases](releasing.md) and the
-[build workflow](../.github/workflows/build.yml).
 
 ## Fresh compiler and Pascal units
 
-For a full source build, including freshly compiled stock Pascal Units, run the
-host Makefile:
+From the `zeal-pascal` checkout, choose where to run the unit compilers:
 
-```sh
-make
-# Override the native toolchain worker count (default: 6):
-make JOBS=4
-```
+| Command | Unit compilation and staging |
+| --- | --- |
+| `zde --no-tty make dist JOBS=6` | Inside ZDE, using its `zeal-headless` and Python |
+| `make dist JOBS=6` | Inside ZDE, launched through the host Makefile |
+| `make dist UNIT_RUNNER=host JOBS=6` | On the host, using a native `zeal-headless` on `PATH` and host Python |
 
-The Makefile configures through ZDE if the build cache is missing, then runs `zde --no-tty cmake build --target zpascal_bin sysfile_zpu zos_zpu --parallel 6`
-(with `JOBS` controlling the last value). It then compiles CRT and ZVB concurrently
-in two isolated emulator processes using that completed production compiler.
-It bypasses the CMake targets that stage tracked Pascal prebuilts. Successful
-outputs are `build/CRT.ZPU` and `build/ZVB.ZPU`, with matching Pascal sources
-beside them. A failed compilation returns nonzero and preserves the previous
-output; never package a build after `make` fails. This command builds the release
-files and copies the distributable bundle to `bin/`. It does not run the behavior
-acceptance suite or create a distribution archive.
+All three commands build the Z80 compiler, SYSFILE, ZOS and the emulator boot
+ROM with ZDE's toolchain. The build generates `build/unit-rom.img` from Zeal OS's
+HostFS-enabled configuration in a private copy of the OS sources. An existing
+emulator ROM or a separate `zde kernel` step is unnecessary.
 
-`make native` builds only the compiler, SYSFILE and ZOS. Do not run another
-build or the acceptance orchestrator while this workflow is active: compiler
-inputs must remain unchanged until both emulator processes exit.
+`JOBS` defaults to 6 and sets the native compiler's worker count.
+`UNIT_JOBS` defaults to `JOBS` and can be set independently, for example
+`make dist UNIT_RUNNER=host JOBS=4 UNIT_JOBS=2`. CRT and ZVB each run in a
+separate emulator process, so two unit workers can run at once. Host mode runs
+those processes outside the container VM. Set `PYTHON` for a different host
+interpreter and `ZDE_PYTHON` for a different ZDE interpreter.
 
-To rebuild and test the general examples after `make` finishes:
+The build compiles CRT and ZVB from source with the just-built Pascal compiler
+and stages the production distribution under `bin/`. It retains the exact
+prepared sources next to the fresh `build/CRT.ZPU` and `build/ZVB.ZPU`. Failed
+unit builds return nonzero and preserve the staged distribution. `make native`
+and `zde make native` build only the compiler, SYSFILE and ZOS. Run one build
+per checkout at a time so its unit inputs remain stable.
+
+The Software Collection can use the ZDE Make path with `build.tool: make`,
+`dist` in `build.args`, and a dependency on `Zeal8bit/Zeal-NativeEmulator`.
+This uses the same `bin/` artifact and root as the CMake staging path.
+See [GitHub builds and releases](releasing.md) for downloadable artifacts.
+
+The acceptance tools use the separate ZDE emulator ROM, kernel map and media
+fixtures in the ZDE installation. For host acceptance runs, provide a native
+`zeal-headless` on `PATH` and prepare the acceptance ROM with
+`zde --no-tty kernel zeal8bit/emu`.
+
+To rebuild and test the general examples after the distribution build finishes:
 
 ```sh
 zde --no-tty cmake build --target zexampletest_bin -j6
 python3 tests/acceptance/test-examples.py --package
 ```
 
-The harness uses the freshly compiled `build/CRT.ZPU`; it does not stage the
-tracked stock prebuilt. ZealCalc has a separate build and acceptance command:
+The harness uses the source-built `build/CRT.ZPU`. ZealCalc has a separate build and acceptance command:
 `python3 tests/acceptance/test-zealcalc.py --package`.
 
 To compile another Pascal unit with the same compiler:
 
 ```sh
-python3 tools/compile-unit.py path/to/Example.pas --output build/EXAMPLE.ZPU
+zde --no-tty exec python3 tools/compile-unit.py path/to/Example.pas \
+    --rom build/unit-rom.img --output build/EXAMPLE.ZPU
 ```
 
 The script expands relative `{$I file}` and `(*$I file*)` includes into one
@@ -173,17 +161,17 @@ automation in `tools/zeal_emulator.py`; unit builds do not load the acceptance
 workflow. Runs are retained for diagnostics and can be removed when no builds
 are using them. `--source-output PATH` also publishes the exact prepared
 source for source/error lookup. Use that source when includes or compaction
-change offsets. `--emulator PATH` selects another installed emulator and
-`--timeout SECONDS` overrides the 1800-second emulator limit.
+change offsets. `--emulator PATH` selects another `zeal-headless` executable.
+`--rom PATH` supplies the boot ROM, and `--timeout SECONDS` overrides the
+1800-second emulator limit. With no `--rom`, standalone tools use the emulator
+ROM from the existing ZDE installation. Inside ZDE they use `ZDE_HOME`. On the
+host they look for an ancestor containing `zeal-dev-environment`, with
+`ZP_ZEAL_ROOT` available to override that lookup.
 
 The script checks successful emulator completion and the fresh ZPU's header,
-name, size and format checksum before replacing output atomically. It does not
-update tracked prebuilts/manifests or claim behavior acceptance. The explicit
-stock-artifact maintenance workflows below remain available for `zde cmake`
-builds that reuse tracked prebuilts. A subsequent plain `zde cmake` runs those
-staging targets again: it replaces freshly compiled CRT/ZVB with the tracked
-prebuilts when their validation passes, or fails if they are stale. Package after
-a successful `make` without running that default CMake build in between.
+name, size and checksum before replacing output atomically. Stock builds also
+save build-local records that bind the payload to the prepared source and the
+compiler. Keep the resulting `.ZPU` files and records in the build directory.
 
 ## Distributable hardware files
 
@@ -219,8 +207,8 @@ does not install this directory tree. Community image staging is a separate
 workflow.
 
 The separate [`tools/package-tf.py` workflow](#project-tf-card-image) below reads
-`build/` and validates the tracked ZVB prebuilt; it does not consume the release
-or locally generated `bin/` bundle. It installs the launcher in `T:/bin/` and
+`build/` and checks the CRT and ZVB build records against the source, compiler
+and compiled units. It installs the launcher in `T:/bin/` and
 the supporting files in `T:/lib/`.
 
 ## Build-output details
@@ -245,12 +233,12 @@ Memory Run and return to the IDE. It is not another installed program.
    declaring `unit Example;`. The supported native Unit features are described
    in [Units](units.md). The output basename must match the declared name,
    case-insensitively: `EXAMPLE.ZPU` for `unit Example`.
-2. Build the current compiler and native units once with `make native`.
+2. Run `zde --no-tty make units` to build the current compiler, ROM and stock units.
 3. Compile the new unit, retaining the exact prepared source for error lookup:
 
    ```sh
-   python3 tools/compile-unit.py units/example/EXAMPLE.PAS \
-       --output build/EXAMPLE.ZPU --source-output build/EXAMPLE.PAS
+   zde --no-tty exec python3 tools/compile-unit.py units/example/EXAMPLE.PAS \
+       --rom build/unit-rom.img --output build/EXAMPLE.ZPU --source-output build/EXAMPLE.PAS
    ```
 
    Relative includes are flattened. `{$Idefs}` uses `defs.PAS` by default;
@@ -261,20 +249,11 @@ Memory Run and return to the IDE. It is not another installed program.
    fails, the command reports any retained original recovery file. Resolve the
    failure before packaging.
 4. Run the unit's relevant behavior tests and compile a program that uses it.
-5. To include it in future distribution builds, add `_example` to
-   `PASCAL_TARGETS`, add `EXAMPLE.ZPU EXAMPLE.PAS` to `DIST_LIB_FILES`, and add this
-   recipe to the Makefile:
-
-```make
-_example:
-	$(PYTHON) tools/compile-unit.py units/example/EXAMPLE.PAS --output build/EXAMPLE.ZPU --source-output build/EXAMPLE.PAS
-```
-
-If the unit imports CRT, declare `_example: _crt` instead; list every unit
-prerequisite the same way. Independent unit targets run concurrently, up
-to `JOBS`; dependency edges ensure imports use the newly compiled outputs.
-Run `make` to rebuild and populate `bin/`. These fresh-build steps do not
-update the legacy tracked prebuilt manifests.
+5. To ship a new Pascal unit, register it with `zp_pascal_unit` in
+   `cmake/Units.cmake`, add its recipe to the host unit build in `Makefile`,
+   and list the distributable files in `tools/stage-distribution.py`. Declare
+   any imported units as prerequisites in both build graphs so their outputs
+   exist before compilation.
 
 ## Project TF-card image
 
@@ -297,19 +276,17 @@ separate steps.
 
 ## Build targets
 
-For compiler development using the tracked CRT/ZVB prebuilts, the default
-CMake build is available through ZDE:
+The default CMake build generates the production compiler, stock units and
+distribution. CRT and ZVB use the same unit compiler as the Make paths and
+are regenerated when their build inputs change.
 
 ```sh
 zde cmake
 ```
 
-This builds the compiler, SYSFILE and ZOS, and validates/stages the tracked
-CRT/ZVB artifacts. It does **not** recompile those Pascal Units in the emulator;
-stale tracked artifacts can cause validation to fail. Use the full
-[`make` workflow](#fresh-compiler-and-pascal-units) to rebuild them with the current
-compiler instead. Do not run the default CMake build between `make` and packaging,
-as it stages tracked prebuilts over the fresh CRT/ZVB outputs.
+Use the `--parallel` option to build independent targets concurrently. The
+`pascal_units` target builds CRT and ZVB together; `zpascal_bin` builds just
+the compiler and its native prerequisites without an emulator.
 
 The default build has six product entry points:
 
@@ -318,7 +295,7 @@ The default build has six product entry points:
 | `zpascal_bin` | `zpascal.bin` and its matching `zpascal.zpl` |
 | `crt_zpu` | `CRT.ZPU` and `CRT.PAS` |
 | `sysfile_zpu` | `SYSFILE.ZPU` |
-| `zvb_zpu` | Validated stock `ZVB.ZPU` |
+| `zvb_zpu` | `ZVB.ZPU` and its prepared `ZVB.PAS` |
 | `zos_zpu` | Native syscall `ZOS.ZPU` and its `ZOS.PAS` interface |
 | `distribution` | Shared `bin/apps/` and `bin/lib/` installation tree |
 
@@ -339,7 +316,7 @@ checksum and runtime fingerprint; it does not generate, place or relocate code.
 The assembly preserves the existing private calling convention internally and
 uses direct Zeal OS syscall adapters. Several hot helpers are hand-tuned; moving
 code to ASM does not imply every retained stack frame has been optimized away.
-Other compiler/runtime asset builders and stock CRT/ZVB validation use Python.
+Other compiler/runtime asset builders and the stock Pascal unit tools use Python.
 
 Internal targets are excluded from `ALL` and run when
 required by a product dependency. CMake still reports those compile/link steps
@@ -348,9 +325,9 @@ as “Built target …”; those messages do not identify extra shipped programs
 Conversions and packaging use file-based rules in `Outputs.cmake`. An unchanged
 `zde cmake --parallel 4` skips compilation, linking and asset/header generation;
 changing a generator input or deleting an output schedules the required work.
-Stock CRT/ZVB integrity checks still run on each default build and preserve
-unchanged output timestamps. The `distribution` target also runs each time,
-replacing its generated staging tree after validating all inputs.
+CRT and ZVB are recompiled when their build inputs change or an output is
+missing. The `distribution` target runs each time, validating the unit records
+and other inputs before replacing the staging tree.
 “Built target …” alone does not mean compilation or linking ran.
 ZDE/VM startup and dependency checks still contribute to elapsed time.
 
@@ -439,59 +416,19 @@ turning tests off does not disable the compiler's runtime generators. Use a fres
 build directory when checking a clean release build. Reconfiguring is through
 `zde exec`; actual target builds use `zde cmake`.
 
-## Stock ZVB Unit
+## Testing the stock Pascal units
 
-`units/zvb/` contains the readable Pascal source, inline Z80 implementation,
-licences and `prebuilt/` native-authored artifact. Normal builds validate that
-artifact against its source and compiler/runtime bindings, then stage `ZVB.ZPU`.
-Validation runs on every default build, including incremental builds.
-They do not run an emulator or compile test executables. CRT uses the same
-validated stock-artifact approach; SYSFILE is assembled and checksum-sealed from maintained ASM sources.
-
-The stock manifest binds the source components and generator, exact compiler
-BIN/ZPL and private runtime profile. A changed binding fails the build instead
-of silently shipping a stale Unit. `zpascal_bin` remains independently buildable
-so a developer can build the compiler needed for fresh native authoring.
-
-To refresh ZVB after an implementation or compiler change:
+The default build compiles CRT and ZVB with the production Pascal compiler.
+To qualify changes with the extended native harnesses:
 
 ```sh
 zde --no-tty exec cmake -S . -B build -DZP_BUILD_TESTS=ON
-zde --no-tty cmake build --target zvb_authoring -j4
-python3 tests/acceptance/test-zvb.py --skip-hardware --output-library build/ZVB.ZPU
-python3 tools/package-zvb.py build --record-authoring analysis/native-slice/RUN/zvb-report.json
-```
-
-Use the exact report path printed by the native authoring run. Select an
-installed emulator with `--emulator /path/to/zeal-native` if needed. Recording
-rejects failed runs, prebuilt-client reports, changed compiler/runtime inputs,
-a different Unit payload, or a different flattened Pascal source. Commit the
-updated Unit and manifest together, validate clients, and switch tests off again
-for a normal release build.
-
-## Stock CRT Unit
-
-`units/crt/CRT.PAS` contains ordinary Pascal screen logic, named register constants
-and small annotated native kernels for bounded VRAM access and OS/runtime
-bridges. The default `crt_zpu` target validates the precompiled Unit against that
-source, its authoring tool, the compiler BIN/ZPL and runtime profile, then stages
-`CRT.ZPU` and the complete `CRT.PAS`. It never runs the historical C emitter.
-
-To re-author after a CRT source or compiler change:
-
-```sh
-zde --no-tty exec cmake -S . -B build -DZP_BUILD_TESTS=ON
-zde --no-tty cmake build --target zpascal_bin -j4
-python3 tools/author-crt.py
-python3 tools/package-crt.py build --record-authoring analysis/native-slice/RUN/crt-authoring-report.json
-zde --no-tty cmake build --target zscreentest_bin -j4
+zde --no-tty cmake build --target distribution zzvbtest_bin zscreentest_bin -j4
+python3 tests/acceptance/test-zvb.py --skip-hardware --prebuilt build/ZVB.ZPU --clients
 python3 tests/acceptance/test-screen.py
 python3 tests/acceptance/test-crt-readkey.py
 ```
 
-Use the exact authoring report path printed by the run. Commit the Unit and
-manifest together only after framebuffer, error-policy, keyboard and standalone
-checks pass. `tools/measure-crt.py` compares the Pascal implementation with the
-historical emitter using the same current compiler/runtime. It reports payload
-and COM sizes and standalone instruction-cycle measurements with interrupts
-masked during the timed calls. Restore `ZP_BUILD_TESTS=OFF` for release builds.
+`tools/measure-crt.py` compares the Pascal implementation with the historical
+emitter using the same current compiler/runtime. Restore `ZP_BUILD_TESTS=OFF`
+for release builds.

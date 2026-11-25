@@ -21,14 +21,14 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT / "tools") not in sys.path:
     sys.path.insert(0, str(ROOT / "tools"))
 import zeal_emulator as emulator
-from zeal_emulator import (ZEAL, EMULATOR, ROM, LIBRARY_READY_CYCLES,
+from zeal_emulator import (ZEAL, ZDE_HOME, EMULATOR, ROM, LIBRARY_READY_CYCLES,
                            sha, symbols, copy_media, type_text, program_launch,
                            ImageStop, memory, KEYS, SHIFTED)
 
 KERNEL_MAP = ROM.with_name('os.map')
-TF_TEMPLATE = ZEAL / 'zeal-dev-environment/home/tf.base.img.gz'
+TF_TEMPLATE = ZDE_HOME / 'tf.base.img.gz'
 MEDIA = ROOT / 'tests/native/media'
-COREUTILS = ZEAL / 'zeal-dev-environment/home/zeal-coreutils/bin'
+COREUTILS = ZDE_HOME / 'zeal-coreutils/bin'
 OUT = ROOT / "analysis/native-slice"
 RUN = emulator.new_run(OUT)
 # Load the library through its versioned header and checked extents.

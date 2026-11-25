@@ -9,8 +9,8 @@ import runpy
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-zvb_source = runpy.run_path(str(ROOT / 'tools/zvb-source.py'))['source']
-UNITS = ('SYSFILE.ZPU', 'CRT.ZPU', 'CRT.PAS', 'ZVB.ZPU', 'ZOS.ZPU', 'ZOS.PAS')
+validate_build_record = runpy.run_path(str(ROOT / 'tools/compile-unit.py'))['validate_build_record']
+UNITS = ('SYSFILE.ZPU', 'CRT.ZPU', 'CRT.PAS', 'ZVB.ZPU', 'ZVB.PAS', 'ZOS.ZPU', 'ZOS.PAS')
 
 
 def stage(build, source, output):
@@ -19,7 +19,6 @@ def stage(build, source, output):
     files.update({'lib/' + name: (build / name).read_bytes() for name in UNITS})
     files.update({'lib/' + name: (source / 'units/zvb' / original).read_bytes()
                   for name, original in [('ZVB.LIC', 'ZVB-LICENSE.txt'), ('ZVB.NTC', 'ZVB-NOTICE.txt')]})
-    files['lib/ZVB.PAS'] = zvb_source().encode()
     metadata = json.loads((build / 'zpascal.banks.json').read_text())
     symbols = dict((name, int(value, 16)) for value, name in re.findall(
         r'^\s+([0-9A-F]{8})\s+([_\w]+)\s', (build / 'zpascal.map').read_text(), re.M))
@@ -33,6 +32,13 @@ def stage(build, source, output):
             or version < 0 or version + 4 > len(resident)
             or resident[version:version + 4] != library[12:16]):
         raise ValueError('Compiler launcher and library are not a matching build')
+    for name in ('CRT', 'ZVB'):
+        record = json.loads((build / f'{name}.unit.json').read_text())
+        prepared = validate_build_record(
+            build, name, files[f'lib/{name}.ZPU'], record,
+            source / 'units' / name.lower() / f'{name}.PAS', compact=(name == 'ZVB'))
+        if files[f'lib/{name}.PAS'] != prepared:
+            raise ValueError(f'{name}.PAS differs from the compiled source. Rebuild before packaging.')
     if output.is_symlink() or (output.exists() and not output.is_dir()):
         raise ValueError('Installation output must be a directory, not a file or symlink')
     output.parent.mkdir(parents=True, exist_ok=True)

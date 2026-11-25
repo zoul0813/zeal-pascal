@@ -179,8 +179,7 @@ Compile to a saved COM; direct Memory compilation does not support overlays.
 From the repository root, using the installed Zeal development environment:
 
 ```sh
-zde --no-tty cmake --target zpascal_bin -j8
-python3 tools/author-crt.py
+zde --no-tty cmake --target crt_zpu -j8
 python3 tests/acceptance/test-zealcalc.py --package
 ```
 

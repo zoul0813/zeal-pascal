@@ -81,8 +81,7 @@ foreach(bank RANGE 1 20)
     target_link_options(zpascal PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
 
-# Package only when the link image or a checked input changes. Stock Unit
-# validation still runs on every default build (Units.cmake).
+# Package only when the link image or a checked input changes.
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/zpascal.bin ${CMAKE_BINARY_DIR}/zpascal.zpl
         ${CMAKE_BINARY_DIR}/zpascal.banks.json
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zpascal>
