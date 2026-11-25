@@ -4,9 +4,6 @@ PYTHON ?= python3
 ZDE ?= zde
 
 PASCAL_TARGETS := _crt _zvb
-DIST_LIB_FILES := zpascal.zpl SYSFILE.ZPU CRT.ZPU ZVB.ZPU ZOS.ZPU \
-              CRT.PAS ZVB.PAS ZOS.PAS
-
 .PHONY: all native units dist $(PASCAL_TARGETS)
 all: dist
 
@@ -23,11 +20,6 @@ _crt:
 _zvb:
 	$(PYTHON) tools/compile-unit.py units/zvb/ZVB.PAS --compact --output build/ZVB.ZPU --source-output build/ZVB.PAS
 
-# Only publish the loose hardware files after every compilation succeeds.
+# Share the production build's installation layout after native authoring.
 dist: units
-	mkdir -p bin/lib
-	cp build/zpascal.bin bin/
-	cp $(addprefix build/,$(DIST_LIB_FILES)) bin/lib/
-	cat units/zvb/ZVB-LICENSE.txt units/zvb/ZVB-NOTICE.txt > bin/lib/ZVB.LIC
-# Remove only the known files from the previous flat distribution layout.
-	rm -f $(addprefix bin/,$(DIST_LIB_FILES)) bin/ZVB.LIC
+	$(PYTHON) tools/stage-distribution.py build

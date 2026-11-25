@@ -16,9 +16,15 @@ include(cmake/Sources.cmake)
 include(cmake/Runtime.cmake)
 include(cmake/Compiler.cmake)
 include(cmake/Units.cmake)
+# One installable tree for HostFS, release archives and TF image staging.
+add_custom_target(distribution ALL
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/stage-distribution.py ${CMAKE_BINARY_DIR}
+    COMMENT "Staging bin/apps and bin/lib"
+    VERBATIM)
+add_dependencies(distribution zpascal_bin crt_zpu sysfile_zpu zvb_zpu zos_zpu)
 
 # Only shipping products are default entry points; components build as needed.
-set(zp_product_targets zpascal_bin crt_zpu sysfile_zpu zvb_zpu zos_zpu)
+set(zp_product_targets distribution zpascal_bin crt_zpu sysfile_zpu zvb_zpu zos_zpu)
 get_property(zp_internal_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
 list(REMOVE_ITEM zp_internal_targets ${zp_product_targets})
 set_target_properties(${zp_internal_targets} PROPERTIES EXCLUDE_FROM_ALL TRUE)

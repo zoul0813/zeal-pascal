@@ -10,13 +10,13 @@ in the native Zeal emulator.
 
 The release ZIP contains `bin/` and `examples/`. The files in `bin/` are the
 same installation bundle produced by a successful local `make`. The bundle
-contains `bin/zpascal.bin` and supporting files under `bin/lib/`. Create
-`T:/bin/` and `T:/lib/` on your Zeal TF card if needed. Copy `bin/zpascal.bin`
-into `T:/bin/`, and the contents of `bin/lib/` into `T:/lib/`. The installed
+contains `bin/apps/zpascal.bin` and supporting files under `bin/lib/`. Create
+`T:/apps/` and `T:/lib/` on your Zeal TF card if needed. Copy `bin/apps/zpascal.bin`
+into `T:/apps/`, and the contents of `bin/lib/` into `T:/lib/`. The installed
 layout is:
 
 ```text
-T:/bin/zpascal.bin
+T:/apps/zpascal.bin
 T:/lib/zpascal.zpl
 T:/lib/SYSFILE.ZPU
 T:/lib/CRT.ZPU
@@ -26,12 +26,13 @@ T:/lib/CRT.PAS
 T:/lib/ZVB.PAS
 T:/lib/ZOS.PAS
 T:/lib/ZVB.LIC
+T:/lib/ZVB.NTC
 ```
 
 Launch from ZShell:
 
 ```text
-T:/bin/zpascal.bin
+T:/apps/zpascal.bin
 ```
 
 Without a bank-path argument, the launcher first looks for `lib/zpascal.zpl`
@@ -41,18 +42,40 @@ beside that bank file and install matching files from one release or build.
 Keep the bank file available throughout an IDE session. Saved COM programs
 contain their selected runtime and Unit code and run independently.
 
-For a portable installation, keep `zpascal.bin` and `lib/` together and change
-to that directory before launching. Relative lookup uses the working directory,
+For a portable installation, keep `apps/` and `lib/` under the same
+installation root and change to that root before launching `apps/zpascal.bin`. Relative lookup uses the working directory,
 not the executable's directory. A corrupt or incompatible local bank file
 reports an error without falling back.
 
 An explicit bank path overrides both search locations, for example
-`H:/bin/zpascal.bin H:/lib/zpascal.zpl`.
+`H:/apps/zpascal.bin H:/lib/zpascal.zpl`.
 
 The [distributable file reference](#distributable-hardware-files) explains source
 lookup and licensing. See [hardware requirements](../tests/hardware/README.md)
 for physical Zeal use, and [TF-image setup](#emulator-tf-card-image) for
 an emulator card image.
+
+## Shared installation layout
+
+The normal `zde cmake` build and `make` both produce one generated `bin/`
+installation root, containing `apps/zpascal.bin`, `lib/zpascal.zpl`, stock units,
+Pascal interfaces and ZVB license/attribution files. No emulator is required for
+the normal CMake build; `make` explicitly re-authors the stock Pascal units.
+
+For HostFS, run `zeal-native -H bin/`. From `H:/`, launch
+`H:/apps/zpascal.bin`; its relative `lib/zpascal.zpl` lookup finds `H:/lib/`.
+From another working directory, pass `H:/lib/zpascal.zpl` explicitly.
+
+Software Collection declares `build.tool: cmake`, `build.root: /`, and the
+single directory artifact `bin/`. Its contents are merged into the TF root,
+giving `T:/apps/zpascal.bin` and `T:/lib/`. Directory staging preserves the
+`.bin` suffix even with `deps.rename-bins` enabled. With the community PATH,
+type `zpascal`; otherwise use the full path.
+
+The distribution target runs after the shipping outputs, validates that the
+launcher and bank file match, and replaces the generated installation tree.
+Do not store personal files in `bin/`. Failed input validation preserves the
+previous tree. Publish these Pascal build changes before merging the SC entry.
 
 ## Source-build prerequisites
 
@@ -166,24 +189,23 @@ a successful `make` without running that default CMake build in between.
 
 A successful `make` (or `make dist`) finishes by copying these files to `bin/`:
 
-- `zpascal.bin`: native IDE/compiler launcher.
+- `apps/zpascal.bin`: native IDE/compiler launcher.
 - `lib/zpascal.zpl`: matching compiler banks.
 - `lib/SYSFILE.ZPU`, `lib/CRT.ZPU`, `lib/ZVB.ZPU`, `lib/ZOS.ZPU`: stock statically linked Units.
 - `lib/CRT.PAS`, `lib/ZVB.PAS`, `lib/ZOS.PAS`: matching Pascal sources/interfaces for rebuilding and error lookup.
-- `lib/ZVB.LIC`: the ZVB licence with its attribution notice included.
+- `lib/ZVB.LIC` and `lib/ZVB.NTC`: the ZVB license and attribution notice.
 
 The six binary files are required for the IDE/compiler installation; the Pascal
-sources support development and source lookup. Retain `ZVB.LIC`
+sources support development and source lookup. Retain `ZVB.LIC` and `ZVB.NTC`
 when distributing ZVB. Source navigation currently requires matching text at the
 source path recorded inside the ZPU. The IDE does not yet search beside the
 installed ZPU, so copying the Pascal sources to a different TF-card path alone
 does not enable navigation. The distributed ZVB.PAS is the exact flattened,
 compacted file compiled by the build, rather than the repository's include tree.
 
-`bin/` is generated and ignored by Git. After copying succeeds, `make` removes
-the known library files left at the top of `bin/` by the previous flat layout.
-Other existing files are preserved; inspect the bundle before creating a
-download archive, and never package after a failed build/copy step.
+`bin/` is generated and ignored by Git. Both build paths replace this tree
+only after validating all inputs; old layout files are removed as part of that
+replacement. Keep personal files elsewhere.
 
 ## Emulator TF-card image
 
@@ -191,7 +213,7 @@ Install the release or locally built `bin/` files on the emulator's TF image
 using the [same directory layout](#install-the-distribution) as a physical card.
 For ZDE image staging and creation, see the
 [ZDE image reference](https://github.com/zoul0813/zeal-dev-environment/blob/main/docs/image.md).
-The release ZIP is a manual installation bundle, not a ZDE staging package.
+The same `bin/` directory can be staged recursively with ZDE.
 The separate `zde image tf add bin` command copies only top-level files and
 does not install this directory tree. Community image staging is a separate
 workflow.
@@ -289,7 +311,7 @@ stale tracked artifacts can cause validation to fail. Use the full
 compiler instead. Do not run the default CMake build between `make` and packaging,
 as it stages tracked prebuilts over the fresh CRT/ZVB outputs.
 
-The default build has five product entry points:
+The default build has six product entry points:
 
 | Target | Output |
 | --- | --- |
@@ -298,6 +320,7 @@ The default build has five product entry points:
 | `sysfile_zpu` | `SYSFILE.ZPU` |
 | `zvb_zpu` | Validated stock `ZVB.ZPU` |
 | `zos_zpu` | Native syscall `ZOS.ZPU` and its `ZOS.PAS` interface |
+| `distribution` | Shared `bin/apps/` and `bin/lib/` installation tree |
 
 The root `CMakeLists.txt` sets up the project and build layout, includes
 four production modules, and conditionally includes `cmake/Tests.cmake`:
@@ -305,7 +328,7 @@ four production modules, and conditionally includes `cmake/Tests.cmake`:
 - `Sources.cmake`: source lists, bank placement and header dependencies.
 - `Runtime.cmake`: numeric runtime templates, execution handoff and asset generation.
 - `Compiler.cmake`: compiler object groups and BIN/ZPL linking.
-- `Units.cmake`: CRT, SYSFILE and ZVB generation or staging.
+- `Units.cmake`: CRT, SYSFILE, ZVB and ZOS generation or staging.
 
 `Units.cmake` includes `SysFile.cmake` for the file backend's build steps.
 The assembler and standard linker build `units/sysfile/` directly into a ZPU
@@ -326,7 +349,9 @@ Conversions and packaging use file-based rules in `Outputs.cmake`. An unchanged
 `zde cmake --parallel 4` skips compilation, linking and asset/header generation;
 changing a generator input or deleting an output schedules the required work.
 Stock CRT/ZVB integrity checks still run on each default build and preserve
-unchanged output timestamps. “Built target …” alone does not mean work ran.
+unchanged output timestamps. The `distribution` target also runs each time,
+replacing its generated staging tree after validating all inputs.
+“Built target …” alone does not mean compilation or linking ran.
 ZDE/VM startup and dependency checks still contribute to elapsed time.
 
 The old full `file_runtime` module is not part of the production graph or
