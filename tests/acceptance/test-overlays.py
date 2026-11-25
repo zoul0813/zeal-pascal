@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import struct
@@ -183,7 +184,7 @@ def fixtures(directory):
 def host():
     out = ROOT/'analysis/overlays/host'
     fixtures(out)
-    sdk = ROOT.parent/'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
+    sdk = Path(os.environ.get('ZP_ZEAL_ROOT', str(ROOT.parent)))/'zeal-dev-environment/home/Zeal-8-bit-OS/sdk/sdcc/include'
     command = ['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-fno-builtin-exit',
                '-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-g',
                '-DZP_OVERLAY_HOST', '-D__SDCC_VERSION_MAJOR=4', '-D__SDCC_VERSION_MINOR=2', '-D__sdcccall(x)=',
@@ -216,7 +217,7 @@ def native():
     commands += [f"rb 0x{symbols['_test_failures']:x} 128", 'quit']
     media = {name: (directory/name).read_bytes() for name, *_ in cases}
     media[target+'.bin'] = binary
-    raw = n.execute('overlay-staging', commands, media, timeout=600)
+    raw = n.execute('overlay-staging', commands, media, timeout=600, base_programs=())
     memory = n.memory(raw)
     word = lambda name: memory.get(symbols[name], 0) | (memory.get(symbols[name]+1, 0) << 8)
     checks = {

@@ -5,6 +5,7 @@ import gzip
 import hashlib
 import importlib.util
 import json
+import runpy
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('native', ROOT/'tests/acceptance/test-native.py')
@@ -12,15 +13,18 @@ n = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(n)
 
 names = ['build/zpascal.bin', 'build/zpascal.zpl', 'build/zpascal.map', 'build/zpascal.banks.json', 'build/SYSFILE.ZPU', 'build/CRT.ZPU', 'build/CRT.PAS', 'build/ZVB.ZPU', 'build/ZOS.ZPU', 'build/ZOS.PAS',
+         'build/ZVB.PAS', 'build/CRT.unit.json', 'build/ZVB.unit.json', 'build/pascal_runtime.profile',
          'units/zvb/ZVB-LICENSE.txt', 'units/zvb/ZVB-NOTICE.txt']
 snapshots = {name: (ROOT/name).read_bytes() for name in names}
 hashes = {name: hashlib.sha256(data).hexdigest() for name, data in snapshots.items()}
-spec = importlib.util.spec_from_file_location('stock_zvb', ROOT/'tools/package-zvb.py')
-stock = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(stock)
-manifest = stock.validate(ROOT/'build')
-if hashes['build/ZVB.ZPU'] != manifest['unit_sha256']:
-    raise RuntimeError('Build ZVB.ZPU differs from the validated stock Unit; rebuild before packaging.')
+validate_build_record = runpy.run_path(str(ROOT/'tools/compile-unit.py'))['validate_build_record']
+for name in ('CRT', 'ZVB'):
+    prepared = validate_build_record(
+        ROOT/'build', name, snapshots[f'build/{name}.ZPU'],
+        json.loads(snapshots[f'build/{name}.unit.json']),
+        ROOT/'units'/name.lower()/f'{name}.PAS', compact=(name == 'ZVB'))
+    if snapshots[f'build/{name}.PAS'] != prepared:
+        raise RuntimeError(f'Build {name}.PAS differs from the compiled source. Rebuild before packaging.')
 sym = n.symbols('zpascal')
 metadata = json.loads(snapshots['build/zpascal.banks.json'])
 count = len(metadata['bank_bytes'])

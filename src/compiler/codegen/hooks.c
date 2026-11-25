@@ -1,5 +1,6 @@
 #include "compiler/link/layout.h"
 #include "compiler/groups/late.h"
+#include "compiler/groups/native.h"
 #include "runtime/files/operations.h"
 
 /* Hooks belong to each generated program. Defaults are genuine Pascal ABI
@@ -12,6 +13,11 @@ void cc_hook_variable(uint16_t id) ROUTINES {
     cc.hook_variables[CCS(id,initial_type)]=CCS(id,address);
 }
 void cc_hook_output(void) ROUTINES {
+#ifdef ZP_OVERLAYS
+    if(cc.sources->overlays&&cc.sources->bank) {
+        cc_emit(0xcd);cc_emit(0);cc_emit(0);cc_overlay_chain(cc.emitted-2,LATE_OUTPUT);return;
+    }
+#endif
     cc.hook_output_calls=cc_link(0xcd,cc.hook_output_calls);
 }
 static uint16_t word(uint16_t at) {

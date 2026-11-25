@@ -12,6 +12,6 @@ type
       generation and viewport coordinates remain live outside that overlay. }
     case boolean of
       False: (path: string[127]; top, left: byte; heads: RowHeads;
-              records: word; notice: string[75]);
+              records: word);
       True: (reply: ReplyBuffer)
   end;

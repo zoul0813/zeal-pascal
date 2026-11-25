@@ -12,7 +12,7 @@ const machine:machinecode=(length:75;payload:(
       mark:integer=$1234;i:integer=0;attempt:integer=0;saved:integer=0;
       good:boolean=true;
 {$A-}
-function wire(a:real;n:integer;b:real):real;external $800A;
+function wire(a:real;n:integer;b:real):real;external $B800;
 function returned:real;begin returned:=first end;
 procedure checkbytes;
 begin
@@ -24,6 +24,7 @@ begin
  end;
 end;
 begin
+ move(machine.payload,mem[$B800],75);
  result:=wire(returned,mark,last);checkbytes;
  if good then writeln('EXTERNAL-REAL-ARGUMENT-RESULT-OK');
  first:=2;last:=3;mark:=$12FE;good:=true;

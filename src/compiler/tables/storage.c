@@ -12,10 +12,18 @@
  * segment doubles to8192, then grows by16KiB segments. Logical offsets select
  * their segment directly; this directory holds addresses, never record data.
  * Six seven-segment prefixes plus32full-page segments bound every layout. */
+#ifdef ZP_OVERLAYS
+#define SEGMENT_LIMIT 81u
+#else
 #define SEGMENT_LIMIT 74u
+#endif
 #define TABLE_SEGMENTS 39u
 #define PREFIX_LENGTH 16256u
-enum { TABLE_SYMBOL,TABLE_TYPE,TABLE_ROUTINE,TABLE_RELOCATION,TABLE_REFERENCE,TABLE_LINK,TABLE_COUNT };
+enum { TABLE_SYMBOL,TABLE_TYPE,TABLE_ROUTINE,TABLE_RELOCATION,TABLE_REFERENCE,TABLE_LINK,
+#ifdef ZP_OVERLAYS
+TABLE_OVERLAY,
+#endif
+TABLE_COUNT };
 typedef struct {uint32_t length;uint8_t count,ids[TABLE_SEGMENTS];} Table;
 static uint32_t segments[SEGMENT_LIMIT];
 static Table tables[TABLE_COUNT];
@@ -132,9 +140,9 @@ void cc_reloc_put(uint16_t offset,uint8_t value) FRONTEND {byte_put(TABLE_RELOCA
 void cc_link_reference(uint16_t site,uint8_t space,uint16_t symbol,uint16_t addend,uint8_t kind) FRONTEND {
     uint8_t i;uint16_t words[3];uint32_t at=(uint32_t)cc.links*CC_LINK_BYTES;
     if(cc.error->code||cc.suppress)return;
-    if(kind>CF_HIGH8||space>CL_RUNTIME||
-       (space!=CL_DATA_ADJUST&&symbol)||
-       (space==CL_DATA_ADJUST&&(!symbol||addend||kind==CF_HIGH8))||site<CC_CODE_BASE||
+    if(kind>CF_HIGH8||space>CL_LIMIT||
+       (space!=CL_DATA_ADJUST&&space!=CL_ROOT_ADJUST&&symbol)||
+       ((space==CL_DATA_ADJUST||space==CL_ROOT_ADJUST)&&(!symbol||addend||kind==CF_HIGH8))||site<CC_CODE_BASE||
        site>=CC_CODE_LIMIT||cc.links==65535u){cc_fail(99);return;}
     words[0]=site;words[1]=symbol;words[2]=addend;
     for(i=0;i<3;++i)put(TABLE_LINK,at+2u*i,1,words[i]);
@@ -193,7 +201,7 @@ uint8_t cc_stack_check(void) FRONTEND {
 }
 
 uint8_t cc_variable(int16_t id) FRONTEND {
-    return id>=0&&(CCS(id,role)==S_VARIABLE||CCS(id,role)==S_TYPED||
+    return id>=0&&(CCS(id,role)==S_VARIABLE||CCS(id,role)==S_TYPED||CCS(id,role)==S_OVERLAY_TYPED||
            CCS(id,role)==S_VALUE||CCS(id,role)==S_REFERENCE||CCS(id,role)==S_RESULT||CCS(id,role)==S_FIELD||CCS(id,role)==S_SYSTEM||
            CCS(id,role)==S_ADDRESS||CCS(id,role)==S_ALIAS||CCS(id,role)==S_STANDARD||CCS(id,role)==S_HOOK);
 }
@@ -216,3 +224,8 @@ uint16_t cc_new_symbol(uint8_t role) FRONTEND {
     CCS_SET(id,role,role); CCS_SET(id,owner,cc.scope); ++cc.symbol_count;
     return id;
 }
+
+#ifdef ZP_OVERLAYS
+uint8_t cc_overlay_record_read(uint32_t at,uint8_t *out,uint16_t size) FRONTEND {return read(TABLE_OVERLAY,at,out,size);}
+void cc_overlay_record_put(uint32_t at,uint8_t value) FRONTEND {byte_put(TABLE_OVERLAY,at,value);}
+#endif

@@ -45,7 +45,7 @@ python3 tests/acceptance/test-zvb.py --prebuilt build/ZVB.ZPU --skip-hardware --
   --case SPRITES --case SNAKE --case FIRSTBAR --case CRC32
 ```
 
-Use `--emulator /path/to/zeal-native` on the example/ZVB commands to select an
+Use `--emulator /path/to/zeal-headless` on the example/ZVB commands to select an
 installed emulator explicitly. After the reports pass, commit the source and
 refreshed example binaries before packaging. The directory records a clean
 checkpoint and refuses dirty tracked/untracked inputs:

@@ -1,0 +1,12 @@
+.module bank_module
+.globl _overlay_dispatch,_overlay_context_bytes,_overlay_job_bytes,_overlay_bank_state
+.area _HEADER
+    jp _overlay_dispatch
+    .ascii "ZOVM"
+    .dw _overlay_context_bytes,_overlay_job_bytes
+    .dw _overlay_bank_state
+.area _SYSTEM
+.area _TEXT
+.area _INITIALIZED
+.area _DATA
+.area _BSS

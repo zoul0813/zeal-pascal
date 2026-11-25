@@ -82,7 +82,6 @@
     "tests/acceptance/test-crt-readkey.py",
     "tests/acceptance/test-ide-units.py",
     "tests/acceptance/test-ide-unit-failures.py",
-    "tests/acceptance/test-optional-corpus.py",
     "tests/acceptance/test-optional-real.py",
     "tests/acceptance/test-optional-chain.py",
     "tests/acceptance/test-unit-navigation.py",
@@ -97,7 +96,10 @@
     "tests/acceptance/test-zvb.py --skip-hardware --clients --disk-snake",
     "tests/acceptance/test-build-layout.py",
     "tests/acceptance/test-build-outputs.py",
-    "tests/acceptance/test-syscalls.py"
+    "tests/acceptance/test-syscalls.py",
+    "tests/acceptance/test-overlay-banks.py",
+    "tests/acceptance/test-overlay-banks.py --native",
+    "tests/acceptance/test-native-overlays.py"
   ],
   "redundant": [
     "tests/acceptance/test-native.py --core-only",
@@ -365,8 +367,7 @@
       "zpascal_bin"
     ],
     "tests/acceptance/test-editor-repaint.py": [
-      "zpascal_bin",
-      "zptest_bin"
+      "zpascal_bin"
     ],
     "tests/acceptance/test-error-location.py": [
       "pascal_runtime_bin",
@@ -375,8 +376,7 @@
     "tests/acceptance/test-examples.py": [
       "pascal_runtime_bin",
       "zexampletest_bin",
-      "zpascal_bin",
-      "zptest_bin"
+      "zpascal_bin"
     ],
     "tests/acceptance/test-execute-handoff.py": [
       "execute_entry_bin",
@@ -444,8 +444,7 @@
     ],
     "tests/acceptance/test-input.py": [
       "zinputtest_bin",
-      "zpascal_bin",
-      "zptest_bin"
+      "zpascal_bin"
     ],
     "tests/acceptance/test-io.py": [
       "ziotest_bin",
@@ -518,10 +517,6 @@
       "zexparent_bin",
       "zlegacypascal_bin",
       "zpascal_bin"
-    ],
-    "tests/acceptance/test-optional-corpus.py": [
-      "zoptionalcorpus_bin",
-      "zptest_bin"
     ],
     "tests/acceptance/test-optional-real.py": [
       "zlegacypascal_bin",
@@ -655,6 +650,12 @@
       "zsyscalltest_bin",
       "zpascal_bin",
       "zos_zpu"
+    ],
+    "tests/acceptance/test-overlay-banks.py": [
+      "zbankstest_bin"
+    ],
+    "tests/acceptance/test-native-overlays.py": [
+      "zpascal_bin"
     ]
   }
 }

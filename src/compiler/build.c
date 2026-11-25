@@ -13,6 +13,7 @@
 #include "platform/banks/loader.h"
 #endif
 #include "compiler/disk.h"
+#include "compiler/groups/native.h"
 #include "program/image.h"
 
 /* Build ownership, sealing and source lookup share a code bank. Compiler
@@ -104,6 +105,9 @@ uint8_t cc_place_code(void) FRONTEND {
         if(cc.image->globals_bytes>PAGE_SIZE&&!separate_globals())return 0;
         if(cc.image->globals_bytes&&!cc_image_page(1))return 0;
     }
+    #ifdef ZP_OVERLAYS
+    if(cc.sources->overlays&&!cc_overlay_place(origin,data))return 0;
+    #endif
     for(i=0;i<cc.relocations;++i) {
         if(!(i&63)&&!cc_poll())return 0;
         p=i*RELOCATION_BYTES;
@@ -160,6 +164,13 @@ uint8_t cc_place_code(void) FRONTEND {
     }
 #endif
     cc_hooks_place(delta);
+#ifdef ZP_OVERLAYS
+    if(cc.sources->overlays) {
+        /* Cleanup entry is the second reserved root JP, following the entry
+         * skip and dispatch JP. Root relocation has already placed it. */
+        cc_word(RT_FILECLEANUP-0x4000u+1,cc.image->code_origin+6u);
+    }
+#endif
     if(cc.error->code) return 0;
     cc.image->code_origin=origin; cc.image->code_bytes=count;
     cc.image->length=origin-0x4000u+count;
@@ -216,7 +227,11 @@ static uint8_t map_source_ready(const Sources *sources,uint8_t file,const Source
 uint8_t build_location(const Source *s,const Build *b,uint16_t pc,uint8_t *file,uint16_t *position) {
     uint16_t i, start, end, n;
     Source source;
-    if(!build_ready(s,b)||pc>=b->code_bytes) return 0;
+    if(!build_ready(s,b))return 0;
+#ifdef ZP_OVERLAYS
+    if(overlay_build_owned&&cc_overlay_locate(b,pc,file,position))return 1;
+#endif
+    if(pc>=b->code_bytes)return 0;
     for(i=0;i<=b->map_length-MAP_RECORD_BYTES;i+=MAP_RECORD_BYTES) {
         start=read16(b->map_page,i); end=read16(b->map_page,i+2);
         if(pc>=start&&pc<end) {

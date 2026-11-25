@@ -1,10 +1,14 @@
 #include "compiler/groups/late.h"
+#include "compiler/groups/native.h"
 extern const uint8_t unpack_start[],unpack_end[];
 
 /* File and transfer acquisition share a single private decoder in each saved
  * or Memory image. Its input constants are authenticated compiler assets. */
 void cc_unpack_reference(uint16_t operand) FRONTEND {
     if(cc.error->code||cc.suppress)return;
+    #ifdef ZP_OVERLAYS
+    if(cc.sources->overlays&&cc.sources->bank){cc_overlay_chain(operand,LATE_UNPACK);return;}
+    #endif
     cc_word(operand,cc.unpack_entry);cc_relocate(operand);cc.unpack_entry=operand;
 }
 void cc_unpack_finish(void) FRONTEND {

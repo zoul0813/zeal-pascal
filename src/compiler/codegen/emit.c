@@ -1,10 +1,14 @@
 #include "compiler/internal.h"
 #include "compiler/disk.h"
+#include "compiler/groups/native.h"
 
 /* Every compiler bank emits through this retained path. Mapping a compiler
  * bank just to write one output byte adds no ownership or correctness value. */
 void cc_put(uint16_t p,uint8_t v) {
     if(cc.error->code) return;
+    #ifdef ZP_OVERLAYS
+    if(cc.sources->bank&&p>=CC_CODE_BASE) {cc_overlay_put(p,v);return;}
+    #endif
     if(cc_disk_active(cc.image)) {
         if(compiler_disk_placed)cc_disk_final_put(p,v);else cc_disk_put(p,v);
         return;
@@ -22,6 +26,9 @@ void cc_put(uint16_t p,uint8_t v) {
 uint8_t cc_code_get(uint16_t address) {
     if(cc.error->code) return 0;
     if(address<CC_CODE_BASE||address>=cc.emitted) { cc_fail(99); return 0; }
+    #ifdef ZP_OVERLAYS
+    if(cc.sources->bank)return cc_overlay_get(address);
+    #endif
     if(cc_disk_active(cc.image))return cc_disk_get(address);
     return address>=0xc000u?cc_stage_get(address-0xc000u):
         far_get(cc.primary_stage==255?cc.image->pages[2]:cc.primary_stage,address-CC_CODE_BASE);
@@ -42,6 +49,9 @@ void cc_emit(uint8_t v) {
        CC_CODE_LIMIT
 #endif
     ) { cc_fail(99); return; }
+    #ifdef ZP_OVERLAYS
+    if(cc.sources->bank&&cc.emitted>=0xc000u){cc_fail(99);return;}
+    #endif
     cc_put(cc.emitted++,v);
 }
 static void emit16(uint16_t v) { cc_emit((uint8_t)v); cc_emit((uint8_t)(v>>8)); }

@@ -1,6 +1,7 @@
 #include "compiler/internal.h"
 #include "compiler/link/layout.h"
 #include "compiler/disk.h"
+#include "compiler/groups/native.h"
 #ifdef ZP_UNITS_EXPERIMENT
 #include "units/internal.h"
 #endif
@@ -45,6 +46,7 @@ void cc_system_init(void) FRONTEND {
 
 static uint8_t get(uint16_t p) {
     if(!++cc.scan_poll)cc_poll();
+    if(cc.input->page==255)return p<cc.input->length?cc_source_byte(((SourcePosition)cc.sources->file<<16)|p):0;
     return p<cc.input->length ? buffer_view_get(cc.input->page,cc.sources->input_base,p) : 0;
 }
 static uint8_t lower(uint8_t c) { return c>='A'&&c<='Z' ? c+32 : c; }
@@ -71,7 +73,8 @@ static uint8_t name_matches_view(uint16_t reference,uint8_t length,Source *view,
         *loaded=file;*base=sources_offset(&cc.image->sources,file);
     }
     if((uint32_t)at+length>view->length)return 0;
-    for(i=0;i<length;++i)if(cc.name[i]!=lower(buffer_view_get(view->page,*base,at+i)))return 0;
+    for(i=0;i<length;++i)if(cc.name[i]!=lower(view->page==255?
+        cc_source_byte(position+i):buffer_view_get(view->page,*base,at+i)))return 0;
     return 1;
 }
 static uint8_t letter(uint8_t c) { c=lower(c); return (c>='a'&&c<='z')||c=='_'; }
@@ -131,6 +134,9 @@ void cc_native_reserve(uint16_t bytes) FRONTEND {
 #ifdef ZP_UNITS_EXPERIMENT
     if(cc.sources->unit_mode)cc_units_note(UR_PC,cc.emitted,CC_CODE_BASE+pc);
 #endif
+    #ifdef ZP_OVERLAYS
+    if(cc.sources->overlays)cc_overlay_pc(cc.emitted);
+    #endif
     cc_emit((uint8_t)pc); cc_emit((uint8_t)(pc>>8));
 }
 void cc_reserve(uint16_t bytes) FRONTEND {
@@ -187,6 +193,9 @@ void cc_preserve_registers(uint8_t restore) FRONTEND {
 void cc_finish(uint16_t entry) FRONTEND {
 #ifdef ZP_UNITS_EXPERIMENT
     if(cc.sources->unit_mode)cc_units_note(UR_PC,cc.emitted+1,cc.emitted);
+#endif
+#ifdef ZP_OVERLAYS
+    if(cc.sources->overlays)cc_overlay_pc(cc.emitted+1);
 #endif
     cc_op16(0x21,cc.emitted-CC_CODE_BASE);
     cc_op16(0x22,RT_PC);
@@ -413,7 +422,7 @@ int16_t cc_lookup_decl(void) FRONTEND {
         while(i--) {
             if(!(i&63u)&&!cc_poll())return -1;
             if(!cc_symbol_read(i,&symbol))return -1;
-            if(symbol.role>=S_FIELD||symbol.owner!=scope)continue;
+            if((symbol.role>=S_FIELD&&symbol.role!=S_OVERLAY_TYPED)||symbol.owner!=scope)continue;
 #ifdef ZP_UNITS_EXPERIMENT
             if((symbol.role==S_PROCEDURE||symbol.role==S_FUNCTION)&&
                (cc_rget(symbol.initial_type,R_FLAGS)&RF_UNIT_IMPORT))continue;
@@ -564,11 +573,18 @@ void cc_bind_storage(uint16_t id) FRONTEND {
         CCS_SET(id,address,GLOBAL_BASE+cc.image->globals_bytes); cc.image->globals_bytes+=176;
     }
 }
+static void typed_address(uint8_t op,uint16_t address) {
+#ifdef ZP_OVERLAYS
+    if(cc.sources->overlays){cc_overlay_address(op,address);return;}
+#endif
+    cc_address(op,address);
+}
 void cc_slot(uint16_t id) FRONTEND {
     cc_bind_storage(id);
     if(CCS(id,role)==S_ALIAS) cc_symbol_address(CCS(id,address));
     else if(CCS(id,role)==S_ADDRESS) cc_op16(0x21,CCS(id,address));
-    else if(CCS(id,role)==S_TYPED) cc_address(0x21,CCS(id,address));
+    else if(CCS(id,role)==S_TYPED)
+        typed_address(0x21,CCS(id,address));
     else storage_address(0x21,id);
 }
 TypeId cc_standard_reference(uint8_t identity) FRONTEND {
@@ -590,7 +606,8 @@ void cc_destination(uint16_t id) FRONTEND {
     if(CCS(id,role)==S_HOOK) cc_hook_variable(id);
     if(indirect_symbol(id)) {
         cc_guard(); cc_emit(0xe5); cc_symbol_address(id); cc_emit(0xeb); cc_emit(0xe1);
-    } else if(CCS(id,role)==S_TYPED) cc_address(0x11,CCS(id,address));
+    } else if(CCS(id,role)==S_TYPED)
+        typed_address(0x11,CCS(id,address));
     else storage_address(0x11,id);
 }
 void cc_load_symbol(uint16_t id) FRONTEND {
@@ -604,9 +621,13 @@ void cc_load_symbol(uint16_t id) FRONTEND {
         cc_load_indirect(CCS(id,type));
     }
     else if(CCT(CCS(id,type),width)==1) {
-        if(CCS(id,role)==S_TYPED) cc_address(0x3a,CCS(id,address)); else storage_address(0x3a,id);
+        if(CCS(id,role)==S_TYPED)
+        typed_address(0x3a,CCS(id,address));
+    else storage_address(0x3a,id);
         cc_emit(0x6f); cc_emit(0x26); cc_emit(0);
-    } else if(CCS(id,role)==S_TYPED) cc_address(0x2a,CCS(id,address)); else storage_address(0x2a,id);
+    } else if(CCS(id,role)==S_TYPED)
+        typed_address(0x2a,CCS(id,address));
+    else storage_address(0x2a,id);
 }
 void cc_store_symbol(uint16_t id) FRONTEND {
     uint8_t op;
@@ -619,7 +640,9 @@ void cc_store_symbol(uint16_t id) FRONTEND {
         return;
     }
     if(op==0x32) cc_emit(0x7d);
-    if(CCS(id,role)==S_TYPED) cc_address(op,CCS(id,address)); else storage_address(op,id);
+    if(CCS(id,role)==S_TYPED)
+        typed_address(op,CCS(id,address));
+    else storage_address(op,id);
 }
 void cc_check_range(TypeId type) FRONTEND {
     if(type==TYPE_NONE) { cc_fail(44); return; }
@@ -632,7 +655,7 @@ void cc_check_range(TypeId type) FRONTEND {
 }
 void cc_result_symbol(uint16_t routine) FRONTEND {
     uint16_t i; uint8_t j;SourcePosition left,right;
-    for(i=0;i<cc.symbol_count;++i) if(CCS(i,role)<S_FIELD&&CCS(i,owner)==cc.scope&&CCS(i,name_length)==CCS(routine,name_length)) {
+    for(i=0;i<cc.symbol_count;++i) if((CCS(i,role)<S_FIELD||CCS(i,role)==S_OVERLAY_TYPED)&&CCS(i,owner)==cc.scope&&CCS(i,name_length)==CCS(routine,name_length)) {
         j=0;
         if(CCS(routine,name_length)) {
             left=cc_reference_position(CCS(i,name_start));right=cc_reference_position(CCS(routine,name_start));

@@ -92,6 +92,31 @@ on a historical total. Individual drivers retain their focused modes, such as
 `tests/acceptance/test-editor-native.py --case find` and
 `tests/acceptance/test-language-conformance.py --shard 1/4`.
 
+## Canonical compiler corpus
+
+`zptest_bin` builds the 18-family native language corpus against the same
+compiler, runtime, unit and image objects as `zpascal`. The `zptest` name remains
+for existing callers; its former `zp_core` compiler configuration is no longer
+used by this target. Other specialized harnesses still use `zp_core`.
+The duplicate `zoptionalcorpus` and `zunitcorpus` targets/drivers are retired.
+
+Run `python3 tests/acceptance/test-native.py --core-only` for all families,
+or use `--case control` (and `--list-cases`) for independent diagnosis.
+The scheduled runner expands all 18 families and eight platform/IDE workflows.
+The test supervisor occupies spare existing banks and is not linked into the
+shipped compiler. Pointer-taking helpers capture caller-bank strings before
+switching banks; machine-state observations remain resident.
+
+Production supports unsigned decimal constants, so the basic family accepts
+32768 and -(32768), closes those builds, and rejects 4294967296. The historical
+assertion ledger remains recorded alongside four added production checks.
+
+ABI fixtures install their exact independent machine bytes at `$B800` instead
+of assuming a fixed global-data address. Host checks pin those bytes in each
+first typed constant and verify the program ends below the test arena. Heap
+pressure cases preallocate 16 KiB before exhausting the larger production heap;
+availability comparisons preserve the documented unsigned bit patterns.
+
 ## Example applications
 
 The entire examples

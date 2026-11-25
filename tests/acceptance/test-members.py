@@ -43,7 +43,7 @@ def main():
     for name in ('_test_done', '_test_passed', '_test_failed', '_test_stage'):
         commands += [f'rb 0x{sym[name]:x} 2']
     commands += [f"rb 0x{sym['_test_failures']:x} 128", 'quit']
-    raw = n.execute('member-spool', commands, fixtures, timeout=600)
+    raw = n.execute('member-spool', commands, fixtures, timeout=600, base_programs=())
     memory = n.memory(raw)
     word = lambda name: memory.get(sym[name], 0) | memory.get(sym[name]+1, 0) << 8
     spool = n.RUN/'member-spool/hostfs/MEMBERS.SPL'
@@ -140,7 +140,7 @@ def main():
               'run 60000000000']+probes()+['s','run 60000000000']+probes()
     negative += [f'bc 0x{marker:x}','s','run 60000000000']+probes()+['quit']
     negative_fixtures={**fixtures,'PHASE.BAD':b'1'}
-    negative_raw=n.execute('member-phase-corrupt',negative,negative_fixtures,timeout=600,after_command=alter_on_marker)
+    negative_raw=n.execute('member-phase-corrupt',negative,negative_fixtures,timeout=600,base_programs=(),after_command=alter_on_marker)
     negative_state=n.memory(negative_raw)
     value=lambda name:negative_state.get(sym[name],0)|(negative_state.get(sym[name]+1,0)<<8)
     checks['real post-startup library truncation rejects compilation, preserves source/build, and repairs on retry']=(
@@ -154,7 +154,7 @@ def main():
              's','run 1000000000']+probes()+[f'bc 0x{close_pc:x}','s','run 1000000000']+probes()+[
              f"rb 0x{sym['_boot_error']:x} 1",f'bc 0x{exit_pc:x}',f'bp 0x{kernel_exit:x}',
              's','run 1000000000','regs','mmu',f'rb 0x{owners:x} 32','quit']
-    natural_raw=n.execute('member-phase-terminal',natural,{**fixtures,'RETURN.TEST':b'1'},timeout=600)
+    natural_raw=n.execute('member-phase-terminal',natural,{**fixtures,'RETURN.TEST':b'1'},timeout=600, base_programs=())
     frames=re.split(r'\[DBG\] PC=',natural_raw)[1:]
     selected=[]
     for address in (release,close_pc,exit_pc,kernel_exit):
@@ -180,7 +180,7 @@ def main():
     # Stop in the parent immediately before both real child entry paths.
     run_probe=['run 100000000']+n.program_launch(target)+[f"bp 0x{sym['_ram_enter']:x}",'run 60000000000']+probes()
     run_probe += [f"bc 0x{sym['_ram_enter']:x}",f"bp 0x{sym['_exec']:x}",'s','run 60000000000']+probes()+['quit']
-    run_raw=n.execute('member-run-pages',run_probe,fixtures,timeout=600)
+    run_raw=n.execute('member-run-pages',run_probe,fixtures,timeout=600, base_programs=())
     run_frames=re.split(r'\[DBG\] PC=',run_raw)[1:]
     for label,address in [('RAM',sym['_ram_enter']),('saved',sym['_exec'])]:
         found=[f for f in run_frames if f.startswith(f'{address:04x} ')]
@@ -199,7 +199,7 @@ def main():
         command=['run 100000000']+n.program_launch(target)+[f'bp 0x{release:x}', 'run 60000000000']+probes()
         command += [f'bc 0x{release:x}',f'bp 0x{done:x}','s','run 60000000000']+probes()
         command += [f'bc 0x{done:x}',f'bp 0x{kernel_exit:x}','s','run 1000000000','regs','mmu',f'rb 0x{owners:x} 32','quit']
-        text=n.execute('member-terminal-'+label,command,{**fixtures,flag:b'1'},timeout=600)
+        text=n.execute('member-terminal-'+label,command,{**fixtures,flag:b'1'},timeout=600, base_programs=())
         frames=re.split(r'\[DBG\] PC=',text)[1:];chosen=[]
         for address in (release,done,kernel_exit):
             matches=[f for f in frames if f.startswith(f'{address:04x} ')]

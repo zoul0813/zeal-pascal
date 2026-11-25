@@ -13,7 +13,7 @@ to the original nine applications. ZealCalc has its own build and verification g
 
 | Example | Application | Pascal strengths |
 | --- | --- | --- |
-| [ZealCalc](zealcalc/README.md) | VisiCalc-inspired spreadsheet | Crt/ZOS Units, ZVB text screen, disk row chains, bounded formulas |
+| [ZealCalc](zealcalc/README.md) | VisiCalc-inspired spreadsheet | MMU overlays, Crt/ZOS Units, banked RAM cache, bounded formulas |
 | [Lighthouse](lighthouse/README.md) | Text adventure | Enumerations, sets, cached screen updates, color and CP437 graphics |
 | [Parts Bin](partsbin/README.md) | Persistent stock database | Records, typed files, random access, recoverable I/O |
 | [Loan](loan/README.md) | Financial calculation | Real6, Exp/Ln, cent rounding, formatted tables |
@@ -59,3 +59,6 @@ experimenting with disk updates.
 
 For repository build, verification and executable-refresh instructions, see
 [example maintenance](../tests/README.md#example-applications).
+
+[The overlay sheet example](overlays/README.md) shares cells between demand-loaded
+Pascal routines using MMU RAM banks.

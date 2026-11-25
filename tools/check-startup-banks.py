@@ -11,8 +11,8 @@ def main():
     symbols={name:int(value,16)for value,name in re.findall(r'^\s+([0-9A-F]{8})\s+([_\w]+)\s',mapping,re.M)}
     cold={name for name,value in symbols.items()if value>>16 in (6,8,10)}
     cold|={'b'+name for name in cold if name.startswith('_')}
-    allowed={'src/compiler/statements.c.rel','src/compiler/compile.c.rel','src/compiler/codegen/builtins/crt.c.rel','src/compiler/expressions.c.rel',
-        'src/units/symbols/names.c.rel','src/compiler/runtime.c.rel','src/compiler/codegen/builtins/files.c.rel','src/compiler/codegen/hooks.c.rel','src/compiler/codegen/builtins/io.c.rel','src/compiler/routines.c.rel','src/compiler/codegen/strings.c.rel'}
+    allowed={'src/compiler/codegen/builtins/syscalls.c.rel','src/compiler/statements.c.rel','src/compiler/compile.c.rel','src/compiler/codegen/builtins/crt.c.rel','src/compiler/expressions.c.rel',
+        'src/units/symbols/names.c.rel','src/compiler/runtime.c.rel','src/compiler/codegen/builtins/files.c.rel','src/compiler/codegen/hooks.c.rel','src/compiler/codegen/builtins/io.c.rel','src/compiler/routines.c.rel','src/compiler/codegen/call.c.rel','src/compiler/groups/native.c.rel','src/compiler/codegen/strings.c.rel'}
     providers={'src/compiler/codegen/chain.c.rel','src/units/io/loader.c.rel','optional_runtime_asset.asm.rel','src/compiler/expressions.c.rel','src/compiler/codegen/builtins/interrupt.c.rel','src/compiler/codegen/builtins/files.c.rel','src/compiler/codegen/builtins/io.c.rel'}
     imports={};defined=set();violations=[]
     inputs={ROOT/'build/zpascal.map',ROOT/'build/zpascal.bin',ROOT/'build/zpascal.zpl',Path(__file__).resolve()}

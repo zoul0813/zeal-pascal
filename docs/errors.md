@@ -125,7 +125,7 @@ numbers are not invitations to infer a DOS Pascal message of that number.
 | 100 | Source line exceeds 127 bytes |
 | 247 | Cyclic unit dependency |
 | 248 | Invalid compiled unit |
-| 249 | Unsupported unit feature |
+| 249 | Unsupported unit feature or overlay combination |
 | 250 | Compiled unit file unavailable |
 | 251 | Unit runtime profile changed; recompile unit |
 | 252 | Ambiguous unit export; qualify its name |
@@ -139,7 +139,7 @@ are the situations that most often produce them.
 | Code | Typical cause | Fix |
 | --- | --- | --- |
 | 1 | Missing `;`, a repeated program forward heading, or an expression in an ordinary constant: `const N = 2 + 3;` | Add the semicolon, or write the computed value |
-| 12 | `overlay` when compiling to disk; statements with no `begin` | Remove the overlay; check the block structure |
+| 12 | Invalid overlay heading or forward overlay; statements with no `begin` | Use an overlay procedure/function body; check block structure |
 | 23 | `Random` or `ParamStr` given a Word | Convert with `Integer(...)` |
 | 41 | Misspelled name; a CRT routine without `uses Crt;`; CP/M `Bdos`/`Bios`; a parameter with an unnamed type | Correct the name, add the Uses clause, or declare a named type |
 | 44 | `var` argument of a different type (Byte for Integer); a For control variable passed by `var` | Use the exact declared type; copy the control variable |
@@ -154,7 +154,7 @@ are the situations that most often produce them.
 | 67 | File passed by value | Make it a `var` parameter |
 | 71 | `goto` into a deeper `for` | Restructure the jump |
 | 73 | A `forward` routine has no body | Supply the body in the same block |
-| 77 | `overlay` in Memory mode | Remove the overlay |
+| 77 | `overlay` in Memory mode | Select Com-file mode |
 | 91 | Unterminated comment or unexpected end of file | Close the comment or block |
 | 93 | Unknown or malformed directive | See the [directive table](language.md#compiler-directives-and-includes) |
 | 97 | Too many active With contexts | Raise `{$W}` before the block's `begin`, or use qualified fields |
@@ -175,6 +175,7 @@ are the situations that most often produce them.
 | `$90` | Checked array/String index outside its bounds. |
 | `$91` | Checked scalar/subrange failure; also invalid Random/Delay argument. |
 | `$92` | Trunc/Round outside Integer range, including with range checking off. |
+| `$F0` | Demanded overlay cannot be loaded, validated or released; fatal even under I-. |
 | `$FF` | Heap/recursion/CPU-stack capacity or stack-bound failure. |
 
 Ctrl-C user break is reported as an interruption, not an I/O error to be cleared

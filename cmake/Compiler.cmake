@@ -54,7 +54,7 @@ add_library(unit_runtime_core OBJECT src/compiler/codegen/builtins/syscalls.c ${
     src/units/core.c src/units/native.c src/units/runtime.c src/units/linker/references.c src/units/io/files.c src/units/io/paths.c src/units/io/header.c src/units/io/fragments.c src/units/io/loader.c src/units/io/reader.c src/units/io/ranges.c src/units/symbols/import.c src/units/symbols/metadata.c src/units/graph.c src/units/object.c src/units/symbols/names.c
     src/units/linker/object.c src/units/output.c ${CMAKE_BINARY_DIR}/optional_runtime_asset.asm)
 
-target_compile_definitions(unit_runtime_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL ZP_PROGRAM_PAGES)
+target_compile_definitions(unit_runtime_core PRIVATE ZP_IDE_PATHS ZP_UNITS_EXPERIMENT ZP_OPTIONAL_REAL ZP_PROGRAM_PAGES ZP_OVERLAYS)
 
 target_include_directories(unit_runtime_core PRIVATE src ${CMAKE_BINARY_DIR})
 
@@ -69,20 +69,19 @@ add_dependencies(unit_runtime_core sysfile_zpu)
 
 add_dependencies(zpascal sysfile_zpu)
 
-# Compiler launcher plus its nineteen code banks.
+# Compiler launcher plus its twenty code banks.
 target_sources(zpascal PRIVATE ${CMAKE_BINARY_DIR}/transfer_ide_asset.asm)
 
 add_dependencies(zpascal transfer_assets)
 
 target_link_options(zpascal PRIVATE "SHELL:-b _INITIALIZED=0xc000")
 
-foreach(bank RANGE 1 19)
+foreach(bank RANGE 1 20)
     math(EXPR bank_address "(${bank} << 16) + 0x8000" OUTPUT_FORMAT HEXADECIMAL)
     target_link_options(zpascal PRIVATE "SHELL:-b _BANK${bank}=${bank_address}")
 endforeach()
 
-# Package only when the link image or a checked input changes. Stock Unit
-# validation still runs on every default build (Units.cmake).
+# Package only when the link image or a checked input changes.
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/zpascal.bin ${CMAKE_BINARY_DIR}/zpascal.zpl
         ${CMAKE_BINARY_DIR}/zpascal.banks.json
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/package-native.py --optional-real $<TARGET_FILE:zpascal>
@@ -106,3 +105,13 @@ add_dependencies(zpascal_bin zpascal)
 set_property(TARGET zpascal_bin PROPERTY RAW_BINARY ${CMAKE_BINARY_DIR}/zpascal.bin)
 
 add_dependencies(unit_runtime_core zos_zpu)
+
+target_sources(unit_runtime_core PRIVATE src/source/spool.c src/compiler/groups/native.c
+    ${CMAKE_BINARY_DIR}/overlay_asset.asm)
+add_dependencies(unit_runtime_core overlay_assets)
+# Spend more host register-allocation search here to keep code and template
+# together in one16KiB bank, without adding resident spill workspace.
+set_source_files_properties(src/compiler/groups/native.c PROPERTIES COMPILE_OPTIONS "--std-c99;--opt-code-size;--max-allocs-per-node;100000;--codeseg;BANK20;--constseg;BANK20")
+set_property(SOURCE src/compiler/groups/native.c APPEND PROPERTY OBJECT_DEPENDS
+    ${CMAKE_BINARY_DIR}/overlay_asset.h ${CMAKE_SOURCE_DIR}/src/compiler/groups/native.h)
+set_source_files_properties(${CMAKE_BINARY_DIR}/overlay_asset.asm PROPERTIES OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/overlay_runtime.packed)

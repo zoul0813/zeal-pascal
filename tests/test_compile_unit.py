@@ -1,5 +1,6 @@
 """Source preparation and failure-safe publication for the emulator unit compiler."""
 import importlib.util
+import hashlib
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -160,22 +161,23 @@ class CompileUnit(unittest.TestCase):
         self.write('source/dep.zpu', 'local dependency')
         self.write('extra/DEP.ZPU', 'explicit dependency')
         self.write('extra/OTHER.ZPU', 'explicit other')
-        self.write('build/DEP.ZPU', 'installed dependency')
-        self.write('build/OTHER.ZPU', 'installed other')
-        self.write('build/SAMPLE.ZPU', 'stale self')
+        self.write('products/DEP.ZPU', 'installed dependency')
+        self.write('products/OTHER.ZPU', 'installed other')
+        self.write('products/SAMPLE.ZPU', 'stale self')
         for name in ('zpascal.bin', 'zpascal.zpl', 'zpascal.map', 'SYSFILE.ZPU'):
-            self.write('build/' + name, 'prerequisite')
+            self.write('products/' + name, 'prerequisite')
         emulator = self.write('emulator', 'prerequisite')
         rom = self.write('rom', 'prerequisite')
         for condition in ('input-error', 'missing', 'scratch', 'invalid'):
             with self.subTest(condition=condition):
-                native = SimpleNamespace(EMULATOR=emulator, ROM=rom,
+                native = SimpleNamespace(EMULATOR=emulator, ROM=self.root / 'missing-default-rom',
                                          new_run=lambda parent: self.root / condition,
-                                         symbols=lambda name: {'_key_read': 1, '_work': 2},
-                                         type_text=lambda value, **kw: [], program_launch=lambda: [],
+                                         symbols=lambda name, build: {'_key_read': 1, '_work': 2},
+                                         type_text=lambda value, **kw: [], program_launch=lambda **kw: [],
                                          ImageStop=lambda *args: None)
 
-                def prepare(folder, *, fixtures, **kwargs):
+                def prepare(folder, *, fixtures, rom, **kwargs):
+                    self.assertEqual(rom, self.root / 'rom')
                     self.assertNotIn('SAMPLE.ZPU', fixtures)
                     self.assertEqual(fixtures['DEP.ZPU'], b'local dependency')
                     self.assertEqual(fixtures['OTHER.ZPU'], b'explicit other')
@@ -193,8 +195,36 @@ class CompileUnit(unittest.TestCase):
                 native.execute = lambda *args, **kwargs: None
                 with patch.object(compiler, 'ROOT', self.root), patch.object(compiler, 'native', native):
                     with self.assertRaises(ValueError):
-                        compiler.compile_unit(source, output, unit_paths=[self.root / 'extra'])
+                        compiler.compile_unit(source, output, unit_paths=[self.root / 'extra'],
+                                              rom=rom, build=self.root / 'products')
                 self.assertEqual(output.read_bytes(), b'previous output')
+
+    def test_build_record_rejects_a_unit_with_stale_inputs(self):
+        source_text = 'unit Sample; interface implementation end.'
+        source = self.write('SAMPLE.PAS', source_text)
+        build = self.root / 'products'
+        for name in compiler.RECORD_FILES:
+            self.write('products/' + name, 'prerequisite')
+        payload = bytearray(54)
+        payload[:8] = b'ZPU1\x01\x00\x36\x00'
+        payload[18] = 6
+        payload[48:] = b'sample'
+        checksum = 2166136261
+        for byte in payload[:28] + payload[32:]:
+            checksum = ((checksum ^ byte) * 16777619) & 0xffffffff
+        payload[28:32] = checksum.to_bytes(4, 'little')
+        record = dict(compiler.unit_inputs(build, source_text.encode()),
+                      unit_sha256=hashlib.sha256(payload).hexdigest())
+        compiler.validate_build_record(build, 'SAMPLE', payload, record, source)
+        for name, text in (('SAMPLE.PAS', source_text + '\n'),
+                           ('products/zpascal.zpl', 'different compiler')):
+            with self.subTest(changed=name):
+                path = self.root / name
+                original = path.read_bytes()
+                path.write_text(text)
+                with self.assertRaisesRegex(ValueError, 'does not match its source build'):
+                    compiler.validate_build_record(build, 'SAMPLE', payload, record, source)
+                path.write_bytes(original)
 
     def test_rejects_truncated_or_corrupt_units(self):
         for data in (b'', b'ZPU1', bytes(60)):

@@ -37,6 +37,7 @@ and short demonstrations.
 | [Errors](errors.md) | Compiler, runtime and I/O diagnostics |
 | [CP/M TP3 compatibility](compatibility.md) | Preserved behavior, Zeal extensions, corrections and omissions |
 | [Building and installing](building.md) | Release layouts, ZDE and emulator prerequisites, full Unit builds and test options |
+| [Overlays](overlays.md) | Demand-loaded Pascal routines using MMU RAM banks |
 | [Pascal units](units.md) | Authoring, importing, linking, memory and limitations |
 | [Word and LongWord](unsigned-integers.md) | Unsigned types, operations and conversions |
 | [Hardware access](unit-hardware.md) | `Port`, `Mem` and `Inline` in Units; ZPU size limits |

@@ -16,5 +16,6 @@ void cc_disk_global_put(uint16_t at,uint8_t value);
 void cc_disk_put(uint16_t at,uint8_t value);
 uint8_t cc_disk_get(uint16_t at);
 uint8_t cc_disk_image(const Build *b,uint16_t at);
-uint8_t cc_disk_publish(const Build *b,const char *path);
+uint8_t cc_disk_prepare_publish(const Build *b);
+uint8_t cc_disk_publish(const Build *b,const char *path) SOURCE_BLOCK_CALL;
 #endif

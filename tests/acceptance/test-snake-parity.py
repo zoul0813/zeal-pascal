@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare saved Pascal Snake with the unchanged SDK C game in zeal-native.
+"""Compare saved Pascal Snake with the unchanged SDK C game in zeal-headless.
 
 Observe actual VRAM transfers, raw keyboard events and OS exit. Test fixtures
 use the linked globals address from the executable header, never a fixed base.
@@ -17,11 +17,11 @@ ROOT=Path(__file__).resolve().parents[2]
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--snake',type=Path,default=ROOT/'build/zvb/SNAKE.COM')
-    parser.add_argument('--emulator',type=Path,default=Path('/opt/homebrew/bin/zeal-native'))
+    parser.add_argument('--emulator',type=Path)
     args=parser.parse_args()
     spec=importlib.util.spec_from_file_location('native',ROOT/'tests/acceptance/test-native.py')
     n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
-    n.EMULATOR=args.emulator
+    n.EMULATOR=args.emulator or n.EMULATOR
     image=args.snake.read_bytes()
     reference=json.loads((ROOT/'tests/fixtures/snake/c-observation.json').read_text())
     pixels=json.loads((ROOT/'tests/fixtures/snake/reference-pixels.json').read_text())

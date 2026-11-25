@@ -1,5 +1,6 @@
 #include "compiler/internal.h"
 #include "compiler/disk.h"
+#include "compiler/groups/native.h"
 #include "compiler/link/layout.h"
 #include "common/path.h"
 #include "storage/transport.h"
@@ -78,6 +79,9 @@ const char *cc_disk_path(void) {return scratch;}
 void cc_disk_discard(const Build *b) {
     uint8_t primary=platform_error;uint8_t e=0;
     if(owner!=b)return;
+#ifdef ZP_OVERLAYS
+    if(overlay_build_owned)cc_overlays_close(b);
+#endif
     if(disk>=0){e=close(disk);disk=-1;}
     if(owned) {uint8_t removed=rm(scratch);if(!removed)owned=0;if(!e)e=removed;}
     owner=0;cached=dirty=placed=sealed=compiler_disk_placed=0;
@@ -165,6 +169,10 @@ static uint16_t image_offset(uint16_t at) {
 }
 uint8_t cc_disk_image(const Build *b,uint16_t at) {
     if(!cc_disk_active(b))return 0;
+#ifdef ZP_OVERLAYS
+    if(placed&&data_at==2u*PAGE_SIZE&&overlay_build_owned&&at>=PREFIX_BYTES&&at<2u*PAGE_SIZE)
+        return cc_overlay_image_byte(b,at-PREFIX_BYTES);
+#endif
     if(placed&&!chain_kind&&at>=data_at+globals&&at<code_at)return 0;
     return raw_get(image_offset(at));
 }
@@ -175,15 +183,11 @@ void cc_disk_final_put(uint16_t at,uint8_t value) {
 void cc_disk_seal(Build *b) {
     if(owner==b&&flush())sealed=1;
 }
-void cc_disk_adopt(const Build *from,Build *to) {if(owner==from)owner=to;}
-uint8_t cc_disk_publish(const Build *b,const char *path) {
-    uint8_t bytes[128];uint8_t ok=1;uint16_t at=0,n,i;int8_t fd;
-    if(!cc_disk_ready(b)||!flush())return failure();
-    fd=output_open_path(path,O_WRONLY|O_CREAT|O_TRUNC);if(fd<0)return 0;
-    while(at<b->length&&ok) {
-        n=b->length-at;if(n>128)n=128;
-        for(i=0;i<n;++i)bytes[i]=cc_disk_image(b,at+i);
-        ok=!platform_error&&output_write_buffer(fd,bytes,n);at+=n;
-    }
-    return output_finish(fd,ok);
+void cc_disk_adopt(const Build *from,Build *to) {if(owner==from)owner=to;
+#ifdef ZP_OVERLAYS
+    if(overlay_build_owned)cc_overlays_adopt(from,to);
+#endif
+}
+uint8_t cc_disk_prepare_publish(const Build *b) {
+    return cc_disk_ready(b)&&flush()?1:failure();
 }

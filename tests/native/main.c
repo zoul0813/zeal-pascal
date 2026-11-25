@@ -12,17 +12,7 @@ Diagnostic d;
 extern uint8_t console_scratch[256];
 void test_machine(uint8_t *state) NATIVE;
 void test_complete(void);
-static void control_tests(void) {
-    int8_t capture=open("H:/CONTROL.TXT",O_WRONLY|O_CREAT|O_TRUNC);
-    check(capture>=0);
-    if(capture>=0) check(swap(capture,DEV_STDOUT)==0);
-    test_stage=9; execution_file("H:/CONTROL.PAS",1,0,0);
-    test_stage=10;
-    execution_file("H:/EAGERAND.PAS",3,2,6);
-    execution_file("H:/EAGEROR.PAS",3,2,6);
-    execution_file("H:/NESTED.PAS",3,2,34);
-    if(capture>=0) { check(swap(capture,DEV_STDOUT)==0); check(close(capture)==0); }
-}
+void control_tests(void) SOURCE_BLOCK_CALL;
 static void ordinal_tests(void) {
     int8_t capture=open("H:/ORDINAL.TXT",O_WRONLY|O_CREAT|O_TRUNC);
     check(capture>=0);
@@ -201,9 +191,9 @@ static void heap_tests(void) {
     checked_error("type p=^integer;var x:p;begin x:=nil;\nrelease(x)end.",0xff,"release");
     checked_error("type p=^integer;var x:p;begin new(x);dispose(x);\ndispose(x)end.",0xff,"dispose(x)end");
     checked_error("type p=^integer;var x:p;begin getmem(x,10);\nfreemem(x,8)end.",0xff,"freemem");
-    checked_error("{$A-}type p=^integer;var x:p;procedure tight;var a:array[1..512]of byte;begin end;begin getmem(x,maxavail);tight end.",0xff,"tight");
-    checked_error("type p=^integer;var x:p;s:string[255];begin s:='a';recurptr:=stackptr-64;getmem(x,maxavail-64);\nwriteln(s+'')end.",0xff,"writeln");
-    checked_error("type p=^integer;text=string[255];var x:p;s:text;\nprocedure accept(v:text);begin end;\nbegin s:='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-';\ns:=s+s;recurptr:=stackptr-64;getmem(x,maxavail-64);\naccept(s)end.",0xff,"accept(s)");
+    checked_error("{$A-}type p=^integer;var x:p;procedure tight;var a:array[1..512]of byte;begin end;\nbegin getmem(x,16384);getmem(x,maxavail);tight end.",0xff,"tight");
+    checked_error("type p=^integer;var x:p;s:string[255];begin s:='a';recurptr:=stackptr-64;getmem(x,16384);getmem(x,maxavail-64);\nwriteln(s+'')end.",0xff,"writeln");
+    checked_error("type p=^integer;text=string[255];var x:p;s:text;\nprocedure accept(v:text);begin end;\nbegin s:='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-';\ns:=s+s;recurptr:=stackptr-64;getmem(x,16384);getmem(x,maxavail-64);\naccept(s)end.",0xff,"accept(s)");
     checked_error("begin\nstackptr:=0 end.",0xff,"stackptr");
     checked_error("begin\nstackptr:=$C7FF end.",0xff,"stackptr");
     checked_error("begin\nstackptr:=$FC01 end.",0xff,"stackptr");
@@ -338,7 +328,8 @@ static void basic_tests(void) {
     uint8_t line[129]; uint16_t i;
     int8_t capture;
     test_stage=1;
-    check(far_get(code_pages[7],7)==2);
+    check(code_phase_real()&&code_pages[CODE_RUNTIME]!=255&&pages_used()==cached_code_pages()+2);
+    check(code_phase_real_release()&&pages_used()==cached_code_pages()+1);
     check(load("begin  \r\nend. \r\n\032padding"));
     check(s.length==11&&far_get(s.page,5)=='\n'&&far_get(s.page,10)=='\n');
     for(i=0;i<128;++i) line[i]=' ';
@@ -347,8 +338,12 @@ static void basic_tests(void) {
     check(source_replace(&s,5,5,(const uint8_t*)"!",1)&&s.dirty);
     check(!compile(&s,&b,&d)&&d.code==58&&pages_used()==cached_code_pages()+1);
     check(load("begin writeln(32768) end."));
-    check(!compile(&s,&b,&d)&&d.code==56&&pages_used()==cached_code_pages()+1);
+    check(compile(&s,&b,&d)&&b.valid);
+    build_close(&b);check(pages_used()==cached_code_pages()+1);
     check(load("begin writeln(-(32768)) end."));
+    check(compile(&s,&b,&d)&&b.valid);
+    build_close(&b);
+    check(load("begin writeln(4294967296) end."));
     check(!compile(&s,&b,&d)&&d.code==56);
     test_stage=2;
     capture=open("H:/CONSOLE.TXT",O_WRONLY|O_CREAT|O_TRUNC);
@@ -422,16 +417,7 @@ static void basic_tests(void) {
 }
 /* The optional disposable fixture selects one family; missing means the
  * original all-family run. No debugger write modifies native code or state. */
-static uint8_t select_group(void) {
-    int8_t fd=open("H:/CORE.GRP",O_RDONLY);
-    uint8_t value[2]={0,0};uint16_t bytes=2,failures=test_failed;
-    if(fd<0)return 1;
-    check(read(fd,value,&bytes)==0&&bytes==1);
-    check(close(fd)==0);
-    check(value[0]<=18);
-    test_group=value[0];
-    return test_failed==failures;
-}
+uint8_t select_group(void) SOURCE_BLOCK_CALL;
 int app_main(void) {
     uint8_t group;
     if(!console_open()) { test_failed=1; test_done=255; for(;;) {} }

@@ -74,6 +74,9 @@ static void shared_startup(uint8_t pages) {
 }
 #endif
 void cc_startup_finish(void) FRONTEND {
+#ifdef ZP_OVERLAYS
+    if(cc.sources->overlays)cc.full_memory=1;
+#endif
 #ifdef ZP_PROGRAM_PAGES
 #ifdef ZP_STATIC_LAYOUT
     uint32_t origin=cc.sources->options&&cc.sources->options->start?

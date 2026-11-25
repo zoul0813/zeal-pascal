@@ -1,4 +1,4 @@
-"""Shared automation for the supported, unmodified Zeal native emulator.
+"""Shared automation for the standalone Zeal headless emulator.
 
 Callers choose working directories, fixtures, media, and command sequences.
 Acceptance assertions and report policy belong to the acceptance caller.
@@ -8,17 +8,23 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from queue import Empty, Queue
 import re
-import select
 import shutil
 import subprocess
 import sys
+from threading import Thread
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-ZEAL = Path(os.environ.get("ZP_ZEAL_ROOT", str(ROOT.parent))).resolve()
-EMULATOR = ZEAL / "Zeal-NativeEmulator/build/zeal-native"
-ROM = ZEAL / "zeal-dev-environment/home/Zeal-8-bit-OS/build/os_with_romdisk.img"
+ZEAL = Path(os.environ.get("ZP_ZEAL_ROOT", next(
+    (parent for parent in ROOT.parents if (parent / "zeal-dev-environment").is_dir()),
+    ROOT.parent))).resolve()
+ZDE_HOME = ZEAL / "zeal-dev-environment/home"
+if os.environ.get("ZDE") == "true" and "ZDE_HOME" in os.environ:
+    ZDE_HOME = Path(os.environ["ZDE_HOME"])
+EMULATOR = Path(shutil.which("zeal-headless") or "zeal-headless")
+ROM = ZDE_HOME / "Zeal-8-bit-OS/build/os_with_romdisk.img"
 LIBRARY_READY_CYCLES = 8000000000
 
 
@@ -31,8 +37,8 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def symbols(target):
-    text = (ROOT / f"build/{target}.map").read_text()
+def symbols(target, build=None):
+    text = ((build or ROOT / 'build') / f'{target}.map').read_text()
     return {name: int(value, 16) for value, name in
             re.findall(r"^\s+([0-9A-F]{8})\s+([_\w]+)\s", text, re.M)}
 
@@ -70,8 +76,8 @@ def type_text(text, ticks=250000):
     return commands
 
 
-def program_launch(target='zpascal'):
-    ready = symbols(target)['_code_ready']
+def program_launch(target='zpascal', build=None):
+    ready = symbols(target, build)['_code_ready']
     # The child loader reads its versioned library after the small resident image
     # has loaded. Stop at its resident transition before sending IDE input.
     # Arm the ready breakpoint at child entry: direct loading can finish before
@@ -104,18 +110,35 @@ class DebugConsole:
         self.journal = (directory/'commands.txt').open('w')
         self.process = subprocess.Popen(command, cwd=directory, stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
+        # Windows cannot select on a subprocess pipe. Read in a worker so the
+        # caller can use the same deadline for pipe output on every host.
+        self.output = Queue()
+        self.reader = Thread(target=self._read_output, daemon=True)
+        self.reader.start()
         try: self.acceptance.append(self.response())
         except BaseException:
             self.close()
             raise
 
+    def _read_output(self):
+        try:
+            with self.process.stdout as stream:
+                for data in iter(lambda: stream.read(65536), b''):
+                    self.output.put(data)
+        finally:
+            self.output.put(b'')
+
     def response(self, quitting=False):
         while b'debug> ' not in self.pending:
             left = self.deadline-time.monotonic()
-            if left <= 0 or not select.select([self.process.stdout], [], [], max(0, left))[0]:
-                raise RuntimeError('emulator console timed out; see console-all.txt')
-            data = self.process.stdout.read(65536)
+            try:
+                if left <= 0:
+                    raise Empty
+                data = self.output.get(timeout=left)
+            except Empty:
+                raise RuntimeError('emulator console timed out; see console-all.txt') from None
             if not data:
+                self.output.put(b'')
                 if not quitting: raise RuntimeError('emulator closed before its prompt; see console-all.txt')
                 result, self.pending = self.pending, b''
                 return result.decode(errors='replace')
@@ -163,7 +186,8 @@ class DebugConsole:
         try: self.process.wait(timeout=5)
         except subprocess.TimeoutExpired:
             self.process.kill(); self.process.wait()
-        self.process.stdin.close(); self.process.stdout.close(); self.raw.close(); self.journal.close()
+        self.reader.join(timeout=5)
+        self.process.stdin.close(); self.raw.close(); self.journal.close()
         (self.directory/'console.txt').write_text(''.join(self.acceptance))
 
 
@@ -191,9 +215,8 @@ def prepare(directory, *, emulator=EMULATOR, rom=ROM, fixtures, tf_image, eeprom
             'source': str(value) if isinstance(value, (str, os.PathLike)) else 'explicit custom bytes',
             'initial_sha256': sha(destination),
         }
-    (directory / 'zeal.ini').write_text('')
-    command = [str(emulator), '--console', '--debug', '--rom', str(directory / 'rom.img'),
-               '--hostfs', str(hostfs), '-c', str(directory / 'zeal.ini'),
+    command = [str(emulator), '--console', '--rom', str(directory / 'rom.img'),
+               '--hostfs', str(hostfs),
                '-t', str(directory / 'tf.img'), '-e', str(directory / 'eeprom.img')]
     return command, media
 

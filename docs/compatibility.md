@@ -34,7 +34,8 @@ Work through these in order when bringing a CP/M Turbo Pascal 3 program across:
    must be rewritten for Zeal addresses and the
    [native calling convention](language.md#calling-convention-for-external-and-inline).
 5. Change filenames to [native paths](runtime.md#file-names).
-6. Remove `overlay` routines and `OvrDrive`; there is no Pascal overlay system.
+6. Recompile `overlay` routines to native COM and keep their generated companion
+   directory; review [OvrDrive selection and MMU limits](overlays.md).
 7. Confirm every file is explicitly closed on every normal path.
 8. Confirm recursive routines are compiled under `{$A-}`.
 9. Compile, then check [the error reference](errors.md). Do not rely on code
@@ -103,14 +104,16 @@ return their own raw or checked status conventions.
 
 ## Unsupported or incomplete facilities
 
-Pascal overlay compilation, OvrDrive, CP/M Bdos/Bios variants, replacement
+CP/M Bdos/Bios variants, replacement
 ConInPtr/AuxInPtr/UsrInPtr and ErrorPtr dispatch remain unavailable. The Options
 P parameter-tail editor is omitted, matching the preserved CP/M-80 executable's
 behavior. Saved-program shell arguments are supported separately.
 
-`overlay` remains a reserved word. Using it reports compiler error 77 in Memory
-mode and error 12 (BEGIN expected) when compiling to disk. CP/M service names are
-ordinary unknown identifiers, error 41.
+Saved COM programs support demand-loaded Pascal overlays using MMU RAM banks
+and OvrDrive. Their native companion format differs from CP/M. Memory mode still
+reports error77; compiled Units containing overlays and Chain/Execute combinations
+are rejected. See [overlays](overlays.md) for supported behavior and limits.
+CP/M service names remain ordinary unknown identifiers, error41.
 
 Names from later or DOS Pascal are not predefined. The table gives the nearest
 Zeal route.

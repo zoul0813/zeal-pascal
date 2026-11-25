@@ -21,13 +21,13 @@ Use the release ZIP asset; GitHub's **Source code** archives do not contain the
 built distribution.
 
 1. Extract the ZIP. It contains `bin/` (the installation files) and `examples/`.
-2. On your Zeal TF card, create `T:/bin/` and `T:/lib/` if needed. Copy
-   `bin/zpascal.bin` from the ZIP into `T:/bin/`, and the contents of `bin/lib/`
+2. On your Zeal TF card, copy the contents of `bin/` to the TF root. This installs
+   `bin/apps/zpascal.bin` into `T:/apps/`, and the contents of `bin/lib/`
    into `T:/lib/`. Put `examples/` wherever you keep your Pascal projects.
 3. From ZShell, launch:
 
    ```text
-   T:/bin/zpascal.bin
+   T:/apps/zpascal.bin
    ```
 
 Without a bank-path argument, the launcher first looks for `lib/zpascal.zpl`

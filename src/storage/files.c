@@ -10,6 +10,7 @@
 #endif
 #include "common/zp.h"
 #include "compiler/disk.h"
+#include "compiler/groups/native.h"
 #include "common/path.h"
 #include "source/catalog.h"
 #include "storage/transport.h"
@@ -82,9 +83,17 @@ static uint8_t do_save_build(const Source *s,const Build *b) {
     if(!ordinary_file(destinations[0],&exists))return 0;
     if(!parent_dirs(destinations[0],1))return 0;
     build_prepared=0;
-    if(!output_poll()||!remove_output(destinations[0]))return 0;
-    if(cc_disk_active(b)) {if(!cc_disk_publish(b,destinations[0]))return 0;}
-    else if(!store(b->pages,b->length,destinations[0]))return 0;
+    if(!output_poll())return 0;
+#ifdef ZP_OVERLAYS
+    if(cc_disk_active(b)&&overlay_build_owned) {
+        uint8_t handled=cc_overlay_publish(b,destinations[0]);
+        if(handled!=2)return handled;
+    }
+#endif
+    if(!remove_output(destinations[0]))return 0;
+    if(cc_disk_active(b)) {
+        if(!cc_disk_publish(b,destinations[0]))return 0;
+    } else if(!store(b->pages,b->length,destinations[0]))return 0;
     return 1;
 }
 uint8_t run_saved(const Source *s,Build *b,uint8_t *status) {

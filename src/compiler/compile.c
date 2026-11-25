@@ -3,6 +3,8 @@
 #endif
 #include "compiler/internal.h"
 #include "compiler/disk.h"
+#include "compiler/groups/native.h"
+#include "compiler/groups/late.h"
 #ifdef ZP_UNITS_EXPERIMENT
 #include "units/internal.h"
 #include "platform/banks/loader.h"
@@ -41,7 +43,12 @@ static uint8_t release_stages(void) {
     return 1;
 }
 
+#ifdef ZP_OVERLAYS
+static uint8_t want_overlays;
+static uint8_t compile_once(const Source *s,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options) {
+#else
 uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options) {
+#endif
     uint16_t i,j,n;uint8_t native_error,chain=options&&options->kind==COMPILE_CHAIN;
     SourcePosition begin;
     Source active;
@@ -134,6 +141,12 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
 #else
     if(!sources.unit_mode&&cc_is("uses"))cc_units_imports();
 #endif
+#ifdef ZP_OVERLAYS
+    if(want_overlays) {
+        if(sources.memory||sources.unit_mode||(options&&options->kind==COMPILE_CHAIN)||!cc_disk_active(b)) {cc_fail(UNIT_UNSUPPORTED);goto failed;}
+        if(!code_phase_overlays()||!cc_overlays_begin())goto failed;
+    }
+#endif
     if(options&&options->kind==COMPILE_CHAIN)cc_activation_begin();
 #ifdef ZP_UNITS_EXPERIMENT
     if(!sources.unit_mode)cc_units_initializers();
@@ -165,9 +178,17 @@ uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interrupt
     cc_params_finish();cc_random_finish();
     cc_file_engine_finish();cc_keyboard_finish();cc_interrupt_finish();
     cc_transfer_finish();cc_file_stream_finish();cc_hooks_finish();cc_console_finish();cc_file_finish();cc_error_finish();
+#ifdef ZP_OVERLAYS
+    /* Dispatch needs the decoder, but no late journal is needed merely to
+     * parse resident declarations. Imported Unit metadata is gone here. */
+    if(sources.overlays)cc_root_request(LATE_ROOT,LATE_UNPACK);
+#endif
     cc_unpack_finish();
 #ifdef ZP_STATIC_LAYOUT
     if(!cc_file_native_prepare())goto failed;
+#endif
+#ifdef ZP_OVERLAYS
+    if(sources.overlays&&!cc_overlay_finish())goto failed;
 #endif
     if(!options||options->kind!=COMPILE_CHAIN)cc_startup_finish();
     if(d->code||!cc_place_code())goto failed;
@@ -191,7 +212,11 @@ failed:
         cc_tables_end();code_phase_unit_finish_end();platform_error=native_error;
     }
 #endif
-    if(d->code!=COMPILE_INTERRUPTED) {
+    if(d->code!=COMPILE_INTERRUPTED
+#ifdef ZP_OVERLAYS
+       &&d->code!=COMPILE_OVERLAY_RETRY
+#endif
+    ) {
 #if defined(__SDCC) || defined(ZP_COMPILER_JOBS)
         if(compiler_invocation)compiler_capture_failure();else
 #endif
@@ -205,3 +230,11 @@ failed:
 #endif
     if(native_error)platform_error=native_error;return 0;
 }
+
+#ifdef ZP_OVERLAYS
+uint8_t compile_project(const Source *s,Build *b,Diagnostic *d,uint8_t interruptible,const CompileOptions *options) {
+    uint8_t ok;want_overlays=0;ok=compile_once(s,b,d,interruptible,options);
+    if(!ok&&d->code==COMPILE_OVERLAY_RETRY){want_overlays=1;ok=compile_once(s,b,d,interruptible,options);}
+    want_overlays=0;return ok;
+}
+#endif

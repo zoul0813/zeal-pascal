@@ -1,7 +1,9 @@
 """Shared emulator transport contracts, using a small console subprocess."""
 import importlib.util
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -14,7 +16,7 @@ class EmulatorTransport(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.script = self.root / 'console.py'
         self.script.write_text('''import sys, time
 print('debug> ', end='', flush=True)
@@ -60,6 +62,14 @@ for line in sys.stdin:
             self.assertIsNotNone(instances[0].process.poll())
             self.assertTrue((directory / 'console-all.txt').exists())
 
+    def test_live_console_reports_eof_after_quit(self):
+        console = emulator.DebugConsole(self.command, self.root, timeout=2)
+        self.addCleanup(console.close)
+        console.command('quit')
+        for _ in range(2):
+            with self.assertRaisesRegex(RuntimeError, 'closed before its prompt'):
+                console.response()
+
     def test_prepare_isolates_media_and_records_provenance(self):
         rom = self.root / 'rom'
         media = self.root / 'media'
@@ -71,7 +81,10 @@ for line in sys.stdin:
         command, records = emulator.prepare(directory, emulator=Path('/emulator'), rom=rom,
                                              fixtures={'native.bin': binary, 'SOURCE.PAS': b'source'},
                                              tf_image=media, eeprom_image=b'empty')
-        self.assertEqual(command[0], '/emulator')
+        self.assertEqual(command, ['/emulator', '--console', '--rom', str(directory / 'rom.img'),
+                                   '--hostfs', str(directory / 'hostfs'),
+                                   '-t', str(directory / 'tf.img'),
+                                   '-e', str(directory / 'eeprom.img')])
         self.assertEqual((directory / 'hostfs/native.bin').read_bytes(), b'program')
         self.assertEqual(records['tf.img']['initial_sha256'], emulator.sha(media))
         (directory / 'tf.img').write_bytes(b'changed')
@@ -80,6 +93,21 @@ for line in sys.stdin:
         self.assertEqual(rom.read_bytes(), b'rom')
         with self.assertRaises(FileExistsError):
             emulator.prepare(directory, fixtures={}, tf_image=media, eeprom_image=b'', rom=rom)
+
+    def test_zde_resolves_rom_from_mounted_home(self):
+        overrides = dict(os.environ, ZDE_HOME=str(self.root / 'mount'),
+                         ZP_ZEAL_ROOT=str(self.root / 'host'))
+        for container, expected_home in (
+            ('true', self.root / 'mount'),
+            ('false', self.root / 'host/zeal-dev-environment/home'),
+        ):
+            with self.subTest(container=container):
+                rom = subprocess.check_output(
+                    [sys.executable, '-c', 'from zeal_emulator import ROM; print(ROM)'],
+                    cwd=Path(emulator.__file__).parent,
+                    env=dict(overrides, ZDE=container), text=True)
+                self.assertEqual(Path(rom.strip()),
+                                 expected_home / 'Zeal-8-bit-OS/build/os_with_romdisk.img')
 
     def test_breakpoint_rejects_other_image_at_same_address(self):
         directory = self.root / 'stop'
@@ -135,7 +163,6 @@ for line in sys.stdin:
             identity.assert_called_once()
 
     def test_build_import_does_not_read_acceptance_workflow_or_test_metadata(self):
-        import subprocess
         source = Path(__file__).resolve().parents[1] / 'tools/compile-unit.py'
         script = '''import importlib.util, sys
 from pathlib import Path

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Compile a Pascal unit with the production Zeal compiler in an isolated emulator."""
 import argparse
+import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -12,6 +14,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "tools") not in sys.path:
     sys.path.insert(0, str(ROOT / "tools"))
 import zeal_emulator as native
+
+COMPILER_FILES = ('zpascal.bin', 'zpascal.zpl', 'zpascal.map', 'SYSFILE.ZPU')
+RECORD_FILES = (*COMPILER_FILES, 'pascal_runtime.profile')
 
 
 def prepare_source(path, compact=False, stack=()):
@@ -137,7 +142,22 @@ def publish(outputs):
             path.unlink(missing_ok=True)
 
 
-def compile_unit(source, output, compact=False, source_output=None, unit_paths=(), emulator=None, timeout=1800):
+def unit_inputs(build, source):
+    return {'source_sha256': hashlib.sha256(source).hexdigest(),
+            'build_sha256': {name: native.sha(build / name) for name in RECORD_FILES}}
+
+
+def validate_build_record(build, name, data, record, source, compact=False):
+    validate_unit(data, name)
+    prepared = prepare_source(source, compact)[0].encode('ascii')
+    expected = dict(unit_inputs(build, prepared), unit_sha256=hashlib.sha256(data).hexdigest())
+    if record != expected:
+        raise ValueError(f'{name}.ZPU does not match its source build. Rebuild before packaging.')
+    return prepared
+
+
+def compile_unit(source, output, compact=False, source_output=None, unit_paths=(),
+                 emulator=None, timeout=1800, rom=None, build=None, record=None):
     if output.suffix.upper() != '.ZPU':
         raise ValueError('Unit output must have a .ZPU extension')
     text, code = prepare_source(source, compact)
@@ -150,39 +170,43 @@ def compile_unit(source, output, compact=False, source_output=None, unit_paths=(
     encoded = text.encode('ascii')
     if len(encoded) > 65534 or any(len(line) > 127 for line in encoded.splitlines()):
         raise ValueError('Prepared source exceeds 65534 bytes or 127 characters per line; try --compact')
-    for path in (output, source_output):
-        if path is not None and path.resolve() == source.resolve():
-            raise ValueError('Output must not overwrite the input source')
-    if source_output is not None and source_output.resolve() == output.resolve():
-        raise ValueError('Unit output and source output must be different files')
+    destinations = [path.resolve() for path in (output, source_output, record) if path is not None]
+    if source.resolve() in destinations:
+        raise ValueError('Output must not overwrite the input source')
+    if len(destinations) != len(set(destinations)):
+        raise ValueError('Unit, source and build record outputs must be different files')
     executable = emulator.resolve() if emulator is not None else native.EMULATOR
-    for path in (executable, native.ROM, ROOT / 'build/zpascal.bin', ROOT / 'build/zpascal.zpl',
-                 ROOT / 'build/zpascal.map', ROOT / 'build/SYSFILE.ZPU'):
+    if not executable.is_file():
+        raise ValueError(f'Emulator not found: {executable}; run in ZDE with zeal-headless on PATH or use --emulator')
+    rom = rom or native.ROM
+    build = (build or ROOT / 'build').resolve()
+    for path in (rom, *(build / name for name in (RECORD_FILES if record else COMPILER_FILES))):
         if not path.is_file():
             raise ValueError(f'Missing prerequisite: {path}; build the native targets first')
+    inputs = unit_inputs(build, encoded) if record else None
     filename = name + '.PAS'
     fixtures = {}
     # Match the IDE's local-before-installed lookup, adding explicit dependency
     # directories between those locations. Dependencies must already be compiled.
-    for directory in (source.parent, *unit_paths, ROOT / 'build'):
+    for directory in (source.parent, *unit_paths, build):
         if not directory.is_dir():
             raise ValueError(f'Unit search directory does not exist: {directory}')
         for path in sorted(directory.iterdir()):
             if path.is_file() and path.suffix.upper() == '.ZPU' and path.name.upper() != name + '.ZPU':
                 fixtures.setdefault(path.name.upper(), path.read_bytes())
     fixtures[filename] = encoded
-    sym = native.symbols('zpascal')
+    sym = native.symbols('zpascal', build)
     typed = lambda value: native.type_text(value, ticks=100000000)
-    commands = ['run 100000000'] + native.program_launch() + ['run 100000000'] + typed('n')
+    commands = ['run 100000000'] + native.program_launch(build=build) + ['run 100000000'] + typed('n')
     commands += typed(f'wH:/{filename}\n') + typed('ouq')
     commands += ['tap C', native.ImageStop(sym['_key_read'], 'zpascal.bin'),
                  f"rb 0x{sym['_work']:x} 140", 'quit']
-    folder = native.new_run(ROOT / 'build/unit-runs') / 'compile-unit'
+    folder = native.new_run(build / 'unit-runs') / 'compile-unit'
     print(f'Compiling {source} as {name}; logs: {folder}', flush=True)
     for extension in ('bin', 'zpl'):
-        fixtures[f'zpascal.{extension}'] = ROOT / f'build/zpascal.{extension}'
+        fixtures[f'zpascal.{extension}'] = build / f'zpascal.{extension}'
     command, _ = native.prepare(
-        folder, emulator=executable, rom=native.ROM, fixtures=fixtures,
+        folder, emulator=executable, rom=rom, fixtures=fixtures,
         tf_image=ROOT / 'tests/native/media/tf-unformatted.img',
         eeprom_image=ROOT / 'tests/native/media/eeprom-unformatted.img')
     native.execute(command, folder, commands, timeout=timeout)
@@ -197,6 +221,12 @@ def compile_unit(source, output, compact=False, source_output=None, unit_paths=(
     outputs = [(output, data)]
     if source_output is not None:
         outputs.append((source_output, encoded))
+    if record:
+        current_source = prepare_source(source, compact)[0].encode('ascii')
+        if inputs != unit_inputs(build, current_source):
+            raise ValueError(f'Unit source or compiler changed during compilation. Logs: {folder}')
+        inputs['unit_sha256'] = hashlib.sha256(data).hexdigest()
+        outputs.append((record, (json.dumps(inputs, indent=2) + '\n').encode()))
     publish(outputs)
     print(f'Wrote {output} ({len(data)} bytes)', flush=True)
 
@@ -208,14 +238,17 @@ def main():
     parser.add_argument('--source-output', type=Path, help='Also publish the exact flattened source for error lookup')
     parser.add_argument('--compact', action='store_true', help='Remove ordinary comments and blank lines to reduce source RAM')
     parser.add_argument('--unit-path', type=Path, action='append', default=[], help='Directory of compiled dependencies; repeatable')
-    parser.add_argument('--emulator', type=Path, help='Override the existing Zeal emulator executable')
+    parser.add_argument('--emulator', type=Path, help='Override the zeal-headless executable')
+    parser.add_argument('--rom', type=Path, help='Boot ROM with HostFS support and a command shell')
+    parser.add_argument('--build-dir', type=Path, help='Directory containing the production compiler')
+    parser.add_argument('--record', type=Path, help='Record the unit payload, source and compiler hashes')
     parser.add_argument('--timeout', type=float, default=1800, help='Emulator timeout in seconds (default: 1800)')
     args = parser.parse_args()
     if args.timeout <= 0:
         parser.error('--timeout must be positive')
     try:
         compile_unit(args.source, args.output, args.compact, args.source_output,
-                     args.unit_path, args.emulator, args.timeout)
+                     args.unit_path, args.emulator, args.timeout, args.rom, args.build_dir, args.record)
     except (OSError, ValueError, RuntimeError) as error:
         parser.exit(1, f'{error}\n')
 

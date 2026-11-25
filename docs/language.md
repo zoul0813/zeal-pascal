@@ -766,8 +766,9 @@ also constrain each native program. Current memory/window rules belong to the
 This compiler does not supply objects/classes, exceptions, generics, dynamic
 arrays, managed/Unicode strings, open-array parameters, overloaded routines,
 operator overloading, arbitrary constant expressions, record/array/set function
-results, LongWord For/Case/indexing, or modern unit finalization. Pascal source
-`overlay` routines and OvrDrive are not implemented: the word stays reserved and
-using it is a compiler error. External CP/M BDOS/BIOS
+results, LongWord For/Case/indexing, or modern unit finalization.
+Saved COM programs support [overlay routines and OvrDrive](overlays.md), using
+MMU banks and demand-loaded native companions. Memory compilation and the
+combinations listed in that guide remain unavailable. External CP/M BDOS/BIOS
 calls are not available; use native interfaces instead. See the
 [compatibility guide](compatibility.md) for the complete target boundary.
