@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path, PurePosixPath
 import struct
 import zipfile
@@ -69,11 +70,25 @@ def files_in_image(data, *, include_directories=False):
     return (result, directories) if include_directories else result
 
 
+def lesson_sources():
+    root = BOOK / 'static/code'
+    sources = {}
+    for path in sorted(root.glob('*/*')):
+        if path.suffix.lower() not in ('.pas', '.txt', '.inc'):
+            continue
+        name = path.relative_to(root).as_posix()
+        if not path.is_file() or not re.fullmatch(r'[a-z0-9-]{1,15}/[A-Z0-9_]{1,11}\.(PAS|TXT|INC)', name):
+            raise ValueError(f'Invalid Zeal lesson source path: {name}')
+        sources[name] = path
+    return sources
+
+
 def downloads():
-    paths = sorted((BOOK / 'static/code/lab').glob('*.PAS'))
+    sources = lesson_sources()
+    (BOOK / 'data/examples.json').write_text(json.dumps(list(sources), indent=2) + '\n')
     with zipfile.ZipFile(BOOK / 'static/code/book-code.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
-        for path in paths:
-            info = zipfile.ZipInfo('lab/' + path.name, (2026, 1, 1, 0, 0, 0))
+        for name, path in sources.items():
+            info = zipfile.ZipInfo(name, (2026, 1, 1, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED
             archive.writestr(info, path.read_bytes())
 

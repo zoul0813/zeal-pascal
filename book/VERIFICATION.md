@@ -143,3 +143,15 @@ The site workflow follows `zoul0813/zeal-zshell`: checkout NativeEmulator `main`
 An isolated NativeEmulator clone at `6a0c61032a6f778a231193434d8547efad182ef7` built successfully with the installed Emscripten 7.0.0 toolchain. A fresh source copy containing no emulator bundle passed staging, three Python tests, thirteen Node tests using the generated upstream helpers, sixty-four asset checks, and the Hugo project-path build. Output checks confirmed the runtime files and source-commit version in the assembled site. The workflow YAML parses. Build logs are in `analysis/book-wasm-ci/`.
 
 A real-browser startup check encountered an unavailable computer-use connection. GitHub-hosted execution awaits a workflow run after these changes are published.
+
+## Course expansion — November 25
+
+The manuscript now includes the calculator, expanded adventure, text search and typed catalog, plus the four screen, graphics, sound and game side trips and a workbench reference. Two Opus creative turns edited the manuscript and About. Two read-only technical turns reviewed the Pascal examples and lesson-file packaging. The review records retain the graphics and audio qualification gaps.
+
+The production-path Hugo build, internal navigation and anchors, 13 Node cases, four Python cases, and the 64 packaged software asset checks passed. The workbench inventory and source ZIP agree for all 16 managed files. The text search fixture and the graphics include are staged as support files beside the Pascal sources.
+
+The original packaged compiler and OS produced native COMs for TOTAL, CALC, REWIRE, SEARCH, CATALOG, PANEL, and CATCH. Chrome with the book's staged SDL3 WASM ran the calculator's overflow and divide-by-zero refusals, memory recall, recent results and rounded display, plus the game's loss, restart, catch and quit. The expanded adventure worked through the hatch refusal and both pickups to the repaired beacon. The status panel changed its selected row and restored the console's text rendition on exit.
+
+The exact compiled text-search program returned matching line numbers for CRLF input with a 290-character line prefix and an unterminated final line. Its report included the runtime's Ctrl-Z terminator and the input remained byte-identical. The exact compiled catalog created its file, added two records, edited one, removed the other, exported the remaining record and reopened the catalog. Repeat report and export attempts preserved the existing outputs.
+
+MAPVIEW and TONES have authored source, supplied dependencies, and instructions. Extended standalone tests using the staged libraries did not reach a finished COM within the tested cycle budget. A disposable TF assembled with the newer local compiler build and project-local copies of the original ZVB unit also failed to finish within their bounded runs. Both lessons are marked as workbench previews. The remaining checks are the compiled examples, the map's rendered scene and text restoration, and audible playback followed by silence. Reader times are estimates.

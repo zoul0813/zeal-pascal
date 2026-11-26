@@ -413,18 +413,17 @@ kbd {
   inline-size:100%;
   max-inline-size:960px;
   margin-inline:auto;
-  display:grid;
-  place-items:center;
   border-radius:5px;
   overflow:hidden
 }
-canvas {
+.screen-wrap > canvas {
+  position:absolute;
+  inset:0;
   display:block;
   width:100%;
   height:100%;
   object-fit:contain;
-  image-rendering:pixelated;
-  max-width:960px
+  image-rendering:pixelated
 }
 .workbench-help {
   margin:18px 0;

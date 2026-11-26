@@ -65,7 +65,9 @@ test('Open Zeal starts once with project OPFS disks, preserving existing H: file
   elements.main.contains = target => target === elements.main || target === lessonLink;
   elements['emulator-panel'].querySelectorAll = () => [elements['start-emulator']];
   elements['emulator-panel'].hidden = true;
-  elements['emulator-panel'].dataset = {base: '/zeal-pascal/', emulatorVersion: 'test-version'};
+  const examples = readFileSync(new URL('../data/examples.json', import.meta.url), 'utf8');
+  elements['emulator-panel'].dataset = {base: '/zeal-pascal/', emulatorVersion: 'test-version',
+    examples};
   const origin = new Directory();
   const h = await origin.getDirectoryHandle('zeal-pascal-book', {create: true});
   const personal = await h.getFileHandle('sl.pas', {create: true});
@@ -228,6 +230,15 @@ test('Open Zeal starts once with project OPFS disks, preserving existing H: file
     assert.equal(await (await personal.getFile()).text(), 'existing reader program');
     failUpdate = false;
     const lab = await (await h.getDirectoryHandle('book')).getDirectoryHandle('lab');
+    const table = await (await h.getDirectoryHandle('book')).getDirectoryHandle('table');
+    assert.equal(await (await (await lab.getFileHandle('START.PAS')).getFile()).text(), 'earlier example',
+      'adding the second chapter preserves edited starters in an existing workspace');
+    const prompt = await table.getFileHandle('PROMPT.PAS');
+    const publishedPrompt = readFileSync(new URL('../static/code/table/PROMPT.PAS', import.meta.url), 'utf8');
+    assert.equal(await (await prompt.getFile()).text(), publishedPrompt, 'existing workspaces gain the new lesson');
+    prompt.bytes = new TextEncoder().encode('changed bridge example');
+    const personalTable = await (await h.getDirectoryHandle('work')).getFileHandle('TABLE.PAS', {create: true});
+    personalTable.bytes = new TextEncoder().encode('reader copy of the table');
     const starter = await lab.getFileHandle('START.PAS');
     starter.bytes = new TextEncoder().encode('old modified starter');
     const myFile = await lab.getFileHandle('MINE.PAS', {create: true});
@@ -235,9 +246,16 @@ test('Open Zeal starts once with project OPFS disks, preserving existing H: file
     accepted = false;
     await elements['update-starters'].listeners.click();
     assert.equal(await (await starter.getFile()).text(), 'old modified starter');
+    assert.equal(await (await prompt.getFile()).text(), 'changed bridge example');
     accepted = true;
     await elements['update-starters'].listeners.click();
-    assert.equal(await (await starter.getFile()).text(), readFileSync(new URL('../static/code/lab/START.PAS', import.meta.url), 'utf8'));
+    assert.equal(await (await personalTable.getFile()).text(), 'reader copy of the table');
+    for (const name of JSON.parse(examples)) {
+      const [project, filename] = name.split('/');
+      const directory = await (await h.getDirectoryHandle('book')).getDirectoryHandle(project);
+      const handle = await directory.getFileHandle(filename);
+      assert.equal(await (await handle.getFile()).text(), readFileSync(new URL('../static/code/' + name, import.meta.url), 'utf8'), name);
+    }
     assert.equal(elements['starter-status'].textContent, '', 'refresh clears the divergence message');
     assert.equal(await (await myFile.getFile()).text(), 'personal file');
     assert.equal(await (await personal.getFile()).text(), 'existing reader program');

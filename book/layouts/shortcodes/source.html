@@ -1,2 +1,5 @@
-{{ $path := printf "static/code/lab/%s" (.Get 0) }}
-{{ highlight (readFile $path) "objectpascal" "" }}
+{{ $name := .Get 0 }}
+{{ if not (in hugo.Data.examples $name) }}
+  {{ errorf "Unknown example %q at %s" $name .Position }}
+{{ end }}
+{{ highlight (readFile (printf "static/code/%s" $name)) "objectpascal" "" }}

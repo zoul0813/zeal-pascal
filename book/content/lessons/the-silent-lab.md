@@ -4,6 +4,7 @@ kicker: '01 / FIRST CONTACT'
 duration: '30–60 minutes'
 description: 'An abandoned computer lab. Three rooms to explore. A small Pascal program that makes them yours.'
 toc: true
+weight: 10
 ---
 The lab has been closed for years. Behind its entrance is a room of silent terminals, and beyond that, a workshop. You are going to make a little world you can walk through by typing commands.
 
@@ -47,7 +48,7 @@ The first launch can take a moment. At the compiler-message prompt, press **Y** 
 
 Before entering the lab, make something small that works. Here is the whole program:
 
-{{< source "HELLO.PAS" >}}
+{{< source "lab/HELLO.PAS" >}}
 
 Choose how you want to start. Either way, you end up with your own greeting saved as `H:/work/HELLO.PAS` (or your new name for this visit):
 
@@ -76,7 +77,7 @@ THE SILENT LAB
 You stand outside an abandoned computer lab.
 ```
 
-When the program finishes, Pascal shows a short return prompt. Press **Enter** to redraw the main menu. You have just written and run a native Zeal program.
+When Pascal shows `Program returned.`, you can use the main-menu keys at the `>` prompt. To see the menu again, press **O** for Options, then **Q**. You have just written and run a native Zeal program.
 
 ### If it does not compile
 
@@ -124,7 +125,7 @@ Notice that every turn begins by describing the room you are in. Keep that in mi
 
 Check the refusals as carefully as the moves: you should change rooms only where the map shows a door. There is no automatic grader. The map and the table are your test plan.
 
-When the program ends, press **Enter** at the return prompt to redraw the menu.
+After `Program returned.`, you can use the main-menu keys at the `>` prompt. Press **O**, then **Q**, if you want to see the menu again.
 
 **Another good place to pause:** your adventure is saved as `H:/work/LAB.PAS` (or your chosen name). You have walked through it; next you will take it apart. Use [Save and resume](#6-save-and-resume) if you stop here.
 
@@ -132,7 +133,7 @@ When the program ends, press **Enter** at the return prompt to redraw the menu.
 
 Here is the complete starting program. It is the same as `H:/book/lab/START.PAS` and your `LAB.PAS`. Press **E** if you would like your own copy on the Zeal screen while you read; the tour below follows it from top to bottom.
 
-{{< source "START.PAS" >}}
+{{< source "lab/START.PAS" >}}
 
 ### The top: a name, a safety switch and two variables
 
@@ -252,7 +253,7 @@ Add another `else if Command = 'inspect' then` branch after the movement branche
 {{< reveal "Reveal the worked solution" >}}
 This version adds the light, the command, and both help-message changes. Compare the relevant parts with your program; your room descriptions can be different.
 
-{{< source "SOLUTION.PAS" >}}
+{{< source "lab/SOLUTION.PAS" >}}
 
 The same source is in `H:/book/lab/SOLUTION.PAS`. Opening it is optional. If you do, save your own work with **S** first, so nothing unsaved is lost when you switch files. Before changing the solution, use **A (Save As)** to give it an unused personal name such as `H:/work/SOLVED.PAS`.
 {{< /reveal >}}
@@ -299,4 +300,4 @@ If you want one more experiment, add a fourth room or a command that reads a not
 
 The amber light is still blinking. What it is keeping running can wait for another day.
 
-This is the end of the pilot lesson. For reference as you experiment: [IDE commands](https://github.com/zoul0813/zeal-pascal/blob/main/docs/ide.md), [Pascal language guide](https://github.com/zoul0813/zeal-pascal/blob/main/docs/language.md), and [compiler errors](https://github.com/zoul0813/zeal-pascal/blob/main/docs/errors.md).
+Continue with [Minutes and Seconds]({{< relref "minutes-and-seconds" >}}) to build a conversion table. For reference as you experiment: [IDE commands](https://github.com/zoul0813/zeal-pascal/blob/main/docs/ide.md), [Pascal language guide](https://github.com/zoul0813/zeal-pascal/blob/main/docs/language.md), and [compiler errors](https://github.com/zoul0813/zeal-pascal/blob/main/docs/errors.md).

@@ -120,7 +120,9 @@ async function acquireLock() {
     }).catch(reject);
   });
 }
-const lessonFiles = folder => ['HELLO.PAS', 'START.PAS', 'SOLUTION.PAS'].map(name => ({path: `${folder}/${name}`, url: asset(`code/lab/${name}`)}));
+const lessonFiles = JSON.parse(panel.dataset.examples).map(name => ({
+  path: `book/${name}`, url: asset(`code/${name}`),
+}));
 const bookImages = ['romdisk', 'eeprom', 'tf'];
 const pendingImages = new Set();
 function showImageUpdates() {
@@ -128,7 +130,7 @@ function showImageUpdates() {
     ? 'A Zeal update is available. Open More options to install it.' : '';
 }
 async function prepareStarters(overwrite = false) {
-  const outdated = await seedFiles(root, lessonFiles('book/lab'), fetchBytes, {overwrite});
+  const outdated = await seedFiles(root, lessonFiles, fetchBytes, {overwrite});
   const message = document.querySelector('#starter-status');
   message.textContent = outdated.length
     ? 'Your lesson examples differ from the book’s versions. To keep your changes, use A (Save As) in Pascal to save them in H:/work/ before refreshing.'
@@ -204,7 +206,7 @@ function startEmulator() {
 startButton.addEventListener('click', startEmulator);
 document.querySelector('#audio').addEventListener('click', () => emulator?.resumeAudio().catch(error => setStatus(error.message)));
 document.querySelector('#update-starters').addEventListener('click', () => exclusive(async () => {
-  if (!window.confirm('Replace HELLO.PAS, START.PAS and SOLUTION.PAS in H:/book/lab/ with the book’s versions? Any edits to these three files will be replaced. Save personal versions as new H:/work/ files first. All other H: files are kept.')) return;
+  if (!window.confirm('Replace the supplied lesson examples in H:/book/ with the book’s versions? Any edits to those examples will be replaced. Save personal versions as new H:/work/ files first. All other H: files are kept.')) return;
   await prepareStarters(true);
   setStatus('Lesson examples refreshed. Your H:/work/ files were kept. Reopen an example in Pascal to see its new contents.');
 }));

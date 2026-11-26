@@ -20,17 +20,17 @@
   <header class="site-header"><div class="masthead">
     <a class="brand" aria-label="Programming the Zeal — home" href="{{ site.Home.RelPermalink }}"><img class="brand-mark" src="{{ "logo.svg" | relURL }}" width="48" height="48" alt=""><span>Programming the Zeal<small>WITH PASCAL</small></span></a>
     <nav aria-label="Main">
-      <a href="{{ "lessons/the-silent-lab/" | relURL }}">Pilot lesson</a>
+      <a href="{{ "lessons/the-silent-lab/" | relURL }}">First lesson</a>
       <a href="{{ "about/" | relURL }}">About</a>
       <button id="theme-toggle" class="theme-toggle" type="button" role="switch" aria-checked="false" aria-label="Dark theme" title="Switch to dark theme" hidden><span class="theme-track" aria-hidden="true"><span class="theme-thumb"><svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z"/></svg></span></span></button>
       <button class="primary-button" type="button" data-open-emulator aria-controls="emulator-panel" aria-expanded="false">Open Zeal</button>
     </nav>
   </div></header>
   <div class="page-layout">
-    <aside class="contents" aria-label="Book contents"><p class="eyebrow">THE FIELD GUIDE</p><a href="{{ site.Home.RelPermalink }}">Start here</a><p class="part">01 / FIRST CONTACT</p><a class="chapter-link" {{ if eq .RelPermalink ("lessons/the-silent-lab/" | relURL) }}aria-current="page"{{ end }} href="{{ "lessons/the-silent-lab/" | relURL }}">The Silent Lab <span>PILOT</span></a><p class="part">ON THE HORIZON</p><p class="upcoming">Calculator<br>Text-file search<br>Collection catalog</p><div class="sidebar-note">A small machine.<br>A program of your own.</div></aside>
+    <aside class="contents" aria-label="Book contents"><p class="eyebrow">THE FIELD GUIDE</p><a href="{{ site.Home.RelPermalink }}">Start here</a>{{ range (where site.RegularPages "Section" "lessons").ByWeight }}<p class="part">{{ .Params.kicker }}</p><a class="chapter-link" {{ if eq .RelPermalink $.RelPermalink }}aria-current="page"{{ end }} href="{{ .RelPermalink }}">{{ .Title }}</a>{{ end }}<div class="sidebar-note">A small machine.<br>A program of your own.</div></aside>
     <main id="main" tabindex="-1">{{ block "main" . }}{{ end }}</main>
   </div>
   {{ partial "emulator.html" . }}
-  <footer class="site-footer">Made for curious programmers and small computers. <a href="{{ "about/" | relURL }}">Project & credits</a><span>Zeal Pascal · Pilot edition</span></footer>
+  <footer class="site-footer">Made for curious programmers and small computers. <a href="{{ "about/" | relURL }}">Project & credits</a><span>Zeal Pascal · Early edition</span></footer>
 </body>
 </html>
