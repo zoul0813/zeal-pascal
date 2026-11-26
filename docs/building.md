@@ -10,13 +10,13 @@ in the native Zeal emulator.
 
 The release ZIP contains `bin/` and `examples/`. The files in `bin/` are the
 same installation bundle produced by a successful local `make`. The bundle
-contains `bin/apps/zpascal.bin` and supporting files under `bin/lib/`. Create
-`T:/apps/` and `T:/lib/` on your Zeal TF card if needed. Copy `bin/apps/zpascal.bin`
+contains `bin/apps/zpascal` and supporting files under `bin/lib/`. Create
+`T:/apps/` and `T:/lib/` on your Zeal TF card if needed. Copy `bin/apps/zpascal`
 into `T:/apps/`, and the contents of `bin/lib/` into `T:/lib/`. The installed
 layout is:
 
 ```text
-T:/apps/zpascal.bin
+T:/apps/zpascal
 T:/lib/zpascal.zpl
 T:/lib/SYSFILE.ZPU
 T:/lib/CRT.ZPU
@@ -32,7 +32,7 @@ T:/lib/ZVB.NTC
 Launch from ZShell:
 
 ```text
-T:/apps/zpascal.bin
+T:/apps/zpascal
 ```
 
 Without a bank-path argument, the launcher first looks for `lib/zpascal.zpl`
@@ -43,12 +43,12 @@ Keep the bank file available throughout an IDE session. Saved COM programs
 contain their selected runtime and Unit code and run independently.
 
 For a portable installation, keep `apps/` and `lib/` under the same
-installation root and change to that root before launching `apps/zpascal.bin`. Relative lookup uses the working directory,
+installation root and change to that root before launching `apps/zpascal`. Relative lookup uses the working directory,
 not the executable's directory. A corrupt or incompatible local bank file
 reports an error without falling back.
 
 An explicit bank path overrides both search locations, for example
-`H:/apps/zpascal.bin H:/lib/zpascal.zpl`.
+`H:/apps/zpascal H:/lib/zpascal.zpl`.
 
 The [distributable file reference](#distributable-hardware-files) explains source
 lookup and licensing. See [hardware requirements](../tests/hardware/README.md)
@@ -58,19 +58,19 @@ an emulator card image.
 ## Shared installation layout
 
 The normal `zde cmake` build and `make` both produce one generated `bin/`
-installation root, containing `apps/zpascal.bin`, `lib/zpascal.zpl`, stock units,
+installation root, containing `apps/zpascal`, `lib/zpascal.zpl`, stock units,
 Pascal interfaces and ZVB license/attribution files. Both builds generate
 CRT and ZVB from Pascal source using `zeal-headless`.
 
 For HostFS, run `zeal-native -H bin/`. From `H:/`, launch
-`H:/apps/zpascal.bin`; its relative `lib/zpascal.zpl` lookup finds `H:/lib/`.
+`H:/apps/zpascal`; its relative `lib/zpascal.zpl` lookup finds `H:/lib/`.
 From another working directory, pass `H:/lib/zpascal.zpl` explicitly.
 
 For Software Collection staging, use `build.root: /` and the single directory
 artifact `bin/`. Its contents are merged into the TF root,
-giving `T:/apps/zpascal.bin` and `T:/lib/`. Directory staging preserves the
-`.bin` suffix even with `deps.rename-bins` enabled. With the community PATH,
-type `zpascal`; otherwise use the full path.
+giving `T:/apps/zpascal` and `T:/lib/`. The installed launcher is extensionless
+so ZShell can find it as `zpascal` on the community PATH. You can also launch
+it by its full path.
 
 The distribution target runs after the shipping outputs, validates that the
 launcher and bank file match, and replaces the generated installation tree.
@@ -177,7 +177,7 @@ compiler. Keep the resulting `.ZPU` files and records in the build directory.
 
 A successful `make` (or `make dist`) finishes by copying these files to `bin/`:
 
-- `apps/zpascal.bin`: native IDE/compiler launcher.
+- `apps/zpascal`: native IDE/compiler launcher.
 - `lib/zpascal.zpl`: matching compiler banks.
 - `lib/SYSFILE.ZPU`, `lib/CRT.ZPU`, `lib/ZVB.ZPU`, `lib/ZOS.ZPU`: stock statically linked Units.
 - `lib/CRT.PAS`, `lib/ZVB.PAS`, `lib/ZOS.PAS`: matching Pascal sources/interfaces for rebuilding and error lookup.

@@ -22,13 +22,16 @@ built distribution.
 
 1. Extract the ZIP. It contains `bin/` (the installation files) and `examples/`.
 2. On your Zeal TF card, copy the contents of `bin/` to the TF root. This installs
-   `bin/apps/zpascal.bin` into `T:/apps/`, and the contents of `bin/lib/`
+   `bin/apps/zpascal` into `T:/apps/`, and the contents of `bin/lib/`
    into `T:/lib/`. Put `examples/` wherever you keep your Pascal projects.
 3. From ZShell, launch:
 
    ```text
-   T:/apps/zpascal.bin
+   T:/apps/zpascal
    ```
+
+If an older ZIP contains `bin/apps/zpascal.bin`, copy it to the card as
+`T:/apps/zpascal`.
 
 Without a bank-path argument, the launcher first looks for `lib/zpascal.zpl`
 under the current working directory, then uses `T:/lib/zpascal.zpl` if the local

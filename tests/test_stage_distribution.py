@@ -56,12 +56,14 @@ class StageDistributionTests(unittest.TestCase):
 
     def test_exact_tree_and_stale_generated_files_are_replaced(self):
         self.output.mkdir()
-        (self.output / 'stale.bin').write_bytes(b'old')
+        (self.output / 'apps').mkdir()
+        (self.output / 'apps/zpascal.bin').write_bytes(b'old launcher')
         expected = self.stage()
         actual = {p.relative_to(self.output).as_posix(): p.read_bytes() for p in self.output.rglob('*') if p.is_file()}
         self.assertEqual(actual, expected)
         self.assertEqual(len(actual), 11)
-        self.assertEqual(actual['apps/zpascal.bin'], (self.build / 'zpascal.bin').read_bytes())
+        self.assertNotIn('apps/zpascal.bin', actual)
+        self.assertEqual(actual['apps/zpascal'], (self.build / 'zpascal.bin').read_bytes())
         self.assertIn('lib/ZVB.LIC', actual)
         self.assertIn('lib/ZVB.NTC', actual)
         self.assertEqual(actual['lib/ZVB.PAS'], (self.build / 'ZVB.PAS').read_bytes())
@@ -69,16 +71,16 @@ class StageDistributionTests(unittest.TestCase):
 
     def test_missing_or_mismatched_inputs_preserve_previous_stage(self):
         self.stage()
-        original = (self.output / 'apps/zpascal.bin').read_bytes()
+        original = (self.output / 'apps/zpascal').read_bytes()
         (self.build / 'ZOS.ZPU').unlink()
         with self.assertRaises(FileNotFoundError):
             self.stage()
-        self.assertEqual((self.output / 'apps/zpascal.bin').read_bytes(), original)
+        self.assertEqual((self.output / 'apps/zpascal').read_bytes(), original)
         (self.build / 'ZOS.ZPU').write_bytes(b'unit')
         (self.build / 'zpascal.bin').write_bytes(b'WRNGresident')
         with self.assertRaisesRegex(ValueError, 'matching build'):
             self.stage()
-        self.assertEqual((self.output / 'apps/zpascal.bin').read_bytes(), original)
+        self.assertEqual((self.output / 'apps/zpascal').read_bytes(), original)
 
     def test_rejects_each_invalid_build_contract(self):
         mutations = {
@@ -96,7 +98,7 @@ class StageDistributionTests(unittest.TestCase):
                 try:
                     with self.assertRaises(ValueError):
                         self.stage()
-                    self.assertEqual((self.output / 'apps/zpascal.bin').read_bytes(), b'VERSresident')
+                    self.assertEqual((self.output / 'apps/zpascal').read_bytes(), b'VERSresident')
                 finally:
                     path.write_bytes(original)
 

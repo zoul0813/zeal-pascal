@@ -14,7 +14,7 @@ populate `bin/` inside ZDE.
 
 The workflow packages `bin/` and `examples/` into `zeal-pascal.zip` and uploads
 it as the **zeal-pascal-dist** Actions artifact. The ZIP retains those two
-top-level directories. The Makefile places the launcher at `bin/apps/zpascal.bin`
+top-level directories. The Makefile places the launcher at `bin/apps/zpascal`
 and the bank file, Units, Pascal interfaces and license under `bin/lib/`. Users
 install the launcher in `T:/apps/` and the contents of `bin/lib/` in `T:/lib/`,
 as described in the README. Examples include their tracked sources,

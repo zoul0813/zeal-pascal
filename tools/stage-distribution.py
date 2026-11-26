@@ -14,7 +14,7 @@ UNITS = ('SYSFILE.ZPU', 'CRT.ZPU', 'CRT.PAS', 'ZVB.ZPU', 'ZVB.PAS', 'ZOS.ZPU', '
 
 
 def stage(build, source, output):
-    files = {'apps/zpascal.bin': (build / 'zpascal.bin').read_bytes(),
+    files = {'apps/zpascal': (build / 'zpascal.bin').read_bytes(),
              'lib/zpascal.zpl': (build / 'zpascal.zpl').read_bytes()}
     files.update({'lib/' + name: (build / name).read_bytes() for name in UNITS})
     files.update({'lib/' + name: (source / 'units/zvb' / original).read_bytes()
@@ -22,7 +22,7 @@ def stage(build, source, output):
     metadata = json.loads((build / 'zpascal.banks.json').read_text())
     symbols = dict((name, int(value, 16)) for value, name in re.findall(
         r'^\s+([0-9A-F]{8})\s+([_\w]+)\s', (build / 'zpascal.map').read_text(), re.M))
-    resident, library = files['apps/zpascal.bin'], files['lib/zpascal.zpl']
+    resident, library = files['apps/zpascal'], files['lib/zpascal.zpl']
     if '_code_version' not in symbols:
         raise ValueError('Compiler map is missing _code_version')
     version = symbols['_code_version'] - 0x4000
