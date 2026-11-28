@@ -1,0 +1,14 @@
+ZVB Pascal unit
+
+API and behavior adapted from Zeal-VideoBoard-SDK:
+https://github.com/Zeal8bit/Zeal-VideoBoard-SDK
+Commit: 467e224aeaa40d0f45b61e495a5416b18c066ea7
+
+Copyright 2024-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
+SDK-derived Pascal implementation files are licensed under Apache-2.0;
+see ZVB-LICENSE.txt. They have been rewritten for the Pascal calling convention,
+with separate atomic I/O leaves, additional buffer/stream validation, corrected
+page-crossing and partial-chunk handling, and interrupt-state preservation.
+No C object code or C runtime is linked into this unit.
+
+Demo asset credits and separate licenses are in examples/zvb/CREDITS.md.

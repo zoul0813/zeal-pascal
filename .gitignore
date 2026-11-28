@@ -33,3 +33,6 @@
 __pycache__/
 *.py[cod]
 .DS_Store
+
+# Interactive Hugo book source; generated site output is ignored within book/.
+!/book/

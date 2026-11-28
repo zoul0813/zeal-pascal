@@ -1,0 +1,4 @@
+{{- $language := lower .Type -}}
+{{- $aliases := dict "pascal" "objectpascal" "cmakelists.txt" "cmake" "cli" "bash" -}}
+{{- with index $aliases $language -}}{{- $language = . -}}{{- end -}}
+{{- highlight .Inner $language .Options -}}

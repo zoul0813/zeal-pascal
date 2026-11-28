@@ -1,0 +1,1 @@
+{{ define "main" }}<article><p class="eyebrow">THE BOOK</p><h1>{{ .Title }}</h1><div class="prose">{{ .Content }}<ul>{{ range .Pages }}<li><a href="{{ .RelPermalink }}">{{ .Title }}</a></li>{{ end }}</ul></div></article>{{ end }}

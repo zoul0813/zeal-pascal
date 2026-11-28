@@ -1,0 +1,36 @@
+{{ $provenance := readFile "static/emulator/provenance.json" | transform.Unmarshal }}
+<section id="emulator-panel" class="emulator-panel" tabindex="-1" hidden aria-labelledby="emulator-title" data-base="{{ "" | relURL }}" data-examples="{{ hugo.Data.examples | jsonify }}" data-emulator-version="{{ $provenance.sources.emulator_commit }}">
+  <div class="emulator-heading"><div><span class="eyebrow">YOUR WORKBENCH</span><h2 id="emulator-title">Zeal</h2></div><button type="button" id="close-emulator">Hide emulator</button></div>
+  <p>Desktop keyboard required. Click the screen to type; press <kbd>Ctrl+Shift+Space</kbd> to switch between Zeal and the book.</p>
+  <div class="emulator-toolbar"><button id="start-emulator" class="primary-button" type="button" hidden>Start Zeal</button><button id="expand-emulator" type="button" aria-pressed="false">Expand</button><button id="audio" type="button" disabled>Enable sound</button><label class="mouse-option"><input id="enable-mouse" type="checkbox"> Enable mouse input</label></div>
+  <div class="screen-wrap"><canvas id="canvas" data-mouse-enabled="false" width="640" height="480" tabindex="0" aria-label="Zeal emulator screen. Click to type. Ctrl+Shift+Space switches between Zeal and the book."></canvas><button id="focus-emulator" class="canvas-focus-overlay" type="button" aria-keyshortcuts="Control+Shift+Space" hidden><span><strong>Click or press Ctrl+Shift+Space to type in Zeal</strong><small>Zeal is not receiving keyboard input.<br>Ctrl+Shift+Space switches between Zeal and the book.</small></span></button></div>
+  <p id="keyboard-status" class="keyboard-status" role="status" aria-live="polite">Keyboard inactive</p>
+  <p id="emulator-status" role="status" aria-live="polite">Ready when you are. Starting loads the community tools and the book’s lesson examples.</p>
+  <p id="storage-status" role="status" aria-live="polite"></p>
+  <div class="workbench-help"><p>Type <code>zpascal</code> to start Pascal. Lesson examples: <code>H:/book/</code> · Save your own programs in <code>H:/work/</code>.</p></div>
+  <section class="workspace-tools your-files" aria-labelledby="your-files-title">
+    <h3 id="your-files-title">Your files</h3>
+    <p>Press <strong>S</strong> in Pascal to save. Saved files stay in this browser until you clear site data.</p>
+    <div class="emulator-toolbar"><button id="export-work" type="button" disabled>Download backup</button><label class="file-button">Restore backup<input id="import-work" type="file" accept=".json,application/json" disabled></label></div>
+    <p class="workbench-note">A backup contains your saved H: files only, not unsaved editor text or Zeal’s tool disks.</p>
+  </section>
+  <details id="workspace-options" class="workspace-tools"><summary>More options</summary>
+    <div class="workbench-option">
+      <h3>Update Zeal</h3>
+      <p>Install the latest Pascal, startup and system files, then restart Zeal. Your H: files stay. An update notice appears below the screen when a new version is available.</p>
+      <button id="update-images" type="button" disabled>Update Zeal</button>
+    </div>
+    <div class="workbench-option">
+      <h3>Refresh lesson examples</h3>
+      <p>Replace the supplied examples in <code>H:/book/</code> with the book’s versions. Your <code>H:/work/</code> files stay.</p>
+      <p id="starter-status"></p>
+      <button id="update-starters" type="button" disabled>Refresh lesson examples</button>
+    </div>
+    <div class="workbench-option start-over">
+      <h3>Start over</h3>
+      <p>Permanently erase this book’s saved programs and disks, and start with a fresh Zeal.</p>
+      <button id="reset-workspace" class="danger-button" type="button">Erase and start over…</button>
+    </div>
+    <p><a href="{{ "about/" | relURL }}#your-files">Help with files and updates</a></p>
+  </details>
+</section>

@@ -1,0 +1,18 @@
+[
+  "calc/CALC.PAS",
+  "calc/TOTAL.PAS",
+  "catalog/CATALOG.PAS",
+  "game/CATCH.PAS",
+  "graphics/MAPVIEW.PAS",
+  "graphics/VIDEO.INC",
+  "lab/HELLO.PAS",
+  "lab/SOLUTION.PAS",
+  "lab/START.PAS",
+  "rewired/REWIRE.PAS",
+  "screen/PANEL.PAS",
+  "search/NOTES.TXT",
+  "search/SEARCH.PAS",
+  "sound/TONES.PAS",
+  "table/PROMPT.PAS",
+  "table/TABLE.PAS"
+]

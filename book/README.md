@@ -1,0 +1,117 @@
+# Interactive Pascal book pilot
+
+Hugo source for **Programming the Zeal with Pascal**. The pilot is _The Silent Lab_: a three-room text adventure, taught through the actual native Pascal IDE in a browser-hosted Zeal.
+
+## Preview
+
+Hugo and a staged NativeEmulator WASM build are required. Build and stage the emulator using the commands below before starting the preview.
+
+```sh
+cd book
+hugo server --bind 127.0.0.1 --port 1313 --baseURL http://localhost:1313/
+```
+
+Open <http://localhost:1313/> in desktop Chrome or Edge. Open the pilot lesson, choose **Open Zeal**; it starts automatically. At ZShell:
+
+```text
+zpascal
+```
+
+Book-owned starter source lives in project folders under `H:/book`. Save personal versions as new files under `H:/work` before editing; the starter-update button can replace only the published starter files. H: points to OPFS and is not replaced by disk-image updates. Existing legacy H:/bin, H:/lib and old lesson folders are left intact, but a new workspace installs no system files on H:.
+
+Pascal is installed at `T:/apps/zpascal.bin`; its library, units and notices are in `T:/lib/`. The book TF image retains every community file byte-for-byte and adds the Pascal installation. EEPROM sets the community PATH and starts in H:/ for lesson work. Bare `zpascal` finds the compiler through PATH and falls back to its library in T:/lib/. An older H:/lib/zpascal.zpl can shadow that fallback; `zpascal T:/lib/zpascal.zpl` explicitly selects the book library without changing drives. Existing saved disks are never automatically replaced. To migrate an older workbench, first use W and A (Save As) to copy T:/src/pascal/UNTITLED.pas (if present) and other personal T: sources to new H:/work/ files, then choose **More options → Update Zeal** to replace all tool/system images together. Update Zeal replaces all three tool/system images and restarts the guest and discards unsaved RAM; H: is kept. The IDE's default T: source filename still exists as application behavior; the book always instructs readers to select H:/work/ for personal work.
+
+Status messages follow the fixed-aspect screen, with natural height. Update notices point readers to More options. Separate starter refreshes fetch current source files with cache revalidation and update the managed examples under H:/book after confirmation. Personal files are preserved; this does not replace a downloaded backup.
+
+## Build and check
+
+Activate Emscripten 7.0.0 and install Meson and Ninja. From `book/`, build NativeEmulator `main` with its SDL3 web frontend. Emscripten downloads the SDL3 port on the first build.
+
+```sh
+git clone --branch main https://github.com/Zeal8bit/Zeal-NativeEmulator ../build/native-emulator
+(
+  cd ../build/native-emulator
+  meson setup build-wasm -Dfrontend=wasm --cross-file frontend/wasm/wasm-cross.build -Dwasm_template=minimal
+  meson compile -C build-wasm
+)
+python3 scripts/prepare.py --emulator-only \
+  --wasm-dir ../build/native-emulator/build-wasm \
+  --emulator-source ../build/native-emulator
+```
+
+```sh
+python3 scripts/prepare.py --downloads-only
+python3 tests/prepare.test.py
+node --test tests/*.test.mjs
+python3 scripts/check.py
+# Optional standalone verification of the original pilot, using its matching ZDE-built compiler map:
+python3 scripts/verify-native.py --compiler-build ../build
+hugo --minify --baseURL https://zoul0813.github.io/zeal-pascal/book/
+```
+
+The **Publish site** GitHub Actions workflow checks out NativeEmulator `main`, builds the SDL3 WASM frontend with Emscripten 7.0.0, and stages the resulting bundle and licenses before checking and assembling the book. It checks and publishes every push to `main` (including merges) and `codex/next-work` (for testing). Both branches publish to the same site URL. Pull requests affecting the book or workflow build and check without deploying. For an artifact-only manual run, clear the `deploy` input. Configure the repository's **Settings → Pages → Source** to **GitHub Actions** before the first deployment. If the `github-pages` environment restricts deployment branches, allow both branches there as well.
+
+The public book URL is <https://zoul0813.github.io/zeal-pascal/book/>. The workflow assembles one complete Pages artifact in `build/pages`, with Hugo output in `build/pages/book`. The site root is reserved for future content; it currently has no landing page. Add future root content to the same staging directory and workflow, keeping `book/` reserved for Hugo. Pages deployments replace the whole site: a separate root deployment would remove the book, and a separate book-only deployment would remove root content. Extend the pull-request path filters when adding new site sources.
+
+The book's disk namespace follows its base URL path. Moving from `/zeal-pascal/` to `/zeal-pascal/book/` selects a new TF/EEPROM workspace; old disk images are retained in OPFS but are not migrated automatically. H: keeps its existing workspace. Local previews use an explicit localhost base URL.
+
+## Prepared assets
+
+`static/emulator/` is generated by the emulator build and staging step. Its generated `provenance.json` records the native source commit and hashes for the WASM, JavaScript helpers and licenses. Hugo uses that commit to version emulator requests.
+
+`static/media/` contains the community TF base, book TF with Pascal installed, compatible ZShell ROM, EEPROM and Pascal outputs. These prepared disk assets and their `static/provenance.json` are included in the book source. The site build combines them with the freshly built emulator.
+
+To refresh assets from installed, verified builds:
+
+```sh
+python3 scripts/prepare.py \
+  --wasm-dir /path/to/native/wasm/bundle \
+  --emulator-source /path/to/Zeal-NativeEmulator \
+  --community-dir /path/to/Zeal-Software-Collection/dist/community \
+  --pascal-build /path/to/zeal-pascal/build \
+  --boot-rom /path/to/zeal-dev-environment/home/Zeal-8-bit-OS/build/os_with_romdisk.img \
+  --eeprom-tool /path/to/existing/zdt
+```
+
+The `.PAS`, `.INC`, and `.TXT` files in `static/code/<project>/` are the source for printed listings, served lesson files, the generated `data/examples.json` inventory, and reproducible `book-code.zip`. Add the files and run `python3 scripts/prepare.py --downloads-only`. Never edit copies of those listings into the chapter.
+
+## Workspace rules
+
+- The OPFS directory `zeal-pascal-book` is private to the site's origin. A Web Lock prevents concurrent emulator tabs from modifying it.
+- System files are installed only when absent. User files are never replaced by opening a lesson.
+- Backup restores receive new directories and validate all paths/data before writing. Refreshing lesson examples replaces only the managed examples under H:/book/ after confirmation.
+- Workspace downloads include personal H: files at the root and under project folders, excluding system files, the compiler, and unsaved editor RAM. They do not include disk images.
+- H: files and completed TF/EEPROM writes survive reload. A reload boots ZShell again; it does not restore CPU/editor RAM.
+- `imageStorage: opfs` and `storageNamespace: base.pathname` select one disk set per Hugo project path across all chapters, with stable image keys. HostFS keeps its existing directory and origin-wide H: lock to preserve old files safely.
+- Cached images are never replaced automatically. Update notices preserve local data; resetting source examples does not reset disks.
+- Disk metadata and image files are in OPFS under `zeal-native/<namespace hash>/`; no image snapshot timers or localStorage/IndexedDB disk saves are used.
+- Browser clearing/eviction can remove saves. Backups and import support are explicit.
+
+Startup supplies the published projects’ examples; About links to a ZIP containing all currently published lesson code. Creative and code milestone review status and verification limits are recorded in `VERIFICATION.md`.
+
+To rebuild the local workbench bundle and the prepared EEPROM:
+
+```sh
+python3 scripts/prepare.py --update-workbench \
+  --wasm-dir /path/to/Zeal-NativeEmulator/build-wasm \
+  --emulator-source /path/to/Zeal-NativeEmulator \
+  --eeprom-tool /path/to/existing/zdt
+```
+
+The emulator output from these maintainer commands is local and ignored by Git. Publishing builds the emulator from upstream `main` in CI.
+
+`eeprom/autoexec.zs` preserves ZShell's community PATH layout and selects H:/ for the reader’s lesson workspace; Pascal remains installed on T:. Changing authoring files does not overwrite a reader EEPROM: update checks notify, and the reader chooses Update Zeal to retrieve the current tool/system set.
+
+## Appearance and code blocks
+
+The book uses the Midnight light/dark palettes and Zeal purple (`#6B5176`), with the supplied official SVG logo. The sticky header keeps Open Zeal available while reading on desktop and mobile. Its sun/moon switch follows the system until a reader chooses a theme, then remembers that choice. CSS and the theme script use content-hashed URLs so deployments do not reuse stale styles.
+
+Hugo highlights code at build time with Chroma; no client library is needed. Label fenced blocks `pascal`, `makefile`, `cmake`, `bash`, or `zsh`. `Makefile`, `CMakeLists.txt`, and `cli` are also accepted. The code-block hook maps `pascal` to Chroma's `objectpascal` lexer. Text/output blocks stay plain. Token colors follow the light/dark theme.
+
+To rebuild the book TF/EEPROM from already staged assets with the installed Zeal Disk Tool:
+
+```sh
+python3 scripts/prepare.py --refresh-media --eeprom-tool /path/to/zdt
+```
+
+This operates on the book's distributable images, never a reader's saved OPFS files. The TF is repacked from `community-tf.img` plus staged Pascal files through supported CLI commands and independently checked for exact file contents. Asset checks cover both the retained community base and book installation. Ordinary CI/Hugo builds use these prepared images and need no ZDE or disk tool installation.
