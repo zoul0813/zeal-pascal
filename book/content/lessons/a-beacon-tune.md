@@ -18,9 +18,9 @@ A beacon has a light. Yours can have a call sign too, four rising notes short en
 
 1. Open Pascal as described in the [workbench reference]({{< relref "workbench-reference" >}}#start-and-save).
 2. Press **W**, enter `H:/book/sound/TONES.PAS`, and press **Enter**.
-3. Press **A (Save As)**, enter an unused name such as `H:/work/sound/TONES.PAS`, and press **Enter**.
+3. Press **A (Save As)**, enter an unused name such as `H:/work/sound/tones.pas`, and press **Enter**.
 4. Choose **Enable sound** in the workbench. Then click the screen or press **Ctrl+Shift+Space** so Zeal has the keyboard again.
-5. Press **S**. Select Com-file with **O**, **C**, **Q**, then press **R** to compile and run. Wait for the compiler’s next prompt before pressing other keys.
+5. Press **S**. Select Bin-file with **O**, **C**, **Q**, then press **R** to compile and run. Wait for the compiler’s next prompt before pressing other keys.
 6. Press **p**. The program prints `Note 1` through `Note 4` as it plays each one. Press **p** again to repeat, or **q** to return to Pascal.
 
 With browser audio off, the note numbers still appear, so you can follow along in silence.

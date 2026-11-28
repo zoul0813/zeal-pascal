@@ -18,8 +18,8 @@ There are two programs. `TOTAL.PAS` works in whole numbers and checks each resul
 
 1. Open Pascal as described in the [workbench reference]({{< relref "workbench-reference" >}}#start-and-save).
 2. Press **W**, enter `H:/book/calc/TOTAL.PAS`, and press **Enter**.
-3. Press **A (Save As)**, enter `H:/work/calc/TOTAL.PAS`, and press **Enter**. Save As replaces an existing file without asking, so choose a fresh name such as `TOTAL2.PAS` if you have done this lesson before.
-4. Select Com-file with **O**, **C**, **Q**, then press **R** to compile and run.
+3. Press **A (Save As)**, enter `H:/work/calc/total.pas`, and press **Enter**. Save As replaces an existing file without asking, so choose a fresh name such as `total2.pas` if you have done this lesson before.
+4. Select Bin-file with **O**, **C**, **Q**, then press **R** to compile and run.
 
 {{< source "calc/TOTAL.PAS" >}}
 
@@ -55,16 +55,16 @@ Multiplication breaks that guarantee. 999 times 999 is too large for an Integer,
 
 Put it there rather than after the `'*'` branch. That branch has no semicolon, because the `case` statement’s own `else` follows it. Run the program, make the total 60, and enter `/7`. `div` keeps the whole part and drops the rest, so the answer is 8. The next program divides properly.
 
-**A good place to pause.** Press **S**. Your whole-number calculator is saved as `H:/work/calc/TOTAL.PAS`.
+**A good place to pause.** Press **S**. Your whole-number calculator is saved as `H:/work/calc/total.pas`.
 
 ## Decimals, memory, and history
 
 `CALC.PAS` is a separate program, so your first calculator keeps working.
 
-1. If `TOTAL.PAS` has unsaved changes, press **S**.
+1. If `total.pas` has unsaved changes, press **S**.
 2. Press **W**, enter `H:/book/calc/CALC.PAS`, and press **Enter**.
-3. Press **A (Save As)**, enter `H:/work/calc/CALC.PAS` or another unused name, and press **Enter**.
-4. Press **R** to compile and run. If you reopened Pascal, select Com-file with **O**, **C**, **Q** first.
+3. Press **A (Save As)**, enter `H:/work/calc/calc.pas` or another unused name, and press **Enter**.
+4. Press **R** to compile and run. If you reopened Pascal, select Bin-file with **O**, **C**, **Q** first.
 
 {{< source "calc/CALC.PAS" >}}
 
@@ -103,16 +103,16 @@ Division by zero is refused before it happens, just as `TOTAL.PAS` refuses an ov
     end
 ```
 
-**A good place to pause.** Press **S**. Your decimal calculator is saved as `H:/work/calc/CALC.PAS`.
+**A good place to pause.** Press **S**. Your decimal calculator is saved as `H:/work/calc/calc.pas`.
 
 ## Take it out of the IDE
 
 So far the calculator has run inside Pascal. Now compile it into a program you can start from the shell.
 
 1. Quit the calculator with `q`, then press **S** to save the source.
-2. Select Com-file mode with **O**, **C**, **Q**, then press **C** to compile. Pascal writes `H:/work/calc/CALC.COM` next to your source. A source saved under another name gives an executable with that name.
+2. Select Bin-file mode with **O**, **C**, **Q**, then press **C** to compile. Pascal writes `H:/work/calc/calc.bin` next to your source. If you chose another source name, use its lowercase stem followed by `.bin`.
 3. Press **Q** to leave Pascal for ZShell.
-4. Enter `H:/work/calc/CALC.COM`. When you are done, enter `q` to return to the shell.
+4. Enter `H:/work/calc/calc.bin`. When you are done, enter `q` to return to the shell.
 
 The executable starts with a zero total and an empty history every time. Changes to the calculator itself live in the source. To keep working on it, enter `zpascal`, press **Y**, and open your source with **W**. Choose the lesson’s compile mode again before running it.
 

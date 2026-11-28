@@ -25,7 +25,11 @@ Save As replaces an existing filename without asking. Use the book’s paths und
 
 ## Compile an executable
 
-Save the personal source with **S**, then choose **O**, **C**, **Q** to select Com-file mode. Press **C** to compile a `.COM` next to the source. A larger program can take a few minutes in the browser. Wait for the compiler to finish before sending another command. To compile and run from inside Pascal, use **R** in Com-file mode. Return to ZShell with **Q** in the main menu and enter the executable's full `H:/work/` path. For example, `H:/work/graphics/MAPVIEW.COM`.
+Save the personal source with **S**, then choose **O**, **C**, **Q** to select Bin-file mode. Press **C** to compile a Bin-file next to the source. By default, `MapView.PAS` produces `mapview.bin`. A larger program can take a few minutes in the browser. Wait for the compiler to finish before sending another command. To compile and run from inside Pascal, use **R** in Bin-file mode. Return to ZShell with **Q** in the main menu and enter the executable's full `H:/work/` path. For example, `H:/work/graphics/mapview.bin`.
+
+To choose an exact output name, press **O**, **C**, then **N**. Enter a filename such as `UpperCase.COM` and press **Enter**. Pascal keeps the spelling you enter. An empty entry restores the default. Press **Q** to return to the main menu.
+
+If your workbench still shows **Com-file**, save your work under `H:/work/` and follow [Update Zeal]({{< relref "/about" >}}#your-files) to get the compiler used in these lessons.
 
 To edit again, enter `zpascal`, press **Y**, and reopen your source with **W**. Select the compile mode your lesson uses before running again.
 

@@ -26,7 +26,7 @@ Save your own programs under **`H:/work/`**. H: is persistent storage: saved fil
 
 The supplied files in `H:/book/lab/` belong to the book, and **Refresh lesson examples** can replace them. Copy an example to `H:/work/` before you change it.
 
-**Save As replaces an existing file without asking.** If you have done this lesson before, pick new names for this visit, such as `HELLO2.PAS` and `LAB2.PAS`, and use them wherever the lesson says `HELLO.PAS` or `LAB.PAS`.
+**Save As replaces an existing file without asking.** If you have done this lesson before, pick new names for this visit, such as `hello2.pas` and `lab2.pas`, and use them wherever the lesson says `hello.pas` or `lab.pas`.
 
 H: lives in this browser’s storage, which is not a backup: clearing site data can remove it. Section 6 shows how to download a copy you can keep elsewhere.
 
@@ -50,10 +50,10 @@ Before entering the lab, make something small that works. Here is the whole prog
 
 {{< source "lab/HELLO.PAS" >}}
 
-Choose how you want to start. Either way, you end up with your own greeting saved as `H:/work/HELLO.PAS` (or your new name for this visit):
+Choose how you want to start. Either way, you end up with your own greeting saved as `H:/work/hello.pas` (or your new name for this visit):
 
-- **Type it yourself:** in the Pascal menu, press **W** for Work file, enter `H:/work/HELLO.PAS`, and press **Enter**. If the file does not exist yet, you get an empty editor buffer; nothing is saved until you press **S** later. Press **E** for the editor and type the listing.
-- **Open the supplied copy:** press **W**, enter `H:/book/lab/HELLO.PAS`, and press **Enter**. Press **A (Save As)** and enter `H:/work/HELLO.PAS`, and press **Enter**. You are now working on your own copy. Press **E** to look at it in the editor.
+- **Type it yourself:** in the Pascal menu, press **W** for Work file, enter `H:/work/hello.pas`, and press **Enter**. If the file does not exist yet, you get an empty editor buffer; nothing is saved until you press **S** later. Press **E** for the editor and type the listing.
+- **Open the supplied copy:** press **W**, enter `H:/book/lab/HELLO.PAS`, and press **Enter**. Press **A (Save As)** and enter `H:/work/hello.pas`, and press **Enter**. You are now working on your own copy. Press **E** to look at it in the editor.
 
 While it is on screen, a few landmarks:
 
@@ -85,7 +85,7 @@ Read the message, then press **Escape** to return to the editor at the place the
 
 Making a mistake and finding its location is part of programming. No files are harmed by a syntax error.
 
-**A good place to pause:** your greeting is saved as `H:/work/HELLO.PAS` (or the name you chose). You can close the page now and use [Save and resume](#6-save-and-resume) when you return.
+**A good place to pause:** your greeting is saved as `H:/work/hello.pas` (or the name you chose). You can close the page now and use [Save and resume](#6-save-and-resume) when you return.
 
 ## 3. Walk through the lab
 
@@ -101,10 +101,10 @@ Here is our map:
 
 First, take a walk through the lab. Then we’ll look at how the program remembers where you are.
 
-Choose your route again. This time your personal file is **`H:/work/LAB.PAS`** (or your new name for this visit), so your greeting stays as it is. The adventure is about forty lines, so opening the starter is the quicker route; typing it is a fine choice if you like to feel each line go in. Both produce the same program.
+Choose your route again. This time your personal file is **`H:/work/lab.pas`** (or your new name for this visit), so your greeting stays as it is. The adventure is about forty lines, so opening the starter is the quicker route; typing it is a fine choice if you like to feel each line go in. Both produce the same program.
 
-- **Open the starter:** press **W**, enter `H:/book/lab/START.PAS`, and press **Enter**. Press **A (Save As)** and enter `H:/work/LAB.PAS`, and press **Enter** before changing anything.
-- **Type it yourself:** press **W**, enter `H:/work/LAB.PAS`, press **Enter**, then **E**. Type the complete listing shown at the start of [How the program works](#4-how-the-program-works), then come back here. Leave the editor with **Ctrl-K**, release, then **D**.
+- **Open the starter:** press **W**, enter `H:/book/lab/START.PAS`, and press **Enter**. Press **A (Save As)** and enter `H:/work/lab.pas`, and press **Enter** before changing anything.
+- **Type it yourself:** press **W**, enter `H:/work/lab.pas`, press **Enter**, then **E**. Type the complete listing shown at the start of [How the program works](#4-how-the-program-works), then come back here. Leave the editor with **Ctrl-K**, release, then **D**.
 
 In the Pascal menu, press **S** to save your adventure, then **R** to run it. (If you have reloaded the page since the greeting, select Memory mode again with **O**, **M**, **Q** first.)
 
@@ -127,11 +127,11 @@ Check the refusals as carefully as the moves: you should change rooms only where
 
 After `Program returned.`, you can use the main-menu keys at the `>` prompt. Press **O**, then **Q**, if you want to see the menu again.
 
-**Another good place to pause:** your adventure is saved as `H:/work/LAB.PAS` (or your chosen name). You have walked through it; next you will take it apart. Use [Save and resume](#6-save-and-resume) if you stop here.
+**Another good place to pause:** your adventure is saved as `H:/work/lab.pas` (or your chosen name). You have walked through it; next you will take it apart. Use [Save and resume](#6-save-and-resume) if you stop here.
 
 ## 4. How the program works
 
-Here is the complete starting program. It is the same as `H:/book/lab/START.PAS` and your `LAB.PAS`. Press **E** if you would like your own copy on the Zeal screen while you read; the tour below follows it from top to bottom.
+Here is the complete starting program. It is the same as `H:/book/lab/START.PAS` and your `lab.pas`. Press **E** if you would like your own copy on the Zeal screen while you read; the tour below follows it from top to bottom.
 
 {{< source "lab/START.PAS" >}}
 
@@ -230,7 +230,7 @@ After each turn, `until` checks its condition. If the player typed `quit`, the l
 
 The workshop is quiet. Give it one small mystery.
 
-Make sure you are editing your own `H:/work/LAB.PAS`, not the book’s starter. If you are at the Pascal menu, press **E** to open the editor.
+Make sure you are editing your own `H:/work/lab.pas`, not the book’s starter. If you are at the Pascal menu, press **E** to open the editor.
 
 **First, a small change.** Find the workshop’s line in the `case` statement and change its description to mention an amber light. Change only the words inside the quotes, and avoid apostrophes for now so the surrounding quotes stay balanced. Leave the editor, press **S** to save, then **R** to run, and walk to the workshop to check that you changed the right room.
 
@@ -255,7 +255,7 @@ This version adds the light, the command, and both help-message changes. Compare
 
 {{< source "lab/SOLUTION.PAS" >}}
 
-The same source is in `H:/book/lab/SOLUTION.PAS`. Opening it is optional. If you do, save your own work with **S** first, so nothing unsaved is lost when you switch files. Before changing the solution, use **A (Save As)** to give it an unused personal name such as `H:/work/SOLVED.PAS`.
+The same source is in `H:/book/lab/SOLUTION.PAS`. Opening it is optional. If you do, save your own work with **S** first, so nothing unsaved is lost when you switch files. Before changing the solution, use **A (Save As)** to give it an unused personal name such as `H:/work/solved.pas`.
 {{< /reveal >}}
 
 ## 6. Save and resume
@@ -266,9 +266,9 @@ Your files:
 
 | File | What it holds |
 | --- | --- |
-| `H:/work/HELLO.PAS` | Your greeting |
-| `H:/work/LAB.PAS` | Your adventure |
-| `H:/work/SOLVED.PAS` | Your copy of the solution, if you made one |
+| `H:/work/hello.pas` | Your greeting |
+| `H:/work/lab.pas` | Your adventure |
+| `H:/work/solved.pas` | Your copy of the solution, if you made one |
 
 If you chose new names for this visit, use those instead. If you still have a book starter open, use **A (Save As)** with an unused `H:/work/` name; Save As replaces an existing file without asking. Avoid the IDE’s default T: source path for personal work, because **Update Zeal** replaces T:.
 
@@ -284,7 +284,7 @@ H: is stored by this browser for this site address. It does not follow you to an
 
 1. Open Zeal and wait for the ZShell prompt.
 2. Enter `zpascal`, then press **Y** at the message prompt.
-3. Press **W**, enter `H:/work/LAB.PAS` (or the file you were working on), and press **Enter**.
+3. Press **W**, enter `H:/work/lab.pas` (or the file you were working on), and press **Enter**.
 4. Press **E** to carry on editing.
 5. When ready to run, leave the editor with **Ctrl-K**, release, then **D**, and press **S** to save. Select Memory mode with **O**, **M**, **Q**, then press **R**.
 

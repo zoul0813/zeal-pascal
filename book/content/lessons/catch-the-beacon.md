@@ -16,8 +16,8 @@ Someone on the roof is lowering beacon bulbs without looking. You have a basket.
 
 1. Open Pascal as described in the [workbench reference]({{< relref "workbench-reference" >}}#start-and-save).
 2. Press **W**, enter `H:/book/game/CATCH.PAS`, and press **Enter**.
-3. Press **A (Save As)**, enter an unused name such as `H:/work/game/CATCH.PAS`, and press **Enter**.
-4. Select Com-file with **O**, **C**, **Q**, then press **R** to compile and run.
+3. Press **A (Save As)**, enter an unused name such as `H:/work/game/catch.pas`, and press **Enter**.
+4. Select Bin-file with **O**, **C**, **Q**, then press **R** to compile and run.
 
 The basket is the `=` near the bottom and the falling bulb is a `*`. Press **a** twice straight away to get under the first one. After that, **a** moves left and **d** moves right. Each catch raises the score and sends the next bulb two columns to the right, so keep tapping **d**. Catch all nine to win.
 

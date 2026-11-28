@@ -2,7 +2,7 @@
   "format": 1,
   "assets": {
     "media/tf.img": {
-      "sha256": "899b15ef65f76ad058564c107bc9e7bd502e77d0ba9f493173f840aaedb02398",
+      "sha256": "d82318841289733ed2f590d4d5d4de8bd9e18126d2a1645a6e43b3757a9e7345",
       "bytes": 2097152,
       "origin": "Community TF plus book Pascal in /apps/ and /lib/; zdt CLI"
     },
@@ -232,13 +232,13 @@
       "origin": "Community image distribution/licenses/zoul0813/zeal-zshell/LICENSE"
     },
     "media/pascal/zpascal.bin": {
-      "sha256": "832ec811b8f368abec59f9273c13ffbb7e18b6cb216928a852049e752fd639a1",
-      "bytes": 16186,
+      "sha256": "99e5f3d2c0f0bcd9e48dcd06d78365d94ef01a794dfe30a8cb19e4285e3de04c",
+      "bytes": 16209,
       "origin": "Matching Zeal Pascal build/zpascal.bin"
     },
     "media/pascal/zpascal.zpl": {
-      "sha256": "691d41bf120bcfd1e4a47100eeaca3f08ca39e8f650691e54ff1d7ea9f58c17f",
-      "bytes": 281845,
+      "sha256": "1a122b355c13004efaa51a73c13b886e79dc65bf2b63ae4a77892dcce1db8c6d",
+      "bytes": 304365,
       "origin": "Matching Zeal Pascal build/zpascal.zpl"
     },
     "media/pascal/SYSFILE.ZPU": {
@@ -272,8 +272,8 @@
       "origin": "units/zvb/ZVB-NOTICE.txt"
     },
     "media/pascal/build-banks.json": {
-      "sha256": "1eb4966834abbaa71461b6330f8f70960bb9096bcaa2e6454f82b0ba7266d6b2",
-      "bytes": 455,
+      "sha256": "8d0e61c249f8208fa324e9b0be9712e56529b975b3c444778c5d1310fe4946a9",
+      "bytes": 466,
       "origin": "Matching compiler bank metadata"
     },
     "media/eeprom.img": {
@@ -298,8 +298,8 @@
     "tf_overlay": {
       "base_sha256": "49c160301ba83aa15bfb73306b5b5d357b7c1d332ad775e8ef222f0242b7a41f",
       "files": {
-        "/apps/zpascal.bin": "832ec811b8f368abec59f9273c13ffbb7e18b6cb216928a852049e752fd639a1",
-        "/lib/zpascal.zpl": "691d41bf120bcfd1e4a47100eeaca3f08ca39e8f650691e54ff1d7ea9f58c17f",
+        "/apps/zpascal.bin": "99e5f3d2c0f0bcd9e48dcd06d78365d94ef01a794dfe30a8cb19e4285e3de04c",
+        "/lib/zpascal.zpl": "1a122b355c13004efaa51a73c13b886e79dc65bf2b63ae4a77892dcce1db8c6d",
         "/lib/SYSFILE.ZPU": "575d22e496c717714b298058ccb46dd53c45aea2620930f9d31998af0fc5e242",
         "/lib/CRT.ZPU": "eb21857ad9c44b41fcf953f179e0aedf8af9541334d4716dd7fa05e7d5bf3298",
         "/lib/ZVB.ZPU": "c59d03d49217323ea135793c0ef92b1bf1c49272ef3469b40b64e550d5d5a7da",
@@ -307,7 +307,7 @@
         "/lib/ZVB.LIC": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
         "/lib/ZVB.NTC": "f16004a810ed0dcb84ce5d0f4b76b0432a7fefb452d1645ec9a6124dd3bfd4b7"
       },
-      "tool": "v0.3.0-17-g44b5863"
+      "tool": "v0.3.0-30-g217c679"
     }
   }
 }

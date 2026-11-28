@@ -16,8 +16,8 @@ The calculator, the adventures, and the search tool all wait for a whole line an
 
 1. Open Pascal as described in the [workbench reference]({{< relref "workbench-reference" >}}#start-and-save).
 2. Press **W**, enter `H:/book/screen/PANEL.PAS`, and press **Enter**.
-3. Press **A (Save As)**, enter an unused name such as `H:/work/screen/PANEL.PAS`, and press **Enter**.
-4. Select Com-file with **O**, **C**, **Q**, then press **R** to compile and run.
+3. Press **A (Save As)**, enter an unused name such as `H:/work/screen/panel.pas`, and press **Enter**.
+4. Select Bin-file with **O**, **C**, **Q**, then press **R** to compile and run.
 
 A blue screen shows `BEACON STATUS` with two choices. `Workshop` is highlighted in yellow. Press **2** and the highlight moves to `Roof`. Press **1** to move it back. No **Enter** is needed. Press **q** to finish. The program prints `Panel closed.` and returns to Pascal.
 

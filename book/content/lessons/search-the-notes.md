@@ -16,8 +16,8 @@ Somebody kept a maintenance log while the lab was shut. It has four lines today.
 
 1. Open Pascal as described in the [workbench reference]({{< relref "workbench-reference" >}}#start-and-save).
 2. Press **W**, enter `H:/book/search/SEARCH.PAS`, and press **Enter**.
-3. Press **A (Save As)**, enter `H:/work/search/SEARCH.PAS`, and press **Enter**. Saving here also gives the report its folder. Choose a fresh name such as `SEARCH2.PAS` if that file already exists.
-4. Select Com-file with **O**, **C**, **Q**, then press **R** to compile and run.
+3. Press **A (Save As)**, enter `H:/work/search/search.pas`, and press **Enter**. Saving here also gives the report its folder. Choose a fresh name such as `search2.pas` if that file already exists.
+4. Select Bin-file with **O**, **C**, **Q**, then press **R** to compile and run.
 5. At the filename question, press **Enter** to read the supplied `H:/book/search/NOTES.TXT`.
 6. Enter `beacon` as the search text, then press **Enter** at the report question.
 
@@ -42,7 +42,7 @@ Run it again with other search text. Each run asks the same three questions.
 
 Run once more, search for `beacon`, and answer `y` at the report question. The program writes the same results to `H:/work/search/REPORT.TXT`, after a first line that names the search.
 
-To read the report, press **W**, enter `H:/work/search/REPORT.TXT`, then press **E**. Leave the editor with **Ctrl-K**, release, then **D**. Before you run the search again, press **W** and reopen your `SEARCH.PAS`, because **R** works on whichever file is open.
+To read the report, press **W**, enter `H:/work/search/REPORT.TXT`, then press **E**. Leave the editor with **Ctrl-K**, release, then **D**. Before you run the search again, press **W** and reopen your `search.pas`, because **R** works on whichever file is open.
 
 Now ask for a second report while the first one is still there. The program refuses and stops before it searches. It creates a report only when that path is unused.
 
@@ -65,7 +65,7 @@ A report can be partial after an error or after the 30,000-line limit. Inspect i
 ## Try it
 
 1. **Make room for another report.** Change `ReportName` to `'H:/work/search/REPORT2.TXT'`, save, and request a report again.
-2. **Search your own notes.** Press **S** to save your source first. Press **W**, enter `H:/work/search/MINE.TXT`, then press **E** and type a few lines. Keep each line shorter than 127 characters, the editor’s limit. Leave the editor and press **S**. Reopen your `SEARCH.PAS` with **W**, run it, and enter the full path of your notes at the filename question. Keep the book’s `NOTES.TXT` as it is.
+2. **Search your own notes.** Press **S** to save your source first. Press **W**, enter `H:/work/search/MINE.TXT`, then press **E** and type a few lines. Keep each line shorter than 127 characters, the editor’s limit. Leave the editor and press **S**. Reopen your `search.pas` with **W**, run it, and enter the full path of your notes at the filename question. Keep the book’s `NOTES.TXT` as it is.
 3. **Find the edges.** Put a matching word twice on one line. Write a long line with the match near its end. Then enter a path that does not exist. Each case tests a different part of the loop.
 
 ## What comes next

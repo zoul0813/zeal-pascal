@@ -37,14 +37,14 @@ These are the keys this lesson uses. [The Silent Lab]({{< relref "the-silent-lab
 
 After `Program returned.`, the menu keys work at the `>` prompt.
 
-Your copies for this lesson go in `H:/work/table/`. The files in `H:/book/table/` belong to the book, and **Refresh lesson examples** can replace them. **Save As replaces an existing file without asking**, so if you have done this lesson before, choose fresh names such as `TABLE2.PAS` and `PROMPT2.PAS` and use them wherever the lesson names a personal file.
+Your copies for this lesson go in `H:/work/table/`. The files in `H:/book/table/` belong to the book, and **Refresh lesson examples** can replace them. **Save As replaces an existing file without asking**, so if you have done this lesson before, choose fresh names such as `table2.pas` and `prompt2.pas` and use them wherever the lesson names a personal file.
 
 ## Print the first table
 
-Choose how to start. Either way, you end up with your own copy saved as `H:/work/table/TABLE.PAS`:
+Choose how to start. Either way, you end up with your own copy saved as `H:/work/table/table.pas`:
 
-- **Open the supplied copy:** press **W**, enter `H:/book/table/TABLE.PAS`, and press **Enter**. Press **A (Save As)**, enter `H:/work/table/TABLE.PAS`, and press **Enter**.
-- **Type it yourself:** press **W**, enter `H:/work/table/TABLE.PAS`, and press **Enter**. Press **E**, type the listing below, then leave the editor with **Ctrl-K**, release, then **D**.
+- **Open the supplied copy:** press **W**, enter `H:/book/table/TABLE.PAS`, and press **Enter**. Press **A (Save As)**, enter `H:/work/table/table.pas`, and press **Enter**.
+- **Type it yourself:** press **W**, enter `H:/work/table/table.pas`, and press **Enter**. Press **E**, type the listing below, then leave the editor with **Ctrl-K**, release, then **D**.
 
 Press **S** to save. Select Memory mode with **O**, **M**, **Q**, then press **R** to run.
 
@@ -73,16 +73,16 @@ Minutes  Seconds
 1. Press **E** and change `LastMinute` to 8. Before you run it, predict the last row. Leave the editor, press **S**, then **R**, and check your prediction.
 2. Meet the compiler on purpose. Press **E** and delete the semicolon after `SecondsPerMinute = 60`, save, and run. The compiler may report the problem on the following line, because that is where it first notices something missing. Press **Escape** at the message to see the reported location in the editor. Put the semicolon back, leave the editor, save, and run again.
 
-**A good place to pause.** Your table is saved as `H:/work/table/TABLE.PAS`. [Keep what you built](#keep-what-you-built) explains how to pick up again.
+**A good place to pause.** Your table is saved as `H:/work/table/table.pas`. [Keep what you built](#keep-what-you-built) explains how to pick up again.
 
 ## Let the reader choose the length
 
 `TABLE.PAS` decides its length when you compile it. The next program asks while it runs, which means it has to cope with whatever a person actually types: a number, an empty line, a stray letter, a number far too large.
 
-This is a separate file, so your first table keeps working. If `TABLE.PAS` has unsaved changes, press **S** before switching. Then choose your route to `H:/work/table/PROMPT.PAS`:
+This is a separate file, so your first table keeps working. If `table.pas` has unsaved changes, press **S** before switching. Then choose your route to `H:/work/table/prompt.pas`:
 
-- **Open the supplied copy:** press **W**, enter `H:/book/table/PROMPT.PAS`, and press **Enter**. Press **A (Save As)**, enter `H:/work/table/PROMPT.PAS`, and press **Enter**.
-- **Type it yourself:** press **W**, enter `H:/work/table/PROMPT.PAS`, and press **Enter**. Press **E**, type the listing below, then leave the editor with **Ctrl-K**, release, then **D**.
+- **Open the supplied copy:** press **W**, enter `H:/book/table/PROMPT.PAS`, and press **Enter**. Press **A (Save As)**, enter `H:/work/table/prompt.pas`, and press **Enter**.
+- **Type it yourself:** press **W**, enter `H:/work/table/prompt.pas`, and press **Enter**. Press **E**, type the listing below, then leave the editor with **Ctrl-K**, release, then **D**.
 
 Press **S** to save. If you’ve reopened Pascal or changed compile modes, select Memory with **O**, **M**, **Q**. Press **R** to run. At the question `How many rows (1..20, or q)?`, enter `3` for a three-row table. The question comes back, ready for another answer.
 
@@ -144,8 +144,8 @@ In the Pascal menu, press **S** before closing the workbench. Running a program 
 
 | File | What it holds |
 | --- | --- |
-| `H:/work/table/TABLE.PAS` | The fixed-length table |
-| `H:/work/table/PROMPT.PAS` | The table that asks first |
+| `H:/work/table/table.pas` | The fixed-length table |
+| `H:/work/table/prompt.pas` | The table that asks first |
 
 To resume later, open Zeal, enter `zpascal`, press **Y**, then press **W** and enter the file you want. [About the workbench]({{< relref "/about" >}}#your-files) explains how to download a backup outside the browser.
 

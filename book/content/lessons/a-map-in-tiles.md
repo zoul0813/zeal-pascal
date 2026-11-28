@@ -18,9 +18,9 @@ Text tells you where the beacon is. A map shows you. This side trip draws the ro
 
 1. Open Pascal as described in the [workbench reference]({{< relref "workbench-reference" >}}#start-and-save).
 2. Press **W**, enter `H:/book/graphics/MAPVIEW.PAS`, and press **Enter**.
-3. Press **A (Save As)**, enter an unused name such as `H:/work/graphics/MAPVIEW.PAS`, and press **Enter**.
-4. Press **S**. Select Com-file mode with **O**, **C**, **Q**, then press **C** to compile. Wait for the compiler’s next prompt before pressing other keys.
-5. Press **Q** to leave Pascal. At the shell, enter `H:/work/graphics/MAPVIEW.COM`.
+3. Press **A (Save As)**, enter an unused name such as `H:/work/graphics/mapview.pas`, and press **Enter**.
+4. Press **S**. Select Bin-file mode with **O**, **C**, **Q**, then press **C** to compile. Wait for the compiler’s next prompt before pressing other keys.
+5. Press **Q** to leave Pascal. At the shell, enter `H:/work/graphics/mapview.bin`.
 6. Look at the map, then press any key. The text screen returns with `Map closed.`
 
 The program borrows a helper, `H:/book/graphics/VIDEO.INC`, while it compiles. Your copy names that path, so keep the helper where it is. To change the map, enter `zpascal`, press **Y**, and reopen your copy with **W**.

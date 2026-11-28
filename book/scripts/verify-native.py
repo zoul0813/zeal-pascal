@@ -26,16 +26,11 @@ def validate_image(image):
     assert word(28) == 0x4000 + len(image) and word(22) > 0
     return {'origin': word(20), 'code_bytes': word(22), 'file_bytes': len(image), 'flags': word(18)}
 
-native.ROOT = build.parent
-# Worktrees sit deeper than the normal Zeal checkout; keep tool discovery explicit.
-zeal = build.parent.parent if not native.EMULATOR.exists() else native.ZEAL
-emulator = args.emulator or zeal / 'Zeal-NativeEmulator/build-opfs-native/zeal-native'
-if not emulator.exists():
-    emulator = zeal / 'Zeal-NativeEmulator/build/zeal-native'
+emulator = args.emulator or native.EMULATOR
 # Reference bytes for qualified debugger breakpoints, not a runnable H: installation.
 fixtures = {'verify/ref.bin': BOOK / 'static/media/pascal/zpascal.bin', 'work/.keep': b''}
 fixtures.update({'book/lab/' + p.name: p for p in (BOOK / 'static/code/lab').glob('*.PAS')})
-symbols = native.symbols('zpascal')
+symbols = native.symbols('zpascal', build)
 typed = lambda value: native.type_text(value, ticks=4000000)
 launch = typed('zpascal') + ['bp 0x4000', 'tap ENTER', 'run 2000000000', 'bc 0x4000',
                             native.ImageStop(symbols['_code_ready'], 'verify/ref.bin')]
@@ -43,43 +38,44 @@ commands = ['run 1000000000'] + launch + [native.ImageStop(symbols['_key_read'],
 commands += typed('ocq')
 for name in ['HELLO', 'START', 'SOLUTION']:
     commands += typed(f'wH:/book/lab/{name}.PAS\n') + ['run 100000000']
-    commands += typed(f'aH:/work/{name}.PAS\n') + ['run 100000000']
+    commands += typed(f'aH:/work/{name.lower()}.pas\n') + ['run 100000000']
     commands += ['tap C', native.ImageStop(symbols['_key_read'], 'verify/ref.bin')]
+commands += typed('onUpperCase.COM\nq') + ['tap C', native.ImageStop(symbols['_key_read'], 'verify/ref.bin')]
 commands += typed('wH:/book/lab/HELLO.PAS\n') + ['run 100000000']
-commands += typed('aH:/work/LAB.PAS\n') + ['run 100000000', 'quit']
+commands += typed('aH:/work/lab.pas\n') + ['run 100000000', 'quit']
 folder = native.new_run(REPO / 'build/book-native')
 command, media = native.prepare(folder, emulator=emulator, rom=args.rom or BOOK / 'static/media/zshell.img', fixtures=fixtures,
                                tf_image=BOOK / 'static/media/tf.img', eeprom_image=BOOK / 'static/media/eeprom.img')
-command.append('--headless')
 print(f'Native verification logs: {folder}', flush=True)
 native.execute(command, folder, commands, timeout=180)
 if (folder / 'input-error.json').exists():
     raise RuntimeError((folder / 'input-error.json').read_text())
-results = {}
-for name in ['HELLO', 'START', 'SOLUTION']:
-    image = folder / 'hostfs/work' / (name + '.COM')
-    results[name] = validate_image(image.read_bytes())
+output = folder / 'hostfs/work'
+# Directory entries preserve the guest spelling even on a case-insensitive host.
+published = {p.name: p for p in output.iterdir()}
+results = {name: validate_image(published[name].read_bytes())
+           for name in ('hello.bin', 'start.bin', 'solution.bin', 'UpperCase.COM')}
+assert published['UpperCase.COM'].read_bytes() == published['solution.bin'].read_bytes()
 # Read the saved HostFS file, then reopen it from a new emulator run.
 expected_source = (BOOK / 'static/code/lab/HELLO.PAS').read_bytes()
-saved = folder / 'hostfs/work/LAB.PAS'
+saved = folder / 'hostfs/work/lab.pas'
 assert saved.read_bytes() == expected_source
 second = native.new_run(REPO / 'build/book-native-reopen')
-second_fixtures = {**fixtures, 'work/LAB.PAS': saved}
+second_fixtures = {**fixtures, 'work/lab.pas': saved}
 second_command, _ = native.prepare(second, emulator=emulator, rom=args.rom or BOOK / 'static/media/zshell.img',
                                   fixtures=second_fixtures, tf_image=folder / 'tf.img', eeprom_image=folder / 'eeprom.img')
-second_command.append('--headless')
 reopen = ['run 1000000000'] + launch + [native.ImageStop(symbols['_key_read'], 'verify/ref.bin')]
 # Exercise the same IDE options/menu sequence as the compile run, then prove
 # reopening by saving a second copy instead of assuming private Source layout.
 reopen += typed('y') + typed('ocq')
-reopen += typed('wH:/work/LAB.PAS\n') + ['run 100000000']
-reopen += typed('aH:/work/REOPEN.PAS\n') + ['run 100000000', 'quit']
+reopen += typed('wH:/work/lab.pas\n') + ['run 100000000']
+reopen += typed('aH:/work/reopen.pas\n') + ['run 100000000', 'quit']
 native.execute(second_command, second, reopen, timeout=180)
 if (second / 'input-error.json').exists():
     raise RuntimeError((second / 'input-error.json').read_text())
-assert (second / 'hostfs/work/REOPEN.PAS').read_bytes() == expected_source
+assert (second / 'hostfs/work/reopen.pas').read_bytes() == expected_source
 report = {'passed': True, 'launch_command': 'zpascal', 'startup_eeprom_sha256': native.sha(BOOK / 'static/media/eeprom.img'),
-          'hostfs_source_saved_and_reopened': True, 'scope': 'Book TF contains Pascal executable and libraries; EEPROM PATH launches T:/apps/zpascal.bin without H: system files; all lesson sources compile as personal H:/work/ copies; H: source saves and reopens. Not browser verification.',
+          'hostfs_source_saved_and_reopened': True, 'scope': 'Book TF contains Pascal executable and libraries; EEPROM PATH launches T:/apps/zpascal.bin without H: system files; three pilot sources compile as personal H:/work/ copies with lowercase .bin names; Options N preserves UpperCase.COM; H: source saves and reopens.',
           'sources': {p.name: native.sha(p) for p in (BOOK / 'static/code/lab').glob('*.PAS')},
           'compiler': {name: native.sha(BOOK / 'static/media/pascal' / name) for name in ['zpascal.bin', 'zpascal.zpl']},
           'outputs': results, 'rom_sha256': native.sha(args.rom or BOOK / 'static/media/zshell.img')}

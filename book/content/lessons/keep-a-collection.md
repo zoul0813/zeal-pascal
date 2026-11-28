@@ -16,8 +16,8 @@ The lab’s parts shelf is a mess of bulbs, keys, and unlabelled fuses. A list o
 
 1. Open Pascal as described in the [workbench reference]({{< relref "workbench-reference" >}}#start-and-save).
 2. Press **W**, enter `H:/book/catalog/CATALOG.PAS`, and press **Enter**.
-3. Press **A (Save As)**, enter `H:/work/catalog/CATALOG.PAS`, and press **Enter**. This also gives the data file its folder. Choose a fresh name if that file already exists.
-4. Select Com-file with **O**, **C**, **Q**, then press **R** to compile and run.
+3. Press **A (Save As)**, enter `H:/work/catalog/catalog.pas`, and press **Enter**. This also gives the data file its folder. Choose a fresh name if that file already exists.
+4. Select Bin-file with **O**, **C**, **Q**, then press **R** to compile and run.
 5. On a fresh workspace the catalog asks whether to create `ITEMS.DAT`. Enter `y` to create it. Any other answer ends the program without creating anything.
 
 Whatever you named your source, the data always lives at `H:/work/catalog/ITEMS.DAT`. If you have done this lesson before, the catalog opens your earlier items instead of asking.

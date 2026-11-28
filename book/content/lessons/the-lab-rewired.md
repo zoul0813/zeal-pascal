@@ -18,8 +18,8 @@ The first lab spelled out its moves in `if` statements. That works for three roo
 
 1. Open Pascal as described in the [workbench reference]({{< relref "workbench-reference" >}}#start-and-save).
 2. Press **W**, enter `H:/book/rewired/REWIRE.PAS`, and press **Enter**.
-3. Press **A (Save As)**, enter an unused name such as `H:/work/rewired/REWIRE.PAS`, and press **Enter**.
-4. Select Com-file with **O**, **C**, **Q**, then press **R** to compile and run.
+3. Press **A (Save As)**, enter an unused name such as `H:/work/rewired/rewire.pas`, and press **Enter**.
+4. Select Bin-file with **O**, **C**, **Q**, then press **R** to compile and run.
 
 Play it before you read it. Commands are lowercase, as in the first lab. If you want a route, here is one.
 
