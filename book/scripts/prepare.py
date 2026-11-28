@@ -12,7 +12,8 @@ import tempfile
 
 BOOK = Path(__file__).resolve().parents[1]
 REPO = BOOK.parent
-PASCAL_FILES = ('zpascal.bin', 'zpascal.zpl', 'SYSFILE.ZPU', 'CRT.ZPU', 'ZVB.ZPU', 'ZOS.ZPU', 'ZVB.LIC', 'ZVB.NTC')
+PASCAL_BUILD_FILES = ('zpascal.bin', 'zpascal.zpl', 'SYSFILE.ZPU', 'CRT.ZPU', 'ZVB.ZPU', 'ZOS.ZPU')
+PASCAL_FILES = PASCAL_BUILD_FILES + ('ZVB.LIC', 'ZVB.NTC')
 
 
 def files_in_image(data, *, include_directories=False):
@@ -211,6 +212,18 @@ def prepare_emulator(wasm_dir, source):
     print('Staged NativeEmulator WASM from ' + commit)
 
 
+def prepare_pascal(build, write):
+    for name in PASCAL_BUILD_FILES:
+        write('media/pascal/' + name, (build / name).read_bytes(), 'Matching Zeal Pascal build/' + name)
+    for source, name in [('units/zvb/ZVB-LICENSE.txt', 'ZVB.LIC'), ('units/zvb/ZVB-NOTICE.txt', 'ZVB.NTC')]:
+        write('media/pascal/' + name, (REPO / source).read_bytes(), source)
+    write('media/pascal/build-banks.json', (build / 'zpascal.banks.json').read_bytes(), 'Matching compiler bank metadata')
+    lib = (build / 'zpascal.zpl').read_bytes()
+    banks = json.loads((build / 'zpascal.banks.json').read_text())
+    if banks['library_sha256'] != hashlib.sha256(lib).hexdigest():
+        raise ValueError('Compiler bank metadata does not match the supplied library')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--wasm-dir', type=Path)
@@ -256,6 +269,8 @@ def main():
     if args.refresh_media:
         if not args.eeprom_tool:
             parser.error('--refresh-media requires --eeprom-tool')
+        if args.pascal_build:
+            prepare_pascal(args.pascal_build, write)
         manifest['assets']['media/community-tf.img']['origin'] = 'Community tf-2mib.img; unmodified'
         prepare_eeprom(static, manifest, write, args.eeprom_tool)
         prepare_tf(static, manifest, write, args.eeprom_tool)
@@ -285,15 +300,7 @@ def main():
             if '..' in parts or Path(name).is_absolute():
                 raise ValueError('Unsafe distribution ZIP path')
             write('media/' + name, archive.read(info), 'Community image distribution/' + name)
-    for name in ('zpascal.bin', 'zpascal.zpl', 'SYSFILE.ZPU', 'CRT.ZPU', 'ZVB.ZPU', 'ZOS.ZPU'):
-        write('media/pascal/' + name, (args.pascal_build / name).read_bytes(), 'Matching Zeal Pascal build/' + name)
-    for source, name in [('units/zvb/ZVB-LICENSE.txt', 'ZVB.LIC'), ('units/zvb/ZVB-NOTICE.txt', 'ZVB.NTC')]:
-        write('media/pascal/' + name, (REPO / source).read_bytes(), source)
-    write('media/pascal/build-banks.json', (args.pascal_build / 'zpascal.banks.json').read_bytes(), 'Matching compiler bank metadata')
-    lib = (args.pascal_build / 'zpascal.zpl').read_bytes()
-    banks = json.loads((args.pascal_build / 'zpascal.banks.json').read_text())
-    if banks['library_sha256'] != hashlib.sha256(lib).hexdigest():
-        raise ValueError('Compiler bank metadata does not match the supplied library')
+    prepare_pascal(args.pascal_build, write)
     prepare_tf(static, manifest, write, args.eeprom_tool)
     (static / 'provenance.json').write_text(json.dumps(manifest, indent=2) + '\n')
     print(f'Staged {len(manifest["assets"])} unchanged assets and book-code.zip')

@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 import sys
 
+from prepare import PASCAL_BUILD_FILES
+
 BOOK = Path(__file__).resolve().parents[1]
 REPO = BOOK.parent
 parser = argparse.ArgumentParser(description=__doc__)
@@ -25,6 +27,10 @@ def validate_image(image):
     assert 0x40a0 <= word(24) <= word(20) < word(20) + word(22) <= word(28)
     assert word(28) == 0x4000 + len(image) and word(22) > 0
     return {'origin': word(20), 'code_bytes': word(22), 'file_bytes': len(image), 'flags': word(18)}
+
+for name in PASCAL_BUILD_FILES:
+    if native.sha(BOOK / 'static/media/pascal' / name) != native.sha(build / name):
+        raise ValueError(f'Book asset {name} differs from the selected Pascal build')
 
 emulator = args.emulator or native.EMULATOR
 # Reference bytes for qualified debugger breakpoints, not a runnable H: installation.

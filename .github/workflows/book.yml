@@ -1,7 +1,7 @@
 name: Publish site
 on:
   push:
-    branches: [main, codex/next-work]
+    branches: [main]
   pull_request:
     paths:
       - 'book/**'
@@ -19,7 +19,10 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    env:
+      ZDE_USE: docker
+      ZDE_STRICT_EXIT: '1'
     permissions:
       contents: read
       pages: read
@@ -53,6 +56,15 @@ jobs:
           python3 book/scripts/prepare.py --emulator-only \
             --wasm-dir build/native-emulator/build-wasm \
             --emulator-source build/native-emulator
+      - name: Set up the Pascal build and disk tools
+        uses: zoul0813/zeal-dev-environment/github/setup-zde@main
+        with:
+          deps: Zeal8bit/Zeal-NativeEmulator Zeal8bit/Zeal-Disk-Tool
+      - name: Build this revision of Pascal and verify the book disk
+        run: |
+          zde --no-tty make dist JOBS=6
+          zde --no-tty exec python3 book/scripts/prepare.py --refresh-media --pascal-build build --eeprom-tool zdt
+          zde --no-tty exec python3 book/scripts/verify-native.py --compiler-build build
       - uses: peaceiris/actions-hugo@v3
         with:
           hugo-version: '0.167.0'
