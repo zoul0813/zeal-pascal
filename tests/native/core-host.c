@@ -4,6 +4,7 @@
 #include "compiler/internal.h"
 #include "compiler/jobs/job.h"
 #include <zos_vfs.h>
+#include <zos_errors.h>
 #include "stream-hash.h"
 #include "source/move.h"
 #include "program/image.h"
@@ -124,6 +125,10 @@ uint32_t page_lifetime(uint8_t p) { return p<64&&owned[p]?lifetimes[p]:0; }
 typedef struct {const char *path,*text;} HostSource;
 static const HostSource *disk_sources;
 static unsigned disk_source_count,disk_reads;
+uint8_t stat_path(const char *path) {
+    for(unsigned i=0;i<disk_source_count;++i)if(!strcmp(path,disk_sources[i].path))return 0;
+    return ERR_NO_SUCH_ENTRY;
+}
 uint8_t read_block(Source *source,const char *name,Diagnostic *diagnostic) {
     char path[128];unsigned i;
     strcpy(path,name);memset(diagnostic,0,sizeof(*diagnostic));++disk_reads;
@@ -1403,7 +1408,7 @@ static void include_cases(void) {
     sha_init(&hash);for(at=0;files[4].text[at];++at)sha_byte(&hash,(uint8_t)files[4].text[at]);sha_end(&hash,digest);
     check(!strcmp(compile_error_path(),"H:/bad.inc"));
     load("{$I missing}\nbegin end.");check(!compile(&s,&b,&d)&&d.code==90);
-    check(!strcmp(compile_error_path(),"H:/missing.PAS")&&pages_used()==1);
+    check(!strcmp(compile_error_path(),"H:/missing.pas")&&pages_used()==1);
     invalid("{$I nested.inc}\nbegin end.",93);check(!strcmp(compile_error_path(),"H:/nested.inc"));
     invalid("{$I SLICE.PAS}\nbegin end.",93);
     invalid("begin {$I values.inc}end.",93);

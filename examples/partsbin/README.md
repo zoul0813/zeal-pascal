@@ -11,8 +11,7 @@ The included executable is standalone: it needs neither the IDE nor its ZPL libr
 To edit and rebuild, start the installed IDE from this same directory (for example
 `T:/bin/zpascal.bin`) and use W to open `partsbin.pas`. Choose O, M, Q for
 Memory output, then R. After the run, Escape returns to the IDE. For a saved
-executable choose O, C, Q and C; the compiler writes `partsbin.COM` and a source
-map. That COM is the same native executable format as the supplied `.bin`.
+executable choose O, C, Q and C; the compiler writes `partsbin.bin` beside the source.
 The normal automatic Start and default End settings suffice.
 
 Keep the current directory set to this folder: opening a source file does not
@@ -24,7 +23,7 @@ it changes where relative data filenames resolve.
 On a fresh directory, type `demo.in`: answer Y to create `parts.dat`, then A
 adds 74HC00 / Quad NAND gate with quantity zero. U, 74HC00, 2 receives two parts.
 L lists them. U, 74HC00, 10 receives ten more; U, 74HC00, -20 is refused.
-L shows quantity 12. Quit, run the binary again, and type `reopen.in`: L still
+L shows quantity 12. Quit, run the Bin-file again, and type `reopen.in`: L still
 shows 12.
 
 Commands: A add a code/name at quantity zero, L list, U update by a signed

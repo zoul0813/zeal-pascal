@@ -139,7 +139,7 @@ def publication_error():
         'failed validation and distinct ROM-drive cleanup both exercised':len(injected)==1 and observed.get('cleanup_error')not in (None,0,1),
         'primary publication error survives cleanup failure':b'Output failed, native error 1.'in text,
         'failed cleanup retains exact owned scratch for retry':observed.get('retained')is True,
-        'subsequent compile publishes a standalone executable':len(readers)==2 and readers[-1].get(build+4)==0 and (disk/'project/main.COM').is_file()and not(disk/'project/main.ZMP').exists(),
+        'subsequent compile publishes a standalone executable':len(readers)==2 and readers[-1].get(build+4)==0 and (disk/'project/main.bin').is_file()and not(disk/'project/main.ZMP').exists(),
         'source remains exact and retry removes owned scratch':bool(injected)and(disk/'project/main.pas').read_bytes()==source and not(disk/injected[0][3:]).exists(),
         'all qualification inputs unchanged':all(n.sha(Path(p))==h for p,h in hashes.items()),
     }

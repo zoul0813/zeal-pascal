@@ -47,7 +47,7 @@ def native_case(n,label,with_file):
     word=lambda name:memory.get(sym[name],0)|(memory.get(sym[name]+1,0)<<8)
     assert memory.get(sym['_test_done'])==255 and word('_test_failed')==0,raw[-2000:]
     folder=n.RUN/(label+'-compile')/'hostfs'
-    base=bytearray((folder/'BASE.COM').read_bytes());chain=(folder/'CHAIN.CHN').read_bytes()
+    base=bytearray((folder/'base.bin').read_bytes());chain=(folder/'CHAIN.CHN').read_bytes()
     assert chain[192:196]==(ROOT/'build/pascal_runtime.profile').read_bytes()
     driver=(ROOT/'build/ztransferdriver.zpl').read_bytes()
     assert 0<len(driver)<=0x800 and u16(base,20)==0x9000 and u16(base,26)<0x800

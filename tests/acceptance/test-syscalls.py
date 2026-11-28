@@ -78,7 +78,7 @@ report={'passed':values['test_done']==255 and values['test_failed']==0 and value
 if report['passed']:
  # A direct shell launch leaves room for EXEC_PRESERVE; the nested harness can
  # legitimately exhaust CONFIG_KERNEL_MAX_NESTED_PROGRAMS instead.
- program=(n.RUN/'syscalls/hostfs/SYSCALLS.COM').read_bytes()
+ program=(n.RUN/'syscalls/hostfs/syscalls.bin').read_bytes()
  data=int.from_bytes(program[24:26],'little');done=int.from_bytes(program[0xa7:0xa9],'little') # JP at public RT_DONE ($40A6)
  commands=['run 100000000']+n.type_text('H:/SYSCALLS.COM')+['bp 0x4000','tap ENTER','run 1000000000','bc 0x4000',f'bp 0x{done:x}','s','run 1000000000','regs',f'rb 0x{data:x} 8','quit']
  direct=n.execute('syscalls-direct',commands,{'SYSCALLS.COM':program,'CHILD.COM':fixtures['CHILD.COM']},timeout=120,base_programs=())
@@ -87,7 +87,7 @@ if report['passed']:
  report['direct_exec']={'passed':frame.startswith(f'{done:04x} ')and status==0,'preserve_status':status,'capture':str(n.RUN)}
  report['passed']=report['direct_exec']['passed']
  if report['passed']:
-  exit_program=(n.RUN/'syscalls/hostfs/ZEXIT.COM').read_bytes()
+  exit_program=(n.RUN/'syscalls/hostfs/zexit.bin').read_bytes()
   report['exit_cleanup_failure']=measure.exit_cleanup_failure(n,exit_program)
   report['passed']=report['exit_cleanup_failure']['passed']
 (ROOT/'build/syscalls-test.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2));assert report['passed']

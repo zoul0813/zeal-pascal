@@ -54,7 +54,7 @@ def session(target,cases,optional):
         commands+=typed('wH:/'+name+'.PAS\n')+['tap C']+probe(name+'-memory')
         commands+=['tap R']+probe(name+'-enter',sym['_ram_enter'])
         if name in INPUTS:
-            commands+=[n.PhysicalLine(INPUTS[name],name+'.COM',1,source=('H:/'+name+'.PAS',CASES[name][1]))]
+            commands+=[n.PhysicalLine(INPUTS[name],name.lower()+'.bin',1,source=('H:/'+name+'.PAS',CASES[name][1]))]
         if name in INPUTS:
             # PhysicalLine has already resumed into the blocking IDE reader.
             commands+=['release ENTER','tap SPACE']
@@ -95,7 +95,7 @@ def session(target,cases,optional):
             checks[name+' saved compilation releases image cache']=read(name+'-saved',build,5)==bytes([255])*4+b'\0'
         checks['terminal page release before kernel cleanup']=frames['exit'][1].startswith(f"{kernel['zos_loader_exit']:04x} ")and read('exit',kernel['_page_owners'],32).count(2)==3
     directory=n.RUN/('optional-real-'+target)/'hostfs'
-    outputs={name:(directory/(name+'.COM')).read_bytes()for name in cases if(directory/(name+'.COM')).is_file()}
+    outputs={name:(directory/(name.lower()+'.bin')).read_bytes()for name in cases if(directory/(name.lower()+'.bin')).is_file()}
     checks['all requested COM outputs']=len(outputs)==len(cases)
     checks['source files retained']=all((directory/(name+'.PAS')).read_bytes()==fixtures[name+'.PAS']for name in cases)
     return {'passed':all(checks.values()),'checks':checks,'labels':labels,'capture_directory':str(n.RUN.relative_to(ROOT)),'target':target},outputs

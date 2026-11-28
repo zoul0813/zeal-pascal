@@ -2,6 +2,7 @@
 #define ZP_SOURCES_H
 #include "common/zp.h"
 
+uint8_t stat_path(const char *path) SOURCE_BLOCK_CALL;
 uint8_t sources_new(Sources *set) SOURCE_BLOCK_CALL;
 uint8_t sources_valid(const Sources *set) SOURCE_BLOCK_CALL;
 int16_t sources_find(const Sources *set,const char *path) SOURCE_BLOCK_CALL;

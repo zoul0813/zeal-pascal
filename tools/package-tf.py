@@ -105,7 +105,7 @@ raw = n.execute('project-tf-launch', commands, tf_image=installed, timeout=120)
 m = n.memory(raw)
 path = bytes(m.get(work+12+i, 0) for i in range(128)).split(b'\0')[0]
 if (m.get(sym['_code_owned']) != count or m.get(sym['_ide_state']) != 1
-        or path != b'T:/src/pascal/UNTITLED.pas'
+        or path != b'T:/src/pascal/untitled.pas'
         or (n.RUN/'project-tf-launch/tf.img').read_bytes() != installed):
     raise RuntimeError(f'Installed IDE did not pass startup validation; project card unchanged. Capture: {n.RUN}')
 if not all(n.sha(ROOT/name) == digest for name, digest in hashes.items()):

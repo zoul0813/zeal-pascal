@@ -10,20 +10,6 @@ static char binary[128];
 void test_complete(void);
 void test_eof_return(void);
 static void screen_replay(const char *output_path);
-/* Use exactly the published native image, with the requested .bin name. */
-static uint8_t publish_bin(void) {
-    int8_t file;uint16_t offset=0,size,expected,i;uint8_t ok=1;
-    strcpy(binary,s.path);strcpy(binary+strlen(binary)-4,".bin");
-    file=open(binary,O_WRONLY|O_CREAT|O_TRUNC);if(file<0)return 0;
-    while(offset<b.length&&ok) {
-        size=b.length-offset;if(size>128)size=128;expected=size;
-        for(i=0;i<size;++i)console_scratch[i]=image_get(&b,offset+i);
-        if(write(file,console_scratch,&size)||size!=expected)ok=0;
-        offset+=size;
-    }
-    if(close(file))ok=0;
-    return ok;
-}
 static void replay(const char *output_path) {
     int8_t capture;
     if(test_stage==1){screen_replay(output_path);return;}
@@ -161,14 +147,17 @@ static void check_terminal(void) {
     check(ok);
 }
 static uint8_t prepare(const char *path) {
+    zos_stat_t info;uint8_t saved;
     if(!load_source(&s,path,&d)){check(0);return 0;}
     check(1);
     if(!compile(&s,&b,&d)) {
         check(0);output("EXAMPLE COMPILE ");output(path);output(" error ");
         output_number(d.code);output(" at ");output_number(d.start);output("\n");return 0;
     }
-    check(b.valid);check(save_build(&s,&b,0));
-    if(publish_bin()){check(1);return 1;}else {check(0);return 0;}
+    check(b.valid);
+    saved=save_build(&s,&b,0);check(saved);if(!saved)return 0;
+    strcpy(binary,output_path());
+    check(!stat(binary,&info)&&info.s_size==b.length);return 1;
 }
 static uint8_t example(const char *path,const char *output_path) {
     uint8_t ready=prepare(path);

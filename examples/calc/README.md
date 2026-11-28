@@ -7,9 +7,9 @@ recursive-descent interpreter written in Pascal.
 
 Copy this entire folder to Zeal, then in ZShell use `cd T:/examples/calc` and
 `./calc.bin` (or `cd H:/calc` when HostFS points at the examples tree). The
-standalone binary needs no IDE library. To rebuild, start the IDE from this
-folder, open `calc.pas`, and compile in Memory mode or saved Com-file mode.
-The saved `calc.COM` has the same native executable format as `calc.bin`.
+standalone Bin-file needs no IDE library. To rebuild, start the IDE from this
+folder, open `calc.pas`, and compile in Memory mode or saved Bin-file mode.
+The compiler saves the executable as `calc.bin`.
 
 ## Try it
 
@@ -46,5 +46,5 @@ scientific format. Real6 has finite precision: this is floating-point arithmetic
 `errors.in` exercises trailing input, malformed numbers, unknown names, tiny
 and zero divisors, magnitude limits, unary depth and parentheses at both sides
 of the depth boundary. A valid expression after errors demonstrates recovery.
-All source, both input transcripts and the rebuilt standalone binary live here.
-No files are written. These are native Zeal executables, not CP/M binaries.
+All source, both input transcripts and the rebuilt standalone Bin-file live here.
+No files are written. The supplied Bin-file runs on ZOS.

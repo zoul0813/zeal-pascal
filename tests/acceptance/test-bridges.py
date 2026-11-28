@@ -97,7 +97,7 @@ def main():
             (disk/'BRIDGE.DAT').is_file()and(disk/'BRIDGE.DAT').read_bytes()==bytes.fromhex('030002000b0016002100'))
     else:
         alias,probe=('BRIDGERELOC','stringabi')if corpus=='routines'else('BRIDGEARGS','realabi')
-        binary=(disk/(alias+'.COM')).read_bytes();payload=(ROOT/'build'/f'{probe}.zpl').read_bytes()
+        binary=(disk/(alias.lower()+'.bin')).read_bytes();payload=(ROOT/'build'/f'{probe}.zpl').read_bytes()
         checks['ordinary public ABI payload matches independently assembled probe']=binary[(0x4004 if probe=='stringabi' else 0x400a):(0x4004 if probe=='stringabi' else 0x400a)+len(payload)]==payload
     report={'scope':__doc__+' This qualifies nested addresses, not yet Pascal device/ErrorPtr hooks or full conformance.',
             'passed':all(checks.values()),'corpus':corpus,'actual_staged_fixtures':samples,

@@ -120,10 +120,10 @@ def main():
     checks={'no harness input error':not(folder/'input-error.json').exists(),
             'native Unit published':(files/'BOUNDARY.ZPU').exists(),
             'Pascal native scalar/VAR calls, caller flags and live MMU aliases':state.get(sym['_ram_result']+26)==1,
-            'client compiles to COM':(files/'CLIENT.COM').exists(),
+            'client compiles to COM':(files/'client.bin').exists(),
             'no Unit scratch':not(files/'BOUNDARY.$PU').exists(),
-            'native leaves retain one-page clients':(files/'CLIENT.COM').is_file() and bool((files/'CLIENT.COM').read_bytes()[18]&4),
-            'fullmemory leaf requests independent windows':(files/'FULL.COM').is_file() and not((files/'FULL.COM').read_bytes()[18]&6) and control.get(sym['_ram_result']+26)==1}
+            'native leaves retain one-page clients':(files/'client.bin').is_file() and bool((files/'client.bin').read_bytes()[18]&4),
+            'fullmemory leaf requests independent windows':(files/'full.bin').is_file() and not((files/'full.bin').read_bytes()[18]&6) and control.get(sym['_ram_result']+26)==1}
     checks.update({'reject '+name:ok for name,ok in rejected_declarations(sym).items()})
     report={'passed':all(checks.values()),'checks':checks,'capture':str(folder)}
     (n.RUN/'unit-native-report.json').write_text(json.dumps(report,indent=2)+'\n')

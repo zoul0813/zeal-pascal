@@ -16,7 +16,7 @@ ROOT=Path(__file__).resolve().parents[2]
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--snake',type=Path,default=ROOT/'build/zvb/SNAKE.COM')
+    parser.add_argument('--snake',type=Path,default=ROOT/'build/zvb/snake.bin')
     parser.add_argument('--emulator',type=Path)
     args=parser.parse_args()
     spec=importlib.util.spec_from_file_location('native',ROOT/'tests/acceptance/test-native.py')

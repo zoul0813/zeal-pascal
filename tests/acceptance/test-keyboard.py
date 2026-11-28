@@ -54,7 +54,7 @@ def main():
     for memory_mode in (1,0):
         # Finish the prior program/phase reload before qualifying the next
         # reader. A kernel input breakpoint alone can belong to the old child.
-        commands+=['run 4000000000'];ready('KEYUQUEUE.COM',memory_mode)
+        commands+=['run 4000000000'];ready('keyuqueue.bin',memory_mode)
         commands+=n.type_text(''.join(chr(97+i%26)for i in range(270)),ticks=2000000)
         commands+=['run 100000000']
     # U- KeyPressed can own Ctrl-C already when a later statement enables U.
@@ -77,7 +77,7 @@ def main():
     supervisor=bytes(memory.get(0x4000+i,0)for i in range(32))==(ROOT/f'build/{target}.bin').read_bytes()[:32]
     disk=n.RUN/'keyboard-stream/hostfs'
     private=json.loads((ROOT/'build/pascal_runtime.runtime.json').read_text())['private_input_addresses']
-    high=disk/'KEYHIGH.COM'
+    high=disk/'keyhigh.bin'
     high_target=int.from_bytes(high.read_bytes()[private[6]-0x4000+1:private[6]-0x4000+3],'little')if high.exists()else 0
     checks={
         'native completion':supervisor and memory.get(sym['_test_done'])==255 and word('_test_stage')==6,

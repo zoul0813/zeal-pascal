@@ -55,7 +55,7 @@ def main():
                 name = command.removeprefix('@compiled-')
                 host = self.directory/'hostfs'
                 assert (host/'ZP0000/OLD.COM').read_bytes() == b'older saved image; retain'
-                path = host/(name+'.COM')
+                path = host/(name.lower()+'.bin')
                 assert path.exists(), f'{name}: native compilation/publication failed; see {self.directory}'
                 if name in images:
                     for old,bytes_ in companions[name].items():assert (host/old).read_bytes()==bytes_
@@ -73,7 +73,7 @@ def main():
                 folder = match[0][:-3].decode('ascii')
                 companions[name] = {str(p.relative_to(host)): p.read_bytes() for p in (host/folder).glob('P.*')}
                 assert companions[name]
-                assert not list(host.glob('*.$$$')) and not list((host/folder).glob('*.COM'))
+                assert not list(host.glob('*.$$$')) and not list((host/folder).glob('*.bin'))
                 return ''
             if command=='@find':
                 # F recovers a wrapped overlay PC using source alone.
@@ -81,7 +81,7 @@ def main():
                 size=word(payload,20);offset=struct.unpack_from('<I',payload,24)[0]
                 body=payload[offset:offset+size];guard=body.index(b'\xcd\x1a\x41')
                 pc=word(body,guard+5)
-                (self.directory/'hostfs/SHEETOVR.COM').unlink()
+                (self.directory/'hostfs/sheetovr.bin').unlink()
                 for c in typed('wH:/SHEETOVR.PAS\n')+['run 100000000']+typed('of'+f'{pc:04x}'):call(c)
                 out,num,key=sym['_output'],sym['_output_number'],sym['_key_read']
                 for at in (out,num,key):call(f'bp 0x{at:x}')

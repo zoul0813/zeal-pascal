@@ -19,11 +19,11 @@ block until it ticks.
 
 Install `ZVB.ZPU` and `CRT.ZPU` beside `zpascal.zpl`, or on the compiler's
 unit search path. Save the demo's Pascal source with **S**, select
-**O → C (Com-file) → Q**, then press **C** to compile. The COM is written beside
-the source. Run it from ZShell, or press **R** in Com-file mode to compile and run.
+**O → C (Bin-file) → Q**, then press **C** to compile. The Bin-file is written beside
+the source. Run it from ZShell, or press **R** in Bin-file mode to compile and run.
 
 Memory mode (**O → M → Q**) compiles and runs from RAM without a disk workspace.
-To publish a COM after Memory testing, select Com-file and compile again. The latest Snake source is qualified through Com-file mode. Its asset includes
+To publish a Bin-file after Memory testing, select Bin-file and compile again. The latest Snake source is qualified through Bin-file mode. Its asset includes
 exceed the compiler RAM available at the Memory-mode peak; that path is not
 qualified for Snake.
 
@@ -83,11 +83,11 @@ replay still requires the keyboard. Physical-controller testing is separate.
 
 This version is silent, matching C; the earlier added sound effects are removed. `--demo` runs the title then 180 finite gameplay frames.
 The snake tiles, selected title/score glyphs, numbers and palettes are the original SDK pixels,
-embedded in one COM using the verified SDK LZ codec (2,139 compressed bytes).
+embedded in one Bin-file using the verified SDK LZ codec (2,139 compressed bytes).
 The checkerboard's two colored tiles are generated in code, as in C.
 CPU startup before the title now takes 1.80 s instead of 29.66 s; C takes 0.33 s.
 The library decodes RLE/LZ chunks in a bounded Z80 stream rather than a per-pixel
-Pascal loop. These timings exclude COM disk loading and the title animation.
+Pascal loop. These timings exclude Bin-file disk loading and the title animation.
 The raw-asset experiments still fail compiler error99, so the compressed asset
 build remains the qualified version. This is a compiler resource issue, not a
 ZVB requirement for compressed tiles. No asset file is opened while playing.
@@ -144,12 +144,12 @@ pixel coordinates and physical addresses.
 
 ## Snake build size
 
-The current Snake Com-file build is 35,844 bytes: 6,042 runtime, 957 globals
+The current Snake Bin-file build is 35,844 bytes: 6,042 runtime, 957 globals
 and 28,845 code. The runtime's omitted Real code leaves no padded reservation.
 The final globals/code addresses are assigned at link time. See the
 [Unit memory guide](../../docs/units.md#program-memory-layout).
 
-Snake remains one self-contained COM and completes its saved 180-frame demo
+Snake remains one self-contained Bin-file and completes its saved 180-frame demo
 without PAS, INC or ZPU files. The collision wipe remains slower than the C
 reference; full timing parity is not established. Memory-mode compilation is
 not qualified for this larger source.

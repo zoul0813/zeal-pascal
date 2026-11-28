@@ -42,10 +42,10 @@ def media_checks():
                       tf_image=n.prepare_media(),eeprom_image=n.MEDIA/'eeprom-empty.img',timeout=600)
         frames=re.split(r'\[DBG\] PC=',raw)[1:]
         files=n.zealfs_files((n.RUN/label/('tf.img'if drive=='T'else'eeprom.img')).read_bytes())
-        checks[drive+' publishes declared unit and imports it into COM']=all(path in files for path in ('/MATHSRC.PAS','/CALC.ZPU','/REALCLIENT.PAS','/REALCLIENT.COM'))
+        checks[drive+' publishes declared unit and imports it into COM']=all(path in files for path in ('/MATHSRC.PAS','/CALC.ZPU','/REALCLIENT.PAS','/realclient.bin'))
         checks[drive+' removes owned unit scratch']='/'+'MATHSRC.$PU'not in files
-        if '/REALCLIENT.COM'in files:
-            checks[drive+' includes required Real engine']=files['/REALCLIENT.COM'][3466:14285]==(ROOT/'build/pascal_runtime.zpl').read_bytes()[3466:14285]
+        if '/realclient.bin'in files:
+            checks[drive+' includes required Real engine']=files['/realclient.bin'][3466:14285]==(ROOT/'build/pascal_runtime.zpl').read_bytes()[3466:14285]
         checks[drive+' releases transient I/O and pending allocations']=len(frames)==2 and all(
             all(n.memory(frame).get(sym['_code_pages']+i)==255 for i in (16,17,18)) and all(n.memory(frame).get(sym['_code_phase_pending']+i)==255 for i in range(count))for frame in frames)
     return checks
@@ -115,7 +115,7 @@ def main():
     folder=n.RUN/'ide-units/hostfs';images={}
     core=(ROOT/'build/integer_runtime.zpl').read_bytes();full=(ROOT/'build/pascal_runtime.zpl').read_bytes()
     for name in CLIENTS:
-        path=folder/(name+'.COM');checks[name+' saved executable exists']=path.is_file()
+        path=folder/(name.lower()+'.bin');checks[name+' saved executable exists']=path.is_file()
         if path.is_file():
             images[name]=path.read_bytes();checks[name+' selects used runtime']=images[name][3466:14285]==(full if name=='REALCLIENT'else core)[3466:14285]
     archive=folder/'CALC.ZPU';checks['unit name selects output filename']=archive.is_file()and not(folder/'MATHSRC.ZPU').exists()
@@ -130,10 +130,10 @@ def main():
             def remove(command,response,directory):
                 if command=='run 100000000'and not deleted:
                     for path in (directory/'hostfs').iterdir():
-                        if path.name!=parent+'.bin'and path.suffix.lower()in('.bin','.zpl','.zpu','.pas'):
+                        if path.name not in (parent+'.bin',name.lower()+'.bin')and path.suffix.lower()in('.bin','.zpl','.zpu','.pas'):
                             path.unlink();deleted.append(path.name)
                     assert deleted
-            media={name+'.COM':image,parent+'.bin':(ROOT/f'build/{parent}.bin').read_bytes(),'PARENT.TXT':b'\0\0'+('H:/'+name+'.COM').encode()}
+            media={name.lower()+'.bin':image,parent+'.bin':(ROOT/f'build/{parent}.bin').read_bytes(),'PARENT.TXT':b'\0\0'+('H:/'+name.lower()+'.bin').encode()}
             commands=['run 100000000']+n.type_text('H:/'+parent+'.bin',ticks=2000000)
             commands += [f"bp 0x{ps['_execute_parent_stop']:x}",'tap ENTER','run 10000000000','regs']
             for field in ('_test_done','_test_passed','_test_failed'):commands += [f'rb 0x{ps[field]:x} 2']
@@ -144,7 +144,7 @@ def main():
             output=(n.RUN/label/'hostfs/RESULT.TXT').read_bytes()
             marker=b'IDE-UNIT-'+(b'REAL'if name=='REALCLIENT'else b'INTEGER')+b'-OK\r\n'
             checks[name+' standalone status output and page recovery']=state.get(ps['_test_done'])==255 and word('_test_passed')>0 and word('_test_failed')==0 and marker in output
-            checks[name+' standalone without compiler or libraries']=not any(path.name!=parent+'.bin'and path.suffix.lower()in('.bin','.zpl','.zpu','.pas')for path in(n.RUN/label/'hostfs').iterdir())
+            checks[name+' standalone without compiler or libraries']=not any(path.name not in (parent+'.bin',name.lower()+'.bin')and path.suffix.lower()in('.bin','.zpl','.zpu','.pas')for path in(n.RUN/label/'hostfs').iterdir())
     checks.update(media_checks())
     report={'passed':all(checks.values()),'checks':checks,'capture_directory':str(n.RUN.relative_to(ROOT)),
             'unit_sha256':hashlib.sha256(archive.read_bytes()).hexdigest()if archive.exists()else None}

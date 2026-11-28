@@ -39,10 +39,10 @@ def component():
         'native compilation, CHN run rejection, publication, F lookup and ownership':word('_test_failed')==0 and word('_test_passed')>=20,
         'source files remain unchanged':all((folder/name).read_bytes()==source for name in ('BASE.PAS','CHAIN.PAS')),
         'successful replacement cleans only its transaction directories':not list(folder.glob('ZP*')),
-        'CHN compilation does not produce an ordinary COM':not (folder/'CHAIN.COM').exists()}
+        'CHN compilation does not produce an ordinary COM':not (folder/'chain.bin').exists()}
     chain=(folder/'CHAIN.CHN').read_bytes()
     try:
-        identity(chain,True);identity((folder/'BASE.COM').read_bytes(),False)
+        identity(chain,True);identity((folder/'base.bin').read_bytes(),False)
         checks['independent CHN/COM format bounds match']=True
         checks['chain uses the requested Start/End and omits runtime/globals']=u16(chain,10)==0x9000 and u16(chain,18)==0xfbff and len(chain)==96+u16(chain,12)
     except(AssertionError,ValueError,struct.error):checks['independent artifact validation']=False
@@ -51,7 +51,7 @@ def component():
 
 def activation(folder):
     chain=(folder/'CHAIN.CHN').read_bytes()
-    base=(folder/'BASE.COM').read_bytes();origin,size=u16(chain,10),u16(chain,12)
+    base=(folder/'base.bin').read_bytes();origin,size=u16(chain,10),u16(chain,12)
     # This executable adapter is test-only: it places the actual compiler CHN
     # code over a caller prefix with stale targets and caller-owned globals.
     # It does not implement or qualify the production Chain file/heap loader.
@@ -141,7 +141,7 @@ def ide():
     folder=n.RUN/'chain-ide/hostfs';chain=(folder/'project/main.CHN').read_bytes()
     identity(chain,True)
     checks['CHN output needs no source-map sidecar']=not(folder/'project/main.ZMP').exists()
-    checks['no implicit PAS save or COM creation']=(folder/'project/main.pas').read_bytes()==source and not(folder/'project/main.COM').exists()
+    checks['no implicit PAS save or COM creation']=(folder/'project/main.pas').read_bytes()==source and not(folder/'project/main.bin').exists()
     return checks
 
 

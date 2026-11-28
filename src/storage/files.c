@@ -14,6 +14,7 @@
 #include "common/path.h"
 #include "source/catalog.h"
 #include "storage/transport.h"
+#include "storage/names.h"
 #include <zos_vfs.h>
 #include <zos_errors.h>
 #include <zos_sys.h>
@@ -23,7 +24,7 @@ static char destinations[2][128],member[128];
 static uint8_t build_prepared,prepared_chain;
 const char *output_path(void) SOURCE_BLOCK_CALL { return destinations[0]; }
 
-static uint8_t stat_path(const char *path) {
+uint8_t stat_path(const char *path) SOURCE_BLOCK_CALL {
     strcpy((char*)console_scratch,path);
     return stat((char*)console_scratch,(zos_stat_t*)(console_scratch+128));
 }
@@ -48,7 +49,7 @@ static uint8_t parent_dirs(const char *path,uint8_t create) {
     return 1;
 }
 static uint8_t paths(const Source *s,uint8_t chain) {
-    return !build_prepared&&path_program(s->path,destinations[0],chain);
+    return !build_prepared&&build_path(s,destinations[0],chain);
 }
 static uint8_t ordinary_file(const char *path,uint8_t *exists);
 /* The pinned HostFS cannot reliably truncate in place. Remove only a checked
@@ -72,12 +73,13 @@ static uint8_t do_save_build(const Source *s,const Build *b) {
     if(!build_ready(s,b)) {platform_error=ERR_FAILURE;return 0;}
     chain=build_is_chain(b);
     if(build_prepared) {
-        if(chain!=prepared_chain||!path_program(s->path,expected,chain)||
+        if(chain!=prepared_chain||!build_path(s,expected,chain)||
            strcmp(expected,destinations[0])) {
             platform_error=ERR_INVALID_PATH;return 0;
         }
     } else if(!paths(s,chain)) {platform_error=ERR_INVALID_PATH;return 0;}
-    if(!strcmp(s->path,destinations[0])||sources_find(&b->sources,destinations[0])>=0) {
+    if(output_conflicts(s,b,destinations[0])||
+       (cc_disk_active(b)&&same_file_name(cc_disk_path(),destinations[0]))) {
         platform_error=ERR_INVALID_PATH;return 0;
     }
     if(!ordinary_file(destinations[0],&exists))return 0;
@@ -125,7 +127,7 @@ static uint8_t do_save_source(Source *s,uint8_t replace_backup) {
     uint16_t extension;
     uint8_t exists,backup,error;
     platform_error=0;
-    if(!paths(s,0)) {platform_error=ERR_INVALID_PATH;return 0;}
+    if(build_prepared||!path_program(s->path,destinations[0],0)) {platform_error=ERR_INVALID_PATH;return 0;}
     strcpy(destinations[1],destinations[0]);extension=(uint16_t)strlen(destinations[1]);
     extension-=3;strcpy(destinations[1]+extension,"BAK");
     if(!strcmp(s->path,destinations[1])) {platform_error=ERR_INVALID_PATH;return 0;}

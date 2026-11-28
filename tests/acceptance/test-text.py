@@ -80,7 +80,7 @@ def main():
         checks['Rename removes old names only after verified publication and suppresses pending transfers']=all(
             not (disk/name).exists() for name in ('RNOLD.TXT','RNINT.OLD','RNNEST.OLD','RNOPEN.NEW','RNSKIPPED','RNNOTMADE'))
     if chunks.wants('disk-format'):
-        image=(disk/'TEXTDISK.COM').read_bytes() if (disk/'TEXTDISK.COM').is_file() else b''
+        image=(disk/'textdisk.bin').read_bytes() if (disk/'textdisk.bin').is_file() else b''
         checks['standalone Text executable embeds exact packed component and one shared decoder']=(
             (ROOT/'build/file_runtime.packed').read_bytes() in image and
             image.count((ROOT/'build/module_unpack.zpl').read_bytes())==1 and

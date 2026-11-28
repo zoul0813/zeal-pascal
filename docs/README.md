@@ -13,7 +13,7 @@ and short demonstrations.
 | Download and install the IDE | [Release installation](../README.md#download-and-install) |
 | Build the compiler and stock Units | [Full source build](building.md#fresh-compiler-and-pascal-units) |
 | Look up an editor key | [Editor commands](ide.md#editor-commands) |
-| Choose RAM, COM, CHN or Unit output | [Compilation modes](ide.md#compilation-modes) |
+| Choose RAM, Bin-file, CHN or Unit output | [Compilation modes](ide.md#compilation-modes) |
 | Trace a crash back to source | [Errors and source lookup](ide.md#errors-and-source-lookup) |
 | Check a grammar rule | [Syntax summary](language.md#syntax-summary) |
 | See what a `{$...}` directive does | [Directives](language.md#compiler-directives-and-includes) |

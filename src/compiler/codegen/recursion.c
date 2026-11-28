@@ -6,9 +6,11 @@
 /* TP3 A- saves/restores the Pascal workspace on a separate recursion stack.
  * Native lexical/callback metadata keeps the existing trusted CPU frame ABI. */
 static uint16_t width(uint16_t id) {
+    uint8_t role;
     if(CCS(id,owner)!=cc.scope) return 0;
-    if(CCS(id,role)==S_REFERENCE)return 2;
-    if(CCS(id,role)!=S_VARIABLE&&CCS(id,role)!=S_VALUE&&CCS(id,role)!=S_RESULT)return 0;
+    role=CCS(id,role);
+    if(role==S_REFERENCE)return 2;
+    if(role!=S_VARIABLE&&role!=S_VALUE&&role!=S_RESULT)return 0;
     return CCT(CCS(id,type),width);
 }
 static uint16_t workspace(void) {

@@ -122,7 +122,7 @@ int app_main(void) {
     if(capture>=0)check(swap(capture,DEV_STDOUT)==0);
     test_stage=53;
     execution(client,1,0);
-    check(copy_named("H:/SLICE.COM","H:/SMALL.COM"));
+    check(copy_named("H:/slice.bin","H:/small.bin"));
     check(copy_named("H:/TILEMATH.ZPU","H:/SMALL.ZPU"));
     strcpy(expanded,"unit TileMath;interface\nfunction TileOffset(X,Y:Integer):Integer;\n"
         "function Unused(X:Integer):Integer;implementation\nfunction TileOffset(X,Y:Integer):Integer;\n"
@@ -130,13 +130,13 @@ int app_main(void) {
     for(i=0;i<20;++i)strcat(expanded,"Unused:=X+1;\n");
     strcat(expanded,"Unused:=X+999 end;end.");
     author("H:/TILEMATH.PAS","H:/TILEMATH.ZPU",expanded,0);
-    execution(client,1,0);check(copy_named("H:/SLICE.COM","H:/LARGE.COM"));
+    execution(client,1,0);check(copy_named("H:/slice.bin","H:/large.bin"));
     check(copy_named("H:/TILEMATH.ZPU","H:/LARGE.ZPU"));
     check(rm("H:/TILEMATH.PAS")==0);check(rm("H:/OFFSETS.PAS")==0);
     execution(client,1,0);
     /* Direct SDK execution has no compiler source/readiness checks. */
     check(rm("H:/TILEMATH.ZPU")==0);check(rm("H:/OFFSETS.ZPU")==0);
-    status=255;check(exec(EXEC_PRESERVE_PROGRAM,"H:/SLICE.COM",0,&status)==0&&status==0);
+    status=255;check(exec(EXEC_PRESERVE_PROGRAM,"H:/slice.bin",0,&status)==0&&status==0);
     check(pages_used()==cached_code_pages()+1);
     author("H:/VARS.PAS","H:/VARS.ZPU",
         "unit Vars;interface procedure Bump(var X:Integer);implementation procedure Bump(var X:Integer);begin X:=X+1 end;end.",0);
@@ -187,7 +187,7 @@ int app_main(void) {
         "N:=41;PrivateOps.ShadowHook(N);if N<>42 then halt;\n"
         "if EchoByte(255)<>255 then halt;if EchoChar('Z')<>'Z' then halt;\n"
         "Untyped(N);if N<>17 then halt;writeln('UNIT-PRIVATE-OK')end.",1,0);
-    check(copy_named("H:/SLICE.COM","H:/PRIVATE.COM"));
+    check(copy_named("H:/slice.bin","H:/private.bin"));
     fault_location();shared_authoring_path();
     unit_diagnostic=d.code;
 done:

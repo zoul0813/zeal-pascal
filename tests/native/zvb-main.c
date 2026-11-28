@@ -64,7 +64,7 @@ static void file_client(const char *path,uint8_t demo,uint8_t real) {
         test_clients[index][1]=b.code_bytes;test_clients[index][2]=b.globals_bytes;
         test_clients[index][3]=b.length;
         check(!!cc.real_needed==real);check(save_build(&s,&b,0));
-        strcpy(executable,path);strcpy(executable+strlen(executable)-3,"COM");
+        strcpy(executable,output_path());
         if(!demo) {
             ok=run_build(&s,&b);
             if(ram_result[26]!=1){d.code=ram_result[28];d.start=ram_result[30]|((uint16_t)ram_result[31]<<8);}
@@ -155,13 +155,13 @@ static void storage_suite(void) {
     file_client("H:/LACLIENT.PAS",0,0);file_client("H:/BOUND.PAS",0,0);
     reject_file("H:/FAILBIG.PAS",99);reject_file("H:/OVERFILE.PAS",UNIT_FORMAT);
     test_stage=60;storage_checkpoint();
-    if(present("H:/PGCLIENT.COM")) {
+    if(present("H:/pgclient.bin")) {
         uint8_t status=255;
-        check(!exec(EXEC_PRESERVE_PROGRAM,"H:/PGCLIENT.COM",0,&status)&&status==0);
+        check(!exec(EXEC_PRESERVE_PROGRAM,"H:/pgclient.bin",0,&status)&&status==0);
     }
-    if(present("H:/HICLIENT.COM")) {
+    if(present("H:/hiclient.bin")) {
         uint8_t status=255;
-        check(!exec(EXEC_PRESERVE_PROGRAM,"H:/HICLIENT.COM",0,&status)&&status==0);
+        check(!exec(EXEC_PRESERVE_PROGRAM,"H:/hiclient.bin",0,&status)&&status==0);
     }
 }
 
@@ -200,7 +200,7 @@ int app_main(void) {
         "if(B[0]<>99)or(B[1]<>77)or(B[2]<>11)then Z:=1 div Z;\n"
         "W:=32768;Copy(Mem[$4000],Mem[$4000],W);W:=0;Copy(A,B,W);FillChar(B,W,123);\n"
         "if(B[0]<>99)or(B[1]<>77)or(B[2]<>11)then Z:=1 div Z end.",0);
-    check(!rm("H:/HWPROBE.ZPU"));check(!exec(EXEC_PRESERVE_PROGRAM,"H:/HWUSE.COM",0,&status)&&status==0);
+    check(!rm("H:/HWPROBE.ZPU"));check(!exec(EXEC_PRESERVE_PROGRAM,"H:/hwuse.bin",0,&status)&&status==0);
     author("H:/BADBYTE.PAS","H:/BADBYTE.ZPU","unit BadByte;interface procedure P;implementation var State:Word;procedure P;begin Inline(<State)end;end.",UNIT_UNSUPPORTED);
     author("H:/MIXFIX.PAS","H:/MIXFIX.ZPU","unit MixFix;interface procedure P;implementation var State:Word;procedure P;begin Inline(State+*)end;end.",UNIT_UNSUPPORTED);
     author("H:/TWODATA.PAS","H:/TWODATA.ZPU","unit TwoData;interface procedure P;implementation var State:Word;procedure P;begin Inline(State+State)end;end.",UNIT_UNSUPPORTED);

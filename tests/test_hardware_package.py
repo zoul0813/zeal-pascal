@@ -64,7 +64,7 @@ class Package(unittest.TestCase):
             self.put(source, case.encode())
             self.zvb['fixture_sha256'][case+'.PAS'] = sha(case.encode())
             self.zvb['program_sha256'][case] = sha((case+' binary').encode())
-            self.put_capture(self.z_capture/(case+'.COM'), (case+' binary').encode())
+            self.put_capture(self.z_capture/(case.lower()+'.bin'), (case+' binary').encode())
         self.put('examples/zvb/TILES.INC', b'assets')
         self.zvb['fixture_sha256']['TILES.INC'] = sha(b'assets')
         for path in ('examples/zvb/CREDITS.md', 'units/zvb/ZVB-LICENSE.txt', 'units/zvb/ZVB-NOTICE.txt'):
@@ -95,7 +95,7 @@ class Package(unittest.TestCase):
         for name, entry in m['files'].items():
             self.assertEqual(sha((self.output/name).read_bytes()), entry['sha256'])
         self.assertEqual((self.output/'examples/demo/demo.bin').read_bytes(), b'verified executable')
-        self.assertEqual((self.output/'zvb/CRTCHECK.COM').read_bytes(), b'SMOKE binary')
+        self.assertEqual((self.output/'zvb/crtcheck.bin').read_bytes(), b'SMOKE binary')
         self.assertEqual((self.output/'lib/ZOS.ZPU').read_bytes(), b'ZOS.ZPU')
         self.assertFalse(m['physical_hardware_passed'])
 

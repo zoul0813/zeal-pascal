@@ -14,10 +14,10 @@ specification.
 | `zpascal.zpl` | Compiler/IDE bank container | Running the IDE. It is not a unit and is never imported |
 | `NAME.ZPU` | One compiled Pascal unit | Compiling a program that declares `uses Name` |
 | `NAME.PAS` | Unit source | Rebuilding the unit and source navigation; not needed for import or execution |
-| `PROGRAM.COM` | Saved program | Running it. Needs none of the files above |
+| `program.bin` | Saved program | Running it. Needs none of the files above |
 
 Linking is static. The compiler reads a ZPU only while compiling a client and
-copies the reachable code and data into the program. A saved COM runs after
+copies the reachable code and data into the program. A saved Bin-file runs after
 every ZPU, PAS and compiler file has been removed.
 
 **Real arithmetic is not a unit.** There is no `uses Real` and no `REAL.ZPU`.
@@ -30,7 +30,7 @@ Chain contract.
 
 ## Program memory layout
 
-A COM is a contiguous byte stream: runtime, globals, then selected program and
+A Bin-file is a contiguous byte stream: runtime, globals, then selected program and
 unit code. The linker assigns final addresses and rewrites symbolic references.
 Non-Real programs use a 6,042-byte runtime prefix rather than a padded 16 KiB
 prefix, recovering 10,342 bytes. There is no empty Real reservation. Real
@@ -40,10 +40,10 @@ Execution uses one, two or three physical 16 KiB pages according to the image,
 stack and control-space requirements. Small ordinary programs can share one
 physical page across the three CPU windows. Raw memory/Inline, explicit heap
 inspection, interrupt handlers and program transfers retain independent windows.
-RAM Run allocates only the distinct pages it needs. For a cold COM launch,
+RAM Run allocates only the distinct pages it needs. For a cold Bin-file launch,
 Zeal’s loader initially supplies three pages; program startup returns the
 surplus pages before entering Pascal code. These are hardware mappings and do
-not add page padding to saved binaries. The IDE/compiler retain their own
+not add page padding to saved Bin-files. The IDE/compiler retain their own
 separate pages while using RAM Run.
 
 File operations link selected helpers from the compiler-private `SYSFILE.ZPU`.
@@ -89,9 +89,9 @@ uses Calc;
 begin WriteLn(Twice(21), ' ', Calc.Twice(2)) end.
 ```
 
-Select Memory or Com-file mode, then **C** to compile or **R** to compile and
-run. Com-file mode writes the COM beside the program's Main source. Saving the
-source (**S**) and publishing a COM are separate actions.
+Select Memory or Bin-file mode, then **C** to compile or **R** to compile and
+run. Bin-file mode writes the Bin-file beside the program's Main source. Saving the
+source (**S**) and publishing a Bin-file are separate actions.
 
 **Lookup.** For `uses Calc`, the compiler tries `CALC.ZPU` beside the
 compilation root, then beside the `zpascal.zpl` actually loaded, including a

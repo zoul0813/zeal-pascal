@@ -53,7 +53,7 @@ def startup_probes(name,image,checks):
    if rejected:
     site=data.index(bytes.fromhex('f1472e1acf'),entry)
     data[site+1]=0x41 # BC is zero after LDIR: pfree must reject page zero.
-   label=f'{name}-iff{int(enabled)}-reject{int(rejected)}';file='PROBE.COM'
+   label=f'{name}-iff{int(enabled)}-reject{int(rejected)}';file='probe.bin'
    commands=['run 100000000']+n.type_text('H:/'+file,ticks=2000000)
    commands+=[f"bp 0x{kernel['zos_loader_exit']:x}",'tap ENTER','run 10000000000','regs',f"rb 0x{kernel['_page_owners']:x} 32",f"bc 0x{kernel['zos_loader_exit']:x}",f"bp 0x{kernel['keyboard_read']:x}",'s','run 1000000000','regs',f"rb 0x{kernel['_page_owners']:x} 32",'quit']
    raw=n.execute('compact-startup-'+label.lower(),commands,{file:bytes(data)},timeout=180)
@@ -98,7 +98,7 @@ def private_unit_probes(checks):
   n.execute('compact-private-'+label,commands,fixtures,timeout=900,console_class=FailureConsole,after_command=remove)
   checks['private file unit '+label+' diagnostic']=seen==[error]
   folder=n.RUN/('compact-private-'+label)/'hostfs'
-  checks['private file unit '+label+' publishes nothing']=not(folder/'PROBE.COM').exists()and not(folder/'UNUSED.DAT').exists()
+  checks['private file unit '+label+' publishes nothing']=not(folder/'probe.bin').exists()and not(folder/'UNUSED.DAT').exists()
   if unit_mode:checks['reserved authoring preserves shipped unit']=(folder/'SYSFILE.ZPU').read_bytes()==stock
 
 def main():
@@ -114,7 +114,7 @@ def main():
   fixtures={directory+name+'.PAS':source,'BYTEUNIT.ZPU':byte.byte_unit(255),'CRT.ZPU':(ROOT/'build/CRT.ZPU').read_bytes()}
   if name=='SHADOW':fixtures['shadow/SYSFILE.ZPU']=b'project shadow must be ignored'
   raw=n.execute('compact-'+name.lower(),commands,fixtures,timeout=900)
-  memory=n.memory(raw);folder=n.RUN/('compact-'+name.lower())/'hostfs';artifact=folder/directory/(name+'.COM')
+  memory=n.memory(raw);folder=n.RUN/('compact-'+name.lower())/'hostfs';artifact=folder/directory/(name.lower()+'.bin')
   checks[name+' RAM success']=memory.get(sym['_ram_result']+26)==1 and memory.get(sym['_ram_result']+28)==0
   checks[name+' saved image exists']=artifact.is_file()
   if not artifact.exists():continue
@@ -133,16 +133,16 @@ def main():
   def remove(command,response,directory):
    if command=='run 100000000'and not removed:
     for path in(directory/'hostfs').iterdir():
-     if path.name!=parent+'.bin'and path.suffix.lower()in('.bin','.zpl','.zpu','.pas','.inc'):path.unlink();removed.append(path.name)
+     if path.name not in (parent+'.bin',name.lower()+'.bin')and path.suffix.lower()in('.bin','.zpl','.zpu','.pas','.inc'):path.unlink();removed.append(path.name)
   commands=['run 100000000']+n.type_text('H:/'+parent+'.bin',ticks=2000000)+['tap ENTER',n.ImageStop(ps['_execute_parent_stop'],parent+'.bin'),'regs']
   commands +=[f"rb 0x{ps[k]:x} 2"for k in('_test_done','_test_passed','_test_failed')]+['quit']
-  observed=n.memory(n.execute('compact-detached-'+name.lower(),commands,{name+'.COM':data,parent+'.bin':(ROOT/('build/'+parent+'.bin')).read_bytes(),'PARENT.TXT':b'\0\0H:/'+name.encode()+b'.COM'},timeout=180,after_command=remove))
+  observed=n.memory(n.execute('compact-detached-'+name.lower(),commands,{name.lower()+'.bin':data,parent+'.bin':(ROOT/('build/'+parent+'.bin')).read_bytes(),'PARENT.TXT':b'\0\0H:/'+name.lower().encode()+b'.bin'},timeout=180,after_command=remove))
   w=lambda k:observed.get(ps[k],0)|(observed.get(ps[k]+1,0)<<8)
   checks[name+' saved success without compiler or units']=bool(removed)and observed.get(ps['_test_done'])==255 and w('_test_passed')>0 and w('_test_failed')==0
   kernel=n.kernel_symbols()
-  cold_commands=['run 100000000']+n.type_text('H:/'+name+'.COM',ticks=2000000)
-  cold_commands+=['tap ENTER',n.ImageStop(0x40a6,name+'.COM',0),'mmu',f"bp 0x{kernel['keyboard_read']:x}",'s','run 1000000000','regs',f"rb 0x{kernel['_page_owners']:x} 32",'quit']
-  cold=n.execute('compact-cold-'+name.lower(),cold_commands,{name+'.COM':data},timeout=180)
+  cold_commands=['run 100000000']+n.type_text('H:/'+name.lower()+'.bin',ticks=2000000)
+  cold_commands+=['tap ENTER',n.ImageStop(0x40a6,name.lower()+'.bin',0),'mmu',f"bp 0x{kernel['keyboard_read']:x}",'s','run 1000000000','regs',f"rb 0x{kernel['_page_owners']:x} 32",'quit']
+  cold=n.execute('compact-cold-'+name.lower(),cold_commands,{name.lower()+'.bin':data},timeout=180)
   frames=re.split(r'\[DBG\] PC=',cold)[1:]
   checks[name+' cold allocation checkpoints']=len(frames)==2
   if len(frames)==2:

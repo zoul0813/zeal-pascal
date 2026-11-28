@@ -73,7 +73,7 @@ static void phase_cases(void) {
     uint8_t phases=0,held[32],count=0,page;
     Source original;Build prior;
     for(bank=0;bank<code_required;++bank)if(CODE_DEFERRED(bank))++phases;
-    char path[]="H:/PHASE.PAS",text[]="begin end.",saved[]="H:/PHASE.COM";
+    char path[]="H:/PHASE.PAS",text[]="begin end.",saved[]="H:/phase.bin";
     int8_t fd;
     test_machine(machine_before);fd=open("H:/PHASE.BAD",O_RDONLY);
     if(fd>=0) {bad=1;check(!close(fd));}

@@ -146,7 +146,7 @@ def main():
             call = super().command
             if command.startswith('@saved-'):
                 name = command.removeprefix('@saved-')
-                images[name] = (self.directory/'hostfs'/f'{name}.COM').read_bytes()
+                images[name] = (self.directory/'hostfs'/f'{name.lower()}.bin').read_bytes()
                 return 'Retained native saved image\n'
             if not command.startswith('@run-'):
                 return super().command(command, capture)
@@ -158,9 +158,9 @@ def main():
             self.image_stop(n.ImageStop(sym['_ram_enter'], 'zpascal.bin'), capture=False)
             pages = list(self.read(sym['_ram_pages'], 3))
             cache = self.read(sym['_code_pages'], n.code_banks())
-            self.image_stop(n.ImageStop(startup(images[name]), name+'.COM', 1), capture=False)
+            self.image_stop(n.ImageStop(startup(images[name]), name.lower()+'.bin', 1), capture=False)
             if word(images[name], 18) & 2:
-                self.image_stop(n.ImageStop(word(images[name], 20), name+'.COM', 1), capture=False)
+                self.image_stop(n.ImageStop(word(images[name], 20), name.lower()+'.bin', 1), capture=False)
             mapping = call('mmu')
             heap_floor = word(self.read(0x415c, 2), 0)
             expected_floor = (word(images[name], 28)+1)&~1
@@ -216,7 +216,7 @@ def main():
                 call('tap R')
                 self.image_stop(n.ImageStop(sym['_ram_enter'], 'zpascal.bin'), capture=False)
                 checks['repeated Run reuses image handles'] = list(self.read(sym['_ram_pages'], 3)) == pages
-                self.image_stop(n.ImageStop(word(images[name], 20), name+'.COM', 1), capture=False)
+                self.image_stop(n.ImageStop(word(images[name], 20), name.lower()+'.bin', 1), capture=False)
                 # The declaration jump precedes this constant.
                 constant = word(images[name], 20)+3
                 checks['typed constant survives repeated Run'] = self.read(constant, 2) == b'\x01\x00'

@@ -76,7 +76,7 @@ def main():
 
         })
     disk=n.RUN/case/'hostfs'
-    checks['TP3 transitions save Main and repaired include without executable output']=(disk/'project/main.pas').read_bytes()==prefix+root and (disk/'project/parts/run.inc').read_bytes()==(part.splitlines()[0].decode()+"\nwriteln('"+marker+"');\n").encode() and not list(disk.rglob('*.COM'))
+    checks['TP3 transitions save Main and repaired include without executable output']=(disk/'project/main.pas').read_bytes()==prefix+root and (disk/'project/parts/run.inc').read_bytes()==(part.splitlines()[0].decode()+"\nwriteln('"+marker+"');\n").encode() and not any(p.name!='zpascal.bin' for p in disk.rglob('*.bin'))
     checks['all recorded inputs unchanged']=all(n.sha(Path(p))==h for p,h in hashes.items())
     report={'scope':__doc__+' Bounded emulator acceptance, not full IDE/hardware conformance.',
             'passed':all(checks.values()),'checks':checks,'capture_directory':str(n.RUN.relative_to(ROOT)),

@@ -31,7 +31,7 @@ def main():
     word=lambda name:state.get(sym[name],0)|(state.get(sym[name]+1,0)<<8)
     assert state.get(sym['_test_done'])==255 and word('_test_failed')==0,raw[-2000:]
     assertions=word('_test_passed');folder=n.RUN/'compiled-startup-compile/hostfs'
-    image=(folder/'CALLER.COM').read_bytes()
+    image=(folder/'caller.bin').read_bytes()
     entry=(ROOT/'build/execute_entry.zpl').read_bytes();normal=struct.unpack_from('<H',image,12)[0]
     assert normal==0x4000+len(image)-len(entry)and image[-len(entry):]==entry
     root=struct.unpack_from('<H',image,20)[0];es=n.symbols('execute_entry')

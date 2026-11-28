@@ -43,7 +43,7 @@ def main():
         checks[name+' execution markers']=output.count(('UNIT-'+name+'-OK\r\n').encode())==count
     core=(ROOT/'build/integer_runtime.zpl').read_bytes();full=(ROOT/'build/pascal_runtime.zpl').read_bytes()
     for name,real in [('INITUSE',False),('REVERSE',False),('ONLYINIT',True),('EMPTYUSE',False),('EMPTYRAM',False),('BRIDGERUN',True)]:
-        path=folder/(name+'.COM')
+        path=folder/(name.lower()+'.bin')
         checks[name+' selects correct Real engine']=path.is_file()and int.from_bytes(path.read_bytes()[132:134],'little')==(16383 if real else 6042)and (path.read_bytes()[3466:14285]==full[3466:14285] if real else n.compact_prefix_matches(path.read_bytes(),executed=True))
     checks['sources and libraries deleted']=all(not(folder/(name+ext)).exists()for name in ('TRACK','LEFT','RIGHT','EMPTY','INITREAL','INITFAULT','BRIDGE','INITCHAIN','CRT')for ext in ('.PAS','.ZPU'))
     # Mutation of a disposable saved CHN: run initialization before clearing
@@ -54,8 +54,8 @@ def main():
     child[start:start+14]=entry[4:]+entry[:4]
     parent='zexparent';ps=n.symbols(parent)
     media={parent+'.bin':(ROOT/f'build/{parent}.bin').read_bytes(),
-           'INITPARENT.COM':(folder/'INITPARENT.COM').read_bytes(),
-           'INITCHILD.CHN':bytes(child),'PARENT.TXT':b'\x02\0H:/INITPARENT.COM'}
+           'initparent.bin':(folder/'initparent.bin').read_bytes(),
+           'INITCHILD.CHN':bytes(child),'PARENT.TXT':b'\x02\0H:/initparent.bin'}
     commands=['run 100000000']+n.type_text('H:/'+parent+'.bin',ticks=2000000)
     commands += [f"bp 0x{ps['_execute_parent_stop']:x}",'tap ENTER','run 10000000000','regs']
     for field in ('_test_done','_test_passed','_test_failed'):commands += [f'rb 0x{ps[field]:x} 2']

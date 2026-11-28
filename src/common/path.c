@@ -64,7 +64,7 @@ uint8_t path_program(const char *root,char *out,uint8_t chain) PATH_CALL {
     }
     if(!dot)dot=n;
     if(dot+4>127||dot-base+4>15)return 0;
-    memcpy(out,canonical,dot);strcpy(out+dot,chain?".CHN":".COM");return 1;
+    memcpy(out,canonical,dot);strcpy(out+dot,chain?".CHN":".bin");return 1;
 }
 
 #endif

@@ -19,7 +19,7 @@ def canonical(raw):
 
 def mapping(directory,name):
     from artifact_format import validate_image
-    image=(directory/(name+'.COM')).read_bytes()
+    image=(directory/(name.lower()+'.bin')).read_bytes()
     assert not (directory/(name+'.ZMP')).exists()
     return validate_image(image)
 

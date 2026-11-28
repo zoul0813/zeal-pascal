@@ -25,17 +25,17 @@ def main():
         frames=re.split(r'\[DBG\] PC=',raw)[1:]
         checks[target+' reaches both saved compile checkpoints']=len(frames)==2 and all(frame.startswith(f"{sym['_key_read']:04x} ")for frame in frames)
         folder=n.RUN/label/'hostfs'
-        checks[target+' publishes both artifacts']=all((folder/name).is_file()for name in ('PARENT.COM','RCHAIN.CHN'))
+        checks[target+' publishes both artifacts']=all((folder/name).is_file()for name in ('parent.bin','RCHAIN.CHN'))
         if not checks[target+' publishes both artifacts']:continue
-        images[target]={name:(folder/name).read_bytes()for name in ('PARENT.COM','RCHAIN.CHN')}
+        images[target]={name:(folder/name).read_bytes()for name in ('parent.bin','RCHAIN.CHN')}
     checks['production parent and Real CHN match full-runtime control']=len(images)==2 and images['zpascal']==images['zlegacypascal']
     if checks['production parent and Real CHN match full-runtime control']:
         parent='zexparent';sym=n.symbols(parent);removed=[]
-        fixtures={**images['zpascal'],parent+'.bin':(ROOT/f'build/{parent}.bin').read_bytes(),'PARENT.TXT':b'\0\0H:/PARENT.COM'}
+        fixtures={**images['zpascal'],parent+'.bin':(ROOT/f'build/{parent}.bin').read_bytes(),'PARENT.TXT':b'\0\0H:/parent.bin'}
         def remove(command,response,directory):
             if command=='run 100000000'and not removed:
                 for path in (directory/'hostfs').iterdir():
-                    if path.name!=parent+'.bin'and path.suffix.lower()in('.bin','.zpl','.zpu','.pas'):
+                    if path.name not in (parent+'.bin','parent.bin')and path.suffix.lower()in('.bin','.zpl','.zpu','.pas'):
                         path.unlink();removed.append(path.name)
                 assert removed
         commands=['run 100000000']+n.type_text('H:/'+parent+'.bin',ticks=2000000)
@@ -48,7 +48,7 @@ def main():
         folder=n.RUN/'real-chain-standalone/hostfs'
         checks['authenticated standalone success and page recovery']=len(frames)==1 and frames[0].startswith(f"{sym['_execute_parent_stop']:04x} ")and state.get(sym['_test_done'])==255 and word('_test_failed')==0 and word('_test_passed')>0
         checks['Real CHN executed']=b'REAL-CHAIN-OK\r\n'in(folder/'RESULT.TXT').read_bytes()
-        checks['no compiler source or libraries']=not any(path.name!=parent+'.bin'and path.suffix.lower()in('.bin','.zpl','.zpu','.pas')for path in folder.iterdir())
+        checks['no compiler source or libraries']=not any(path.name not in (parent+'.bin','parent.bin')and path.suffix.lower()in('.bin','.zpl','.zpu','.pas')for path in folder.iterdir())
         checks['both saved artifacts unchanged']=all((folder/name).read_bytes()==data for name,data in images['zpascal'].items())
     report={'passed':all(checks.values()),'checks':checks,'capture_directory':str(n.RUN.relative_to(ROOT))}
     (n.RUN/'optional-chain-report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2));return 0 if report['passed']else 1

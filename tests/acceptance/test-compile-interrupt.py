@@ -38,7 +38,7 @@ def main():
     source = b'program Cancel;\nvar n:integer;\nbegin n:=7;writeln(n) end.\n'
     prefix = b'{unsaved}\n'
     fixtures = {'project/main.pas': source,
-                'project/main.COM': b'existing executable must survive cancellation',
+                'project/main.bin': b'existing executable must survive cancellation',
                 'project/main.ZMP': b'existing map must survive cancellation'}
     inputs = [ROOT/'CMakeLists.txt', Path(__file__).resolve(), ROOT/'tests/acceptance/test-native.py', n.EMULATOR, n.ROM]
     inputs += list((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file())) + list((ROOT/'tests/native').glob('*'))

@@ -29,7 +29,7 @@ def compile_client(label,unit,source=SOURCE):
     n.execute(label,commands,{'CRT.ZPU':unit,'BENCH.PAS':source},timeout=600,base_programs=('zpascal',))
     folder=n.RUN/label
     if (folder/'input-error.json').exists():raise RuntimeError((folder/'input-error.json').read_text())
-    return (folder/'hostfs/BENCH.COM').read_bytes()
+    return (folder/'hostfs/bench.bin').read_bytes()
 
 
 def measure(label,image):
@@ -54,8 +54,8 @@ def measure(label,image):
                 if len(cycles)<len(addresses):call(f'bp 0x{addresses[len(cycles)]:x}')
             call('run 100000000')
             return 'CRT benchmark complete\n'
-    commands=['run 100000000']+n.type_text('H:/BENCH.COM',ticks=100000000)+['@measure','quit']
-    n.execute(label,commands,{'BENCH.COM':image},timeout=300,console_class=Probe,base_programs=())
+    commands=['run 100000000']+n.type_text('H:/bench.bin',ticks=100000000)+['@measure','quit']
+    n.execute(label,commands,{'bench.bin':image},timeout=300,console_class=Probe,base_programs=())
     if len(cycles)!=len(addresses):raise RuntimeError('Incomplete timing capture')
     return {operation:cycles[i+1]-cycles[i] for i,operation in enumerate(OPERATIONS)}
 

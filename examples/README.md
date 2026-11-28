@@ -43,8 +43,8 @@ Use the corresponding folder and executable name for the other applications.
 The explicit `./` runs the executable in the current folder without depending
 on the shell's search path.
 No IDE or library installation is needed to run these executables. Each local
-README also explains editing, Memory execution and rebuilding a COM.
-The examples use the existing compiler and runtime. COM files run on native
+README also explains editing, Memory execution and rebuilding a Bin-file.
+The examples use the existing compiler and runtime. Bin-files run on native
 Zeal OS and are not CP/M executables. Lighthouse uses the native 80x40 text console and TP3 screen routines; the other original
 examples use scrolling text output. ZealCalc uses a monochrome full-screen grid
 with immediate disk persistence; its executable provenance is in

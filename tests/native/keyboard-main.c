@@ -23,7 +23,7 @@ int app_main(void) {
     check(seed("H:/KEYIN.TXT","x"));input=open("H:/KEYIN.TXT",O_RDONLY);check(input>=0);
     if(input>=0) {
         check(swap(input,DEV_STDIN)==0);status=255;owned=pages_used();
-        check(exec(EXEC_PRESERVE_PROGRAM,"H:/KEYONLY.COM",0,&status)==0&&status==0x20);
+        check(exec(EXEC_PRESERVE_PROGRAM,"H:/keyonly.bin",0,&status)==0&&status==0x20);
         check(pages_used()==owned);check(swap(input,DEV_STDIN)==0);check(close(input)==0);
     }
     execution_file("H:/KEYBUFFER.PAS",1,0,0);
@@ -45,9 +45,9 @@ int app_main(void) {
     input=open("H:/KEYIN.TXT",O_RDONLY);check(input>=0);
     if(input>=0) {
         check(swap(input,DEV_STDIN)==0);owned=pages_used();status=255;
-        check(exec(EXEC_PRESERVE_PROGRAM,"H:/KEYUFAIL.COM",0,&status)==0&&status==0x20);
+        check(exec(EXEC_PRESERVE_PROGRAM,"H:/keyufail.bin",0,&status)==0&&status==0x20);
         check(pages_used()==owned);status=255;
-        check(exec(EXEC_PRESERVE_PROGRAM,"H:/KEYUIGNORE.COM",0,&status)==0&&status==0);
+        check(exec(EXEC_PRESERVE_PROGRAM,"H:/keyuignore.bin",0,&status)==0&&status==0);
         check(pages_used()==owned);check(swap(input,DEV_STDIN)==0);check(close(input)==0);
     }
     output("U-AFTER-BREAK-OK\r\n");

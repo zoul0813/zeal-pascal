@@ -49,14 +49,14 @@ def component(chunks):
                   (0xc001,0xefff),(0xd100,0xfbff),(0,0xcfff),(0,0xfbfe)]
         for name,(start,end) in zip(names,expected):
             if name not in selected_names: continue
-            image=(disk/(name+'.COM')).read_bytes();w=lambda at:struct.unpack_from('<H',image,at)[0]
+            image=(disk/(name.lower()+'.bin')).read_bytes();w=lambda at:struct.unpack_from('<H',image,at)[0]
             origin,code,globals=w(20),w(22),w(26)
             assert origin==(start or 0x8000+globals)and w(30)==end
             assert w(28)==0x4000+len(image)==origin+code
             assert ((w(28)+1)&~1)+w(32)<=end+1 and w(32)==2048
             assert image[0x4000+globals:origin-0x4000]==bytes(origin-0x8000-globals)
         if chunks.wants('layouts-boundaries'):
-            image=(disk/'OMAX.COM').read_bytes()
+            image=(disk/'omax.bin').read_bytes()
             assert struct.unpack_from('<H',image,28)[0]==0xf400
         checks['independent image/map/source identities, exact origins, zero gaps, End and stack extents authenticate']=True
         if chunks.wants('layouts-boundaries'): checks['maximum Start exactly fills the permitted static image extent']=True
@@ -121,6 +121,8 @@ def ide():
         checks['valid bounded addresses are accepted']=settings('high-start-selected')==(0xc001,0xfbff)and settings('end-selected')==(0xc001,0xefff)
         code=word('end-selected',build+9);globals=word('end-selected',build+11)
         screen=data('options-screen',0x4000,640)
+        checks['options show Bin-file mode and the output name field']=(
+            b'C Bin-file' in screen and b'N Output name:' in screen)
         checks['actual video shows selected values and calculated native minima/maxima']=(
             f'Start: C001 (min {0x8000+globals:04X} max {0xe800-code:04X})'.encode()in screen and
             f'End: EFFF (min {max(0xcfff,((0xc001+code+1)&~1)+2048-1):04X} max FBFF)'.encode()in screen and
@@ -142,7 +144,7 @@ def ide():
     disk=n.RUN/'ide-options/hostfs'
     checks['options and compilation never silently save source']=(disk/'project/main.pas').read_bytes()==source
     try:
-        image=(disk/'project/main.COM').read_bytes()
+        image=(disk/'project/main.bin').read_bytes()
         checks['saved publication contains selected Start and final End']=struct.unpack_from('<H',image,20)[0]==0xc001 and struct.unpack_from('<H',image,30)[0]==0xeffe
     except OSError:checks['saved publication contains selected Start and final End']=False
     return checks,{'checkpoints':labels}
@@ -165,7 +167,7 @@ def save_paths():
     for kind in range(5):
         parent=disk/f'P{kind}111'
         matches=list(parent.rglob('x.*'))if parent.is_dir()else[]
-        expected='CHN'if kind==4 else'COM'if kind==3 else'pas'
+        expected='CHN'if kind==4 else'bin'if kind==3 else'pas'
         checks[f'accepted boundary produces mode{kind} output']=any(p.suffix=='.'+expected for p in matches)
         checks[f'long boundary mode{kind} produces output']=any(p.suffix=='.'+expected for p in (disk/f'P{kind}112').rglob('x.*'))
         checks[f'mode{kind} creates no transaction directory']=not any(p.name.startswith('ZP')for p in parent.rglob('*'))if parent.exists()else False

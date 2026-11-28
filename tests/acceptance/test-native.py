@@ -401,7 +401,7 @@ def execute(name, commands, fixtures=None, tf_image=None, eeprom_image=None, tim
         if (ROOT / f'build/{unit}.ZPU').exists():
             files[f'{unit}.ZPU'] = ROOT / f'build/{unit}.ZPU'
     files.update(fixtures or {})
-    for artifact in ('CONSOLE.TXT', 'SLICE.COM', 'SLICE.ZMP'):
+    for artifact in ('CONSOLE.TXT', 'slice.bin', 'SLICE.ZMP'):
         files.pop(artifact, None)
     cmd, media = emulator.prepare(
         directory, emulator=EMULATOR, rom=ROM, fixtures=files,
@@ -427,7 +427,7 @@ def native_probe_bytes(image, code):
 
 
 def artifact_checks(directory):
-    binary=(directory/'SLICE.COM').read_bytes()
+    binary=(directory/'slice.bin').read_bytes()
     from artifact_format import validate_image
     validate_image(binary)
     word=lambda at:struct.unpack_from('<H',binary,at)[0]
@@ -439,7 +439,7 @@ def artifact_checks(directory):
     second=b'begin\n{second}\nend.\n';third=b'begin\n{third}\n{second}\nend.\n'
     assert (directory/'EDIT.PAS').read_bytes()==third
     assert (directory/'EDIT.BAK').read_bytes()==second
-    assert (directory/'RENAMED.PAS').read_bytes()==b' '+third
+    assert (directory/'RENAMED.pas').read_bytes()==b' '+third
     assert (directory/'RENAMED.BAK').read_bytes()==b' '+third
     assert not any(p.name.startswith('ZP')for p in directory.iterdir())
     return True
@@ -674,7 +674,7 @@ def default_path_checks():
     key = sym['_key_read']
     template = gzip.decompress(TF_TEMPLATE.read_bytes())
     typed = lambda text: type_text(text, ticks=2000000)
-    default = b'T:/src/pascal/UNTITLED.pas'
+    default = b'T:/src/pascal/untitled.pas'
     def launch():
         return (['run 100000000'] + program_launch() + ['run 10000000',
                 f'bp 0x{key:x}', 'tap N', 'run 100000000'])
@@ -705,7 +705,7 @@ def default_path_checks():
     files = zealfs_files(saved_image)
     checks.append(('S creates the default parent directories and saves the exact requested filename',
                    len(observed) == 1 and path(observed[0]) == default and observed[0].get(work + 1) == 0
-                   and files.get('/src/pascal/UNTITLED.pas') == text
+                   and files.get('/src/pascal/untitled.pas') == text
                    and not any('/ZP' in name for name in files)))
     commands = launch() + ['tap C', 'run 2000000000'] + probe() + [f'bc 0x{key:x}'] + typed('q') + ['quit']
     opened = execute('paths-reopen', commands, tf_image=saved_image)
@@ -724,7 +724,7 @@ def default_path_checks():
     checks.append(('COM publication creates entered parent directories without saving source or creating the default path',
                    len(observed) == 1 and observed[0].get(build + 4) == 0 and observed[0].get(work + 1) == 1
                    and bytes(observed[0].get(build+i,0) for i in range(4)) == bytes([255])*4
-                   and files.get('/work/deep/hello.COM',b'')[3:8] == b'ZP80\x02'
+                   and files.get('/work/deep/hello.bin',b'')[3:8] == b'ZP80\x02'
                    and '/work/deep/hello.ZMP' not in files
                    and '/work/deep/hello.pas' not in files and '/src/' not in files
                    and not any('/ZP' in name for name in files)))
@@ -854,7 +854,7 @@ def default_library_checks():
     observed = memory(text)
     path = bytes(observed.get(work+12+i,0) for i in range(128)).split(b'\0')[0]
     checks = [('default T:/lib/zpascal.zpl loads without arguments and startup leaves media unchanged',
-             observed.get(sym['_code_owned']) == code_banks() and path == b'T:/src/pascal/UNTITLED.pas'
+             observed.get(sym['_code_owned']) == code_banks() and path == b'T:/src/pascal/untitled.pas'
              and observed.get(work+1) == observed.get(work+2) == observed.get(work+3) == 0
              and (RUN / 'library-default/tf.img').read_bytes() == installed
              and '/src/' not in files)]
@@ -975,12 +975,12 @@ def input_commands(case):
     commands = []
     if case in (None, 'basic'):
         for memory_mode in (1, 0):
-            commands += [PhysicalLine('Adx\ba', 'NAME.COM', memory_mode, inspect_mode=True),
-                         PhysicalLine('abcdefghi', 'NAME.COM', memory_mode),
-                         PhysicalLine('', 'NAME.COM', memory_mode)]
+            commands += [PhysicalLine('Adx\ba', 'name.bin', memory_mode, inspect_mode=True),
+                         PhysicalLine('abcdefghi', 'name.bin', memory_mode),
+                         PhysicalLine('', 'name.bin', memory_mode)]
     if case in (None, 'read'):
         for memory_mode in (1, 0):
-            commands += [PhysicalLine(value, 'READINPUT.COM', memory_mode) for value in READ_INPUT_LINES]
+            commands += [PhysicalLine(value, 'readinput.bin', memory_mode) for value in READ_INPUT_LINES]
         commands += [PhysicalLine('12x', 'invalid-readln', 1,
                                  source=('H:/READINPUT.PAS', b'var n:integer;begin\nreadln(n)end.'))]
     return commands
@@ -1315,7 +1315,7 @@ def main():
         real_expected += ''.join(marker+'\r\n'for marker in real_abi_markers).encode()*2
         checks.append(('Real6 storage/constants/arithmetic, snapshots, recursive frames and public ABI in RAM/COM',
                        real_output.is_file() and real_output.read_bytes()==real_expected))
-        real_image = RUN / 'core/hostfs/REALABI.COM'
+        real_image = RUN / 'core/hostfs/realabi.bin'
         real_code = (ROOT/'build/realabi.zpl').read_bytes()
         checks.append(('native external six-byte Real arguments and BCDEHL result match independent assembly',
                        real_image.is_file() and native_probe_bytes(real_image.read_bytes(),real_code)))
@@ -1345,17 +1345,17 @@ def main():
                        formats_output.is_file() and formats_output.read_bytes()==
                        formats_expected*2+b'STR-FORMAT-ALL-OK\r\n'*2+b'VAL-ALL-OK\r\n'*2))
     if args.case in (None, 'heap'):
-        pointer_image = RUN / 'core/hostfs/POINTERABI.COM'
+        pointer_image = RUN / 'core/hostfs/pointerabi.bin'
         pointer_code = (ROOT / 'build/pointerabi.zpl').read_bytes()
         checks.append(('native external pointer payload matches independently assembled two-word probe',
                        pointer_image.is_file() and native_probe_bytes(pointer_image.read_bytes(),pointer_code)))
     if args.case in (None, 'sets'):
-        set_image = RUN / 'core/hostfs/SETABI.COM'
+        set_image = RUN / 'core/hostfs/setabi.bin'
         set_code = (ROOT / 'build/setabi.zpl').read_bytes()
         checks.append(('native external set payload matches independently assembled 32-byte argument probe',
                        set_image.is_file() and native_probe_bytes(set_image.read_bytes(),set_code)))
     if args.case in (None, 'strings'):
-        abi_image = RUN / 'core/hostfs/STRINGABI.COM'
+        abi_image = RUN / 'core/hostfs/stringabi.bin'
         abi_code = (ROOT / 'build/stringabi.zpl').read_bytes()
         checks.append(('native external string payload matches independently assembled ABI probe',
                        abi_image.is_file() and native_probe_bytes(abi_image.read_bytes(),abi_code)))
@@ -1367,7 +1367,7 @@ def main():
             media_ok = (media['/UNTITLED.PAS'] == media['/UNTITLED.BAK'] == b"begin\nwriteln('MEDIA')\nend.\n"
                         and media['/ZP0000/KEEP.PAS'] == b'unrelated recovery'
                         and not any(path.startswith('/ZP') and not path.startswith('/ZP0000/') for path in media)
-                        and '/UNTITLED.COM' in media and '/UNTITLED.ZMP' not in media)
+                        and '/untitled.bin' in media and '/UNTITLED.ZMP' not in media)
             checks.append(('repeated T: source/COM saves release owned staging and preserve unrelated recovery', media_ok))
         except (AssertionError, KeyError, UnicodeError, struct.error):
             checks.append(('repeated T: source/COM saves release owned staging and preserve unrelated recovery', False))

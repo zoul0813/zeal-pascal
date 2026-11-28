@@ -24,7 +24,7 @@ int app_main(void) {
     check(seed("H:/KBDIN.TXT","x"));input=open("H:/KBDIN.TXT",O_RDONLY);check(input>=0);
     if(input>=0) {
         check(swap(input,DEV_STDIN)==0);status=255;owned=pages_used();
-        check(exec(EXEC_PRESERVE_PROGRAM,"H:/KBDFAIL.COM",0,&status)==0&&status==0x20);
+        check(exec(EXEC_PRESERVE_PROGRAM,"H:/kbdfail.bin",0,&status)==0&&status==0x20);
         check(pages_used()==owned);check(swap(input,DEV_STDIN)==0);check(close(input)==0);
     }
     if(capture>=0) {check(swap(capture,DEV_STDOUT)==0);check(close(capture)==0);}

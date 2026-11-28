@@ -164,7 +164,7 @@ def main():
         checks['clean IDE exit releases all non-loader pages']=frames['ide-exit'][1].startswith(f"{kernel['zos_loader_exit']:04x} ")and data('ide-exit',kernel['_page_owners'],32).count(2)==3
     folder=n.RUN/'ide-directory'
     checks['directory and drive commands never write TF or EEPROM']=(folder/'tf.img').read_bytes()==card and(folder/'eeprom.img').read_bytes()==n.blank_eeprom()
-    checks['host files unchanged and missing directory never created']=all((folder/'hostfs'/path).read_bytes()==content for path,content in fixtures.items())and not(folder/'hostfs/not-created').exists()and not(folder/'hostfs/project/main.COM').exists()
+    checks['host files unchanged and missing directory never created']=all((folder/'hostfs'/path).read_bytes()==content for path,content in fixtures.items())and not(folder/'hostfs/not-created').exists()and not(folder/'hostfs/project/main.bin').exists()
     checks['all qualification inputs unchanged']=all(n.sha(Path(p))==h for p,h in hashes.items())
     report={'passed':all(checks.values()),'scope':__doc__+' Bounded native emulator acceptance; full IDE/language and hardware conformance remain open.',
         'checks':checks,'screens':screens,'checkpoints':labels,'capture_directory':str(n.RUN.relative_to(ROOT)),

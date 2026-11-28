@@ -25,7 +25,7 @@ Download the [prebuilt release](../README.md#download-and-install), or follow
 the [source-build guide](building.md). Install the matching
 `zpascal.bin` launcher and `zpascal.zpl` bank file from one build. Keep
 `SYSFILE.ZPU`, `CRT.ZPU`, `ZVB.ZPU` and `ZOS.ZPU` beside the bank file for
-compilation; these are not extra runtime dependencies of an ordinary saved COM.
+compilation; these are not extra runtime dependencies of an ordinary saved Bin-file.
 Keep ZVB licenses/attribution when redistributing programs containing that code.
 
 Install the launcher in `T:/bin/`, with the bank file and Units in `T:/lib/`.
@@ -53,21 +53,21 @@ directory and owned RAM pages, and keeps the last successful compilation's line
 count and code/data sizes. It does not invent free-memory or disk-capacity figures
 the OS cannot query.
 
-The IDE opens `T:/src/pascal/UNTITLED.pas` at startup when that file exists. If
+The IDE opens `T:/src/pascal/untitled.pas` at startup when that file exists. The IDE also recognizes the earlier `UNTITLED.pas` spelling. If
 the file or its directories are missing, it starts with an empty RAM buffer.
 
 ## First edit, run and save
 
-1. Press **W**, type `T:/HELLO.PAS`, then Enter. A valid missing source starts
+1. Press **W**, type `T:/hello.pas`, then Enter. A valid missing source starts
    an empty Work buffer. Loading does not create parent directories.
 2. Press **E** and type a [first program](language.md#a-first-program).
 3. Press **Ctrl-K**, then **D**, to return to the menu. Text remains in RAM.
 4. Press **R**. In Memory mode the IDE compiles as needed and runs the program.
 5. Press **S** to save the source. S writes the current Work path, including the default
-   `T:/src/pascal/UNTITLED.pas` when startup opened an empty buffer. Use A to
+   `T:/src/pascal/untitled.pas` when startup opened an empty buffer. Use A to
    choose another path before saving.
 6. For a standalone executable, press **O**, **C**, **Q**, then **C**. Run the
-   resulting `T:/HELLO.COM` from ZShell.
+   resulting `T:/hello.bin` from ZShell.
 
 Save source separately from compiling an executable. **A** saves the current
 text under a different name; **W** selects/loads a file rather than renaming
@@ -84,13 +84,13 @@ or Enter redraws the main menu without changing files.
 | --- | --- |
 | **L** | Logged drive: enter `T`, `T:` or `T:/` to select an available native drive root; empty keeps current. Absolute Work and Main paths are unaffected. |
 | **D** | Directory listing: enter a directory or final filename mask, such as `T:/src/*.pas`; empty lists current directory. |
-| **W** | Work file: open/select a source path, default extension PAS. Resolve dirty Work first. |
+| **W** | Work file: open/select a source path, default extension .pas. Resolve dirty Work first. |
 | **M** | Main file: set the compilation root; empty clears Main so Work is the root. |
 | **E** | Edit Work. Normal entry starts at the beginning; Ctrl-Q,P recalls the previous position. |
 | **S** | Save Work, keeping the previous source version as BAK. |
 | **A** | Save As: write current Work under a new source path, then adopt it. |
 | **C** | Compile in the selected mode. |
-| **R** | Memory mode: run a current build, compiling first if needed. Com-file mode: rebuild, publish and run the executable. cHn-file mode: compile, then explain that a Pascal caller must Chain the result. Unit-file mode: explain that a program must use the unit. |
+| **R** | Memory mode: run a current build, compiling first if needed. Bin-file mode: rebuild, publish and run the executable. cHn-file mode: compile, then explain that a Pascal caller must Chain the result. Unit-file mode: explain that a program must use the unit. |
 | **X** | Execute an external native program by absolute or relative path, with no added extension, then return. Empty input, Escape or Ctrl-U cancels. Work, Main, editor state and the cached build are retained. No command-tail arguments are supplied. |
 | **O** | Compiler options: mode, saved-program bounds and saved-error lookup. |
 | **Q** | Quit, resolving dirty Work with save/discard/cancel. |
@@ -115,6 +115,8 @@ Compiling another Main first saves dirty Work to its actual path, then reads
 Main. Error navigation that must replace dirty Work also saves it first. A
 failed save prevents the replacement/compile instead of silently using stale data.
 
+An extensionless source name looks for `.pas` first, then the older `.PAS` spelling. On a case-insensitive host drive, enter the full filename to preserve its extension case when saving.
+
 When an error opens an included file as Work, Main remains the original root.
 Repairing that include and pressing R saves it before recompiling Main from disk.
 A self-contained Work program can compile/run entirely in RAM without first
@@ -133,8 +135,8 @@ Press **O**, choose a mode, then **Q** to return to the main menu.
 
 | Option | Output and use |
 | --- | --- |
-| **M** Memory | Compile into owned RAM and run through R; no COM is published. |
-| **C** Com-file | Publish a self-contained native `.COM`; it runs from ZShell. |
+| **M** Memory | Compile into owned RAM and run through R; no executable is published. |
+| **C** Bin-file | Publish a self-contained native `.bin`; it runs from ZShell. |
 | **H** cHn-file | Publish a compact `.CHN` for a compatible saved Pascal caller's Chain. It cannot run from ZShell or directly through R. |
 | **U** Unit-file | Compile a `unit` source to `.ZPU`. Compile with C, then use it from a program; it is not an executable. |
 | **S** Start | In saved program modes, set hexadecimal code placement. Empty or zero chooses AUTO. |
@@ -161,14 +163,16 @@ initialized storage. Saved mode recompiles/publishes on R and releases transient
 compiler state before launching the disk executable. Disk compilation uses
 private temporary storage and trades disk I/O for RAM capacity.
 
-Output names follow Main when present, otherwise Work. Source maps remain
+The default executable name uses the lowercase stem of Main when present, otherwise Work. For example, `Demo.PAS` produces `demo.bin` in the same directory. In Bin-file mode, press **N** in Options to enter an exact filename with a `.bin` or `.com` extension in any case, such as `UpperCase.COM`. Entering a name without an extension adds `.bin`. An empty entry restores the default. Compiling again replaces the executable at the selected name.
+
+Source maps remain
 private compiler state; no map sidecar is required for saved runtime lookup.
 A successful Compile/Save/Run returns directly to the menu prompt; Enter redraws
 the full menu. Errors retain an acknowledgment and source-recovery workflow.
 
 ![Output from the squares example after running in Memory](images/ide-memory-run.png)
 
-This program compiled and ran in Memory without publishing a COM file. Its
+This program compiled and ran in Memory without publishing a Bin-file. Its
 output remains visible after returning to the IDE prompt.
 
 ## Editor commands
@@ -369,7 +373,7 @@ For a cold saved-program error:
 5. When found, Escape opens the actual source/include at that position.
 
 F reconstructs mapping by compiling source; it works in a new session without
-the original COM/map file. Changed source or build settings can change code
+the original Bin-file/map file. Changed source or build settings can change code
 positions, so an arbitrary PC is not authenticated by its digits alone. CHN
 source lookup uses its correct owning program settings. For [Pascal overlays](overlays.md),
 F selects the first member containing an overlapping PC. See [diagnostics](errors.md)
@@ -377,12 +381,12 @@ for code meanings.
 
 ## Saved programs and transfers
 
-A saved COM includes its chosen runtime, selected Unit fragments and globals.
+A saved Bin-file includes its chosen runtime, selected Unit fragments and globals.
 It needs neither the IDE nor ZPU files for execution. File paths used by the
 program remain relative to its native working directory unless absolute.
 
 A CHN omits the ordinary executable runtime/globals and requires a matching
-private-runtime identifier. Build caller as COM and replacement as CHN with
+private-runtime identifier. Build the caller in Bin-file mode and replacement as CHN with
 matching explicit Start/End and compatible leading global declarations:
 
 ```pascal

@@ -20,7 +20,7 @@ static void output_path_cases(void) {
         setup(kind,0);long_output_name(name,prefix);
         strcpy(primary,name);strcpy(secondary,name);
         strcpy(secondary+strlen(secondary)-3,kind>=3?"ZMP":"BAK");
-        if(kind>=3)strcpy(primary+strlen(primary)-3,kind==4?"CHN":"COM");
+        if(kind>=3)strcpy(primary+strlen(primary)-3,kind==4?"CHN":"bin");
         if(kind!=1&&kind!=2)strcpy(source.path,name);
         prior=source;pages=owned();seed(primary,old[0],old_length[0]);
         if(kind!=2)seed(secondary,old[1],old_length[1]);
@@ -61,6 +61,26 @@ static void prepared_output_cases(void) {
         check(!save_block(&source,0,17,"T:/other.pas",1,1)&&!strcmp(destination,output_path()));
         check(save_build(&source,&build,1));
     }
+    setup(3,0);strcpy(source.path,"T:/MixCase/DEMO.PAS");
+    check(prepare_build(&source,0,1)&&!strcmp(output_path(),"T:/MixCase/demo.bin"));
+    check(cancel_prepared_build());
+    check(set_program_name(source.path,"UpperCase.COM"));
+    check(!set_program_name(source.path,"../bad.bin"));
+    check(prepare_build(&source,0,1)&&!strcmp(output_path(),"T:/MixCase/UpperCase.COM"));
+    check(save_build(&source,&build,0)&&find("T:/MixCase/UpperCase.COM")>=0);
+    check(set_program_name(source.path,"Custom"));
+    check(prepare_build(&source,0,1)&&!strcmp(output_path(),"T:/MixCase/Custom.bin"));
+    check(cancel_prepared_build());
+    check(!set_program_name(source.path,"demo.pas"));
+    check(!set_program_name(source.path,"."));
+    check(!set_program_name(source.path,".."));
+    check(!set_program_name(source.path,"123456789012"));
+    {char long_root[128];long_output_name(long_root,120);
+     check(!set_program_name(long_root,"UpperCase.COM"));}
+    strcpy(source.path,"T:/MixCase/DEMO.BIN");
+    check(set_program_name(source.path,"Demo.bin"));
+    check(!save_build(&source,&build,0)&&platform_error==ERR_INVALID_PATH);
+    check(set_program_name(source.path,""));
     setup(3,0);check(prepare_build(&source,0,1));
     platform_error=ERR_NO_MORE_MEMORY;before_events=events;
     check(cancel_prepared_build()&&platform_error==ERR_NO_MORE_MEMORY&&events==before_events);

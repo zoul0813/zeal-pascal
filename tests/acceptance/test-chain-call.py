@@ -61,7 +61,7 @@ def ide(n,executables=None):
     reference=n.RUN/('execute-call-compile/hostfs' if executables else 'chain-call-compile/hostfs')
     checks['IDE and compiler target layouts produce identical COM CHN and maps']=all(
         (folder/name).is_file() and (reference/name).is_file() and
-        (folder/name).read_bytes()==(reference/name).read_bytes()for name in (('EXECALL.COM',) if executables else ('CALLER.COM','NEXT.CHN')))
+        (folder/name).read_bytes()==(reference/name).read_bytes()for name in (('execall.bin',) if executables else ('caller.bin','NEXT.CHN')))
     if executables:
         checks['explicit Close finalizes the typed file before IDE Execute']=(folder/'CLOSED.DAT').is_file() and (folder/'CLOSED.DAT').read_bytes()==b'\1\0\2\0\xd2\4'
     return checks
@@ -86,8 +86,10 @@ def execute(n):
     raw=n.execute('execute-call-compile',commands,fixtures,timeout=1200);m=n.memory(raw)
     word=lambda name:m.get(sym[name],0)|(m.get(sym[name]+1,0)<<8)
     assert m.get(sym['_test_done'])==255 and word('_test_failed')==0,raw[-4000:]
-    folder=n.RUN/'execute-call-compile/hostfs';images={name:(folder/(name+ext)).read_bytes() for name,ext in
-        [('EXECALL','.COM'),('EXENEXT','.COM'),('EXERETRY','.COM'),('EXSTART','.COM'),('EXCHAIN','.CHN'),('EXEFAIL','.COM'),('EXECHECK','.COM'),('EXENATIVE','.COM')]}
+    folder=n.RUN/'execute-call-compile/hostfs'
+    programs=('EXECALL','EXENEXT','EXERETRY','EXSTART','EXEFAIL','EXECHECK','EXENATIVE')
+    images={name:(folder/(name.lower()+'.bin')).read_bytes() for name in programs}
+    images['EXCHAIN']=(folder/'EXCHAIN.CHN').read_bytes()
     parent='zexparent';ps=n.symbols(parent);kernel=n.kernel_symbols();entry=n.symbols('execute_entry')
     child=images['EXENEXT'];root=int.from_bytes(child[20:22],'little');normal=int.from_bytes(child[12:14],'little')
     probe=normal+entry['execute_entry_probe']-0x8000
@@ -267,7 +269,7 @@ def main():
     assert memory.get(sym['_test_done'])==255 and word('_test_failed')==0,raw[-4000:]
     compiler_assertions=word('_test_passed')
     folder=n.RUN/'chain-call-compile/hostfs'
-    caller=(folder/'CALLER.COM').read_bytes();chain=(folder/'NEXT.CHN').read_bytes()
+    caller=(folder/'caller.bin').read_bytes();chain=(folder/'NEXT.CHN').read_bytes()
     assert chain[192:196]==(ROOT/'build/pascal_runtime.profile').read_bytes()
     parent='zchaincallparent';ps=n.symbols(parent);terminal=n.symbols('transfer_gate')['transfer_gate_returned']
     assert ps['_transfer_parent_stop']==0x7ff0
@@ -310,7 +312,7 @@ def main():
     for name in ('_test_done','_test_passed','_test_failed'):commands += [f'rb 0x{ps[name]:x} 2']
     commands += [f"rb 0x{ps['_test_failures']:x} 128",'quit']
     raw=n.execute('chain-call-input-failure',commands,{parent+'.bin':files[parent+'.bin'],
-        'CALLER.COM':(folder/'FAILURE.COM').read_bytes(),'NEXT.CHN':chain,'INPUT.DAT':b'regular-file stdin'},timeout=900)
+        'CALLER.COM':(folder/'failure.bin').read_bytes(),'NEXT.CHN':chain,'INPUT.DAT':b'regular-file stdin'},timeout=900)
     frames=re.split(r'\[DBG\] PC=',raw)[1:]
     checks['input cleanup failure reaches prepare discard terminal and parent checkpoints']=len(frames)==4
     if len(frames)==4:

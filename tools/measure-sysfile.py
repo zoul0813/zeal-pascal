@@ -52,11 +52,11 @@ def clients(directory,output):
         assert not(folder/'input-error.json').exists(),folder
         memory=n.memory(raw);result=sym['_ram_result']
         assert memory.get(result+26)==1 and memory.get(result+28)==0,(name,'RAM failed')
-        image=(folder/'hostfs/BENCH.COM').read_bytes()
+        image=(folder/'hostfs/bench.bin').read_bytes()
         def remove(command,response,directory):
             if command=='run 100000000':(directory/'hostfs/SYSFILE.ZPU').unlink(missing_ok=True)
-        commands=['run 100000000']+typed('H:/BENCH.COM')+[f"bp 0x{kernel['zos_loader_exit']:x}",'tap ENTER','run 2000000000','regs',f"rb 0x{kernel['_page_owners']:x} 32",'quit']
-        cold=n.execute(label+'-cold',commands,{'BENCH.COM':image},timeout=180,base_programs=(),after_command=remove)
+        commands=['run 100000000']+typed('H:/bench.bin')+[f"bp 0x{kernel['zos_loader_exit']:x}",'tap ENTER','run 2000000000','regs',f"rb 0x{kernel['_page_owners']:x} 32",'quit']
+        cold=n.execute(label+'-cold',commands,{'bench.bin':image},timeout=180,base_programs=(),after_command=remove)
         assert f"PC={kernel['zos_loader_exit']:04x} "in cold and 'HL=000f'in cold,(name,'COM failed',cold[-1000:])
         files=n.RUN/(label+'-cold')/'hostfs'
         expected={'TYPED':b'\x08\x00\x02\x00'+struct.pack('<8H',*range(1,9)),
@@ -235,8 +235,8 @@ def main(argv=None):
                 assert bytes(out[0xf200+i]for i in range(5))==b'ABC\r\n'
                 assert [mock[at]for at in (0xf110,0xf111,0xf112,0xf114,0xf115,0xf116)]==[2,5,0,8,7,12],mock
             return 'SYSFILE measurements complete\n'
-    commands=['run 100000000']+n.type_text('H:/BENCH.COM',ticks=100000000)+['tap ENTER','@measure','quit']
-    n.execute('sysfile-benchmark',commands,{'BENCH.COM':bytes(image)},timeout=300,console_class=Probe,base_programs=())
+    commands=['run 100000000']+n.type_text('H:/bench.bin',ticks=100000000)+['tap ENTER','@measure','quit']
+    n.execute('sysfile-benchmark',commands,{'bench.bin':bytes(image)},timeout=300,console_class=Probe,base_programs=())
     folder=n.RUN/'sysfile-benchmark';files=folder/'hostfs'
     assert not (folder/'input-error.json').exists(),(folder/'input-error.json').read_text()
     assert not (files/'BENCH.DAT').exists() and not (files/'RENAMED.DAT').exists()

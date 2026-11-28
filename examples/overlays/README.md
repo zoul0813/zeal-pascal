@@ -9,8 +9,8 @@ Copy this entire folder to H: and run `sheetovr.bin` from that directory. The
 included `ZP000B` folder contains its companion groups. The shipped bytes and
 native validation provenance are recorded in [binary.json](binary.json).
 
-To rebuild, compile `sheetovr.pas` using the native IDE's Com-file mode. Run the generated
-COM from its directory and retain its generated `ZPxxxx` folder. This example
+To rebuild, compile `sheetovr.pas` using the native IDE's Bin-file mode. Run the generated
+Bin-file from its directory and retain its generated `ZPxxxx` folder. This example
 selects H with `OvrDrive(8)`; change that argument to `20` for T, or use `0` when
 the current drive and directory already contain the companions.
 

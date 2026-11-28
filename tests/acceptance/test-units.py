@@ -74,10 +74,10 @@ def main():
         'VAR and local shadowing execution markers':stdout.count(b'UNIT-VAR-OK\r\n') == 2 and stdout.count(b'UNIT-SHADOW-OK\r\n') == 2 and stdout.count(b'UNIT-KINDS-OK\r\n') == 2,
         'private implementation and remaining scalar ABI execution':stdout.count(b'UNIT-PRIVATE-OK\r\n') == 2,
         'unused private sibling omitted':b'PRIVATE-DEAD-CODE-9B71' in (directory/'PRIVATEOPS.ZPU').read_bytes()
-            and b'PRIVATE-DEAD-CODE-9B71' not in (directory/'PRIVATE.COM').read_bytes(),
+            and b'PRIVATE-DEAD-CODE-9B71' not in (directory/'private.bin').read_bytes(),
         'normal runtime byte identity':sha(ROOT/'build/pascal_runtime.zpl') == '7cfb2a03f49e698109c518a1513f3af2d204d11c532f164da528ce6cf441017f',
         'compiler bytes preserved':all((directory/name).read_bytes() == library[16+2*library[5]:] for name in ('CODE0.BIN','CODE1.BIN')),
-        'compiled program independent of unused body':(directory/'SMALL.COM').read_bytes() == (directory/'LARGE.COM').read_bytes(),
+        'compiled program independent of unused body':(directory/'small.bin').read_bytes() == (directory/'large.bin').read_bytes(),
         'unused code was actually compiled':unit_payload(directory/'LARGE.ZPU') > unit_payload(directory/'SMALL.ZPU'),
         'library and source removed before final standalone execution':all(not (directory/(name+ext)).exists() for name in ('TILEMATH','OFFSETS') for ext in ('.PAS','.ZPU')),
         'source artifact and emulator stability':all(sha(ROOT/p) == h for p,h in {**hashes,**artifacts}.items()) and all(sha(Path(p)) == h for p,h in external.items())}
@@ -87,7 +87,7 @@ def main():
         'last_diagnostic':memory.get(sym['_unit_diagnostic']),
         'failure_indices':[memory.get(sym['_test_failures']+2*i,0) | memory.get(sym['_test_failures']+2*i+1,0)<<8 for i in range(min(word('_test_failed'),64))],
         'unit_payload_small':unit_payload(directory/'SMALL.ZPU'),'unit_payload_large':unit_payload(directory/'LARGE.ZPU'),
-        'equal_executable_bytes':(directory/'SMALL.COM').stat().st_size,'stdout_hex':stdout.hex()})
+        'equal_executable_bytes':(directory/'small.bin').stat().st_size,'stdout_hex':stdout.hex()})
     save()
     print(json.dumps(report,indent=2))
     assert report['passed'], out/'report.json'

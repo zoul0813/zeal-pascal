@@ -251,7 +251,7 @@ static void layout_limits(void) {
 static void execute_shared(void) {
     uint8_t status=255;
     check(source_new(&s,"H:/EXECALIAS.PAS"));
-    check(load("var F:File;begin Assign(F,'H:/SHARED.COM');Execute(F)end."));
+    check(load("var F:File;begin Assign(F,'H:/shared.bin');Execute(F)end."));
     check(compile(&s,&b,&d));
     if(b.valid) {
         check(!(far_get(b.pages[0],18)&(NATIVE_SHARED_STACK|NATIVE_SINGLE_PAGE)));
@@ -327,7 +327,7 @@ static void dependency_units(void) {
     }
     closed();source_close(&s);
     check(!rm("H:/SHARED.ZPU"));check(!rm("H:/LEFTDEP.ZPU"));check(!rm("H:/RIGHTDEP.ZPU"));
-    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/DIAMOND.COM",0,&status)&&status==0);}
+    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/diamond.bin",0,&status)&&status==0);}
 }
 static void metadata_constants(void) {
     check(author("H:/LITERALS.PAS","H:/LITERALS.ZPU",
@@ -350,8 +350,8 @@ static void metadata_constants(void) {
     check(source_new(&s,"H:/LITHIDE.PAS"));check(load("uses Literals;begin writeln(Hidden)end."));
     check(!compile(&s,&b,&d)&&d.code==41);closed();source_close(&s);
     check(!rm("H:/LITERALS.ZPU"));check(!rm("H:/CONSTCOPY.ZPU"));
-    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/LITRUN.COM",0,&status)&&status==0);}
-    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/COPYCONST.COM",0,&status)&&status==0);}
+    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/litrun.bin",0,&status)&&status==0);}
+    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/copyconst.bin",0,&status)&&status==0);}
 }
 /* Corrupt unused metadata with a correct artifact checksum: structural and
  * semantic rejection must both reclaim pages and restore the warm code set. */
@@ -436,8 +436,8 @@ static void metadata_types(void) {
     check(load("uses Kinds;type R=record X:Integer end;P=^R.NotAType;begin end."));
     check(!compile(&s,&b,&d)&&d.code==42);closed();source_close(&s);
     check(!rm("H:/KINDS.ZPU"));check(!rm("H:/TYPECOPY.ZPU"));check(!rm("H:/OTHERKINDS.ZPU"));
-    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/TYPERUN.COM",0,&status)&&status==0);}
-    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/TYPELEAF.COM",0,&status)&&status==0);}
+    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/typerun.bin",0,&status)&&status==0);}
+    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/typeleaf.bin",0,&status)&&status==0);}
 }
 static void variant_roundtrip(void) {
     check(author("H:/TAGS.PAS","H:/TAGS.ZPU",
@@ -447,7 +447,7 @@ static void variant_roundtrip(void) {
     client("H:/TAGSUSE.PAS","uses Tags;var W:Wide;N:Narrow;Z:Integer;begin Z:=0;\n"
         "W.A:=7;N.B:=9;if W.A+N.B<>16 then Z:=1 div Z;writeln('UNIT-VARIANTS-OK')end.");
     check(!rm("H:/TAGS.ZPU"));
-    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/TAGSUSE.COM",0,&status)&&status==0);}
+    {uint8_t status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/tagsuse.bin",0,&status)&&status==0);}
 }
 int app_main(void) {
     uint8_t status;int8_t capture;
@@ -474,11 +474,11 @@ int app_main(void) {
     client("H:/SHARED.PAS","var N:Integer;begin N:=21*2;if N<>42 then halt end.");
     execute_shared();argument_calls();dependency_units();metadata_constants();metadata_types();variant_roundtrip();
     test_stage=3;check(!rm("H:/MIXED.ZPU"));check(!rm("H:/MIXED.PAS"));
-    status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/SHARED.COM",0,&status)&&status==0);
-    status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/SHARED.COM",0,&status)&&status==0);
-    status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/SCALE.COM",0,&status)&&status==0);
-    status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/TRANSIT.COM",0,&status)&&status==0);
-    status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/FAULTRUN.COM",0,&status)&&status==2);
+    status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/shared.bin",0,&status)&&status==0);
+    status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/shared.bin",0,&status)&&status==0);
+    status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/scale.bin",0,&status)&&status==0);
+    status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/transit.bin",0,&status)&&status==0);
+    status=255;check(!exec(EXEC_PRESERVE_PROGRAM,"H:/faultrun.bin",0,&status)&&status==2);
     if(capture>=0){check(!swap(capture,DEV_STDOUT));check(!close(capture));}
 done:
     check(pages_used()==15);console_close();test_done=255;test_complete();return 0;

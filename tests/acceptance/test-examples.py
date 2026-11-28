@@ -384,7 +384,7 @@ def main():
     for path in sorted(p for p in (ROOT / 'src').rglob('*') if p.is_file()):
         compiler_digest.update(path.relative_to(ROOT/'src').as_posix().encode() + b'\0' + bytes.fromhex(hashes[str(path)]))
     manifest = {'compiler_commit': compiler_commit, 'compiler_sources_sha256': compiler_digest.hexdigest(),
-                'format': 'Native Zeal executable; unchanged compiler COM image named .bin',
+                'format': 'Native Zeal executable; compiler-published .bin',
                 'build_command': 'zde --no-tty cmake build --target zexampletest_bin',
                 'verification': 'python3 tests/acceptance/test-examples.py --package',
                 'runtime_sha256': n.sha(ROOT / 'build/pascal_runtime.zpl'),
@@ -393,9 +393,7 @@ def main():
                 'programs': {}}
     for source in sorted((ROOT / 'examples').glob('*/*.pas')):
         image = folder / source.parent.name / (source.stem + '.bin')
-        saved = image.with_suffix('.COM')
-        assert image.is_file() and saved.is_file(), f'Missing compiler output: {image}'
-        assert image.read_bytes() == saved.read_bytes(), 'Native .bin copy differs from published COM'
+        assert image.is_file(), f'Missing compiler output: {image}'
         binary = source.with_suffix('.bin')
         manifest['programs'][str(binary.relative_to(ROOT / 'examples'))] = {
             'source': str(source.relative_to(ROOT / 'examples')),

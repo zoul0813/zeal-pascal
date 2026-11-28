@@ -1,6 +1,6 @@
 # Pascal overlays on Zeal
 
-Saved COM programs accept `overlay procedure` and `overlay function`. Overlay
+Saved Bin-files accept `overlay procedure` and `overlay function`. Overlay
 bodies execute in the MMU window at `8000..BFFF`; shared Pascal variables, the
 resident program and cross-bank call wrappers remain in page3. Private-call
 prologues and returns stay in the member; CPU frames remain in page3. Parameters,
@@ -13,7 +13,7 @@ begin Total:=Total+N end;
 begin OvrDrive(8);Total:=35;Add(7);WriteLn(Total) end.
 ```
 
-Select Com-file in the IDE's Options menu and compile with C. Keep the generated
+Select Bin-file in the IDE's Options menu and compile with C. Keep the generated
 `ZPxxxx` directory with the executable. Its `P.000`, `P.001`, ... files contain
 consecutive groups of overlay declarations. An ordinary declaration between
 overlay declarations starts another group. Nested overlays form child groups.
@@ -70,11 +70,11 @@ Source-based F lookup recompiles the same source and selects the first matching
 member for an overlapping overlay PC, following TP3's source lookup convention.
 Keep source and compiler options consistent with the saved executable.
 
-Compilation creates an exclusive generation directory. COM replacement is
-staged, copied and verified; an existing COM is backed up before replacement and
+Compilation creates an exclusive generation directory. Bin-file replacement is
+staged, copied and verified; an existing Bin-file is backed up before replacement and
 restored on failure. This is recovery using the supported file APIs, without a
 filesystem transaction or power-loss guarantee. If rollback itself fails, the
-old image is retained as `OLD.COM` in that generation directory. Old published
+old image is retained as `old.bin` in that generation directory. Old published
 generations are retained so an existing executable keeps its companions. Remove
 an old directory only after no saved or running program needs it.
 

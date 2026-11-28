@@ -13,7 +13,7 @@ static void saved(const char *tail) {
     const char *arguments[1];
     uint8_t status=255,owned=pages_used(),before[7],after[7];
     strcpy(owned_tail,tail);
-    strcpy((char*)console_scratch,"H:/PARAMS.COM");
+    strcpy((char*)console_scratch,"H:/params.bin");
     test_machine(before);
     /* Prepare arguments after the snapshot so SDCC does not keep their
      * pointer in a temporary spill across only the first machine sample. */
@@ -45,7 +45,7 @@ int app_main(void) {
         {
             const char *arguments[1];uint8_t status=255;
             memset(tail,'x',128);tail[128]=0;arguments[0]=tail;
-            strcpy((char*)console_scratch,"H:/PARAMS.COM");
+            strcpy((char*)console_scratch,"H:/params.bin");
             check(exec(EXEC_PRESERVE_PROGRAM,(char*)console_scratch,arguments,&status)==0&&status==1);
         }
         /* A saved program's command tail cannot become a later RAM run's. */

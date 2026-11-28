@@ -41,7 +41,7 @@ void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) SOURCE
     check(!memcmp(before,after,7)); /* compiler bank, stack and IFF restored */
     if(!b.valid) { if(test_stage==3) { __asm ei __endasm; } return; }
     if(test_stage==2) {
-        check(seed("H:/SLICE.COM","old executable")); check(stat("H:/SLICE.ZMP",&info)==ERR_NO_SUCH_ENTRY);
+        check(seed("H:/slice.bin","old executable")); check(stat("H:/SLICE.ZMP",&info)==ERR_NO_SUCH_ENTRY);
         check(save_build(&s,&b,0));
     }
     if(test_stage==7||saved_corpus()) check(save_build(&s,&b,0));
@@ -77,14 +77,14 @@ void execute_loaded(uint8_t kind,uint8_t code,uint16_t expected_position) SOURCE
     check(build_check(&s,&b)); /* native program mutations remain part of this build */
     if(test_stage==2) {
         uint8_t status=255;
-        check(exec(EXEC_PRESERVE_PROGRAM,"H:/SLICE.COM",0,&status)==0&&status==0);
+        check(exec(EXEC_PRESERVE_PROGRAM,"H:/slice.bin",0,&status)==0&&status==0);
         check(pages_used()==owned);
         status=255; check(run_saved(&s,&b,&status)&&status==0);
         check(!b.valid&&pages_used()==cached_code_pages()+1);
     }
     if(test_stage==7) {
         uint8_t status=255;
-        check(exec(EXEC_PRESERVE_PROGRAM,"H:/NAME.COM",0,&status)==0&&status==0);
+        check(exec(EXEC_PRESERVE_PROGRAM,"H:/name.bin",0,&status)==0&&status==0);
         check(pages_used()==owned);
     }
     if(saved_corpus()) {

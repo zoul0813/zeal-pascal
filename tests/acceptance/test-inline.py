@@ -53,10 +53,10 @@ def main():
         for name in ['INLBYTES','INLADDR','INLFRAME','INLSTD','INLPAGES','INLERROR','INLSRC']:
             artifacts[name]=maps.mapping(disk,name)
         checks['standalone image bounds and absence of map sidecars']=True
-        data,(address,payload,slot)=raw_block(disk/'INLBYTES.COM',26)
+        data,(address,payload,slot)=raw_block(disk/'inlbytes.bin',26)
         assert payload==bytes([0,255,0,1,255,255,255,255,0,1,52,68,0,0,0,0,128,0,128,0,2,255,255,1,0,128])
         checks['exact published constant-byte stream includes the approved signed-minimum correction']=True
-        data,(address,payload,slot)=raw_block(disk/'INLADDR.COM',26)
+        data,(address,payload,slot)=raw_block(disk/'inladdr.bin',26)
         value=lambda at:struct.unpack_from('<H',payload,at)[0]
         origin=int.from_bytes(data[20:22],'little');count=int.from_bytes(data[22:24],'little')
         assert origin>0x8100 and value(0)==0x8000 and value(2)==value(6)==value(10)==0
@@ -69,13 +69,13 @@ def main():
         assert value(18)==(-2*(address+18)&65535)and value(20)==(address+20)&65535
         assert payload[22]==(address+22)&255 and payload[23]==(-(address+23)&255)and value(24)==1
         checks['published address expressions independently preserve fixed globals/externals, code/data relocation, cancellation, coefficients and forced low bytes']=True
-        data,(address,payload,slot)=raw_block(disk/'INLSTD.COM',14)
+        data,(address,payload,slot)=raw_block(disk/'inlstd.bin',14)
         words=struct.unpack('<7H',payload);origin=int.from_bytes(data[20:22],'little')
         assert words[0]!=words[1] and all(0x8000<=p<origin for p in [words[0],words[1],words[6]])
         assert all(data[p-0x4000:p-0x4000+2]==b'\0\0'for p in words[:2])
         assert words[2:6]==(0x412c,0x412e,0x4151,0x4152)
         checks['published lazy standard storage, native runtime-variable addresses and lazy hook storage are bound correctly']=True
-        data,(address,payload,slot)=raw_block(disk/'INLPAGES.COM',5)
+        data,(address,payload,slot)=raw_block(disk/'inlpages.bin',5)
         assert address>0xc000 and int.from_bytes(data[22:24],'little')>0x4000
         assert payload==bytes([address&255,address>>8,(address+2)&255,(-address-3)&255,((-address-3)&65535)>>8])
         checks['late byte/word fixups survive both staging and final-image page boundaries']=True

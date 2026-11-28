@@ -23,9 +23,9 @@ int app_main(void) {
     check(seed("H:/CONIN.TXT","x"));input=open("H:/CONIN.TXT",O_RDONLY);check(input>=0);
     if(input>=0) {
         check(swap(input,DEV_STDIN)==0);owned=pages_used();status=255;
-        check(exec(EXEC_PRESERVE_PROGRAM,"H:/CONFAIL.COM",0,&status)==0&&status==0x20);
+        check(exec(EXEC_PRESERVE_PROGRAM,"H:/confail.bin",0,&status)==0&&status==0x20);
         check(pages_used()==owned);status=255;
-        check(exec(EXEC_PRESERVE_PROGRAM,"H:/TRMFAIL.COM",0,&status)==0&&status==0x20);
+        check(exec(EXEC_PRESERVE_PROGRAM,"H:/trmfail.bin",0,&status)==0&&status==0x20);
         check(pages_used()==owned);check(swap(input,DEV_STDIN)==0);check(close(input)==0);
     }
     if(capture>=0){check(swap(capture,DEV_STDOUT)==0);check(close(capture)==0);}

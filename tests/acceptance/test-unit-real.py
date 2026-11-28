@@ -51,7 +51,7 @@ def main():
     checks['first-use constant inside file generator']=((folder/'RAWCONST.TXT').read_bytes()if(folder/'RAWCONST.TXT').exists()else b'')==b'42\x1a'
     core=(ROOT/'build/integer_runtime.zpl').read_bytes();full=(ROOT/'build/pascal_runtime.zpl').read_bytes()
     for name,real in [('PLAIN',False),('COPY',False),('SCALE',True),('TRANSIT',True),('UNUSED',False),('FAULTRUN',True),('TYPELEAF',False)]:
-        path=folder/(name+'.COM')
+        path=folder/(name.lower()+'.bin')
         checks[name+' selects correct Real engine']=path.is_file()and int.from_bytes(path.read_bytes()[132:134],'little')==(16383 if real else 6042)and (path.read_bytes()[3466:14285]==full[3466:14285] if real else n.compact_prefix_matches(path.read_bytes(),executed=True))
     checks['unit source and library deleted']=not(folder/'MIXED.PAS').exists()and not(folder/'MIXED.ZPU').exists()
     report={'passed':all(checks.values()),'checks':checks,'assertions':word('_test_passed'),'expected_assertions':EXPECTED_ASSERTIONS,'failed':word('_test_failed'),

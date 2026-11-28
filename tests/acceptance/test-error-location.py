@@ -36,7 +36,7 @@ checks={'native completion':m.get(sym['_test_done'])==255 and word('_test_stage'
         'overlong/V-minus strings and wide casts execute safely':all(tag in (folder/'LOOKUP.TXT').read_bytes()for tag in (b'STRING-LENGTH-SAFE',b'WIDE-TYPE-CAST-OK',b'DEEP-DISK-OK',b'IO-FRAME-RESET-OK')),
         'operation-scoped files work in RAM and disk COM':(folder/'LOOKUP.TXT').read_bytes().count(b'DISK-SCOPE-OK')==2,
         'typed constants retain values across Memory Runs':(folder/'LOOKUP.TXT').read_bytes().endswith(b'1\r\n2\r\n'),
-        'no saved program or source-map input required':not (folder/'project/main.COM').exists() and not (folder/'project/main.ZMP').exists()}
+        'no saved program or source-map input required':not (folder/'project/main.bin').exists() and not (folder/'project/main.ZMP').exists()}
 report={'passed':all(checks.values()),'checks':checks,'native_assertions':word('_test_passed'),
         'capture_directory':str(n.RUN.relative_to(ROOT))}
 (n.RUN/'error-location.json').write_text(json.dumps(report,indent=2)+'\n')

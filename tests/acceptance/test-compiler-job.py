@@ -38,9 +38,9 @@ checks={'native completion':memory.get(sym['_test_done'])==255 and word('_test_s
     'RAM and saved native programs execute':(disk/'JOBS.TXT').is_file()and(disk/'JOBS.TXT').read_bytes()==b'JOB-OK\r\n'*2,
     'Memory and saved compilation never silently save sources':all((disk/name).read_bytes()==content for name,content in fixtures.items()if name.endswith(('.PAS','.INC'))),
     'all owned transactions are cleaned':not any(p.name.startswith('ZP')for p in disk.iterdir()),
-    'include reads cannot retarget main outputs':(disk/'JOB.COM').is_file()and not(disk/'JOB.ZMP').exists()and not(disk/'PART.COM').exists()}
+    'include reads cannot retarget main outputs':(disk/'job.bin').is_file()and not(disk/'JOB.ZMP').exists()and not(disk/'part.bin').exists()}
 try:
-    image=(disk/'JOB.COM').read_bytes();chain=(disk/'JOB.CHN').read_bytes()
+    image=(disk/'job.bin').read_bytes();chain=(disk/'JOB.CHN').read_bytes()
     from artifact_format import validate_image
     validate_image(image)
     checks['versioned main has checked image ranges']=True

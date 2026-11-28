@@ -20,7 +20,7 @@ acceptance, or add `--host-only` for sanitized transport checks. Runtime profile
 production unit acceptance and loader regressions cover the private runtime
 and unit-format integration.
 
-`python3 tools/measure-syscalls.py PATH/TO/ZBENCH.COM` measures the saved benchmark
+`python3 tools/measure-syscalls.py PATH/TO/zbench.bin` measures the saved benchmark
 produced by acceptance. Results are written under `build/`. Timings are emulator
 CPU cycles, not physical storage throughput. Stack sentinels measure observed
 writes, not an upper bound on reserved stack.
@@ -121,7 +121,7 @@ availability comparisons preserve the documented unsigned bit patterns.
 
 The entire examples
 tree, including its prebuilt `.bin` files and binary provenance, is intended
-for source control. Generated `.COM`/`.ZMP`/backup files and the working
+for source control. Legacy `.COM`/`.ZMP` files, backups and the working
 `parts.dat` database are ignored.
 
 Enable the opt-in test targets as described above, then run these commands
@@ -146,8 +146,7 @@ To refresh the shipped executables after changing sources, run the same native
 check with `--package`. Only after the behavior checks pass does it copy the
 native-tested images into these folders and update `binaries.json`. A normal
 run verifies that the shipped binaries and source hashes match fresh compiler
-output. The `.bin` bytes are unchanged from the compiler's published native
-COM format; the test launches the `.bin` filenames themselves.
+output. The test launches the Bin-files published by the compiler.
 
 The shipped executables record their compiler base revision, compiler-source
 digest and runtime digest in `binaries.json`.

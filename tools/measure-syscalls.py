@@ -256,7 +256,7 @@ def exit_cleanup_failure(n, image):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('image', type=Path, help='ZBENCH.COM produced by test-syscalls.py')
+    parser.add_argument('image', type=Path, help='zbench.bin produced by test-syscalls.py')
     args = parser.parse_args()
     for parent in ROOT.parents:
         if (parent/'zeal-dev-environment').is_dir():
@@ -266,7 +266,7 @@ def main():
     report = measure(n, args.image.read_bytes())
     report['minimal_programs'] = {}
     for name in ('ZEMPTY', 'ZUNUSED', 'ZCHECK', 'ZREG'):
-        image = args.image.with_name(name+'.COM').read_bytes()
+        image = args.image.with_name(name.lower()+'.bin').read_bytes()
         report['minimal_programs'][name] = {'com_bytes':len(image),
             'execution_pages':1 if image[18]&4 else 2 if image[18]&2 else 3,
             'sha256':hashlib.sha256(image).hexdigest()}

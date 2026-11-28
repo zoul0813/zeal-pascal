@@ -45,7 +45,7 @@ bridges carry the caller's I/O-checking context. The screen routines use the
 ordinary Pascal routine ABI.
 
 In the IDE, save the source, then select **O → M → Q** and **R** for RAM execution,
-or **O → C → Q** and **C** to save a COM beside the source. See
+or **O → C → Q** and **C** to save a Bin-file beside the source. See
 [the Unit guide](units.md) for lookup, compilation modes and artifact identity.
 
 ## Display model and session lifecycle

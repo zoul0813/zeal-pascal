@@ -24,7 +24,7 @@ int app_main(void) {
     check(seed("H:/HOOKIN.TXT","x"));input=open("H:/HOOKIN.TXT",O_RDONLY);check(input>=0);
     if(input>=0) {
         check(swap(input,DEV_STDIN)==0);owned=pages_used();status=255;
-        check(exec(EXEC_PRESERVE_PROGRAM,"H:/HOOKPURE.COM",0,&status)==0&&status==0);
+        check(exec(EXEC_PRESERVE_PROGRAM,"H:/hookpure.bin",0,&status)==0&&status==0);
         check(pages_used()==owned);check(swap(input,DEV_STDIN)==0);check(close(input)==0);
     }
     execution_file("H:/HOOKERROR.PAS",3,2,88);

@@ -2,8 +2,7 @@
 
 A native Pascal IDE, compiler and runtime for the MMU Zeal 8-bit Computer.
 It follows the CP/M-80 Turbo Pascal 3 source-language style and adds native
-Units, Word/LongWord, Zeal hardware access and ZOS system calls. Generated COM
-files are native Zeal executables, not CP/M programs.
+Units, Word/LongWord, Zeal hardware access and ZOS system calls. The compiler writes ZOS executables as Bin-files with the extension `.bin`.
 
 The IDE, compiler and your programs all run on the Zeal itself. Install the
 prebuilt release below, write a first program, then continue with the
@@ -55,10 +54,10 @@ begin
 end.
 ```
 
-1. Answer the startup compiler-message prompt with **Y** or **N**. Press **W**, enter `T:/HELLO.PAS`, then press **E** and type the program.
+1. Answer the startup compiler-message prompt with **Y** or **N**. Press **W**, enter `T:/hello.pas`, then press **E** and type the program.
 2. Press **Ctrl-K**, then **D**, to return to the menu. The text stays in RAM.
 3. Press **R** to compile and run it in Memory, then **S** to save the source.
-4. For a standalone program press **O**, **C**, **Q**, then **C** to write a COM.
+4. For a standalone program press **O**, **C**, **Q**, then **C** to write a lowercase `.bin` beside the source.
 
 [Example applications](examples/README.md) include complete runnable programs,
 source, input transcripts and instructions. [ZVB demos](examples/zvb/README.md)

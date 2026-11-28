@@ -20,7 +20,7 @@ The integrated acceptance directory is a file overlay, not a bootable disk image
 - `examples/`: all general examples, rebuilt BIN files, sources, includes and
   input transcripts. Programs with relative data/companion paths must run from
   their own example directory, for example `cd T:/examples/measure`.
-- `zvb/`: rebuilt COM demonstrations, source/asset includes, CRTCHECK, license
+- `zvb/`: rebuilt Bin-files, source/asset includes, CRTCHECK, license
   and credits, and `DIGITS.TXT` (`123456789`, exactly nine bytes without newline).
 - `README.TXT` and `MANIFEST.JSON`: deployment instructions, hashes, compiler
   checkpoint and the two passing native-example report locations.
@@ -71,21 +71,21 @@ failure. Record the last visible state and the exact program/path used.
 | Step | Action | Expected result |
 | --- | --- | --- |
 | 1 | Launch the compiler with the explicit bank path above | IDE opens; editing, saving and returning to ZShell work |
-| 2 | Compile a minimal program in Memory mode, then save it in Com-file mode | RAM Run and the saved COM both execute; no missing stock Unit error |
-| 3 | Run `zvb/ZVBCHECK.COM` | CRC and DMA verification complete; tone and sample playback are audible; returns to ZShell |
-| 4 | Run `zvb/CRC32.COM T:/zvb/DIGITS.TXT` (adjust path) | The file checksum is `CBF43926`; returns to ZShell |
-| 5 | Run `zvb/CRTCHECK.COM` | Cursor/lifecycle checks complete and print `CRT-GUIDE-OK`; ReadKey runs only if a key is pending. Use the interactive BoardCRT source below to check ReadKey explicitly. |
-| 6 | Run `zvb/FIRSTBAR.COM` without arguments | Orange bar on dark blue; a key exits; original text mode/settings return |
-| 7 | Run `zvb/SPRITES.COM` | Moving sprites render correctly; any key exits; shell remains usable |
-| 8 | Run `zvb/SNAKE.COM` | Animated title, checkerboard, apple and bottom score render; arrow keys and WASD steer |
+| 2 | Compile a minimal program in Memory mode, then save it in Bin-file mode | RAM Run and the saved Bin-file both execute; no missing stock Unit error |
+| 3 | Run `zvb/zvbcheck.bin` | CRC and DMA verification complete; tone and sample playback are audible; returns to ZShell |
+| 4 | Run `zvb/crc32.bin T:/zvb/DIGITS.TXT` (adjust path) | The file checksum is `CBF43926`; returns to ZShell |
+| 5 | Run `zvb/crtcheck.bin` | Cursor/lifecycle checks complete and print `CRT-GUIDE-OK`; ReadKey runs only if a key is pending. Use the interactive BoardCRT source below to check ReadKey explicitly. |
+| 6 | Run `zvb/firstbar.bin` without arguments | Orange bar on dark blue; a key exits; original text mode/settings return |
+| 7 | Run `zvb/sprites.bin` | Moving sprites render correctly; any key exits; shell remains usable |
+| 8 | Run `zvb/snake.bin` | Animated title, checkerboard, apple and bottom score render; arrow keys and WASD steer |
 | 9 | Eat an apple, collide, then press a fresh key | Growth/score update; collision wipe completes; replay restores a playable board |
 | 10 | Exit Snake with Q or Escape | Text display and shell input work again |
-| 11 | Recompile a supplied small source using the installed ZVB/CRT Units | Saved COM runs on the board; Unit lookup and static linking work on real storage |
+| 11 | Recompile a supplied small source using the installed ZVB/CRT Units | Saved Bin-file runs on the board; Unit lookup and static linking work on real storage |
 
 Snake is silent, matching the original C game. Test audio with ZVBCHECK. The
 emulated Pascal collision wipe is currently slower than C; measure it separately
 rather than treating timing parity as established. Graphics waits require a
-running display clock. SNES-controller testing (`SNAKE.COM -c`) is optional and
+running display clock. SNES-controller testing (`snake.bin -c`) is optional and
 requires the matching PIO wiring; keyboard replay remains required.
 
 For compiler/CRT checks, this small source is suitable for both execution modes:

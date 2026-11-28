@@ -48,7 +48,7 @@ def main():
     output = (directory/'WORKERS.TXT').read_bytes() if (directory/'WORKERS.TXT').exists() else b''
     counts = re.findall(rb'WORKER-READY:(\d+)\r\n', output)
     normalized = re.sub(rb'WORKER-READY:\d+\r\n', b'READY\r\n', output)
-    binary = (directory/'WORKERS0.COM').read_bytes() if (directory/'WORKERS0.COM').exists() else b''
+    binary = (directory/'workers0.bin').read_bytes() if (directory/'workers0.bin').exists() else b''
     library=fixtures[target+'.zpl'];payload=library[16+2*library[5]:]
     checks = {
         'host code-byte comparison before and after all jobs':all((directory/name).is_file()and(directory/name).read_bytes()==payload for name in ('CODE0.BIN','CODE1.BIN')),

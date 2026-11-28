@@ -20,13 +20,13 @@ static void client(const char *path,uint8_t expected) {
         if(ok){check(save_build(&s,&b,0));{uint8_t ran=run_build(&s,&b);test_runtime_code=ram_result[28];test_runtime_pc=ram_result[30]|((uint16_t)ram_result[31]<<8);check(ran&&ram_result[26]==1);}}
     }
     build_close(&b);source_close(&s);
-    if(!expected&&ok){char exe[128];strcpy(exe,path);strcpy(exe+strlen(exe)-3,"COM");check(!exec(EXEC_PRESERVE_PROGRAM,exe,0,&status)&&status==0);}
+    if(!expected&&ok){char exe[128];strcpy(exe,output_path());check(!exec(EXEC_PRESERVE_PROGRAM,exe,0,&status)&&status==0);}
 }
 static void saved(const char *path,uint8_t code) {
     uint8_t status=255;char exe[128];
     check(source_new(&s,path));check(load_source(&s,path,&d));check(compile(&s,&b,&d));
     if(b.valid)check(save_build(&s,&b,0));
-    build_close(&b);source_close(&s);strcpy(exe,path);strcpy(exe+strlen(exe)-3,"COM");
+    build_close(&b);source_close(&s);strcpy(exe,output_path());
     check(!exec(EXEC_PRESERVE_PROGRAM,exe,0,&status)&&status==code);
 }
 static void author(void) {

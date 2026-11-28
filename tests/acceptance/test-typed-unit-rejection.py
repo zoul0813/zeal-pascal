@@ -55,7 +55,7 @@ def main():
             {'CHECK.PAS': b'uses Calc;begin end.', 'CALC.ZPU': bytes(unit)}, timeout=180)
         state = n.memory(result)
         folder = n.RUN/label/'hostfs'
-        checks[kind+' compile result'] = (folder/'CHECK.COM').is_file() == (kind == 'word')
+        checks[kind+' compile result'] = (folder/'check.bin').is_file() == (kind == 'word')
         checks[kind+' clears pending allocations'] = all(
             state.get(sym['_code_phase_pending']+i) == 255 for i in range(n.code_banks()))
         checks[kind+' releases transient unit banks'] = all(

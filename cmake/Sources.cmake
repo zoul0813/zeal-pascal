@@ -6,7 +6,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/Outputs.cmake")
 # The generated Pascal runtime has its own startup, not the SDK C startup.
 set(CMAKE_ASM_LINK_EXECUTABLE "<CMAKE_LINKER> <LINK_FLAGS> <TARGET> <OBJECTS>")
 
-set(PASCAL_CORE src/compiler/codegen/frames.c src/source/core.c src/source/catalog.c src/compiler/sources.c src/compiler/statements.c src/compiler/codegen/emit.c src/compiler/link/artifact.c src/program/image.c src/compiler/link/activation.c src/compiler/build.c src/compiler/expressions.c src/compiler/codegen/strings.c src/compiler/codegen/recursion.c src/compiler/types.c src/compiler/codegen/inline.c src/compiler/frontend.c src/compiler/routines.c src/compiler/codegen/hooks.c src/compiler/codegen/real.c src/compiler/codegen/builtins/io.c src/compiler/codegen/builtins/random.c src/compiler/codegen/builtins/params.c src/compiler/codegen/builtins/files.c src/compiler/codegen/builtins/keyboard.c src/compiler/codegen/builtins/interrupt.c src/compiler/codegen/builtins/console.c src/compiler/codegen/builtins/crt.c src/compiler/state.c src/compiler/predicates.c src/compiler/codegen/asset.c src/platform/banks/loader.c src/platform/zeal.c src/platform/worker.c src/platform/keyboard.c src/storage/files.c src/storage/transport.c src/platform/native.asm
+set(PASCAL_CORE src/compiler/codegen/frames.c src/source/core.c src/source/catalog.c src/compiler/sources.c src/compiler/statements.c src/compiler/codegen/emit.c src/compiler/link/artifact.c src/program/image.c src/compiler/link/activation.c src/compiler/build.c src/compiler/expressions.c src/compiler/codegen/strings.c src/compiler/codegen/recursion.c src/compiler/types.c src/compiler/codegen/inline.c src/compiler/frontend.c src/compiler/routines.c src/compiler/codegen/hooks.c src/compiler/codegen/real.c src/compiler/codegen/builtins/io.c src/compiler/codegen/builtins/random.c src/compiler/codegen/builtins/params.c src/compiler/codegen/builtins/files.c src/compiler/codegen/builtins/keyboard.c src/compiler/codegen/builtins/interrupt.c src/compiler/codegen/builtins/console.c src/compiler/codegen/builtins/crt.c src/compiler/state.c src/compiler/predicates.c src/compiler/codegen/asset.c src/platform/banks/loader.c src/platform/zeal.c src/platform/worker.c src/platform/keyboard.c src/storage/files.c src/storage/names.c src/storage/transport.c src/platform/native.asm
     )
 
 list(APPEND PASCAL_CORE src/compiler/codegen/chain.c src/compiler/codegen/transfer_asset.c src/compiler/codegen/module.c src/compiler/codegen/bridges.c src/compiler/phase.c src/compiler/groups/members.c src/compiler/groups/groups.c src/compiler/groups/late.c src/compiler/codegen/builtins/keyboard_engine.c src/compiler/compile.c src/compiler/jobs/job.c src/compiler/jobs/result.c src/compiler/jobs/pages.c)
@@ -53,7 +53,7 @@ set_property(SOURCE src/editor/core.c src/editor/ide.c
 set_property(SOURCE src/source/catalog.c src/compiler/sources.c src/compiler/statements.c src/compiler/link/artifact.c src/program/image.c src/compiler/link/activation.c src/compiler/build.c src/storage/files.c src/editor/ide.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/source/catalog.h)
 
-set_property(SOURCE src/source/catalog.c
+set_property(SOURCE src/source/catalog.c src/storage/names.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/source/catalog.h)
 
 set_property(SOURCE src/source/core.c src/source/blocks.c
@@ -223,7 +223,7 @@ set_source_files_properties(src/compiler/codegen/strings.c
 set(CMAKE_C_LINK_EXECUTABLE "<CMAKE_LINKER> <LINK_FLAGS> <LINK_LIBRARIES> <TARGET> <OBJECTS>")
 
 set_source_files_properties(src/editor/display.c
-    PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK1;--constseg;BANK1")
+    PROPERTIES COMPILE_OPTIONS "--opt-code-size;--codeseg;BANK2;--constseg;BANK2")
 
 set_property(SOURCE src/editor/ide.c src/editor/display.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/editor/display.h)
@@ -240,7 +240,7 @@ set_property(SOURCE src/runtime/process/chain.c
 set_property(SOURCE src/runtime/process/overlay.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/runtime/process/overlay.h ${CMAKE_SOURCE_DIR}/src/runtime/process/chain.h ${CMAKE_SOURCE_DIR}/src/common/zp.h)
 
-set_property(SOURCE src/common/path.c src/storage/files.c src/source/catalog.c src/runtime/files/operations.c
+set_property(SOURCE src/common/path.c src/storage/names.c src/storage/files.c src/source/catalog.c src/runtime/files/operations.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/common/path.h)
 
 set_property(SOURCE src/runtime/files/operations.c src/compiler/codegen/builtins/files.c src/compiler/codegen/chain.c src/compiler/codegen/builtins/keyboard.c src/compiler/codegen/hooks.c
@@ -264,7 +264,7 @@ set_property(SOURCE src/compiler/compile.c src/compiler/jobs/job.c src/editor/id
 set_property(SOURCE src/editor/ide.c
     APPEND PROPERTY COMPILE_OPTIONS --opt-code-size)
 
-set_property(SOURCE src/source/catalog.c
+set_property(SOURCE src/source/catalog.c src/storage/names.c
     APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/source/catalog.h)
 
 set_property(SOURCE src/compiler/sources.c src/compiler/build.c
@@ -436,3 +436,6 @@ list(APPEND UNIT_CORE src/compiler/codegen/call.c)
 set_source_files_properties(src/compiler/codegen/call.c PROPERTIES COMPILE_OPTIONS "--std-c99;--opt-code-size")
 
 set_source_files_properties(src/compiler/disk_publish.c PROPERTIES COMPILE_OPTIONS "--std-c99;--opt-code-size")
+
+set_property(SOURCE src/storage/names.c src/storage/files.c src/editor/ide.c
+    APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/src/storage/names.h)

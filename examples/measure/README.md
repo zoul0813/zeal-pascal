@@ -10,7 +10,7 @@ Copy this entire folder to Zeal. In ZShell use `cd T:/examples/measure` and
 `./measure.bin`, or `cd H:/measure` when HostFS points at the examples tree.
 Keep `stats.bin` alongside it. Both executables are standalone and need no IDE
 library. To rebuild, compile `stats.pas` and `measure.pas` separately in saved
-Com-file mode, then copy `stats.COM` to `stats.bin` and `measure.COM` to `measure.bin`.
+Bin-file mode to produce `stats.bin` and `measure.bin`.
 Each program executes the other by its `.bin` name. Rebuild both after changing the compiler/runtime. Normal Start/End
 settings suffice. Memory mode cannot perform Execute: it reports I/O21 and
 returns to the collector's menu with the saved dataset retained.

@@ -51,7 +51,7 @@ def main():
             checks[label+' no pending allocations']=all(cancelled.get(sym['_code_phase_pending']+i)==255 and retried.get(sym['_code_phase_pending']+i)==255 for i in range(16))
             checks[label+' successful retry']=retried.get(sym['_build']+4)==(0 if disk else 1)
         folder=n.RUN/label/'hostfs';checks[label+' source preserved']=(folder/'PATCH.PAS').read_bytes()==source
-        if disk:checks[label+' saved retry publishes executable']=(folder/'PATCH.COM').is_file()
+        if disk:checks[label+' saved retry publishes executable']=(folder/'patch.bin').is_file()
         captures[label]=labels
     report={'passed':all(checks.values()),'checks':checks,'phase_observations':captures,'capture_directory':str(n.RUN.relative_to(ROOT))}
     (n.RUN/'optional-interrupt-report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2));return 0 if report['passed']else 1

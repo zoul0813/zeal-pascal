@@ -76,10 +76,10 @@ its existing search rules. The TF package installs these files in `T:/lib/`:
 - `ZVB.LIC` (Apache-2.0 license) and `ZVB.NTC` (SDK attribution and changes)
 
 To save a demo executable in the IDE, save its Pascal source with **S**, select
-**O → C (Com-file) → Q**, then press **C** to compile. This writes the COM beside
-the source; run it from ZShell, or use **R** in Com-file mode. Memory mode
+**O → C (Bin-file) → Q**, then press **C** to compile. This writes the Bin-file beside
+the source; run it from ZShell, or use **R** in Bin-file mode. Memory mode
 (**O → M → Q**) supports compilation and RAM execution without a disk workspace.
-To publish a COM after Memory testing, select Com-file and compile again. The latest Snake source is qualified in Com-file mode; its Memory-mode
+To publish a Bin-file after Memory testing, select Bin-file and compile again. The latest Snake source is qualified in Bin-file mode; its Memory-mode
 asset-include allocation exceeds available compiler RAM.
 
 A saved program contains its reachable unit code and needs no ZPU or Pascal
@@ -733,7 +733,7 @@ statically linked into the program. ZPU files are needed during compilation,
 not execution. Runtime code, globals and program code receive final compact
 addresses at link time; omitted Real code leaves no reserved hole. See the
 [Unit memory guide](units.md#program-memory-layout) for placement and RAM
-allocation, and [the demo guide](../examples/zvb/README.md) for binaries.
+allocation, and [the demo guide](../examples/zvb/README.md) for Bin-files.
 
 The private decoder stays in RAM and leaves the OS mapped. It validates each
 token before writing, preserves 256 bytes of circular history across chunks,
@@ -750,9 +750,9 @@ generated file compiled on Zeal. The result is guarded at 32,768 bytes to retain
 page authoring RAM budget. This is a qualification constraint for this stock
 Unit, not the Pascal language's general source limit.
 
-Snake's saved COM contains its code and assets and needs no PAS, INC or ZPU
+Snake's saved Bin-file contains its code and assets and needs no PAS, INC or ZPU
 files while running. Its collision wipe remains slower than the C reference;
-full timing parity is not established. Use Com-file mode for the larger Snake
+full timing parity is not established. Use Bin-file mode for the larger Snake
 source: Memory compilation hits an asset-include allocation limit.
 
 Physical display, controller and audio output have not been qualified on a

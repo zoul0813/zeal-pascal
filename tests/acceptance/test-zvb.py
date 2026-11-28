@@ -160,7 +160,7 @@ def main():
         metrics.append(dict(zip(('flags','code_bytes','globals_bytes','file_bytes','compile_error','position'),values),name=name))
     if 'USES' in cases and 'ORDER' in cases:
         directory=n.RUN/'zvb/hostfs'
-        checks['named/literal ports and reversed uses order produce identical output']=(directory/'USES.COM').exists() and (directory/'ORDER.COM').exists() and (directory/'USES.COM').read_bytes()==(directory/'ORDER.COM').read_bytes()
+        checks['named/literal ports and reversed uses order produce identical output']=(directory/'uses.bin').exists() and (directory/'order.bin').exists() and (directory/'uses.bin').read_bytes()==(directory/'order.bin').read_bytes()
     checks['compiler and runtime inputs unchanged']=all(hashlib.sha256(Path(p).read_bytes()).hexdigest()==value for p,value in input_hashes.items())
     report={'standalone_clients':standalone,'native_stack_margin':word('_test_stack_low')-word('_test_heap_base'),'clients':metrics,'scope':'hardware unit foundation'if args.hardware_only else __doc__,'passed':all(checks.values()),'checks':checks,'assertions':word('_test_passed'),'failed':word('_test_failed'),
             'failure_indices':[state.get(symbols['_test_failures']+2*i,0)|(state.get(symbols['_test_failures']+2*i+1,0)<<8)for i in range(min(word('_test_failed'),64))],
@@ -170,8 +170,8 @@ def main():
     report['input_sha256']=input_hashes
     report['fixture_sha256']=fixture_hashes
     directory=n.RUN/'zvb/hostfs'
-    report['program_sha256']={case:hashlib.sha256((directory/(case+'.COM')).read_bytes()).hexdigest()
-                              for case in cases if (directory/(case+'.COM')).exists()}
+    report['program_sha256']={case:hashlib.sha256((directory/(case.lower()+'.bin')).read_bytes()).hexdigest()
+                              for case in cases if (directory/(case.lower()+'.bin')).exists()}
     if (directory/'ZVB.ZPU').exists():
         report['library_sha256']=hashlib.sha256((directory/'ZVB.ZPU').read_bytes()).hexdigest()
     if args.output_library and report['passed']:

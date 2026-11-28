@@ -8,7 +8,7 @@ board. Recursive search and Pascal sets make the constraints visible in the code
 Copy this entire folder to Zeal. In ZShell use `cd T:/examples/queens` and
 `./queens.bin`, or `cd H:/queens` when HostFS points at the examples directory.
 No IDE library is needed. To rebuild, open `queens.pas` in the IDE from this
-folder and compile in Memory or Com-file mode. The saved `queens.COM` uses the
+folder and compile in Memory or Bin-file mode. The saved `queens.bin` uses the
 same native executable format as the supplied `.bin`.
 
 ## Try it
@@ -43,5 +43,5 @@ The 8-by-8 search does more work than the small boards; wait for its summary.
 - Integer solution counts stay small for N <= 8; a Real counts search attempts.
 - String input plus Val validates the board size before indexing any arrays.
 
-The source, standalone binary and two input transcripts are self-contained.
+The source, standalone Bin-file and two input transcripts are self-contained.
 No files, CRT calls or graphics are used; the board scrolls as plain text.

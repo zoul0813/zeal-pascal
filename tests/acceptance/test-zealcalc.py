@@ -96,7 +96,7 @@ def compile_program(source, name, reuse=None):
         if changed: reserved.update(p.name for p in published.glob('ZP[0-9A-F][0-9A-F][0-9A-F][0-9A-F]') if p.is_dir())
     for directory in (reuse or []):
         previous = directory/('compile-'+name.lower())/'hostfs'
-        candidate = previous/f'{name}.COM'
+        candidate = previous/f'{name.lower()}.bin'
         if (candidate.is_file() and (previous/f'{name}.PAS').read_bytes() == text.encode('ascii')
                 and all((previous/item).is_file() and (previous/item).read_bytes() == data
                         for item,data in include_files.items()
@@ -130,7 +130,7 @@ def compile_program(source, name, reuse=None):
     directory = n.RUN/case
     if (directory/'input-error.json').exists():
         raise RuntimeError((directory/'input-error.json').read_text())
-    candidate = directory/'hostfs'/f'{name}.COM'
+    candidate = directory/'hostfs'/f'{name.lower()}.bin'
     if not candidate.exists():
         memory = n.memory((directory/'console-all.txt').read_text())
         at = sym['_work']+4
@@ -146,7 +146,7 @@ def compile_program(source, name, reuse=None):
 
 
 def collect_overlays(host, name):
-    image = (host/(name+'.COM')).read_bytes()
+    image = (host/(name.lower()+'.bin')).read_bytes()
     match = re.search(rb'ZP[0-9A-F]{4}/P\0', image)
     assert match, 'Missing overlay directory'
     folder = match[0][:-3].decode()

@@ -91,7 +91,7 @@
 #define RT_ERROR 0x4161u
 #define RT_IOSTATUS 0x4164u
 #define RT_PARAMTAIL 0xff00u
-#define DEFAULT_SOURCE "T:/src/pascal/UNTITLED.pas"
+#define DEFAULT_SOURCE "T:/src/pascal/untitled.pas"
 enum { PAGE_SOURCE=1, PAGE_IMAGE, PAGE_MAP, PAGE_RUN, PAGE_SNAPSHOT, PAGE_COMPILER, PAGE_WORKER, PAGE_SOURCES };
 
 typedef struct {
@@ -232,6 +232,8 @@ uint8_t read_block(Source *block,const char *path,Diagnostic *d);
 uint8_t save_block(const Source *s,uint16_t first,uint16_t last,const char *path,uint8_t replace,uint8_t interruptible);
 uint8_t run_saved(const Source *s,Build *b,uint8_t *status);
 uint8_t execute_native(const char *path,uint8_t *status) SOURCE_BLOCK_CALL;
+const char *program_name(const char *root) SOURCE_BLOCK_CALL;
+uint8_t set_program_name(const char *root,const char *name) SOURCE_BLOCK_CALL;
 const char *output_path(void) SOURCE_BLOCK_CALL;
 /* Private job reason: 1 Ctrl-U/keyboard error, 2 retained typeahead full. */
 uint8_t output_interrupt_reason(void) SOURCE_BLOCK_CALL;

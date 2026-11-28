@@ -36,11 +36,11 @@ int app_main(void) {
     check(seed("H:/CONTROL.IN","x"));input=open("H:/CONTROL.IN",O_RDONLY);check(input>=0);
     if(input>=0) {
         check(swap(input,DEV_STDIN)==0);owned=pages_used();status=255;
-        check(exec(EXEC_PRESERVE_PROGRAM,"H:/CTLSTATE.COM",0,&status)==0&&status==0);
+        check(exec(EXEC_PRESERVE_PROGRAM,"H:/ctlstate.bin",0,&status)==0&&status==0);
         check(pages_used()==owned);status=255;
-        check(exec(EXEC_PRESERVE_PROGRAM,"H:/CTLFAIL.COM",0,&status)==0&&status==0xf0);
+        check(exec(EXEC_PRESERVE_PROGRAM,"H:/ctlfail.bin",0,&status)==0&&status==0xf0);
         check(pages_used()==owned);status=255;
-        check(exec(EXEC_PRESERVE_PROGRAM,"H:/CTLIGNORE.COM",0,&status)==0&&status==0);
+        check(exec(EXEC_PRESERVE_PROGRAM,"H:/ctlignore.bin",0,&status)==0&&status==0);
         check(pages_used()==owned);check(swap(input,DEV_STDIN)==0);check(close(input)==0);
     }
     }

@@ -172,9 +172,9 @@ use the runtime's fatal F0 behavior.
 
 In the native IDE, compile **zealcalc.pas** using **O → C → Q**, then **C**.
 Keep `include` beside it, with matching CRT.ZPU and ZOS.ZPU available to the
-compiler. Keep the generated COM and its `ZPxxxx` directory together; the
-shipped COM is named `zealcalc.bin`. See the [Unit guide](../../docs/units.md).
-Compile to a saved COM; direct Memory compilation does not support overlays.
+compiler. Keep the generated Bin-file and its `ZPxxxx` directory together; the
+shipped Bin-file is named `zealcalc.bin`. See the [Unit guide](../../docs/units.md).
+Compile to a saved Bin-file; direct Memory compilation does not support overlays.
 
 From the repository root, using the installed Zeal development environment:
 
@@ -190,7 +190,7 @@ emulator or target toolchain installation is needed.
 Acceptance compiles the real program and includes on the unmodified emulator.
 A test-only backend harness calls the same storage/calculation overlays for
 formula and corruption fixtures. Keyboard tests exercise entry, cancel,
-navigation, Blank, reopening and edit limits with the single application COM
+navigation, Blank, reopening and edit limits with the single application Bin-file
 and its companions. Read-only native output traces check incremental repainting;
 screen captures use the actual ZVB character/attribute planes, font and palette.
 `--package` refreshes the executable, companions, captures and provenance only

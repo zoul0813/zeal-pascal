@@ -57,7 +57,7 @@ def main():
     for pass_index, lines in enumerate(passes):
         for line_index, line in enumerate(lines):
             if pass_index < 2:
-                commands += [n.PhysicalLine(n.READ_INPUT_LINES[line_index], 'READINPUT.COM', 1-pass_index)]
+                commands += [n.PhysicalLine(n.READ_INPUT_LINES[line_index], 'readinput.bin', 1-pass_index)]
                 continue
             commands += [f'bp 0x{reader:x}', 'run 12000000000', f'bc 0x{reader:x}']
             if enter_held or (pass_index == 2 and line_index == 0):

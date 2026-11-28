@@ -38,7 +38,7 @@ for label,setup,trigger in (
     disk=n.RUN/label/'hostfs'
     checks[label+' foreign scratch and source remain intact']=(
         (disk/'project/main.$$$').read_bytes()==b'foreign scratch'and
-        (disk/'project/main.pas').read_bytes()==source and not(disk/'project/main.COM').exists())
+        (disk/'project/main.pas').read_bytes()==source and not(disk/'project/main.bin').exists())
 
 entry=sym['_compile_project'];flag=sym['_compiler_disk_requested']
 commands=['run 100000000']+n.program_launch()+['run 10000000']
@@ -57,7 +57,7 @@ checks['Find reaches source position and closes its scratch Build']=(bool(found)
 disk=n.RUN/'review-find/hostfs'
 checks['fresh Find needs neither COM nor ZMP and leaves no scratch']=(
     (disk/'project/main.pas').read_bytes()==source and
-    not any((disk/('project/main.'+ext)).exists()for ext in ('COM','ZMP','$$$')))
+    not any((disk/('project/main.'+ext)).exists()for ext in ('bin','ZMP','$$$')))
 checks['qualification inputs unchanged']=all(n.sha(Path(p))==h for p,h in hashes.items())
 report={'passed':all(checks.values()),'checks':checks,'capture_directory':str(n.RUN.relative_to(ROOT)),
         'scope':__doc__+' Memory-pressure capacity is separately covered by the host large-job fixture.'}

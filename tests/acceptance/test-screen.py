@@ -121,7 +121,7 @@ def main():
         folder=n.RUN/'screen-library/hostfs'
         files={supervisor+'.bin':(ROOT/f'build/{supervisor}.bin').read_bytes(),
                'PARENT.TXT':b'\0\0H:/SPARENT.COM',
-               'SPARENT.COM':(folder/'src/SPARENT.COM').read_bytes(),
+               'SPARENT.COM':(folder/'src/sparent.bin').read_bytes(),
                'src/SCHAIN.CHN':(folder/'src/SCHAIN.CHN').read_bytes()}
         removed=[]
         def remove(command,response,directory):

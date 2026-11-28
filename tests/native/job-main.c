@@ -422,7 +422,7 @@ int app_main(void) {
     check(run_build(&s,&b)&&ram_result[26]==1);check(pages_used()==owned);
     check(code_phase_restore());closed();
     test_stage=81;
-    check(request(1,&options));check(!strcmp(output_path(),"H:/JOB.COM"));check(save_build(&s,&b,0));
+    check(request(1,&options));check(!strcmp(output_path(),"H:/job.bin"));check(save_build(&s,&b,0));
     check(!memcmp(&s,&before,sizeof(s)));
     check(run_saved(&s,&b,&status)&&status==0&&b.valid==0);check(code_phase_restore());closed();
     options.kind=COMPILE_CHAIN;check(request(2,&options));check(build_is_chain(&b)&&!strcmp(output_path(),"H:/JOB.CHN"));
@@ -430,7 +430,7 @@ int app_main(void) {
     test_stage=82;
     check(load("program Include;\n{$I PART.INC}\nbegin writeln(answer)end."));before=s;
     check(request(1,&options));check(b.sources.count==2&&sources_get(&b.sources,1,&item)&&item.page==255);
-    check(save_build(&s,&b,0)&&!strcmp(output_path(),"H:/JOB.COM"));
+    check(save_build(&s,&b,0)&&!strcmp(output_path(),"H:/job.bin"));
     check(build_check(&s,&b)&&!memcmp(&s,&before,sizeof(s)));
     pc=0;
     pc=far_get(b.map_page,pc)|((uint16_t)far_get(b.map_page,pc+1)<<8);

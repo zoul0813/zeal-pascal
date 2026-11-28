@@ -208,7 +208,7 @@ def main():
                 checks['runtime output file exists']=out.is_file()
                 expected=row['output']*2
                 if row['id']=='constaddr':
-                    image=(disk/row['folder']/Path(row['root']).with_suffix('.COM')).read_bytes()
+                    image=(disk/row['folder']/Path(row['root']).with_name(Path(row['root']).stem.lower()+'.bin')).read_bytes()
                     start,size,base,globals_=struct.unpack_from('<HHHH',image,20)
                     constants=[int(v)&65535 for v in re.findall(rb'CONST-ADDR=(-?\d+)',actual)]
                     variables=[int(v)&65535 for v in re.findall(rb'VAR-ADDR=(-?\d+)',actual)]

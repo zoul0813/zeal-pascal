@@ -148,11 +148,11 @@ int app_main(void) {
     test_stage=3;
     check(!rm("H:/BRIDGE.ZPU"));check(!rm("H:/INITCHAIN.ZPU"));check(!rm("H:/TRACK.ZPU"));check(!rm("H:/LEFT.ZPU"));check(!rm("H:/RIGHT.ZPU"));check(!rm("H:/EMPTY.ZPU"));check(!rm("H:/INITREAL.ZPU"));
     check(!rm("H:/CRT.ZPU"));
-    check(!exec(EXEC_PRESERVE_PROGRAM,"H:/INITUSE.COM",0,&status)&&status==0);
-    check(!exec(EXEC_PRESERVE_PROGRAM,"H:/REVERSE.COM",0,&status)&&status==0);
-    check(!exec(EXEC_PRESERVE_PROGRAM,"H:/ONLYINIT.COM",0,&status)&&status==0);
-    check(!exec(EXEC_PRESERVE_PROGRAM,"H:/BRIDGERUN.COM",0,&status)&&status==0);
-    check(!exec(EXEC_PRESERVE_PROGRAM,"H:/INITPARENT.COM",0,&status)&&status==0);
+    check(!exec(EXEC_PRESERVE_PROGRAM,"H:/inituse.bin",0,&status)&&status==0);
+    check(!exec(EXEC_PRESERVE_PROGRAM,"H:/reverse.bin",0,&status)&&status==0);
+    check(!exec(EXEC_PRESERVE_PROGRAM,"H:/onlyinit.bin",0,&status)&&status==0);
+    check(!exec(EXEC_PRESERVE_PROGRAM,"H:/bridgerun.bin",0,&status)&&status==0);
+    check(!exec(EXEC_PRESERVE_PROGRAM,"H:/initparent.bin",0,&status)&&status==0);
     if(capture>=0){check(!swap(capture,DEV_STDOUT));check(!close(capture));}
     check(pages_used()==15);console_close();test_done=255;test_complete();return 0;
 }

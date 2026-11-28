@@ -61,8 +61,8 @@ def main():
             raw=n.execute(label,commands,fixtures,tf_image=n.prepare_media(),eeprom_image=n.MEDIA/'eeprom-empty.img',timeout=600,console_class=MediaConsole)
             folder=n.RUN/label
             files=n.zealfs_files((folder/('tf.img'if drive=='T'else'eeprom.img')).read_bytes())
-            checks[label+' publishes Real COM on selected media']='/COST.COM'in files
-            if '/COST.COM'in files:outputs[drive][target]=files['/COST.COM']
+            checks[label+' publishes Real COM on selected media']='/cost.bin'in files
+            if '/cost.bin'in files:outputs[drive][target]=files['/cost.bin']
             if target=='zpascal':checks[label+' bounded sequential flush count']=0<observed.get('decode_flush_calls',0)<=128
             runs[label]=observed
         checks[drive+' Real output equals full-runtime control']=len(outputs[drive])==2 and outputs[drive]['zpascal']==outputs[drive]['zlegacypascal']

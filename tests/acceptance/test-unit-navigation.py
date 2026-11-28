@@ -147,7 +147,7 @@ def main():
     folder = n.RUN/'unit-navigation/hostfs'
     checks['refused navigation leaves matching disk source intact'] = (folder/'MATHSRC.PAS').is_file() and (folder/'MATHSRC.PAS').read_bytes() == p.UNIT
     checks['successful navigation saves dirty client'] = (folder/'CLIENT.PAS').is_file() and (folder/'CLIENT.PAS').read_bytes() == b'{dirty}\n'+CLIENT
-    checks['Find publishes no executable'] = not (folder/'MATHSRC.COM').exists()
+    checks['Find publishes no executable'] = not (folder/'mathsrc.bin').exists()
     report = {'passed': all(checks.values()), 'checks': checks, 'observed': observed, 'capture_directory': str(n.RUN.relative_to(ROOT))}
     (n.RUN/'unit-navigation-report.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))

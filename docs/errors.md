@@ -154,7 +154,7 @@ are the situations that most often produce them.
 | 67 | File passed by value | Make it a `var` parameter |
 | 71 | `goto` into a deeper `for` | Restructure the jump |
 | 73 | A `forward` routine has no body | Supply the body in the same block |
-| 77 | `overlay` in Memory mode | Select Com-file mode |
+| 77 | `overlay` in Memory mode | Select Bin-file mode |
 | 91 | Unterminated comment or unexpected end of file | Close the comment or block |
 | 93 | Unknown or malformed directive | See the [directive table](language.md#compiler-directives-and-includes) |
 | 97 | Too many active With contexts | Raise `{$W}` before the block's `begin`, or use qualified fields |

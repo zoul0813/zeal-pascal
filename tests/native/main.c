@@ -307,7 +307,7 @@ static void media_tests(void) {
         status=255; check(run_saved(&s,&b,&status)&&status==0);
         if(attempt<2) build_close(&b);
     }
-    strcpy(s.path,"T:/UNTITLED.COM");
+    strcpy(s.path,"T:/untitled.bin");
     /* Renaming invalidates the source catalog before path validation. Test
      * that guard separately, then bind a fresh build to the colliding path. */
     check(!save_build(&s,&b,0)&&platform_error==ERR_FAILURE);
@@ -398,14 +398,14 @@ static void basic_tests(void) {
         check(!save_source_as(&s,"H:/BLOCK/denied.pas",0,0)&&platform_error==ERR_NOT_A_DIR);
         check(!memcmp(&s,&before,sizeof(s))&&build_ready(&s,&b));
         check(save_source_as(&s,"h:/./RENAMED",0,0));
-        check(!strcmp(s.path,"H:/RENAMED.PAS")&&!s.dirty&&s.revision==before.revision+1);
+        check(!strcmp(s.path,"H:/RENAMED.pas")&&!s.dirty&&s.revision==before.revision+1);
         check(s.page==before.page&&s.length==before.length&&s.cursor==before.cursor&&s.previous==before.previous);
          check(page_versions[s.page]==version&&!build_ready(&s,&b));
         build_close(&b);
         memcpy(&before,&s,sizeof(s));
         check(save_source_as(&s,s.path,0,0)&&!memcmp(&s,&before,sizeof(s)));
     }
-    check(load_source(&s,"H:/NEWFILE",&d)&&!strcmp(s.path,"H:/NEWFILE.PAS")&&!s.length&&!s.dirty);
+    check(load_source(&s,"H:/NEWFILE",&d)&&!strcmp(s.path,"H:/NEWFILE.pas")&&!s.length&&!s.dirty);
     check(pages_used()==cached_code_pages()+1);
     test_stage=7;
     strcpy(s.path,"H:/NAME.PAS");

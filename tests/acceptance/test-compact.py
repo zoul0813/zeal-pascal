@@ -187,10 +187,10 @@ def main():
             finally:
                 super().command(f"bc 0x{symbols['_test_stop']:x}")
     commands = ['run 100000000']+n.program_launch(target)+['mmu']
-    commands += [n.PhysicalLine('-32768 32767', 'SLICE.COM', 1),
-                 n.PhysicalLine('-32768 32767', 'SLICE.COM', 0),
-                 n.PhysicalLine('1.5', 'SLICE.COM', 1),
-                 n.PhysicalLine('1.5', 'SLICE.COM', 0),
+    commands += [n.PhysicalLine('-32768 32767', 'slice.bin', 1),
+                 n.PhysicalLine('-32768 32767', 'slice.bin', 0),
+                 n.PhysicalLine('1.5', 'slice.bin', 1),
+                 n.PhysicalLine('1.5', 'slice.bin', 0),
                  'compact-complete', 'regs',
                  'mmu', 'rb 0x4000 32']
     for name in ('_test_done', '_test_stage', '_test_passed', '_test_failed'):
@@ -261,8 +261,8 @@ def main():
               'explicit_storage_probe_contract_bytes': 8192,
               'unchanged_layout_contract': {'automatic_global_or_heap_capacity_gain': 0,
                                             'execution_pages_released': 0},
-              'saved_image_prefix_field_bytes': int.from_bytes((hostfs/'SLICE.COM').read_bytes()[132:134], 'little'),
-              'saved_image_globals_base': int.from_bytes((hostfs/'SLICE.COM').read_bytes()[24:26], 'little'),
+              'saved_image_prefix_field_bytes': int.from_bytes((hostfs/'slice.bin').read_bytes()[132:134], 'little'),
+              'saved_image_globals_base': int.from_bytes((hostfs/'slice.bin').read_bytes()[24:26], 'little'),
               'capture_directory': str(n.RUN.relative_to(ROOT)), 'input_sha256': hashes}
     (n.RUN/'compact-report.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))

@@ -14,7 +14,7 @@ The included executable is standalone: it needs neither the IDE nor its ZPL libr
 
 To edit and rebuild, start the installed IDE from this same directory (for example
 `T:/bin/zpascal.bin`) and use W to open `lighthouse.pas`. For a saved
-executable choose O, C, Q and C; the compiler writes `lighthouse.COM`. That COM is the same native executable format as the supplied `.bin`.
+executable choose O, C, Q and C; the compiler writes `lighthouse.bin`.
 The normal automatic Start and default End settings suffice.
 
 Keep the current directory set to this folder: opening a source file does not

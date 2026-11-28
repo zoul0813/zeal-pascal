@@ -27,7 +27,7 @@ def upper_probe():
     folder=n.RUN/'console-upper-probe/hostfs'
     spec=importlib.util.spec_from_file_location('source_maps',ROOT/'tests/acceptance/test-sources.py')
     maps=importlib.util.module_from_spec(spec);spec.loader.exec_module(maps);maps.mapping(folder,'CONUPPER')
-    image=(folder/'CONUPPER.COM').read_bytes();source=n.symbols('pascal_runtime')['input_source']
+    image=(folder/'conupper.bin').read_bytes();source=n.symbols('pascal_runtime')['input_source']
     origin=int.from_bytes(image[20:22],'little');size=int.from_bytes(image[22:24],'little')
     opcode=bytes([0xcd,source&255,source>>8])
     calls=[at for at in range(max(0xc000,origin),origin+size-2)if image[at-0x4000:at-0x4000+3]==opcode]
@@ -142,7 +142,7 @@ def main():
             caller==upper_site+3 and len(gate)==1 and gate[0].get(0x8000)==73 and gate[0].get(upper_last)==149 and
             bytes(gate[0].get(upper_site+i,0)for i in range(3))==bytes([0xcd,runtime['input_source']&255,runtime['input_source']>>8]) and
             len(upper)==1 and bytes(n.memory(upper[0]).get(runtime['input_source']+i,0)for i in range(16))==prefix[runtime['input_source']-0x4000:runtime['input_source']-0x4000+16] and
-            (disk/'CONUPPER.COM').read_bytes()==upper_image,
+            (disk/'conupper.bin').read_bytes()==upper_image,
         'real input/write cleanup follows restored disposable code in both executions':len(faults)==2 and all(
             bytes(f.get(site+i,0)for i in range(5))==original for f in faults),
         'logical names and invalid operations create no disk files':not(disk/'CONINVALID').exists(),

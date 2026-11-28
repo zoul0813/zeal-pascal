@@ -61,18 +61,18 @@ def publication_checks(drive):
     frames = [n.memory(part) for part in re.split(r'\[DBG\] PC=', raw)[1:]]
     folder = n.RUN/('publication-'+drive)
     if drive == 'H':
-        files = {p.name: p.read_bytes() for p in (folder/'hostfs').glob('REPEAT.*')}
+        files = {p.name: p.read_bytes() for p in (folder/'hostfs').iterdir() if p.is_file() and p.name.lower().startswith('repeat.')}
         clean = not any(p.is_dir() for p in (folder/'hostfs').glob('ZP*'))
         untouched = (folder/'tf.img').read_bytes() == template
     else:
         media = n.zealfs_files((folder/'tf.img').read_bytes())
         files = {path.rsplit('/', 1)[-1]: data for path, data in media.items()
-                 if path.startswith('/REPEAT.')}
+                 if path.lower().startswith('/repeat.')}
         clean = not any(path.startswith('/ZP') for path in media)
         untouched = (folder/'hostfs/REPEAT.PAS').read_bytes() == source and '/src/' not in media
     offset = int(drive == 'T')
     count_ok = len(frames) == 6+offset
-    binary, mapping = files.get('REPEAT.COM', b''), files.get('REPEAT.ZMP', b'')
+    binary, mapping = files.get('repeat.bin', b''), files.get('REPEAT.ZMP', b'')
     identity = bytes(frames[offset+3].get(build+19+i, 0) for i in range(32)) if count_ok else b''
     checks = {
         'all expected checkpoints reached': count_ok,
@@ -98,12 +98,39 @@ def publication_checks(drive):
             'file_sha256': {name: hashlib.sha256(data).hexdigest() for name, data in files.items()}}
 
 
+def filename_checks():
+    source = (b"{$I Part}\nvar f:text;\nbegin assign(f,'H:/ran.txt');"
+              b"rewrite(f);write(f,message);close(f) end.")
+    part = b"const message='NAMING-OK';"
+    typed = lambda text: n.type_text(text, ticks=5000000)
+    commands = ['run 100000000'] + n.program_launch() + ['run 20000000']
+    commands += typed('nwH:/part.inc\naT:/src/pascal/UNTITLED.pas\naT:/MiX/Part.PAS\n')
+    commands += typed('wH:/demo.pas\naT:/MiX/Demo.PAS\n')
+    ready = n.ImageStop(n.symbols('zpascal')['_key_read'], 'zpascal.bin')
+    commands += typed('wT:/MiX/Demo\nocqc') + [ready, 'tap ESC', 'run 20000000']
+    commands += typed('onUpperCase.COM\nqr') + [ready, 'quit']
+    n.execute('output-names', commands, {'part.inc': part, 'demo.pas': source},
+              tf_image=n.prepare_media(), timeout=300)
+    directory = n.RUN/'output-names'
+    files = n.zealfs_files((directory/'tf.img').read_bytes())
+    image = files['/MiX/demo.bin']
+    assert files['/MiX/Demo.PAS'] == source and files['/MiX/Part.PAS'] == part
+    assert image[3:8] == b'ZP80\x02' and files['/MiX/UpperCase.COM'] == image
+    assert (directory/'hostfs/ran.txt').read_bytes() == b'NAMING-OK\x1a'
+    # Reboot the same ZealFS volume and save the reopened startup buffer.
+    reopen = ['run 100000000'] + n.program_launch() + ['run 20000000']
+    reopen += typed('naH:/reopened\n') + ['run 100000000', 'quit']
+    n.execute('output-legacy-work', reopen, tf_image=directory/'tf.img', timeout=90)
+    assert (n.RUN/'output-legacy-work/hostfs/reopened.pas').read_bytes() == part
+
+
 def main():
     inputs = [Path(__file__), ROOT/'tests/acceptance/test-native.py', ROOT/'tests/native/random.pas',
               n.EMULATOR, n.ROM, n.TF_TEMPLATE]
     inputs += sorted((source_path for source_path in (ROOT/'src').rglob('*') if source_path.is_file()))
     inputs += [ROOT/('build/zpascal.'+ext) for ext in ('bin', 'zpl', 'map', 'banks.json')]
     hashes = {str(path): n.sha(path) for path in inputs if path.is_file()}
+    filename_checks()
     results = [publication_checks(drive) for drive in ('H', 'T')]
     unchanged = all(n.sha(Path(path)) == digest for path, digest in hashes.items())
     report = {

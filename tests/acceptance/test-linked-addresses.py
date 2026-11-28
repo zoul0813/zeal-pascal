@@ -85,7 +85,7 @@ def main():
         frames = re.split(r'\[DBG\] PC=',raw)[1:]
         cold = n.memory(frames[0])
         checks[label+' ten startup pages'] = sum(cold.get(sym['_code_pages']+i,255)!=255 for i in range(n.code_banks()))==10
-        image = (folder/'LINKED.COM').read_bytes()
+        image = (folder/'linked.bin').read_bytes()
         matches = [i for i in range(len(image)-9) if image[i]==0x2e and image[i+2]==0x26 and image[i+4:i+9]==bytes.fromhex('7e6f2600c9')]
         assert len(matches)==1,matches
         function = matches[0]
@@ -108,18 +108,18 @@ def main():
     def remove(command,response,directory):
         if command=='run 100000000'and not deleted:
             for path in (directory/'hostfs').iterdir():
-                if path.name!=parent+'.bin'and path.suffix.lower()in('.bin','.zpl','.zpu','.pas'):
+                if path.name not in (parent+'.bin','linked.bin')and path.suffix.lower()in('.bin','.zpl','.zpu','.pas'):
                     path.unlink();deleted.append(path.name)
             assert deleted
     commands=['run 100000000']+n.type_text('H:/'+parent+'.bin',ticks=2000000)+[
         f"bp 0x{ps['_execute_parent_stop']:x}",'tap ENTER','run 10000000000','regs']
     commands += [f"rb 0x{ps[field]:x} 2"for field in ('_test_done','_test_passed','_test_failed')]+['quit']
-    raw=n.execute('linked-detached',commands,{'LINKED.COM':image,parent+'.bin':(ROOT/f'build/{parent}.bin').read_bytes(),
-        'PARENT.TXT':b'\0\0H:/LINKED.COM'},timeout=180,after_command=remove)
+    raw=n.execute('linked-detached',commands,{'linked.bin':image,parent+'.bin':(ROOT/f'build/{parent}.bin').read_bytes(),
+        'PARENT.TXT':b'\0\0H:/linked.bin'},timeout=180,after_command=remove)
     state=n.memory(raw);word=lambda field:state.get(ps[field],0)|(state.get(ps[field]+1,0)<<8)
     folder=n.RUN/'linked-detached/hostfs'
     checks['saved carry program executes'] = state.get(ps['_test_done'])==255 and word('_test_passed')>0 and word('_test_failed')==0 and b'LINKED-BYTES-OK\r\n'in(folder/'RESULT.TXT').read_bytes()
-    checks['compiler units and sources absent'] = not any(path.name!=parent+'.bin'and path.suffix.lower()in('.bin','.zpl','.zpu','.pas')for path in folder.iterdir())
+    checks['compiler units and sources absent'] = not any(path.name not in (parent+'.bin','linked.bin')and path.suffix.lower()in('.bin','.zpl','.zpu','.pas')for path in folder.iterdir())
     checks['stable inputs'] = all(n.sha(Path(path))==value for path,value in hashes.items())
     report={'passed':all(checks.values()),'checks':checks,'host_assertions':80,'start':start,'staged_target':staged,'final_target':target,
         'delta':delta,'input_sha256':hashes,'image_sha256':hashlib.sha256(image).hexdigest(),

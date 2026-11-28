@@ -206,7 +206,7 @@ static int equals(const char *path,const uint8_t *data,unsigned size) {
 static void setup(unsigned kind,unsigned mask) {
     unsigned i;assert(!opened());memset(files,0,sizeof(files));memset(fds,0,sizeof(fds));memset(roles,0,sizeof(roles));
     memset(&build,0,sizeof(build));case_kind=kind;case_old=mask;events=polls=writes=reads=0;platform_error=0;
-    target[0]=kind==1?"T:/new/name.pas":kind==2?"T:/block.pas":kind>=3?(kind==4?"T:/code.CHN":"T:/code.COM"):"T:/code.pas";
+    target[0]=kind==1?"T:/new/name.pas":kind==2?"T:/block.pas":kind>=3?(kind==4?"T:/code.CHN":"T:/code.bin"):"T:/code.pas";
     target[1]=kind==1?"T:/new/name.BAK":kind>=3?"T:/code.ZMP":"T:/code.BAK";
     make("T:/",1);make("T:/ZPKEEP",1);seed("T:/ZPKEEP/FOREIGN",(const uint8_t*)"keep",4);
     if(kind==1)make("T:/new",1);

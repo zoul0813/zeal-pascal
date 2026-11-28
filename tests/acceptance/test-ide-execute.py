@@ -98,7 +98,7 @@ def main():
         checks['actual source screen still contains unsaved text']=all(line.decode()in screenshots['source-retained']for line in (prefix.rstrip(),source.splitlines()[0],source.splitlines()[2]))
     folder=n.RUN/'ide-execute/hostfs'
     checks['ordinary child executed in original directory']=(folder/'XCHILD.TXT').read_bytes()==b'H:/'if(folder/'XCHILD.TXT').exists()else False
-    checks['source and installation files unchanged; no implicit save or Pascal extension']=all((folder/path).read_bytes()==content for path,content in fixtures.items())and not(folder/'external.PAS').exists()and not(folder/'project/main.COM').exists()
+    checks['source and installation files unchanged; no implicit save or Pascal extension']=all((folder/path).read_bytes()==content for path,content in fixtures.items())and not(folder/'external.PAS').exists()and not(folder/'project/main.bin').exists()
     checks['all qualification inputs unchanged']=all(n.sha(Path(p))==h for p,h in hashes.items())
     report={'passed':all(checks.values()),'scope':__doc__+' Full IDE/library and hardware conformance remain open.',
         'checks':checks,'screens':screenshots,'capture_directory':str(n.RUN.relative_to(ROOT)),

@@ -135,9 +135,9 @@ def resolve(command, host_log, params_reports):
         report = json.loads(fresh.pop().read_text())
         if not report['passed']:
             raise RuntimeError('Parameter suite did not pass')
-        program = ROOT / report['capture_directory'] / 'params-component/hostfs/PARAMS.COM'
+        program = ROOT / report['capture_directory'] / 'params-component/hostfs/params.bin'
         if not program.is_file():
-            raise RuntimeError('Parameter suite did not produce PARAMS.COM')
+            raise RuntimeError('Parameter suite did not produce params.bin')
         command = [command[0], str(program)]
     return [sys.executable, '-u', *command]
 

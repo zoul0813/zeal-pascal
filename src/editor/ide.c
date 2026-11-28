@@ -1,5 +1,6 @@
 #include "editor/editor.h"
 #include "editor/display.h"
+#include "storage/names.h"
 #include "source/catalog.h"
 #include "platform/keyboard.h"
 #include "compiler/jobs/job.h"
@@ -375,7 +376,7 @@ static void open_work(void) {
         do { c=confirmation_key(); } while(c!='y'&&c!='n'&&c!=27&&c!=21);
         if(c==27||c==21||(c=='y'&&!save_work()))return;
     }
-    screen_clear();output("Open work file (for example T:/HELLO.PAS): ");
+    screen_clear();output("Open work file (for example T:/hello.pas): ");
     if(file_field(name)!=1)return;
     if(!source_path(name,path)) { lookup_failure();return; }
     output("\nLoading...\n");
@@ -443,7 +444,7 @@ static uint8_t compile_work(uint8_t running) {
     if(saved_mode==COMPILER_UNIT_MODE)output("Compiling unit (Ctrl-U cancels)...\n");
     else
 #endif
-    output(saved_mode==2?"Compiling native CHN (Ctrl-U cancels)...\n":saved_mode?"Compiling to native COM (Ctrl-U cancels)...\n":"Compiling to Memory (Ctrl-U cancels)...\n");
+    output(saved_mode==2?"Compiling native CHN (Ctrl-U cancels)...\n":saved_mode?"Compiling to native Bin-file (Ctrl-U cancels)...\n":"Compiling to Memory (Ctrl-U cancels)...\n");
     ok=compile_request(&root,&build,&failure,saved_mode,saved_mode?&compile_options:0);
     d=failure.diagnostic;
     if(!ok) {
@@ -470,6 +471,9 @@ static uint8_t compile_work(uint8_t running) {
     if(!sources_get(&build.sources,0,&root)) { cancel_prepared_build();lookup_failure();return 0; }
     if(saved_mode) {
         output("Saving executable (Ctrl-U cancels)...\n");
+        if(same_file_name(work.path,output_path())) {
+            cancel_prepared_build();invalidate();search_ack("Output filename matches Work");return 0;
+        }
         if(!save_build(&root,&build,1)) {
             ok=platform_error;
             cancel_prepared_build();
@@ -514,7 +518,7 @@ static uint8_t option_limits(const CompileOptions *options,CompileLimits *limits
 }
 static void options_screen(void) {
     CompileLimits limits;
-    screen_clear();output("Compiler options\nM Memory  C Com-file  H cHn-file  ");
+    screen_clear();output("Compiler options\nM Memory  C Bin-file  H cHn-file  ");
 #ifdef ZP_UNITS_EXPERIMENT
     output("U Unit-file  ");
 #endif
@@ -524,8 +528,12 @@ static void options_screen(void) {
     if(saved_mode==COMPILER_UNIT_MODE){output("Compiled unit (.ZPU) selected\n");return;}
 #endif
     if(!saved_mode) {output("Memory selected\n");return;}
+    if(saved_mode==1) {
+        const char *name=program_name(main_file[0]?main_file:work.path);
+        output("N Output name: ");output(name?name:"automatic (.bin)");output("\n");
+    }
     option_limits(&compile_options,&limits);
-    output(saved_mode==2?"Native cHn-file selected\nS Start  E End\nStart: ":"Native Com-file selected\nS Start  E End\nStart: ");
+    output(saved_mode==2?"Native cHn-file selected\nS Start  E End\nStart: ":"Native Bin-file selected\nS Start  E End\nStart: ");
     if(compile_options.start)output_hex(compile_options.start,4);else output("AUTO");
     output(" (min ");output_hex(limits.minimum_start,4);output(" max ");output_hex(limits.maximum_start,4);
     output(")\nEnd: ");output_hex(compile_options.end,4);
@@ -755,6 +763,10 @@ int app_main(void) {
     memset(&build,0,sizeof(build)); memset(build.pages,255,3); build.map_page=255;
     if(!console_open()) { output("Zeal Pascal needs the supported MMU machine and 80x24 PS/2 console.\n"); return 1; }
     if(!source_new(&work,DEFAULT_SOURCE)) { output("Not enough source memory\n"); console_close(); return 1; }
+    if(stat_path(work.path)==ERR_NO_SUCH_ENTRY) {
+        strcpy(work.path,"T:/src/pascal/UNTITLED.pas");
+        if(stat_path(work.path)==ERR_NO_SUCH_ENTRY)strcpy(work.path,DEFAULT_SOURCE);
+    }
     screen_clear(); output("Zeal Pascal\nExplanatory error messages (Y/N)? ");
     if(!load_source(&work,work.path,&startup)) {
         file_error("\nDefault source unavailable (error ",startup.code?startup.code:platform_error);
@@ -769,7 +781,7 @@ int app_main(void) {
             if(saved_mode==COMPILER_UNIT_MODE)output("Zeal Pascal - Unit-file\nWork: ");
             else
 #endif
-            output(saved_mode==2?"Zeal Pascal - native cHn-file\nWork: ":saved_mode?"Zeal Pascal - native Com-file\nWork: ":"Zeal Pascal - Memory\nWork: "); output(work.path);
+            output(saved_mode==2?"Zeal Pascal - native cHn-file\nWork: ":saved_mode?"Zeal Pascal - native Bin-file\nWork: ":"Zeal Pascal - Memory\nWork: "); output(work.path);
             output(work.dirty?" *\n":"\n");output("Main: ");
             if(main_file[0])output(main_file);else output("(Work)");
             output("\n");output_number(work.length); output(" source bytes; ");
@@ -809,6 +821,14 @@ int app_main(void) {
                            compile_options.kind!=(status==2?COMPILE_CHAIN:COMPILE_PROGRAM))build.code_bytes=build.globals_bytes=0;
                         saved_mode=status;compile_options.kind=status==2?COMPILE_CHAIN:COMPILE_PROGRAM;build_close(&build);
                     }
+                    options_screen();
+                }
+                else if(saved_mode==1&&c=='n') {
+                    char name[128];uint8_t field;
+                    output("Output filename (.bin/.com, empty=automatic): ");
+                    field=file_field(name);
+                    if((field==1||field==3)&&!set_program_name(main_file[0]?main_file:work.path,name))
+                        search_ack("Invalid executable filename");
                     options_screen();
                 }
                 else if(saved_mode&&saved_mode!=COMPILER_UNIT_MODE&&(c=='s'||c=='e')) {option_address(c=='s');options_screen();}

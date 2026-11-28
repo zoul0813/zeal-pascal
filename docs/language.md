@@ -32,9 +32,9 @@ begin
 end.
 ```
 
-Save as `HELLO.PAS`. In the IDE, choose **W**, enter its path, then **R** to
+Save as `hello.pas`. In the IDE, choose **W**, enter its path, then **R** to
 compile and run in Memory mode. **O → C → Q**, followed by **C**, writes a native
-COM executable. See [compilation modes](ide.md#compilation-modes).
+Bin-file. See [compilation modes](ide.md#compilation-modes).
 
 Keywords, built-ins and ordinary identifiers are case-insensitive. Indentation
 is for the reader. Semicolons separate statements; a semicolon before `else`
@@ -593,7 +593,7 @@ not reassign it; set `CBreak` directly to change it while the program runs.
 `{$I+}` and `{$I-}` are the checking switch; any other text after `{$I` is an
 include. `{$I parts/math.inc}` belongs on its own line, and cannot share a comment
 with switches. Relative paths resolve from the
-containing source's directory; a missing extension defaults to PAS. Native
+containing source's directory; a missing extension defaults to `.pas` and also finds an existing `.PAS`. Native
 filename case is preserved. One include level is supported; nested/self includes
 are rejected. A missing file is compiler error 90. Includes are read from disk, so
 save edited include Work before compiling Main. The IDE performs that save/reload
@@ -767,7 +767,7 @@ This compiler does not supply objects/classes, exceptions, generics, dynamic
 arrays, managed/Unicode strings, open-array parameters, overloaded routines,
 operator overloading, arbitrary constant expressions, record/array/set function
 results, LongWord For/Case/indexing, or modern unit finalization.
-Saved COM programs support [overlay routines and OvrDrive](overlays.md), using
+Saved Bin-files support [overlay routines and OvrDrive](overlays.md), using
 MMU banks and demand-loaded native companions. Memory compilation and the
 combinations listed in that guide remain unavailable. External CP/M BDOS/BIOS
 calls are not available; use native interfaces instead. See the

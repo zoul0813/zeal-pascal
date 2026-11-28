@@ -59,7 +59,7 @@ def main():
     memory=n.memory(raw);word=lambda name:memory.get(sym[name],0)|memory.get(sym[name]+1,0)<<8
     disk=n.RUN/'logical-keyboard/hostfs'
     expected=b''.join((f'KBD-{name}-OK\r\n'.encode()*2)for name in ('READ','BIND','LIFE','UPPER'))
-    upper=disk/'KBDUPPER.COM'
+    upper=disk/'kbdupper.bin'
     private=json.loads((ROOT/'build/pascal_runtime.runtime.json').read_text())['private_input_addresses']
     # Padding leaves room for console-control helpers. Check the actual raw
     # dispatch, rather than requiring an arbitrary B000 code-origin boundary.

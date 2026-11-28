@@ -22,11 +22,11 @@ int app_main(void) {
     test_pc=ram_result[30]|((uint16_t)ram_result[31]<<8);
     check(build_location(&s,&b,test_pc,&file,&position)&&file==1&&position==0);
     check(sources_get(&b.sources,file,&located)&&!strcmp(located.path,"H:/project/parts/fail.inc"));
-    build_close(&b);check(rm("H:/project/main.COM")==0);
+    build_close(&b);check(rm("H:/project/main.bin")==0);
     /* Fresh F can reconstruct its position from source without COM or ZMP. */
     check(compile(&s,&b,&d));
     check(build_location(&s,&b,test_pc,&file,&position)&&file==1&&position==0);
-    check(stat("H:/project/main.COM",&info)==ERR_NO_SUCH_ENTRY);
+    check(stat("H:/project/main.bin",&info)==ERR_NO_SUCH_ENTRY);
     check(!build_location(&s,&b,0xffff,&file,&position));
     build_close(&b);
     /* Twenty tiny includes must not consume twenty physical source pages. */

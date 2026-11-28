@@ -154,7 +154,7 @@ int app_main(void) {
     failure("{$R+}var W:Word;I:Integer;begin I:=-1;W:=I end.",0x91);
     failure("{$R+}type T=32760..32775;var W:T;begin W:=32775;W:=Succ(W)end.",0x91);
     failure("{$R+}var A:array[0..1]of Word;L:LongWord;begin L:=65536;A[1]:=L end.",0x91);
-    test_stage=3;check(!rm("H:/WIDEMATH.ZPU"));check(!exec(EXEC_PRESERVE_PROGRAM,"H:/UCALL.COM",0,&status)&&status==0);
+    test_stage=3;check(!rm("H:/WIDEMATH.ZPU"));check(!exec(EXEC_PRESERVE_PROGRAM,"H:/ucall.bin",0,&status)&&status==0);
     if(capture>=0){check(!swap(capture,DEV_STDOUT));check(!close(capture));}
     check(pages_used()==15);console_close();test_done=255;test_complete();return 0;
 }

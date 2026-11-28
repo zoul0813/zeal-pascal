@@ -532,8 +532,8 @@ void cc_overlays_close(const Build *b) SOURCE_BLOCK_CALL {
     if(overlays.fd>=0){e=close(overlays.fd);overlays.fd=-1;if(!prior)prior=e;}
     if(overlays.spool[0]){e=rm(overlays.spool);if(e!=ERR_NO_SUCH_ENTRY&&!prior)prior=e;}
     if(!overlays.published&&overlays.folder[0]) {
-        strcpy(path,overlays.folder);strcat(path,"/NEW.COM");e=rm(path);if(e!=ERR_NO_SUCH_ENTRY&&!prior)prior=e;
-        strcpy(path,overlays.folder);strcat(path,"/OLD.COM");e=rm(path);if(e!=ERR_NO_SUCH_ENTRY&&!prior)prior=e;
+        strcpy(path,overlays.folder);strcat(path,"/new.bin");e=rm(path);if(e!=ERR_NO_SUCH_ENTRY&&!prior)prior=e;
+        strcpy(path,overlays.folder);strcat(path,"/old.bin");e=rm(path);if(e!=ERR_NO_SUCH_ENTRY&&!prior)prior=e;
         for(i=0;i<overlays.groups;++i) {
             strcpy(path,overlays.folder);strcat(path,"/P.000");e=(uint8_t)strlen(path);path[e-2]='0'+i/10;path[e-1]='0'+i%10;
             e=rm(path);if(e!=ERR_NO_SUCH_ENTRY&&!prior)prior=e;
@@ -546,7 +546,7 @@ void cc_overlays_close(const Build *b) SOURCE_BLOCK_CALL {
     platform_error=prior;
 }
 
-/* COM replacement is prepared and verified before removing a previous image.
+/* Bin-file replacement is prepared and verified before removing a previous image.
  * Group generations are immutable, so rollback restores its exact companions. */
 static uint8_t same_file(const char *a,const char *b) {
     int8_t x=-1,y=-1;uint8_t left[128],right[128],ok=1;uint16_t n,m;
@@ -572,8 +572,8 @@ uint8_t cc_overlay_publish(const Build *b,const char *path) SOURCE_BLOCK_CALL {
     char staged[128],backup[128];zos_stat_t info;uint8_t e,exists,primary;
     if(overlays.owner!=b)return 2;
     if(!overlays.sealed)return 0;
-    strcpy(staged,overlays.folder);strcat(staged,"/NEW.COM");
-    strcpy(backup,overlays.folder);strcat(backup,"/OLD.COM");
+    strcpy(staged,overlays.folder);strcat(staged,"/new.bin");
+    strcpy(backup,overlays.folder);strcat(backup,"/old.bin");
     if(!remove_owned(staged)||!cc_disk_publish(b,staged))return 0;
     e=stat(path,&info);exists=e!=ERR_NO_SUCH_ENTRY;
     if(e&&exists){platform_error=e;return 0;}
@@ -584,7 +584,7 @@ uint8_t cc_overlay_publish(const Build *b,const char *path) SOURCE_BLOCK_CALL {
     if(!remove_owned(path)||!output_copy_file(staged,path)||!same_file(staged,path)) {
         primary=platform_error;output_job_end(); /* rollback cannot be cancelled */
         if(!remove_owned(path)||(exists&&(!output_copy_file(backup,path)||!same_file(backup,path))))
-            overlays.published=1; /* retain OLD.COM if rollback itself fails */
+            overlays.published=1; /* retain old.bin if rollback itself fails */
         platform_error=primary;return 0;
     }
     overlays.published=1;remove_owned(staged);if(exists)remove_owned(backup);return 1;

@@ -32,7 +32,7 @@ def run_case(kind,helper,ordinal,typing=False,drive="H"):
     entry=sym['_save_source'] if kind=='source' else sym['_save_build']
     checkpoint=sym[helper]&0xffff
     fixtures={'project/main.pas':SOURCE,'project/main.BAK':b'prior backup\n',
-              'project/main.COM':b'previous executable\n'*15,'project/main.ZMP':b'previous map\n'*23}
+              'project/main.bin':b'previous executable\n'*15,'project/main.ZMP':b'previous map\n'*23}
     labels=[]
     def probe(label,pc):
         labels.append((label,pc))

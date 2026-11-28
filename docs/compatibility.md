@@ -9,7 +9,7 @@ implemented behavior; this page explains the major migration boundaries.
 
 | CP/M expectation | Zeal Pascal behavior |
 | --- | --- |
-| COM runs at a CP/M address with CP/M page zero | COM is a native Zeal program with its own runtime/header/layout. Recompile source. |
+| COM runs at a CP/M address with CP/M page zero | The generated .bin is a native Zeal program with its own runtime/header/layout. Recompile source. |
 | BDOS/BIOS calls and fixed OS addresses | Use [ZOS](zos-syscalls.md). Bdos, BdosHL, Bios and BiosHL are not native built-ins. |
 | CP/M drive/user-area and 8.3 rules | Native paths/device roots and filesystem case behavior; no silent 8.3 truncation. |
 | Terminal installation/TINST escape strings | Native Zeal text display and keyboard; [CRT](crt-library.md) handles screen access. |
@@ -34,7 +34,7 @@ Work through these in order when bringing a CP/M Turbo Pascal 3 program across:
    must be rewritten for Zeal addresses and the
    [native calling convention](language.md#calling-convention-for-external-and-inline).
 5. Change filenames to [native paths](runtime.md#file-names).
-6. Recompile `overlay` routines to native COM and keep their generated companion
+6. Recompile `overlay` routines to native binaries and keep their generated companion
    directory; review [OvrDrive selection and MMU limits](overlays.md).
 7. Confirm every file is explicitly closed on every normal path.
 8. Confirm recursive routines are compiled under `{$A-}`.
@@ -109,7 +109,7 @@ ConInPtr/AuxInPtr/UsrInPtr and ErrorPtr dispatch remain unavailable. The Options
 P parameter-tail editor is omitted, matching the preserved CP/M-80 executable's
 behavior. Saved-program shell arguments are supported separately.
 
-Saved COM programs support demand-loaded Pascal overlays using MMU RAM banks
+Saved Bin-files support demand-loaded Pascal overlays using MMU RAM banks
 and OvrDrive. Their native companion format differs from CP/M. Memory mode still
 reports error77; compiled Units containing overlays and Chain/Execute combinations
 are rejected. See [overlays](overlays.md) for supported behavior and limits.

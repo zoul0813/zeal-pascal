@@ -61,7 +61,7 @@ def main():
     checks['reference produces the genuine native divide-by-zero result'] = result[26:29] == bytes([3, 2, 2])
     pc = struct.unpack_from('<H', result, 30)[0]
     reference = n.RUN/'tp3-source-find-reference/hostfs'
-    checks['reference Memory run creates no saved binary or map'] = not any(reference.glob('FIND.COM')) and not any(reference.glob('FIND.ZMP'))
+    checks['reference Memory run creates no saved binary or map'] = not any(reference.glob('find.bin')) and not any(reference.glob('FIND.ZMP'))
 
     commands = launch() + pending('wH:/FIND.PAS\nocf'+f'{pc:04X}\n') + stop()
     commands += ['tap ESC'] + stop() + ['quit']
@@ -77,7 +77,7 @@ def main():
     folder = n.RUN/'tp3-source-find-fresh/hostfs'
     checks['fresh Find leaves only the unchanged source, without COM/map/backup'] = (
         (folder/'FIND.PAS').read_bytes() == source and
-        not any((folder/name).exists() for name in ('FIND.COM', 'FIND.ZMP', 'FIND.BAK', 'FIND.$$$')))
+        not any((folder/name).exists() for name in ('find.bin', 'FIND.ZMP', 'FIND.BAK', 'FIND.$$$')))
 
     filler = b'{'+b'A'*61+b'}\n'
     large = b'program LargeWork;\n'+filler*256+b'{BANK2-MARK}\n'+filler*64+b"begin\nwriteln('LARGE-SOURCE-OK');\nend.\n"

@@ -39,7 +39,7 @@ Without a bank-path argument, the launcher first looks for `lib/zpascal.zpl`
 under the current working directory, then uses `T:/lib/zpascal.zpl` if the local
 file is missing. Keep the four ZPUs
 beside that bank file and install matching files from one release or build.
-Keep the bank file available throughout an IDE session. Saved COM programs
+Keep the bank file available throughout an IDE session. Saved Bin-files
 contain their selected runtime and Unit code and run independently.
 
 For a portable installation, keep `apps/` and `lib/` under the same
@@ -183,7 +183,7 @@ A successful `make` (or `make dist`) finishes by copying these files to `bin/`:
 - `lib/CRT.PAS`, `lib/ZVB.PAS`, `lib/ZOS.PAS`: matching Pascal sources/interfaces for rebuilding and error lookup.
 - `lib/ZVB.LIC` and `lib/ZVB.NTC`: the ZVB license and attribution notice.
 
-The six binary files are required for the IDE/compiler installation; the Pascal
+The launcher, bank file and four stock Units are required for the installation. The Pascal
 sources support development and source lookup. Retain `ZVB.LIC` and `ZVB.NTC`
 when distributing ZVB. Source navigation currently requires matching text at the
 source path recorded inside the ZPU. The IDE does not yet search beside the

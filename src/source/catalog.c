@@ -1,5 +1,6 @@
 #include "source/catalog.h"
 #include "common/path.h"
+#include <zos_errors.h>
 
 /* A two-byte directory per file, then variable-length descriptors:
  * page:u8, length:u16, text-base:u16, revision:u32, NUL-terminated path.
@@ -183,5 +184,10 @@ uint8_t sources_path(const char *name,const char *directory,char *out) SOURCE_BL
     while(base>3&&out[base-1]!='/')--base;
     for(i=base;i<n;++i)if(out[i]=='.')return 1;
     if(n+4>127||n-base+4>15)return 0;
-    strcpy(out+n,".PAS");return 1;
+    strcpy(out+n,".pas");
+    if(stat_path(out)==ERR_NO_SUCH_ENTRY) {
+        strcpy(out+n,".PAS");
+        if(stat_path(out)==ERR_NO_SUCH_ENTRY)strcpy(out+n,".pas");
+    }
+    return 1;
 }

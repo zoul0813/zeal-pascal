@@ -149,14 +149,14 @@ def main():
         checks['exact native disk bytes '+name]=(disk/name).is_file() and (disk/name).read_bytes()==data
     if chunks.wants('errors'): checks['zero-component safety creates no disk file']=not (disk/'ZERO.DAT').exists()
     if chunks.wants('transfers'):
-        image=(disk/'DISKFILES.COM').read_bytes() if (disk/'DISKFILES.COM').is_file() else b''
+        image=(disk/'diskfiles.bin').read_bytes() if (disk/'diskfiles.bin').is_file() else b''
         checks['self-contained executable embeds checked packed module, shared decoder and gate without installed file libraries']=(
             (ROOT/'build/file_runtime.packed').read_bytes() in image and
             image.count((ROOT/'build/module_unpack.zpl').read_bytes())==1 and
             (ROOT/'build/file_gate.zpl').read_bytes() in image and
             not (disk/'file_runtime.zpl').exists() and not (disk/'file_gate.zpl').exists())
     if chunks.wants('abi'):
-        abi_image=(disk/'DISKABI.COM').read_bytes() if (disk/'DISKABI.COM').exists() else b''
+        abi_image=(disk/'diskabi.bin').read_bytes() if (disk/'diskabi.bin').exists() else b''
         checks['independently assembled alternate-register probe retained exactly']=abi_image[0x40bd:0x40bd+len(abi)]==abi
     checks.update(completion)
     if chunks.wants('ide-error'): checks.update(error_source_checks())

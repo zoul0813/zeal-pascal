@@ -125,14 +125,14 @@ def main():
 
     zvb_capture = capture(zvb) / 'zvb/hostfs'
     for case, target in ZVB_CASES.items():
-        data = (zvb_capture / (case + '.COM')).read_bytes()
+        data = (zvb_capture / (case.lower() + '.bin')).read_bytes()
         if digest(data) != zvb['program_sha256'][case]:
             raise RuntimeError('ZVB executable changed: ' + case)
         source = (ROOT/'tests/native/crt-guide.pas' if case == 'SMOKE' else
                   ROOT / ('examples/zvb' if case != 'FIRSTBAR' else 'tests/native/zvb') / (case + '.PAS'))
         if digest(source.read_bytes()) != zvb['fixture_sha256'][case + '.PAS']:
             raise RuntimeError('ZVB source changed: ' + case)
-        add('zvb/' + target + '.COM', data, 'production-compiler ZVB suite')
+        add('zvb/' + target.lower() + '.bin', data, 'production-compiler ZVB suite')
         copy(source, 'zvb/' + target + '.PAS', 'verified ZVB source')
     for source in sorted((ROOT / 'examples/zvb').glob('*.INC')):
         if digest(source.read_bytes()) != zvb['fixture_sha256'][source.name]:
@@ -157,13 +157,13 @@ Examples with relative data files or companion programs need their own directory
   T:/examples/measure/measure.bin
 Use the same pattern for the other examples. Pascal sources/includes are supplied.
 
-Start ZVB checks with T:/zvb/ZVBCHECK.COM, then:
-  T:/zvb/CRC32.COM T:/zvb/DIGITS.TXT
+Start ZVB checks with T:/zvb/zvbcheck.bin, then:
+  T:/zvb/crc32.bin T:/zvb/DIGITS.TXT
 Expected checksum: CBF43926. FIRSTBAR and SPRITES exit on a key.
 SNAKE uses arrows/WASD; Q/Escape exits. Snake is silent; ZVBCHECK tests audio.
 
 Record board revision, firmware, Zeal OS, storage and keyboard details.
-Check compiler RAM/COM execution, text restoration, graphics, sound, CRC and DMA.
+Check compiler Memory and Bin-file execution, text restoration, graphics, sound, CRC and DMA.
 Physical results are pending: emulator passes do not establish board acceptance.
 The full host-side checklist is tests/hardware/README.md in the source checkout.
 '''
